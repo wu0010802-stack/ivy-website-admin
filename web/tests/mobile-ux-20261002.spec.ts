@@ -16,10 +16,10 @@ describe('首頁拍立得 WebGL 畫布不造成版面位移', () => {
 })
 
 describe('小字對比與點擊範圍', () => {
-  it('環境頁還沒到的餐點只淡化手寫大標，時間與小字不淡化', () => {
+  // 2026-10-30 木頭積木版拿掉太陽走過才亮的餐點：時間軸上的字一律不淡化
+  it('環境頁一天五餐的字不淡化（時間、餐名、小字都維持對比）', () => {
     const css = read('../app/assets/css/environment.css')
-    expect(css).toContain('.renv-day.is-live .renv-meal:not(.is-lit) b{opacity:.72}')
-    expect(css).not.toContain('.renv-meal:not(.is-lit){opacity')
+    expect(css).not.toMatch(/\.renv-day[^{]*\{[^}]*opacity/)
   })
   it('消息頁麵包屑「首頁」左右補到 44px', () => {
     const css = read('../app/assets/css/news-page.css')

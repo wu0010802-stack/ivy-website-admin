@@ -5,11 +5,10 @@ import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 
-// 2026-10-12 即時預覽補洞：環境頁的手繪線條（框、便條箭頭、章節底紙）只在掛載與視窗改寬時重畫。
-// 後台即時預覽換字、換照片或換場景之後，版面高度變了，線條卻停在舊的位置（實測：文字變長時
-// 「03 幼兒餐點」的黃色底紙蓋不到最後一個時段）。元件要在 page／campuses 變動、畫面更新完之後
-// 呼叫 sketch.refresh(整頁)；正式頁的 props 不會變，所以不受影響。
-// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；手繪層與 GSAP 換成假的（refresh 是否重算版面由 rough-sketch 自己負責）。
+// 2026-10-12 即時預覽補洞，2026-10-30 木頭積木版沿用：後台即時預覽換字、換照片或換場景之後版面高度會變，
+// 圓點小路（utils/environment-route.ts，依照片與時間站的位置撒點）要跟著重算。元件要在 page／campuses 變動、
+// 畫面更新完之後呼叫 routes.refresh()；正式頁的 props 不會變，所以不受影響。
+// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；圓點小路換成假的（refresh 怎麼重算由 environment-route 自己負責，見 environment.spec）。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -18,24 +17,11 @@ vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
 
-const sketch = vi.hoisted(() => ({
-  refresh: vi.fn(),
-  destroy: vi.fn(),
-  create: vi.fn()
-}))
-vi.mock('../app/utils/rough-sketch', () => ({
-  createRoughSketch: (...args: unknown[]) => {
-    sketch.create(...args)
-    return { ready: Promise.resolve(), refresh: sketch.refresh, destroy: sketch.destroy }
-  }
-}))
-vi.mock('../app/utils/environment-motion', () => ({ createEnvironmentMotion: () => null }))
-// 2026-10-19 蠟筆塗鴉層：手繪層畫完才建；預覽換內容後跟著手繪層 refresh（小鳥踩回曬衣繩、新分頁補塗色）
-const doodles = vi.hoisted(() => ({ refresh: vi.fn(), destroy: vi.fn(), create: vi.fn() }))
-vi.mock('../app/utils/environment-doodles', () => ({
-  createEnvironmentDoodles: (...args: unknown[]) => {
-    doodles.create(...args)
-    return { refresh: doodles.refresh, destroy: doodles.destroy }
+const routes = vi.hoisted(() => ({ refresh: vi.fn(), destroy: vi.fn(), create: vi.fn() }))
+vi.mock('../app/utils/environment-route', () => ({
+  createEnvironmentRoutes: (...args: unknown[]) => {
+    routes.create(...args)
+    return { refresh: routes.refresh, destroy: routes.destroy }
   }
 }))
 // 字型樣式表交給瀏覽器去抓；這裡不要讓 happy-dom 真的發請求
@@ -52,15 +38,12 @@ afterEach(() => {
   app?.unmount()
   app = null
   document.body.innerHTML = ''
-  sketch.refresh.mockClear()
-  sketch.destroy.mockClear()
-  sketch.create.mockClear()
-  doodles.refresh.mockClear()
-  doodles.destroy.mockClear()
-  doodles.create.mockClear()
+  routes.refresh.mockReset()
+  routes.destroy.mockReset()
+  routes.create.mockReset()
 })
 
-/** 掛起來，等手繪層建好（onMounted 裡要動態載入幾支模組）。 */
+/** 掛起來，等圓點小路建好（onMounted 裡要動態載入）。 */
 async function mountEnvironment() {
   const state = reactive({ page: structuredClone(site.environmentPage), campuses: structuredClone(site.campuses) })
   const host = document.createElement('div')
@@ -69,73 +52,48 @@ async function mountEnvironment() {
   app.component('NuxtLink', NuxtLink)
   app.config.warnHandler = () => {}
   app.mount(host)
-  await vi.waitFor(() => expect(sketch.create).toHaveBeenCalledOnce())
-  await vi.waitFor(() => expect(document.querySelector('main.renv')).not.toBeNull())
-  // 建好之後 onMounted 還有 await sketch.ready：讓它跑完
-  await vi.waitFor(() => expect(doodles.create).toHaveBeenCalledOnce())
-  sketch.refresh.mockClear()
+  await vi.waitFor(() => expect(routes.create).toHaveBeenCalledOnce())
+  routes.refresh.mockClear()
   return state
 }
 
-describe('環境頁即時預覽換內容後重畫手繪線條', () => {
-  it('page 的文字變了：畫面更新完之後整頁重畫一次（refresh 收到整個 main）', async () => {
-    const state = await mountEnvironment()
-    expect(sketch.refresh).not.toHaveBeenCalled()
-    state.page.mealsText = `${state.page.mealsText}（預覽時多寫了一大段，底紙要跟著長高）`
-    await nextTick()
-    await vi.waitFor(() => expect(sketch.refresh).toHaveBeenCalledOnce())
-    const root = document.querySelector('main.renv')!
-    expect(sketch.refresh).toHaveBeenCalledWith(root)
-    // 呼叫的當下，新的文字已經在畫面上（先更新 DOM 再量版面）
-    expect(root.textContent).toContain('預覽時多寫了一大段')
-  })
-
-  it('蠟筆塗鴉跟著手繪層：建在同一個 main、預覽換內容後在手繪層之後 refresh、卸載時拆掉', async () => {
-    const state = await mountEnvironment()
-    const root = document.querySelector('main.renv')!
-    expect(doodles.create).toHaveBeenCalledWith(root, { reducedMotion: false })
-    const order: string[] = []
-    sketch.refresh.mockImplementation(() => { order.push('sketch') })
-    doodles.refresh.mockImplementation(() => { order.push('doodles') })
-    state.page.mealsText = '換一段說明'
-    await vi.waitFor(() => expect(doodles.refresh).toHaveBeenCalledOnce())
-    expect(order).toEqual(['sketch', 'doodles'])
-    sketch.refresh.mockReset()
-    doodles.refresh.mockReset()
+describe('環境頁即時預覽換內容後重算圓點小路', () => {
+  it('圓點小路建在整個 main 上；卸載時拆掉', async () => {
+    await mountEnvironment()
+    expect(routes.create).toHaveBeenCalledWith(document.querySelector('main.renv'), { reducedMotion: false })
     app!.unmount()
     app = null
-    expect(doodles.destroy).toHaveBeenCalledOnce()
+    expect(routes.destroy).toHaveBeenCalledOnce()
   })
 
-  it('refresh 呼叫時 DOM 已經更新（不是更新前就量）', async () => {
+  it('page 的文字變了：畫面更新完之後重算一次，呼叫的當下新的文字已經在畫面上', async () => {
     const state = await mountEnvironment()
+    expect(routes.refresh).not.toHaveBeenCalled()
     let seen = ''
-    sketch.refresh.mockImplementation(() => { seen = document.querySelector('#meals .renv-text')?.textContent ?? '' })
-    state.page.mealsText = '新的餐點說明'
-    await vi.waitFor(() => expect(sketch.refresh).toHaveBeenCalled())
-    expect(seen).toBe('新的餐點說明')
-    sketch.refresh.mockReset()
+    routes.refresh.mockImplementation(() => { seen = document.querySelector('#meals .renv-text')?.textContent ?? '' })
+    state.page.mealsText = '新的餐點說明（預覽時多寫了一大段）'
+    await vi.waitFor(() => expect(routes.refresh).toHaveBeenCalledOnce())
+    expect(seen).toBe('新的餐點說明（預覽時多寫了一大段）')
   })
 
-  it('campuses 變了（校園探索換場景、換照片）：同樣整頁重畫', async () => {
+  it('campuses 變了（校園探索換場景、換照片）：同樣重算', async () => {
     const state = await mountEnvironment()
     const campus = state.campuses.find((c) => c.tourScenes.length > 0)!
-    campus.tourScenes[0]!.intro = '預覽時改過的場景說明'
-    await vi.waitFor(() => expect(sketch.refresh).toHaveBeenCalledOnce())
-    expect(sketch.refresh).toHaveBeenCalledWith(document.querySelector('main.renv'))
+    campus.tourScenes[0]!.name = '預覽時改過的場景名稱'
+    await vi.waitFor(() => expect(routes.refresh).toHaveBeenCalledOnce())
   })
 
-  it('同一個 tick 內改好幾處只重畫一次；沒有變動就不重畫', async () => {
+  it('同一個 tick 內改好幾處只重算一次；沒有變動就不重算', async () => {
     const state = await mountEnvironment()
     await nextTick()
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(sketch.refresh).not.toHaveBeenCalled()
+    expect(routes.refresh).not.toHaveBeenCalled()
     state.page.heroLede = '一'
     state.page.careText = '二'
     state.page.mealsText = '三'
-    await vi.waitFor(() => expect(sketch.refresh).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(routes.refresh).toHaveBeenCalledOnce())
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(sketch.refresh).toHaveBeenCalledOnce()
+    expect(routes.refresh).toHaveBeenCalledOnce()
   })
 
   it('餐點時間打到一半（空字串、兩餐同時間）：清單的 key 不重複，不出現 Duplicate keys 警告', async () => {
@@ -152,11 +110,11 @@ describe('環境頁即時預覽換內容後重畫手繪線條', () => {
     state.page.meals[2]!.time = ''
     state.page.meals[3]!.time = state.page.meals[0]!.time
     await nextTick()
-    expect(document.querySelectorAll('.renv-meal')).toHaveLength(5)
+    expect(document.querySelectorAll('.renv-day-list > li')).toHaveLength(5)
     expect(warnings.filter((message) => /duplicate/i.test(message))).toEqual([])
   })
 
-  it('手繪層還沒建好時內容就變了：不丟錯（第一次渲染本來就會量到最新版面）', async () => {
+  it('圓點小路還沒建好時內容就變了：不丟錯（建的時候本來就量最新版面）', async () => {
     const state = reactive({ page: structuredClone(site.environmentPage) })
     const host = document.createElement('div')
     document.body.append(host)
@@ -168,7 +126,7 @@ describe('環境頁即時預覽換內容後重畫手繪線條', () => {
     app.mount(host)
     state.page.heroLede = '建好之前就改了'
     await nextTick()
-    await vi.waitFor(() => expect(sketch.create).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(routes.create).toHaveBeenCalledOnce())
     expect(errors).not.toHaveBeenCalled()
   })
 })

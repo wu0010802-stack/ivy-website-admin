@@ -210,7 +210,7 @@ describe('常春藤環境頁的後台內容', () => {
     live.hero_notice = '   '.trim()
     const html = await render(overlay(live))
     expect(html).toContain('歡迎來到')
-    expect(html).toMatch(/我們的<span class="renv-mark" data-rough="highlight" data-seed="11">環境<\/span>。/)
+    expect(html).toMatch(/我們的<mark class="renv-mark">環境<\/mark>。/)
     expect(html).not.toContain('孩子的每一天')
     expect(html).toContain('10:30')
     expect(html).not.toContain('class="renv-campus"')
@@ -227,7 +227,8 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     const html = await render(overlay(livePayload(), media))
     const health = img(html, '老師幫戴著口罩的孩子確認身體狀況')
     expect(health).toContain('/assets/responsive/env-care-health')
-    expect(health).toContain('object-position:32% 50%')
+    // 2026-10-30 木頭積木版：五件照顧的小事照片裝在積木形狀裡，內建位置跟著形狀調（第一張拱形）
+    expect(health).toContain('object-position:33% 50%')
     expect(img(html, '兩個孩子在教室裡緊緊抱在一起')).toContain('/assets/')
     expect(img(html, '老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌')).toContain('env-care-teacher')
     expect(html).not.toContain('/api/website/v1/public/media/')
@@ -250,7 +251,7 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     expect(img(html, '素材庫的空間說明')).toContain('object-position:70% 20%')
     // 內建的第一張照顧卡被換掉了，第二張還是內建圖與 pos
     expect(html).not.toContain('老師幫戴著口罩的孩子確認身體狀況')
-    expect(img(html, '男孩拿著湯匙，從紅色碗裡舀飯吃')).toContain('object-position:50% 50%')
+    expect(img(html, '男孩拿著湯匙，從紅色碗裡舀飯吃')).toContain('object-position:58% 30%')
     // 首屏換了照片：內建首屏圖不再出現
     expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_IMAGE}.webp`)
     expect(img(html, '素材庫的首屏說明')).toContain(`/media/${HERO}/file`)
@@ -263,12 +264,12 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     const next = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, media)
     const attrs = environmentHeroAttrs(next)
     expect(attrs.src).toBe(`/api/website/v1/public/media/${HERO}/file`)
-    // 2400×1200 的 2:1 照片塞進 3:2 相框，左右被裁，要畫的寬度是框寬 × (2 ÷ 1.5)
+    // 2400×1200 的 2:1 照片塞進彩虹最內圈約 3:4 的拱框，左右被裁，要畫的寬度是框寬 × (2 ÷ 0.75)
     expect(attrs.width).toBe(2400)
     const wide = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 2400, height: 1200, variants: [{ kind: 'thumbnail', width: 480, height: 240 }, { kind: 'large', width: 1600, height: 800 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 40px) * 1.33), 718px')
-    // 比 3:2 窄的照片不放大
+    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 140px) * 2.67), 854px')
+    // 不比 3:4 寬的照片不放大
     const tall = overlay({ ...livePayload(), hero_photo: { media_id: CARE } }, { ...media, [CARE]: info(CARE, { width: 1200, height: 1600, variants: [{ kind: 'thumbnail', width: 360, height: 480 }, { kind: 'large', width: 900, height: 1200 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 40px) * 1), 540px')
+    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 140px) * 1), 320px')
   })
 })

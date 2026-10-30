@@ -154,7 +154,7 @@ describe('內容頁避免孤字、觸控不留 hover', () => {
   it('關於、特色教學、環境頁的內文 text-wrap:pretty（:where 不加權重）', () => {
     expect(read('../app/assets/css/about.css')).toContain('.abh :where(p,li,figcaption){text-wrap:pretty}')
     expect(read('../app/assets/css/curriculum.css')).toContain('.cur :where(p, li, figcaption) { text-wrap: pretty; }')
-    expect(read('../app/assets/css/environment.css')).toContain('.renv :where(p,li,figcaption){text-wrap:pretty}')
+    expect(read('../app/assets/css/environment.css')).toContain('.renv :where(p,li){text-wrap:pretty}')
     expect(read('../app/assets/css/admission-passport.css')).toContain('.ap li { text-wrap: pretty; }')
   })
   it('特色教學章節索引的 hover 包在 hover:hover 裡，focus-visible 留在外面', () => {

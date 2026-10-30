@@ -314,8 +314,8 @@ function onPickMedia(asset: MediaAssetOut) {
   gap: 24px;
 }
 
-/* 官網環境頁的場景照片是原比例整張顯示（web environment.css 的 .renv-snap>img），
-   這裡一樣不裁切；沒照片時給一個 8:5 的空框。 */
+/* 這裡整張顯示原圖，方便看清楚照片；官網環境頁（2026-10-30 木頭積木版）會把場景照片裁進拱形與圓形，
+   位置用素材庫的預設焦點（沒設就置中）。沒照片時給一個 8:5 的空框。 */
 .tour__stage {
   overflow: hidden;
   border: 1px solid var(--line);

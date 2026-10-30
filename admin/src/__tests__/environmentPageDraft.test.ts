@@ -98,17 +98,18 @@ describe('內建照片與官網裁切', () => {
     }
   })
 
-  it('照片焦點預覽的比例和官網 environment.css 一致；空間照片不裁切所以不給預覽', () => {
-    expect(css).toContain('.renv-hero-photo>img{aspect-ratio:3/2;')
-    expect(css).toContain('.renv-care-photo>img{aspect-ratio:2/1;')
-    expect(css).toContain('.renv-hang-photo img{display:block;width:100%;height:auto;aspect-ratio:4/3;')
-    expect(css).toContain('.renv-feature-photo>img{aspect-ratio:3/2;')
-    expect(css).toContain('.renv-snap>img{display:block;width:100%;height:auto}')
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['3 / 2'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2 / 1'])
+  // 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，預覽給最接近的矩形比例；空間照片也會裁切，所以也給預覽
+  it('照片焦點預覽的比例和官網 environment.css 一致', () => {
+    expect(css).toContain('.renv-rainbow{--t:17px;--g:5px;width:100%;max-width:540px;')
+    expect(css).toContain('.renv-care-main .renv-ph{--ar:2.75;')
+    expect(css).toContain('.renv-care-main .renv-ph{--ar:2.2;')
+    expect(css).toContain('.renv-feature .renv-ph{--ar:1.5;')
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['3 / 4'])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2.75 / 1', '2.2 / 1'])
     expect(ENVIRONMENT_PHOTO_PREVIEWS.feature.map((p) => p.ratio)).toEqual(['3 / 2'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem.map((p) => p.ratio)).toEqual(['4 / 3'])
-    expect(Object.keys(ENVIRONMENT_PHOTO_PREVIEWS)).toEqual(['hero', 'care', 'feature', 'careItem'])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem.map((p) => p.ratio)).toEqual(['4 / 5'])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.space.map((p) => p.ratio)).toEqual(['1 / 1'])
+    expect(Object.keys(ENVIRONMENT_PHOTO_PREVIEWS)).toEqual(['hero', 'care', 'feature', 'careItem', 'space'])
   })
 
   it('章名說明四個、最後一個提到沒有校園探索時整章不出現', () => {

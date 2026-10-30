@@ -1,376 +1,328 @@
-/* 常春藤環境頁（/environment）2026-09-28 手繪版：使用者選定 mock C（design/environment-rough-mockup-20260928/）。
-   點格紙、蠟筆色紙（保育天藍、餐點黃）、照片不留白邊貼在彩色底紙上（紙膠帶固定）、黃色便利貼＋紅筆箭頭、
-   貼紙按鈕；字型是圓體 Chiron GoRound TC（標題 800、小標 700、內文 400）＋手寫芫荽 Iansui（environment-fonts.css）。
-   線條全由 utils/rough-sketch.ts 用 Rough.js 畫在 svg.rough 疊層；這支只管版面與 token。
-   這支不是 scoped：Rough.js 畫的 svg 沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。
-   顏色一律走下方 token（站內 token 或本頁的 --renv-* 別名，色值在 tokens.css 第 15 節），規則裡不寫色彩字面值。 */
+/* 常春藤環境頁（/environment）2026-10-30 木頭積木版：比稿 design/environment-style-directions-20261030/ 選 D，
+   校園環境與幼兒餐點照 A 用圓點串起來、照片不放說明（D2）。取代 09-28 起的手繪版（點格紙、Rough.js、蠟筆塗鴉）。
+   北歐木玩／蒙特梭利教具的幾何：照片裝在積木形狀裡，每塊積木一個正面色＋同色深一階的「側面」往下錯開表現厚度，
+   扁平、俐落，不用木紋、斜紋或任何雜訊紋理（使用者 10-30：舊版「有點髒、解析度不夠高」）。
+   字型沿用這頁自架的圓體 Chiron GoRound TC（標題 800、小標 700、內文 400，environment-fonts.css）。
+   顏色一律走下方 token（站內 token 或本頁的 --renv-* 別名，色值在 tokens.css 第 15 節），規則裡不寫色彩字面值。
+   這支不是 scoped：圓點小路的 circle 是 JS 建的，沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。 */
 
 .renv{
-  --renv-paper:var(--ivy-ivory);
-  --renv-dot:var(--ivy-env-dot);
-  --renv-ink:var(--ivy-forest);
-  --renv-ink-soft:var(--ivy-forest-soft);
-  --renv-muted:var(--ivy-env-muted);
-  --renv-pen:var(--ivy-env-pen);
-  /* 深一階紅筆：色紙上的小字（章節編號、餐點書便條的月份）用。--renv-pen 在天藍 3.5:1、黃 3.7:1 不夠，
-     --error 是 tokens.css 唯一更深的紅（天藍 4.8、黃 5.1）；只借色，不帶錯誤的語意（2026-10-13） */
-  --renv-pen-deep:var(--error);
-  --renv-note:var(--ivy-env-note);
-  --renv-tape:var(--ivy-env-tape);
-  --renv-yellow:var(--ivy-env-yellow);
-  --renv-yellow-deep:var(--ivy-env-yellow-deep);
-  --renv-sky:var(--ivy-env-sky);
-  --renv-sky-deep:var(--ivy-env-sky-deep);
-  --renv-leaf:var(--ivy-env-leaf);
-  --renv-leaf-deep:var(--ivy-env-leaf-deep);
-  --renv-peach:var(--ivy-env-peach);
-  --renv-peach-deep:var(--ivy-env-peach-deep);
-  --renv-shadow:var(--shadow-rgb);
-  /* 2026-10-19 蠟筆塗鴉（utils/environment-doodles.ts）的蠟筆色；餐點弧上的太陽改塗橘黃，黃色紙上原本的黃看不出來 */
-  --renv-sun:var(--ivy-env-sun);
-  --renv-crayon-red:var(--renv-pen);
-  --renv-crayon-orange:var(--studio-orange);
-  --renv-crayon-yellow:var(--yellow);
-  --renv-crayon-gold:var(--gold);
-  --renv-crayon-green:var(--ivy-env-crayon-green);
-  --renv-crayon-blue:var(--ivy-env-crayon-blue);
-  --renv-crayon-pink:var(--ivy-env-crayon-pink);
-  --renv-crayon-lilac:var(--ivy-env-crayon-lilac);
-  --renv-crayon-gray:var(--ivy-env-crayon-gray);
-  --renv-crayon-brown:var(--ivy-env-crayon-brown);
+  --renv-paper:var(--ivy-env-paper);
+  --renv-ink:var(--ivy-env-ink);
+  --renv-ink-soft:var(--ivy-env-ink-soft);
+  --renv-terra:var(--ivy-env-terra);
+  --renv-terra-side:var(--ivy-env-terra-side);
+  --renv-mustard:var(--ivy-env-mustard);
+  --renv-mustard-side:var(--ivy-env-mustard-side);
+  --renv-sage:var(--ivy-env-sage);
+  --renv-sage-side:var(--ivy-env-sage-side);
+  --renv-mist:var(--ivy-env-mist);
+  --renv-mist-side:var(--ivy-env-mist-side);
+  --renv-pink:var(--ivy-env-pink);
+  --renv-pink-side:var(--ivy-env-pink-side);
+  --renv-forest:var(--ivy-env-forest);
+  --renv-forest-side:var(--ivy-env-forest-side);
+  --renv-cream-side:var(--ivy-env-cream-side);
   --renv-round:"Chiron GoRound TC",var(--font);
-  --renv-hand:"Iansui",var(--font);
   --renv-ease:cubic-bezier(.22,1,.36,1);
-  --renv-gutter:clamp(20px,5vw,64px);
+  --renv-gutter:clamp(16px,4vw,56px);
+  /* 積木的厚度（側面往下錯開）與兩種圓角 */
+  --side:7px;
+  --rs:14px;
+  --rm:28px;
   position:relative;isolation:isolate;overflow-x:clip;
-  font-family:var(--renv-round);color:var(--renv-ink);
-  background:var(--renv-paper) radial-gradient(var(--renv-dot) 1.1px,transparent 1.5px) 13px 13px/26px 26px;
+  font-family:var(--renv-round);color:var(--renv-ink);background:var(--renv-paper);
 }
-/* 內文避免孤字（2026-10-12；手機 320–390 寬原本每頁 2–9 處）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
-.renv :where(p,li,figcaption){text-wrap:pretty}
-body:has(.renv){background:var(--ivy-ivory)}
-.renv-wrap{width:min(100% - 2*var(--renv-gutter),1200px);margin-inline:auto;position:relative}
-/* 權重歸零：各元件自己寫的 position（便條、膠帶、色紙是 absolute）要能蓋過 */
-:where(.renv [data-rough]){position:relative}
-.renv svg.rough{position:absolute;pointer-events:none;overflow:visible;z-index:2}
-.renv svg.rough.is-under{z-index:-1}
-/* 站內全域 CSS 對 h1–h3 直接指定 LINE Seed，這頁的標題要明寫圓體，不能只靠繼承 */
-.renv :where(h1,h2,h3){font-family:var(--renv-round)}
-.renv .renv-hand{font-family:var(--renv-hand);font-weight:400}
+body:has(.renv){background:var(--ivy-env-paper)}
+/* 內文避免孤字（2026-10-12）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
+.renv :where(p,li){text-wrap:pretty}
+/* 站內全域 CSS 對 h1–h4 直接指定 LINE Seed，這頁的標題要明寫圓體，不能只靠繼承 */
+.renv :where(h1,h2,h3,h4){font-family:var(--renv-round);margin:0}
+.renv :where(p,ul,ol){margin:0}
+.renv :where(ul,ol){padding:0;list-style:none}
+.renv-wrap{width:min(100% - 2*var(--renv-gutter),1240px);margin-inline:auto;position:relative}
+.renv-section{position:relative;padding-block:clamp(80px,9vw,136px);background:var(--renv-bg,var(--renv-paper));scroll-margin-top:72px}
+.renv-care{--renv-bg:var(--ivy-env-tint-pink)}
+.renv-spaces{--renv-bg:var(--ivy-env-tint-sage)}
+.renv-meals{--renv-bg:var(--ivy-env-tint-mustard)}
+.renv-tour{--renv-bg:var(--ivy-env-tint-mist)}
 
-/* ---------- 共用：章節小標、標題、內文 ---------- */
-.renv-kicker{display:flex;align-items:center;gap:12px;font-size:var(--fs-sm);font-weight:700;letter-spacing:.14em;color:var(--renv-ink-soft)}
-.renv-kicker [lang="en"]{font-weight:400;letter-spacing:.12em;color:var(--renv-pen)}
-.renv-title{margin-top:18px;font-weight:800;font-size:clamp(2rem,1.25rem + 2.4vw,3.25rem);line-height:1.3;letter-spacing:.03em;color:var(--renv-ink);text-wrap:balance}
-.renv-text{margin-top:20px;max-width:34em;font-size:var(--fs-md);line-height:1.95;color:var(--renv-ink-soft)}
-/* 01 天藍、03 黃色紙上的小字（2026-10-13）：--renv-ink-soft 在天藍只有 4.4:1、壓到色紙斜紋約 3.9，小標與內文改深綠；
-   章節編號的紅字改深一階紅筆（點格紙上的編號照舊） */
-:is(.renv-care,.renv-meals) .renv-kicker [lang="en"]{color:var(--renv-pen-deep)}
-:is(.renv-care,.renv-meals) :is(.renv-kicker,.renv-text){color:var(--renv-ink)}
-.renv-box{display:inline-block;flex:none;width:24px;height:24px}
-.renv-section{position:relative;padding-block:clamp(96px,10vw,168px)}
-.renv-sheet{position:absolute;inset:0;z-index:-1;pointer-events:none}
-.renv-split-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:0 clamp(40px,6vw,96px);align-items:end}
-.renv-split-head .renv-kicker,.renv-split-head .renv-title{grid-column:1}
-.renv-split-head .renv-text{grid-column:2;grid-row:2;max-width:23em;margin:0 0 10px auto}
+/* ---------- 積木：顏色（正面＋側面）與形狀 ---------- */
+.renv .c-terra{--c:var(--renv-terra);--s:var(--renv-terra-side)}
+.renv .c-mustard{--c:var(--renv-mustard);--s:var(--renv-mustard-side)}
+.renv .c-sage{--c:var(--renv-sage);--s:var(--renv-sage-side)}
+.renv .c-mist{--c:var(--renv-mist);--s:var(--renv-mist-side)}
+.renv .c-pink{--c:var(--renv-pink);--s:var(--renv-pink-side)}
+.renv .c-forest{--c:var(--renv-forest);--s:var(--renv-forest-side)}
+.renv .c-cream{--c:var(--renv-paper);--s:var(--renv-cream-side)}
+.renv-blk{background:var(--c);box-shadow:0 var(--side) 0 var(--s)}
+/* 形狀只管外形與比例（--ar＝寬/高），百分比圓角換算成正圓 */
+.renv .s-circle{aspect-ratio:1;border-radius:50%}
+.renv .s-sq{aspect-ratio:var(--ar,1);border-radius:var(--rm)}
+.renv .s-arch{aspect-ratio:var(--ar,.8);border-radius:50% 50% var(--rs) var(--rs) / calc(50% * var(--ar,.8)) calc(50% * var(--ar,.8)) var(--rs) var(--rs)}
+.renv .s-u{aspect-ratio:var(--ar,.85);border-radius:var(--rs) var(--rs) 50% 50% / var(--rs) var(--rs) calc(50% * var(--ar,.85)) calc(50% * var(--ar,.85))}
+.renv .s-semi{aspect-ratio:2;border-radius:50% 50% 4px 4px / calc(100% - 4px) calc(100% - 4px) 4px 4px}
+.renv .s-d{aspect-ratio:var(--ar,2.6);border-radius:var(--rs) calc(50% / var(--ar,2.6)) calc(50% / var(--ar,2.6)) var(--rs) / var(--rs) 50% 50% var(--rs)}
+.renv .s-qtl{aspect-ratio:var(--ar,1);border-radius:var(--q,60%) var(--rs) var(--rs) var(--rs) / calc(var(--q,60%) * var(--ar,1)) var(--rs) var(--rs) var(--rs)}
+.renv .s-qtr{aspect-ratio:var(--ar,1);border-radius:var(--rs) var(--q,60%) var(--rs) var(--rs) / var(--rs) calc(var(--q,60%) * var(--ar,1)) var(--rs) var(--rs)}
+.renv .s-qbl{aspect-ratio:var(--ar,1);border-radius:var(--rs) var(--rs) var(--rs) var(--q,60%) / var(--rs) var(--rs) var(--rs) calc(var(--q,60%) * var(--ar,1))}
 
-/* 貼紙按鈕：底色與外框由 Rough.js 畫在字後面 */
-.renv-btn{display:inline-flex;align-items:center;justify-content:center;gap:10px;min-height:56px;padding:0 34px;isolation:isolate;font-size:var(--fs-md);font-weight:700;letter-spacing:.06em;color:var(--renv-ink);text-decoration:none;transition:transform .35s var(--renv-ease)}
-.renv-btn .icon{width:1.1em;height:1.1em}
-@media (hover:hover){.renv-btn:hover{transform:translateY(-2px) rotate(-.6deg)}}
+/* 照片積木：照片印在積木正面，側面用積木色；後面可以錯開墊一塊別色的積木 */
+.renv-ph{position:relative;isolation:isolate}
+.renv-frame{position:relative;width:100%;overflow:hidden;background:var(--s);box-shadow:0 var(--side) 0 var(--s)}
+.renv-frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.renv-ph-back{position:absolute;z-index:-1;left:0;top:0;width:100%;translate:var(--bx,22px) var(--by,22px)}
 
-/* ---------- 照片：不留白邊，貼在一張蠟筆底紙上（底紙、外框由 JS 畫） ---------- */
-.renv-snap{margin:0;isolation:isolate}
-.renv-snap>img{display:block;width:100%;height:auto}
-.renv-tape{position:absolute;z-index:3;width:108px;height:30px;pointer-events:none}
-.renv-tape.is-tl{top:-15px;left:-26px;transform:rotate(-26deg)}
-.renv-tape.is-tr{top:-15px;right:-26px;transform:rotate(24deg)}
-.renv-tape.is-br{bottom:-13px;right:-22px;transform:rotate(-20deg)}
-.renv-tape.is-top{top:-17px;left:50%;transform:translateX(-50%) rotate(-4deg)}
+/* 小圓積木裡的編號 */
+.renv-dot{display:inline-grid;place-items:center;flex:none;width:2.6em;height:2.6em;border-radius:50%;background:var(--c);box-shadow:0 4px 0 var(--s);color:var(--renv-ink);font-weight:800;font-size:.95rem;line-height:1;font-variant-numeric:tabular-nums}
 
-/* 黃色便利貼＋紅筆箭頭（箭頭由 JS 從便條畫到照片裡的細節） */
-.renv-note{position:absolute;z-index:4;font-family:var(--renv-hand);line-height:1.4;white-space:nowrap;color:var(--renv-ink);background:var(--renv-yellow);transform:rotate(var(--r,-3deg));box-shadow:0 6px 14px -8px rgb(var(--renv-shadow)/.45)}
-.renv-note{padding:5px 14px 6px;font-size:var(--fs-lg)}
+/* ---------- 字 ---------- */
+.renv h1,.renv-title,.renv-feature-copy h3,.renv-day-title{font-weight:800;letter-spacing:.02em;color:var(--renv-ink);text-wrap:balance}
+.renv h1>span,.renv-title>span,.renv-feature-copy h3>span{display:block}
+/* 大標字級上限＝字欄寬 ÷ 9.6（一行 9 字＋螢光塊的內外距）：901–1100 兩欄時字欄只剩約 350px，原本會擠成「…安心長／大。」 */
+.renv h1{font-size:clamp(1.75rem,min(1rem + 3.6vw,10.4cqi),3.85rem);line-height:1.2}
+.renv-title{font-size:clamp(1.95rem,1.05rem + 2.7vw,3.2rem);line-height:1.22}
+.renv-kicker{display:flex;align-items:center;gap:14px;margin-bottom:22px;font-weight:700;font-size:1.05rem;line-height:1.2;color:var(--renv-ink)}
+.renv-text{max-width:34em;font-size:var(--fs-md);line-height:1.9;color:var(--renv-ink-soft)}
 
-/* ---------- 首屏 ---------- */
-.renv-hero{padding:clamp(48px,6vw,96px) 0 clamp(64px,7vw,104px)}
-.renv-hero-grid{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,1fr);gap:clamp(40px,6vw,104px);align-items:center}
-.renv-hero h1{margin-top:22px;font-weight:800;font-size:clamp(2.3rem,1.3rem + 2.8vw,3.6rem);line-height:1.26;letter-spacing:.03em;color:var(--renv-ink)}
-/* 兩欄時字欄寬約 44.4vw，每行最多 9 字（含螢光筆內距）要約 9.7em：原本 901–1150 字級長得比欄寬快，
-   第二行被擠成「都在這裡安心長／大。」（1024 iPad 橫拿也是）。上限 4.5vw 保證 9 字放得下，1200 以上不變（2026-10-13）。 */
-@media (width>900px){.renv-hero h1{font-size:clamp(2.3rem,min(1.3rem + 2.8vw,4.5vw),3.6rem)}}
-/* 螢光筆本來就畫出字框左右各 6px；原本再加內距與外距，「安心」前後各空出約 .1em，像多打了空格（2026-10-13 拿掉）。
-   拿掉後螢光筆會伸進前後兩個字底下，所以這裡不再 isolation：螢光筆那層（z-index:-1）改墊在整個 .renv 的字後面，
-   不會蓋到「裡」「長」的筆畫（.renv 本身 isolation，墊不到頁面底下）。 */
-.renv-mark{display:inline-block}
-.renv-lede{margin-top:24px;font-size:var(--fs-lg);line-height:1.85;color:var(--renv-ink-soft)}
-/* 只在標點斷行：390 寬原本斷成「整理在同／一頁。」（2026-10-13）；整段沒有標點、一行放不下時 break-word 照樣斷開，不會撐破版面 */
-.renv-lede,.renv-day.is-arc .renv-meal p{word-break:keep-all;overflow-wrap:break-word}
-.renv-notice{margin-top:30px;font-size:var(--fs-sm);color:var(--renv-muted)}
-/* 相框 3:2（utils/responsive-image.ts 的 ENVIRONMENT_HERO_ASPECT 依此算 sizes） */
-.renv-hero-photo{transform:rotate(2.4deg)}
-.renv-hero-photo>img{aspect-ratio:3/2;object-fit:cover;object-position:74% 42%}
-.renv-hero-photo figcaption{position:absolute;left:18px;bottom:-80px;font-size:var(--fs-md);color:var(--renv-ink-soft);transform:rotate(-2.6deg)}
-
-.renv-index{margin-top:clamp(88px,7vw,112px)}
-.renv-index ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px 28px}
-.renv-index a{display:grid;grid-template-columns:auto auto 1fr;grid-template-rows:auto auto;align-items:center;column-gap:14px;row-gap:2px;min-height:64px;padding:10px 4px;color:var(--renv-ink);text-decoration:none}
-.renv-index .renv-box{grid-row:1/3}
-.renv-index .renv-num{grid-row:1/3;font-size:var(--fs-xl);color:var(--renv-pen)}
-.renv-index b{grid-column:3;font-weight:700;font-size:var(--fs-xl)}
-.renv-index .renv-hint{grid-column:3;font-size:var(--fs-sm);color:var(--renv-muted)}
-@media (hover:hover){.renv-index a:hover b{text-decoration:underline;text-decoration-color:var(--renv-pen);text-underline-offset:6px}}
-
-/* ---------- 01 幼兒保育：天藍色紙、五顆心、曬衣繩 ---------- */
-.renv-care-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);gap:clamp(40px,6vw,96px);align-items:center}
-.renv-hearts{list-style:none;display:flex;flex-wrap:wrap;gap:12px clamp(14px,2.2vw,30px);margin:24px 0 4px;padding:0}
-.renv-hearts li{display:grid;justify-items:center;gap:8px}
-.renv-heart{display:block;width:54px;height:50px}
-.renv-hearts b{font-weight:700;font-size:var(--fs-lg);letter-spacing:.06em}
-.renv-care-photo{transform:rotate(-1.4deg)}
-.renv-care-photo>img{aspect-ratio:2/1;object-fit:cover;object-position:0% 50%}
-.renv-care-photo figcaption{margin-top:30px;font-size:var(--fs-md);color:var(--renv-ink)}
-.renv-note.is-care{top:-22px;left:24%;--r:4deg}
-
-.renv-hang{margin-top:clamp(72px,7vw,108px);outline-offset:8px}
-/* 可以用 Tab 停的捲動區與分頁內容（tabindex=0 的 div）：全站 3px 葉綠框只寫給 a、button，這兩個原本是瀏覽器預設的細黑框（2026-10-13） */
-.renv :is(.renv-hang,.renv-tour-panel):focus-visible{outline:3px solid var(--leaf)}
-.renv-hang-track{list-style:none;margin:0;padding:0 0 12px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:28px}
-.renv-hang-item{--rot:-2deg;transform-origin:50% -12px;transform:rotate(var(--rot));transition:transform .6s var(--renv-ease)}
-.renv-hang-item:nth-of-type(2){--rot:1.6deg}
-.renv-hang-item:nth-of-type(3){--rot:-1deg}
-.renv-hang-item:nth-of-type(4){--rot:2.2deg}
-.renv-hang-item:nth-of-type(5){--rot:-1.6deg}
-@media (hover:hover){.renv-hang-item:hover{transform:rotate(0deg) translateY(-4px)}}
-.renv-hang-photo{margin:0}
-.renv-hang-photo img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
-.renv-hang-item h3{display:flex;align-items:center;gap:12px;margin-top:30px;font-weight:700;font-size:var(--fs-xl);line-height:1.4}
-/* 蠟筆底的小圓編號用深綠字，紅字在淺色蠟筆上對比不夠 */
-.renv-count{display:inline-grid;place-items:center;flex:none;width:28px;height:28px;font-size:var(--fs-md);color:var(--renv-ink)}
-.renv-hang-item p{margin-top:8px;font-size:var(--fs-sm);line-height:1.85;color:var(--renv-ink)}
-
-/* ---------- 02 校園環境：遊樂區大圖＋跟著虛線走一圈 ---------- */
-.renv-feature{display:grid;grid-template-columns:minmax(0,1.45fr) minmax(0,1fr);gap:clamp(40px,5vw,80px);align-items:center;margin-top:clamp(64px,7vw,96px)}
-.renv-feature-photo{transform:rotate(-1deg)}
-.renv-feature-photo>img{aspect-ratio:3/2;object-fit:cover}
-.renv-note.is-slide{right:-14px;bottom:-26px;--r:5deg}
-.renv-feature-copy h3{margin-top:22px;font-weight:700;font-size:clamp(1.75rem,1.2rem + 1.6vw,2.5rem);line-height:1.4}
-.renv-feature-copy p{margin-top:18px;font-size:var(--fs-md);line-height:1.95;color:var(--renv-ink-soft)}
-.renv-tag{display:inline-block;isolation:isolate;padding:4px 14px;font-size:var(--fs-sm);font-weight:700;letter-spacing:.12em;color:var(--renv-ink)}
-
-.renv-trail-hint{width:fit-content;max-width:none;margin:clamp(96px,9vw,136px) calc(50% + 28px) 0 auto;font-size:var(--fs-xl);color:var(--renv-pen);transform:rotate(-1.2deg);transform-origin:right}
-.renv-trail{--corridor:clamp(96px,10vw,150px);--overlap:clamp(120px,13vw,200px);list-style:none;margin:28px 0 0;padding:0}
-.renv-stop{position:relative;width:calc(50% - var(--corridor)/2)}
-.renv-stop+.renv-stop{margin-top:calc(-1 * var(--overlap))}
-.renv-stop:nth-of-type(even){margin-left:auto}
-.renv-stop-photo{transform:rotate(-1.2deg)}
-.renv-stop:nth-of-type(even) .renv-stop-photo{transform:rotate(1.3deg)}
-.renv-stop-copy{margin-top:42px;padding-inline:6px}
-.renv-stop-no{position:absolute;top:34%;z-index:5;display:grid;place-items:center;width:46px;height:46px;isolation:isolate;font-size:var(--fs-xl);color:var(--renv-ink)}
-.renv-stop:nth-of-type(odd) .renv-stop-no{right:calc(-1 * var(--corridor)/2 - 9px)}
-.renv-stop:nth-of-type(even) .renv-stop-no{left:calc(-1 * var(--corridor)/2 - 9px)}
-.renv-stop h3{font-weight:700;font-size:var(--fs-xl);line-height:1.45}
-.renv-stop p{margin-top:8px;max-width:30em;font-size:var(--fs-sm);line-height:1.9;color:var(--renv-ink-soft)}
-.renv-note.is-n1{right:-20px;top:12%;--r:4deg}
-.renv-note.is-n2{left:-22px;bottom:14%;--r:-4deg}
-.renv-note.is-n3{right:-22px;top:20%;--r:3deg}
-.renv-note.is-n4{right:-20px;top:6%;--r:5deg}
-.renv-note.is-n5{left:-22px;bottom:10%;--r:-3deg}
-.renv-note.is-n6{right:12%;bottom:-20px;--r:-3deg}
-.renv-campus{position:absolute;top:22px;left:22px;z-index:3;isolation:isolate;padding:3px 12px;font-size:var(--fs-xs);font-weight:700;letter-spacing:.1em;color:var(--renv-ink)}
-
-/* ---------- 03 幼兒餐點：黃色紙、餐點書、太陽走過的一天 ---------- */
-.renv-meals-top{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,.75fr);gap:clamp(40px,6vw,96px);align-items:center}
-.renv-meals-top .renv-btn{margin-top:34px}
-.renv-book{position:relative;display:grid;justify-items:center}
-.renv-book-cover{display:block;width:min(300px,100%);transform:rotate(3.2deg);box-shadow:0 30px 50px -24px rgb(var(--renv-shadow)/.5),0 2px 4px rgb(var(--renv-shadow)/.18);transition:transform .5s var(--renv-ease)}
-.renv-book-cover>img{display:block;width:100%;height:auto}
-@media (hover:hover){.renv-book-cover:hover{transform:rotate(0deg) translateY(-6px)}}
-/* 便條右緣貼著書封左緣、壓進 11px（書封寬 min(300px,100%) 置中）：原本 left:-12% 跟著欄寬走，
-   901–1280 欄窄時便條整塊蓋到書封上 22–97px、紅筆箭頭縮成一小勾；1440 以上維持原樣（2026-10-13）。
-   改用 right 定位後可用寬度變窄，max-content 讓兩行照 <br> 斷、不被擠成直排 */
-.renv-book-note{position:absolute;right:calc(50% + min(150px,50%) - 11px);bottom:4%;width:max-content;font-size:var(--fs-lg);line-height:1.55;color:var(--renv-ink);transform:rotate(-5deg)}
-.renv-book-note span{color:var(--renv-pen-deep)}
-
-/* 沒有 JS（或窄螢幕）時是直式清單；JS 在桌機加上 .is-arc，才把五個時段排到太陽弧上 */
-.renv-day{position:relative;margin-top:clamp(72px,7vw,112px);padding-top:56px}
-.renv-day-title{position:absolute;left:0;top:0;font-size:var(--fs-xl);color:var(--renv-ink);transform:rotate(-1.5deg);transform-origin:left}
-.renv-day-list{list-style:none;margin:0;padding:0;display:grid;gap:30px}
-.renv-meal{position:relative;padding-left:64px;transition:opacity .5s}
-.renv-meal time{font-size:var(--fs-md);letter-spacing:.1em;color:var(--renv-ink-soft)}
-.renv-meal b{margin-left:10px;font-family:var(--renv-hand);font-weight:400;font-size:1.75rem;line-height:1.3;color:var(--renv-ink);transition:opacity .5s}
-.renv-meal small{display:block;margin-top:2px;font-size:var(--fs-xs);letter-spacing:.06em;color:var(--renv-ink-soft)}
-.renv-meal p{margin-top:8px;font-size:var(--fs-sm);line-height:1.75;color:var(--renv-ink)}
-.renv-day.is-arc{height:450px;padding-top:0}
-.renv-day.is-arc .renv-day-list{display:block}
-.renv-day.is-arc .renv-meal{position:absolute;width:196px;padding-left:0;transform:translateX(-50%);text-align:center}
-.renv-day.is-arc .renv-meal time,.renv-day.is-arc .renv-meal b{display:block;margin-left:0}
-/* 還沒到的餐點只淡化大字手寫標題（.72 仍有 4.9:1）；時間與小字整列一起淡化會掉到 3:1 以下（2026-10-02 手機審查）。 */
-.renv-day.is-live .renv-meal:not(.is-lit) b{opacity:.72}
-.renv-day svg .renv-dot-on{opacity:0;transition:opacity .35s}
-.renv-day svg .is-lit .renv-dot-on{opacity:1}
-
-/* ---------- 04 五所校園：各分校頁校園探索的實景（照片不裁切，標註點座標才對得上） ---------- */
-.renv-tour-hint{margin-top:clamp(64px,6vw,88px);font-size:var(--fs-xl);color:var(--renv-pen);transform:rotate(-1.4deg);transform-origin:left}
-.renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px;margin-top:20px}
-.renv-tour-tab{display:grid;justify-items:center;align-content:start;gap:4px;min-height:44px;padding:12px 8px 16px;border:0;background:none;color:var(--renv-ink);font:inherit;cursor:pointer;transition:transform .45s var(--renv-ease)}
-/* 透明底墨線版線稿（2026-10-02）：原本 filter＋multiply 融紙底，選中時按鈕轉動、圖片淡入，iPhone 把它們移到合成層就露出紙底方塊。 */
-.renv-tour-tab img{width:100%;max-width:170px;height:auto;opacity:.55;transition:opacity .3s}
-.renv-tour-art{position:relative;display:block;width:100%;max-width:170px}
-.renv-tour-art img{position:relative;z-index:1}
-.renv-tour-tab b{font-weight:700;font-size:var(--fs-lg)}
-.renv-tour-tab small{font-size:var(--fs-xs);color:var(--renv-ink-soft)}
-.renv-tour-tab[aria-selected="true"]{transform:rotate(-1.4deg) translateY(-4px)}
-.renv-tour-tab[aria-selected="true"] img{opacity:1}
-@media (hover:hover){.renv-tour-tab:hover img{opacity:.9}}
-.renv-tour-panel{margin-top:clamp(56px,6vw,80px);outline-offset:10px}
-.renv-scenes{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:80px clamp(40px,5vw,80px)}
-.renv-scenes:not(.is-2) .renv-scene:first-of-type{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:clamp(40px,5vw,80px);align-items:center}
-.renv-scene-photo{transform:rotate(-1deg)}
-.renv-scene:nth-of-type(even) .renv-scene-photo{transform:rotate(1.2deg)}
-.renv-scene-copy{margin-top:44px}
-.renv-scenes:not(.is-2) .renv-scene:first-of-type .renv-scene-copy{margin-top:0}
-.renv-scene-name{display:inline-block;isolation:isolate;padding:4px 16px 6px;font-family:var(--renv-hand);font-weight:400;font-size:1.5rem;line-height:1.35;transform:rotate(-1.5deg)}
-.renv-scene-copy p{margin-top:16px;max-width:26em;font-size:var(--fs-md);line-height:1.9;color:var(--renv-ink-soft)}
-
-/* ---------- 結尾：接下來可以看（不放預約） ---------- */
-.renv-next{padding-block:clamp(40px,5vw,72px) clamp(96px,9vw,136px)}
-/* 只在逗號後斷行：320 寬原本斷成「還／可以看看這幾頁」（2026-10-13） */
-.renv-next-title{font-size:clamp(1.5rem,1.1rem + 1.2vw,2.125rem);line-height:1.4;color:var(--renv-ink);transform:rotate(-1.2deg);transform-origin:left;word-break:keep-all;overflow-wrap:break-word}
-.renv-next-list{list-style:none;margin:40px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:36px}
-.renv-next-link{display:grid;align-content:center;gap:6px;min-height:120px;padding:24px 30px;isolation:isolate;color:var(--renv-ink);text-decoration:none;transform:rotate(var(--r,-1.2deg));transition:transform .45s var(--renv-ease)}
-.renv-next-list li:nth-child(2) .renv-next-link{--r:1deg}
-.renv-next-list li:nth-child(3) .renv-next-link{--r:-.6deg}
-.renv-next-link b{font-family:var(--renv-hand);font-weight:400;font-size:1.75rem;line-height:1.3}
-.renv-next-link small{font-size:var(--fs-sm);color:var(--renv-ink)}
-@media (hover:hover){.renv-next-link:hover{transform:rotate(0deg) translateY(-4px)}}
-
-/* ---------- 2026-10-19 蠟筆塗鴉（utils/environment-doodles.ts；比稿 design/environment-playful-directions-20261019/ 選 A） ----------
-   位置都在這裡（模板裡空的 .renv-doodle），JS 只畫線；小鳥要踩在曬衣繩上，left／top 由 JS 依 clotheslineY 算。
-   線條顏色只給名字（.is-red…），色票走上面的 --renv-crayon-*。塗鴉是可有可無的裝飾，點得到但不可聚焦。 */
-.renv-hero,.renv-hang,.renv-feature-copy{position:relative}
-.renv-doodle{position:absolute;z-index:3;display:block;pointer-events:none}
-.renv-doodle.is-poke{pointer-events:auto;cursor:pointer;-webkit-tap-highlight-color:transparent}
-.renv-doodle-defs{position:absolute;width:0;height:0;overflow:hidden}
-.renv-doodle-art{display:block;width:100%;height:auto;overflow:visible}
-.renv-doodle-art path{fill:none;stroke-linecap:round;stroke-linejoin:round}
-.renv-doodle-art .is-line{stroke:var(--c)}
-.renv-doodle-art .is-solid{fill:var(--c)}
-.renv-doodle-art .is-red{--c:var(--renv-crayon-red)}
-.renv-doodle-art .is-orange{--c:var(--renv-crayon-orange)}
-.renv-doodle-art .is-yellow{--c:var(--renv-crayon-yellow)}
-.renv-doodle-art .is-gold{--c:var(--renv-crayon-gold)}
-.renv-doodle-art .is-green{--c:var(--renv-crayon-green)}
-.renv-doodle-art .is-blue{--c:var(--renv-crayon-blue)}
-.renv-doodle-art .is-pink{--c:var(--renv-crayon-pink)}
-.renv-doodle-art .is-lilac{--c:var(--renv-crayon-lilac)}
-.renv-doodle-art .is-gray{--c:var(--renv-crayon-gray)}
-.renv-doodle-art .is-brown{--c:var(--renv-crayon-brown)}
-.renv-doodle-art .is-sky{--c:var(--renv-sky-deep)}
-.renv-doodle-art .is-leaf{--c:var(--renv-leaf-deep)}
-.renv-doodle-art .is-peach{--c:var(--renv-peach-deep)}
-.renv-doodle-art .is-note{--c:var(--renv-note)}
-.renv-doodle-art .is-ink{--c:var(--renv-ink)}
-.renv-doodle-art .is-string{--c:var(--renv-ink-soft)}
-/* 首屏：右上角的太陽躲在照片後面（排在照片之前、同一層） */
-.renv-doodle.is-sun{top:0;right:0;z-index:0;width:clamp(116px,15vw,224px);aspect-ratio:1}
-.renv-doodle.is-bird{z-index:7;width:80px;aspect-ratio:70/64}
-.renv-doodle.is-rainbow{right:-8px;top:-150px;width:270px;aspect-ratio:300/170}
-/* 02 校園環境：坐在照片上緣（腳踩在底紙上，不蓋照片） */
-.renv-doodle:is(.is-kite,.is-bubbles,.is-bunny){z-index:1}
-.renv-doodle.is-kite{right:6%;bottom:calc(100% - 4px);width:118px;aspect-ratio:120/150;transform-origin:7% 100%}
-.renv-doodle.is-bubbles{right:10%;bottom:calc(100% - 18px);width:120px;aspect-ratio:150/130}
-.renv-doodle.is-bunny{right:3%;bottom:calc(100% - 6px);width:112px;aspect-ratio:110/122}
-/* 03 香蕉、蘋果掛在菜名右邊（菜名置中不受影響） */
-.renv-meal-name{position:relative;display:inline-block}
-.renv-doodle:is(.is-banana,.is-apple){left:calc(100% + 6px);top:50%;width:56px;aspect-ratio:64/52;translate:0 -50%}
-.renv-doodle.is-hand{right:3%;top:-46px;width:104px;aspect-ratio:100/116;rotate:-10deg;transform-origin:50% 95%}
-/* 04 校舍塗色：牆與屋頂兩層，各用照線稿算出的遮罩；墊在線稿後面（線稿是透明底） */
-.renv-tour-paint{position:absolute;inset:0;z-index:0;opacity:.88;transition:opacity .3s;pointer-events:none}
-.renv-tour-tab:not([aria-selected="true"]) .renv-tour-paint{opacity:.5}
-.renv-tour-paint svg{position:absolute;inset:0;width:100%;height:100%;-webkit-mask:var(--paint-mask) 0 0/100% 100% no-repeat;mask:var(--paint-mask) 0 0/100% 100% no-repeat}
-@media (forced-colors:active){.renv-doodle,.renv-tour-paint{display:none}}
-
-/* ---------- 斷點：沿用站內 1100／900／760 ---------- */
-@media (width<=1100px){
-  .renv-index ol{grid-template-columns:repeat(2,minmax(0,1fr))}
-  .renv-hang-item h3{font-size:var(--fs-lg)}
-  .renv-day.is-arc .renv-meal{width:170px}
-}
-@media (width<=900px){
-  .renv-doodle.is-rainbow{top:-28px;right:-4px;width:150px}
-  .renv-hero-grid,.renv-care-top,.renv-feature,.renv-meals-top,.renv-split-head{grid-template-columns:1fr}
-  .renv-split-head .renv-text{grid-column:1;grid-row:auto;margin:20px 0 0}
-  .renv-hero-photo{max-width:560px;margin-top:8px}
-  .renv-index ol{grid-template-columns:1fr;gap:4px}
-  .renv-hang{margin-inline:calc(-1 * var(--renv-gutter));padding:22px var(--renv-gutter) 8px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;outline-offset:-3px}
-  .renv-hang::-webkit-scrollbar{display:none}
-  /* 縮成 20px 只給橫向滑動的曬衣繩；901–1100 五張並排時照片各自歪一點，20px 會讓相鄰兩張的說明只隔 5–11px（2026-10-13） */
-  .renv-hang-track{grid-template-columns:repeat(5,min(64vw,260px));gap:20px;width:max-content;padding-right:var(--renv-gutter)}
-  .renv-hang-item{scroll-snap-align:center}
-  .renv-book{justify-items:start;padding-left:18%}
-  .renv-book-cover{width:min(220px,60%)}
-  .renv-book-note{left:auto;right:0;bottom:12%}
-  .renv-scenes,.renv-scenes:not(.is-2) .renv-scene:first-of-type{grid-template-columns:1fr}
-  .renv-scenes:not(.is-2) .renv-scene:first-of-type .renv-scene-copy{margin-top:44px}
-  .renv-tour-tabs{grid-template-columns:repeat(5,minmax(124px,1fr));margin-inline:calc(-1 * var(--renv-gutter));padding:6px var(--renv-gutter) 14px;overflow-x:auto;scrollbar-width:none}
-  .renv-tour-tabs::-webkit-scrollbar{display:none}
-  .renv-next-list{grid-template-columns:1fr;gap:24px}
-}
-/* 761–900：已經單欄、還不是手機版（2026-10-13）。
-   ② 號碼在站上 34% 的高度，這段照片較矮，便條「各式操作教具」往左伸 22px 會壓到號碼右下角，改成貼齊照片左緣；
-   首屏照片下那句說明（bottom:-80px）跟「這一頁有四件事」只差 0–4px，目錄往下多留 20px。 */
-@media (760px<width<=900px){
-  .renv-note.is-n2{left:-2px}
-  .renv-index{margin-top:108px}
-}
-@media (width<=760px){
-  /* 手機站與站之間只有 72px：坐在照片上緣的塗鴉縮小，結尾手印移到卡片下方的留白 */
-  .renv-doodle.is-kite{width:64px;bottom:calc(100% - 12px)}
-  .renv-doodle.is-bubbles{width:76px;bottom:calc(100% - 20px)}
-  .renv-doodle.is-bunny{width:66px;right:6%}
-  .renv-doodle.is-hand{top:auto;bottom:-84px;right:2%;width:76px}
-  .renv-hero{padding-top:40px}
-  .renv-hero h1{font-size:2.05rem}
-  .renv-hero-photo figcaption{font-size:var(--fs-sm);bottom:-64px}
-  .renv-trail{--corridor:0px;--overlap:0px}
-  .renv-trail-hint{margin:72px 0 0 56px;transform-origin:left}
-  .renv-stop{width:auto;padding-left:56px}
-  .renv-stop+.renv-stop{margin-top:72px}
-  .renv-stop:nth-of-type(odd) .renv-stop-no,.renv-stop:nth-of-type(even) .renv-stop-no{left:0;right:auto;top:-6px}
-  .renv-stop-photo,.renv-stop:nth-of-type(even) .renv-stop-photo{transform:rotate(-.8deg)}
-  .renv-note{font-size:var(--fs-sm);padding:4px 10px}
-  .renv-note.is-n1,.renv-note.is-n3,.renv-note.is-n4{right:-8px}
-  .renv-note.is-n2,.renv-note.is-n5{left:-10px}
-  .renv-note.is-slide{right:-6px}
-  .renv-book{padding-left:4%}
-  .renv-book-note{font-size:var(--fs-md)}
-  /* 照片底紙在手機縮小一圈（rough-sketch 的 frame：16→10px），照片左右再讓 4／10px：底紙原本往右多伸、加上傾斜，
-     320–430 寬每張都超出視窗 3–15px、撕紙邊被切成直線（2026-10-13） */
-  .renv-snap{margin-inline:4px 10px}
-}
-/* 380 以下五顆心排不下一列（最後的「同理心」自己掉到第二列）：心與字縮一級、間距收窄（2026-10-13） */
-@media (width<380px){
-  .renv-hearts{column-gap:8px}
-  .renv-heart{width:48px;height:44px}
-  .renv-hearts b{font-size:var(--fs-md)}
-}
-/* 360 以下（小手機、Android 放大顯示）：標題第二行 9 個字，「大。」會被擠成獨立一行（下限用 rem，放大字級時仍會變大）；
-   書封與便條只隔約 4px，紅筆箭頭縮成一小段、蓋在書封的「9 月」上，只藏這支裝飾箭頭
-   （用 visibility 不用 display:none：描線進場要量 path 長度，不渲染的 path 在部分瀏覽器量不到） */
-@media (width<360px){
-  .renv-hero h1{font-size:clamp(1.5rem,8.8vw,2.05rem)}
-  .renv-book>svg.rough[data-key="bookarrow"]{visibility:hidden}
-}
+/* ---------- 進場：積木由上往下落定（JS 只替一開始不在視窗裡的元素加 .is-waiting） ---------- */
+.renv [data-drop].is-waiting{opacity:0;transform:translateY(-46px)}
+.renv [data-drop].is-waiting.is-in{opacity:1;transform:none;transition:transform .85s var(--renv-ease) calc(var(--i,0) * 90ms),opacity .45s var(--renv-ease) calc(var(--i,0) * 90ms)}
 @media (prefers-reduced-motion:reduce){
+  .renv [data-drop].is-waiting{opacity:1;transform:none}
   .renv *,.renv *::before,.renv *::after{transition:none !important}
 }
 
-/* 2026-09-28 GSAP 動態層（utils/environment-motion.ts）。比稿 design/environment-gsap-mockup-20260928/。
-   到站彈一下：用獨立的 scale 屬性（--renv-pop 由 GSAP 寫入），和便條原本的 transform:rotate() 疊加、不互相蓋掉。 */
-.renv-trail .renv-stop-no,.renv-trail .renv-note{scale:var(--renv-pop,1)}
-/* 曬衣繩起風：擺角 --renv-swing 由 GSAP 每幀寫入、疊在原本的傾角上。傾角另外註冊成角度（--renv-tilt），
-   hover 扶正時才能平滑過渡；不直接註冊 --rot，@property 是全站生效的，別的元件可能也用 --rot。 */
-@property --renv-tilt{syntax:'<angle>';inherits:false;initial-value:0deg}
-.renv.is-windy .renv-hang-item{--renv-tilt:var(--rot);transform:rotate(calc(var(--renv-tilt) + var(--renv-swing,0deg)));transition:--renv-tilt .6s var(--renv-ease),translate .6s var(--renv-ease)}
-@media (hover:hover){.renv.is-windy .renv-hang-item:hover{--renv-tilt:0deg;translate:0 -4px}}
+/* ---------- 首屏：大標、彩虹疊疊樂、四塊積木目次 ---------- */
+.renv-hero{padding:clamp(28px,3.4vw,48px) 0 clamp(72px,8vw,112px);overflow:clip}
+.renv-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,540px);grid-template-areas:"txt fig" "toc fig";column-gap:clamp(40px,5vw,72px);align-items:start}
+.renv-hero-txt{grid-area:txt;padding-top:clamp(8px,2.8vw,40px);container-type:inline-size}
+.renv-mark{display:inline-block;margin:0 .06em;padding:.02em .12em .04em;border-radius:.16em;background:var(--renv-mustard);box-shadow:0 .09em 0 var(--renv-mustard-side);color:var(--renv-ink);line-height:1.1}
+.renv-lede{margin-top:24px}
+.renv-notice{margin-top:18px;font-size:var(--fs-sm);color:var(--renv-ink-soft)}
+.renv-hero-fig{grid-area:fig}
+/* 彩虹疊疊樂：五道同心拱，每道 --t 寬、之間留 --g 的縫（縫頂露出上一層的側面）；照片在最內圈。
+   首屏照片的 sizes 依這裡的尺寸算（utils/responsive-image.ts 的 ENVIRONMENT_HERO_ASPECT：桌機框寬 540 − 5×(17＋5)×2 = 320px） */
+.renv-rainbow{--t:17px;--g:5px;width:100%;max-width:540px;margin-inline:auto;padding-bottom:var(--side)}
+.renv-rb{display:flex;flex-direction:column;padding:var(--t) var(--t) 0;background:var(--c);border-radius:999px 999px 0 0;box-shadow:0 var(--side) 0 var(--s)}
+.renv-rainbow>.renv-rb{aspect-ratio:1/.98}
+.renv-rb .renv-rb{flex:1}
+.renv-rb-gap{flex:1;display:flex;flex-direction:column;padding:var(--g) var(--g) 0;background:var(--renv-paper);border-radius:999px 999px 0 0;box-shadow:inset 0 var(--side) 0 var(--s)}
+.renv-rainbow-photo{flex:1;min-height:0;width:100%;object-fit:cover;object-position:70% 38%;border-radius:999px 999px 0 0;box-shadow:0 var(--side) 0 var(--renv-forest-side);background:var(--renv-forest-side)}
+
+.renv-index{grid-area:toc;align-self:end}
+.renv-index ul{display:grid;grid-template-columns:auto auto;justify-content:start;align-items:end;gap:30px 22px;margin-top:44px}
+.renv-index a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
+.renv-index-no{font-weight:800;font-size:1.55rem;line-height:1;font-variant-numeric:tabular-nums;margin-bottom:6px}
+.renv-index-name{font-weight:800;font-size:1.2rem;line-height:1.3}
+.renv-index-hint{font-size:.86rem;line-height:1.5}
+.renv-index li:nth-child(1) a{width:192px}
+.renv-index li:nth-child(2) a{--ar:.84;width:188px;padding-top:34px}
+.renv-index li:nth-child(3) a{--rm:24px;width:180px}
+.renv-index li:nth-child(4) a{width:300px;justify-content:flex-end;padding-bottom:18px}
+
+/* 可以按的積木：滑過浮起一點、按下去側面變薄 */
+@media (hover:hover){.renv :is(.renv-index a,.renv-next-link,.renv-btn):hover{transform:translateY(-3px);box-shadow:0 calc(var(--side) + 3px) 0 var(--s)}}
+.renv :is(.renv-index a,.renv-next-link,.renv-btn):active{transform:translateY(5px);box-shadow:0 2px 0 var(--s)}
+
+/* ---------- 01 幼兒保育 ---------- */
+.renv-care-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px 64px;align-items:end}
+.renv-hearts-box .renv-text{margin-bottom:26px}
+.renv-hearts-box .renv-hearts+.renv-text{margin:26px 0 0}
+.renv-hearts{display:flex;flex-wrap:wrap;gap:18px 26px}
+.renv-hearts li{display:grid;justify-items:center;gap:10px}
+.renv-hearts b{font-weight:700;font-size:1.08rem;line-height:1.3}
+.renv-heart{width:82px;height:auto;overflow:visible}
+.renv-heart .is-side{fill:var(--s);stroke:var(--s)}
+.renv-heart .is-face{fill:var(--c);stroke:var(--c)}
+.renv-heart path{stroke-width:5;stroke-linejoin:round}
+.renv-care-main{margin-top:clamp(84px,9vw,120px)}
+/* 寬高比設在外層：照片框與後面墊的積木要同一個比例 */
+.renv-care-main .renv-ph{--ar:2.75;--bx:24px;--by:24px}
+.renv-cares{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:clamp(20px,2.4vw,34px);row-gap:0;margin-top:clamp(80px,8vw,112px)}
+.renv-cares>li{display:grid;grid-row:span 2;grid-template-rows:subgrid}
+.renv-care-ph{align-self:end;display:flex;flex-direction:column}
+.renv-care-ped{height:38px;margin-top:14px;border-radius:var(--rs)}
+.renv-care-txt{padding-top:34px}
+.renv-care-txt h3{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-weight:700;font-size:1.16rem;line-height:1.45}
+.renv-care-txt .renv-dot{width:2.4em;height:2.4em;font-size:.82rem}
+.renv-care-txt p{color:var(--renv-ink-soft);font-size:.96rem;line-height:1.8}
+
+/* ---------- 02 校園環境 ---------- */
+.renv-spaces>.renv-wrap>.renv-text{margin-top:20px}
+.renv-feature{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:48px clamp(48px,6vw,88px);align-items:center;margin-top:clamp(56px,6vw,80px)}
+.renv-feature .renv-ph{--ar:1.5;--q:40%;--bx:26px;--by:26px}
+.renv-feature-copy h3{margin-bottom:18px;font-size:clamp(1.6rem,1rem + 1.5vw,2.3rem);line-height:1.25}
+.renv-tag{display:inline-block;margin-bottom:22px;padding:.35em .9em .4em;border-radius:12px;font-weight:700;font-size:1rem;line-height:1.3}
+/* 六個空間：照片與文字左右交錯，圓點小路從照片底部彎到下一張的頂部（比稿 A 的串法）；編號圓積木坐在照片頂端，正好是小路進站的位置 */
+.renv-stops{position:relative;margin-top:clamp(112px,11vw,160px);padding-bottom:96px}
+.renv-stop-list{display:grid;gap:clamp(64px,6vw,88px)}
+.renv-stop{position:relative;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr);gap:clamp(40px,6vw,96px);align-items:center}
+.renv-stop:nth-child(odd){grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}
+.renv-stop:nth-child(odd) .renv-stop-ph{order:2}
+.renv-stop:nth-child(odd) .renv-stop-copy{justify-self:end}
+.renv-stop .renv-ph{margin-inline:auto}
+.renv-stop-no{position:absolute;z-index:4;top:0;left:50%;translate:-50% -50%;width:3em;height:3em;font-size:1.05rem}
+.renv-stop-copy{max-width:25em}
+.renv-stop-copy h3{margin-bottom:10px;font-weight:700;font-size:clamp(1.3rem,1rem + .7vw,1.6rem);line-height:1.45}
+.renv-stop-copy p{color:var(--renv-ink-soft);line-height:1.85}
+.renv-campus{position:absolute;z-index:3;left:6%;bottom:8%;padding:.32em .85em .38em;border-radius:12px;font-weight:700;font-size:.98rem;line-height:1.3}
+
+/* 圓點小路（utils/environment-route.ts）：一顆顆小木珠，捲到才亮 */
+.renv-route{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.renv-route circle{opacity:0;transform:scale(.2);transform-box:fill-box;transform-origin:center;transition:opacity .35s var(--renv-ease),transform .5s var(--renv-ease)}
+.renv-route circle.is-on{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.renv-route circle{opacity:1;transform:none}}
+@media (forced-colors:active){.renv-route{display:none}}
+
+/* ---------- 03 幼兒餐點 ---------- */
+.renv-meals-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,470px);gap:56px clamp(48px,7vw,112px);align-items:end}
+.renv-meals-top .renv-text{margin-top:22px}
+.renv-btn{display:inline-flex;align-items:center;gap:10px;min-height:56px;margin-top:34px;padding:0 28px;border-radius:16px;background:var(--c);box-shadow:0 6px 0 var(--s);color:var(--renv-paper);font-weight:700;font-size:1.08rem;line-height:1;text-decoration:none;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease)}
+.renv-btn .icon{width:18px;height:18px}
+/* 營養餐點書斜靠在一塊赤陶拱上，旁邊一塊半圓 */
+.renv-book{--k:1;position:relative;display:block;height:calc(var(--k) * 400px)}
+.renv-book>*{position:absolute;bottom:var(--side)}
+.renv-book-arch{left:calc(var(--k) * 24px);width:calc(var(--k) * 184px);--ar:.86}
+.renv-book-cover{left:calc(var(--k) * 214px);width:calc(var(--k) * 224px);height:auto;aspect-ratio:1359/1920;border-radius:3px 8px 8px 3px;transform-origin:0 100%;rotate:-8deg;box-shadow:0 6px 0 var(--renv-cream-side)}
+.renv-book-semi{left:calc(var(--k) * 372px);width:calc(var(--k) * 96px)}
+/* 一天五餐：水平時間軸，五個積木圓站（比稿 A 的時間軸）；900px 以下改直向 */
+.renv-day{margin-top:clamp(96px,10vw,136px)}
+.renv-day-title{text-align:center;font-size:clamp(1.5rem,.9rem + 1.1vw,2.1rem);line-height:1.3}
+.renv-day-track{position:relative;margin-top:44px}
+.renv-day-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
+.renv-day-list li{position:relative;display:grid;justify-items:center;align-content:start;text-align:center}
+.renv-day-list time{font-weight:700;font-size:1.1rem;line-height:1.4;font-variant-numeric:tabular-nums;color:var(--renv-ink-soft);letter-spacing:.02em}
+.renv-stn{position:relative;z-index:1;display:grid;place-items:center;width:112px;aspect-ratio:1;margin-top:12px;border-radius:50%}
+.renv-stn svg{width:52px;height:52px;overflow:visible}
+.renv-day-list b{margin-top:20px;font-weight:800;font-size:1.3rem;line-height:1.4}
+.renv-day-list small{display:block;margin-top:2px;color:var(--renv-ink-soft);font-size:.95rem;line-height:1.6}
+.renv-day-list p{margin-top:6px;max-width:12em;color:var(--renv-ink-soft);font-size:var(--fs-sm);line-height:1.7}
+
+/* ---------- 04 五所校園：方形積木分頁（放線稿），選中的「按下去」 ---------- */
+.renv-tour-head .renv-text{margin-top:20px}
+.renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px;margin-top:52px;padding-bottom:var(--side)}
+.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.94;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:800;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
+.renv-tour-art{display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
+/* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊 */
+.renv-tour-tab img{width:100%;height:100%;object-fit:contain;object-position:50% 62%}
+@media (hover:hover){.renv-tour-tab:hover{transform:translateY(-2px);box-shadow:0 calc(var(--side) + 2px) 0 var(--s)}}
+.renv-tour-tab b{display:flex;align-items:center;gap:8px;font-weight:800}
+.renv-tour-tab[aria-selected="true"]{transform:translateY(5px);box-shadow:0 2px 0 var(--s),inset 0 0 0 3px var(--renv-ink)}
+.renv-tour-tab[aria-selected="true"] b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--renv-ink)}
+.renv-tour-panel{margin-top:64px;outline-offset:12px}
+.renv :is(.renv-tour-panel):focus-visible{outline:3px solid var(--leaf);border-radius:8px}
+.renv-tour-panel-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;margin-bottom:40px}
+.renv-tour-panel-head h3{font-weight:800;font-size:clamp(1.6rem,1.1rem + 1.2vw,2.2rem);line-height:1.25}
+.renv-tour-panel-head p{color:var(--renv-ink-soft)}
+.renv-scenes{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:56px clamp(48px,6vw,88px);align-items:start}
+.renv-scene h4{font-weight:700;font-size:1.25rem;line-height:1.45}
+.renv-scene-lead .renv-ph{--ar:1.28;--bx:-22px;--by:22px;margin-bottom:34px}
+.renv-scene-list{display:grid;gap:48px;padding-top:24px}
+.renv-scene-list .renv-scene{display:grid;grid-template-columns:200px minmax(0,1fr);gap:32px;align-items:center}
+.renv-scene-list .renv-ph{--bx:14px;--by:-14px}
+
+/* ---------- 結尾：三塊積木連結（不放預約） ---------- */
+.renv-next{padding-block:clamp(72px,8vw,112px) clamp(88px,9vw,128px)}
+.renv-next-title{font-weight:800;font-size:clamp(1.5rem,1.1rem + 1vw,2rem);line-height:1.3;text-align:center;letter-spacing:.02em}
+.renv-next-list{display:flex;justify-content:center;align-items:flex-end;gap:clamp(20px,3vw,40px);margin-top:48px}
+.renv-next-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
+.renv-next-link b{font-weight:800;font-size:1.35rem;line-height:1.3}
+.renv-next-link small{font-size:.93rem}
+.renv-next-list li:nth-child(1) .renv-next-link{--ar:.95;width:250px;padding-top:40px}
+.renv-next-list li:nth-child(2) .renv-next-link{width:222px}
+.renv-next-list li:nth-child(3) .renv-next-link{--ar:1.35;width:270px}
+
+@media (forced-colors:active){.renv :is(.renv-blk,.renv-frame,.renv-index a,.renv-next-link,.renv-tour-tab){border:2px solid CanvasText}}
+
+/* ---------- 900px 以下 ---------- */
+@media (width<=900px){
+  .renv-hero-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"txt" "fig" "toc"}
+  .renv-hero-txt{padding-top:8px;margin-bottom:36px}
+  /* 彩虹貼滿螢幕寬：每道 14px（11＋3），照片框寬＝視窗 − 140px（同 ENVIRONMENT_HERO_ASPECT 的 sizes） */
+  .renv-rainbow{--t:11px;--g:3px;--side:5px;width:calc(100% + 2*var(--renv-gutter));max-width:none;margin-inline:calc(-1*var(--renv-gutter))}
+  .renv-index ul{grid-template-columns:repeat(6,minmax(0,1fr));gap:24px 14px;margin-top:44px}
+  .renv-index li:nth-child(1),.renv-index li:nth-child(2){grid-column:span 3}
+  .renv-index li:nth-child(3){grid-column:span 2}
+  .renv-index li:nth-child(4){grid-column:span 4}
+  .renv-index li a{width:100% !important}
+  .renv-index li:nth-child(2) a{padding-top:26px}
+  .renv-index li:nth-child(4) a{padding-bottom:12px}
+  .renv-index-no{font-size:1.25rem;margin-bottom:4px}
+  .renv-index-name{font-size:1.02rem}
+  .renv-index-hint{font-size:.76rem}
+  .renv-index li:nth-child(3) .renv-index-hint{display:none}
+
+  .renv-care-head{grid-template-columns:minmax(0,1fr);gap:32px}
+  .renv-hearts{gap:14px 0;justify-content:space-between;flex-wrap:nowrap}
+  .renv-hearts b{font-size:.95rem}
+  .renv-hearts li{gap:8px}
+  .renv-heart{width:58px}
+  .renv-care-main .renv-ph{--ar:2.2;--bx:12px;--by:14px}
+  .renv-cares{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:44px}
+  .renv-cares>li{row-gap:0}
+  .renv-cares>li:nth-child(5){grid-column:1/-1}
+  .renv-cares>li:nth-child(5) .renv-care-ph{width:74%}
+  .renv-care-ped{height:28px;margin-top:10px}
+  .renv-care-txt{padding-top:24px}
+  .renv-care-txt h3{font-size:1.04rem}
+  .renv-care-txt .renv-dot{font-size:.72rem}
+  .renv-care-txt p{font-size:.9rem;line-height:1.75}
+
+  .renv-feature{grid-template-columns:minmax(0,1fr)}
+  .renv-feature .renv-ph{--q:34%;--bx:12px;--by:14px}
+  /* 手機：一條直的圓點小路沿左邊串起編號，照片與文字疊在右邊 */
+  .renv-stops{margin-top:88px;padding-bottom:40px}
+  .renv-stop-list{gap:64px}
+  .renv-stop,.renv-stop:nth-child(odd){grid-template-columns:minmax(0,1fr);gap:22px;padding-left:50px}
+  .renv-stop:nth-child(odd) .renv-stop-ph{order:0}
+  .renv-stop:nth-child(odd) .renv-stop-copy{justify-self:stretch}
+  .renv-stop .renv-ph{width:88% !important;margin-inline:0;--bx:12px !important;--by:12px !important}
+  .renv-stop-no{top:10px;left:-50px;translate:0 0;width:2.5em;height:2.5em;font-size:.9rem}
+  .renv-stop-copy h3{font-size:1.2rem;margin-bottom:6px}
+  .renv-stop-copy p{font-size:.95rem}
+
+  .renv-meals-top{grid-template-columns:minmax(0,1fr)}
+  .renv-book{--k:.72;width:calc(var(--k) * 470px);margin-inline:auto}
+  .renv-day-title{text-align:left}
+  .renv-day-track{margin-top:30px}
+  .renv-day-list{grid-template-columns:minmax(0,1fr);gap:22px}
+  .renv-day-list li{grid-template-columns:84px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:20px;justify-items:start;align-items:center;text-align:left}
+  .renv-stn{grid-column:1;grid-row:1/span 3;width:84px;margin-top:0}
+  .renv-stn svg{width:40px;height:40px}
+  .renv-day-list time{grid-column:2;grid-row:1;align-self:end;font-size:.98rem}
+  .renv-day-list b{grid-column:2;grid-row:2;margin-top:0;font-size:1.15rem}
+  .renv-day-list small{grid-column:2;grid-row:3;align-self:start;font-size:.9rem}
+  .renv-day-list p{grid-column:2;max-width:none}
+
+  .renv-tour-tabs{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px 12px;margin-top:36px}
+  .renv-tour-tab{grid-column:span 2;aspect-ratio:auto;height:116px;padding:8px 8px 10px;gap:6px;border-radius:18px;font-size:.98rem}
+  .renv-tour-tab:nth-child(4){grid-column:2/span 2}
+  .renv-tour-art{border-radius:11px}
+  .renv-tour-tab[aria-selected="true"] b::before{width:8px;height:8px}
+  .renv-tour-panel{margin-top:44px}
+  .renv-tour-panel-head{margin-bottom:28px}
+  .renv-scenes{grid-template-columns:minmax(0,1fr);gap:44px}
+  .renv-scene-lead .renv-ph{--ar:1.05;--bx:-12px;--by:14px;margin-bottom:26px}
+  .renv-scene-list{gap:32px;padding-top:0}
+  .renv-scene-list .renv-scene{grid-template-columns:124px minmax(0,1fr);gap:20px}
+  .renv-scene-list .renv-ph{--bx:9px;--by:-9px}
+
+  .renv-next-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:26px 14px;margin-top:36px}
+  .renv-next-list li:nth-child(1),.renv-next-list li:nth-child(2){grid-column:span 3}
+  .renv-next-list li:nth-child(3){grid-column:1/-1}
+  .renv-next-list .renv-next-link{width:100% !important}
+  .renv-next-list li:nth-child(1) .renv-next-link{--ar:.86;padding-top:30px}
+  .renv-next-list li:nth-child(3) .renv-next-link{--ar:2.4}
+  .renv-next-link b{font-size:1.12rem}
+  .renv-next-link small{font-size:.82rem}
+}
+/* 平板（601–900）單欄時彩虹不滿版，收到 560px 置中：滿版在 768 寬會比一個螢幕還高（sizes 仍照滿版算，只會多抓不會糊） */
+@media (600px<width<=900px){
+  .renv-rainbow{width:100%;max-width:560px;margin-inline:auto}
+}
+/* 380 以下五顆心排不下一列：心與字縮一級 */
+@media (width<400px){
+  .renv-hearts b{font-size:.88rem}
+  .renv-heart{width:54px}
+}

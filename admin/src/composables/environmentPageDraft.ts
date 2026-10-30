@@ -24,11 +24,13 @@ export const ENVIRONMENT_BUILTIN_PHOTOS = {
 
 // 官網實際裁切的比例（web/app/assets/css/environment.css）：首屏與主打區 3:2、保育照片 2:1 橫幅、
 // 照顧的小事 4:3；六個空間照片依原本比例整張顯示，不裁切，所以沒有焦點預覽。
+// 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，這裡給最接近的矩形比例預覽裁切（形狀的圓角另外再裁掉一點邊緣）
 export const ENVIRONMENT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
-  care: [{ label: '官網裁切（2:1 橫幅）', ratio: '2 / 1' }],
+  hero: [{ label: '官網裁切（彩虹最內圈的拱，約 3:4）', ratio: '3 / 4' }],
+  care: [{ label: '官網裁切（桌機 2.75:1）', ratio: '2.75 / 1' }, { label: '手機（2.2:1）', ratio: '2.2 / 1' }],
   feature: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
-  careItem: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
+  careItem: [{ label: '官網裁切（約 4:5）', ratio: '4 / 5' }],
+  space: [{ label: '官網裁切（約 1:1）', ratio: '1 / 1' }],
 } as const
 
 const MEAL_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
@@ -39,7 +41,7 @@ export function mealTimeError(value: string | null | undefined): string {
 }
 
 /**
- * 第 index 個餐點的時間不比上一個晚（早或同一時間）時回說明。官網太陽弧的位置依序號固定，
+ * 第 index 個餐點的時間不比上一個晚（早或同一時間）時回說明。官網時間軸的順序與小圖示依序號固定，
  * 後端擋倒序與同時間，所以這裡先在那一個餐點提醒；任一個時間格式不對就不比（格式的提醒另外顯示）。
  */
 export function mealOrderError(meals: readonly { time: string; name: string }[], index: number): string {

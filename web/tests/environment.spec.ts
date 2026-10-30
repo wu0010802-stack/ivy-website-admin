@@ -7,8 +7,7 @@ import { MEAL_BOOK_URL, mealBookLink } from '../app/utils/meal-book'
 import { environmentHeroAttrs } from '../app/utils/media-image'
 import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
-import { clotheslineY, mealArcPoint } from '../app/utils/rough-sketch'
-import { ARRIVE, LEAVE, footstepLengths, smoothPath, stepStop, walkAnchors, walkedLength } from '../app/utils/environment-motion'
+import { daySegments, dotCount, mapSegments, mapSegmentsNarrow } from '../app/utils/environment-route'
 import manifest from '../app/generated/image-manifest.json'
 import fontManifest from '../app/generated/environment-font-manifest.json'
 
@@ -73,7 +72,7 @@ describe('常春藤環境頁圖片', () => {
   })
 })
 
-describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', () => {
+describe('常春藤環境頁木頭積木版（2026-10-30 比稿選 D，校園環境與餐點照 A 用圓點串起來＝D2）', () => {
   const component = read('../app/components/EnvironmentContent.vue')
   const template = component.slice(component.indexOf('<template>')).replace(/<!--[\s\S]*?-->/g, '')
 
@@ -82,17 +81,22 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
     expect(component).toContain('data-cta-entry="environment"')
   })
 
-  it('首屏照片：頁面 <img> 與預載共用 environmentHeroImage()，sizes 依 3:2 相框的裁切放大', () => {
+  it('首屏照片：頁面 <img> 與預載共用 environmentHeroImage()，sizes 依彩虹最內圈拱框（約 3:4）的裁切放大', () => {
     const { width, height } = (manifest as Record<string, { width: number; height: number }>)[ENVIRONMENT_HERO_IMAGE]!
     const factor = Number((width / height / ENVIRONMENT_HERO_ASPECT).toFixed(2))
     const attrs = environmentHeroImage()
-    expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 40px) * ${factor}), ${Math.round(540 * factor)}px`)
+    expect(ENVIRONMENT_HERO_ASPECT).toBe(3 / 4)
+    expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 140px) * ${factor}), ${Math.round(320 * factor)}px`)
     expect(attrs.srcset).toBeTruthy()
     // 2026-10-12 首屏照片後台可換：<img> 與預載改走 environmentHeroAttrs（沒換照片時 ＝ environmentHeroImage()，見 environment-page-overlay.spec.ts）
     expect(environmentHeroAttrs(site.environmentPage)).toEqual(attrs)
     expect(component).toContain('environmentHeroAttrs(page)')
     expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'environment') return environmentHeroAttrs(site.value.environmentPage)")
-    expect(read('../app/assets/css/environment.css')).toMatch(/\.renv-hero-photo>img\{aspect-ratio:3\/2;/)
+    // 框寬：桌機彩虹 540px、五道拱各 17＋5px；900 以下彩虹滿版、每道 11＋3px
+    const css = read('../app/assets/css/environment.css')
+    expect(css).toContain('.renv-rainbow{--t:17px;--g:5px;width:100%;max-width:540px;')
+    expect(css).toContain('.renv-rainbow{--t:11px;--g:3px;')
+    expect(component.match(/class="renv-rb c-/g)).toHaveLength(5)
   })
 
   it('頁首用實底：淺色紙底首屏不能配透明白字頁首', () => {
@@ -113,16 +117,17 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
     }
   })
 
-  it('太陽弧兩端等高、中午最高；曬衣繩兩端 8px、中間最低', () => {
-    const [x0, y0] = mealArcPoint(0, 1200)
-    const [x1, y1] = mealArcPoint(1, 1200)
-    const [, noon] = mealArcPoint(0.5, 1200)
-    expect(x0).toBeLessThan(x1)
-    expect(y0).toBe(y1)
-    expect(noon).toBeLessThan(y0)
-    expect(clotheslineY(0, 1000)).toBe(8)
-    expect(clotheslineY(1000, 1000)).toBe(8)
-    expect(clotheslineY(500, 1000)).toBeGreaterThan(clotheslineY(250, 1000))
+  it('照片不放說明與註解（使用者 10-30）：沒有圖說、便條、小路與選校提示、校園探索說明句；戶外廣場的校別標示照留', () => {
+    for (const field of ['heroCaption', 'careCaption', 'carePhotoNote', 'feature.note', 'space.note', 'trailHint', 'tourHint', 'scene.intro']) expect(template).not.toContain(field)
+    expect(template).not.toContain('<figcaption')
+    expect(template).toContain('space.campusLabel')
+  })
+
+  it('沒有手繪層、GSAP、蠟筆塗鴉；也沒有紋理（使用者 10-30：舊版髒、像解析度不夠）', () => {
+    expect(component).not.toMatch(/from '(roughjs|gsap)|import\('(roughjs|gsap)|rough-sketch|environment-motion|environment-doodles/)
+    const css = read('../app/assets/css/environment.css')
+    expect(css).not.toMatch(/repeating-|radial-gradient|feTurbulence|url\(/)
+    for (const gone of ['../app/utils/rough-sketch.ts', '../app/utils/environment-motion.ts', '../app/utils/environment-doodles.ts']) expect(existsSync(fileURLToPath(new URL(gone, import.meta.url)))).toBe(false)
   })
 
   it('字型：圓體 400／700／800 與芫荽各有 critical 分片，大標那片預載，檔案都在 public', () => {
@@ -166,102 +171,54 @@ describe('常春藤環境頁手繪版（2026-09-28 使用者選定 mock C）', (
   })
 })
 
-describe('常春藤環境頁 GSAP 動態層（2026-09-28 使用者看過 design/environment-gsap-mockup-20260928/ 後同意上線）', () => {
+describe('常春藤環境頁圓點小路（utils/environment-route.ts）', () => {
   const component = read('../app/components/EnvironmentContent.vue')
-  const motion = read('../app/utils/environment-motion.ts')
-  const sketch = read('../app/utils/rough-sketch.ts')
+  const frames = [{ x: 300, top: 0, bottom: 400 }, { x: 900, top: 500, bottom: 900 }, { x: 320, top: 1000, bottom: 1300 }]
+  const colors = ['var(--renv-mist-side)', 'var(--renv-pink-side)', 'var(--renv-terra-side)']
 
-  it('GSAP 只在這頁動態載入：元件與手繪線都沒有靜態 import，動態層本身只 import 型別', () => {
-    for (const source of [component, sketch]) expect(source).not.toMatch(/^import [^\n]*from 'gsap/m)
-    expect(motion).not.toMatch(/^import (?!type )[^\n]*from 'gsap/m)
-    expect(component).toContain("import('gsap')")
-    expect(component).toContain("import('gsap/ScrollTrigger')")
-    expect(component).toContain("import('gsap/MotionPathPlugin')")
-    expect(JSON.parse(read('../package.json')).dependencies.gsap).toBeTruthy()
+  it('校園環境（桌機）：從第一張上方進來，每段從這張照片底部接到下一張頂部，最後再走出去；每段用要去的那一站的顏色', () => {
+    const segs = mapSegments(frames, colors)
+    expect(segs).toHaveLength(frames.length + 1)
+    expect(segs[0]).toEqual({ d: 'M300.0 -130.0 L300.0 0.0', color: colors[0] })
+    expect(segs[1]!.d.startsWith('M300.0 400.0 C')).toBe(true)
+    expect(segs[1]!.d.endsWith(' 900.0 500.0')).toBe(true)
+    expect(segs[1]!.color).toBe(colors[1])
+    expect(segs[2]!.d.endsWith(' 320.0 1000.0')).toBe(true)
+    expect(segs[2]!.color).toBe(colors[2])
+    expect(segs[3]).toEqual({ d: 'M320.0 1300.0 L320.0 1380.0', color: colors[2] })
+    expect(mapSegments([], [])).toEqual([])
   })
 
-  it('GSAP 載入失敗就不用動態層，手繪線照畫（小路退回虛線）', () => {
-    expect(component).toMatch(/\.catch\(\(\) => null\)/)
-    expect(component).toContain('motion: motion ?? undefined')
-    expect(sketch).toContain('if (motion?.trail) { motion.trail(el, tools, geo); return }')
+  it('校園環境（手機）：左邊一條直線依序經過每一站的編號', () => {
+    const segs = mapSegmentsNarrow([[20, 100], [20, 600], [20, 1100]], colors)
+    expect(segs.map((seg) => seg.d)).toEqual(['M20.0 10.0 L20.0 100.0', 'M20.0 100.0 L20.0 600.0', 'M20.0 600.0 L20.0 1100.0', 'M20.0 1100.0 L20.0 1210.0'])
+    expect(segs.map((seg) => seg.color)).toEqual([...colors, colors[2]])
   })
 
-  it('小路提示字跟著改成小腳印（2026-10-12 起提示字在 fixture 的 environmentPage，元件讀 page.trailHint）', () => {
-    expect(site.environmentPage.trailHint).toBe('跟著小腳印，走一圈看看')
-    expect(JSON.stringify(site.environmentPage)).not.toContain('跟著虛線')
-    expect(component).toContain('{{ page.trailHint }}')
-    expect(component).not.toContain('跟著虛線')
+  it('幼兒餐點：直線串起每個時間站，桌機左右、手機上下各多走一段', () => {
+    const stations: [number, number][] = [[100, 50], [300, 50], [500, 50]]
+    expect(daySegments(stations, 'var(--renv-terra)', false)).toEqual([{ d: 'M-10.0 50.0 L100.0 50.0 L300.0 50.0 L500.0 50.0 L610.0 50.0', color: 'var(--renv-terra)' }])
+    expect(daySegments([[42, 40], [42, 200]], 'c', true)[0]!.d).toBe('M42.0 -4.0 L42.0 40.0 L42.0 200.0 L42.0 244.0')
   })
 
-  it('不在全站註冊通用名稱的 @property（--rot 別的元件也可能用）', () => {
+  it('等距撒點，至少一顆', () => {
+    expect(dotCount(180, 18)).toBe(10)
+    expect(dotCount(5, 18)).toBe(1)
+  })
+
+  it('小路掛在 <ol> 外面（<ol> 只放 <li>），只在瀏覽器動態載入、載入失敗就沒有圓點；預覽換內容後重算', () => {
+    expect(component).toMatch(/<div class="renv-stops">\s*<svg class="renv-route" data-route="map"[^>]*\/>\s*<ol class="renv-stop-list">/)
+    expect(component).toMatch(/<div class="renv-day-track">\s*<svg class="renv-route" data-route="day"[^>]*\/>\s*<ol class="renv-day-list">/)
+    expect(component).not.toMatch(/^import (?!type )[^\n]*environment-route/m)
+    expect(component).toContain("import('~/utils/environment-route').catch(() => null)")
+    expect(component).toContain('routes?.refresh()')
+  })
+
+  it('積木落下只套在一開始不在視窗裡的元素（首屏與 LCP 照片不能先藏起來），減少動態時不做', () => {
+    expect(component).toContain('el.getBoundingClientRect().top >= fold')
+    expect(component).toContain("if (!reducedMotion && 'IntersectionObserver' in window) drop = createDrop(root.value)")
     const css = read('../app/assets/css/environment.css')
-    const registered = [...css.matchAll(/@property\s+(--[\w-]+)/g)].map((m) => m[1])
-    expect(registered.length).toBeGreaterThan(0)
-    for (const name of registered) expect(name).toMatch(/^--renv-/)
-  })
-
-  it('換校發牌途中滑過照片不重畫（會量到縮放中的尺寸）；底紙用原始種子、蠟筆底避開章節色紙（2026-10-13）', () => {
-    expect(sketch).toContain('motion?.busy?.(el)')
-    expect(motion).toContain('gsap.isTweening(scene)')
-    expect(sketch).toContain('fill: paperColor(el, base)')
-    // 01 天藍色紙上的五顆心與曬衣繩編號圓（circle、heart）
-    expect(sketch.match(/fill: paperColor\(el, seed\)/g)).toHaveLength(2)
-  })
-
-  it('路線經過每一個點（Catmull-Rom 每一段的終點就是下一個點）', () => {
-    const points: [number, number][] = [[0, -70], [120, 200], [40, 520], [110, 900]]
-    const d = smoothPath(points)
-    expect(d.startsWith('M0.0,-70.0')).toBe(true)
-    const ends = [...d.matchAll(/C[^C]* (-?[\d.]+),(-?[\d.]+)/g)].map((m) => [Number(m[1]), Number(m[2])])
-    expect(ends).toEqual(points.slice(1))
-  })
-
-  describe('捲動 → 走到小路的第幾 px', () => {
-    const vh = 900
-    const top = 3000
-    const stops = [{ cy: 300, length: 350 }, { cy: 800, length: 900 }]
-    const anchors = walkAnchors({ top, height: 1400, vh, stops, total: 1500 })
-    const yAt = (cy: number, line: number) => top + cy - vh * line
-
-    it('錨點 y 一定遞增', () => {
-      for (let i = 1; i < anchors.length; i++) expect(anchors[i]!.y).toBeGreaterThan(anchors[i - 1]!.y)
-    })
-    it('小路頂端還沒捲到視窗 80% 前不出發；底端捲過視窗一半就走完', () => {
-      expect(walkedLength(anchors, top - vh)).toBe(0)
-      expect(walkedLength(anchors, top + 1400)).toBe(1500)
-    })
-    it('號碼捲到視窗 ARRIVE 時剛好走到那一站，一直停到 LEAVE 才離開', () => {
-      expect(ARRIVE).toBeGreaterThan(LEAVE)
-      expect(walkedLength(anchors, yAt(300, ARRIVE))).toBeCloseTo(350)
-      expect(walkedLength(anchors, (yAt(300, ARRIVE) + yAt(300, LEAVE)) / 2)).toBeCloseTo(350)
-      expect(walkedLength(anchors, yAt(300, LEAVE))).toBeCloseTo(350)
-      expect(walkedLength(anchors, yAt(800, ARRIVE))).toBeCloseTo(900)
-    })
-    it('兩站之間線性內插', () => {
-      const mid = (yAt(300, LEAVE) + yAt(800, ARRIVE)) / 2
-      expect(walkedLength(anchors, mid)).toBeCloseTo((350 + 900) / 2)
-    })
-    it('兩站靠太近時錨點仍遞增、不會除以零', () => {
-      const tight = walkAnchors({ top, height: 400, vh, stops: [{ cy: 100, length: 100 }, { cy: 110, length: 130 }], total: 300 })
-      for (let i = 1; i < tight.length; i++) expect(tight[i]!.y).toBeGreaterThan(tight[i - 1]!.y)
-      expect(Number.isFinite(walkedLength(tight, top))).toBe(true)
-    })
-  })
-
-  it('腳印左右輪流、固定步距，站點前後 gap 內不踩', () => {
-    const steps = footstepLengths(1000, 40, [300, 700], 40)
-    steps.forEach((step, i) => { if (i) expect(step.left).toBe(!steps[i - 1]!.left) })
-    for (const { length } of steps) for (const stop of [300, 700]) expect(Math.abs(length - stop)).toBeGreaterThanOrEqual(40)
-    expect(steps[0]!.length).toBe(24)
-    expect(steps.every(({ length }) => (length - 24) % 40 === 0)).toBe(true)
-  })
-
-  it('腳印顏色跟著下一站：還沒走到的第一站，最後一站之後沿用最後一站', () => {
-    const stops = [300, 700, 1100]
-    expect(stepStop(10, stops)).toBe(0)
-    expect(stepStop(300, stops)).toBe(0)
-    expect(stepStop(301.5, stops)).toBe(1)
-    expect(stepStop(1000, stops)).toBe(2)
-    expect(stepStop(1400, stops)).toBe(2)
+    expect(css).toContain('.renv [data-drop].is-waiting{opacity:0;transform:translateY(-46px)}')
+    expect(css).toMatch(/@media \(prefers-reduced-motion:reduce\)\{\n  \.renv \[data-drop\]\.is-waiting\{opacity:1;transform:none\}/)
   })
 })

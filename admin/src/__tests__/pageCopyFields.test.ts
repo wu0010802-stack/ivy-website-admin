@@ -224,10 +224,11 @@ describe('2026-09-28 內容編輯頁 UX（E）', () => {
   }
 
   describe('校園探索預覽與官網同比例', () => {
-    // 2026-10-04：熱點隨分校頁拿掉，預覽改對官網環境頁的場景照片（原比例整張、不裁切）。
-    it('後台預覽照原比例整張顯示，跟官網環境頁 .renv-snap>img 一樣不裁切', () => {
+    // 2026-10-04：熱點隨分校頁拿掉，預覽改對官網環境頁的場景照片。2026-10-30 官網木頭積木版把場景照片裁進拱形與圓形
+    // （object-fit: cover，位置用素材庫的預設焦點），後台這裡仍整張顯示原圖，方便看清楚照片。
+    it('後台預覽照原比例整張顯示原圖（官網環境頁會裁進積木形狀）', () => {
       const web = readCss('../../../web/app/assets/css/environment.css')
-      expect(web).toMatch(/\.renv-snap>img\{[^}]*height:auto/)
+      expect(web).toMatch(/\.renv-frame>img\{[^}]*object-fit:cover/)
       const tour = adminSource('CampusTourView.vue')
       const img = /\.tour__stage img \{[^}]*\}/.exec(tour)![0]
       expect(img).toContain('height: auto')

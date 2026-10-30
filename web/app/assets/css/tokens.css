@@ -167,26 +167,28 @@
   --ivy-passport-page: oklch(97.2% .01 104);       /* 內頁證件紙：米白混一點薄荷（paper 84%＋mint 16%） */
   --ivy-passport-red: oklch(51% .17 31);           /* 朱紅印泥：印章、答案裡的班別、條款編號；對兩種內頁紙 ≥ 5.7:1 */
 
-  /* 15. 常春藤環境頁手繪版（/environment，2026-09-28 定案 mock C）：點格紙、紅筆、便利貼、紙膠帶、四色色紙與蠟筆。
-     environment.css 的 .renv 以 --renv-* 別名引用（2026-10-20 從 environment.css 搬來，值不變）。 */
-  --ivy-env-dot: oklch(87% .025 95);
-  --ivy-env-muted: oklch(47% .03 150);
-  --ivy-env-pen: oklch(55% .17 33);
-  --ivy-env-note: oklch(98.8% .014 95);
-  --ivy-env-tape: oklch(90% .08 92 / .78);
-  --ivy-env-yellow: oklch(88% .13 90);
-  --ivy-env-yellow-deep: oklch(82% .15 82);
-  --ivy-env-sky: oklch(86% .065 228);
-  --ivy-env-sky-deep: oklch(76% .09 232);
-  --ivy-env-leaf: oklch(83% .09 148);
-  --ivy-env-leaf-deep: oklch(72% .11 148);
-  --ivy-env-peach: oklch(88% .07 55);
-  --ivy-env-peach-deep: oklch(80% .1 50);
-  --ivy-env-sun: oklch(80% .15 66);
-  --ivy-env-crayon-green: oklch(66% .14 145);
-  --ivy-env-crayon-blue: oklch(62% .12 240);
-  --ivy-env-crayon-pink: oklch(80% .09 12);
-  --ivy-env-crayon-lilac: oklch(68% .11 300);
-  --ivy-env-crayon-gray: oklch(58% .02 250);
-  --ivy-env-crayon-brown: oklch(50% .07 60);
+  /* 15. 常春藤環境頁木頭積木（/environment，2026-10-30 比稿 D2 定案，取代 09-28 手繪版的點格紙與蠟筆）：
+     北歐木玩／蒙特梭利教具的幾何。每塊積木一個正面色＋同色深一階的「側面」（往下錯開表現厚度），不用木紋或任何紋理。
+     environment.css 的 .renv 以 --renv-* 別名引用。 */
+  --ivy-env-paper: oklch(98.6% .006 85);
+  --ivy-env-ink: oklch(28% .05 160);
+  --ivy-env-ink-soft: oklch(38% .04 160);
+  --ivy-env-terra: oklch(68% .12 40);
+  --ivy-env-terra-side: oklch(57.5% .12 38);
+  --ivy-env-mustard: oklch(82% .12 85);
+  --ivy-env-mustard-side: oklch(71% .12 78);
+  --ivy-env-sage: oklch(76% .07 150);
+  --ivy-env-sage-side: oklch(65% .07 152);
+  --ivy-env-mist: oklch(79% .06 230);
+  --ivy-env-mist-side: oklch(68% .065 232);
+  --ivy-env-pink: oklch(87% .05 30);
+  --ivy-env-pink-side: oklch(77.5% .06 28);
+  --ivy-env-forest: oklch(45% .07 160);
+  --ivy-env-forest-side: oklch(35% .065 162);
+  --ivy-env-cream-side: oklch(89% .025 80);
+  /* 各章淡底色帶 */
+  --ivy-env-tint-pink: oklch(96.8% .016 40);
+  --ivy-env-tint-sage: oklch(96.6% .018 150);
+  --ivy-env-tint-mustard: oklch(96.8% .03 90);
+  --ivy-env-tint-mist: oklch(96.6% .014 230);
 }

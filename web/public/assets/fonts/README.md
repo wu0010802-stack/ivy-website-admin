@@ -68,7 +68,7 @@ unicode-range 仍含 `U+20`，讓它成為 CSS 的 first available font（決定
 
 ## 常春藤環境頁字型（`scripts/subset-environment-fonts.py`，2026-10-12 補圓體 700／800 常用字）
 
-`/environment` 用圓體 Chiron GoRound TC（800 大標、700 小標、400 內文）與手寫芫荽 Iansui（便條、菜名），兩套都是 SIL OFL 1.1，原始檔的 sha256 釘在腳本的 `SOURCES`。環境頁前三章開放後台編輯後，任何字重都可能出現任何常用字，所以四個字重（圓體 400／700／800、芫荽 400）都切 critical 加「其餘分片」；其餘分片由字頻表（`scripts/data/noto-sans-tc-frequency-tiers.json`）的常用字扣掉 critical，由常用到罕用切成約 40 KB 一片，寫進帶雜湊的 `environment/environment-fonts-extended-<hash>.css`，頁面執行時才掛上，用到新字才下載。字頻表以外的罕用字退回系統字。
+`/environment` 用圓體 Chiron GoRound TC（800 大標、700 小標、400 內文）與手寫芫荽 Iansui（2026-10-30 木頭積木版起沒有元素使用，管線照舊切；要拿掉得一起改後台缺字字表），兩套都是 SIL OFL 1.1，原始檔的 sha256 釘在腳本的 `SOURCES`。環境頁前三章開放後台編輯後，任何字重都可能出現任何常用字，所以四個字重（圓體 400／700／800、芫荽 400）都切 critical 加「其餘分片」；其餘分片由字頻表（`scripts/data/noto-sans-tc-frequency-tiers.json`）的常用字扣掉 critical，由常用到罕用切成約 40 KB 一片，寫進帶雜湊的 `environment/environment-fonts-extended-<hash>.css`，頁面執行時才掛上，用到新字才下載。字頻表以外的罕用字退回系統字。
 
 | 字重 | 其餘分片補到 |
 |---|---|
@@ -80,7 +80,7 @@ unicode-range 仍含 `U+20`，讓它成為 CSS 的 first available font（決定
 
 後台缺字提示讀的兩份字表（格式同 `chars-bd.txt`：依碼位排序、不含空白）也由這支腳本一起產出：
 
-- `chars-environment.txt`：四個字重都有的字（4,138 字）。給用圓體 800 的大標欄位（首屏 h1 與四章 h2；admin 的 `useTitleFontCoverage('environment')`）。
+- `chars-environment.txt`：四個字重都有的字（4,174 字；2026-10-30 木頭積木版依新用字重切後）。給用圓體 800 的大標欄位（首屏 h1 與四章 h2；admin 的 `useTitleFontCoverage('environment')`）。
 - `chars-environment-text.txt`：圓體 400、700 與芫荽都有的字（10,754 字）。給其餘欄位（小標、內文、便條；`useTitleFontCoverage('environmentText')`）。800 只補最常用的字，所以這份比上一份多很多。
 
 字表以外的字，後台欄位下方會寫「環境頁字型沒有「X」，這幾個字會用系統字顯示」，官網也真的退回系統字。重切時兩份字表要一起更新；`web/tests/environment-fonts.spec.ts` 會檢查它們等於各字重涵蓋範圍的交集。

@@ -335,13 +335,13 @@ describe('常春藤環境頁編輯器：缺字提示', () => {
 })
 
 describe('常春藤環境頁編輯器：存檔被擋（422）時定位到欄位', () => {
-  it('巢狀清單：spaces[2].note、meals[1].time、care_items[3].text、spaces[2].campus_label', async () => {
+  it('巢狀清單：spaces[2].text、meals[1].time、care_items[3].text、spaces[2].campus_label', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const root = wrapper.element as HTMLElement
     const draft = environmentPageDraft()
     for (const [path, value] of [
-      [['spaces', 2, 'note'], draft.spaces[2]!.note],
+      [['spaces', 2, 'text'], draft.spaces[2]!.text],
       [['spaces', 2, 'campus_label'], draft.spaces[2]!.campus_label],
       [['spaces', 5, 'title'], draft.spaces[5]!.title],
       [['meals', 1, 'time'], draft.meals[1]!.time],
@@ -354,7 +354,7 @@ describe('常春藤環境頁編輯器：存檔被擋（422）時定位到欄位'
     }
   })
 
-  it('巢狀物件：feature.title、feature.tag、feature.note', async () => {
+  it('巢狀物件：feature.title、feature.tag、feature.text', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const root = wrapper.element as HTMLElement
@@ -362,7 +362,7 @@ describe('常春藤環境頁編輯器：存檔被擋（422）時定位到欄位'
     for (const [path, value] of [
       [['feature', 'title'], draft.feature.title],
       [['feature', 'tag'], draft.feature.tag],
-      [['feature', 'note'], draft.feature.note],
+      [['feature', 'text'], draft.feature.text],
     ] as const) {
       expect(await revealContentPath(root, path, contentPathFieldLabel('environment_page', path)), path.join('.')).toBe(true)
       expect((document.activeElement as HTMLInputElement | null)?.value, path.join('.')).toBe(value)
@@ -378,12 +378,12 @@ describe('常春藤環境頁編輯器：存檔被擋（422）時定位到欄位'
     expect(document.activeElement).toBe(root.querySelector('[data-list="meals"] [data-list-item="0"] input'))
   })
 
-  it('頂層欄位：大標裡畫螢光的字、首屏照片下的一句話', async () => {
+  it('頂層欄位：大標裡畫螢光的字、首屏介紹、一天吃什麼的標題', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const root = wrapper.element as HTMLElement
     const draft = environmentPageDraft()
-    for (const [key, value] of [['hero_highlight', draft.hero_highlight], ['hero_caption', draft.hero_caption], ['tour_hint', draft.tour_hint]] as const) {
+    for (const [key, value] of [['hero_highlight', draft.hero_highlight], ['hero_lede', draft.hero_lede], ['meals_day_title', draft.meals_day_title]] as const) {
       expect(await revealContentPath(root, [key], contentPathFieldLabel('environment_page', [key]))).toBe(true)
       expect((document.activeElement as HTMLInputElement | null)?.value, key).toBe(value)
     }
@@ -404,18 +404,20 @@ describe('常春藤環境頁編輯器：原始碼的約定', () => {
     expect(source.match(/:data-list-item="i"/g)).toHaveLength(5)
   })
 
-  it('便條欄位說明換照片後箭頭可能沒指準', () => {
-    expect(source).toContain('換照片後')
-    expect(source).toContain('箭頭')
+  // 2026-10-30 官網木頭積木版：照片不放說明或註解，這幾欄官網不再顯示，表單也不列（資料照舊保留）
+  it('官網不再顯示的欄位不列：照片下的一句話、照片上的便條、小腳印與選校提示', () => {
+    for (const field of ['hero_caption', 'care_caption', 'care_photo_note', 'feature.note', 'space.note', 'trail_hint', 'tour_hint']) expect(source, field).not.toContain(`v-model="form.${field}"`)
+    expect(source).not.toContain('v-model="space.note"')
+    expect(source).not.toContain('箭頭')
+    expect(source).not.toMatch(/^\s*no-focus$/m)
   })
 
   it('欄位名與表單標籤一致', () => {
     const pairs: [string, string][] = [
       ['hero_title', '首屏大標'], ['hero_highlight', '大標裡畫螢光的字'], ['hero_lede', '首屏介紹'], ['hero_notice', '首屏提醒'], ['hero_photo', '首屏照片'],
-      ['hero_caption', '首屏照片下的一句話'], ['care_title', '幼兒保育的標題'], ['care_lead', '幼兒保育的引言'], ['care_text', '幼兒保育的說明'],
-      ['care_photo', '幼兒保育照片'], ['care_caption', '保育照片下的一句話'], ['care_photo_note', '保育照片上的便條'],
-      ['spaces_title', '校園環境的標題'], ['spaces_text', '校園環境的說明'], ['trail_hint', '小腳印提示'], ['meals_title', '幼兒餐點的標題'],
-      ['meals_text', '幼兒餐點的說明'], ['meals_day_title', '一天吃什麼的標題'], ['tour_title', '五所校園的標題'], ['tour_text', '五所校園的說明'], ['tour_hint', '五所校園的提示'],
+      ['care_title', '幼兒保育的標題'], ['care_lead', '幼兒保育的引言'], ['care_text', '幼兒保育的說明'], ['care_photo', '幼兒保育照片'],
+      ['spaces_title', '校園環境的標題'], ['spaces_text', '校園環境的說明'], ['meals_title', '幼兒餐點的標題'],
+      ['meals_text', '幼兒餐點的說明'], ['meals_day_title', '一天吃什麼的標題'], ['tour_title', '五所校園的標題'], ['tour_text', '五所校園的說明'],
     ]
     for (const [key, label] of pairs) {
       expect(source, label).toContain(`label="${label}"`)

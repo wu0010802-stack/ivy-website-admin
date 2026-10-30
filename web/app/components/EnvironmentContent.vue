@@ -1,78 +1,96 @@
 <script setup lang="ts">
-// 常春藤環境頁主體（/environment）。2026-09-28 改成手繪版（使用者選定 mock C：
-// design/environment-rough-mockup-20260928/），跟其他分頁刻意不同：點格紙、蠟筆色紙、Rough.js 手繪線、圓體字。
-// 內容：幼兒保育、校園環境、幼兒餐點三章沿用 2026-09-25 從舊官網搬來的原文（只修錯字與標點）；
-// 2026-10-12 起前三章的文字與照片改讀後台「常春藤環境頁」（environment_page，預設＝fixture 的 environmentPage，
-// 一字不差），清單照索引對應下面的常數；便條位置與箭頭落點、太陽弧位置、結尾三張卡、營養餐點書連結與各章目次
-// 小字的計數仍寫在這裡。第四章「五所校園」的場景直接讀後台發布的各校校園探索（campuses[].tourScenes）。
-// 2026-09-29 使用者裁定：第四章照片上不畫標註點的便條與箭頭（分校頁校園探索的熱點照舊）。
+// 常春藤環境頁主體（/environment）。2026-10-30 改成「木頭積木」版（比稿 design/environment-style-directions-20261030/，
+// 使用者選 D，再要求校園環境與幼兒餐點照 A 用圓點串起來、照片不放說明或註解＝D2）：北歐木玩／蒙特梭利教具的幾何，
+// 照片裝在積木形狀裡，每塊積木有同色深一階的「側面」表現厚度；取代 09-28 起的手繪版（Rough.js 手繪線、GSAP 小腳印、蠟筆塗鴉）。
+// 內容：前三章的文字與照片讀後台「常春藤環境頁」（environment_page，預設＝fixture 的 environmentPage），清單照索引對應下面的常數；
+// 第四章「五所校園」讀後台發布的各校校園探索（campuses[].tourScenes）。
+// 照片不放說明與註解（使用者 10-30）：首屏與保育主照片的圖說、照片上的便條、小路與選校提示、校園探索各景的說明句都不畫；
+// 後台欄位照舊保留。戶外廣場照片上的「明華校」是校別標示（後台 campusLabel），照畫。
 // 2026-09-28 使用者裁定：這一頁不放預約參觀（全站共用的頁首預約鈕除外）。
-// 手繪線條由 utils/rough-sketch.ts 在瀏覽器畫上去，純裝飾；沒有 JS 時版面與文字照常。
-// 2026-09-28 加 GSAP 動態層（utils/environment-motion.ts；比稿 design/environment-gsap-mockup-20260928/）：
-// 小路改成小腳印、曬衣繩起風、太陽帶慣性、換校發牌。GSAP 跟 Rough.js 一樣只在這頁動態載入；載入失敗就照原本的虛線小路。
-// 2026-10-19 加蠟筆塗鴉層（utils/environment-doodles.ts；比稿 design/environment-playful-directions-20261019/ 選 A）：
-// 孩子在聯絡簿空白處畫的太陽、小鳥、彩虹、風箏、泡泡、兔子、香蕉蘋果、手印，選到的學校把校舍塗上顏色。
-// 位置是模板裡空的 [data-doodle]（aria-hidden），手繪層畫完後才動態載入那支來畫；載入失敗就沒有塗鴉，其餘照常。
+// 動態只有兩樣，都在瀏覽器才做、減少動態時不做：積木由上往下落定（只套在一開始不在視窗裡的元素），
+// 圓點小路捲到才一顆顆亮（utils/environment-route.ts）。
 import type { Campus, EnvironmentPageContent, TourScene } from '~/types/site-content'
 import { environmentHeroAttrs } from '~/utils/media-image'
 import { responsiveImage } from '~/utils/responsive-image'
-import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines, withPhotoStyle } from '~/utils/page-content'
+import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines } from '~/utils/page-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
 import { attachEnvironmentFontStylesheet, ENVIRONMENT_FONT_PRELOAD } from '~/utils/environment-fonts'
-import type { SketchHandle } from '~/utils/rough-sketch'
-import type { EnvironmentMotion } from '~/utils/environment-motion'
-import type { EnvironmentDoodles } from '~/utils/environment-doodles'
+import type { EnvironmentRoutes } from '~/utils/environment-route'
 
 const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>()
 
-// 內建照片與它的位置、說明留在這裡（後台沒換照片時用；換了照片就用後台的圖、焦點與說明，
-// 後台沒填說明則用素材庫的說明）。文字（標題、說明、便條）讀 props.page，清單照索引對應。
+// 積木色：c-<名> 在 environment.css 對到正面色與側面色
+type Block = 'terra' | 'mustard' | 'sage' | 'mist' | 'pink'
+// 照片積木的樣子：形狀、寬高比（寬/高）、正面色、後面錯開墊的積木 [形狀, 色, 寬高比]、照片寬（佔欄寬）、墊塊錯開量、內建照片的位置
+interface Look { shape: string; ar?: number; color: Block; back?: [string, Block, number?]; w?: string; bx?: string; by?: string; q?: string; pos?: string }
+
+// 內建照片與它的 alt 留在這裡（後台沒換照片時用；換了照片就用後台的圖、焦點與說明，後台沒填說明則用素材庫的說明）。
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
 const CARE_PHOTO_ALT = '老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌'
-// 2026-10-30 遊樂區大圖換成義華校 NAS 開學日的照片（舊照是沒有人的遊樂設施），溜滑梯在畫面右側，便條改貼右下角。
 const FEATURE_ALT = '孩子們在遊戲區跑跳，有人從黃色溜滑梯滑下來'
-// 2026-10-30 均衡飲食、衣物保暖、情緒安撫換成義華校 NAS 素材庫的照片（舊照是疫情期間、戴口罩的 1961×934），
-// 母檔 1600×1200 與框同為 4:3，不必再靠 pos 對位；健康把關、定時消毒 NAS 沒有對應場景，沒換。
 const CARE = [
-  { image: 'env-care-health', pos: '32% 50%', alt: '老師幫戴著口罩的孩子確認身體狀況' },
-  { image: 'env-care-meal', pos: '50% 50%', alt: '男孩拿著湯匙，從紅色碗裡舀飯吃' },
-  { image: 'env-care-clothes', pos: '50% 50%', alt: '穿著淺藍色羽絨外套的女孩站在桌邊' },
-  { image: 'env-care-comfort', pos: '50% 50%', alt: '老師坐著把眼眶泛紅的男孩抱在懷裡' },
-  { image: 'env-care-clean', pos: '62% 60%', alt: '老師擦拭消毒教室門把' }
+  { image: 'env-care-health', alt: '老師幫戴著口罩的孩子確認身體狀況' },
+  { image: 'env-care-meal', alt: '男孩拿著湯匙，從紅色碗裡舀飯吃' },
+  { image: 'env-care-clothes', alt: '穿著淺藍色羽絨外套的女孩站在桌邊' },
+  { image: 'env-care-comfort', alt: '老師坐著把眼眶泛紅的男孩抱在懷裡' },
+  { image: 'env-care-clean', alt: '老師擦拭消毒教室門把' }
 ]
-
-// 便條（note）只標照片 alt 已經寫到的細節；to 是箭頭指到照片寬高的比例位置（照片不裁切），noteAt 是便條的位置，
-// 兩個都依格子序號固定（後台換照片後箭頭可能沒指準）。只有戶外廣場標校別（後台 campusLabel「明華校」）：
-// 照片是明華校 2026-01-23 外師戶外課，背景有明華的噴水池；其餘不標。doodle 是坐在那張照片上緣的蠟筆塗鴉
-// （戶外廣場的風箏、洗手台的泡泡、可愛動物區抱紅蘿蔔的兔子），一樣依格子序號固定。
-// 2026-10-30 操作教具、戶外廣場、安全角落換成有孩子的照片（舊照是空景，教具 928px、角落 900px；
-// 廣場舊照與第四章明華校園探索同一張），母檔都是 1600×1067，箭頭跟著重新對位。
+// 五件照顧的小事：五種形狀高低錯落排一排；第五張半圓底下墊一塊平板
+const CARE_LOOKS: (Look & { ped?: Block })[] = [
+  { shape: 's-arch', ar: 0.78, color: 'terra', pos: '33% 50%' },
+  { shape: 's-circle', color: 'mustard', pos: '58% 30%' },
+  { shape: 's-qtr', ar: 0.92, color: 'sage', q: '64%', pos: '50% 16%' },
+  { shape: 's-u', ar: 0.82, color: 'mist', pos: '52% 30%' },
+  { shape: 's-semi', color: 'pink', pos: '55% 62%', ped: 'mustard' }
+]
+// 六個空間：照片形狀各不相同、後面錯開墊一塊別色（多半也別種形狀）的積木。戶外廣場只能用明華校的照片（後台標「明華校」）。
 const SPACES = [
-  { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅', noteAt: 'is-n1', to: '0.42,0.74' },
-  { image: 'env-space-materials', alt: '女孩坐在桌前，專心組著各式彩色操作教具', noteAt: 'is-n2', to: '0.42,0.76' },
-  { image: 'env-space-plaza', alt: '明華校的戶外廣場上，女孩笑著往前跑，旁邊的孩子坐著看', noteAt: 'is-n3', to: '0.48,0.45', doodle: 'kite' },
-  { image: 'env-space-corner', alt: '幼兒坐在球池裡大笑，身後的牆貼著彩色厚軟墊', noteAt: 'is-n4', to: '0.72,0.28' },
-  { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾', noteAt: 'is-n5', to: '0.52,0.44', doodle: 'bubbles' },
-  { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子', noteAt: 'is-n6', to: '0.40,0.66', doodle: 'bunny' }
+  { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅' },
+  { image: 'env-space-materials', alt: '女孩坐在桌前，專心組著各式彩色操作教具' },
+  { image: 'env-space-plaza', alt: '明華校的戶外廣場上，女孩笑著往前跑，旁邊的孩子坐著看' },
+  { image: 'env-space-corner', alt: '幼兒坐在球池裡大笑，身後的牆貼著彩色厚軟墊' },
+  { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾' },
+  { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子' }
 ]
-
-// 時間與說明取自舊站一日流程的早餐、蔬果、午餐、點心各段；t 是在太陽弧上的位置（0 早、1 晚），照序號固定，
-// 所以後台的餐點時間要由早到晚。
-const MEAL_T = [0, 0.25, 0.5, 0.75, 1]
-// 「每日兩蔬果」之一、之二旁邊畫的香蕉與蘋果（蠟筆塗鴉）
-const MEAL_DOODLES = ['', 'banana', '', 'apple', '']
+const SPACE_LOOKS: Look[] = [
+  { shape: 's-qtl', ar: 1.3, color: 'mist', back: ['s-qtl', 'mustard', 1.3], w: '96%', bx: '-22px', by: '22px', q: '58%' },
+  { shape: 's-circle', color: 'pink', back: ['s-sq', 'sage'], w: '74%', bx: '24px', by: '24px', pos: '50% 35%' },
+  { shape: 's-arch', ar: 0.82, color: 'terra', back: ['s-arch', 'mist', 0.82], w: '66%', bx: '-24px', by: '24px', pos: '80% 40%' },
+  { shape: 's-u', ar: 0.9, color: 'sage', back: ['s-circle', 'pink'], w: '72%', bx: '26px', by: '-26px', pos: '50% 38%' },
+  { shape: 's-semi', color: 'mustard', back: ['s-semi', 'terra'], w: '100%', bx: '0px', by: '-30px', pos: '50% 78%' },
+  { shape: 's-sq', ar: 1.08, color: 'mist', back: ['s-circle', 'mustard'], w: '78%', bx: '26px', by: '-26px', pos: '68% 50%' }
+]
+// 一天五餐的小圖示（30×30，平塗＋同色深一階的側面往下錯開，跟頁面上的積木同一招）；依序對到五餐，後台改了餐名也照順序
+const MEAL_ICONS = [
+  '<path d="M7 14a6 6 0 0 1 3.4-9.2h9.2A6 6 0 0 1 23 14v10.5a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2Z" fill="var(--renv-mustard-side)" transform="translate(0 2.5)"/><path d="M7 14a6 6 0 0 1 3.4-9.2h9.2A6 6 0 0 1 23 14v10.5a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2Z" fill="var(--renv-mustard)"/><rect x="10.5" y="12" width="9" height="10.5" rx="2.2" fill="var(--renv-paper)"/>',
+  '<path d="M6 8 Q7.5 24 25 23.5" fill="none" stroke="var(--renv-mustard-side)" stroke-width="8" stroke-linecap="round" transform="translate(0 2.5)"/><path d="M6 8 Q7.5 24 25 23.5" fill="none" stroke="var(--renv-mustard)" stroke-width="8" stroke-linecap="round"/><path d="M5 5.5 6.2 9" stroke="var(--renv-forest)" stroke-width="3" stroke-linecap="round"/>',
+  '<path d="M3.5 14h23a11.5 11.5 0 0 1-23 0Z" fill="var(--renv-sage-side)" transform="translate(0 2.5)"/><path d="M8.5 14a6.5 5 0 0 1 13 0Z" fill="var(--renv-cream-side)"/><path d="M3.5 14h23a11.5 11.5 0 0 1-23 0Z" fill="var(--renv-sage)"/>',
+  '<circle cx="15" cy="19.5" r="10.5" fill="var(--renv-terra-side)"/><circle cx="15" cy="17" r="10.5" fill="var(--renv-terra)"/><path d="M15 3.5v6" stroke="var(--renv-forest)" stroke-width="3" stroke-linecap="round"/><ellipse cx="21" cy="5.5" rx="5.2" ry="2.8" transform="rotate(-28 21 5.5)" fill="var(--renv-sage)"/>',
+  '<path d="M21 12h2.5a4 4 0 0 1 0 8H21" fill="none" stroke="var(--renv-mist-side)" stroke-width="3.2" stroke-linecap="round"/><path d="M6 9h15v13a4 4 0 0 1-4 4h-7a4 4 0 0 1-4-4Z" fill="var(--renv-mist-side)" transform="translate(0 2.5)"/><path d="M6 9h15v13a4 4 0 0 1-4 4h-7a4 4 0 0 1-4-4Z" fill="var(--renv-mist)"/>'
+]
+// 五顆心：兩個圓＋一個轉 45° 的方塊拼成的幾何愛心
+const HEART = 'M0 30 L-30 0 A21.21 21.21 0 0 1 0 -30 A21.21 21.21 0 0 1 30 0 Z'
+const HEART_COLORS: Block[] = ['terra', 'mustard', 'sage', 'mist', 'pink']
+// 目次四塊積木的形狀與顏色
+const INDEX_LOOKS: [string, Block][] = [['s-circle', 'mustard'], ['s-arch', 'sage'], ['s-sq', 'pink'], ['s-semi', 'mist']]
+const TOUR_COLORS: Block[] = ['mustard', 'sage', 'mist', 'pink', 'terra']
 
 const heroLines = computed(() => pageMarkedLines(props.page.heroTitle, props.page.heroHighlight))
-const careItems = computed(() => props.page.careItems.map((item, i) => ({ ...CARE[i]!, ...item })))
-const spaces = computed(() => props.page.spaces.map((space, i) => ({ ...SPACES[i]!, ...space })))
-const meals = computed(() => props.page.meals.map((item, i) => ({ ...item, t: MEAL_T[i]!, doodle: MEAL_DOODLES[i] })))
+const careItems = computed(() => props.page.careItems.map((item, i) => ({ ...CARE[i]!, ...item, look: CARE_LOOKS[i]! })))
+const spaces = computed(() => props.page.spaces.map((space, i) => ({ ...SPACES[i]!, ...space, look: SPACE_LOOKS[i]! })))
+const meals = computed(() => props.page.meals.map((item, i) => ({ ...item, icon: MEAL_ICONS[i] ?? MEAL_ICONS[2]! })))
+
+// 照片積木的 CSS 變數（形狀比例、墊塊錯開量）
+const frameStyle = (look: Look) => ({ ...(look.ar ? { '--ar': String(look.ar) } : {}), ...(look.q ? { '--q': look.q } : {}) })
+const phStyle = (look: Look) => ({ ...(look.w ? { width: look.w } : {}), ...(look.bx ? { '--bx': look.bx } : {}), ...(look.by ? { '--by': look.by } : {}) })
+const backStyle = (look: Look) => (look.back?.[2] ? { '--ar': String(look.back[2]) } : undefined)
 
 // 結尾不放預約，改成往站內其他分頁走；提示字取自各頁的章節名
 const NEXT = [
-  { href: '/#life', title: '孩子的一天', hint: '六個日常片刻' },
-  { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向' },
-  { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照' }
+  { href: '/#life', title: '孩子的一天', hint: '六個日常片刻', look: ['s-arch', 'sage'] },
+  { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向', look: ['s-circle', 'mustard'] },
+  { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照', look: ['s-sq', 'mist'] }
 ]
 
 const meal = mealBookLink()
@@ -84,7 +102,8 @@ const tours = computed(() => props.campuses
 const sceneCount = computed(() => tours.value.reduce((sum, tour) => sum + tour.scenes.length, 0))
 const active = ref('')
 const activeKey = computed(() => (tours.value.some((tour) => tour.campus.key === active.value) ? active.value : tours.value[0]?.campus.key))
-const sceneImage = (scene: TourScene, lead: boolean) => responsiveTourImage(scene.image, lead ? '(max-width: 900px) 92vw, 700px' : '(max-width: 900px) 92vw, 560px', false, scene.imageMedia)
+// 第一張拱形（約 1.28:1）、其餘圓形；照片多半比框寬，cover 裁切後要畫的寬度約框寬 × 1.6
+const sceneImage = (scene: TourScene, lead: boolean) => responsiveTourImage(scene.image, lead ? '(max-width: 900px) calc((100vw - 32px) * 1.6), 820px' : '(max-width: 900px) 200px, 320px', false, scene.imageMedia)
 
 const chapters = computed(() => [
   { id: 'care', label: props.page.chapterNames[0], hint: '五顆心的照顧' },
@@ -100,12 +119,10 @@ async function selectTab(key: string, focus = false) {
   const changed = key !== activeKey.value
   active.value = key
   await nextTick()
-  const tab = tabRefs.value.find((button) => button.dataset.key === key)
-  if (focus) tab?.focus()
-  sketch?.refresh(root.value?.querySelector('#campuses') ?? undefined)
-  // 真的換了校，新分頁的照片從校名那格發到桌上（動態層在減少動態時不做）
+  if (focus) tabRefs.value.find((button) => button.dataset.key === key)?.focus()
+  // 真的換了校，新分頁的照片積木落下來
   const panel = root.value?.querySelector<HTMLElement>(`#tour-${key}`)
-  if (changed && panel && tab) motion?.deal(panel, tab)
+  if (changed && panel) drop?.replay(panel)
 }
 function onTabKey(event: KeyboardEvent, index: number) {
   const target = ({ ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tours.value.length - 1 } as Record<string, number>)[event.key]
@@ -117,170 +134,206 @@ function onTabKey(event: KeyboardEvent, index: number) {
 
 useHead({ link: ENVIRONMENT_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: '' })) })
 
+// ---------- 積木落下：一開始就在視窗裡的不動（首屏與 LCP 照片不能先藏起來），往下捲到才落定 ----------
+interface Drop { replay: (scope: HTMLElement) => void; destroy: () => void }
+function createDrop(scope: HTMLElement): Drop {
+  const io = new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      if (!e.isIntersecting) continue
+      e.target.classList.add('is-in')
+      io.unobserve(e.target)
+    }
+  }, { rootMargin: '0px 0px -8% 0px', threshold: 0.1 })
+  const fold = innerHeight
+  const waiting = [...scope.querySelectorAll<HTMLElement>('[data-drop]')].filter((el) => !el.closest('[hidden]') && el.getBoundingClientRect().top >= fold)
+  for (const el of waiting) {
+    el.classList.add('is-waiting')
+    io.observe(el)
+  }
+  return {
+    replay(panel) {
+      for (const el of panel.querySelectorAll<HTMLElement>('[data-drop]')) {
+        el.classList.remove('is-in')
+        el.classList.add('is-waiting')
+        io.observe(el)
+      }
+    },
+    destroy: () => io.disconnect()
+  }
+}
+
 const root = ref<HTMLElement | null>(null)
-let sketch: SketchHandle | null = null
-let motion: EnvironmentMotion | null = null
-let doodles: EnvironmentDoodles | null = null
+let drop: Drop | null = null
+let routes: EnvironmentRoutes | null = null
 let disposed = false
-// GSAP 三支與動態層一起載入；任何一支失敗就不用動態層（回傳 null），手繪線照常
-const loadMotion = (reducedMotion: boolean) => Promise.all([import('gsap'), import('gsap/ScrollTrigger'), import('gsap/MotionPathPlugin'), import('~/utils/environment-motion')])
-  .then(([{ gsap }, { ScrollTrigger }, { MotionPathPlugin }, { createEnvironmentMotion }]) => createEnvironmentMotion({ gsap, ScrollTrigger, MotionPathPlugin }, { reducedMotion }))
-  .catch(() => null)
 onMounted(async () => {
   attachEnvironmentFontStylesheet(document)
+  if (!root.value) return
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
-  // 塗鴉層跟著一起下載，等手繪層畫完才畫（不跟首屏的手繪線搶主執行緒）；載入失敗就沒有塗鴉
-  const loadDoodles = import('~/utils/environment-doodles').then(({ createEnvironmentDoodles }) => createEnvironmentDoodles).catch(() => null)
-  const [{ default: rough }, { createRoughSketch }, loaded] = await Promise.all([import('roughjs'), import('~/utils/rough-sketch'), loadMotion(reducedMotion)])
-  if (disposed || !root.value) { loaded?.destroy(); return }
-  motion = loaded
-  sketch = createRoughSketch(root.value, rough, { reducedMotion, motion: motion ?? undefined })
-  // 手繪線首屏以外分批畫（見 rough-sketch 的 drawFirst）；小路與上面的便條、箭頭都畫好了，動態層才收起便條、接上捲動
-  await sketch.ready
-  if (!disposed && root.value) motion?.start(root.value)
-  const createDoodles = await loadDoodles
-  if (!disposed && root.value && createDoodles) doodles = createDoodles(root.value, { reducedMotion })
+  if (!reducedMotion && 'IntersectionObserver' in window) drop = createDrop(root.value)
+  // 圓點小路是裝飾，動態載入；載入失敗就沒有圓點，其餘照常
+  const loaded = await import('~/utils/environment-route').catch(() => null)
+  if (disposed || !root.value || !loaded) return
+  routes = loaded.createEnvironmentRoutes(root.value, { reducedMotion })
 })
-onBeforeUnmount(() => { disposed = true; sketch?.destroy(); motion?.destroy(); doodles?.destroy() })
-// 後台即時預覽（pages/preview.vue）會一直換 page／campuses：文字變長變短、照片換掉後版面高度跟著變，
-// 手繪的框、章節底紙、便條箭頭要依新版面重畫（rough-sketch 只在掛載與視窗改寬時自己重畫；
-// 文字被換掉時 Vue 也會順手清掉宿主裡的手繪層）。flush: 'post' 等畫面更新完再量，同一個 tick 內改好幾處只畫一次。
-// 正式頁的 props 不會再變，這裡不會觸發；手繪層還沒建好時略過，第一次渲染本來就量最新版面。
-// 塗鴉跟著手繪層之後：小鳥踩回重畫過的曬衣繩，重建的校園分頁補上塗色。
-watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch?.refresh(root.value); doodles?.refresh() } }, { deep: true, flush: 'post' })
+onBeforeUnmount(() => { disposed = true; drop?.destroy(); routes?.destroy() })
+// 後台即時預覽（pages/preview.vue）會一直換 page／campuses：文字變長變短、照片換掉後版面高度跟著變，圓點小路要依新版面重算。
+// flush: 'post' 等畫面更新完再量，同一個 tick 內改好幾處只算一次。正式頁的 props 不會再變；小路還沒建好時略過。
+watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep: true, flush: 'post' })
 </script>
 
 <template>
   <main id="main" ref="root" tabindex="-1" class="renv" data-cta-entry="environment">
-    <!-- 首屏：一頁攤開的聯絡簿 -->
+    <!-- 首屏：大標、彩虹疊疊樂裡的照片、四塊積木目次 -->
     <section class="renv-hero" aria-labelledby="environment-title">
-      <span class="renv-doodle is-sun" data-doodle="sun" aria-hidden="true" />
       <div class="renv-wrap renv-hero-grid">
-        <div>
-          <h1 id="environment-title"><template v-for="(line, i) in heroLines" :key="i"><br v-if="i">{{ line.before }}<span v-if="line.mark" class="renv-mark" data-rough="highlight" data-seed="11">{{ line.mark }}</span>{{ line.after }}</template></h1>
-          <p v-if="page.heroLede" class="renv-lede">{{ page.heroLede }}</p>
+        <div class="renv-hero-txt">
+          <h1 id="environment-title"><span v-for="(line, i) in heroLines" :key="i">{{ line.before }}<mark v-if="line.mark" class="renv-mark">{{ line.mark }}</mark>{{ line.after }}</span></h1>
+          <p v-if="page.heroLede" class="renv-text renv-lede">{{ page.heroLede }}</p>
           <p v-if="page.heroNotice" class="renv-notice">{{ page.heroNotice }}</p>
         </div>
-        <figure class="renv-hero-photo renv-snap" data-rough="frame" data-seed="31">
-          <img v-bind="withPhotoStyle(environmentHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
-          <span class="renv-tape is-tl" data-rough="tape" data-seed="32" />
-          <span class="renv-tape is-br" data-rough="tape" data-seed="33" />
-          <figcaption class="renv-hand">{{ page.heroCaption }}</figcaption>
-        </figure>
+        <div class="renv-hero-fig">
+          <!-- 五道同心拱由外而內：赤陶、芥末、鼠尾草、霧藍、淡粉，照片在最內圈 -->
+          <div class="renv-rainbow">
+            <div class="renv-rb c-terra"><div class="renv-rb-gap">
+              <div class="renv-rb c-mustard"><div class="renv-rb-gap">
+                <div class="renv-rb c-sage"><div class="renv-rb-gap">
+                  <div class="renv-rb c-mist"><div class="renv-rb-gap">
+                    <div class="renv-rb c-pink"><div class="renv-rb-gap">
+                      <img class="renv-rainbow-photo" v-bind="environmentHeroAttrs(page)" :style="pagePhotoStyle('70% 38%', page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+                    </div></div>
+                  </div></div>
+                </div></div>
+              </div></div>
+            </div></div>
+          </div>
+        </div>
+        <nav class="renv-index" aria-label="本頁章節">
+          <ul>
+            <li v-for="(chapter, i) in chapters" :key="chapter.id">
+              <a :class="[INDEX_LOOKS[i]![0], `c-${INDEX_LOOKS[i]![1]}`]" :href="`#${chapter.id}`">
+                <b class="renv-index-no" lang="en">{{ chapter.no }}</b><span class="renv-index-name">{{ chapter.label }}</span><span class="renv-index-hint">{{ chapter.hint }}</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
       </div>
-      <nav class="renv-wrap renv-index" aria-label="本頁章節">
-        <ol>
-          <li v-for="(chapter, i) in chapters" :key="chapter.id">
-            <a :href="`#${chapter.id}`" :data-chapter="chapter.id">
-              <span class="renv-box" data-rough="check" :data-seed="41 + i" aria-hidden="true" />
-              <span class="renv-num" lang="en">{{ chapter.no }}</span><b>{{ chapter.label }}</b><span class="renv-hint">{{ chapter.hint }}</span>
-            </a>
-          </li>
-        </ol>
-      </nav>
     </section>
 
-    <!-- 01 幼兒保育：五顆心＋曬衣繩 -->
+    <!-- 01 幼兒保育：幾何愛心、主照片、五件照顧的小事 -->
     <section id="care" class="renv-section renv-care" aria-labelledby="care-title">
-      <div class="renv-sheet" data-rough="sheet" data-sheet="care" data-seed="50" aria-hidden="true" />
       <div class="renv-wrap">
-        <div class="renv-care-top">
+        <div class="renv-care-head">
           <div>
-            <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="51" data-chapter-check="care" aria-hidden="true" /><span lang="en">{{ chapterNo('care') }}</span>{{ page.chapterNames[0] }}</p>
-            <h2 id="care-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.careTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-            <p class="renv-text">{{ page.careLead }}</p>
+            <p class="renv-kicker"><span class="renv-dot c-terra" lang="en">{{ chapterNo('care') }}</span>{{ page.chapterNames[0] }}</p>
+            <h2 id="care-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.careTitle)" :key="i">{{ line }}</span></h2>
+          </div>
+          <div class="renv-hearts-box">
+            <p v-if="page.careLead" class="renv-text">{{ page.careLead }}</p>
             <ul class="renv-hearts">
-              <li v-for="(heart, i) in page.hearts" :key="i"><span class="renv-heart" data-rough="heart" :data-seed="61 + i" aria-hidden="true" /><b>{{ heart }}</b></li>
+              <li v-for="(heart, i) in page.hearts" :key="i" :class="`c-${HEART_COLORS[i % 5]}`" data-drop :style="{ '--i': i }">
+                <svg class="renv-heart" viewBox="-37 -38 74 76" aria-hidden="true" focusable="false"><path class="is-side" :d="HEART" transform="translate(0 6)" /><path class="is-face" :d="HEART" /></svg>
+                <b>{{ heart }}</b>
+              </li>
             </ul>
             <p v-if="page.careText" class="renv-text">{{ page.careText }}</p>
           </div>
-          <figure class="renv-care-photo renv-snap" data-rough="frame" data-seed="70">
-            <img v-bind="withPhotoStyle(pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) 138vw, 880px'), page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy">
-            <span class="renv-tape is-tr" data-rough="tape" data-seed="71" />
-            <span class="renv-note is-care" aria-hidden="true" data-rough="note" data-seed="72" data-to="0.13,0.22">{{ page.carePhotoNote }}</span>
-            <figcaption class="renv-hand">{{ page.careCaption }}</figcaption>
-          </figure>
         </div>
-        <div class="renv-hang" tabindex="0" role="region" aria-label="五件照顧的小事">
-          <ol class="renv-hang-track" data-rough="clothesline" data-seed="80">
-            <li v-for="(item, i) in careItems" :key="item.image" class="renv-hang-item">
-              <figure class="renv-hang-photo" data-rough="frame" :data-seed="81 + i">
-                <img v-bind="pagePhotoAttrs(item.image, item.photo, '(max-width: 900px) 410px, 345px')" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" :style="pagePhotoStyle(item.pos, item.photo)" loading="lazy">
-              </figure>
-              <h3><span class="renv-count" data-rough="circle" :data-seed="86 + i" lang="en">{{ i + 1 }}</span>{{ item.title }}</h3>
-              <p>{{ item.text }}</p>
-            </li>
-          </ol>
-          <span class="renv-doodle is-bird" data-doodle="bird" aria-hidden="true" />
-        </div>
-      </div>
-    </section>
-
-    <!-- 02 校園環境：跟著小腳印走一圈 -->
-    <section id="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
-      <div class="renv-wrap">
-        <div class="renv-split-head">
-          <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="101" data-chapter-check="spaces" aria-hidden="true" /><span lang="en">{{ chapterNo('spaces') }}</span>{{ page.chapterNames[1] }}</p>
-          <h2 id="spaces-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.spacesTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-          <p v-if="page.spacesText" class="renv-text">{{ page.spacesText }}</p>
-        </div>
-        <article class="renv-feature">
-          <figure class="renv-feature-photo renv-snap" data-rough="frame" data-seed="110">
-            <img v-bind="withPhotoStyle(pagePhotoAttrs('env-space-playground', page.feature.photo, '(max-width: 900px) 92vw, 680px'), page.feature.photo)" :alt="pagePhotoAlt(FEATURE_ALT, page.feature.photo, page.feature.photoAlt)" loading="lazy">
-            <span class="renv-tape is-tl" data-rough="tape" data-seed="111" />
-            <span class="renv-tape is-tr" data-rough="tape" data-seed="112" />
-            <span class="renv-note is-slide" aria-hidden="true" data-rough="note" data-seed="113" data-to="0.86,0.74">{{ page.feature.note }}</span>
-          </figure>
-          <div class="renv-feature-copy">
-            <span class="renv-doodle is-rainbow" data-doodle="rainbow" aria-hidden="true" />
-            <p class="renv-tag" data-rough="tagfill" data-seed="114">{{ page.feature.tag }}</p>
-            <h3><template v-for="(line, i) in pageTitleLines(page.feature.title)" :key="i"><br v-if="i">{{ line }}</template></h3>
-            <p>{{ page.feature.text }}</p>
+        <div class="renv-care-main">
+          <div class="renv-ph" data-drop>
+            <div class="renv-ph-back renv-blk s-d c-sage" aria-hidden="true" />
+            <div class="renv-frame s-d c-terra">
+              <img v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc((100vw - 32px) * 1.36), 1320px')" :style="pagePhotoStyle('0% 30%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy">
+            </div>
           </div>
-        </article>
-        <p v-if="page.trailHint" class="renv-hand renv-trail-hint" aria-hidden="true">{{ page.trailHint }}</p>
-        <ol class="renv-trail" data-rough="trail" data-seed="120">
-          <li v-for="(space, i) in spaces" :key="space.image" class="renv-stop">
-            <figure class="renv-stop-photo renv-snap" data-rough="frame" :data-seed="121 + i">
-              <img v-bind="withPhotoStyle(pagePhotoAttrs(space.image, space.photo, '(max-width: 760px) calc(100vw - 96px), (max-width: 1100px) 45vw, 530px'), space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy">
-              <span v-if="space.campusLabel" class="renv-campus" data-rough="tagfill" data-seed="150">{{ space.campusLabel }}</span>
-              <span class="renv-note" :class="space.noteAt" aria-hidden="true" data-rough="note" :data-seed="131 + i" :data-to="space.to">{{ space.note }}</span>
-              <span v-if="space.doodle" class="renv-doodle" :class="`is-${space.doodle}`" :data-doodle="space.doodle" aria-hidden="true" />
-            </figure>
-            <div class="renv-stop-copy">
-              <span class="renv-stop-no" data-rough="stop" :data-seed="141 + i" lang="en">{{ i + 1 }}</span>
-              <h3>{{ space.title }}</h3>
-              <p>{{ space.text }}</p>
+        </div>
+        <ol class="renv-cares">
+          <li v-for="(item, i) in careItems" :key="item.image">
+            <div class="renv-care-ph">
+              <div class="renv-ph" data-drop :style="{ '--i': i }">
+                <div class="renv-frame" :class="[item.look.shape, `c-${item.look.color}`]" :style="frameStyle(item.look)">
+                  <img v-bind="pagePhotoAttrs(item.image, item.photo, '(max-width: 900px) 75vw, 380px')" :style="pagePhotoStyle(item.look.pos, item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy">
+                </div>
+              </div>
+              <div v-if="item.look.ped" class="renv-care-ped renv-blk" :class="`c-${item.look.ped}`" data-drop aria-hidden="true" />
+            </div>
+            <div class="renv-care-txt">
+              <h3><span class="renv-dot" :class="`c-${item.look.color}`" lang="en">{{ i + 1 }}</span>{{ item.title }}</h3>
+              <p>{{ item.text }}</p>
             </div>
           </li>
         </ol>
       </div>
     </section>
 
-    <!-- 03 幼兒餐點：太陽走過的一天 -->
-    <section id="meals" class="renv-section renv-meals" aria-labelledby="meals-title">
-      <div class="renv-sheet" data-rough="sheet" data-sheet="meals" data-seed="200" aria-hidden="true" />
+    <!-- 02 校園環境：遊樂區主打，六個空間左右交錯、圓點小路從一張照片接到下一張 -->
+    <section id="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
       <div class="renv-wrap">
-        <div class="renv-meals-top">
-          <div>
-            <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="201" data-chapter-check="meals" aria-hidden="true" /><span lang="en">{{ chapterNo('meals') }}</span>{{ page.chapterNames[2] }}</p>
-            <h2 id="meals-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.mealsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-            <p class="renv-text">{{ page.mealsText }}</p>
-            <a class="renv-btn" :href="meal.href" target="_blank" rel="noopener" data-rough="button" data-seed="202">{{ meal.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg><span class="sr-only">（另開新視窗）</span></a>
+        <p class="renv-kicker"><span class="renv-dot c-sage" lang="en">{{ chapterNo('spaces') }}</span>{{ page.chapterNames[1] }}</p>
+        <h2 id="spaces-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.spacesTitle)" :key="i">{{ line }}</span></h2>
+        <p v-if="page.spacesText" class="renv-text">{{ page.spacesText }}</p>
+        <div class="renv-feature">
+          <div class="renv-ph" data-drop>
+            <div class="renv-ph-back renv-blk s-qbl c-mustard" aria-hidden="true" />
+            <div class="renv-frame s-qbl c-sage">
+              <img v-bind="pagePhotoAttrs('env-space-playground', page.feature.photo, '(max-width: 900px) calc(100vw - 32px), 680px')" :style="pagePhotoStyle(undefined, page.feature.photo)" :alt="pagePhotoAlt(FEATURE_ALT, page.feature.photo, page.feature.photoAlt)" loading="lazy">
+            </div>
           </div>
-          <div class="renv-book">
-            <a class="renv-book-cover" :href="meal.href" target="_blank" rel="noopener" :aria-label="`打開營養餐點書的 ${meal.month} 月菜單（另開新視窗）`" data-rough="frame" data-seed="210">
-              <img v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 220px, 300px')" alt="" loading="lazy">
-              <span class="renv-tape is-top" data-rough="tape" data-seed="211" />
-            </a>
-            <p class="renv-hand renv-book-note" aria-hidden="true" data-rough="bookarrow" data-seed="212"><span>{{ meal.month }} 月</span>的菜單，<br>翻到這一頁</p>
+          <div class="renv-feature-copy">
+            <p class="renv-tag renv-blk c-sage">{{ page.feature.tag }}</p>
+            <h3><span v-for="(line, i) in pageTitleLines(page.feature.title)" :key="i">{{ line }}</span></h3>
+            <p class="renv-text">{{ page.feature.text }}</p>
           </div>
         </div>
-        <div class="renv-day" data-rough="sunpath" data-seed="220">
-          <p class="renv-hand renv-day-title">{{ page.mealsDayTitle }}</p>
+        <div class="renv-stops">
+          <svg class="renv-route" data-route="map" aria-hidden="true" focusable="false" />
+          <ol class="renv-stop-list">
+            <li v-for="(space, i) in spaces" :key="space.image" class="renv-stop" :data-route-color="`var(--renv-${space.look.color}-side)`">
+              <div class="renv-stop-ph">
+                <div class="renv-ph" data-drop :style="phStyle(space.look)">
+                  <div class="renv-ph-back renv-blk" :class="[space.look.back![0], `c-${space.look.back![1]}`]" :style="backStyle(space.look)" aria-hidden="true" />
+                  <div class="renv-frame" :class="[space.look.shape, `c-${space.look.color}`]" :style="frameStyle(space.look)">
+                    <img v-bind="pagePhotoAttrs(space.image, space.photo, '(max-width: 900px) calc((100vw - 82px) * 1.6), 660px')" :style="pagePhotoStyle(space.look.pos, space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy">
+                  </div>
+                  <span v-if="space.campusLabel" class="renv-campus renv-blk c-mustard">{{ space.campusLabel }}</span>
+                  <span class="renv-dot renv-stop-no" :class="`c-${space.look.color}`" lang="en" aria-hidden="true">{{ i + 1 }}</span>
+                </div>
+              </div>
+              <div class="renv-stop-copy" data-drop :style="{ '--i': 1 }">
+                <h3>{{ space.title }}</h3>
+                <p>{{ space.text }}</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
+    <!-- 03 幼兒餐點：營養餐點書、一天五餐的時間軸 -->
+    <section id="meals" class="renv-section renv-meals" aria-labelledby="meals-title">
+      <div class="renv-wrap renv-meals-top">
+        <div>
+          <p class="renv-kicker"><span class="renv-dot c-mustard" lang="en">{{ chapterNo('meals') }}</span>{{ page.chapterNames[2] }}</p>
+          <h2 id="meals-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.mealsTitle)" :key="i">{{ line }}</span></h2>
+          <p class="renv-text">{{ page.mealsText }}</p>
+          <a class="renv-btn c-forest" :href="meal.href" target="_blank" rel="noopener">{{ meal.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg><span class="sr-only">（另開新視窗）</span></a>
+        </div>
+        <a class="renv-book" :href="meal.href" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">
+          <span class="renv-book-arch renv-blk s-arch c-terra" data-drop />
+          <img class="renv-book-cover" v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 162px, 224px')" alt="" loading="lazy" data-drop :style="{ '--i': 1 }">
+          <span class="renv-book-semi renv-blk s-semi c-sage" data-drop :style="{ '--i': 2 }" />
+        </a>
+      </div>
+      <div class="renv-wrap renv-day">
+        <h3 class="renv-day-title">{{ page.mealsDayTitle }}</h3>
+        <div class="renv-day-track">
+          <svg class="renv-route" data-route="day" aria-hidden="true" focusable="false" />
           <ol class="renv-day-list">
-            <li v-for="(item, i) in meals" :key="i" class="renv-meal" :data-t="item.t">
-              <time lang="en">{{ item.time }}</time><b><span class="renv-meal-name">{{ item.name }}<span v-if="item.doodle" class="renv-doodle" :class="`is-${item.doodle}`" :data-doodle="item.doodle" aria-hidden="true" /></span></b><small>{{ item.note }}</small>
+            <li v-for="(item, i) in meals" :key="i" data-drop :style="{ '--i': i }">
+              <time lang="en">{{ item.time }}</time>
+              <!-- eslint-disable-next-line vue/no-v-html -- 本檔固定的小圖示常數，不含後台或使用者內容 -->
+              <span class="renv-stn renv-blk c-cream"><svg viewBox="0 0 30 30" aria-hidden="true" focusable="false" v-html="item.icon" /></span>
+              <b>{{ item.name }}</b><small>{{ item.note }}</small>
               <p v-if="item.text">{{ item.text }}</p>
             </li>
           </ol>
@@ -291,12 +344,13 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
     <!-- 04 五所校園：各校校園探索的實景（後台 campus_tour 發布的內容） -->
     <section v-if="tours.length" id="campuses" class="renv-section renv-tour" aria-labelledby="tour-title">
       <div class="renv-wrap">
-        <div class="renv-split-head">
-          <p class="renv-kicker"><span class="renv-box" data-rough="check" data-seed="401" data-chapter-check="campuses" aria-hidden="true" /><span lang="en">{{ chapterNo('campuses') }}</span>{{ page.chapterNames[3] }}</p>
-          <h2 id="tour-title" class="renv-title"><template v-for="(line, i) in pageTitleLines(page.tourTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+        <div class="renv-tour-head">
+          <div>
+            <p class="renv-kicker"><span class="renv-dot c-mist" lang="en">{{ chapterNo('campuses') }}</span>{{ page.chapterNames[3] }}</p>
+            <h2 id="tour-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.tourTitle)" :key="i">{{ line }}</span></h2>
+          </div>
           <p v-if="page.tourText" class="renv-text">{{ page.tourText }}</p>
         </div>
-        <p v-if="page.tourHint" class="renv-hand renv-tour-hint" aria-hidden="true">{{ page.tourHint }}</p>
         <div class="renv-tour-tabs" role="tablist" aria-label="選一所校園">
           <button
             v-for="(tour, i) in tours"
@@ -306,20 +360,16 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
             type="button"
             role="tab"
             class="renv-tour-tab"
+            :class="`c-${TOUR_COLORS[i % 5]}`"
             :data-key="tour.campus.key"
             :aria-controls="`tour-${tour.campus.key}`"
             :aria-selected="tour.campus.key === activeKey"
             :tabindex="tour.campus.key === activeKey ? 0 : -1"
-            data-rough="tab"
-            :data-seed="500 + i"
             @click="selectTab(tour.campus.key)"
             @keydown="onTabKey($event, i)"
           >
-            <span class="renv-tour-art">
-              <span class="renv-tour-paint" data-tour-paint :data-campus="tour.campus.key" aria-hidden="true" />
-              <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 170px')" alt="" loading="lazy" decoding="async">
-            </span>
-            <b>{{ tour.campus.name }}</b><small>{{ tour.campus.district }}・{{ tour.scenes.length }} 個角落</small>
+            <span class="renv-tour-art"><img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async"></span>
+            <b>{{ tour.campus.name }}</b>
           </button>
         </div>
         <div
@@ -332,18 +382,29 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
           tabindex="0"
           :hidden="tour.campus.key !== activeKey"
         >
-          <ul class="renv-scenes" :class="`is-${Math.min(tour.scenes.length, 3)}`">
-            <li v-for="(scene, s) in tour.scenes" :key="scene.key" class="renv-scene">
-              <figure class="renv-scene-photo renv-snap" data-rough="frame" :data-seed="600 + t * 60 + s * 21">
-                <img v-bind="sceneImage(scene, s === 0 && tour.scenes.length !== 2)" :alt="`${tour.campus.name}的${scene.name}`" loading="lazy" decoding="async">
-                <span class="renv-tape" :class="s % 2 ? 'is-tr' : 'is-tl'" data-rough="tape" :data-seed="601 + t * 60 + s * 21" />
-              </figure>
-              <div class="renv-scene-copy">
-                <h3 class="renv-scene-name" data-rough="tagfill" :data-seed="602 + t * 60 + s * 21">{{ scene.name }}</h3>
-                <p>{{ scene.intro }}</p>
+          <div class="renv-tour-panel-head"><h3>{{ tour.campus.name }}</h3><p>{{ tour.campus.district }}・{{ tour.scenes.length }} 個角落</p></div>
+          <div class="renv-scenes">
+            <div class="renv-scene renv-scene-lead">
+              <div class="renv-ph" data-drop>
+                <div class="renv-ph-back renv-blk s-arch" :class="`c-${TOUR_COLORS[(t + 2) % 5]}`" aria-hidden="true" />
+                <div class="renv-frame s-arch" :class="`c-${TOUR_COLORS[t % 5]}`">
+                  <img v-bind="sceneImage(tour.scenes[0]!, true)" :style="pagePhotoStyle(undefined, tour.scenes[0]!.imageMedia)" :alt="`${tour.campus.name}的${tour.scenes[0]!.name}`" loading="lazy" decoding="async">
+                </div>
               </div>
-            </li>
-          </ul>
+              <h4>{{ tour.scenes[0]!.name }}</h4>
+            </div>
+            <ul v-if="tour.scenes.length > 1" class="renv-scene-list">
+              <li v-for="(scene, s) in tour.scenes.slice(1)" :key="scene.key" class="renv-scene">
+                <div class="renv-ph" data-drop :style="{ '--i': s + 1 }">
+                  <div class="renv-ph-back renv-blk s-circle" :class="`c-${TOUR_COLORS[(t + 3 + s) % 5]}`" aria-hidden="true" />
+                  <div class="renv-frame s-circle" :class="`c-${TOUR_COLORS[t % 5]}`">
+                    <img v-bind="sceneImage(scene, false)" :style="pagePhotoStyle(undefined, scene.imageMedia)" :alt="`${tour.campus.name}的${scene.name}`" loading="lazy" decoding="async">
+                  </div>
+                </div>
+                <h4>{{ scene.name }}</h4>
+              </li>
+            </ul>
+          </div>
         </div>
       </div>
     </section>
@@ -351,11 +412,10 @@ watch([() => props.page, () => props.campuses], () => { if (root.value) { sketch
     <!-- 結尾：接下來可以看（不放預約） -->
     <section class="renv-section renv-next" aria-labelledby="next-title">
       <div class="renv-wrap">
-        <h2 id="next-title" class="renv-hand renv-next-title">還可以看看這幾頁</h2>
-        <span class="renv-doodle is-hand" data-doodle="hand" aria-hidden="true" />
+        <h2 id="next-title" class="renv-next-title">還可以看看這幾頁</h2>
         <ul class="renv-next-list">
-          <li v-for="(item, i) in NEXT" :key="item.href">
-            <NuxtLink class="renv-next-link" :to="item.href" data-rough="card" :data-seed="451 + i"><b>{{ item.title }}</b><small>{{ item.hint }}</small></NuxtLink>
+          <li v-for="(item, i) in NEXT" :key="item.href" data-drop :style="{ '--i': i }">
+            <NuxtLink class="renv-next-link" :class="[item.look[0], `c-${item.look[1]}`]" :to="item.href"><b>{{ item.title }}</b><small>{{ item.hint }}</small></NuxtLink>
           </li>
         </ul>
       </div>
