@@ -29,15 +29,16 @@ const YEARS = [
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
-// 2026-10-13 多元文化 38%→75%：桌機 4:5 裁切原本中間是沒有頭的外籍老師，改以大笑的男孩為中心（老師的手仍在畫面裡）；平板與手機 4:3 不裁切。
+// 2026-10-30 多元文化、課程活動改用園方雲端的活動照（人造雪美語課、濕地戶外教學），4:5 位置跟著重調：
+// 多元文化 12% 露出拿單字卡的外師與身邊的孩子，課程活動 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
 const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
   { key: 'integrated', image: 'cur-integrated', alt: '孩子抱著比自己還大的足球', wash: 'mint,.44,.6,.66,.56', position: '40% 50%' },
-  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師在戶外和孩子們說話', wash: 'sky,.56,.58,.66,.56', position: '75% 50%' },
+  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師拿著 snowman 單字卡，和孩子們坐在人造雪堆旁玩雪', wash: 'sky,.56,.58,.66,.56', position: '12% 50%' },
   { key: 'quote' },
   { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子在桌上操作教具', wash: 'sun,.46,.6,.62,.6' },
-  { key: 'activities', image: 'cur-activities', alt: '孩子們在戶外教學時聽解說員說話', wash: 'mint,.56,.6,.66,.56', position: '30% 50%' },
+  { key: 'activities', image: 'cur-activities', alt: '戶外教學走到濕地步道，孩子們一起指著樹林裡的發現', wash: 'mint,.56,.6,.66,.56', position: '48% 50%' },
   { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 760px) 80vw, (max-width: 1100px) 100vw, 800px' }
 ] satisfies { key: string, image?: string, alt?: string, wash?: string, position?: string, sizes?: string }[]
 

@@ -1,5 +1,8 @@
 """從既有廣告影片重取五張日常照片，保留原生 1080×800 與原取樣點。
 
+2026-10-30 起 day-* 母檔改用園方雲端的活動照（1600×1200），不再是影片抽格；
+跑這支會把新照片蓋回舊的影片畫面，只在要退回舊版時用。
+
 執行：python3 scripts/restore-day-photos.py '/path/to/常春藤廣告+配音.mp4'
 再執行 optimize-site-images.py --only day-hello day-discover day-lunch day-outside day-home。
 需 FFmpeg 與 Pillow；只更新 Nuxt 素材，不修改凍結原型。

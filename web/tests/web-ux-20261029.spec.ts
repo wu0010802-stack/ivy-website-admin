@@ -123,7 +123,7 @@ describe('原型的來源說明換成署名', () => {
       expect(text).toBeTruthy()
       expect(text).not.toMatch(/提案|取自/)
     }
-    expect(out.dayExperience.note).toBe('照片：義華校日常；背景影片：義華校遊藝表演。各校、各班作息略有不同，以園所安排為準。')
+    expect(out.dayExperience.note).toBe('照片：各校日常；背景影片：義華校遊藝表演。各校、各班作息略有不同，以園所安排為準。')
     const custom = publicCopy({ ...site, environmentPage: { ...site.environmentPage, heroNotice: '園方自訂的提醒，取自某處。' } })
     expect(custom.environmentPage.heroNotice).toBe('園方自訂的提醒，取自某處。')
   })

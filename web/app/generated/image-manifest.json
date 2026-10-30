@@ -1,15 +1,23 @@
 {
   "about-curious": {
-    "width": 760,
-    "height": 570,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/about-curious-9496acca346e-480.webp",
+        "src": "/assets/responsive/about-curious-bef30fd859ff-480.webp",
         "width": 480
       },
       {
+        "src": "/assets/responsive/about-curious-bef30fd859ff-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/about-curious-bef30fd859ff-1200.webp",
+        "width": 1200
+      },
+      {
         "src": "/assets/about-curious.webp",
-        "width": 760
+        "width": 1600
       }
     ]
   },
@@ -250,112 +258,132 @@
     ]
   },
   "day-discover": {
-    "width": 1080,
-    "height": 800,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-discover-264f4e0a782e-160.webp",
+        "src": "/assets/responsive/day-discover-0ed6b8aacf47-160.webp",
         "width": 160
       },
       {
-        "src": "/assets/responsive/day-discover-264f4e0a782e-480.webp",
+        "src": "/assets/responsive/day-discover-0ed6b8aacf47-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-discover-264f4e0a782e-800.webp",
+        "src": "/assets/responsive/day-discover-0ed6b8aacf47-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-discover-264f4e0a782e-1080.webp",
-        "width": 1080
+        "src": "/assets/responsive/day-discover-0ed6b8aacf47-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-discover-0ed6b8aacf47-1600.webp",
+        "width": 1600
       }
     ]
   },
   "day-hello": {
-    "width": 1080,
-    "height": 800,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-hello-4129657284a6-160.webp",
+        "src": "/assets/responsive/day-hello-03d1cd251836-160.webp",
         "width": 160
       },
       {
-        "src": "/assets/responsive/day-hello-4129657284a6-480.webp",
+        "src": "/assets/responsive/day-hello-03d1cd251836-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-hello-4129657284a6-800.webp",
+        "src": "/assets/responsive/day-hello-03d1cd251836-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-hello-4129657284a6-1080.webp",
-        "width": 1080
+        "src": "/assets/responsive/day-hello-03d1cd251836-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-hello-03d1cd251836-1600.webp",
+        "width": 1600
       }
     ]
   },
   "day-home": {
-    "width": 1080,
-    "height": 800,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-home-aaf1109a3715-160.webp",
+        "src": "/assets/responsive/day-home-98394bed692d-160.webp",
         "width": 160
       },
       {
-        "src": "/assets/responsive/day-home-aaf1109a3715-480.webp",
+        "src": "/assets/responsive/day-home-98394bed692d-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-home-aaf1109a3715-800.webp",
+        "src": "/assets/responsive/day-home-98394bed692d-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-home-aaf1109a3715-1080.webp",
-        "width": 1080
+        "src": "/assets/responsive/day-home-98394bed692d-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-home-98394bed692d-1600.webp",
+        "width": 1600
       }
     ]
   },
   "day-lunch": {
-    "width": 1080,
-    "height": 800,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-lunch-35d77f3c38be-160.webp",
+        "src": "/assets/responsive/day-lunch-eca1565bfe20-160.webp",
         "width": 160
       },
       {
-        "src": "/assets/responsive/day-lunch-35d77f3c38be-480.webp",
+        "src": "/assets/responsive/day-lunch-eca1565bfe20-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-lunch-35d77f3c38be-800.webp",
+        "src": "/assets/responsive/day-lunch-eca1565bfe20-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-lunch-35d77f3c38be-1080.webp",
-        "width": 1080
+        "src": "/assets/responsive/day-lunch-eca1565bfe20-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-lunch-eca1565bfe20-1600.webp",
+        "width": 1600
       }
     ]
   },
   "day-outside": {
-    "width": 1080,
-    "height": 800,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-outside-c351b5489fda-160.webp",
+        "src": "/assets/responsive/day-outside-989a1908c8c7-160.webp",
         "width": 160
       },
       {
-        "src": "/assets/responsive/day-outside-c351b5489fda-480.webp",
+        "src": "/assets/responsive/day-outside-989a1908c8c7-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-outside-c351b5489fda-800.webp",
+        "src": "/assets/responsive/day-outside-989a1908c8c7-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-outside-c351b5489fda-1080.webp",
-        "width": 1080
+        "src": "/assets/responsive/day-outside-989a1908c8c7-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-outside-989a1908c8c7-1600.webp",
+        "width": 1600
       }
     ]
   },
@@ -1254,28 +1282,24 @@
     ]
   },
   "cur-multicultural": {
-    "width": 1779,
-    "height": 1335,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-480.webp",
+        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-800.webp",
+        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-1200.webp",
+        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-1600.webp",
+        "src": "/assets/cur-multicultural.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/cur-multicultural-1337fce5e0ec-1779.webp",
-        "width": 1779
       }
     ]
   },
@@ -1306,28 +1330,24 @@
     ]
   },
   "cur-activities": {
-    "width": 1779,
-    "height": 1335,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-480.webp",
+        "src": "/assets/responsive/cur-activities-8e1c6b91fead-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-800.webp",
+        "src": "/assets/responsive/cur-activities-8e1c6b91fead-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-1200.webp",
+        "src": "/assets/responsive/cur-activities-8e1c6b91fead-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-1600.webp",
+        "src": "/assets/cur-activities.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/cur-activities-3e23db6ae4bb-1779.webp",
-        "width": 1779
       }
     ]
   },
@@ -2090,6 +2110,32 @@
       {
         "src": "/assets/responsive/campus-line-art-renwu-ink-720a348dedc1-720.webp",
         "width": 720
+      }
+    ]
+  },
+  "day-rest": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-rest-8011418a7ecd-160.webp",
+        "width": 160
+      },
+      {
+        "src": "/assets/responsive/day-rest-8011418a7ecd-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-rest-8011418a7ecd-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/day-rest-8011418a7ecd-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/day-rest-8011418a7ecd-1600.webp",
+        "width": 1600
       }
     ]
   }

@@ -82,7 +82,7 @@
    {
     "tint": "yellow",
     "photo": "day-hello",
-    "alt": "孩子在熟悉的環境裡，與身旁的人互動",
+    "alt": "兩個男孩手牽著手，在早晨的陽光裡笑開了",
     "key": "hello",
     "time": "08:00",
     "label": "早安入園",
@@ -95,7 +95,7 @@
    {
     "tint": "mint",
     "photo": "day-discover",
-    "alt": "老師陪伴孩子操作幾何教具",
+    "alt": "孩子們笑著伸手接過老師手上的紫高麗菜，準備做變色實驗",
     "key": "discover",
     "time": "09:10",
     "label": "好奇探索",
@@ -108,7 +108,7 @@
    {
     "tint": "peach",
     "photo": "day-lunch",
-    "alt": "孩子拿取湯匙與面紙，練習準備餐具",
+    "alt": "兩個女孩坐在樹下，捧著綠色小碗吃點心",
     "key": "lunch",
     "time": "11:40",
     "label": "一起用餐",
@@ -120,8 +120,8 @@
    },
    {
     "tint": "cream",
-    "photo": "classroom",
-    "alt": "義華校明亮的教室空間，作為安靜片刻的空間參考",
+    "photo": "day-rest",
+    "alt": "男孩們坐在草地上，各自安靜地翻著繪本",
     "key": "rest",
     "time": "12:30",
     "label": "安靜片刻",
@@ -134,7 +134,7 @@
    {
     "tint": "mint",
     "photo": "day-outside",
-    "alt": "孩子在戶外活動，笑著和同伴一起跑動",
+    "alt": "女孩在校園裡笑著奔跑，朋友跟在後面追",
     "key": "outside",
     "time": "14:20",
     "label": "午後玩耍",
@@ -147,7 +147,7 @@
    {
     "tint": "yellow",
     "photo": "day-home",
-    "alt": "孩子專注整理自己的物品，為一天收尾",
+    "alt": "爸爸抱起女兒，兩個人笑得好開心",
     "key": "home",
     "time": "16:30",
     "label": "帶故事回家",

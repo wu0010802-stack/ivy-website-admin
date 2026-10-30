@@ -50,7 +50,8 @@ OVERRIDES = {
 }
 FULL_REENCODE_MIN_SAVING = 0.2
 # 日常照片保留影片原生解析度，衍生小圖也降低再壓縮的細節損失。
-DAY_PHOTOS = {f'day-{name}' for name in ['hello', 'discover', 'lunch', 'outside', 'home']}
+# 2026-10-30：六張改用園方雲端的活動照（1600×1200 母檔），安靜片刻不再借 classroom，另立 day-rest。
+DAY_PHOTOS = {f'day-{name}' for name in ['hello', 'discover', 'lunch', 'rest', 'outside', 'home']}
 DAY_QUALITY = 92
 DAY_WIDTHS = [160, 480, 800, 1200]
 # 分享圖：首頁 hero 與五校封面（campus.image 不開放 CMS 修改，清單固定）。

@@ -76,8 +76,8 @@ const babyTone = computed(() => (plan.value?.status === 'young' ? 'red' : 'green
 
 // ---------- 03 新生準備 ----------
 const PHASE_PHOTOS = [
-  { name: 'day-lunch', alt: '孩子自己拿湯匙吃點心' },
-  { name: 'day-home', alt: '孩子在教室專心看繪本' }
+  { name: 'day-lunch', alt: '兩個女孩坐在樹下，捧著小碗吃點心' },
+  { name: 'day-home', alt: '爸爸抱起女兒，兩個人笑得好開心' }
 ]
 /** 必備品勾選（不存）：勾起來那一行蓋「已備」小方章，取消就拿起。 */
 const checked = ref<Record<string, boolean>>({})
@@ -198,9 +198,9 @@ onBeforeUnmount(() => {
             <div class="ap-runhead"><span>常春藤入學護照</span><span>第 1 頁</span></div>
             <figure class="ap-photo">
               <div class="ap-photo-frame">
-                <img v-bind="hero" alt="孩子早上到校，和老師打招呼" loading="eager" fetchpriority="high">
+                <img v-bind="hero" alt="兩個男孩手牽著手，在早晨的陽光裡笑開了" loading="eager" fetchpriority="high">
               </div>
-              <figcaption>早上到校，先跟老師說早安。</figcaption>
+              <figcaption>早上到校，牽起好朋友的手。</figcaption>
               <div class="ap-stamp-host ap-welcome">
                 <Transition :css="false" @enter="onPress" @leave="onLift">
                   <PassportStamp v-if="welcome" kind="round" ring="常春藤幼兒園・入學護照" :lines="['歡迎', '入學']" mode="pair" tone="green" :size="128" :rot="-12" />

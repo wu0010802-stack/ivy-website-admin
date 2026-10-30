@@ -23,7 +23,7 @@ const BUILTIN_PHOTOS: Record<string, string> = {
   hello: 'day-hello',
   discover: 'day-discover',
   lunch: 'day-lunch',
-  rest: 'classroom',
+  rest: 'day-rest',
   outside: 'day-outside',
   home: 'day-home',
 }
