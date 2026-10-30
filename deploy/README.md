@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 前台拿掉沒有意義或重複的文字（main CI 部署，沒有 migration）
+
+- **內容**：`fc3a5dfd`（README「2026-10-30 前台拿掉沒有意義或重複的字」）。首頁、關於、特色教學、環境、入學、消息、預約、404 拿掉眉標、念清單的引言、英文小字、操作說明、口號圖說與署名；後台可改的欄位由 `publicCopy` 只換一字不差的原文，正式站後台內容不必動。
+- **提交**：worktree `web-copy-distill-20261030`（從 origin/main `041eee82`，推前 rebase 到 `8a502a18`），web typecheck＋單元 1385 全過；本機 `test:e2e:stack` 156 項 155 過，`admissions-withdraw`（後台招生統計手機寬 400>390）單獨重跑通過，這次沒動 admin／backend；使用者要求後推 main（fast-forward）。
+- **CI**：main run 41008989706 全綠，Deploy success（05:39:18–05:43:03Z）。
+- **線上驗證**（只發 GET，非 GET 全部攔下）：`/release.json` base_commit `fc3a5dfd`、created_at `2026-10-30T05:39:45Z`；health `status: ok`、`fixture_enabled: false`。八頁（`/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/news`、`/visit`、`/visit/yihua`）皆 200，拿掉的 30 組字串 0 次（入學頁只剩印章環狀字「常春藤幼兒園・入學護照」，是圖案不是眉標）；保留的「把每個孩子，放在心上」「各校、各班作息略有不同」「還可以看看這幾頁」「9 月 2 日到隔年 9 月 1 日出生為同一屆」都在。
+- **待使用者**：正式站最新消息有一則義華校 10-24「test／讚」，看起來是測試資料，要在後台刪。
+
 ## 2026-10-30 環境頁照顧三張、義華校園探索兩張換成義華 NAS 照片（main CI 部署，沒有 migration）
 
 - **內容**：`bb32e879`（README「2026-10-30 環境頁照顧三張、義華校園探索兩張換成義華 NAS 照片」）。`env-care-meal`／`env-care-clothes`／`env-care-comfort` 換掉戴口罩的舊照（1600×1200）；義華校園探索 `campus`／`classroom` 換掉 960px 舊照（1600×1000），正式站後台場景代號不變，換檔即生效。
