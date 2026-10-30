@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 特色教學頁主體（/curriculum）。
 // 2026-09-26 從兩個舊官網搬來：01 四個年段、02 七個課程方向取自機構站 ivykidschool.com「教學特色 Course」；
-// 04 五件事取自義華校 ivykids.tw「課程特色」（照片是義華校的）。各項目是舊站原文，只修錯字與標點；
+// 04 五件事取自義華校 ivykids.tw「課程特色」（照片是義華校的，2026-10-30 起大肌肉時間改用足球賽照片）。各項目是舊站原文，只修錯字與標點；
 // 未經園方確認的宣傳語（高雄獨家、大推）不搬。
 // 2026-09-28 改成水彩版（使用者選 C，mock：design/curriculum-watercolor-mockup-20260928）：
 // 不再共用 admission.css 的 adm-*；拿掉預約參觀（使用者要求）；新增 03 兒童美術館（機構站「常春藤兒童美術館」
@@ -31,10 +31,11 @@ const YEARS = [
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
 // 2026-10-30 多元文化、課程活動改用園方雲端的活動照（人造雪美語課、濕地戶外教學），4:5 位置跟著重調：
 // 多元文化 12% 露出拿單字卡的外師與身邊的孩子，課程活動 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
+// 同日統整課程換成幼幼班感統區（爬彩虹拱橋），4:5 位置 36% 讓爬拱橋的女孩和拱橋都在框內。
 const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
-  { key: 'integrated', image: 'cur-integrated', alt: '孩子抱著比自己還大的足球', wash: 'mint,.44,.6,.66,.56', position: '40% 50%' },
+  { key: 'integrated', image: 'cur-integrated', alt: '幼幼班的孩子在感統區手腳並用，爬過彩虹拱橋', wash: 'mint,.44,.6,.66,.56', position: '36% 50%' },
   { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師拿著 snowman 單字卡，和孩子們坐在人造雪堆旁玩雪', wash: 'sky,.56,.58,.66,.56', position: '12% 50%' },
   { key: 'quote' },
   { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子在桌上操作教具', wash: 'sun,.46,.6,.62,.6' },
@@ -62,7 +63,7 @@ const DAILY = [
   { image: 'cur-daily-materials', alt: '女孩笑著把貓頭鷹積木一個個疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
   { image: 'cur-daily-art', alt: '女孩專心把材料黏到作品上', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
   { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
-  { image: 'cur-daily-motor', alt: '男孩在操場上跳過一排跨欄', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
+  { image: 'cur-daily-motor', alt: '兩個男孩穿著號碼背心，在草地足球場上搶著盤球', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
 
 // 教學理念五項各配一種顏料（文字在後台）。

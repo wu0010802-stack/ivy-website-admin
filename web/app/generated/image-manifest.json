@@ -1256,28 +1256,24 @@
     ]
   },
   "cur-integrated": {
-    "width": 1779,
-    "height": 1335,
+    "width": 1600,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-integrated-176acde9055f-480.webp",
+        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-integrated-176acde9055f-800.webp",
+        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-integrated-176acde9055f-1200.webp",
+        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-integrated-176acde9055f-1600.webp",
+        "src": "/assets/cur-integrated.webp",
         "width": 1600
-      },
-      {
-        "src": "/assets/responsive/cur-integrated-176acde9055f-1779.webp",
-        "width": 1779
       }
     ]
   },
@@ -1450,20 +1446,24 @@
     ]
   },
   "cur-daily-motor": {
-    "width": 1000,
-    "height": 625,
+    "width": 1600,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-480.webp",
+        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-800.webp",
+        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-daily-motor-b831bda5f7f2-1000.webp",
-        "width": 1000
+        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/cur-daily-motor.webp",
+        "width": 1600
       }
     ]
   },
