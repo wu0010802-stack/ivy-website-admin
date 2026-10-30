@@ -93,6 +93,12 @@ const chapters = computed(() => {
     .map((item, i) => ({ ...item, no: String(i + 1).padStart(2, '0'), style: { '--chap': item.color } }))
 })
 const chapterOf = (id: string) => chapters.value.find((item) => item.id === id)!
+// 結尾：接下來可以看（同環境頁的「還可以看看這幾頁」；不放預約，預約入口只有頁首金色鈕）
+const NEXT = [
+  { href: '/environment', title: '常春藤環境', hint: '照顧、餐點與五校空間', color: 'var(--mint)' },
+  { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向', color: 'var(--yellow)' },
+  { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照', color: 'var(--studio-blue)' }
+]
 
 // 動態：沿革卡紙站起來、紀念章轉一圈都是 about.css 的捲動驅動動畫（不支援的瀏覽器直接是完成狀態）。
 // 這裡只管兩件事：六圈（AboutWholePerson 等章節發 abk-open 才開始播，自己看得見才真的播），
@@ -176,7 +182,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <!-- 全人教育：薄荷色帶，左邊兩份清單、右邊六圈 -->
     <section id="whole-child" class="abh-band" data-spread :style="chapterOf('whole-child').style" aria-labelledby="whole-title">
       <div class="abh-wrap abh-split">
-        <div>
+        <div class="abh-whole-text">
           <p class="abh-no" lang="en">{{ chapterOf('whole-child').no }}</p>
           <h2 id="whole-title"><template v-for="(line, i) in pageTitleLines(page.wholeTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p class="abh-text">{{ page.wholeText }}</p>
@@ -264,6 +270,17 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
           <figcaption aria-live="polite">{{ voices[shownVoice]!.speaker }} · {{ voices[shownVoice]!.campus.name }}家長</figcaption>
         </figure>
       </div>
+    </section>
+
+    <!-- 結尾：接下來可以看這幾頁（不放預約） -->
+    <section class="abh-wrap abh-sec abh-next" aria-labelledby="next-title">
+      <h2 id="next-title">還可以看看這幾頁</h2>
+      <nav class="abh-index is-next" aria-label="其他頁面">
+        <NuxtLink v-for="item in NEXT" :key="item.href" :to="item.href" :style="{ '--chap': item.color }">
+          <span class="abh-mk" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-arrow-right" /></svg></span>
+          <span><b>{{ item.title }}</b><small>{{ item.hint }}</small></span>
+        </NuxtLink>
+      </nav>
     </section>
     <div class="abh-end" />
   </main>
