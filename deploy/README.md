@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 關於頁換成 H 版（main CI 部署，沒有 migration）
+
+- **內容**：`05e08427`（README「2026-10-30 關於頁換版：H『原版風格×四季結構』」）。桌機立體書與手機卡紙疊換成一套排法；拿掉五所校園結尾；家長章標題「孩子的進步，家長看得見。」寫在程式裡；web 拿掉 `motion` 依賴。
+- **提交**：worktree `about-h-20261030`（從 origin/main `c4c0a1ab`）。驗證：
+  - web typecheck 通過，單元測試 1349 全過；後台 about／preview 54 項全過。
+  - 本機 stack 跑了 a11y、hydration、editor-live-preview、media。第一次 a11y 抓到仁武卡紙對比，修正後全過。
+  - 使用者說「推 main」後，由使用者推上（fast-forward）。
+- **CI**：main run 41032196496 全綠（含 E2E），Deploy success（09:22:41–09:27:00Z）。
+- **線上驗證**（只發 GET，遙測攔下）：
+  - `/release.json` base_commit `05e08427`、created_at `2026-10-30T09:23:09Z`；health `status: ok`、`fixture_enabled: false`。
+  - `/about` 用 Playwright 看了桌機 1440、手機 390：新版 `main.abh` 在，舊的 `.abk`／`.ams`／`#campuses` 都不在；首屏四章索引與家長章標題正確；首屏照片是 4:3；沒有橫向捲動；console 只有被攔下的遙測請求。
+- **未驗**：iOS 實機；後台登入後的關於頁預覽。
+
 ## 2026-10-30 環境頁遊樂區、操作教具、戶外廣場、安全角落換照片（main CI 部署，沒有 migration）
 
 - **內容**：`0c3a8864`（README「2026-10-30 環境頁校園環境換四張有孩子的照片」）。遊樂區大圖、多樣操作教具、戶外廣場（明華校）、安全角落設計換成有孩子的照片（義華 NAS 三張、園方雲端明華外師戶外課一張），便條「溜滑梯」移到右下、四處箭頭重新對位；檔名不變，正式站後台這幾個位置沒換過照片，部署即生效。
