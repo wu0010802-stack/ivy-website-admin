@@ -34,10 +34,9 @@
 .abh-card{position:relative;margin:0;padding:8px 8px 0;border-radius:4px;background:var(--c,var(--yellow));box-shadow:var(--abh-shadow);rotate:var(--r,0deg)}
 .abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
 .abh-blank{background:color-mix(in oklab,var(--paper) 55%,transparent)}
-/* 字色 --ink：森林綠在仁武的橘底只有 3.95:1（同舊版緞帶的處理） */
+/* 字色 --ink：森林綠在橘、trail 這類卡紙底上不到 4.5:1（仁武橘底 3.95:1，同舊版緞帶的處理） */
 .abh-card figcaption{padding:10px 4px 11px;text-align:center;font:700 .9375rem/1.4 var(--font-head);color:rgb(var(--ink))}
 .abh-card:not(:has(figcaption)){padding-bottom:8px}
-.abh-tag{position:absolute;left:-6px;top:-12px;z-index:1;padding:4px 10px;border-radius:4px;background:var(--paper);box-shadow:0 1px 2px rgb(var(--ink)/.15);font:700 1rem/1 var(--font-date);color:var(--ivy-forest)}
 
 /* ---------- 首屏：左大標、右卡紙照片，下面一排章節索引（同特色教學、環境、入學頁） ---------- */
 .abh-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(32px,6vw,96px);align-items:center;padding-top:clamp(48px,6vw,96px)}
@@ -171,7 +170,10 @@
   .abh-mk{width:34px;height:44px}
   .abh-index b{font-size:1.0625rem}
   .abh-medal{width:72px}
-  /* 全人教育：標題 → 介紹 → 六圈 → 兩份清單（並排）→ 出處 → 連結收尾（桌機是左字右圖） */
+  /* 全人教育：標題 → 介紹 → 六圈 → 兩份清單（並排）→ 出處 → 連結收尾（桌機是左字右圖）。
+     文字欄 display:contents 之後每一行都是格線的一列，格線的欄距會加在每一行之間（編號到標題曾是 48px，別章 16px），
+     所以欄距歸零、間距只靠各自的 margin（同家長章） */
+  .abh-band .abh-split{gap:0}
   .abh-whole-text{display:contents}
   .abh-band .abk-whole{order:1;margin-top:28px}
   .abh-whole-text>.abh-lists,.abh-whole-text>.abh-fine,.abh-whole-text>.abh-link{order:2}
@@ -189,7 +191,8 @@
   .abh-tl li,.abh-tl li:nth-child(even){grid-template-columns:1fr;gap:16px;padding:20px 0 20px 34px}
   .abh-tl li+li{margin-top:0}
   .abh-tl li::before{left:7px;top:34px}
-  .abh-tl li .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:1;grid-row:2;justify-self:start;width:min(100%,300px)}
+  /* 單數列也要寫 :nth-child(odd)：桌機的 justify-self:end 權重比 li .abh-card 高，曾讓單數列的卡紙比雙數列右移 16px */
+  .abh-tl li:nth-child(odd) .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:1;grid-row:2;justify-self:start;width:min(100%,300px)}
   .abh-tl li .abh-tl-text,.abh-tl li:nth-child(even) .abh-tl-text{grid-column:1;grid-row:1;text-align:left}
   .abh-tl li:nth-child(even) .abh-year{justify-content:flex-start}
 }

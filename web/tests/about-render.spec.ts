@@ -34,19 +34,19 @@ describe('關於常春藤頁：後台改過的值會出現在官網', () => {
   it('內建內容：義華 1997（民國 86 年）', async () => {
     const html = await render(site.aboutPage)
     expect(html).toContain('民國 86 年')
-    expect(html).toMatch(/<span class="abh-tag" lang="en"[^>]*>1997<\/span>/)
+    expect(html).toMatch(/<p class="abh-year"[^>]*><span lang="en"[^>]*>1997<\/span>/)
     expect(html).toContain('1997 到 2021')
     expect(html).not.toContain('1998')
   })
 
-  it('後台把義華年份改成 1998：沿革顯示民國 87 年、卡紙年份與首屏索引用 1998', async () => {
+  it('後台把義華年份改成 1998：沿革顯示民國 87 年、沿革年份與首屏索引用 1998', async () => {
     const live = Object.fromEntries(Object.entries(site.aboutPage).map(([key, value]) => [snake(key), structuredClone(value)])) as unknown as LiveAboutPage
     live.milestones[0] = { ...live.milestones[0]!, year: 1998 }
     const page = applyContentOverlay(site, { about_page: live }).aboutPage
     const html = await render(page)
     expect(html).toContain('民國 87 年')
     expect(html).not.toContain('民國 86 年')
-    expect(html).toMatch(/<span class="abh-tag" lang="en"[^>]*>1998<\/span>/)
+    expect(html).toMatch(/<p class="abh-year"[^>]*><span lang="en"[^>]*>1998<\/span>/)
     expect(html).toContain('1998 到 2021')
     // 首屏介紹是後台的另一個欄位（這裡沒改），只看沿革與索引沒有舊年份
     expect(html).not.toMatch(/>1997<|1997 到/)

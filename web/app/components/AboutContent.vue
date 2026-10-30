@@ -164,11 +164,10 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
       <p class="abh-text">{{ page.storyText }}</p>
       <ol class="abh-tl">
         <li v-for="item in milestones" :key="item.key" :style="{ '--c': item.color }">
+          <!-- 卡紙只放照片：年份、校名都在旁邊的字裡（10-30 前卡紙另貼年份貼紙、底下寫校名，手機上下疊時同一行字連出現兩次） -->
           <figure class="abh-card" :style="{ '--c': item.color, '--r': `${item.tilt}deg` }" aria-hidden="true">
-            <span class="abh-tag" lang="en">{{ item.year }}</span>
             <img v-if="item.campus" v-bind="pickImage(item.campus.image, item.campus.imageMedia, CAMPUS_SIZES)" alt="" loading="lazy">
             <span v-else class="abh-blank" />
-            <figcaption>{{ item.campus?.name ?? '&nbsp;' }}</figcaption>
           </figure>
           <div class="abh-tl-text">
             <p class="abh-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>

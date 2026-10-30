@@ -1,3 +1,14 @@
+## 2026-10-30 關於頁再一輪細修：全人教育手機間距、沿革卡紙對齊與重複字（`feature/about-polish-20261030`）
+
+使用者要「繼續優化 /about」。用 Playwright 量正式站（release `8f64a667`）1440、1024、768、390、352 五個寬度，只修量得到的三處；排法、動態、文案都不動。
+
+- **全人教育 900px 以下的多餘間距**：同日微調把文字欄改成 `display:contents` 排順序後，格線的欄距（390 寬 32px、768 寬 46px）加在每一行之間，編號到標題 48–62px、標題到介紹 50–64px（別章是 16、18px）。色帶裡的格線欄距歸零，同家長章的做法。
+- **手機沿革卡紙左緣不齊**：700px 以下的 `.abh-tl li .abh-card{justify-self:start}` 權重低於桌機的 `li:nth-child(odd) .abh-card{justify-self:end}`，第 1、3、5 張卡紙比第 2、4 張右移 16px。單數列改明寫 `:nth-child(odd)`。
+- **沿革卡紙拿掉年份貼紙與校名**：旁邊的字已經有「1997 民國 86 年／義華校 三民區」，手機上下疊時同一個年份、校名在 200px 內各出現兩次。卡紙只留照片（卡紙色、微斜、捲到時站起來都照舊）；分校停用時仍是留白卡紙。
+- **頁高**：390 寬 9.3 → 8.8 個畫面、1440 寬 6.6 → 6.4 個畫面。
+- **驗證**：`npm --prefix web run typecheck` 通過（只有既有的 MediaImage 重複匯入警告）；`npm run test:website` 110 檔 1332 項全過（`about-render.spec.ts` 的年份斷言改看沿革文字）；後台 `aboutPage.test.ts` 20 項過；fixture dev server 量五個寬度：四章編號到標題都是 16px、標題到下一段 18–24px，手機五張卡紙左緣都在 54px，沒有橫向捲動。
+- **沒跑**：stack e2e、iOS 實機。
+
 ## 2026-10-30 常春藤環境頁換成木頭積木版（`feature/env-blocks-20261030`）
 
 使用者看過四個風格比稿（`design/environment-style-directions-20261030/`，Desktop 工作區，不進版控）後選 D 木頭積木，並要求校園環境與幼兒餐點照 A 用圓點串起來、照片不放說明或註解（D2）。規則見 DESIGN.md 最上面一節。
