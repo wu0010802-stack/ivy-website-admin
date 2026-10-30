@@ -22,10 +22,10 @@
         "在老師的陪伴下，動手試試，說出自己的想法。"
       ],
       "heroImage": "hero-campus-restored-v1-still",
-      "heroImageAlt": "常春藤的孩子在戶外草地上奔跑、微笑的校園影片畫面",
+      "heroImageAlt": "常春藤的老師抱住孩子們、大家笑成一團的校園影片畫面",
       "heroVideoSrc": "assets/hero-campus.mp4",
       "heroVideoPoster": "assets/hero-campus-restored-v1-still.webp",
-      "_todo": "hero 影片為園方廣告原檔重製的七段校園片段（design/hero-video-restoration-20260922/build.py），11.7 秒無聲循環"
+      "_todo": "hero 影片是明華〈寶貝的快樂城堡〉剪成的 13 鏡（design/hero-mix-minghua-20261029/build.py），11.8 秒無聲循環"
     },
     "about": {
       "anchorId": "about",

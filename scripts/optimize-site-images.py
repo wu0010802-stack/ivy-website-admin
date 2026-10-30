@@ -56,6 +56,8 @@ DAY_WIDTHS = [160, 480, 800, 1200]
 # 分享圖：首頁 hero 與五校封面（campus.image 不開放 CMS 修改，清單固定）。
 OG_IMAGES = ['hero-campus-restored-v1-still', 'yihua-exterior-v2', 'minghua-enhanced-v1', 'chongde-enhanced-v1', 'international-enhanced-v1', 'renwu-enhanced-v1']
 OG_SIZE = (1200, 630)
+# 裁切位置（水平, 垂直），預設 (0.5, 0.4)。2026-10-30 首屏封面換成老師擁抱：孩子的臉在畫面下半，偏上會切到嘴。
+OG_CENTERING = {'hero-campus-restored-v1-still': (0.5, 0.75)}
 
 
 def encode(image: Image.Image, target: Path, quality: int) -> None:
@@ -152,7 +154,7 @@ for source in sources:
 for name in OG_IMAGES:
     with Image.open(ASSETS / f'{name}.webp') as original:
         image = ImageOps.exif_transpose(original).convert('RGB')
-        ImageOps.fit(image, OG_SIZE, Image.Resampling.LANCZOS, centering=(0.5, 0.4)).save(
+        ImageOps.fit(image, OG_SIZE, Image.Resampling.LANCZOS, centering=OG_CENTERING.get(name, (0.5, 0.4))).save(
             OG_OUTPUT / f'{name}.jpg', 'JPEG', quality=82, optimize=True, progressive=True)
 
 target = ROOT / 'web/app/generated/image-manifest.json'
