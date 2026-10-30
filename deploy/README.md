@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 環境頁遊樂區、操作教具、戶外廣場、安全角落換照片（main CI 部署，沒有 migration）
+
+- **內容**：`0c3a8864`（README「2026-10-30 環境頁校園環境換四張有孩子的照片」）。遊樂區大圖、多樣操作教具、戶外廣場（明華校）、安全角落設計換成有孩子的照片（義華 NAS 三張、園方雲端明華外師戶外課一張），便條「溜滑梯」移到右下、四處箭頭重新對位；檔名不變，正式站後台這幾個位置沒換過照片，部署即生效。
+- **提交**：worktree `env-photos3-20261030`（從 origin/main `3441c181`），web typecheck＋單元 1385 全過；本機 `test:e2e:stack` 156 全過；使用者說「上線」後推 main（fast-forward）。
+- **CI**：main run 41019846128 全綠（含 E2E），Deploy success（07:30:46–07:34:27Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `0c3a8864`、created_at `2026-10-30T07:31:11Z`；health `status: ok`、`fixture_enabled: false`。`/environment` 200，四張新雜湊各出現 4 次、舊雜湊 0 次，新替代文字與遊樂區箭頭座標都在；新圖檔 200 `image/webp`；Playwright 截桌機／手機，箭頭指在溜滑梯、跑步的女孩、軟墊牆上。
+- **待園方**：照顧大圖（鈴鼓）、健康把關、定時消毒、乾淨溫馨的教室，NAS 與雲端都沒有更好的照片，要補拍。
+
 ## 2026-10-30 前台拿掉沒有意義或重複的文字（main CI 部署，沒有 migration）
 
 - **內容**：`fc3a5dfd`（README「2026-10-30 前台拿掉沒有意義或重複的字」）。首頁、關於、特色教學、環境、入學、消息、預約、404 拿掉眉標、念清單的引言、英文小字、操作說明、口號圖說與署名；後台可改的欄位由 `publicCopy` 只換一字不差的原文，正式站後台內容不必動。
