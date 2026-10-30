@@ -238,7 +238,7 @@ onUnmounted(() => {
         <div ref="filmUiEl" class="day-film-ui">
           <p class="day-film-caption">
             <span>{{ day.filmCaption.zh }}</span>
-            <span lang="en">{{ day.filmCaption.en }}</span>
+            <span v-if="day.filmCaption.en" lang="en">{{ day.filmCaption.en }}</span>
           </p>
           <button v-if="showVideo" class="day-film-toggle" type="button" :aria-pressed="isPlaying" @click="toggleFilm">
             <svg class="icon day-film-mark" aria-hidden="true"><use :href="isPlaying ? '#i-pause' : '#i-play'" /></svg>
@@ -247,7 +247,7 @@ onUnmounted(() => {
         </div>
         <div class="day-stage">
           <header ref="introEl" class="day-intro">
-            <span class="eyebrow">{{ day.eyebrow }}<span lang="en">{{ day.eyebrowEn }}</span></span>
+            <span class="eyebrow">{{ day.eyebrow }}<span v-if="day.eyebrowEn" lang="en">{{ day.eyebrowEn }}</span></span>
             <h2 class="day-title" id="day-heading">
               <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
             </h2>

@@ -5,7 +5,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, homeFilms, type ContentOverlay } from '../app/utils/content-overlay'
 import { publishedContent } from '../app/utils/published-content'
 import { previewMedia } from '../app/utils/draft-preview'
-import { withoutRetiredFields, withSourceNotes } from '../app/utils/public-copy'
+import { withoutRepeatedCopy, withoutRetiredFields, withSourceNotes } from '../app/utils/public-copy'
 import { focusPosition, heroImageAttrs, mediaImage, mediaImageAttrs, pickImage, slotImage, slotVideoSrc, videoPosterUrl, type MediaInfoMap, type PublicMediaInfo } from '../app/utils/media-image'
 import { responsiveTourImage } from '../app/utils/tour-image'
 import { campusShareImagePath, siteShareImage } from '../app/utils/seo'
@@ -17,8 +17,8 @@ const initialOverlay = read('overlay-initial-content.json') as ContentOverlay
 // 同一份內容用 2026-09-25 這批改動之前的 content-overlay.ts／published-content.ts 疊出來的結果
 // （2026-09-26 起消息與活動逐則多一個 sample 示意旗標，其餘不變）。
 // 2026-10-04 起公開輸出拿掉官網已不顯示的舊欄位（public-copy.ts），比對前同樣拿掉；
-// 2026-10-29 起原型的來源說明換成署名（同一支），比對前同樣換掉。
-const baseline = withSourceNotes(withoutRetiredFields(read('overlay-baseline-20260925.json') as SiteContent))
+// 2026-10-29 起原型的來源說明換成署名（同一支），比對前同樣換掉；2026-10-30 起再拿掉重複或沒有資訊的字。
+const baseline = withoutRepeatedCopy(withSourceNotes(withoutRetiredFields(read('overlay-baseline-20260925.json') as SiteContent)))
 
 const IMAGE = '11111111-1111-4111-8111-111111111111'
 const VIDEO = '22222222-2222-4222-8222-222222222222'

@@ -65,7 +65,6 @@
 .ap-welcome { position: absolute; right: -26px; bottom: 10px; }
 .ap-page-title .ap-rosette-host { position: absolute; right: -170px; top: 40px; width: 560px; pointer-events: none; }
 .ap-page-title > :not(.ap-rosette-host) { position: relative; }
-.ap-eyebrow { font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .16em; color: var(--green); }
 .ap-hero h1 { margin-top: 18px; font-size: clamp(2.375rem, 4vw, 3.5rem); line-height: 1.38; color: var(--deep); }
 .ap-lede { margin-top: 22px; max-width: 26em; font-size: var(--fs-lg); }
 /* 主要行動：像一格要填的欄位框（雙框線），不用金色（金色全站＝預約） */
@@ -175,7 +174,6 @@
 /* 卡片不到約 440px（761–1024 兩欄時 305–424px）右上角的橢圓章會壓到日期，改成接在日期下面（同手機）（2026-10-13）。 */
 .ap-range { container-type: inline-size; }
 @container (width < 440px) { .ap-range-mark { position: static; display: block; margin-top: 8px; } }
-.ap-detail-note { margin-top: 14px; font-size: var(--fs-sm); color: var(--muted); }
 .ap-table { margin-top: 28px; }
 .ap-table summary { display: flex; justify-content: center; list-style: none; cursor: pointer; }
 .ap-table summary::-webkit-details-marker { display: none; }

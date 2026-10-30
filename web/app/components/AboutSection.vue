@@ -51,7 +51,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
         <div class="container belief-content">
           <div class="belief-layout">
             <div class="belief-main">
-              <p class="belief-since" lang="en">{{ about.sinceLabel }}</p>
+              <p v-if="about.sinceLabel" class="belief-since" lang="en">{{ about.sinceLabel }}</p>
               <h2 id="about-title">{{ about.title }}</h2>
               <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
               <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="toggleCopy">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
@@ -65,7 +65,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
                 fetchpriority="low"
                 decoding="async"
               >
-              <figcaption>{{ about.caption }}</figcaption>
+              <figcaption v-if="about.caption">{{ about.caption }}</figcaption>
             </figure>
           </div>
         </div>

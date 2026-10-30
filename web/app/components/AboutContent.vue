@@ -208,7 +208,7 @@ onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onB
           <figure class="abk-pop is-hero" :style="{ '--x': '20%', '--y': '12%', '--w': '80%', '--c': 'var(--yellow)', '--r': '1.2deg', '--z': 2 }">
             <div class="abk-card">
               <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
-              <figcaption>{{ page.heroCaption }}</figcaption>
+              <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
             </div>
             <span class="abk-fold" aria-hidden="true" />
           </figure>
@@ -357,7 +357,7 @@ onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onB
         <p class="abk-chap">{{ chapterOf('voices').label }}<span>{{ chapterOf('voices').name }}</span></p>
         <h2 id="voices-title" class="abk-title"><template v-for="(line, i) in voiceTitle" :key="i"><br v-if="i">{{ line }}</template></h2>
         <p class="abk-cite">{{ voices[0]!.campus.name }}　{{ voices[0]!.speaker }}</p>
-        <p class="abk-text">{{ voiceCampuses.map((c) => c.name).join('、') }}家長在學校 YouTube 頻道上的分享。點一句話，右頁就換成那位家長的影片。</p>
+        <p class="abk-text">{{ voiceCampuses.map((c) => c.name).join('、') }}家長在學校 YouTube 頻道上的分享。</p>
         <ol class="abk-voice-list">
           <li v-for="(item, i) in voices" :key="`${item.campus.key}-${i}`">
             <button type="button" :aria-pressed="i === pickedVoice" @click="pickVoice(i)"><q>{{ item.quote }}</q><small>{{ item.speaker }}<template v-if="voiceCampuses.length > 1"> · {{ item.campus.name }}</template></small></button>
@@ -407,7 +407,7 @@ onBeforeUnmount(() => { disposed = true; wide?.removeEventListener('change', onB
     <section id="campuses" class="abk-outro" aria-labelledby="about-campuses-title">
       <div class="abk-outro-copy">
         <h2 id="about-campuses-title">{{ page.outroTitle }}</h2>
-        <p>{{ page.outroText }}</p>
+        <p v-if="page.outroText">{{ page.outroText }}</p>
       </div>
       <ul class="abk-ribbons">
         <template v-for="(item, i) in milestones" :key="item.key">

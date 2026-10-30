@@ -33,7 +33,7 @@ const reload = () => { window.location.reload() }
         <h1>{{ notFound ? '找不到這一頁' : '網站暫時無法顯示' }}</h1>
         <p class="error-lead">
           {{ notFound
-            ? '網址可能打錯了，或這一頁已經搬家。可以從下面的校區找起，或回到首頁。'
+            ? '網址可能打錯了，或這一頁已經搬家。'
             : '我們正在處理，請稍後重新整理。急著聯絡的話，可以直接打電話給校區。' }}
         </p>
         <div class="error-actions">

@@ -44,10 +44,7 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
     <div class="np-wrap">
       <nav class="np-crumb" aria-label="麵包屑"><NuxtLink to="/">首頁</NuxtLink><span aria-hidden="true">/</span><span aria-current="page">最新消息</span></nav>
       <header class="np-head">
-        <!-- 眉標用中文、寫「機構・頁名」（2026-10-13，同入學資訊頁；09-10「.eyebrow 一律中文短語」）。 -->
-        <p class="np-kicker">常春藤幼兒園・最新消息</p>
         <h1>最新消息</h1>
-        <p class="np-lede">五所校園的消息與近期活動。</p>
       </header>
 
       <nav class="np-filter" aria-label="依校區篩選">

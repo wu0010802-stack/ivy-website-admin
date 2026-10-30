@@ -459,7 +459,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
     @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"
   >
     <header class="gallery-heading content-width">
-      <div class="gallery-title"><span lang="en">{{ board.eyebrow }}</span><h2 id="campuses-heading">{{ board.sectionTitle }}</h2></div>
+      <div class="gallery-title"><span v-if="board.eyebrow" lang="en">{{ board.eyebrow }}</span><h2 id="campuses-heading">{{ board.sectionTitle }}</h2></div>
       <div class="campus-tabs" role="tablist" aria-label="選擇分校">
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
@@ -543,7 +543,6 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-identity">
         <span class="campus-district">高雄 · {{ current.district }}</span>
         <h3>{{ current.name }}</h3>
-        <span lang="en">{{ current.key.toUpperCase() }} CAMPUS</span>
       </div>
       <div class="campus-contact">
         <div class="contact-row">
@@ -721,7 +720,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .campus-identity{min-width:0}
 .campus-district{display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--muted)}
 .campus-identity h3{margin:9px 0 12px;color:var(--heading-ink);font:500 var(--fs-campus-name)/1.25 var(--font-head);letter-spacing:.065em}
-.campus-identity [lang=en]{display:block;font-family:var(--font-latin);font-size:var(--fs-xs);letter-spacing:.15em;color:var(--heading-accent)}
 .campus-contact{min-width:0;padding:4px 0 4px clamp(24px,3vw,44px);border-inline-start:1px solid var(--line)}
 .contact-row{display:flex;align-items:center;gap:13px;min-height:44px;font-size:var(--fs-md)}
 .contact-row .icon{width:18px;height:18px;color:var(--muted)}
@@ -783,7 +781,6 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .campus-identity{grid-row:auto;padding:0}
   .campus-district{font-size:var(--fs-xs)}
   .campus-identity h3{margin:8px 0 11px}
-  .campus-identity [lang=en]{font-size:11px;letter-spacing:.13em}
   .campus-contact{padding:20px 0 0;border-inline-start:0;border-top:1px solid var(--line)}
   .contact-row{font-size:var(--fs-sm);gap:12px}
   .phone{font-size:var(--fs-2xl)}

@@ -16,12 +16,11 @@ describe('預約第一步：矮手機第一屏看得到選校卡', () => {
     expect(visitCss).toMatch(/@media\(max-width:760px\) \{\n {2}\.visit-next-row>p \{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset\(50%\)/)
     expect(visitForm).toContain('<p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}`')
   })
-  it('高度 760 以下拿掉導言，620 以下再拿掉眉標與選校說明', () => {
-    const short = visitCss.slice(visitCss.indexOf('@media(max-width:760px) and (max-height:760px)'))
-    expect(short).toContain(".visit-page[data-step='1'] .visit-lead {display:none}")
+  // 導言與選校說明 2026-10-30 全站拿掉（使用者要版面乾淨），矮手機只剩眉標要藏
+  it('620 以下拿掉眉標', () => {
     const shorter = visitCss.slice(visitCss.indexOf('@media(max-width:760px) and (max-height:620px)'))
     expect(shorter).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
-    expect(shorter).toContain('.visit-pick-step .visit-step-copy {display:none}')
+    expect(visitForm).not.toContain('visit-lead')
   })
 })
 

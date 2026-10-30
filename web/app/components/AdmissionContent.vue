@@ -213,7 +213,6 @@ onBeforeUnmount(() => {
               <svg v-if="rosettes.hero" class="ap-rosette" :viewBox="`0 0 ${rosettes.hero.size} ${rosettes.hero.size}`" focusable="false"><path v-for="(d, i) in rosettes.hero.paths" :key="i" :d="d" /></svg>
             </div>
             <div class="ap-runhead"><span>持照人：寶貝與爸爸媽媽</span><span>第 1 頁</span></div>
-            <p class="ap-eyebrow">常春藤幼兒園・入學資訊</p>
             <h1 id="admission-title">從參觀到開學，<br>一步一步來。</h1>
             <p v-if="admission.intro" class="ap-lede">{{ admission.intro }}</p>
             <a class="ap-action" href="#birthday-tool">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
@@ -273,7 +272,7 @@ onBeforeUnmount(() => {
         <div class="ap-runhead"><span>{{ chapterOf('classes')?.no }}・分班對照</span><span>第 {{ chapterOf('classes')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="classes-title">寶貝何時入學？</h2>
-          <p>輸入寶貝生日，直接看每一學年讀哪一班。9 月 2 日到隔年 9 月 1 日出生為同一屆。</p>
+          <p>9 月 2 日到隔年 9 月 1 日出生為同一屆。</p>
         </div>
         <!-- 首屏「查寶貝讀哪一班」直接落在生日欄（2026-10-12）：落在章節開頭時，手機選完生日答案在畫面外。 -->
         <div id="birthday-tool" class="ap-datapage">
@@ -345,7 +344,6 @@ onBeforeUnmount(() => {
                 </span>
               </div>
             </div>
-            <p class="ap-detail-note">學年度 8 月 1 日起算；出生區間為民國年，下方附西元。</p>
           </div>
         </div>
         <details class="ap-table">
@@ -380,7 +378,7 @@ onBeforeUnmount(() => {
         <div class="ap-runhead"><span>{{ chapterOf('newcomer')?.no }}・新生準備</span><span>第 {{ chapterOf('newcomer')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="newcomer-title">新生入學二部曲</h2>
-          <p>先適應、再註冊。勾一勾必備品，老師的叮嚀直接往下看。</p>
+          <p>先適應、再註冊。</p>
         </div>
         <div v-if="admission.phases.length" class="ap-phases">
           <article v-for="(phase, p) in admission.phases" :key="p" class="ap-phase">
@@ -481,7 +479,7 @@ onBeforeUnmount(() => {
           </table>
           <div v-if="admission.refunds.length" class="ap-refunds">
             <h3>退費規定</h3>
-            <p>依情況點開查看。實際金額以園方開立的退費單據為準。</p>
+            <p>實際金額以園方開立的退費單據為準。</p>
             <ol>
               <li v-for="(refund, i) in admission.refunds" :key="i">
                 <details :open="i === 0">

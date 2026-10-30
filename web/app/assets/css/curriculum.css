@@ -49,7 +49,6 @@
 .cur-sec { padding-block: clamp(72px, 8.5vw, 124px); }
 .cur-kicker { display: flex; align-items: center; gap: 12px; margin: 0 0 20px; font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .2em; text-transform: uppercase; color: var(--leaf); }
 .cur-kicker .cur-num { color: var(--cur-accent); }
-.cur-kicker .cur-num::after { content: ''; display: inline-block; width: 28px; height: 1px; margin-left: 12px; vertical-align: middle; background: currentColor; opacity: .6; }
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
@@ -117,7 +116,6 @@
 .cur-year-age sup { left: calc(50% + 12px + var(--i) * 4px); font: 700 var(--fs-sm)/1 var(--font-head); transform: translateY(calc(50% - .3em)); }
 .cur-year-name { display: flex; align-items: baseline; gap: 10px; margin: 0; }
 .cur-year-name b { font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--green); }
-.cur-year-name span { font: 600 var(--fs-xs)/1 var(--font-date); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
 .cur-year h3 { margin: 8px 0; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--text); text-spacing-trim: trim-start; }
 .cur-year > p:not(.cur-year-name) { margin: 0; font-size: var(--fs-sm); line-height: 1.85; color: var(--muted); }
 .cur-year small { margin-top: auto; padding-top: 14px; font-size: var(--fs-xs); color: var(--muted); }

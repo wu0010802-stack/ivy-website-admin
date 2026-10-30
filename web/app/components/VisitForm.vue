@@ -625,7 +625,6 @@ async function onSubmit() {
         <div class="visit-welcome-copy">
           <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
           <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇，<br>來校園走走。</template><template v-else>預約校園參觀</template></h1>
-          <p v-if="isPicking" class="visit-lead">看看孩子未來的日常，也和我們聊聊你的期待。<br>從一所離生活近一點的校園開始。</p>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
           <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。
@@ -634,7 +633,6 @@ async function onSubmit() {
             <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
             <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
           </picture>
-          <figcaption>在常春藤，遇見成長的下一站。</figcaption>
         </figure>
       </div>
     </header>
@@ -646,7 +644,6 @@ async function onSubmit() {
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
-              <span class="visit-aside-en" lang="en">{{ selectedCampus.key.toUpperCase() }} CAMPUS</span>
             </span>
           </div>
           <div class="visit-aside-info">
@@ -667,7 +664,6 @@ async function onSubmit() {
 
             <section v-if="step === 1" class="visit-pick-step" aria-labelledby="visit-choose-title">
               <h2 id="visit-choose-title">想先認識哪所校園？</h2>
-              <p class="visit-step-copy">依照你的生活圈與接送路線選擇。</p>
               <!-- 放在選校清單前面：沒選校按「下一步」會聚焦第一張卡，錯誤要在卡片正上方才看得到。 -->
               <p id="visit-campus-error" ref="campusErrorRef" class="visit-field-error" role="alert">{{ campusError }}</p>
               <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
@@ -720,13 +716,11 @@ async function onSubmit() {
 
               <form v-else ref="formRef" class="booking-form visit-contact-form" novalidate :aria-busy="submitting" @submit.prevent="onSubmit" @keydown.enter="onEnterKey">
                 <h2>填寫參觀資料</h2>
-                <p class="visit-step-copy">讓{{ selectedCampus.name }}先認識孩子，也為這次見面做好準備。</p>
                 <p v-if="action.message" class="visit-config-note">{{ action.message }}</p>
                 <fieldset class="visit-form-fields" :disabled="submitting">
                   <legend class="sr-only">孩子與家長資料</legend>
                   <section v-if="bookingConfig?.mode === 'slots'" class="visit-form-section visit-schedule-section" aria-labelledby="visit-schedule-title">
                     <h3 id="visit-schedule-title">參觀安排</h3>
-                    <p class="visit-field-hint">僅列出{{ selectedCampus.name }}目前開放的日期與場次。</p>
                     <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
                     <!-- 沒有場次時重新載入幫不上忙：只給寫出號碼的致電主要按鈕；讀取失敗才加「重新載入場次」外框鈕。
                          說明放進和參觀方式步驟同一種淡色底塊（2026-10-13，原本是一行灰字＋大外框鈕＋沒有號碼的小連結）。 -->

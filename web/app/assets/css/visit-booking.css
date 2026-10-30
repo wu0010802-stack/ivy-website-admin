@@ -62,10 +62,8 @@
 .visit-eyebrow {display:flex;align-items:center;gap:14px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.6;letter-spacing:.06em;font-weight:500}
 .visit-eyebrow::before {content:'';width:34px;height:1px;background:currentColor;opacity:.35}
 .visit-page[data-step='1'] .visit-welcome h1 {font:700 clamp(2.75rem,4.2vw,4.25rem)/1.32 var(--font-head);letter-spacing:.015em}
-.visit-lead {margin-top:28px;max-width:32em;font-size:var(--fs-lg);line-height:1.95}
 .visit-welcome-photo {margin:0;min-width:0}
 .visit-welcome-photo img {width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;object-position:center 30%;border-radius:16px}
-.visit-welcome-photo figcaption {margin-top:12px;font-size:var(--fs-xs);letter-spacing:.06em}
 /* 第二步起收成一行頁名，讓表單前移。 */
 .visit-page:not([data-step='1']) .visit-welcome {padding:32px 0 0}
 .visit-page:not([data-step='1']) .visit-welcome-inner {display:block}
@@ -142,7 +140,6 @@
 .visit-aside-caption {display:block;margin-top:26px}
 .visit-aside-district {display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--visit-muted)}
 .visit-aside-name {display:block;margin:8px 0 10px;color:var(--visit-ink);font:500 clamp(2.75rem,3.6vw,3.5rem)/1.2 var(--font-serif);letter-spacing:.065em}
-.visit-aside-en {display:block;font-family:var(--font-date);font-size:var(--fs-xs);letter-spacing:.15em;color:var(--visit-accent)}
 .visit-aside-info {display:grid;gap:2px;margin-top:18px;padding-top:14px;border-top:1px solid var(--visit-line);font-size:var(--fs-sm);color:var(--visit-muted)}
 .visit-aside-info p,.visit-aside-phone {display:flex;align-items:center;gap:10px;max-width:none;line-height:1.7}
 .visit-aside-info p {min-height:36px}
@@ -273,7 +270,6 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
   .visit-page[data-step='1'] .visit-welcome h1 {font-size:clamp(2.5rem,3.6vw,3.5rem)}
   .visit-welcome-photo img {aspect-ratio:12/5}
   .visit-eyebrow {margin-bottom:14px}
-  .visit-lead {margin-top:18px;line-height:1.85}
   .visit-page[data-step='1'] .visit-stage {padding-top:32px}
 }
 @media(min-width:961px) and (min-height:720px) {
@@ -320,8 +316,6 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
   .visit-page[data-step='1'] .visit-welcome {padding:28px 0 4px}
   .visit-welcome-photo {display:none}
   .visit-page[data-step='1'] .visit-welcome h1 {font-size:var(--fs-4xl)}
-  .visit-lead {margin-top:16px;font-size:var(--fs-md)}
-  .visit-lead br {display:none}
   .visit-welcome-inner {row-gap:28px}
   .visit-page[data-step='1'] .visit-content {padding-bottom:56px}
   .visit-page[data-step='1'] .visit-stage {padding-top:24px}
@@ -357,15 +351,12 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
 }
 @media(max-width:760px) and (max-height:760px) {
   .visit-page[data-step='1'] .visit-welcome {padding:18px 0 14px}
-  .visit-page[data-step='1'] .visit-lead {display:none}
   .visit-page[data-step='1'] .visit-stage {padding-top:18px}
-  .visit-pick-step .visit-step-copy {margin-top:4px}
 }
-/* iPhone SE 這類（Safari 可視高度約 550）：眉標和麵包屑同一句、選校說明也拿掉，第一張卡至少露出校名。 */
+/* iPhone SE 這類（Safari 可視高度約 550）：眉標和麵包屑同一句也拿掉，第一張卡至少露出校名。 */
 @media(max-width:760px) and (max-height:620px) {
   .visit-page[data-step='1'] .visit-eyebrow {display:none}
   .visit-page[data-step='1'] .visit-steps {margin-bottom:16px}
-  .visit-pick-step .visit-step-copy {display:none}
   .visit-campus-list {margin-top:14px}
 }
 /* 橫拿手機（2026-10-12）：3:4 選校卡一列三張比可視高度還高（約 332／309px），下一步在三屏多以外；

@@ -96,7 +96,7 @@ onBeforeUnmount(() => { disposed = true; narrow?.removeEventListener('change', o
       <div class="ams-photos">
         <figure class="ams-photo is-hero">
           <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
-          <figcaption>{{ page.heroCaption }}</figcaption>
+          <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
         </figure>
         <figure class="ams-photo is-back">
           <img v-bind="withPhotoStyle(pagePhotoAttrs('about-curious', page.heroBackPhoto, '(max-width: 900px) 34vw, 200px'), page.heroBackPhoto)" :alt="pagePhotoAlt(HERO_BACK_ALT, page.heroBackPhoto, page.heroBackPhotoAlt)" loading="lazy">
@@ -211,7 +211,7 @@ onBeforeUnmount(() => { disposed = true; narrow?.removeEventListener('change', o
       <section :id="mid('campuses')" class="ams-sheet ams-outro" data-ams-sheet data-anchor="campuses" :style="sheetStyle('campuses')" aria-labelledby="about-m-campuses-title">
         <span class="ams-tab is-own" aria-hidden="true">{{ page.outroTitle }}</span>
         <h2 id="about-m-campuses-title" class="ams-title">{{ page.outroTitle }}</h2>
-        <p class="ams-text">{{ page.outroText }}</p>
+        <p v-if="page.outroText" class="ams-text">{{ page.outroText }}</p>
         <ul class="ams-ribbons">
           <template v-for="(item, i) in milestones" :key="item.key">
             <li v-if="item.campus">

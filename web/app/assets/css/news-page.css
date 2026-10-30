@@ -11,10 +11,7 @@
 
 /* ---------- 列表頁 ---------- */
 .np-head{margin-top:40px}
-/* 眉標改中文「常春藤幼兒園・最新消息」（2026-10-13）：字級、字重、字距同入學資訊頁 .ap-eyebrow，不再用英文日期字型與大寫。 */
-.np-kicker{font-size:var(--fs-sm);font-weight:600;line-height:1.6;letter-spacing:.16em;color:var(--ivy-news-muted)}
 .np-head h1{margin-top:12px;font-size:clamp(2.25rem,4vw,3.25rem);line-height:1.35;letter-spacing:.02em;color:var(--ivy-news-green)}
-.np-lede{margin-top:16px;font-size:var(--fs-lg);color:var(--ivy-news-muted)}
 
 .np-filter{display:flex;flex-wrap:wrap;gap:10px;margin-top:40px;padding-bottom:28px;border-bottom:1px solid var(--ivy-news-line)}
 .np-filter a{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border:1px solid var(--ivy-news-line);border-radius:999px;font-size:var(--fs-sm);font-weight:600;color:var(--ivy-news-green);text-decoration:none;transition:background-color .2s}

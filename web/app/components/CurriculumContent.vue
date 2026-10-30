@@ -21,11 +21,11 @@ const props = defineProps<{ page: CurriculumPageContent }>()
 // 班別與年齡同入學資訊頁：當年 9 月 1 日前滿幾歲（utils/admission-classes.ts）。
 // 顏料團一歲比一歲大（scale），數字也跟著長。標語與說明在後台。
 const YEARS = [
-  { age: 2, name: '幼幼班', en: 'BABY class', pigment: 'mint', scale: 0.6 },
-  { age: 3, name: '小班', en: 'K1 class', pigment: 'sky', scale: 0.72 },
-  { age: 4, name: '中班', en: 'K2 class', pigment: 'sun', scale: 0.86 },
-  { age: 5, name: '大班', en: 'K3 class', pigment: 'orange', scale: 1 }
-] satisfies { age: number, name: string, en: string, pigment: Pigment, scale: number }[]
+  { age: 2, name: '幼幼班', pigment: 'mint', scale: 0.6 },
+  { age: 3, name: '小班', pigment: 'sky', scale: 0.72 },
+  { age: 4, name: '中班', pigment: 'sun', scale: 0.86 },
+  { age: 5, name: '大班', pigment: 'orange', scale: 1 }
+] satisfies { age: number, name: string, pigment: Pigment, scale: number }[]
 
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
@@ -107,9 +107,9 @@ useWatercolor(root)
       <div class="cur-wrap cur-hero-grid">
         <!-- 橙色小顏料 2026-10-13 從左下移到右上：原本墊在首屏提醒底下，提醒字對比只剩 3.2–4.3:1、金色圓點看不見 -->
         <div class="cur-hero-copy" data-wash="sun,.3,.44,.6,.5,.024,42|orange,.92,.06,.12,.1,.03,26">
-          <p class="cur-eyebrow">{{ page.heroEyebrow }}</p>
+          <p v-if="page.heroEyebrow" class="cur-eyebrow">{{ page.heroEyebrow }}</p>
           <h1 id="curriculum-title"><template v-for="(line, i) in heroLines" :key="i"><br v-if="i">{{ line.before }}<span v-if="line.mark" class="cur-swash"><span class="cur-blot cur-swash-paint" data-blot="orange" aria-hidden="true" />{{ line.mark }}</span>{{ line.after }}</template></h1>
-          <p class="cur-lede">{{ page.heroLede }}</p>
+          <p v-if="page.heroLede" class="cur-lede">{{ page.heroLede }}</p>
           <p v-if="page.heroNotice" class="cur-notice">{{ page.heroNotice }}</p>
         </div>
         <figure class="cur-hero-photo cur-frame" data-wash="mint,.6,.58,.6,.54,.03,40|sky,.98,.04,.26,.2,.034,30">
@@ -130,7 +130,7 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-years-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">01</span><span lang="en">Four years</span></p>
+            <p class="cur-kicker"><span class="cur-num" lang="en">01</span></p>
             <h2 id="years-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.yearsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
             <p class="cur-text">{{ page.yearsText }}</p>
             <p class="cur-spiral"><span class="cur-blot" data-blot="sky" aria-hidden="true" /><b>{{ page.spiralLabel }}</b>{{ page.spiralText }}</p>
@@ -147,7 +147,7 @@ useWatercolor(root)
         <ol class="cur-year-list" data-reveal>
           <li v-for="(year, i) in years" :key="year.name" class="cur-year" :style="{ '--i': i, '--s': year.scale }">
             <span class="cur-year-age" aria-hidden="true"><span class="cur-blot" :data-blot="year.pigment" /><b>{{ year.age }}</b><sup>歲</sup></span>
-            <p class="cur-year-name"><b>{{ year.name }}</b><span lang="en">{{ year.en }}</span></p>
+            <p class="cur-year-name"><b>{{ year.name }}</b></p>
             <h3>「{{ year.motto }}」</h3>
             <p>{{ year.text }}</p>
             <small>當年 9 月 1 日前滿 {{ year.age }} 歲</small>
@@ -161,9 +161,9 @@ useWatercolor(root)
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-dir-head" data-reveal>
-          <p class="cur-kicker"><span class="cur-num" lang="en">02</span><span lang="en">Curriculum</span></p>
+          <p class="cur-kicker"><span class="cur-num" lang="en">02</span></p>
           <h2 id="directions-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.directionsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
-          <p class="cur-text">{{ page.directionsText }}</p>
+          <p v-if="page.directionsText" class="cur-text">{{ page.directionsText }}</p>
         </div>
         <ul class="cur-dir-grid" aria-label="七個課程方向" data-reveal-group data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
           <li v-for="item in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
@@ -174,7 +174,7 @@ useWatercolor(root)
             <div class="cur-dir-copy">
               <h3>{{ item.title }}</h3>
               <p class="cur-dir-sub">{{ item.sub }}</p>
-              <p>{{ item.text }}</p>
+              <p v-if="item.text">{{ item.text }}</p>
             </div>
           </li>
         </ul>
@@ -187,10 +187,10 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">03</span><span lang="en">Art gallery</span></p>
+            <p class="cur-kicker"><span class="cur-num" lang="en">03</span></p>
             <h2 id="gallery-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.galleryTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           </div>
-          <p class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
+          <p v-if="page.galleryText || page.gallerySource" class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
         </div>
         <ul class="cur-art-wall" aria-label="孩子的作品" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
@@ -211,10 +211,10 @@ useWatercolor(root)
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
           <div>
-            <p class="cur-kicker"><span class="cur-num" lang="en">04</span><span lang="en">Five things</span></p>
+            <p class="cur-kicker"><span class="cur-num" lang="en">04</span></p>
             <h2 id="daily-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.dailyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           </div>
-          <p class="cur-text">{{ page.dailyText }}<small v-if="page.dailySource" class="cur-source">{{ page.dailySource }}</small></p>
+          <p v-if="page.dailyText || page.dailySource" class="cur-text">{{ page.dailyText }}<small v-if="page.dailySource" class="cur-source">{{ page.dailySource }}</small></p>
         </div>
         <ol class="cur-daily-list" aria-label="五件事" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
           <li v-for="(item, i) in daily" :key="item.image" class="cur-thing" data-reveal>
@@ -235,7 +235,6 @@ useWatercolor(root)
     <section id="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-belief-body" data-reveal data-wash="sun,.5,.34,.42,.4,.016,44|mint,.14,.66,.18,.3,.02,34|sky,.86,.24,.16,.26,.02,34">
-        <p class="cur-kicker"><span lang="en">Our belief</span></p>
         <h2 id="belief-title" class="cur-belief-title"><template v-for="(line, i) in pageTitleLines(page.beliefTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
         <ul class="cur-belief-list">
           <li v-for="(belief, i) in page.beliefs" :key="i"><span class="cur-blot" :data-blot="BELIEF_PIGMENTS[i]" aria-hidden="true" />{{ belief }}</li>

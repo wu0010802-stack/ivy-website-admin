@@ -115,15 +115,13 @@ describe('選單「找到你的校園」', () => {
   })
 })
 
-describe('原型的來源說明換成署名', () => {
+describe('原型的來源說明拿掉', () => {
+  // 10-29 先換成署名，10-30 使用者要版面乾淨，署名也拿掉，只留孩子的一天的作息提醒
   it('一字不差的原文才換；園方改過的照園方的', () => {
     const out = publicCopy(site)
-    const texts = [out.dayExperience.note, out.curriculumPage.heroNotice, out.curriculumPage.gallerySource, out.curriculumPage.dailySource, out.curriculumPage.beliefSource, out.environmentPage.heroNotice]
-    for (const text of texts) {
-      expect(text).toBeTruthy()
-      expect(text).not.toMatch(/提案|取自/)
-    }
-    expect(out.dayExperience.note).toBe('照片：各校日常；背景影片：義華校遊藝表演。各校、各班作息略有不同，以園所安排為準。')
+    const texts = [out.curriculumPage.heroNotice, out.curriculumPage.gallerySource, out.curriculumPage.dailySource, out.curriculumPage.beliefSource, out.environmentPage.heroNotice]
+    for (const text of texts) expect(text).toBe('')
+    expect(out.dayExperience.note).toBe('各校、各班作息略有不同，以園所安排為準。')
     const custom = publicCopy({ ...site, environmentPage: { ...site.environmentPage, heroNotice: '園方自訂的提醒，取自某處。' } })
     expect(custom.environmentPage.heroNotice).toBe('園方自訂的提醒，取自某處。')
   })

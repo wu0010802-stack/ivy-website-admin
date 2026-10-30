@@ -65,9 +65,11 @@ describe('消息頁版面', () => {
     expect(css).toMatch(/^\.np-meta\{[^}]*max-width:none/m)
     expect(css).toContain('.np-article .np-sample-note{margin-top:20px;max-width:none}')
   })
-  it('眉標是中文，不是寬字距英文大寫', () => {
-    expect(read('../app/components/NewsIndexContent.vue')).toContain('<p class="np-kicker">常春藤幼兒園・最新消息</p>')
-    expect(css).not.toMatch(/\.np-kicker\{[^}]*text-transform:uppercase/)
+  // 2026-10-30 眉標與引言都拿掉：麵包屑已寫「最新消息」，大標也是「最新消息」
+  it('列表頁沒有眉標與引言', () => {
+    const page = read('../app/components/NewsIndexContent.vue')
+    expect(page).not.toContain('np-kicker')
+    expect(page).not.toContain('np-lede')
   })
 })
 
