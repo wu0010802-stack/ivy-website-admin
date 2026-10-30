@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 後端測試提速與不穩定測試修正（main CI 部署，沒有 migration）
+
+- **內容**：`7e597d48`（PR #56 squash，README「2026-10-29 後端測試提速與不穩定測試修正」）。只動測試與 CI：`backend/tests/route_cache.py` 讓預約 router 進路由快取、新增 `tests/test_route_cache.py`；`test_admissions_potential_api.py` 改成逐一比對回應數值（就是 10-29 run 40904623394 偶發失敗的那支）；`website.yml` 後端與 E2E 的拋棄式 PostgreSQL 設 `POSTGRES_HOST_AUTH_METHOD: trust`；CLAUDE.md 更正 `tests/e2e` 已在 CI 跑。正式站的 web、admin、backend 程式與 `046198c` 相同。
+- **提交**：分支 `feature/test-speed-fixes-20261029`，PR #56 CI（run 40976101409）全綠後使用者要求併入 main，以 squash 合併（REST，帶 head sha 防呆）。合併前 Codex review 對 `2252937` 完成、沒有意見。
+- **CI**：main run 40978921213 全綠，Deploy success（312 秒）。後端三組 pytest 251／331／257 秒（PR 那次 229／307／252 秒；main 前四次每次最慢那組 440–524 秒）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `7e597d48`、created_at `2026-10-30T00:26:15Z`、service `web+api`；`/api/website/v1/health` `status: ok`、`environment: production`、`fixture_enabled: false`。
+
 ## 2026-10-29 改回視覺方向 B 之前的版本（main CI 部署，沒有 migration）
 
 - **內容**：`2bcce4c8`（README「2026-10-29 改回視覺方向 B 之前的版本」）revert `3c93176a`。web、admin、tests、backend 與 `256d5cc1`（＝已上線的 `6d7b01e3`）逐字相同；後台六個欄位恢復顯示。B 的程式留在 `3c93176a` 與分支 `feature/visual-b-20261029`。
