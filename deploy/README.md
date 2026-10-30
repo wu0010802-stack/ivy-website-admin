@@ -13,6 +13,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 常春藤環境頁換成木頭積木版（main CI 部署，沒有 migration）
+
+- **內容**：`8f64a667`（README「2026-10-30 常春藤環境頁換成木頭積木版」、DESIGN.md 最上面一節）。比稿選 D2：照片裝在積木形狀裡、彩虹疊疊樂首屏、校園環境圓點小路、餐點水平時間軸；拿掉 Rough.js 手繪層、GSAP 小腳印、蠟筆塗鴉、照片圖說與便條；字型沿用圓體並重切分片（約 700 個字型檔換雜湊）；後台常春藤環境頁不列官網不顯示的七欄（資料保留）。正式站內容沒換過這頁照片，部署即生效。
+- **提交**：worktree `env-blocks-20261030`（從 origin/main `d00ba65a`，rebase 到 `6ccc368c`）。驗證：
+  - web typecheck 通過，單元測試 110 檔 1332 全過；後台 typecheck 通過，167 檔 3218 全過。
+  - 本機 stack（`npm run e2e:build`＋`test:e2e:stack`，測試庫 `ivy_website_e2e_envblocks_test`，跑完已刪）156 項全過。
+  - 使用者說「上線」後推 main（fast-forward）。
+- **CI**：main run 41075941786 全綠（含 E2E），Deploy success（15:01:26–15:07:04Z）。
+- **線上驗證**（只發 GET，遙測攔下）：
+  - `/release.json` base_commit `8f64a667`、created_at `2026-10-30T15:01:56Z`；health `status: ok`、`fixture_enabled: false`。
+  - `/environment` 200：五道彩虹拱、圓點小路、時間軸、`tour-tab-yihua`、`section.renv-section.renv-tour` 都在；`data-rough`、`renv-doodle`、`renv-note` 都是 0。
+  - Playwright 桌機 1440、手機 390：沒有橫向捲動；圓點小路捲完全亮（283／192 顆）；標題字型是 Chiron GoRound TC。
+- **未驗**：Safari／iOS 實機；後台登入後的環境頁編輯與預覽（stack 已跑過「改首屏大標、預覽即時換字」）。
+
 ## 2026-10-30 關於頁換成 H 版（main CI 部署，沒有 migration）
 
 - **內容**：`05e08427`（README「2026-10-30 關於頁換版：H『原版風格×四季結構』」）。桌機立體書與手機卡紙疊換成一套排法；拿掉五所校園結尾；家長章標題「孩子的進步，家長看得見。」寫在程式裡；web 拿掉 `motion` 依賴。
