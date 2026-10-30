@@ -78,6 +78,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **沒驗證**：iOS／Android 實機、Safari／WebKit；真的送出預約（只在本機假 API 測過成功後清暫存、上一頁收起結果）。
 - **回退**：切回上一版映像即可，沒有資料相依。sessionStorage 暫存只在瀏覽器分頁內。
 
+## 2026-10-30 首屏影片改成全明華 13 鏡（main CI 部署，沒有 migration）
+
+- **內容**：`e43cb1e6`（README「2026-10-30 首屏影片改成全明華 13 鏡」）。比稿選 C：從〈快樂城堡〉挑 13 鏡、11.73 秒，不再用舊片；色調照原片。開場老師擁抱改從 3.02 秒起，封面、衍生圖（`dbbf70b7f134` → `100a072566f2`）與分享圖重做，分享圖加 `OG_CENTERING`；替代文字改「常春藤的老師抱住孩子們、大家笑成一團的校園影片畫面」。交付檔：桌機 AV1 3,833,753／H.264 6,233,075、手機 AV1 1,522,571／H.264 2,213,951 bytes。只動 web 素材、fixture 文字與圖片腳本，沒有新環境變數。
+- **提交**：使用者看過 Desktop 比稿頁（`design/hero-mix-20261029/more.html`）選 C，由使用者 `!` 推 main（fast-forward，接在 `aa60f2d8` 後）。
+- **推送前閘門**（本機，Node 22.23.2）：web `typecheck` 0 錯、`test:unit` 1383 passed；後端 `test_media_slots.py` 21 passed（獨立測試庫，已刪）；四支交付檔解碼 0 錯誤、352 格、標記 `tv／bt709／iec61966-2-1／bt709`；Chrome 原尺寸播放對沒標記的原片 13 格平均差 H.264 1.44/255、AV1 2.01；fixture dev server 白字對比導覽 4.62–4.67、手機頁首 4.79（第二版 4.94／5.04）。
+- **CI**：main run 40985185850（`e43cb1e6`），Frontend web／admin、Backend 三組、E2E／Playwright、Deploy Railway production（01:25:06Z → 01:29:26Z）全部 success。
+- **線上驗證**：`/release.json` base_commit `e43cb1e6`、created `2026-10-30T01:25:35Z`；`/api/website/v1/health` `status: ok`；`/`、`/news`、`/visit`、`/about`、`/admin/` 200。新四支影片、`campus-run-36ab9cc62580.mp4`、新封面衍生圖 200，第二版影片與舊衍生圖 404；首頁 HTML 引用 `100a072566f2` 三種寬度、`og:image:alt` 是新替代文字，分享圖與 repo 逐位元相同。Playwright：Chrome 1440 播 AV1、390 手機模擬播 H.264，11.73 秒、在播放；正式站檔對原片平均差 H.264 1.44、AV1 2.01；telemetry 回 204 時 console 0 錯誤。
+- **沒驗證**：iOS／Android 實機、Safari／WebKit。
+- **回退**：切回上一版映像即可，沒有資料相依。
+
 ## 2026-10-29 首屏影片第二版：色調以明華原片為準（main CI 部署，沒有 migration）
 
 - **內容**：`602a2b0d`（README「2026-10-29 首屏影片第二版：色調以明華原片為準」）。明華六鏡不再套 10-24 提亮調色，改燒原片在 Mac 螢幕上的樣子（`screen-17.cube`）再標 sRGB；舊開場、結尾兩鏡用 `match.py` 往明華拉。開場鏡頭重調色，封面 `hero-campus-restored-v1-still` 衍生圖 `a8cdc5a3b16c` → `dbbf70b7f134`、分享圖重做。交付檔：桌機 AV1 3,527,337／H.264 5,703,562、手機 AV1 1,369,502／H.264 2,037,000 bytes。只動 web 素材，沒有新環境變數。
