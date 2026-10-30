@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 前台 9 處照片換成園方雲端的活動照（main CI 部署，沒有 migration）
+
+- **內容**：`caa98966`（README「2026-10-30 前台照片換成園方雲端的活動照」）。孩子的一天六張（新代號 `day-rest`）、特色教學多元文化與課程活動、關於頁後排小卡與預約頁歡迎照（`about-curious`），入學頁首圖與新生準備縮圖共用；替代文字、入學頁首圖圖說、孩子的一天署名（「照片：各校日常」）一起改。正式站後台這些位置的 photo 都是 null，用內建照片，不必動後台。
+- **提交**：worktree `photo-refresh-20261030`（從 origin/main `aa60f2d8`），提交後 rebase 到另一個 session 剛推的 `e43cb1e6`（首屏全明華 13 鏡），只有 README 頂部衝突、兩段都留。推前本機重跑 web typecheck＋單元 1383、後端素材相關 36 項，`test:e2e:stack` 156 項全過；使用者要求後推 main（fast-forward）。
+- **CI**：main run 40986074045 全綠（排在 `e43cb1e6` 的 run 40985185850 後面，兩個都 success），Deploy success（01:39:50–01:43:54Z）。
+- **線上驗證**（只發 GET、擋 telemetry）：`/release.json` base_commit `caa98966`、created_at `2026-10-30T01:40:17Z`、service `web+api`；`/api/website/v1/health` `status: ok`、`fixture_enabled: false`。伺服器 HTML：首頁六張 `day-*` 新雜湊（含 `day-rest-8011418a7ecd`）、入學頁 `day-hello／lunch／home` 新雜湊與「牽起好朋友的手」、特色教學 `cur-multicultural-167b1d2d1846`／`cur-activities-8e1c6b91fead`、關於頁與預約頁 `about-curious-bef30fd859ff`；「照片：各校日常」出現、「照片：義華校日常」0。Playwright 桌機截圖拍立得與入學頁首圖已是新照片。
+
 ## 2026-10-30 後端測試提速與不穩定測試修正（main CI 部署，沒有 migration）
 
 - **內容**：`7e597d48`（PR #56 squash，README「2026-10-29 後端測試提速與不穩定測試修正」）。只動測試與 CI：`backend/tests/route_cache.py` 讓預約 router 進路由快取、新增 `tests/test_route_cache.py`；`test_admissions_potential_api.py` 改成逐一比對回應數值（就是 10-29 run 40904623394 偶發失敗的那支）；`website.yml` 後端與 E2E 的拋棄式 PostgreSQL 設 `POSTGRES_HOST_AUTH_METHOD: trust`；CLAUDE.md 更正 `tests/e2e` 已在 CI 跑。正式站的 web、admin、backend 程式與 `046198c` 相同。
