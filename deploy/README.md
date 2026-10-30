@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-10-30 特色教學統整課程與大肌肉時間換照片（main CI 部署，沒有 migration）
+
+- **內容**：`b00f31ef`（README「2026-10-30 特色教學再換兩張」）。`cur-integrated` 換成幼幼班感統區爬彩虹拱橋（4:5 位置 36%）、`cur-daily-motor` 換成足球賽搶球（1600×1000）；五件事署名改「介紹：義華校；照片：義華校與各校活動」。正式站沒有特色教學頁的後台內容，用內建照片與 fixture 原文。
+- **提交**：worktree `photo-refresh2-20261030`（從 origin/main `c5afe9c0`），web typecheck＋單元 1383、admin `curriculumPage.test.ts` 16、本機 `test:e2e:stack` 156 全過；使用者要求後推 main（fast-forward）。
+- **CI**：main run 40992706173 全綠，Deploy success（02:43:56–02:47:31Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `b00f31ef`、created_at `2026-10-30T02:44:24Z`、service `web+api`；health `status: ok`、`fixture_enabled: false`。`/curriculum` 伺服器 HTML 有 `cur-integrated-d4a559b5d3e0`、`cur-daily-motor-5db2914cccb6`、兩段新替代文字與新署名；舊署名「照片與介紹：義華校」與舊替代文字 0。
+
 ## 2026-10-30 前台 9 處照片換成園方雲端的活動照（main CI 部署，沒有 migration）
 
 - **內容**：`caa98966`（README「2026-10-30 前台照片換成園方雲端的活動照」）。孩子的一天六張（新代號 `day-rest`）、特色教學多元文化與課程活動、關於頁後排小卡與預約頁歡迎照（`about-curious`），入學頁首圖與新生準備縮圖共用；替代文字、入學頁首圖圖說、孩子的一天署名（「照片：各校日常」）一起改。正式站後台這些位置的 photo 都是 null，用內建照片，不必動後台。
