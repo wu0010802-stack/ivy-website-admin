@@ -19,27 +19,18 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from fastapi import APIRouter, FastAPI
+# include_router 收尾合併 lifespan 用的就是它；FastAPI 釘版 0.136.1，改版拿掉時這裡會直接 import 失敗。
+from fastapi.routing import _merge_lifespan_context
 
 _original_include_router = FastAPI.include_router
-_DEFAULT_LIFESPAN = type(APIRouter().lifespan_context)
 # id(router) → (router, 路由)。留著 router 本身，id 才不會被回收後重用。
 _cache: dict[int, tuple[APIRouter, list]] = {}
 _enabled = False
 
 
-def _cacheable(router: APIRouter, kwargs: dict) -> bool:
-    # 帶 prefix／dependencies 等參數、或 router 自己有啟動／關閉事件、lifespan 的，
-    # 照原本的方式掛（include_router 除了加路由還會合併這些）；本專案目前都沒有。
-    return (
-        not kwargs
-        and not router.on_startup
-        and not router.on_shutdown
-        and type(router.lifespan_context) is _DEFAULT_LIFESPAN
-    )
-
-
 def _include_router(self: FastAPI, router: APIRouter, **kwargs) -> None:
-    if not _enabled or not _cacheable(router, kwargs):
+    # 帶 prefix／dependencies 等參數的，路由要照參數重建，照原本的方式掛；本專案目前都沒有。
+    if not _enabled or kwargs:
         _original_include_router(self, router, **kwargs)
         return
     hit = _cache.get(id(router))
@@ -49,6 +40,14 @@ def _include_router(self: FastAPI, router: APIRouter, **kwargs) -> None:
         _cache[id(router)] = (router, self.router.routes[start:])
         return
     self.router.routes.extend(hit[1])
+    # 其餘照 include_router 收尾：router 的啟動／關閉事件與 lifespan 一樣併進這個 app。
+    # 原本只快取 lifespan 是預設值的 router，但 router 自己 include 過子 router，lifespan 就會變成
+    # 合併過的；預約的 router 掛了三個子 router，27 條路由因此每次重建（2026-10-29，見 test_route_cache.py）。
+    for handler in router.on_startup:
+        self.router.add_event_handler("startup", handler)
+    for handler in router.on_shutdown:
+        self.router.add_event_handler("shutdown", handler)
+    self.router.lifespan_context = _merge_lifespan_context(self.router.lifespan_context, router.lifespan_context)
 
 
 def install() -> None:
