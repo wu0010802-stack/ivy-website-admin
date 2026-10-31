@@ -28,7 +28,7 @@ describe('預約：橫拿手機', () => {
   const landscape = visitCss.slice(visitCss.lastIndexOf('@media(max-width:960px) and (max-height:500px) and (orientation:landscape)'))
   it('選校卡改細條、一列兩張，圖片 sizes 跟著改半個視窗', () => {
     expect(landscape).toContain('.visit-campus-choice {flex:0 1 calc((100% - 16px) / 2)}')
-    expect(landscape).toContain('.visit-campus-card {aspect-ratio:auto;height:96px;border-radius:18px}')
+    expect(landscape).toContain('.visit-campus-card {display:grid;aspect-ratio:auto;min-height:96px;height:auto;border-radius:18px}')
     expect(visitForm).toContain('(max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px)')
   })
   it('拿掉場次區的容器查詢：月曆與場次上下排，點下排日期後場次就在月曆下面', () => {

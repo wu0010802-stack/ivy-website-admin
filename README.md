@@ -1,3 +1,19 @@
+## 2026-10-31 前台 QA 修正：30 週年開場的焦點與配樂、預約頁黏底列與大字級（`feature/qa-fixes-c05-c06-c09-c14-20261031`）
+
+前一輪前台 QA（15 項 medium 逐項複驗，編號 C05、C06、C09、C14）裡的四個小改動，使用者要先修。其餘複驗項（C02 焦點環、C07 環境頁、C12 換頁空白、C13 頁首大字級、C10／C11）沒動。
+
+- **C05 `/anniversary` 開場 dialog 沒限制焦點**：`aria-modal="true"` 在 Chrome 不限制鍵盤焦點，Tab 會跑進被影片遮住的頁首、頁尾與內文，焦點環看不見，還會捲動頁面、Enter 直接換頁。`AnniversaryIntro.vue` 的 `onKey` 加 `trapTab`：開場期間（`state !== 'off'`）Tab／Shift+Tab 在開場自己的按鈕首尾轉圈，焦點已跑出去時下一次 Tab 拉回來。Esc 仍只在播放中略過。
+- **C06 開聲音後略過，配樂還播 25 秒**：`leave(skipped)` 的尾巴等待沒看 `skipped`，`finish()` 也沒暫停影片。現在略過／Esc 當下 `muted = true`（iOS 不吃 `volume`，所以用靜音不用淡出），尾巴只留給自然播完；`finish()` 一律 `pause()`。獨立審查另外找到的兩個邊角一併收掉：離場／展開那一秒多按鈕看不見但鍵盤按得到，`toggleSound`、`playBlocked` 在 `state !== 'play'` 時直接略過（否則按「開聲音」會把聲音叫回來）；影片還在等網路時按略過，`pause()` 讓 `play()` 以 `AbortError` 結束，不再當成「被瀏覽器擋下」而疊出大播放鈕，`replay()` 開頭也清掉 `blocked`。
+- **C09 `/visit` 手機黏底列蓋住聚焦的校區卡與撥號連結**：radio 撐滿整張卡，鍵盤聚焦（`:focus-visible`）時 radio 與撥號連結加 `scroll-margin-bottom` 讓出黏底列高度；只掛在 `:focus-visible` 是因為滑鼠、觸控點卡片也會讓 radio 取得焦點，那時不該把頁面捲走。label 另外留一份，給第二步按「選擇校園」回第一步時 `VisitForm.focusPicker` 的 `scrollIntoView` 用（獨立審查發現這條路徑原本仍被蓋 79px）。黏底列高度用 `--visit-next-h` 隨字級與安全區估算，rem 每多 1px 加 6px（320 寬按鈕文字會折成兩行，150% 為 127px、200% 為 151px；360 寬 150% 為 91px）。
+- **C14 `/visit` 選校卡 150% 字級被裁切**：手機與橫拿手機的細條卡改 `min-height:96px`、文字流內排版（原本寫死 `height:96px` 加絕對定位置中）。100% 字級卡高、校名與膠囊位置不變（96／6／90）。
+- **驗證**（本機 `nuxt dev` fixture 模式＋Playwright Chromium，booking-config 用 `route.fulfill` 模擬正式站的 paused 回應）：
+  - C05：1440 與 390，Tab×7、Shift+Tab×4、失焦後 Tab／Shift+Tab 共 13 個停點全部在開場按鈕內；Esc 收場後 Tab 正常回到頁面（「重看開場影片」）。
+  - C06：1440、390 × 按鈕、Esc 共四組，略過後立刻 `muted`、約 1.4 秒後 `paused`、`ended` 為 false；自然播完開著聲音仍播到 30 秒尾巴才收；重看（有聲）再略過同樣停掉。
+  - C09：320×568、390×844（100%）、360×640、320×568（150%）四組，Tab 走完與方向鍵選卡，正式站基準被黏底列蓋住最高 100%，修後聚焦的元素（radio 整張卡或撥號連結本身）全為 0%；滑鼠點五張卡頁面都沒捲（390×844、320×568 各五次，改成只掛 `:focus-visible` 之前會捲 11–72px）；點電話膠囊不選卡；`focusPicker`（`/visit/chongde`、`/international`、`/renwu` 按步驟列「選擇校園」）在 390×844、320×568（100%）與 320×568（150%）共 9 組，8 組完全沒被蓋，320×568＠150% 的仁武校（最後一張）仍被蓋 1px，原因沒查。
+  - C14：100%、112%、125%、150%、175%、200% 都沒有被切（360 寬卡高 96／102／108／120／133／145；320 寬地址折行，150% 約 127px）。
+  - `npm --prefix web run typecheck` 通過（只有既有的 MediaImage 重複匯入警告）；`npm run test:website` 111 檔 1344 項全過；`mobile-ux-20261012.spec.ts`、`news-visit-polish-20261013.spec.ts` 兩處鎖死的舊寫法已改成新寫法，新增 `qa-fixes-20261031.spec.ts`；`npm run e2e:build` 後 `npm run test:e2e` 34 過、6 跳過（依視口設計），stack e2e（a11y、keyboard、hydration、booking-flow、booking-modes、visit-family-page、anniversary-toggle）61 項全過。
+- **沒驗證**：真人聽音訊（headless 只能讀 `muted`／`paused`／`currentTime`）、Safari／iOS 實機、螢幕閱讀器朗讀、瀏覽器字級 175%、200% 的鍵盤聚焦（只量了黏底列高度 139、151px，`--visit-next-h` 加 16px 間距涵蓋得到，沒有逐一跑 Tab）。
+
 ## 2026-10-30 關於頁再一輪細修：全人教育手機間距、沿革卡紙對齊與重複字（`feature/about-polish-20261030`）
 
 使用者要「繼續優化 /about」。用 Playwright 量正式站（release `8f64a667`）1440、1024、768、390、352 五個寬度，只修量得到的三處；排法、動態、文案都不動。
