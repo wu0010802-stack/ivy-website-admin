@@ -10,7 +10,8 @@
 //   （四季藝術「歷史與沿革」的排法）、六圈（AboutWholePerson）、孩子的蠟筆畫（AboutCrayon）、家長影片卡紙。
 // 文字與照片讀後台「關於常春藤頁」（about_page，預設＝fixture 的 aboutPage）、分校資料與各校家長影片；欄位不變。
 // 例外：家長章標題寫在這裡（使用者 10-30 指定，取自函函奶奶那支影片的話），不再取第一位家長的原話。
-// 沿革源自機構站「關於常春藤」：舊站「三十多個春夏秋冬」不對（1997 到今年未滿三十年），一律寫「近三十年」；
+// 沿革源自機構站「關於常春藤」：舊站「三十多個春夏秋冬」不對（1997 到今年未滿三十年）；首屏介紹與第一章標題的年數
+// 2026-10-31 起由今年算（utils/about-content.ts 的 aboutHeroLede、storyYearTitle），沿革最後接 30 週年頁（後台開關打開時）。
 // 崇德同年的 ESL 美語部不寫；義華創校年份 1997（業主 2026-10-03 裁定）。首屏照片裡的長輩是創辦人（姓名未提供，不寫名字）。
 // 分校停用或下架時，那一年仍留在沿革裡，只是卡紙留白、不放校名。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
@@ -18,9 +19,22 @@ import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
 import { pagePhotoAlt, pagePhotoAttrs, pageTitleLines, rocYear, withPhotoStyle } from '~/utils/page-content'
 import { youtubeEmbed } from '~/utils/filmCarousel'
 import { pickVoices } from '~/utils/testimonials'
-import { HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, SCENE, WAX_FILTER, milestoneLook, sceneStyle } from '~/utils/about-content'
+import { foundingYear } from '~/utils/seo'
+import { taipeiIsoDate } from '~/utils/taipei-date'
+import {
+  DOMAINS, HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, SCENE, STORY_TITLE_ORIGINAL, WAX_FILTER,
+  aboutHeroLede, milestoneLook, sceneStyle, storyYearTitle
+} from '~/utils/about-content'
 
-const props = defineProps<{ campuses: Campus[]; page: AboutPageContent }>()
+// anniversary：後台「全站設定」的 30 週年開關（關掉時 /anniversary 回 404，這頁也不連過去）
+const props = withDefaults(defineProps<{ campuses: Campus[]; page: AboutPageContent; anniversary?: boolean }>(), { anniversary: false })
+
+// 年數由今年（台北）算：SSR 與瀏覽器各算一次，只有跨年那一刻才可能不同
+const thisYear = Number.parseInt(taipeiIsoDate(), 10)
+const heroLede = computed(() => aboutHeroLede(props.page.heroLede, thisYear))
+const storyTitle = computed(() => props.page.storyTitle === STORY_TITLE_ORIGINAL
+  ? storyYearTitle(foundingYear({ aboutPage: props.page }), thisYear)
+  : pageTitleLines(props.page.storyTitle))
 
 // 沿革五站來自後台（年份可改，民國年＝西元 − 1911）；卡紙底色依成立順序輪流用品牌色（milestoneLook），微斜角度固定
 const TILT = [-1.5, 1.2, -1, 1.6, -0.8]
@@ -29,16 +43,16 @@ const milestones = computed(() => props.page.milestones.map((item, i) => ({
 })))
 const CAMPUS_SIZES = '(max-width: 900px) 80vw, 300px'
 
-// 六大領域的圓點與六圈同色（順序同 AboutWholePerson）；滑過某個領域，六圈播完後那一圈亮
-const DOMAINS = [
-  { name: '身體動作與健康', color: 'var(--ivy-whole-body)' },
-  { name: '認知', color: 'var(--ivy-whole-cognition)' },
-  { name: '語文', color: 'var(--ivy-whole-language)' },
-  { name: '社會', color: 'var(--ivy-whole-social)' },
-  { name: '情緒', color: 'var(--ivy-whole-emotion)' },
-  { name: '美感', color: 'var(--ivy-whole-aesthetic)' }
-]
-const focusDomain = ref<number | null>(null)
+// 六大領域點開看說明（同一時間只開一項：details 同名）。滑過或打開某個領域，六圈播完後那一圈亮；
+// 滑過優先，沒滑過時看打開的那一項（手機沒有滑過，打開就亮）
+const hoverDomain = ref<number | null>(null)
+const openDomain = ref<number | null>(null)
+const focusDomain = computed(() => hoverDomain.value ?? openDomain.value)
+// 開 B 會自動關 A：兩個 toggle 事件先後不定，關的那個只在它還是目前打開的那項時才清掉
+function onDomainToggle(index: number, event: Event) {
+  if ((event.target as HTMLDetailsElement).open) openDomain.value = index
+  else if (openDomain.value === index) openDomain.value = null
+}
 
 // 家長怎麼說：各校的 testimonials（後台自訂，沒自訂的校用內建）五校輪流取，最多四位；沒有影片時整章不出現
 const voices = computed(() => pickVoices(props.campuses))
@@ -135,7 +149,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <section class="abh-wrap abh-hero" aria-labelledby="about-title">
       <div class="abh-hero-text">
         <h1 id="about-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
-        <p class="abh-lede">{{ page.heroLede }}</p>
+        <p class="abh-lede">{{ heroLede }}</p>
       </div>
       <div class="abh-hero-art">
         <figure class="abh-card is-back">
@@ -158,7 +172,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <section id="story" class="abh-wrap abh-sec" :style="chapterOf('story').style" aria-labelledby="story-title">
       <p class="abh-no" lang="en">{{ chapterOf('story').no }}</p>
       <div class="abh-title-row">
-        <h2 id="story-title"><template v-for="(line, i) in pageTitleLines(page.storyTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
+        <h2 id="story-title"><template v-for="(line, i) in storyTitle" :key="i"><br v-if="i">{{ line }}</template></h2>
         <span class="abh-medal" aria-hidden="true" />
       </div>
       <p class="abh-text">{{ page.storyText }}</p>
@@ -176,6 +190,10 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
           </div>
         </li>
       </ol>
+      <!-- 沿革走到最後一站，接 30 週年頁（後台關掉 30 週年時不出現） -->
+      <p v-if="anniversary" class="abh-tl-end">
+        <NuxtLink class="abh-link" to="/anniversary">看常春藤 30 週年<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+      </p>
     </section>
 
     <!-- 全人教育：薄荷色帶，左邊兩份清單、右邊六圈 -->
@@ -189,7 +207,12 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
             <div>
               <h3>六大領域</h3>
               <ol class="abh-domains">
-                <li v-for="(item, i) in DOMAINS" :key="item.name" :style="{ '--c': item.color }" @pointerenter="focusDomain = i" @pointerleave="focusDomain = null">{{ item.name }}</li>
+                <li v-for="(item, i) in DOMAINS" :key="item.name" :style="{ '--c': item.color }" @pointerenter="hoverDomain = i" @pointerleave="hoverDomain = null">
+                  <details name="abh-domain" @toggle="onDomainToggle(i, $event)">
+                    <summary>{{ item.name }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-plus" /></svg></summary>
+                    <p>{{ item.detail }}</p>
+                  </details>
+                </li>
               </ol>
             </div>
             <div>

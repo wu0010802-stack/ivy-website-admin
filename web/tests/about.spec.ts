@@ -6,6 +6,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
 import { rocYear } from '../app/utils/page-content'
+import { DOMAINS, STORY_TITLE_ORIGINAL, aboutHeroLede, storyYearTitle, yearsSpoken } from '../app/utils/about-content'
 import manifest from '../app/generated/image-manifest.json'
 
 const site = fixture as unknown as SiteContent
@@ -64,9 +65,54 @@ describe('五校沿革', () => {
     const keys = site.campuses.map((c) => c.key)
     for (const m of milestones) expect(keys).toContain(m.key)
   })
-  it('畫面上不寫「三十多年」、週年，也不提美語補習班（未定案）', () => {
-    expect(template).not.toMatch(/三十多|週年|美語部|補習班/)
+  it('畫面上不寫死「三十多年」，也不提美語補習班（未定案）；「週年」只在接 30 週年頁的連結（後台開關打開時）', () => {
+    expect(template).not.toMatch(/三十多|美語部|補習班/)
     expect(JSON.stringify(site.aboutPage)).not.toMatch(/三十多|週年|美語部|補習班/)
+    expect(template.replace(/<!--[\s\S]*?-->/g, '').match(/週年/g)).toHaveLength(1)
+    expect(template).toMatch(/<p v-if="anniversary" class="abh-tl-end">\s*<NuxtLink class="abh-link" to="\/anniversary">看常春藤 30 週年/)
+    // 開關在後台「全站設定」：關掉時 /anniversary 回 404，這頁也不連過去（正式頁與後台預覽都傳）
+    expect(read('../app/pages/about.vue')).toContain(':anniversary="anniversaryEnabled(data.content.siteMeta)"')
+    expect(read('../app/pages/preview.vue')).toContain(':anniversary="anniversaryEnabled(draft.siteMeta)"')
+  })
+})
+
+// 2026-10-31：首屏介紹與第一章標題寫死「近三十年」，2027 年就過時；第一章標題又和首屏大標都在講「長成五所校園」
+describe('年數由今年算', () => {
+  it('幾年的說法：差一兩年到整十年寫「近」、整十年、其他「多年」', () => {
+    expect([29, 30, 31, 37, 38, 40].map(yearsSpoken)).toEqual(['近三十年', '三十年', '三十多年', '三十多年', '近四十年', '四十年'])
+  })
+  it('第一章標題：1997 是第 1 年，2026 是第 30 年，2027 滿 30 年；不再重複首屏的「五所校園」', () => {
+    expect(storyYearTitle(1997, 2026)).toEqual(['走到今年，', '是第 30 年。'])
+    expect(storyYearTitle(1997, 2027)).toEqual(['走到今年，', '滿 30 年。'])
+    expect(storyYearTitle(1997, 2028)).toEqual(['走到今年，', '是第 32 年。'])
+    expect(storyYearTitle(1998, 2026)).toEqual(['走到今年，', '是第 29 年。'])
+    expect(storyYearTitle(1997, 2026).join('')).not.toContain('五所校園')
+  })
+  it('首屏介紹：內建原文換年數，2026 年和原文一字不差；後台改寫過的照後台', () => {
+    const lede = site.aboutPage.heroLede
+    expect(aboutHeroLede(lede, 2026)).toBe(lede)
+    expect(aboutHeroLede(lede, 2027)).toContain('。三十年來，我們守著')
+    expect(aboutHeroLede(lede, 2029)).toContain('。三十多年來，我們守著')
+    expect(aboutHeroLede('園方改寫的介紹，近三十年來。', 2030)).toBe('園方改寫的介紹，近三十年來。')
+  })
+  it('換算只認內建原文：fixture 的第一章標題與首屏介紹沒被改過（改了就要一起改 utils/about-content.ts）', () => {
+    expect(site.aboutPage.storyTitle).toBe(STORY_TITLE_ORIGINAL)
+    expect(site.aboutPage.heroLede).toContain('近三十年來')
+    expect(component).toContain('props.page.storyTitle === STORY_TITLE_ORIGINAL')
+    expect(component).toContain("Number.parseInt(taipeiIsoDate(), 10)")
+  })
+})
+
+// 2026-10-31（Jason 10-29 的建議）：六大領域點開看說明
+describe('六大領域點開看說明', () => {
+  it('六項都有說明，順序與顏色同六圈', () => {
+    expect(DOMAINS.map((d) => d.name)).toEqual(['身體動作與健康', '認知', '語文', '社會', '情緒', '美感'])
+    for (const d of DOMAINS) expect(d.detail.length).toBeGreaterThan(30)
+  })
+  it('用原生 details 同名（同一時間只開一項、鍵盤可操作、沒有 JS 也能開），打開的那項讓六圈亮', () => {
+    expect(template).toContain('<details name="abh-domain" @toggle="onDomainToggle(i, $event)">')
+    expect(component).toContain('const focusDomain = computed(() => hoverDomain.value ?? openDomain.value)')
+    expect(template).toContain('<AboutWholePerson :focus="focusDomain" />')
   })
 })
 

@@ -61,6 +61,10 @@ test('後台關掉 30 週年並發布：布幕、分頁、選單與頁尾連結�
     await expect(page.locator('dialog.entrance-curtain')).toHaveCount(0)
     await expect(page.locator('a[href^="/anniversary"]')).toHaveCount(0)
     await expect(page.getByRole('link', { name: '關於常春藤' }).first()).toBeAttached()
+    // 關於頁沿革尾端的「看常春藤 30 週年」跟著開關（2026-10-31）
+    await page.goto('/about')
+    await expect(page.locator('.abh-tl')).toBeAttached()
+    await expect(page.locator('a[href^="/anniversary"]')).toHaveCount(0)
   })
 
   await test.step('打開再發布：30 週年回來', async () => {
@@ -70,5 +74,7 @@ test('後台關掉 30 週年並發布：布幕、分頁、選單與頁尾連結�
     await page.goto('/')
     await skipEntrance(page)
     await expect(page.locator('a[href="/anniversary"]').first()).toBeAttached()
+    await page.goto('/about')
+    await expect(page.locator('.abh-tl-end a[href="/anniversary"]')).toBeAttached()
   })
 })
