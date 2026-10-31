@@ -83,7 +83,7 @@ describe('預約頁', () => {
 
   it('選校卡壓字底：文字範圍內至少 .7，桌機上方 88px、細條卡右側 72px 才淡出', () => {
     expect(css).toContain('padding:88px 18px 18px;background:linear-gradient(to top,rgb(var(--ink) / .82),rgb(var(--ink) / .7) calc(100% - 88px)')
-    expect(css.match(/width:auto;min-width:72%;max-width:100%;padding:0 72px 0 18px;background:linear-gradient\(to right,rgb\(var\(--ink\) \/ \.82\),rgb\(var\(--ink\) \/ \.7\) calc\(100% - 72px\)/g)).toHaveLength(2)
+    expect(css.match(/width:auto;min-width:72%;max-width:100%;min-height:96px;padding:6px 72px 6px 18px;background:linear-gradient\(to right,rgb\(var\(--ink\) \/ \.82\),rgb\(var\(--ink\) \/ \.7\) calc\(100% - 72px\)/g)).toHaveLength(2)
   })
 
   it('讀不到參觀方式：標題不重複說明，致電是主要按鈕、重新載入改外框鈕排在後面', () => {

@@ -21,6 +21,7 @@ const video = ref<HTMLVideoElement | null>(null)
 const frame = ref<HTMLElement | null>(null)
 const finalImg = ref<HTMLImageElement | null>(null)
 const backdrop = ref<HTMLElement | null>(null)
+const root = ref<HTMLElement | null>(null)
 const skipBtn = ref<HTMLButtonElement | null>(null)
 const poster = computed(() => (portrait.value ? ANNI_MEDIA.posterMobile : ANNI_MEDIA.posterDesktop))
 const first = computed(() => (portrait.value ? ANNI_MEDIA.firstMobile : ANNI_MEDIA.firstDesktop))
@@ -65,7 +66,8 @@ async function start() {
   const v = video.value!
   v.muted = true
   v.currentTime = 0
-  v.play().then(() => { blocked.value = false }).catch(() => { blocked.value = true })
+  // 播放還在等網路時按略過，finish() 的 pause() 會讓這個 play() 以 AbortError 結束，那不是被瀏覽器擋下來
+  v.play().then(() => { blocked.value = false }).catch((e) => { if (e?.name !== 'AbortError') blocked.value = true })
   // 影片層畫出來之後再拿掉預蓋的深色（兩個 frame：確定已經繪製）
   requestAnimationFrame(() => requestAnimationFrame(() => { html().dataset.anniIntro = 'play' }))
   lastFocus = document.activeElement as HTMLElement | null
@@ -120,6 +122,8 @@ function fly(from: Box, fromRadius: number, to: Box, toRadius: number, timing: K
 
 function finish() {
   state.value = 'off'
+  // 不論從哪條路徑收場（自然播完、略過、錯誤、減少動態），dialog 一隱藏就不能再有聲音留在背景（2026-10-31）
+  video.value?.pause()
   delete html().dataset.anniIntro
   try { sessionStorage.setItem(ANNI_INTRO_SESSION_KEY, '1') } catch { /* 無痕模式寫不進去也沒關係 */ }
   frame.value?.getAnimations({ subtree: true }).forEach((a) => a.cancel())
@@ -134,6 +138,8 @@ function leave(skipped: boolean) {
   if (state.value !== 'play') return
   state.value = 'leave'
   const v = video.value
+  // 使用者按了略過／Esc：聲音當下就停（飛向相框那一秒多也不再出聲）；只有自然播完才讓配樂尾巴播完（2026-10-31）
+  if (skipped && v) { v.muted = true; muted.value = true }
   const img = finalImg.value!
   // 中途略過：影片畫面和海報不同格，先把海報疊上來再飛
   img.animate([{ opacity: 0 }, { opacity: 1 }], { duration: skipped ? 320 : 60, fill: 'forwards' })
@@ -147,8 +153,8 @@ function leave(skipped: boolean) {
   const flying = fly(fullBox(), 0, to, 2, { duration: 1150, delay: skipped ? 200 : 0, easing: 'cubic-bezier(.62,.02,.18,1)', fill: 'forwards' })
   backdrop.value!.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 900, delay: skipped ? 380 : 200, easing: 'ease-out', fill: 'forwards' })
   flying.finished.then(() => {
-    // 開著聲音就讓配樂的尾巴播完；畫面已經是海報，不再動
-    if (v && !v.muted && !v.ended) {
+    // 自然播完且開著聲音，就讓配樂的尾巴播完；畫面已經是海報，不再動
+    if (!skipped && v && !v.muted && !v.ended) {
       const stop = () => { v.removeEventListener('ended', stop); finish() }
       v.addEventListener('ended', stop)
       setTimeout(stop, 1600)
@@ -162,6 +168,7 @@ function replay() {
   useSource()
   const v = video.value
   if (!v) return
+  blocked.value = false
   v.muted = false
   muted.value = false
   v.currentTime = 0
@@ -187,20 +194,37 @@ function replay() {
 
 function toggleSound() {
   const v = video.value
-  if (!v) return
+  // 飛進／飛出相框那一秒多按鈕是看不見的（鍵盤仍點得到），那時開聲音會讓聲音在略過之後又出來
+  if (!v || state.value !== 'play') return
   v.muted = !v.muted
   muted.value = v.muted
   if (v.paused) v.play().catch(() => {})
 }
 function playBlocked() {
   const v = video.value
-  if (!v) return
+  if (!v || state.value !== 'play') return
   v.muted = false
   muted.value = false
   v.play().then(() => { blocked.value = false }).catch(() => { v.muted = true; muted.value = true; v.play().catch(() => {}) })
 }
+/**
+ * aria-modal 在 Chrome 不會限制鍵盤焦點：Tab 會跑進被影片遮住的頁首、頁尾與內文，焦點環看不見，
+ * 還會把頁面捲走、Enter 直接換頁（2026-10-31）。開場期間 Tab 只在開場自己的按鈕裡轉圈；
+ * 焦點已經跑出去（例如點了背景）時，下一次 Tab 把它拉回來。
+ */
+function trapTab(e: KeyboardEvent) {
+  const buttons = Array.from(root.value?.querySelectorAll<HTMLButtonElement>('button') ?? []).filter((b) => !b.disabled)
+  if (!buttons.length) return
+  const first = buttons[0]!, last = buttons[buttons.length - 1]!
+  const active = document.activeElement
+  const inside = !!active && root.value!.contains(active)
+  if (e.shiftKey && (!inside || active === first)) { e.preventDefault(); last.focus({ preventScroll: true }) }
+  else if (!e.shiftKey && (!inside || active === last)) { e.preventDefault(); first.focus({ preventScroll: true }) }
+}
 function onKey(e: KeyboardEvent) {
-  if (state.value === 'play' && e.key === 'Escape') { e.preventDefault(); leave(true) }
+  if (state.value === 'off') return
+  if (e.key === 'Tab') trapTab(e)
+  else if (e.key === 'Escape' && state.value === 'play') { e.preventDefault(); leave(true) }
 }
 
 onMounted(() => {
@@ -218,6 +242,7 @@ defineExpose({ replay })
 
 <template>
   <div
+    ref="root"
     class="anni-intro"
     :hidden="state === 'off'"
     role="dialog"
