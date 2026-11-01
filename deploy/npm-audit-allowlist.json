@@ -1,0 +1,47 @@
+{
+  "_說明": "CI 的 npm audit 閘門（deploy/npm_audit_gate.py）放行的公告。每一則都要有原因、適用專案與到期日；到期就會失敗，重新評估或升級後再延期或刪除。2026-11-01 使用者決定暫時放行（沒有非破壞性修正版，npm 建議的 --force 是降到 nuxt 4.1.3）。",
+  "entries": [
+    {
+      "id": "GHSA-9v7c-q64q-vv33",
+      "projects": ["web"],
+      "package": "nuxt 4.6.0–4.6.2（@nuxt/nitro-server）",
+      "expires": "2026-11-30",
+      "reason": "唯一會跑在正式環境的一則：路徑帶 /./ 這類 dot segment 時會繞過 server/middleware 與 routeRules。web 的 server/middleware/preview-headers.ts 與 routeRules 只設快取、robots、referrer 標頭與 /campuses 的 301，沒有任何授權靠它們（/api/site-fixture 在 handler 內自己驗 session，管理與預覽的權限在 api）；瀏覽器送出前就會把 /./ 正規化，只有手工組的請求才會繞過，結果只是少幾個標頭，頁面本身不含個資。nuxt 4.6.3 修正這則與下面三則 Vite dev server 公告，但升上去後 glob、minimatch 仍沒有修正版，單靠升版轉不綠；升 4.6.3 另開 PR。"
+    },
+    {
+      "id": "GHSA-3xf4-9g3c-4h4w",
+      "projects": ["web"],
+      "package": "@nuxt/vite-builder 4.6.0–4.6.2",
+      "expires": "2026-11-30",
+      "reason": "只影響 nuxt dev 的 Vite 開發伺服器（洩漏 appSecret）。正式環境跑 node .output/server/index.mjs，deploy/web.Dockerfile 最後一階只複製 .output，不啟動 dev server。nuxt 4.6.3 修正。"
+    },
+    {
+      "id": "GHSA-x287-wcfc-q46c",
+      "projects": ["web"],
+      "package": "@nuxt/vite-builder 4.6.0–4.6.2",
+      "expires": "2026-11-30",
+      "reason": "只影響 nuxt dev 的 Vite 開發伺服器（用錯誤回報任意讀檔）。正式環境不啟動 dev server，理由同 GHSA-3xf4-9g3c-4h4w。nuxt 4.6.3 修正。"
+    },
+    {
+      "id": "GHSA-648h-gw55-m2g7",
+      "projects": ["web"],
+      "package": "@nuxt/vite-builder 3.0.0–4.6.2",
+      "expires": "2026-11-30",
+      "reason": "只影響 nuxt dev 的 Nitro dev bridge（洩漏 private runtime config）。正式環境不啟動 dev server，理由同 GHSA-3xf4-9g3c-4h4w。nuxt 4.6.3 修正。"
+    },
+    {
+      "id": "GHSA-3g3m-2fjr-6pw4",
+      "projects": ["web"],
+      "package": "glob 9.0.0–14.0.1（nitropack → @vercel/nft／archiver）",
+      "expires": "2026-11-30",
+      "reason": "只在 nitropack 的建置工具鏈（追蹤依賴、壓縮輸出）裡，輸入是 repo 自己的檔案。正式映像只含 .output，2026-10-31 本機 build 的 .output/server 沒有 glob。目前沒有非破壞性的修正版。"
+    },
+    {
+      "id": "GHSA-g3hv-75wg-m249",
+      "projects": ["web"],
+      "package": "minimatch <11.0.1（nitropack → archiver／readdir-glob）",
+      "expires": "2026-11-30",
+      "reason": "只在 nitropack 的建置工具鏈裡（DoS，輸入是建置時自己的檔名樣式）。正式映像只含 .output，本機 build 的 .output/server 沒有 minimatch。目前沒有非破壞性的修正版。"
+    }
+  ]
+}
