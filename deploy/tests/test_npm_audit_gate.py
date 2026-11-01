@@ -191,13 +191,10 @@ class NpmAuditGateTests(unittest.TestCase):
                 self.assertGreater(len(entry["reason"]), 20, "原因要寫清楚為什麼不影響")
                 date.fromisoformat(entry["expires"])
 
-    def test_committed_allowlist_covers_exactly_what_web_reported_on_2026_11_01(self):
-        # 2026-11-01 web 的 npm audit --omit=dev：moderate 六則、low 一則（deepmerge，不擋）。
+    def test_committed_allowlist_covers_exactly_what_web_reports_after_nuxt_4_6_3(self):
+        # 2026-11-01 升 nuxt 4.6.3 後 web 的 npm audit --omit=dev：moderate 只剩 glob、minimatch（low 的 deepmerge 不擋）。
         listed = {entry["id"] for entry in json.loads(ALLOWLIST_PATH.read_text())["entries"]}
-        self.assertEqual(
-            listed,
-            {"GHSA-9v7c-q64q-vv33", "GHSA-3xf4-9g3c-4h4w", "GHSA-x287-wcfc-q46c", "GHSA-648h-gw55-m2g7", "GHSA-3g3m-2fjr-6pw4", "GHSA-g3hv-75wg-m249"},
-        )
+        self.assertEqual(listed, {"GHSA-3g3m-2fjr-6pw4", "GHSA-g3hv-75wg-m249"})
 
     def test_committed_allowlist_has_no_findings_of_its_own(self):
         self.assertEqual(self.gate.check_allowlist(json.loads(ALLOWLIST_PATH.read_text()), date(2026, 11, 1)), [])

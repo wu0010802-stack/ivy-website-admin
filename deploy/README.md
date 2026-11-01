@@ -13,6 +13,11 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-01 升 nuxt 4.6.3、放行清單縮成 glob 與 minimatch（main CI 部署，沒有 migration；PR 尚未併入）
+
+- **內容**：`web/package.json` nuxt 4.6.2 → 4.6.3（lockfile 由 npm 10.9.4 重產，約 350 行版本號變動、少 16 個套件）。修掉 GHSA-9v7c-q64q-vv33（唯一會跑在正式環境的一則）與三則 `@nuxt/vite-builder` dev server 公告；`deploy/npm-audit-allowlist.json` 從 6 則縮成 glob（GHSA-3g3m-2fjr-6pw4）、minimatch（GHSA-g3hv-75wg-m249）兩則，到期日仍是 2026-11-30。
+- **Nuxt 內部**：`router-options.spec.ts` 鎖的 `router.options.js` 4.6.2 → 4.6.3 只差 `//#region` 註解標記，scrollBehavior 實作沒變，只更新雜湊。
+- **驗證**（本機）：`typecheck` 通過；`test:website` 111 檔 1355 項、`deploy/tests` 48 項全過；閘門 web 通過（只放行 glob、minimatch）；`e2e:build` 後公開站 e2e 34 過 6 跳過、stack e2e（a11y、keyboard、hydration、booking-flow、visit-family-page、anniversary-toggle）58 項全過。
 ## 2026-11-01 關於頁新增：六大領域點開、年數由今年算、沿革接 30 週年（main CI 部署，沒有 migration）
 
 - **內容**：`ed1c55e2`（README「2026-10-31 關於頁新增」）：六大領域改成點開看說明（一次開一項，打開時六圈其他五圈淡掉）；首屏介紹的「近三十年來」與第一章標題依台北今年換算，第一章改「走到今年，是第 30 年。」；沿革尾端加「看常春藤 30 週年」，跟著後台 30 週年開關。只動 web/ 與測試，沒動後端、fixture、後台。
