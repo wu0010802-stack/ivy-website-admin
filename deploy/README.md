@@ -13,6 +13,12 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-01 升 nuxt 4.6.3、放行清單縮成 glob 與 minimatch（main CI 部署，沒有 migration；PR 尚未併入）
+
+- **內容**：`web/package.json` nuxt 4.6.2 → 4.6.3（lockfile 由 npm 10.9.4 重產，約 350 行版本號變動、少 16 個套件）。修掉 GHSA-9v7c-q64q-vv33（唯一會跑在正式環境的一則）與三則 `@nuxt/vite-builder` dev server 公告；`deploy/npm-audit-allowlist.json` 從 6 則縮成 glob（GHSA-3g3m-2fjr-6pw4）、minimatch（GHSA-g3hv-75wg-m249）兩則，到期日仍是 2026-11-30。
+- **Nuxt 內部**：`router-options.spec.ts` 鎖的 `router.options.js` 4.6.2 → 4.6.3 只差 `//#region` 註解標記，scrollBehavior 實作沒變，只更新雜湊。
+- **驗證**（本機）：`typecheck` 通過；`test:website` 111 檔 1355 項、`deploy/tests` 48 項全過；閘門 web 通過（只放行 glob、minimatch）；`e2e:build` 後公開站 e2e 34 過 6 跳過、stack e2e（a11y、keyboard、hydration、booking-flow、visit-family-page、anniversary-toggle）58 項全過。
+
 ## 2026-11-01 npm audit 閘門改成逐則放行（CI 設定，沒有 migration；PR 尚未併入）
 
 - **為什麼**：10-31 新公告讓 web 的 `npm audit --omit=dev --audit-level=moderate` 失敗。PR #58（前台 QA 四項修正，`8dbc2085`）10-31 04:29 UTC 併入 main，run 41168780112 的 Frontend (web) 在「Audit runtime npm dependencies」失敗，typecheck／單元測試／build 都被跳過，Deploy 沒有跑，正式站維持 `9be4b9f6`（`/release.json` 實查）。同一份 lockfile 在本機同樣失敗，不是 PR 內容造成。

@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest'
 // Nuxt 升版改了預設實作時，這裡會失敗：拿新的原檔比對、把修正帶進 app/router.options.ts，再更新雜湊。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const nuxtRoot = dirname(createRequire(import.meta.url).resolve('nuxt/package.json'))
-const COPIED_FROM = '96a60edab83e002ad10dbb159f2b3577bf1322a56c926e9c75dc82330af25bda' // Nuxt 4.6.2
+// 4.6.2 → 4.6.3 只差 //#region 註解標記，scrollBehavior 實作沒變（2026-11-01 逐行 diff）
+const COPIED_FROM = '6cf07ab3a537f65634a6ac6679512c5bce59f28660603badea754b9aa6abc188' // Nuxt 4.6.3
 
 describe('換頁捲動（app/router.options.ts）', () => {
   it('Nuxt 預設的 scrollBehavior 沒變（變了要重新比對照抄的內容）', () => {
