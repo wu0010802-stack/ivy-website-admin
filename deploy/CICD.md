@@ -43,6 +43,7 @@ GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `m
 ## 驗證與部署行為
 
 - Node 22.23.2、Python 3.12、uv 0.8.22、Railway CLI 5.45.10；npm/uv 均遵循 lockfile，FastAPI 維持 0.136.1。
+- **依賴公告閘門**：前端（web、admin）的 `Audit runtime npm dependencies` 與後端的 `pip-audit` 有 moderate 以上的公告就擋下部署。前端自 2026-11-01 起由 `deploy/npm_audit_gate.py` 執行（等於 `npm audit --omit=dev --audit-level=moderate` 加逐則放行）：確定不影響、而且修正版不是這個改動能安全帶進來的（沒有修正版，或升級要另外驗證）時，才到 `deploy/npm-audit-allowlist.json` 登記公告編號、適用專案、原因與到期日（最多 90 天，剩 14 天內 CI 會印 `::warning::`）；到期、清單以外的公告、`npm audit` 本身跑不起來或輸出格式不對都會失敗。閘門自己切到專案目錄執行 npm，不依賴 workflow 的 `working-directory`。優先升級到修正版，放行只是暫時的。
 - CI 建立拋棄式 PostgreSQL 16 `ivy_website_test`，只在此 DB 執行 migration 與測試。YAML 的 `ci-only-*` 值僅用於此暫時環境。
 - CD 使用 `git archive GITHUB_SHA`，只取 `web/ admin/ backend/ contracts/ deploy/ .dockerignore`（2026-10-12 起不含 `content/`，已刪除；後端初始化用的 fixture 改由 `web/server/data/site-fixture.json` 複製進映像），排除 `.env*`、本機資料、依賴與建置產物。
 - API/web 上傳同一份快照，`release.json` 記錄 `snapshot`、`base_commit`、`created_at`。hash 算法沿用原部署紀錄，排除 release 自己。

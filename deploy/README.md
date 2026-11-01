@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-01 npm audit 閘門改成逐則放行（CI 設定，沒有 migration；PR 尚未併入）
+
+- **為什麼**：10-31 新公告讓 web 的 `npm audit --omit=dev --audit-level=moderate` 失敗。PR #58（前台 QA 四項修正，`8dbc2085`）10-31 04:29 UTC 併入 main，run 41168780112 的 Frontend (web) 在「Audit runtime npm dependencies」失敗，typecheck／單元測試／build 都被跳過，Deploy 沒有跑，正式站維持 `9be4b9f6`（`/release.json` 實查）。同一份 lockfile 在本機同樣失敗，不是 PR 內容造成。
+- **公告**：web 共 7 則（6 則 moderate、1 則 low），沒有非破壞性修正版：
+  - `nuxt` 4.6.0–4.6.2 的 GHSA-9v7c-q64q-vv33（dot segment 繞過 `server/middleware` 與 routeRules，唯一會跑在正式環境的一則）、`@nuxt/vite-builder` 三則 dev server 公告（GHSA-3xf4-9g3c-4h4w、GHSA-x287-wcfc-q46c、GHSA-648h-gw55-m2g7）。**nuxt 4.6.3 修正這四則**，但升上去後 `npm audit` 仍失敗：
+  - nitropack 建置鏈上的 `glob`（GHSA-3g3m-2fjr-6pw4）、`minimatch`（GHSA-g3hv-75wg-m249）與 low 的 `deepmerge`（GHSA-gcqx-w48m-w2h4）沒有修正版，npm 建議的 `--force` 是降到 nuxt 4.1.3（破壞性變更）。
+- **做法**（使用者 11-01 選「暫時放寬」）：`deploy/npm_audit_gate.py` ＋ `deploy/npm-audit-allowlist.json`，workflow 的 audit 步驟改呼叫它。6 則 moderate 逐則登記原因，**到期日 2026-11-30**，到期閘門會自己失敗；清單以外的公告、`npm audit` 輸出不是 JSON、專案不符（admin 不能借用 web 的放行）都照舊擋下。low 的 deepmerge 本來就不擋（`--audit-level=moderate`）。
+- **不影響的依據**（逐則寫在清單的 `reason`）：
+  - glob、minimatch、deepmerge 只在 nitropack 建置工具鏈；`deploy/web.Dockerfile` 最後一階只複製 `.output`，本機 build 的 `.output/server` 沒有這三個套件。
+  - 三則 Vite dev server 公告只影響 `nuxt dev`，正式環境跑 `node .output/server/index.mjs`。
+  - GHSA-9v7c：`server/middleware/preview-headers.ts` 與 routeRules 只設快取、robots、referrer 標頭與 `/campuses` 301，沒有授權靠它們（`/api/site-fixture` 在 handler 內自己驗 session）；繞過的結果只是手工組的請求少幾個標頭，頁面不含個資。
+- **之後**：升 nuxt 4.6.3 另開 PR（可把清單縮成 glob、minimatch 兩則）；nitropack 出修正版後清單整個刪掉。本機驗證：`python3 -m unittest discover -s deploy/tests` 48 項過（新增 23 項）；web 與 admin 現場跑閘門都通過，從 repo 根目錄、`deploy/` 執行也一樣（閘門自己切到專案目錄）。獨立審查（另一位 agent 讀 diff 並在本機 production build 實測 dot segment 繞過）後補強：severity 只有 info／low 略過、未知值一律擋；npm 輸出不是 auditReportVersion 2 或 exit 1 卻解析不到公告就失敗；清單不得重複、到期日最多 90 天、剩 14 天內印 `::warning::`；`--project` 限 web／admin。**部署還沒發生**，併入 main 後由 CI 一併部署 #58，屆時在這裡補 run 與 release。
+
 ## 2026-10-30 關於頁細修＋joserfc 安全更新（main CI 部署，沒有 migration）
 
 - **內容**：
