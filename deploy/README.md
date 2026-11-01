@@ -24,7 +24,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - glob、minimatch、deepmerge 只在 nitropack 建置工具鏈；`deploy/web.Dockerfile` 最後一階只複製 `.output`，本機 build 的 `.output/server` 沒有這三個套件。
   - 三則 Vite dev server 公告只影響 `nuxt dev`，正式環境跑 `node .output/server/index.mjs`。
   - GHSA-9v7c：`server/middleware/preview-headers.ts` 與 routeRules 只設快取、robots、referrer 標頭與 `/campuses` 301，沒有授權靠它們（`/api/site-fixture` 在 handler 內自己驗 session）；繞過的結果只是手工組的請求少幾個標頭，頁面不含個資。
-- **之後**：升 nuxt 4.6.3 另開 PR（可把清單縮成 glob、minimatch 兩則）；nitropack 出修正版後清單整個刪掉。本機驗證：`python3 -m unittest discover -s deploy/tests` 38 項過（新增 13 項）；web 與 admin 現場跑閘門都通過、web 以 admin 身分跑會失敗。**部署還沒發生**，併入 main 後由 CI 一併部署 #58，屆時在這裡補 run 與 release。
+- **之後**：升 nuxt 4.6.3 另開 PR（可把清單縮成 glob、minimatch 兩則）；nitropack 出修正版後清單整個刪掉。本機驗證：`python3 -m unittest discover -s deploy/tests` 48 項過（新增 23 項）；web 與 admin 現場跑閘門都通過，從 repo 根目錄、`deploy/` 執行也一樣（閘門自己切到專案目錄）。獨立審查（另一位 agent 讀 diff 並在本機 production build 實測 dot segment 繞過）後補強：severity 只有 info／low 略過、未知值一律擋；npm 輸出不是 auditReportVersion 2 或 exit 1 卻解析不到公告就失敗；清單不得重複、到期日最多 90 天、剩 14 天內印 `::warning::`；`--project` 限 web／admin。**部署還沒發生**，併入 main 後由 CI 一併部署 #58，屆時在這裡補 run 與 release。
 
 ## 2026-10-30 關於頁細修＋joserfc 安全更新（main CI 部署，沒有 migration）
 
