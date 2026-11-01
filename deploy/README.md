@@ -18,6 +18,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **內容**：`web/package.json` nuxt 4.6.2 → 4.6.3（lockfile 由 npm 10.9.4 重產，約 350 行版本號變動、少 16 個套件）。修掉 GHSA-9v7c-q64q-vv33（唯一會跑在正式環境的一則）與三則 `@nuxt/vite-builder` dev server 公告；`deploy/npm-audit-allowlist.json` 從 6 則縮成 glob（GHSA-3g3m-2fjr-6pw4）、minimatch（GHSA-g3hv-75wg-m249）兩則，到期日仍是 2026-11-30。
 - **Nuxt 內部**：`router-options.spec.ts` 鎖的 `router.options.js` 4.6.2 → 4.6.3 只差 `//#region` 註解標記，scrollBehavior 實作沒變，只更新雜湊。
 - **驗證**（本機）：`typecheck` 通過；`test:website` 111 檔 1355 項、`deploy/tests` 48 項全過；閘門 web 通過（只放行 glob、minimatch）；`e2e:build` 後公開站 e2e 34 過 6 跳過、stack e2e（a11y、keyboard、hydration、booking-flow、visit-family-page、anniversary-toggle）58 項全過。
+## 2026-11-01 關於頁新增：六大領域點開、年數由今年算、沿革接 30 週年（main CI 部署，沒有 migration）
+
+- **內容**：`ed1c55e2`（README「2026-10-31 關於頁新增」）：六大領域改成點開看說明（一次開一項，打開時六圈其他五圈淡掉）；首屏介紹的「近三十年來」與第一章標題依台北今年換算，第一章改「走到今年，是第 30 年。」；沿革尾端加「看常春藤 30 週年」，跟著後台 30 週年開關。只動 web/ 與測試，沒動後端、fixture、後台。
+- **提交**：worktree `about-content-20261031`（從 origin/main `9c4783ec`，rebase 到 `8dbc2085`、再到 `9e6fcf3a`，README 衝突兩段都保留）。驗證：
+  - web typecheck 通過，單元測試 111 檔 1355 全過。
+  - 本機 stack（`npm run e2e:build`＋a11y、hydration、editor-live-preview、media、anniversary-toggle，測試庫 `ivy_website_e2e_aboutcontent_test`，跑完已刪）56 項全過；`anniversary-toggle.spec.ts` 新增關於頁的連結檢查。
+  - 使用者說「上線」後推 main；第一次被拒（#59 剛併入），rebase 後第二次推上（fast-forward）。推之前 #59 的 run 41259882711 已部署完，沒有取代進行中的部署。
+- **CI**：main run 41319430332 全綠（含 E2E），Deploy success（15:05–15:18 UTC）。
+- **線上驗證**（只發 GET，遙測與分析攔下）：
+  - `/release.json` base_commit `ed1c55e2`、created_at `2026-11-01T15:12:28Z`；`/about` 200。
+  - SSR HTML：第一章標題「走到今年，／是第 30 年。」、首屏介紹仍是「近三十年來」（2026 年）、6 個 `details` 預設都沒打開且說明文字在 HTML 裡、沿革尾端有 `/anniversary` 連結。
+  - Playwright 1440、768、390、352：同一時間只開一項、沒有橫向捲動、桌機連結對準中軸線；1440 與 390 點開時五圈淡掉、關掉後恢復、Enter 可打開。
+- **未驗**：Safari／iOS 實機。
 
 ## 2026-11-01 npm audit 閘門改成逐則放行（CI 設定，沒有 migration；PR 尚未併入）
 
