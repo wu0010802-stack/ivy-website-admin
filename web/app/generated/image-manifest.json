@@ -1094,24 +1094,24 @@
     ]
   },
   "env-space-corner": {
-    "width": 1600,
-    "height": 1067,
+    "width": 1477,
+    "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-corner-a242389be70b-480.webp",
+        "src": "/assets/responsive/env-space-corner-3d9278140e2f-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-space-corner-a242389be70b-800.webp",
+        "src": "/assets/responsive/env-space-corner-3d9278140e2f-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-space-corner-a242389be70b-1200.webp",
+        "src": "/assets/responsive/env-space-corner-3d9278140e2f-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/env-space-corner-a242389be70b-1600.webp",
-        "width": 1600
+        "src": "/assets/env-space-corner.webp",
+        "width": 1477
       }
     ]
   },
@@ -1260,72 +1260,68 @@
     ]
   },
   "cur-integrated": {
-    "width": 1600,
-    "height": 1200,
+    "width": 1477,
+    "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-480.webp",
+        "src": "/assets/responsive/cur-integrated-a167cd043a11-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-800.webp",
+        "src": "/assets/responsive/cur-integrated-a167cd043a11-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-integrated-d4a559b5d3e0-1200.webp",
+        "src": "/assets/responsive/cur-integrated-a167cd043a11-1200.webp",
         "width": 1200
       },
       {
         "src": "/assets/cur-integrated.webp",
-        "width": 1600
+        "width": 1477
       }
     ]
   },
   "cur-multicultural": {
-    "width": 1600,
-    "height": 1200,
+    "width": 1477,
+    "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-480.webp",
+        "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-800.webp",
+        "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-multicultural-167b1d2d1846-1200.webp",
+        "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-1200.webp",
         "width": 1200
       },
       {
         "src": "/assets/cur-multicultural.webp",
-        "width": 1600
+        "width": 1477
       }
     ]
   },
   "cur-autonomy": {
-    "width": 1779,
-    "height": 1335,
+    "width": 1477,
+    "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-autonomy-5d53935791ba-480.webp",
+        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-autonomy-5d53935791ba-800.webp",
+        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-autonomy-5d53935791ba-1200.webp",
+        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-autonomy-5d53935791ba-1600.webp",
-        "width": 1600
-      },
-      {
-        "src": "/assets/responsive/cur-autonomy-5d53935791ba-1779.webp",
-        "width": 1779
+        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-1477.webp",
+        "width": 1477
       }
     ]
   },
@@ -1458,24 +1454,24 @@
     ]
   },
   "cur-daily-motor": {
-    "width": 1600,
-    "height": 1000,
+    "width": 1477,
+    "height": 923,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-480.webp",
+        "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-800.webp",
+        "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-daily-motor-5db2914cccb6-1200.webp",
+        "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-1200.webp",
         "width": 1200
       },
       {
         "src": "/assets/cur-daily-motor.webp",
-        "width": 1600
+        "width": 1477
       }
     ]
   },

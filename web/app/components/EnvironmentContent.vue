@@ -49,7 +49,8 @@ const SPACES = [
   { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅' },
   { image: 'env-space-materials', alt: '女孩坐在桌前，專心組著各式彩色操作教具' },
   { image: 'env-space-plaza', alt: '明華校的戶外廣場上，女孩笑著往前跑，旁邊的孩子坐著看' },
-  { image: 'env-space-corner', alt: '幼兒坐在球池裡大笑，身後的牆貼著彩色厚軟墊' },
+  // 2026-11-03 安全角落改用園方雲端「115招生照片」的 Hape 遊戲室（推測崇德校、待確認，不標校別）；原本的球池照原檔只有 900px
+  { image: 'env-space-corner', alt: '孩子在室內遊戲室笑著爬過軟墊積木，兩旁的欄杆也包著軟墊' },
   { image: 'env-space-restroom', alt: '孩子高度的洗手台，掛著一排小毛巾' },
   { image: 'env-space-animals', alt: '孩子蹲在圍欄邊，拿紅蘿蔔餵裡面的小兔子' }
 ]

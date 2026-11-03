@@ -30,16 +30,16 @@ const YEARS = [
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
-// 2026-10-30 多元文化、課程活動改用園方雲端的活動照（人造雪美語課、濕地戶外教學），4:5 位置跟著重調：
-// 多元文化 12% 露出拿單字卡的外師與身邊的孩子，課程活動 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
-// 同日統整課程換成幼幼班感統區（爬彩虹拱橋），4:5 位置 36% 讓爬拱橋的女孩和拱橋都在框內。
+// 2026-10-30 課程活動改用園方雲端的活動照（濕地戶外教學），4:5 位置 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
+// 2026-11-03 統整課程、多元文化、自主學習改用園方雲端「115招生照片」（推測崇德校、待園方確認，校別不標；原檔被 LINE 壓到 1477×1108，
+// 母檔照原尺寸不放大）：統整 4:5 置中是拉吊環、爬繩梯、盪鞦韆的孩子；多元文化 25% 讓外師和圍坐的孩子都在框內；自主 4:3 不裁。
 const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
-  { key: 'integrated', image: 'cur-integrated', alt: '幼幼班的孩子在感統區手腳並用，爬過彩虹拱橋', wash: 'mint,.44,.6,.66,.56', position: '36% 50%' },
-  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師拿著 snowman 單字卡，和孩子們坐在人造雪堆旁玩雪', wash: 'sky,.56,.58,.66,.56', position: '12% 50%' },
+  { key: 'integrated', image: 'cur-integrated', alt: '孩子們在戶外遊具上拉吊環、爬繩梯、盪鞦韆', wash: 'mint,.44,.6,.66,.56', position: '50% 50%' },
+  { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師坐在教室地板上，拿著動物模型和動物圖卡，孩子們圍坐著笑', wash: 'sky,.56,.58,.66,.56', position: '25% 50%' },
   { key: 'quote' },
-  { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子在桌上操作教具', wash: 'sun,.46,.6,.62,.6' },
+  { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子把小青蛙放上天平，比比看哪一邊比較重', wash: 'sun,.46,.6,.62,.6' },
   { key: 'activities', image: 'cur-activities', alt: '戶外教學走到濕地步道，孩子們一起指著樹林裡的發現', wash: 'mint,.56,.6,.66,.56', position: '48% 50%' },
   { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 760px) 80vw, (max-width: 1100px) 100vw, 800px' }
 ] satisfies { key: string, image?: string, alt?: string, wash?: string, position?: string, sizes?: string }[]
@@ -64,7 +64,8 @@ const DAILY = [
   { image: 'cur-daily-materials', alt: '女孩趴在桌邊，專心把積木一塊塊疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
   { image: 'cur-daily-art', alt: '男孩拿著剪刀，專心沿著線剪紙', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
   { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
-  { image: 'cur-daily-motor', alt: '兩個男孩穿著號碼背心，在草地足球場上搶著盤球', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
+  // 2026-11-03 大肌肉時間改用「115招生照片」的足球課（4:3 原檔裁成 8:5、垂直取 60%）
+  { image: 'cur-daily-motor', alt: '三個孩子在草地上練足球，把球停進紅色圈圈，旁邊排著三角錐', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
 
 // 03、04 各收一張寬幅照片（2026-10-30 從義華校 NAS 素材庫挑）：美術館接全校在廣場的地板畫空拍，
