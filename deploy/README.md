@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 首頁「關於常春藤」照片換成孩子在花園讀繪本（main CI 部署，沒有 migration）
+
+- **內容**：`83d1aaf8`（README「2026-11-03 首頁「關於常春藤」照片換成孩子讀繪本」）。新圖片代號 `home-about`（雲端「20240423 故事車」P1133699，母檔 1800×1200、已裁 3:2）取代首頁的創辦人合照；`site-fixture.json`／overlay 基準／後台「首頁 → 關於常春藤」內建圖預覽同步。`about-together` 檔案保留給 `/about` 期許章。正式站這格沒有後台上傳的照片，部署即生效。
+- **提交**：worktree `home-about-photo-20261103`（從 origin/main `c34c047d`，sparse），兩次 rebase 到 `77b6daf5`（README 頂部與 `bd0cd5ab` 衝突，兩段都留）。web typecheck、單元 110 檔 1351 全過；admin 三檔 85 過；後端獨立測試庫 `test_media_slots.py` 21＋讀 fixture 9 檔 252 過；fixture dev server 用 Playwright 看 1440／390。本機 stack 156 項 155 過，`admissions-flow.spec.ts:184`（390px 五校比較骨架 10 秒未消失，負載 30）單獨重跑該檔 4 項過。使用者說「上線」後用 `!` 推 main（第一次 non-fast-forward 被拒，同步後再推）。
+- **CI**：main run 41612742268 全綠（含 E2E），Deploy success（09:46:21–09:50:14Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `83d1aaf8`、created_at `2026-11-03T09:46:48Z`。首頁五個 `home-about-aa3afde8717a-*` 衍生檔都在且回 200、首頁引用 `about-together` 0 次、新替代文字在；`/about` 仍引用 `about-together`。1440（DPR2 載 1600w）與 390（DPR3 載 1200w）截圖正常。
+- **沒驗**：iOS 實機；故事車照片的肖像同意待園方確認。
+
 ## 2026-11-03 特色教學首屏、自主學習、教具操作換明華校 FB 粉專照片（main CI 部署，沒有 migration）
 
 - **內容**：`bd0cd5ab`（README「2026-11-03 特色教學換三張明華校 FB 粉專照片」）。`cur-hero` 彩虹傘（2048×1152）、`cur-autonomy` 外師科學課滴管（4:3 1820×1365）、`cur-daily-materials` 雷射光木框（8:5 2048×1280）；`curriculum.css` 首屏焦點桌機 `45% 45%`、拿掉 1100 以下的 `62%`；`CURRICULUM_HERO_SIZES` 改 `(max-width: 900px) calc((100vw - 40px) * 1.34), 1070px`；13 個舊雜湊衍生檔移除。
