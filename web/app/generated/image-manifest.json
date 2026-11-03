@@ -1178,28 +1178,28 @@
     ]
   },
   "cur-hero": {
-    "width": 2000,
-    "height": 803,
+    "width": 2048,
+    "height": 1152,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-hero-a36954909f1d-480.webp",
+        "src": "/assets/responsive/cur-hero-720f22257e7e-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-hero-a36954909f1d-800.webp",
+        "src": "/assets/responsive/cur-hero-720f22257e7e-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-hero-a36954909f1d-1200.webp",
+        "src": "/assets/responsive/cur-hero-720f22257e7e-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-hero-a36954909f1d-1600.webp",
+        "src": "/assets/responsive/cur-hero-720f22257e7e-1600.webp",
         "width": 1600
       },
       {
-        "src": "/assets/responsive/cur-hero-a36954909f1d-2000.webp",
-        "width": 2000
+        "src": "/assets/cur-hero.webp",
+        "width": 2048
       }
     ]
   },
@@ -1300,24 +1300,28 @@
     ]
   },
   "cur-autonomy": {
-    "width": 1477,
-    "height": 1108,
+    "width": 1820,
+    "height": 1365,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-480.webp",
+        "src": "/assets/responsive/cur-autonomy-b4602e98d90c-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-800.webp",
+        "src": "/assets/responsive/cur-autonomy-b4602e98d90c-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-1200.webp",
+        "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-autonomy-27d83bcfa519-1477.webp",
-        "width": 1477
+        "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1600.webp",
+        "width": 1600
+      },
+      {
+        "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1820.webp",
+        "width": 1820
       }
     ]
   },
@@ -1388,24 +1392,28 @@
     ]
   },
   "cur-daily-materials": {
-    "width": 1600,
-    "height": 1000,
+    "width": 2048,
+    "height": 1280,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-480.webp",
+        "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-800.webp",
+        "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-1200.webp",
+        "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-daily-materials-15e006dd398a-1600.webp",
+        "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-1600.webp",
         "width": 1600
+      },
+      {
+        "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-2048.webp",
+        "width": 2048
       }
     ]
   },

@@ -1,3 +1,14 @@
+## 2026-11-03 特色教學換三張明華校 FB 粉專照片（`feature/minghua-fb-photos-20261103`）
+
+使用者看過明華粉專相片盤點（742 張）後挑三張。規則見 DESIGN.md「特色教學換明華校 FB 粉專照片」。
+
+- 首屏 `cur-hero` ← 彩虹傘下跑出來的女孩（2026-04-01 貼文，2048×1152）；`curriculum.css` 首屏焦點桌機改 `45% 45%`、拿掉 1100 以下的 `62%`（那是為了舊照合十的手），900 以下 4:3 照舊 `80%`（女孩和右邊男孩都在框內）；`CURRICULUM_HERO_SIZES` 照新比例改成 `(max-width: 900px) calc((100vw - 40px) * 1.34), 1070px`。
+- 自主學習 `cur-autonomy` ← 外師科學課男孩用滴管（2024-09-28，2048×1365 置中裁 4:3 → 1820×1365），取代上午才換的 1477px 青蛙天平。
+- 五件事教具操作 `cur-daily-materials` ← 孩子圍著老師自製的雷射光木框（2025-01-09，2048×1382 置中裁 8:5 → 2048×1280），取代 NAS 積木照。
+- 母檔 WebP q88；`optimize-site-images.py --only cur-hero cur-autonomy cur-daily-materials`，13 個舊雜湊檔 `git rm`；三段替代文字改寫；署名在正式站本來就隱藏，不用改。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過；admin `curriculumPage`／`pageCopyFields` 2 檔 52 項過；fixture dev server 用 Playwright 截 1440（DPR2）／1024（DPR2）／390（DPR3）：首屏女孩置中、手機 4:3 兩個孩子都在框內，桌機選到 2048 母檔、手機選 1600w。
+- **沒跑**：stack e2e（含視覺基準）、後端 `test_media_slots.py`（沒動 fixture 與檔名）、iOS 實機；沒有 `versions/` 快照（sparse worktree，改動都在 git）。原圖在 session scratchpad。
+
 ## 2026-11-03 關於頁首屏大標：字距、字級、介紹段落同寬（`feature/about-title-20261103`）
 
 使用者覺得 /about「從一間幼兒園 長成五所校園」排版怪。比稿 A／B／C 後選 A，規則見 DESIGN.md「關於頁首屏大標」。

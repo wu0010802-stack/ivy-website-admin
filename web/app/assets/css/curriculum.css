@@ -79,7 +79,8 @@
 .cur-notice { display: flex; align-items: center; gap: 10px; margin: 28px 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .cur-notice::before { content: ''; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--gold); }
 .cur-hero-photo { margin: 0; }
-.cur-hero-photo img { height: min(64vh, 600px); min-height: 380px; object-position: 80% 45%; }
+/* 2026-11-03 換成 16:9 彩虹傘：直框取 45%，跑出來的女孩在正中；右邊男孩只在 900 以下的 4:3 框裡出現 */
+.cur-hero-photo img { height: min(64vh, 600px); min-height: 380px; object-position: 45% 45%; }
 /* 章節索引＝一排顏料盤：每章一團自己的顏料（與該段主色一致），滑過時轉一下、暈大一點 */
 .cur-index { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px clamp(16px, 2.4vw, 32px); margin-top: clamp(40px, 5vw, 64px); }
 .cur-index a { display: flex; align-items: center; gap: 14px; min-height: 44px; padding: 6px 0; color: inherit; text-decoration: none; }
@@ -199,8 +200,6 @@
 /* ---------- 斷點：1100 / 900 / 760 ---------- */
 @media (width <= 1100px) {
   .cur { --cur-gutter: 32px; }
-  /* 平板橫放（1024×768）首屏照片偏直，80% 會把合十的手切掉（替代文字寫的就是這雙手）；往左帶到 62%（2026-10-13） */
-  .cur-hero-photo img { object-position: 62% 45%; }
   .cur-year-list { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 56px; }
   .cur-dir-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cur-dir { grid-column: auto !important; margin-top: 0 !important; }
@@ -222,7 +221,7 @@
   .cur-hero-grid, .cur-years-head, .cur-split-head { grid-template-columns: minmax(0, 1fr); }
   .cur-hero-photo { order: -1; }
   .cur-hero-photo img { height: auto; min-height: 0; aspect-ratio: 4 / 3; }
-  /* 4:3 手和臉都放得下，照舊 80%（蓋掉上面 1100 的 62%） */
+  /* 4:3 框比較寬：80% 讓女孩和右邊跳起來的男孩都在框內（2026-11-03 彩虹傘） */
   .cur-hero-photo img { object-position: 80% 45%; }
   .cur-split-head .cur-text { justify-self: start; }
 }

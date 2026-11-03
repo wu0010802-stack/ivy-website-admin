@@ -32,14 +32,15 @@ const YEARS = [
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
 // 2026-10-30 課程活動改用園方雲端的活動照（濕地戶外教學），4:5 位置 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
 // 2026-11-03 統整課程、多元文化、自主學習改用園方雲端「115招生照片」（推測崇德校、待園方確認，校別不標；原檔被 LINE 壓到 1477×1108，
-// 母檔照原尺寸不放大）：統整 4:5 置中是拉吊環、爬繩梯、盪鞦韆的孩子；多元文化 25% 讓外師和圍坐的孩子都在框內；自主 4:3 不裁。
+// 母檔照原尺寸不放大）：統整 4:5 置中是拉吊環、爬繩梯、盪鞦韆的孩子；多元文化 25% 讓外師和圍坐的孩子都在框內。
+// 同日自主學習再換成明華校 FB 粉專的外師科學課（2024-09-28 貼文，原圖 2048×1365，母檔置中裁 4:3）。
 const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
   { key: 'integrated', image: 'cur-integrated', alt: '孩子們在戶外遊具上拉吊環、爬繩梯、盪鞦韆', wash: 'mint,.44,.6,.66,.56', position: '50% 50%' },
   { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師坐在教室地板上，拿著動物模型和動物圖卡，孩子們圍坐著笑', wash: 'sky,.56,.58,.66,.56', position: '25% 50%' },
   { key: 'quote' },
-  { key: 'autonomy', image: 'cur-autonomy', alt: '兩個孩子把小青蛙放上天平，比比看哪一邊比較重', wash: 'sun,.46,.6,.62,.6' },
+  { key: 'autonomy', image: 'cur-autonomy', alt: '男孩握著滴管，把顏色一滴滴加進桌上的水杯，老師在身後扶著他', wash: 'sun,.46,.6,.62,.6' },
   { key: 'activities', image: 'cur-activities', alt: '戶外教學走到濕地步道，孩子們一起指著樹林裡的發現', wash: 'mint,.56,.6,.66,.56', position: '48% 50%' },
   { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 760px) 80vw, (max-width: 1100px) 100vw, 800px' }
 ] satisfies { key: string, image?: string, alt?: string, wash?: string, position?: string, sizes?: string }[]
@@ -61,7 +62,8 @@ const GALLERY = [
 // 照片後的顏料 2026-10-13 往上收（中心 .56–.6→.5、上下半徑 .6→.5，左右放寬 .64→.7）：原本往下暈到編號，01 天藍、03 橙的編號顏料團和底下同色顏料糊成一片。
 const DAILY = [
   { image: 'cur-daily-calm', alt: '孩子們閉上眼睛，雙手合十靜下心來', pigment: 'sky', wash: 'sky,.56,.5,.7,.5' },
-  { image: 'cur-daily-materials', alt: '女孩趴在桌邊，專心把積木一塊塊疊高', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
+  // 2026-11-03 教具操作改用明華校 FB 粉專的雷射光木框（2025-01-09 貼文，老師自製的教具；原圖 2048×1382，母檔置中裁 8:5）
+  { image: 'cur-daily-materials', alt: '孩子們圍在木框邊，看綠色雷射光打到小鏡子上再反射出去', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
   { image: 'cur-daily-art', alt: '男孩拿著剪刀，專心沿著線剪紙', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
   { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
   // 2026-11-03 大肌肉時間改用「115招生照片」的足球課（4:3 原檔裁成 8:5、垂直取 60%）
@@ -85,7 +87,8 @@ const CHAPTERS = [
   { id: 'daily', no: '04', pigment: 'sky', tilt: 14 }
 ] satisfies { id: string, no: string, pigment: Pigment, tilt: number }[]
 
-const HERO_ALT = '孩子閉上眼睛，雙手合十靜下心來'
+// 2026-11-03 首屏改用明華校 FB 粉專的彩虹傘（2026-04-01 貼文，原圖 2048×1152）；原本的雙手合十和五件事「靜心」同一個主題，左緣還有孩子戴口罩。
+const HERO_ALT = '大人們撐起一大片彩虹傘，穿園服的女孩從底下笑著跑出來'
 const YEARS_ALT = '穿園服的老師彎著腰護在綁雙馬尾的小女孩身後，兩人都笑著'
 
 const heroLines = computed(() => pageMarkedLines(props.page.heroTitle, props.page.heroHighlight))
