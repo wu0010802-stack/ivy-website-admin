@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 入學頁收退費收進「常見問題」、新增 11 題問答（main CI 部署，沒有 migration）
+
+- **內容**：`7a0c72c0`（README「2026-11-03 入學頁：收退費收進『常見問題』、新增 11 題問答」）。`/admission` 第 5 頁「收退費辦法」換成「常見問題」三組 11 題：退費條款收成一題預設收合、補助那題沿用 `#fees` 預設打開放育兒津貼表；「怎麼預約參觀」列五校電話、不連 /visit；網址錨點打開題目；手機分班對照沒輸入生日不顯示空白章框；入學頁搜尋描述與 llms.txt 改寫（後台 `pageSeoDefaults` 同步）；LINE Seed `page-font-chars.json` 只換 `/admission` 一項後重切 68 片。只動 web/、admin 預設值與文件。
+- **提交**：worktree `admission-ux-20261103`（從 origin/main `7e450530`，sparse），推之前字型統一 `0ed388ef` 先上 main，rebase 衝突：入學頁明體字型檔一律取刪除、元件與 CSS 取常見問題版（字型改用 main 的變數）、README／DESIGN.md 兩段都留。rebase 後 web typecheck、單元 110 檔 1351 全過（本機殘留空目錄 `public/assets/fonts/admission` 刪掉後），admin `siteMetaSeo`／`admissionContent` 過；fixture dev server 截 1440／1100／900／390／320、axe 常見問題區 0 違規。使用者說「部署」後推 main（fast-forward）。沒跑本機 stack e2e。
+- **CI**：main run 41602625514 全綠（含 E2E），Deploy success（08:27:31–08:32:52Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `7a0c72c0`、created_at `2026-11-03T08:28:00Z`。`/admission#faq-refund` 桌機 1440／手機 390：`#faq` 11 題、舊 `.ap-refunds` 不在、`#fees` 與 `#faq-refund` 都打開、5 支 `tel:` 電話、main 裡沒有 `/visit` 連結、無橫向捲動；LINE Seed 抓 9 片 69 KB。
+- **待園方**：作息時間、交通車、課後延托、學費金額、生病規定、班級人數、親師聯絡方式沒有資料沒寫成問答；步驟 1「以電話或親友介紹」仍待確認。
+
 ## 2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號（main CI 部署，沒有 migration）
 
 - **內容**：`0ed388ef`（README「2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號」）。全站標題改 LINE Seed 700，分校明體、入學護照明體、環境頁圓體與芫荽退場（刪 16.38 MB 字檔、四支腳本），LINE Seed 依新用字重切；`plainTitleLine` 在輸出時拿掉標題行尾「，。」、行中間換空格。動 web/、admin/、scripts/ 與文件，沒動後端。
