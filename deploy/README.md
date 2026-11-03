@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 特色教學四張、環境頁安全角落換成 115 招生照片（main CI 部署，沒有 migration）
+
+- **內容**：`e64839f9`（README「2026-11-03 特色教學四張、環境頁安全角落換成『115招生照片』」）。統整課程、多元文化、自主學習、五件事大肌肉時間、環境頁安全角落設計換成園方雲端「115招生照片」（推測崇德校、待園方確認，替代文字不寫校名）；原檔是 LINE 壓過的 1477px，母檔照原尺寸。檔名不變，正式站已發布內容裡這兩頁的課程方向、五件事、六個空間照片欄位全是空的（部署前用 `/api/published-site` 確認），部署即生效。只動 web/ 與測試。
+- **提交**：worktree `chongde-photos-20261103`（從 origin/main `f68a5b3b`，sparse），web typecheck＋單元 111 檔 1355 全過；本機 `test:e2e:stack`（測試庫 `ivy_website_e2e_chongde_test`，跑完已刪）156 項 154 過、2 項 60 秒逾時（`booking-flow` 兩分頁取消、`editor-live-preview` /preview 即時模式；當時負載 28–35，都沒碰這次的照片），兩個檔單獨重跑 21 項全過。使用者說「上線」後由使用者推 main（fast-forward）。
+- **CI**：main run 41569025251 全綠（含 E2E），Deploy success（03:01:35–03:05:10Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `e64839f9`、created_at `2026-11-03T03:02:01Z`；health 200。`/curriculum`、`/environment` 200，五張新雜湊都在、舊雜湊 0 次，新替代文字與多元文化 `25% 50%` 都在；新圖檔 200 `image/webp`。Playwright 桌機 1440／手機 390：五張都載到新衍生檔、沒有橫向捲動，console 只有被攔下的 `/api/telemetry`。
+- **待園方**：確認這批照片是不是崇德校；照顧大圖要原始檔（絲瓜棚那張）；萬聖節、科工館、警察局參訪、Blue Day、校際足球賽可寫成最新消息，要日期與內文。
+
 ## 2026-11-01 升 nuxt 4.6.3、放行清單縮成 glob 與 minimatch（main CI 部署，沒有 migration；PR 尚未併入）
 
 - **內容**：`web/package.json` nuxt 4.6.2 → 4.6.3（lockfile 由 npm 10.9.4 重產，約 350 行版本號變動、少 16 個套件）。修掉 GHSA-9v7c-q64q-vv33（唯一會跑在正式環境的一則）與三則 `@nuxt/vite-builder` dev server 公告；`deploy/npm-audit-allowlist.json` 從 6 則縮成 glob（GHSA-3g3m-2fjr-6pw4）、minimatch（GHSA-g3hv-75wg-m249）兩則，到期日仍是 2026-11-30。
