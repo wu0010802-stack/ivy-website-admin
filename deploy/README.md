@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 關於頁首屏改成一張 3:2 卡紙，照片換成中都濕地校外教學（main CI 部署，沒有 migration）
+
+- **內容**：`71f8f2bd`（README「2026-11-03 關於頁首屏：一張 3:2 卡紙、照片換成校外教學」）。拿掉後排小卡（`about-curious` 只剩預約頁用）；首屏卡紙 3:2、框 16px（900px 以下 10px）、淡漸層、照片邊細線、`--abh-shadow-lift`；`about-hero` 換成園方雲端「20250529 中都濕地校外教學」06（2000×1333）、替代文字改寫；`ABOUT_HERO_SIZES` 改 `(max-width: 900px) calc(100vw - 68px), 560px`；4 個舊雜湊衍生檔移除。後台「關於常春藤頁」拿掉首屏後排照片欄、首屏預覽改 3:2；後端 `hero_back_photo` 欄位保留。
+- **提交**：worktree `about-hero-photo-20261103`（從 origin/main `bd0cd5ab`，sparse），rebase 到首頁換照 `83d1aaf8`（README 頂部衝突，兩段都留）。web typecheck、單元 110 檔 1351 全過；admin `aboutPage`／`editorSectionFields` 52 過；fixture dev server 用 Playwright 量七個寬度。本機 stack 156 項 155 過，`media.spec`（首頁選素材發布，已知的時序間歇失敗）單獨重跑過；rebase 後重新 build，`a11y`／`editor-live-preview`／`media` 45 項全過。使用者說「上線」後用 `!` 推 main（fast-forward）。
+- **CI**：main run 41614634003 全綠（含 E2E），Deploy success（10:00:09–10:04:44Z）。
+- **線上驗證**（擋 telemetry、只發 GET）：`/release.json` base_commit `71f8f2bd`、created_at `2026-11-03T10:00:45Z`。`/about` 新雜湊 `about-hero-8e949646c81c` 10 處、舊雜湊 `5036036202de` 0、`about-curious` 0；預載 `imagesizes` 是新值；1440（DPR2）首屏只有一張卡紙、照片 545×363 選 1200w，390（DPR3）322×215 選 1200w，沒有橫向捲動；新衍生檔 200，預約頁的 `about-curious.webp` 仍 200。
+- **沒驗**：iOS 實機；後台關於頁編輯畫面沒有登入看。
+
 ## 2026-11-03 首頁「關於常春藤」照片換成孩子在花園讀繪本（main CI 部署，沒有 migration）
 
 - **內容**：`83d1aaf8`（README「2026-11-03 首頁「關於常春藤」照片換成孩子讀繪本」）。新圖片代號 `home-about`（雲端「20240423 故事車」P1133699，母檔 1800×1200、已裁 3:2）取代首頁的創辦人合照；`site-fixture.json`／overlay 基準／後台「首頁 → 關於常春藤」內建圖預覽同步。`about-together` 檔案保留給 `/about` 期許章。正式站這格沒有後台上傳的照片，部署即生效。
