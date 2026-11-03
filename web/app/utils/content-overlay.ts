@@ -561,7 +561,6 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
   a.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
   a.hope_quotes.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`hope_quotes[${i}] 應為字串`) })
   const hero = pagePhoto(a.hero_photo, a.hero_photo_alt, media)
-  const back = pagePhoto(a.hero_back_photo, a.hero_back_photo_alt, media)
   const hope = pagePhoto(a.hope_photo, a.hope_photo_alt, media)
   return {
     heroTitle: a.hero_title,
@@ -569,8 +568,6 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
     heroCaption: a.hero_caption,
     heroPhoto: hero.photo,
     heroPhotoAlt: hero.photoAlt,
-    heroBackPhoto: back.photo,
-    heroBackPhotoAlt: back.photoAlt,
     chapterNames: [...a.chapter_names],
     storyTitle: a.story_title,
     storyText: a.story_text,

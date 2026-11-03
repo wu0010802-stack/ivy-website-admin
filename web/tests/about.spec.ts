@@ -168,10 +168,14 @@ describe('換版：章節與首屏', () => {
     expect(template).not.toContain('id="campuses"')
     expect(read('../app/components/CurriculumContent.vue')).toContain('/about#whole-child')
   })
-  it('首屏照片裡的長輩是創辦人（使用者確認，不寫姓名）', () => {
+  it('首屏只有一張 3:2 卡紙照片（2026-11-03 拿掉後排小卡，創辦人合照只留在第三章窗戶）', () => {
     // 內建照片的說明是共用常數、不開放編輯；後台換了照片才用後台的說明
-    expect(shared).toContain("export const HERO_ALT = '孩子們笑著圍在創辦人身邊，大家擠在一起'")
+    expect(shared).toContain("export const HERO_ALT = '校外教學走在步道上，兩個孩子回頭對著鏡頭笑，老師在旁邊陪著'")
     expect(template).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
+    const art = template.slice(template.indexOf('<div class="abh-hero-art">'), template.indexOf('<nav class="abh-index"'))
+    expect(art.match(/<figure /g)).toHaveLength(1)
+    expect(art).not.toContain('about-curious')
+    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:3\/2/)
   })
   it('紀念章在一路走來章名旁，純裝飾；用原本的校徽面圖，不載 three；不寫「相隔十五年」', () => {
     expect(template).toContain('<span class="abh-medal" aria-hidden="true" />')

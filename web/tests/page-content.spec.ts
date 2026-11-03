@@ -180,7 +180,7 @@ describe('關於常春藤頁的後台內容', () => {
     expect(error).not.toHaveBeenCalled()
     expect(next.storyText).toBe('後台改過的說明。')
     expect(next.heroTitle).toBe(site.aboutPage.heroTitle)
-    expect([next.heroPhoto, next.heroPhotoAlt, next.heroBackPhoto, next.heroBackPhotoAlt, next.hopePhoto, next.hopePhotoAlt]).toEqual([undefined, undefined, undefined, undefined, undefined, undefined])
+    expect([next.heroPhoto, next.heroPhotoAlt, next.hopePhoto, next.hopePhotoAlt]).toEqual([undefined, undefined, undefined, undefined])
     expect(aboutHeroAttrs(next)).toEqual(responsiveImage(ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES))
     error.mockRestore()
   })

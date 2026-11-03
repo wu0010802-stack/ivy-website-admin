@@ -1,3 +1,15 @@
+## 2026-11-03 關於頁首屏：一張 3:2 卡紙、照片換成校外教學（`feature/about-hero-photo-20261103`）
+
+使用者要調整 /about 首屏兩張卡紙的照片與框；比稿 A／B／C（`design/about-hero-photo-directions-20261103/`，Desktop checkout、未進版控）選 B，並要換照片。規則見 DESIGN.md「關於頁首屏：一張 3:2 卡紙」。
+
+- `AboutContent.vue` 拿掉後排小卡（`about-curious` 只剩預約頁用）；`about.css` 首屏卡紙改 3:2、轉 `-1.5deg`、框 16px（900px 以下 10px）、左上受光淡漸層、照片邊 1px 細線、兩層陰影（新 token `--abh-shadow-lift`）；內文卡紙不動。
+- `about-hero` 換成園方雲端「20250529 中都濕地校外教學」06（Canon 6085×4057 → 2000×1333 WebP q90）：兩個女孩回頭笑、老師在旁邊；`optimize-site-images.py --only about-hero`，4 個舊雜湊檔 `git rm`；替代文字改寫。
+- `ABOUT_HERO_SIZES` 改 `(max-width: 900px) calc(100vw - 68px), 560px`（母檔與框同比例，照框寬寫）。
+- 官網內容對應不再讀 `hero_back_photo`；後台「關於常春藤頁」拿掉「首屏後排照片」欄，首屏裁切預覽改 3:2。後端欄位保留、沒有 migration。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過；admin `aboutPage`／`editorSectionFields` 兩檔 52 項過、`vue-tsc` 無錯；fixture dev server 用 Playwright 量 1920／1440／1100／901／900／390／320：首屏一張卡紙、沒有橫向捲動，1440 照片 545px 選 1200w、390（DPR3）322px 選 1200w，`<img>` 與預載的 sizes 一致。
+- **stack**：本機 `e2e:build`＋整套 156 項，155 過；`media.spec`（首頁「關於常春藤」選素材後發布，跟這次無關）整套連跑時首頁仍是舊照，單獨重跑通過，是已知的時序問題。rebase 到首頁換照（`83d1aaf8`）後重新 build，`a11y`／`editor-live-preview`／`media` 三組 45 項全過，web 全套與後台關於頁測試也重跑過。
+- **沒跑**：axe（本機沒裝，stack 的 a11y 已過）、後端測試（沒動後端與 fixture）、iOS 實機；沒有 `versions/` 快照（sparse worktree，改動都在 git）。原圖在 session scratchpad。
+
 ## 2026-11-03 首頁「關於常春藤」照片換成孩子讀繪本（`feature/home-about-photo-20261103`）
 
 使用者指定換掉首頁「把每個孩子 放在心上」區塊的創辦人與孩子合照，想用更適合介紹常春藤的照片。規則見 DESIGN.md「關於常春藤：單張圓角照片」底下的 11-03 補充。
@@ -9,6 +21,7 @@
 - **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過（先紅 2 項＝overlay 基準，同步後過）；admin `editVersionsUx`／`pageCopyFields`／`aboutPage` 85 項過；後端用獨立測試庫跑 `test_media_slots.py` 21 項、讀 fixture 的另 9 檔 252 項全過；fixture dev server 用 Playwright 看 1440（DPR2，載 1600w）與 390（DPR3，載 1200w），替代文字正確。
 - **stack e2e**：本機 156 項 155 過；`admissions-flow.spec.ts:184`（390px 五校比較）在負載 30 時骨架 10 秒內沒消失，單獨重跑該檔 4 項全過。視覺基準只拍後台頁面，不含首頁這區。
 - **沒跑**：iOS 實機。
+
 
 ## 2026-11-03 特色教學換三張明華校 FB 粉專照片（`feature/minghua-fb-photos-20261103`）
 

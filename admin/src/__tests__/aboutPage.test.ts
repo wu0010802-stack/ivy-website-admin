@@ -90,18 +90,18 @@ describe('關於常春藤頁（about_page）', () => {
     }
   })
 
-  it('照片焦點預覽的比例和官網 about.css 一致；紙房子窗戶也裁成 4:3', () => {
+  it('照片焦點預覽的比例和官網 about.css 一致：首屏 3:2、紙房子窗戶 4:3', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
     expect(css).toContain('.abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
-    expect(css).toMatch(/\.abh-hero-art \.is-back\{[^}]*--ar:4\/5/)
+    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:3\/2/)
     expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}')
     const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')
-    expect(component).toContain('<figure class="abh-card is-back">')
+    // 2026-11-03 拿掉首屏後排小卡
+    expect(component).not.toContain('is-back')
     expect(component.slice(component.indexOf('<span class="abh-window">'))).toContain("pagePhotoAttrs('about-together', page.hopePhoto")
     expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['4 / 3'])
-    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 3'])
-    expect(ABOUT_PHOTO_PREVIEWS.heroBack.map((p) => p.ratio)).toEqual(['4 / 5'])
-    expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'heroBack', 'hope'])
+    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['3 / 2'])
+    expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'hope'])
   })
 
   it('錯誤訊息指到沿革第幾站', () => {
@@ -142,11 +142,11 @@ describe('關於常春藤頁（about_page）', () => {
     expect(payload.milestones[1]!.year).toBe(2002)
   })
 
-  it('從未存過：換了照片再改回內建，不算未儲存的修改（三張照片）', async () => {
+  it('從未存過：換了照片再改回內建，不算未儲存的修改（首屏、紙房子窗戶兩張照片）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const slots = wrapper.findAllComponents(MediaSlotField)
-    expect(slots).toHaveLength(3)
+    expect(slots).toHaveLength(2)
     for (const slot of slots) {
       slot.vm.$emit('update:modelValue', { media_id: '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c', focus_x: null, focus_y: null })
       slot.vm.$emit('picked', { id: '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c', alt_text: '孩子在畫畫' }, null)
@@ -268,8 +268,9 @@ describe('關於常春藤頁：段落導覽、清單定位、素材用途標籤'
     expect(mediaFieldPathLabel('directions[2].photo.media_id')).toBe('課程方向第 3 項的照片')
   })
   it('欄位名與表單標籤一致', () => {
-    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '五所校園的標題', '五所校園的說明', '首屏照片', '首屏後排照片', '紙房子窗戶的照片']
+    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '五所校園的標題', '五所校園的說明', '首屏照片', '紙房子窗戶的照片']
     for (const label of labels) expect(source).toContain(`label="${label}"`)
+    expect(source).not.toContain('label="首屏後排照片"')
     const kindLabels = new Set(['hero_title', 'hero_lede', 'hero_caption', 'hero_photo', 'hero_back_photo', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'hope_photo', 'outro_title', 'outro_text'].map((k) => contentFieldLabelFor('about_page', k)))
     for (const label of labels) expect(kindLabels.has(label)).toBe(true)
   })

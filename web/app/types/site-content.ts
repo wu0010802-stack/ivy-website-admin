@@ -365,8 +365,6 @@ export interface AboutPageContent {
   heroCaption: string
   heroPhoto?: MediaImage
   heroPhotoAlt?: string
-  heroBackPhoto?: MediaImage
-  heroBackPhotoAlt?: string
   /** 一路走來、全人教育、我們的期許、家長怎麼說 */
   chapterNames: string[]
   storyTitle: string

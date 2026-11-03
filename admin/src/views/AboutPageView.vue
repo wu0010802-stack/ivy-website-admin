@@ -67,20 +67,10 @@ onMounted(editor.load)
         v-model:photo="form.hero_photo"
         v-model:alt="form.hero_photo_alt"
         label="首屏照片"
-        builtin="官網內建的創辦人與孩子合照"
+        builtin="官網內建的校外教學照片（兩個孩子和老師）"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.hero)"
         :previews="ABOUT_PHOTO_PREVIEWS.hero"
-        help="右頁前面那張大卡紙，各種螢幕都裁成 4:3；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
-        :disabled="editor.readOnly.value"
-      />
-      <PagePhotoField
-        v-model:photo="form.hero_back_photo"
-        v-model:alt="form.hero_back_photo_alt"
-        label="首屏後排照片"
-        builtin="官網內建的孩子指著發現的照片"
-        :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.heroBack)"
-        :previews="ABOUT_PHOTO_PREVIEWS.heroBack"
-        help="右頁後面那張小卡紙，裁成 4:5 的直式；官網內建照片的重點在右上；換成自己的照片後沒設焦點就取中間，請在下面點選焦點。"
+        help="首屏右邊那張卡紙，各種螢幕都裁成 3:2；請用寬 2000 以上的橫式照片，重點放在中間，或在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

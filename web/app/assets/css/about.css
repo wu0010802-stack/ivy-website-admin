@@ -9,6 +9,8 @@
   --abh-sec:clamp(96px,10vw,160px);
   --abh-ease:cubic-bezier(.22,1,.36,1);
   --abh-shadow:0 2px 3px rgb(var(--ink)/.12),0 24px 30px -24px rgb(var(--ink)/.6);
+  /* 首屏大卡紙：貼近桌面一層、往下拉長一層，卡紙比內文的厚 */
+  --abh-shadow-lift:0 1px 2px rgb(var(--ink)/.16),0 12px 20px -10px rgb(var(--ink)/.28),0 34px 44px -32px rgb(var(--ink)/.55);
   background:var(--paper);
   color:var(--text);
   overflow-x:clip;
@@ -46,10 +48,11 @@
    標題很短時文字欄至少 22.5rem，段落才不會擠成窄條（手機文字欄是 display:contents，這兩條不作用） */
 .abh-hero-text{width:fit-content;min-width:min(100%,22.5rem)}
 .abh-lede{margin-top:24px;max-width:28em;font-size:var(--fs-lg);line-height:2;color:var(--muted);contain:inline-size}
-.abh-hero-art{position:relative;padding:8% 2% 4% 14%}
-.abh-hero-art .is-back{position:absolute;left:0;top:0;z-index:0;width:38%;--c:var(--studio-blue);--r:-4deg;--ar:4/5}
-.abh-hero-art .is-main{z-index:1;--r:1.2deg}
-.abh-hero-art .is-main img{object-position:46% 35%}
+/* 首屏一張 3:2 卡紙（2026-11-03 拿掉後排小卡）：框 16px、左上受光的淡漸層（不用紋理）、照片邊 1px 細線（淺色天空不會跟框糊在一起）、兩層陰影 */
+.abh-hero-art{padding:3% 2% 5% 3%}
+.abh-hero-art .abh-card{--ar:3/2;--r:-1.5deg;padding:16px 16px 0;border-radius:6px;background:linear-gradient(155deg,color-mix(in oklab,var(--yellow) 82%,var(--paper)),var(--yellow) 55%);box-shadow:var(--abh-shadow-lift)}
+.abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:16px}
+.abh-hero-art .abh-card>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
 .abh-index{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,4vw,64px)}
 .abh-index a{display:flex;align-items:center;gap:14px;min-height:56px;color:var(--ivy-forest);text-decoration:none}
 .abh-mk{flex:none;display:grid;place-items:center;width:40px;height:52px;padding-bottom:10px;background:var(--chap);clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);font:700 .9375rem/1 var(--font-date);color:rgb(var(--ink))}
@@ -179,7 +182,9 @@
   /* 首屏：大標 → 照片 → 介紹 → 索引 */
   .abh-hero{gap:0;padding-top:32px}
   .abh-hero-text{display:contents}
-  .abh-hero-art{order:1;margin:24px 0 8px;padding:10% 0 0 18%}
+  .abh-hero-art{order:1;margin:24px 0 8px;padding:8px 4px 12px}
+  .abh-hero-art .abh-card{padding:10px 10px 0}
+  .abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:10px}
   .abh-lede,.abh-index{order:2}
   .abh-index{grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:32px}
   .abh-index.is-next{grid-template-columns:1fr;gap:8px;margin-top:20px}

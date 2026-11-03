@@ -11,12 +11,14 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.m
 const images = manifest as Record<string, { width: number; height: number }>
 
 describe('內頁 hero 的 sizes', () => {
-  // 2026-09-29 立體書版起關於常春藤 hero 不是滿版照片帶，是首屏的 4:3 卡紙（object-fit: cover；10-30 換版後在右欄）。
+  // 2026-09-29 立體書版起關於常春藤 hero 不是滿版照片帶，是首屏的卡紙（object-fit: cover；10-30 換版後在右欄）。
   it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('aboutHeroAttrs(site.value.aboutPage)')
     expect(read('../app/components/AboutContent.vue')).toContain('aboutHeroAttrs(page)')
-    // 2000×803 的橫幅裁成 4:3 卡紙，需要的寬度是框寬 × 1.87 左右，不是框寬
-    expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(\(100vw - \d+px\) \* [\d.]+\), \d+px$/)
+    // 2026-11-03 起母檔與卡紙都是 3:2，不裁，sizes 照框寬寫；母檔換比例時 sizes 要乘上裁掉的倍數
+    const { width, height } = images['about-hero']!
+    expect(Math.abs(width / height - 1.5)).toBeLessThan(0.01)
+    expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(100vw - \d+px\), \d+px$/)
   })
 
   // 2026-09-28 入學護照版：照片欄 4:3、object-fit: cover，原圖比 4:3 寬時要畫的寬度再乘上比例。

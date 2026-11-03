@@ -9,13 +9,12 @@ export const ABOUT_MILESTONE_KEYS = ['yihua', 'minghua', 'chongde', 'internation
 export const ABOUT_CHAPTER_HINTS = ['第一章', '第二章', '第三章', '第四章（沒有家長分享影片時整章不出現）'] as const
 
 // 官網內建照片的代號（web/public/assets/<代號>.webp，同 AboutContent.vue）。
-export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', heroBack: 'about-curious', hope: 'about-together' } as const
+export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', hope: 'about-together' } as const
 
-// 官網實際裁切的比例（web/app/assets/css/about.css，2026-10-30 換版）：首屏大卡與後排小卡都在卡紙裡
-// （.abh-card>img 預設 4:3；後排 .is-back 用 --ar 改 4:5 直式），各寬度一樣。紙房子窗戶（.abh-window img）也是 4:3。
+// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏一張卡紙 3:2（.abh-hero-art .abh-card 用 --ar 改 3:2，
+// 2026-11-03 拿掉後排小卡），各寬度一樣。紙房子窗戶（.abh-window img）是 4:3。
 export const ABOUT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
-  heroBack: [{ label: '官網裁切（4:5 直式）', ratio: '4 / 5' }],
+  hero: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
   hope: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
 } as const
 
@@ -26,6 +25,7 @@ export function aboutPageDraft(): AboutPagePayload {
     hero_caption: '把每個孩子，放在心上。',
     hero_photo: null,
     hero_photo_alt: '',
+    // 首屏後排照片 2026-11-03 起官網不放、表單也拿掉；後端欄位還在，鍵留著才跟 model_dump() 同形狀
     hero_back_photo: null,
     hero_back_photo_alt: '',
     chapter_names: ['一路走來', '全人教育', '我們的期許', '家長怎麼說'],

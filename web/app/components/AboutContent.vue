@@ -12,7 +12,8 @@
 // 例外：家長章標題寫在這裡（使用者 10-30 指定，取自函函奶奶那支影片的話），不再取第一位家長的原話。
 // 沿革源自機構站「關於常春藤」：舊站「三十多個春夏秋冬」不對（1997 到今年未滿三十年）；首屏介紹與第一章標題的年數
 // 2026-10-31 起由今年算（utils/about-content.ts 的 aboutHeroLede、storyYearTitle），沿革最後接 30 週年頁（後台開關打開時）。
-// 崇德同年的 ESL 美語部不寫；義華創校年份 1997（業主 2026-10-03 裁定）。首屏照片裡的長輩是創辦人（姓名未提供，不寫名字）。
+// 崇德同年的 ESL 美語部不寫；義華創校年份 1997（業主 2026-10-03 裁定）。第三章窗戶照片裡的長輩是創辦人（姓名未提供，不寫名字）。
+// 首屏 2026-11-03 起只放一張 3:2 卡紙照片（拿掉後排小卡：那張也是預約頁首圖，裁切又被大照蓋住）。
 // 分校停用或下架時，那一年仍留在沿革裡，只是卡紙留白、不放校名。
 import type { AboutPageContent, Campus, CampusTestimonial } from '~/types/site-content'
 import { aboutHeroAttrs, mediaImageAttrs, pickImage } from '~/utils/media-image'
@@ -22,7 +23,7 @@ import { pickVoices } from '~/utils/testimonials'
 import { foundingYear } from '~/utils/seo'
 import { taipeiIsoDate } from '~/utils/taipei-date'
 import {
-  DOMAINS, HERO_ALT, HERO_BACK_ALT, HOPE_ALT, LITERACIES, SCENE, STORY_TITLE_ORIGINAL, WAX_FILTER,
+  DOMAINS, HERO_ALT, HOPE_ALT, LITERACIES, SCENE, STORY_TITLE_ORIGINAL, WAX_FILTER,
   aboutHeroLede, milestoneLook, sceneStyle, storyYearTitle
 } from '~/utils/about-content'
 
@@ -145,17 +146,14 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <!-- 蠟筆濾鏡（第三章的蠟筆畫共用） -->
     <svg class="abh-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
 
-    <!-- 首屏：左大標、右兩張卡紙照片；下面一排章節索引 -->
+    <!-- 首屏：左大標、右一張卡紙照片；下面一排章節索引 -->
     <section class="abh-wrap abh-hero" aria-labelledby="about-title">
       <div class="abh-hero-text">
         <h1 id="about-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
         <p class="abh-lede">{{ heroLede }}</p>
       </div>
       <div class="abh-hero-art">
-        <figure class="abh-card is-back">
-          <img v-bind="withPhotoStyle(pagePhotoAttrs('about-curious', page.heroBackPhoto, '(max-width: 900px) 34vw, 220px'), page.heroBackPhoto)" :alt="pagePhotoAlt(HERO_BACK_ALT, page.heroBackPhoto, page.heroBackPhotoAlt)" loading="lazy">
-        </figure>
-        <figure class="abh-card is-main">
+        <figure class="abh-card">
           <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
           <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
         </figure>
