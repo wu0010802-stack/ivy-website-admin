@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 特色教學首屏、自主學習、教具操作換明華校 FB 粉專照片（main CI 部署，沒有 migration）
+
+- **內容**：`bd0cd5ab`（README「2026-11-03 特色教學換三張明華校 FB 粉專照片」）。`cur-hero` 彩虹傘（2048×1152）、`cur-autonomy` 外師科學課滴管（4:3 1820×1365）、`cur-daily-materials` 雷射光木框（8:5 2048×1280）；`curriculum.css` 首屏焦點桌機 `45% 45%`、拿掉 1100 以下的 `62%`；`CURRICULUM_HERO_SIZES` 改 `(max-width: 900px) calc((100vw - 40px) * 1.34), 1070px`；13 個舊雜湊衍生檔移除。
+- **提交**：worktree `minghua-fb-photos-20261103`（從 origin/main `c34c047d`，sparse），rebase 到 `9f2c9904`。web typecheck、單元 110 檔 1351 全過；admin `curriculumPage`／`pageCopyFields` 52 過；fixture dev server 用 Playwright 截 1440／1024／390。本機 stack 156 項 155 過，`media.spec`（發布後首頁 10 秒內沒等到照片，已知的時序間歇失敗）單獨重跑過。使用者說「上線」後用 `!` 推 main（fast-forward）。
+- **CI**：main run 41610447330 全綠（含 E2E），Deploy success（09:28:55–09:32:07Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `bd0cd5ab`、created_at `2026-11-03T09:29:23Z`。`/curriculum` 三個新雜湊（`cur-hero-720f22257e7e`、`cur-autonomy-b4602e98d90c`、`cur-daily-materials-a522264f8a9a`）都在、舊雜湊 0；三段新替代文字都在、舊的天平與積木 0；首屏 `sizes` 是新值；新衍生檔與母檔都回 200。
+- **沒驗**：iOS 實機；肖像同意與彩虹傘是否明華自己的活動待園方確認。
+
 ## 2026-11-03 關於頁首屏大標加字距、放大，介紹段落跟大標同寬（main CI 部署，沒有 migration）
 
 - **內容**：`c34c047d`（README「2026-11-03 關於頁首屏大標：字距、字級、介紹段落同寬」）。只動 `web/app/assets/css/about.css`：`.abh h1` 字距 `.02em`、桌機上限 `4.25rem`、900px 以下 `clamp(1.875rem,10.5vw,2.75rem)`；`.abh-hero-text` `width:fit-content`（保底 `min(100%,22.5rem)`）、`.abh-lede` `contain:inline-size`。
