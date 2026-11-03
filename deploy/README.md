@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 關於頁首屏大標加字距、放大，介紹段落跟大標同寬（main CI 部署，沒有 migration）
+
+- **內容**：`c34c047d`（README「2026-11-03 關於頁首屏大標：字距、字級、介紹段落同寬」）。只動 `web/app/assets/css/about.css`：`.abh h1` 字距 `.02em`、桌機上限 `4.25rem`、900px 以下 `clamp(1.875rem,10.5vw,2.75rem)`；`.abh-hero-text` `width:fit-content`（保底 `min(100%,22.5rem)`）、`.abh-lede` `contain:inline-size`。
+- **提交**：worktree `about-title-20261103`（從 origin/main `db7861b3`，sparse），比稿 A／B／C 選 A。web typecheck、單元 110 檔 1351 全過；fixture dev server 用 Playwright 量 1680–320 十個寬度、短標題與長標題退路。使用者說「部署」後用 `!` 推 main（fast-forward）。沒跑本機 stack e2e。
+- **CI**：main run 41606926415 全綠（含 E2E），Deploy success（09:02:15–09:06:17Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `c34c047d`、created_at `2026-11-03T09:02:42Z`。`/about` 1440：大標 66.56px、字距 1.33px、最長一行 407px、介紹段落 407px；1100：55px、段落 360px（保底）；390：40.95px；三個寬度都沒有橫向捲動。
+- **沒驗**：iOS 實機。
+
 ## 2026-11-03 入學頁收退費收進「常見問題」、新增 11 題問答（main CI 部署，沒有 migration）
 
 - **內容**：`7a0c72c0`（README「2026-11-03 入學頁：收退費收進『常見問題』、新增 11 題問答」）。`/admission` 第 5 頁「收退費辦法」換成「常見問題」三組 11 題：退費條款收成一題預設收合、補助那題沿用 `#fees` 預設打開放育兒津貼表；「怎麼預約參觀」列五校電話、不連 /visit；網址錨點打開題目；手機分班對照沒輸入生日不顯示空白章框；入學頁搜尋描述與 llms.txt 改寫（後台 `pageSeoDefaults` 同步）；LINE Seed `page-font-chars.json` 只換 `/admission` 一項後重切 68 片。只動 web/、admin 預設值與文件。
