@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號（main CI 部署，沒有 migration）
+
+- **內容**：`0ed388ef`（README「2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號」）。全站標題改 LINE Seed 700，分校明體、入學護照明體、環境頁圓體與芫荽退場（刪 16.38 MB 字檔、四支腳本），LINE Seed 依新用字重切；`plainTitleLine` 在輸出時拿掉標題行尾「，。」、行中間換空格。動 web/、admin/、scripts/ 與文件，沒動後端。
+- **提交**：worktree `font-unify-20261103`（從 origin/main `8c230fd4`，sparse，補 `assets/fonts` 給分片腳本比對）。web typecheck＋單元 1342、admin vue-tsc＋vitest 3216（1 skipped）、web build、本機 `test:e2e:stack` 156、`test:e2e` 34（6 skipped）全過。推之前 main 前進到 `7e450530`→`f9a72d94`，rebase 時 README 頂部兩段都留，合併後重跑 web 單元與 typecheck。使用者說「commit 合進 main 部署」後由使用者推 main（fast-forward `f9a72d94..0ed388ef`）。
+- **CI**：main run 41601326207 全綠（含 E2E），Deploy success（08:16:13–08:20:23Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `0ed388ef`、created_at `2026-11-03T08:16:40Z`；health 200。Playwright＋CDP 桌機 1440：首頁 h1、「分校資訊」、校名、「最新消息」，環境頁 h1／h2／積木名稱／時間，入學頁 h2 都是 LINE Seed Bold；環境頁內文、小標籤、按鈕與入學頁小標是系統字；三頁的字型請求只有 LINE Seed 分片與頁首品牌字，沒有明體、圓體。h1–h3 與 28px 以上大字的逗號句號從 31 個變 0，只剩刻意保留的「寶貝何時入學？」「想先認識哪所校園？」「「我自己來！」」。
+
 ## 2026-11-03 特色教學兩張寬幅照拿掉圖說、段落水彩下緣淡出（main CI 部署，沒有 migration）
 
 - **內容**：`7e450530`（README「2026-11-03 特色教學：兩張寬幅照拿掉圖說、段落水彩不再被切成直線」）。`/curriculum` 04 五件事風箏照、03 美術館地板畫拿掉圖說，刪掉 `.cur-band figcaption`；`.cur-sec > .cur-wash` 在下方留白區 mask 淡出，修掉五件事與課程方向藝術共創底部被 canvas 切出的水平直線。只動 web/ 與文件。

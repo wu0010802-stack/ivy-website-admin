@@ -21,6 +21,7 @@
 - **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 109 檔 1342 項全過（環境頁兩份渲染快照只差標點，已更新）；admin `vue-tsc` 通過、`vitest` 167 檔 3216 項過（1 skipped）；`npm --prefix web run build` 通過。fixture dev server 用 Playwright 量桌機 1440／手機 390：各頁大標都是 LINE Seed（CDP 逐字查）、大標沒有逗號句號；不再請求明體、圓體字檔。
 - **e2e**：`npm run test:e2e:stack` 156 項全過（7.6 分）、`npm run test:e2e` 34 過 6 skipped；stack 的 visual 基準只有後台五張，這次沒動到。
 - **沒跑**：後端測試（沒動後端與 fixture）、iOS 實機。
+- **已部署**：main `0ed388ef`（run 41601326207 全綠），線上驗證見 deploy/README.md。
 
 ## 2026-11-03 特色教學：兩張寬幅照拿掉圖說、段落水彩不再被切成直線（`feature/curriculum-kite-20261103`）
 
