@@ -2252,5 +2252,31 @@
         "width": 240
       }
     ]
+  },
+  "home-about": {
+    "width": 1800,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/home-about-aa3afde8717a-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/home-about-aa3afde8717a-800.webp",
+        "width": 800
+      },
+      {
+        "src": "/assets/responsive/home-about-aa3afde8717a-1200.webp",
+        "width": 1200
+      },
+      {
+        "src": "/assets/responsive/home-about-aa3afde8717a-1600.webp",
+        "width": 1600
+      },
+      {
+        "src": "/assets/responsive/home-about-aa3afde8717a-1800.webp",
+        "width": 1800
+      }
+    ]
   }
 }

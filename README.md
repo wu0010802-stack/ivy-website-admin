@@ -1,3 +1,15 @@
+## 2026-11-03 首頁「關於常春藤」照片換成孩子讀繪本（`feature/home-about-photo-20261103`）
+
+使用者指定換掉首頁「把每個孩子 放在心上」區塊的創辦人與孩子合照，想用更適合介紹常春藤的照片。規則見 DESIGN.md「關於常春藤：單張圓角照片」底下的 11-03 補充。
+
+- 來源：園方雲端「未分類素材區／照片／20240423 故事車」`P1133699.JPG`（Panasonic GH5 5184×3888、無 GPS）。從兩個素材庫挑 8 張排成首頁實際 3:2 圓角裁切的對照板（`output/home-about-photo-20261103/board.jpg`，gitignored），使用者選 A：四個穿園服的孩子坐在花園草地上讀繪本。
+- 新增代號 `home-about`（母檔 1800×1200 q88，取原圖靠下的 3:2、少帶到圍欄外的機車），跑 `scripts/optimize-site-images.py --only home-about`。`about-together` 檔案不動：`/about` 期許章小窗、後台關於頁內建圖還在用它。
+- `site-fixture.json` 的 `home.about.photos[0]` 改 `home-about`、替代文字「穿著園服的孩子們坐在花園草地上，低頭讀繪本」；`web/tests/fixtures/overlay-baseline-20260925.json` 同步；後台「首頁 → 關於常春藤」的內建圖預覽、說明與替代文字範例改成新照片。
+- 正式站 `/api/published-site` 的 `home.about.photos` 沒有後台上傳的照片（仍是 fixture 的 `about-together`），部署後直接生效，不用進後台改。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過（先紅 2 項＝overlay 基準，同步後過）；admin `editVersionsUx`／`pageCopyFields`／`aboutPage` 85 項過；後端用獨立測試庫跑 `test_media_slots.py` 21 項、讀 fixture 的另 9 檔 252 項全過；fixture dev server 用 Playwright 看 1440（DPR2，載 1600w）與 390（DPR3，載 1200w），替代文字正確。
+- **stack e2e**：本機 156 項 155 過；`admissions-flow.spec.ts:184`（390px 五校比較）在負載 30 時骨架 10 秒內沒消失，單獨重跑該檔 4 項全過。視覺基準只拍後台頁面，不含首頁這區。
+- **沒跑**：iOS 實機。
+
 ## 2026-11-03 特色教學換三張明華校 FB 粉專照片（`feature/minghua-fb-photos-20261103`）
 
 使用者看過明華粉專相片盤點（742 張）後挑三張。規則見 DESIGN.md「特色教學換明華校 FB 粉專照片」。

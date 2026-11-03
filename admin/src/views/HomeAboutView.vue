@@ -48,8 +48,8 @@ onMounted(editor.load)
       <el-form-item label="照片">
         <MediaSlotField
           v-model="editor.form.value.photo"
-          builtin="官網內建的孩子與長輩合照"
-          builtin-src="/assets/about-together.webp"
+          builtin="官網內建的孩子讀繪本照片"
+          builtin-src="/assets/home-about.webp"
           :focus-previews="[{ label: '官網裁切（3:2）', ratio: '3 / 2' }]"
           :disabled="editor.readOnly.value"
           @picked="onPickPhoto"
@@ -58,7 +58,7 @@ onMounted(editor.load)
         <span class="field-help">這一區放一張圓角照片，官網裁成 3:2 橫式，建議寬 1200 以上。</span>
       </el-form-item>
       <el-form-item v-if="editor.form.value.photo" label="圖片說明（給看不到照片的人）">
-        <el-input v-model="editor.form.value.photo_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子們笑著圍在長輩身邊" />
+        <el-input v-model="editor.form.value.photo_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子們坐在草地上讀繪本" />
         <span class="field-help">給看不見照片的家長，官網不會顯示出來；換照片時會換成素材庫裡新照片的說明，留空時官網也用素材庫的說明。</span>
       </el-form-item>
       <el-form-item label="照片下方文字">
