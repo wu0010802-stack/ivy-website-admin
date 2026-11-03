@@ -49,10 +49,11 @@ export function yearsSpoken(n: number): string {
   return `${TENS[tens]}多年`
 }
 
-/** 第一章標題（兩行）：創校那年是第 1 年，2026 年「走到今年，是第 30 年。」；整十年寫「滿 30 年」。 */
+/** 第一章標題（兩行）：創校那年是第 1 年，2026 年「走到今年⏎是第 30 年」；整十年寫「滿 30 年」。
+ *  標題大字不放逗號、句號（2026-11-03，見 page-content.ts 的 plainTitleLine）。 */
 export function storyYearTitle(founded: number, year: number): string[] {
   const n = year - founded
-  return ['走到今年，', n > 0 && n % 10 === 0 ? `滿 ${n} 年。` : `是第 ${n + 1} 年。`]
+  return ['走到今年', n > 0 && n % 10 === 0 ? `滿 ${n} 年` : `是第 ${n + 1} 年`]
 }
 
 /** 首屏介紹：內建原文的「近三十年來」換成算出來的年數（從同一句寫的 1997 算）；後台改寫過就照後台。 */

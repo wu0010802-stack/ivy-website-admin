@@ -58,7 +58,7 @@ onMounted(editor.load)
       <el-form-item label="區塊標題">
         <el-input v-model="editor.form.value.section_title" placeholder="例如：分校資訊" />
         <LengthHint :value="editor.form.value.section_title" rule="boardTitle" />
-        <GlyphHint :value="editor.form.value.section_title" :fonts="['serif']" />
+        <GlyphHint :value="editor.form.value.section_title" />
       </el-form-item>
       <!-- 說明文字（note）官網五校區塊不顯示，2026-09-29 業主同意後台不再列這一欄；
            舊內容的值留在表單裡照原樣存回，不清掉。 -->

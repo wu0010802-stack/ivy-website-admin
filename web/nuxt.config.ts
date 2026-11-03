@@ -66,16 +66,11 @@ export default defineNuxtConfig({
     '/assets/fonts/**': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
     '/assets/responsive/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/optimized/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
-    // 2026-10-20：以下目錄裡的檔名都帶內容雜湊（build-anniversary-media.py、subset-*-fonts.py 產生），
+    // 2026-10-20：以下目錄裡的檔名都帶內容雜湊（build-anniversary-media.py、subset-critical-fonts.py 產生），
     // 換內容就換網址，可以 immutable。只有授權說明 *-OFL.txt 沒有雜湊，逐檔退回字型目錄的一個月。
     // 新增沒有雜湊的檔案到這些目錄時，要在這裡補一條例外。
     '/assets/anniversary/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/fonts/subsets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
-    '/assets/fonts/admission/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
-    '/assets/fonts/environment/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
-    '/assets/fonts/admission/noto-serif-tc-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
-    '/assets/fonts/environment/chiron-goround-tc-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
-    '/assets/fonts/environment/iansui-OFL.txt': { headers: { 'cache-control': 'public, max-age=2592000, stale-while-revalidate=86400' } },
     '/favicon.ico': { headers: { 'cache-control': 'public, max-age=86400, stale-while-revalidate=604800' } }
   },
 

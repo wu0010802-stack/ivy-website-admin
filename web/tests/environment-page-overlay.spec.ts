@@ -210,7 +210,7 @@ describe('常春藤環境頁的後台內容', () => {
     live.hero_notice = '   '.trim()
     const html = await render(overlay(live))
     expect(html).toContain('歡迎來到')
-    expect(html).toMatch(/我們的<mark class="renv-mark">環境<\/mark>。/)
+    expect(html).toMatch(/我們的<mark class="renv-mark">環境<\/mark><\/span>/)
     expect(html).not.toContain('孩子的每一天')
     expect(html).toContain('10:30')
     expect(html).not.toContain('class="renv-campus"')

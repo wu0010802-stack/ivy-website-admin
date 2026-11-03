@@ -229,15 +229,15 @@ describe('標題缺字提示', () => {
     })
   }
 
-  it('依欄位用的字型逐一檢查（校名：明體與標題字型）', async () => {
-    mockCharsets({ bd: '仁武校來認識', serif: '仁武校義華' })
-    const wrapper = mount(GlyphHint, { props: { value: '仁武新校', fonts: ['serif', 'bd'] } })
+  it('依欄位用的字型逐一檢查（同一欄位出現在兩個字重時逐個列出）', async () => {
+    mockCharsets({ bd: '仁武校來認識', eb: '仁武校義華' })
+    const wrapper = mount(GlyphHint, { props: { value: '仁武新校', fonts: ['bd', 'eb'] } })
     wrappers.push(wrapper)
     await flushPromises()
     const hints = wrapper.findAll('.glyph-hint').map((hint) => hint.text())
     expect(hints).toHaveLength(2)
-    expect(hints[0]).toContain('校名明體字型沒有「新」')
-    expect(hints[1]).toContain('官網標題字型沒有「新」')
+    expect(hints[0]).toContain('官網標題字型沒有「新」')
+    expect(hints[1]).toContain('首頁大標字型沒有「新」')
     await wrapper.setProps({ value: '仁武校' })
     expect(wrapper.findAll('.glyph-hint')).toHaveLength(0)
   })
@@ -252,53 +252,25 @@ describe('標題缺字提示', () => {
     expect(missing.text()).toBe('')
   })
 
-  it('讀官網實際字表：LINE Seed 兩個字重是完整字型，只提示字型裡沒有的字；明體仍是子集', async () => {
+  it('讀官網實際字表：LINE Seed 兩個字重是完整字型，只提示字型裡沒有的字', async () => {
     const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
     mockCharsets(Object.fromEntries(Object.entries(TITLE_FONT_FILES).map(([font, file]) => [font, readFileSync(resolve(fontsDir, file), 'utf8')])))
     // 「訊」「菜」是舊子集沒有的字；𠮷 是 Ext-B 字，完整字型也沒有
-    const wrapper = mount(GlyphHint, { props: { value: '菜訊𠮷', fonts: ['serif', 'bd', 'eb'] } })
+    const wrapper = mount(GlyphHint, { props: { value: '菜訊𠮷', fonts: ['bd', 'eb'] } })
     wrappers.push(wrapper)
     await flushPromises()
     expect(wrapper.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual([
-      '校名明體字型沒有「菜𠮷」',
       '官網標題字型沒有「𠮷」',
       '首頁大標字型沒有「𠮷」',
     ])
   })
 
-  it('環境頁字型：讀 chars-environment.txt，罕用字提示「會用系統字顯示」；字表讀不到時不提示', async () => {
-    mockCharsets({ environment: '孩子每一天都在這裡長大' })
-    const hint = mount(GlyphHint, { props: { value: '孩子在這裡𠮷長大', fonts: ['environment'] } })
-    const clean = mount(GlyphHint, { props: { value: '孩子每一天', fonts: ['environment'] } })
-    wrappers.push(hint, clean)
-    await flushPromises()
-    expect(hint.get('.glyph-hint').text()).toContain('環境頁字型沒有「𠮷」，這幾個字會用系統字顯示')
-    expect(clean.find('.glyph-hint').exists()).toBe(false)
-    resetTitleFontCoverage()
-    mockCharsets({})
-    const unreadable = mount(GlyphHint, { props: { value: '孩子在這裡𠮷長大', fonts: ['environment'] } })
-    wrappers.push(unreadable)
-    await flushPromises()
-    expect(unreadable.text()).toBe('')
-  })
-
-  it('環境頁字表讀官網實際的字表：常用字不提示，只提示字型沒有的字；圓體 800 只補常用字，大標那份比較嚴', async () => {
-    const fontsDir = resolve(__dirname, '../../../web/public/assets/fonts')
-    mockCharsets({
-      environment: readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environment), 'utf8'),
-      environmentText: readFileSync(resolve(fontsDir, TITLE_FONT_FILES.environmentText), 'utf8'),
-    })
-    // 「敞」不在圓體 800 補的常用字裡，400、700、芫荽有
-    const strict = mount(GlyphHint, { props: { value: '孩子的每一天，都在這裡開心長大。𠮷寬敞', fonts: ['environment'] } })
-    const text = mount(GlyphHint, { props: { value: '孩子的每一天，都在這裡開心長大。𠮷寬敞', fonts: ['environmentText'] } })
-    wrappers.push(strict, text)
-    await flushPromises()
-    expect(strict.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['環境頁字型沒有「𠮷敞」'])
-    expect(text.findAll('.glyph-hint').map((hint) => hint.text().split('，')[0])).toEqual(['環境頁字型沒有「𠮷」'])
+  it('字型統一（2026-11-03）：官網標題只剩 LINE Seed，字表只有 bd／eb 兩份（明體、環境頁圓體已退場）', () => {
+    expect(TITLE_FONT_FILES).toEqual({ bd: 'chars-bd.txt', eb: 'chars-eb.txt' })
   })
 
   it('首屏小標在官網用系統字，不提示缺字（避免誤報）', async () => {
-    mockCharsets({ bd: '高雄', eb: '高雄', serif: '高雄' })
+    mockCharsets({ bd: '高雄', eb: '高雄' })
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_hero', { eyebrow: '高雄五校・1997 創校', copy_lines: ['一', '二'] }) as never)
     const wrapper = await mountAs(HomeHeroView, superAdmin(), '/content/home-hero')
     await wrapper.findAll('input')[0]!.setValue('鳳山新校區')

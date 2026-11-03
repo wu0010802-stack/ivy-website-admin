@@ -1,9 +1,9 @@
 /* 入學資訊頁「入學護照」（2026-09-28，比稿 design/admission-theme-directions-20260928/b-passport/）。
    比喻：打開的護照。深綠是封面（只在 hero 外框露出），內頁是兩種證件紙（淡薄荷 --ivy-passport-page、米白 --ivy-news-paper），
    防偽細紋只當質感（對底紙約 1.1:1）。印章兩種墨：朱紅 --ivy-passport-red、品牌深綠 --green；金色只用在封面燙金字。
-   顏色一律走 tokens.css；這裡的衍生色都是 token 之間的 color-mix，不寫色碼。字型：標題 LINE Seed、內文系統字，
-   印章與寫死的小標用明體 Ivy Passport Serif（Noto Serif TC 自託管分片，assets/css/admission-fonts.css）；
-   會顯示後台文字的小標（二部曲標籤、星期、退費小項）不用明體，避免後台改字時缺字。 */
+   顏色一律走 tokens.css；這裡的衍生色都是 token 之間的 color-mix，不寫色碼。字型跟全站一致（2026-11-03 字型統一）：
+   標題、印章與券根 LINE Seed 700（印章原本明體 Black 900；用 800 會多一組 ExtraBold 分片，本頁超過每頁 100 KB）、小標與內文系統字。
+   原本護照用的明體已退場。 */
 
 .ap {
   --ap-page: var(--ivy-passport-page);
@@ -15,7 +15,6 @@
   --ap-line-alt: color-mix(in oklch, var(--ap-page-alt) 91%, var(--leaf));
   --ap-line-soft: color-mix(in oklch, var(--ap-page-alt) 93%, var(--leaf));
   --ap-rule: color-mix(in oklch, var(--ap-page) 55%, var(--green));
-  --ap-serif: 'Ivy Passport Serif', 'Noto Serif TC', 'PingFang TC', serif;
   --ap-ease: cubic-bezier(.16, 1, .3, 1);
   --ap-gutter: clamp(20px, 5vw, 64px);
   background: var(--ap-desk);
@@ -41,7 +40,7 @@
 .ap-stamp svg { display: block; overflow: visible; }
 .ap-stamp.tone-red { color: var(--ap-red); }
 .ap-stamp.tone-green { color: var(--green); }
-.ap-stamp text { fill: currentColor; font-family: var(--ap-serif); font-weight: 900; }
+.ap-stamp text { fill: currentColor; font-family: var(--font-head); font-weight: 700; }
 .ap-stamp-host { position: relative; }
 
 /* ── 防偽細紋（utils/guilloche.ts）── */
@@ -57,7 +56,7 @@
 /* 書脊：兩頁交界的一道陰影，左頁往右暗、右頁往左暗 */
 .ap-page-photo { background: linear-gradient(90deg, var(--ap-page) 88%, color-mix(in oklch, var(--ap-page) 90%, var(--text)) 100%); }
 .ap-page-title { display: flex; flex-direction: column; overflow: hidden; background: linear-gradient(90deg, color-mix(in oklch, var(--ap-page) 88%, var(--text)) 0, var(--ap-page) 7%); }
-.ap-runhead { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 10px; margin-bottom: 28px; border-bottom: 1px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .12em; color: var(--muted); }
+.ap-runhead { display: flex; justify-content: space-between; gap: 16px; padding-bottom: 10px; margin-bottom: 28px; border-bottom: 1px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .12em; color: var(--muted); }
 .ap-photo { position: relative; }
 .ap-photo-frame { padding: 8px; border: 1px solid var(--ap-rule); background: var(--white); }
 .ap-photo img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; object-position: 55% 40%; }
@@ -71,14 +70,14 @@
 .ap-action { align-self: flex-start; display: inline-flex; align-items: center; gap: 18px; min-height: 56px; margin-top: 32px; padding: 0 22px 0 24px; border: 2px solid var(--green); border-radius: 6px; box-shadow: inset 0 0 0 3px var(--ap-page), inset 0 0 0 4px var(--green); background: var(--ap-page); color: var(--green); font-weight: 700; text-decoration: none; transition: background-color .2s var(--ap-ease), color .2s var(--ap-ease), box-shadow .2s var(--ap-ease); }
 .ap-notice { display: flex; gap: 10px; max-width: 30em; margin-top: 26px; font-size: var(--fs-sm); color: var(--muted); }
 .ap-notice::before { content: ''; flex: none; width: 8px; height: 8px; margin-top: .6em; border-radius: 50%; background: var(--ap-red); }
-.ap-cover-mark { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .6em; color: var(--gold); }
+.ap-cover-mark { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .6em; color: var(--gold); }
 @media (hover: hover) {
   .ap-action:hover { background: var(--green); color: var(--white); box-shadow: inset 0 0 0 3px var(--green), inset 0 0 0 4px var(--ap-page); }
 }
 
 /* 目錄頁：點線引到頁碼 */
 .ap-toc { width: min(1200px, 100% - 2 * var(--ap-gutter)); margin: 44px auto 0; }
-.ap-toc-title { font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .4em; color: var(--muted); }
+.ap-toc-title { font: 600 var(--fs-sm)/1.6 var(--font); letter-spacing: .4em; color: var(--muted); }
 .ap-toc ol { display: grid; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); column-gap: 32px; margin-top: 10px; border-top: 1px solid var(--ap-rule); }
 .ap-toc a { display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: 'head head head' 'hint leader page'; column-gap: 10px; align-items: baseline; padding: 16px 0 18px; text-decoration: none; color: inherit; }
 .ap-toc-head { grid-area: head; display: flex; align-items: baseline; gap: 10px; }
@@ -86,7 +85,7 @@
 .ap-toc b { font: 700 var(--fs-lg)/1.5 var(--font-head); }
 .ap-toc-hint { grid-area: hint; font-size: var(--fs-xs); color: var(--muted); }
 .ap-leader { grid-area: leader; align-self: end; height: 1px; margin-bottom: .45em; background-image: radial-gradient(circle, var(--ap-rule) 1px, transparent 1.2px); background-size: 6px 2px; background-repeat: repeat-x; }
-.ap-toc-page { grid-area: page; font: 600 var(--fs-xs)/1.6 var(--ap-serif); color: var(--muted); }
+.ap-toc-page { grid-area: page; font: 600 var(--fs-xs)/1.6 var(--font); color: var(--muted); }
 @media (hover: hover) {
   .ap-toc a:hover b { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
 }
@@ -99,13 +98,13 @@
 .ap-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 64px; align-items: end; margin-bottom: 56px; }
 .ap-head h2 { font-size: clamp(2.125rem, 3.2vw, 3rem); line-height: 1.45; color: var(--deep); }
 .ap-head p { max-width: 32em; font-size: var(--fs-md); color: var(--muted); }
-.ap-sub { margin-bottom: 16px; font: 600 var(--fs-sm)/1.6 var(--ap-serif); letter-spacing: .3em; color: var(--muted); }
+.ap-sub { margin-bottom: 16px; font: 600 var(--fs-sm)/1.6 var(--font); letter-spacing: .3em; color: var(--muted); }
 
 /* ── 第 2 頁：簽證欄（表格線，不做卡片）── */
 .ap-visas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1.5px solid var(--ap-rule); border-left: 1.5px solid var(--ap-rule); }
 .ap-visa { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 112px; grid-template-rows: auto auto 1fr; column-gap: 12px; min-height: 216px; padding: 20px 20px 24px 24px; border-right: 1.5px solid var(--ap-rule); border-bottom: 1.5px solid var(--ap-rule); }
 .ap-visa-head { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 12px; padding-bottom: 12px; font-size: var(--fs-xs); }
-.ap-visa-no { font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .12em; color: var(--muted); }
+.ap-visa-no { font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .12em; color: var(--muted); }
 .ap-visa-when { padding: 0 10px; border: 1px solid var(--ap-rule); border-radius: 999px; font-weight: 600; color: var(--green); }
 .ap-visa h3 { grid-column: 1; font-size: var(--fs-2xl); line-height: 1.4; color: var(--deep); }
 .ap-visa p { grid-column: 1; margin-top: 8px; font-size: var(--fs-sm); line-height: 1.85; }
@@ -118,7 +117,7 @@
 .ap-datapage .ap-rosette { stroke: var(--ap-line-soft); }
 .ap-datapage > :not(.ap-rosette-host) { position: relative; }
 .ap-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 32px; align-content: start; }
-.ap-field label, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-field label, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
 .ap-field input { width: 100%; min-height: 54px; padding: 8px 16px; border: 1.5px solid var(--green); border-radius: 6px; background: var(--white); color: var(--text); font: inherit; font-size: var(--fs-lg); }
 /* 焦點框用全站的葉綠（2026-10-13）：紅框像是填錯了。 */
 .ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
@@ -133,7 +132,7 @@
 .ap-answer-next li::before { content: ''; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
 .ap-stampzone { grid-area: stamp; display: grid; place-items: center; min-height: 260px; }
 .ap-stampzone::before { content: ''; grid-area: 1 / 1; width: 236px; height: 236px; border: 1.5px dashed var(--ap-rule); border-radius: 50%; transition: opacity .3s var(--ap-ease); }
-.ap-stamp-hint { grid-area: 1 / 1; text-align: center; font: 600 var(--fs-sm)/1.7 var(--ap-serif); letter-spacing: .12em; color: var(--muted); transition: opacity .3s var(--ap-ease); }
+.ap-stamp-hint { grid-area: 1 / 1; text-align: center; font: 600 var(--fs-sm)/1.7 var(--font); letter-spacing: .12em; color: var(--muted); transition: opacity .3s var(--ap-ease); }
 .ap-stampzone.stamped::before, .ap-stampzone.stamped .ap-stamp-hint { opacity: 0; }
 .ap-result { grid-area: 1 / 1; z-index: 1; width: 230px; height: 230px; }
 .ap-result .ap-stamp { position: absolute; inset: 0; }
@@ -213,7 +212,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-phase-head > div { container-type: inline-size; }
 .ap-keep { display: inline-block; font-size: min(1em, calc(100cqi / (var(--ap-keep-chars, 8) + .3))); }
 .ap-bring { margin-top: 20px; }
-.ap-bring legend { margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-bring legend { margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
 .ap-bring label { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 52px; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px dashed var(--ap-rule); cursor: pointer; }
 .ap-bring input { position: absolute; width: 26px; height: 26px; margin: 0; opacity: 0; }
 .ap-box { width: 22px; height: 22px; border: 1.5px solid var(--green); border-radius: 4px; background: var(--white); transition: background-color .2s var(--ap-ease); }
@@ -223,7 +222,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-bring input:checked ~ .ap-item { color: var(--muted); }
 .ap-done { width: 52px; height: 46px; }
 .ap-done .ap-stamp { position: absolute; left: 3px; top: 0; }
-.ap-phase h4 { margin-top: 26px; font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-phase h4 { margin-top: 26px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
 .ap .ap-tips { margin-top: 8px; }
 .ap-tips li { position: relative; padding: 10px 0 10px 34px; font-size: var(--fs-sm); line-height: 1.85; }
 .ap-tips li + li { border-top: 1px solid color-mix(in oklch, var(--ap-page-alt) 70%, var(--ap-rule)); }
@@ -240,7 +239,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-notices { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr)); gap: 32px; margin-top: 56px; }
 .ap-notice-page h3 { padding-bottom: 12px; border-bottom: 1px solid var(--ap-rule); font-size: var(--fs-xl); color: var(--deep); }
 .ap-clauses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px dashed var(--ap-rule); font-size: var(--fs-sm); line-height: 1.85; }
-.ap-clause-mark { font: 600 var(--fs-xs)/1.9 var(--ap-serif); color: var(--muted); }
+.ap-clause-mark { font: 600 var(--fs-xs)/1.9 var(--font); color: var(--muted); }
 
 /* ── 第 5 頁：收退費 ── */
 .ap-coupons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
@@ -261,8 +260,8 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 @supports (width: 1cqi) { .ap-coupon-amt b { font-size: clamp(var(--fs-4xl), (100cqi - 64px) / 3.7, var(--fs-5xl)); } }
 .ap-coupon-who { margin-top: auto; padding-top: 14px; font-size: var(--fs-md); font-weight: 700; }
 .ap-coupon-stub { display: grid; place-content: center; justify-items: center; gap: 6px; border-left: 2px dashed var(--ap-rule); background: color-mix(in oklch, var(--white) 70%, var(--ap-page)); }
-.ap-coupon-stub > span { writing-mode: vertical-rl; font: 900 var(--fs-lg)/1 var(--ap-serif); letter-spacing: .3em; color: var(--ap-red); }
-.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--ap-serif); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--muted); }
+.ap-coupon-stub > span { writing-mode: vertical-rl; font: 700 var(--fs-lg)/1 var(--font-head); letter-spacing: .3em; color: var(--ap-red); }
+.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--font-head); font-size: var(--fs-xs); letter-spacing: .1em; color: var(--muted); }
 /* 直排裡的「01」縱中橫：兩位數字直立占一格，不再橫躺壓到「第」（2026-10-13）。字型跟「補助券」一樣用護照明體：
    內文的黑體備用字型沒有直排字距資料時，縱中橫的數字會疊在「第」上。 */
 .ap-tcy { text-combine-upright: all; letter-spacing: 0; }
@@ -273,7 +272,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-rate caption b { display: block; font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--deep); }
 .ap-rate caption small { font-size: var(--fs-xs); color: var(--muted); }
 .ap-rate th, .ap-rate td { padding: 14px 18px; border-bottom: 1px dashed var(--ap-rule); text-align: left; }
-.ap-rate thead th { border-bottom: 1.5px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .14em; color: var(--muted); }
+.ap-rate thead th { border-bottom: 1.5px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
 .ap-rate tbody th { font-weight: 600; }
 .ap-rate td { text-align: right; font-size: var(--fs-sm); color: var(--muted); }
 .ap-rate thead th:last-child { text-align: right; }
@@ -284,7 +283,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-refunds ol > li { border-bottom: 1px solid var(--ap-rule); }
 .ap-refunds summary { display: grid; grid-template-columns: 64px minmax(0, 1fr) 28px; gap: 12px; align-items: center; min-height: 62px; padding: 8px 0; list-style: none; cursor: pointer; }
 .ap-refunds summary::-webkit-details-marker { display: none; }
-.ap-clause-no { font: 600 var(--fs-xs)/1.6 var(--ap-serif); letter-spacing: .08em; color: var(--ap-red); }
+.ap-clause-no { font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .08em; color: var(--ap-red); }
 .ap-clause-title { font-weight: 700; }
 .ap-refunds summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
 .ap-refunds details[open] summary .icon { transform: rotate(45deg); }

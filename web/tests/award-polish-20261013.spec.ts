@@ -71,7 +71,7 @@ describe('入學頁第二批（2026-10-13 逐頁檢查）', () => {
     expect(read('app/components/AdmissionContent.vue')).toContain('<small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small>')
     expect(css).toContain('.ap-tcy { text-combine-upright: all; letter-spacing: 0; }')
     expect(css).toContain('.ap-coupon-stub > span { writing-mode')
-    expect(css).toContain('.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--ap-serif);')
+    expect(css).toContain('.ap-coupon-stub small { writing-mode: vertical-rl; font-family: var(--font-head);')
   })
   it('`.ap ol { margin: 0 }` 權重較高：班別條、答案下一行、叮嚀清單的間距選擇器帶 .ap', () => {
     expect(css).toContain('.ap ol, .ap ul { margin: 0; padding: 0; list-style: none; }')

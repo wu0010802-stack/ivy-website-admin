@@ -2,7 +2,8 @@
    校園環境與幼兒餐點照 A 用圓點串起來、照片不放說明（D2）。取代 09-28 起的手繪版（點格紙、Rough.js、蠟筆塗鴉）。
    北歐木玩／蒙特梭利教具的幾何：照片裝在積木形狀裡，每塊積木一個正面色＋同色深一階的「側面」往下錯開表現厚度，
    扁平、俐落，不用木紋、斜紋或任何雜訊紋理（使用者 10-30：舊版「有點髒、解析度不夠高」）。
-   字型沿用這頁自架的圓體 Chiron GoRound TC（標題 800、小標 700、內文 400，environment-fonts.css）。
+   字型跟全站一致（2026-11-03 字型統一）：標題與積木上的名稱、數字用 LINE Seed TW 700（--font-head），
+   內文、小標籤、按鈕用系統字（--font）。原本的圓體與手寫字已退場。
    顏色一律走下方 token（站內 token 或本頁的 --renv-* 別名，色值在 tokens.css 第 15 節），規則裡不寫色彩字面值。
    這支不是 scoped：圓點小路的 circle 是 JS 建的，沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。 */
 
@@ -23,7 +24,6 @@
   --renv-forest:var(--ivy-env-forest);
   --renv-forest-side:var(--ivy-env-forest-side);
   --renv-cream-side:var(--ivy-env-cream-side);
-  --renv-round:"Chiron GoRound TC",var(--font);
   --renv-ease:cubic-bezier(.22,1,.36,1);
   --renv-gutter:clamp(16px,4vw,56px);
   /* 積木的厚度（側面往下錯開）與兩種圓角 */
@@ -31,13 +31,15 @@
   --rs:14px;
   --rm:28px;
   position:relative;isolation:isolate;overflow-x:clip;
-  font-family:var(--renv-round);color:var(--renv-ink);background:var(--renv-paper);
+  font-family:var(--font);color:var(--renv-ink);background:var(--renv-paper);
 }
 body:has(.renv){background:var(--ivy-env-paper)}
 /* 內文避免孤字（2026-10-12）。:where 不加權重，個別元件的設定照樣贏；標題照舊 balance。 */
 .renv :where(p,li){text-wrap:pretty}
-/* 站內全域 CSS 對 h1–h4 直接指定 LINE Seed，這頁的標題要明寫圓體，不能只靠繼承 */
-.renv :where(h1,h2,h3,h4){font-family:var(--renv-round);margin:0}
+/* 標題，以及積木上的名稱、數字（展示用的字）用 LINE Seed。名稱與數字那組不包 :where：
+   .renv-tour-tab 自己有 font:inherit，要靠權重 (0,2,0) 壓過它。 */
+.renv :where(h1,h2,h3,h4){font-family:var(--font-head);margin:0}
+.renv .renv-dot,.renv .renv-index-no,.renv .renv-index-name,.renv .renv-hearts b,.renv .renv-stop-no,.renv .renv-day-list time,.renv .renv-day-list b,.renv .renv-tour-tab,.renv .renv-next-title,.renv .renv-next-link b{font-family:var(--font-head)}
 .renv :where(p,ul,ol){margin:0}
 .renv :where(ul,ol){padding:0;list-style:none}
 .renv-wrap{width:min(100% - 2*var(--renv-gutter),1240px);margin-inline:auto;position:relative}
@@ -74,10 +76,10 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-ph-back{position:absolute;z-index:-1;left:0;top:0;width:100%;translate:var(--bx,22px) var(--by,22px)}
 
 /* 小圓積木裡的編號 */
-.renv-dot{display:inline-grid;place-items:center;flex:none;width:2.6em;height:2.6em;border-radius:50%;background:var(--c);box-shadow:0 4px 0 var(--s);color:var(--renv-ink);font-weight:800;font-size:.95rem;line-height:1;font-variant-numeric:tabular-nums}
+.renv-dot{display:inline-grid;place-items:center;flex:none;width:2.6em;height:2.6em;border-radius:50%;background:var(--c);box-shadow:0 4px 0 var(--s);color:var(--renv-ink);font-weight:700;font-size:.95rem;line-height:1;font-variant-numeric:tabular-nums}
 
 /* ---------- 字 ---------- */
-.renv h1,.renv-title,.renv-feature-copy h3,.renv-day-title{font-weight:800;letter-spacing:.02em;color:var(--renv-ink);text-wrap:balance}
+.renv h1,.renv-title,.renv-feature-copy h3,.renv-day-title{font-weight:700;letter-spacing:.02em;color:var(--renv-ink);text-wrap:balance}
 .renv h1>span,.renv-title>span,.renv-feature-copy h3>span{display:block}
 /* 大標字級上限＝字欄寬 ÷ 9.6（一行 9 字＋螢光塊的內外距）：901–1100 兩欄時字欄只剩約 350px，原本會擠成「…安心長／大。」 */
 .renv h1{font-size:clamp(1.75rem,min(1rem + 3.6vw,10.4cqi),3.85rem);line-height:1.2}
@@ -113,8 +115,8 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-index{grid-area:toc;align-self:end}
 .renv-index ul{display:grid;grid-template-columns:auto auto;justify-content:start;align-items:end;gap:30px 22px;margin-top:44px}
 .renv-index a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
-.renv-index-no{font-weight:800;font-size:1.55rem;line-height:1;font-variant-numeric:tabular-nums;margin-bottom:6px}
-.renv-index-name{font-weight:800;font-size:1.2rem;line-height:1.3}
+.renv-index-no{font-weight:700;font-size:1.55rem;line-height:1;font-variant-numeric:tabular-nums;margin-bottom:6px}
+.renv-index-name{font-weight:700;font-size:1.2rem;line-height:1.3}
 .renv-index-hint{font-size:.86rem;line-height:1.5}
 .renv-index li:nth-child(1) a{width:192px}
 .renv-index li:nth-child(2) a{--ar:.84;width:188px;padding-top:34px}
@@ -195,27 +197,27 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-day-list time{font-weight:700;font-size:1.1rem;line-height:1.4;font-variant-numeric:tabular-nums;color:var(--renv-ink-soft);letter-spacing:.02em}
 .renv-stn{position:relative;z-index:1;display:grid;place-items:center;width:112px;aspect-ratio:1;margin-top:12px;border-radius:50%}
 .renv-stn svg{width:52px;height:52px;overflow:visible}
-.renv-day-list b{margin-top:20px;font-weight:800;font-size:1.3rem;line-height:1.4}
+.renv-day-list b{margin-top:20px;font-weight:700;font-size:1.3rem;line-height:1.4}
 .renv-day-list small{display:block;margin-top:2px;color:var(--renv-ink-soft);font-size:.95rem;line-height:1.6}
 .renv-day-list p{margin-top:6px;max-width:12em;color:var(--renv-ink-soft);font-size:var(--fs-sm);line-height:1.7}
 
 /* ---------- 04 五所校園：方形積木分頁（放線稿），選中的「按下去」 ---------- */
 .renv-tour-head .renv-text{margin-top:20px}
 .renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px;margin-top:52px;padding-bottom:var(--side)}
-.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.94;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:800;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
+.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.94;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:700;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
 .renv-tour-art{position:relative;display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
 /* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊。
    2026-11-03 起墊一層透明底淡彩 `-wash`（建築上色），兩層都有定位、照 DOM 順序疊，墨線在上；object-fit 相同才對位。 */
 .renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:contain;object-position:50% 62%}
 .renv-tour-tab .renv-tour-wash{position:absolute;inset:0}
 @media (hover:hover){.renv-tour-tab:hover{transform:translateY(-2px);box-shadow:0 calc(var(--side) + 2px) 0 var(--s)}}
-.renv-tour-tab b{display:flex;align-items:center;gap:8px;font-weight:800}
+.renv-tour-tab b{display:flex;align-items:center;gap:8px;font-weight:700}
 .renv-tour-tab[aria-selected="true"]{transform:translateY(5px);box-shadow:0 2px 0 var(--s),inset 0 0 0 3px var(--renv-ink)}
 .renv-tour-tab[aria-selected="true"] b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--renv-ink)}
 .renv-tour-panel{margin-top:64px;outline-offset:12px}
 .renv :is(.renv-tour-panel):focus-visible{outline:3px solid var(--leaf);border-radius:8px}
 .renv-tour-panel-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;margin-bottom:40px}
-.renv-tour-panel-head h3{font-weight:800;font-size:clamp(1.6rem,1.1rem + 1.2vw,2.2rem);line-height:1.25}
+.renv-tour-panel-head h3{font-weight:700;font-size:clamp(1.6rem,1.1rem + 1.2vw,2.2rem);line-height:1.25}
 .renv-tour-panel-head p{color:var(--renv-ink-soft)}
 .renv-scenes{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:56px clamp(48px,6vw,88px);align-items:start}
 .renv-scene h4{font-weight:700;font-size:1.25rem;line-height:1.45}
@@ -226,10 +228,10 @@ body:has(.renv){background:var(--ivy-env-paper)}
 
 /* ---------- 結尾：三塊積木連結（不放預約） ---------- */
 .renv-next{padding-block:clamp(72px,8vw,112px) clamp(88px,9vw,128px)}
-.renv-next-title{font-weight:800;font-size:clamp(1.5rem,1.1rem + 1vw,2rem);line-height:1.3;text-align:center;letter-spacing:.02em}
+.renv-next-title{font-weight:700;font-size:clamp(1.5rem,1.1rem + 1vw,2rem);line-height:1.3;text-align:center;letter-spacing:.02em}
 .renv-next-list{display:flex;justify-content:center;align-items:flex-end;gap:clamp(20px,3vw,40px);margin-top:48px}
 .renv-next-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
-.renv-next-link b{font-weight:800;font-size:1.35rem;line-height:1.3}
+.renv-next-link b{font-weight:700;font-size:1.35rem;line-height:1.3}
 .renv-next-link small{font-size:.93rem}
 .renv-next-list li:nth-child(1) .renv-next-link{--ar:.95;width:250px;padding-top:40px}
 .renv-next-list li:nth-child(2) .renv-next-link{width:222px}

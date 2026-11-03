@@ -59,10 +59,10 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
   const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)) }
   const storyTitle = (html: string) => /<h2 id="story-title"[^>]*>(.*?)<\/h2>/.exec(html)![1]!.replace(/<br[^>]*>/g, '\n').replace(/<!--.*?-->/g, '')
 
-  it('2026 年：第一章「走到今年，是第 30 年。」，首屏介紹照原文「近三十年來」', async () => {
+  it('2026 年：第一章「走到今年⏎是第 30 年」（標題不放逗號句號），首屏介紹照原文「近三十年來」', async () => {
     at('2026-10-31T04:00:00Z')
     const html = await render(site.aboutPage)
-    expect(storyTitle(html)).toBe('走到今年，\n是第 30 年。')
+    expect(storyTitle(html)).toBe('走到今年\n是第 30 年')
     expect(html).toContain('近三十年來，我們守著')
     expect(html).not.toContain('長出五所校園')
   })
@@ -70,14 +70,14 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
   it('台北 2027 年元旦（UTC 還是 2026）就換成「滿 30 年」「三十年來」', async () => {
     at('2026-12-31T16:30:00Z')
     const html = await render(site.aboutPage)
-    expect(storyTitle(html)).toBe('走到今年，\n滿 30 年。')
+    expect(storyTitle(html)).toBe('走到今年\n滿 30 年')
     expect(html).toContain('。三十年來，我們守著')
   })
 
-  it('後台改寫過第一章標題就照後台，不換算', async () => {
+  it('後台改寫過第一章標題就照後台，不換算（逗號句號照樣拿掉）', async () => {
     at('2026-10-31T04:00:00Z')
     const html = await render({ ...site.aboutPage, storyTitle: '一路走來，\n五所校園。' })
-    expect(storyTitle(html)).toBe('一路走來，\n五所校園。')
+    expect(storyTitle(html)).toBe('一路走來\n五所校園')
   })
 
   it('30 週年開關打開才接 /anniversary', async () => {

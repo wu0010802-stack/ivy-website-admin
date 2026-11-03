@@ -139,7 +139,7 @@
 .visit-aside-photo img {width:100%;height:100%;object-fit:cover;animation:visit-photo-in .7s var(--visit-ease)}
 .visit-aside-caption {display:block;margin-top:26px}
 .visit-aside-district {display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--visit-muted)}
-.visit-aside-name {display:block;margin:8px 0 10px;color:var(--visit-ink);font:500 clamp(2.75rem,3.6vw,3.5rem)/1.2 var(--font-serif);letter-spacing:.065em}
+.visit-aside-name {display:block;margin:8px 0 10px;color:var(--visit-ink);font:700 clamp(2.75rem,3.6vw,3.5rem)/1.2 var(--font-head);letter-spacing:.04em}
 .visit-aside-info {display:grid;gap:2px;margin-top:18px;padding-top:14px;border-top:1px solid var(--visit-line);font-size:var(--fs-sm);color:var(--visit-muted)}
 .visit-aside-info p,.visit-aside-phone {display:flex;align-items:center;gap:10px;max-width:none;line-height:1.7}
 .visit-aside-info p {min-height:36px}

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
@@ -150,15 +150,17 @@ describe('首屏按鈕文字（2026-09-23 拿掉首屏按鈕）', () => {
   })
 })
 
-describe('明體子集字表', () => {
-  it('chars-serif.txt 等於三個明體子集的字元聯集（後台缺字提示讀這份）', () => {
-    const dir = resolve(__dirname, '../public/assets/fonts')
-    const union = new Set<string>()
-    for (const name of ['campus', 'visit', 'admission']) {
-      const record = JSON.parse(readFileSync(resolve(dir, `noto-serif-tc-500-${name}.json`), 'utf8')) as { characters: string }
-      for (const char of record.characters) union.add(char)
+describe('字型統一（2026-11-03）', () => {
+  it('全站標題只用 LINE Seed TW：明體（分校、入學護照）與環境頁圓體、芫荽都已退場，字檔與宣告不留', () => {
+    const dir = resolve(__dirname, '../app')
+    const files = readdirSync(resolve(dir, 'assets/css')).map((name) => `assets/css/${name}`)
+      .concat(readdirSync(resolve(dir, 'components')).filter((name) => name.endsWith('.vue')).map((name) => `components/${name}`))
+    for (const file of files) {
+      expect(readFileSync(resolve(dir, file), 'utf8'), file).not.toMatch(/Ivy Campus Serif|Ivy Passport Serif|Noto Serif TC|--font-serif|--ap-serif|Chiron GoRound|Iansui/)
     }
-    const listed = new Set(readFileSync(resolve(dir, 'chars-serif.txt'), 'utf8').trim())
-    expect([...listed].sort()).toEqual([...union].sort())
+    const fonts = resolve(__dirname, '../public/assets/fonts')
+    for (const gone of ['admission', 'environment', 'chars-serif.txt', 'chars-environment.txt', 'noto-serif-tc-500-campus.woff']) {
+      expect(existsSync(resolve(fonts, gone)), gone).toBe(false)
+    }
   })
 })

@@ -9,7 +9,7 @@ import type { TitleFontSubset } from '../composables/useTitleFontCoverage'
 // 官網也會在欄寬處自動再折一行（首屏大標桌機每行約 9 字，見特色教學頁的 help）。
 // 其他欄位官網不換行（後端也擋），所以按 Enter 不會換行；multiline 只是輸入框長一點。
 // 缺字提示：標題欄位預設檢查官網標題字型（bd）；fonts 指定時不分標題或內文都檢查那些字型
-// （環境頁整頁都是圓體與手寫字，傳 ['environment']）。
+// （例如環境頁的章名、名稱類欄位在官網用 LINE Seed，傳 ['bd']）。
 // el-form 的 disabled 會一路傳到這裡的輸入框，不另外接。
 const model = defineModel<string>({ required: true })
 // 輸入法選字時按的 Enter 不算（isComposing；Safari 在選字結束那一下是 keyCode 229）。
@@ -43,7 +43,7 @@ withDefaults(defineProps<{ label: string; hint: LengthHintKey; title?: boolean; 
     <el-input v-else v-model="model" />
     <LengthHint :value="model" :rule="hint" />
     <GlyphHint v-if="title || fonts" :value="model" :fonts="fonts" />
-    <span v-if="title" class="field-help">按 Enter 換行，官網一定在同一個地方斷行；一行太長時官網會再自動折行。最多三行。</span>
+    <span v-if="title" class="field-help">按 Enter 換行，官網一定在同一個地方斷行；一行太長時官網會再自動折行。最多三行。逗號、句號官網會自動拿掉（行尾省略，行中間換成空格）。</span>
     <span v-if="help" class="field-help">{{ help }}</span>
   </el-form-item>
 </template>

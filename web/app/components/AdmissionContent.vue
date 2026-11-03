@@ -13,7 +13,6 @@ import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
 import { splitStampText } from '~/utils/passport-stamp'
 import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
-import { ADMISSION_FONT_PRELOAD, attachAdmissionFontStylesheet } from '~/utils/admission-fonts'
 import type { AdmissionContent } from '~/types/site-content'
 
 const props = defineProps<{ admission: AdmissionContent }>()
@@ -129,8 +128,6 @@ function drawGuilloche() {
   rosettes.value = nextRosettes
 }
 
-useHead({ link: ADMISSION_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: '' })) })
-
 let disposed = false
 let stopObserving: (() => void) | undefined
 let welcomeTimer: number | undefined
@@ -140,7 +137,6 @@ function onResize() {
   resizeTimer = window.setTimeout(drawGuilloche, 150)
 }
 onMounted(async () => {
-  attachAdmissionFontStylesheet(document)
   drawGuilloche()
   window.addEventListener('resize', onResize)
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -213,7 +209,7 @@ onBeforeUnmount(() => {
               <svg v-if="rosettes.hero" class="ap-rosette" :viewBox="`0 0 ${rosettes.hero.size} ${rosettes.hero.size}`" focusable="false"><path v-for="(d, i) in rosettes.hero.paths" :key="i" :d="d" /></svg>
             </div>
             <div class="ap-runhead"><span>持照人：寶貝與爸爸媽媽</span><span>第 1 頁</span></div>
-            <h1 id="admission-title">從參觀到開學，<br>一步一步來。</h1>
+            <h1 id="admission-title">從參觀到開學<br>一步一步來</h1>
             <p v-if="admission.intro" class="ap-lede">{{ admission.intro }}</p>
             <a class="ap-action" href="#birthday-tool">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
             <p v-if="admission.notice" class="ap-notice">{{ admission.notice }}</p>
@@ -245,7 +241,7 @@ onBeforeUnmount(() => {
       <div class="ap-wrap">
         <div class="ap-runhead"><span>{{ chapterOf('process')?.no }}・入學流程</span><span>第 {{ chapterOf('process')?.page }} 頁</span></div>
         <div class="ap-head">
-          <h2 id="process-title">每走一步，<br>就蓋一個章。</h2>
+          <h2 id="process-title">每走一步<br>就蓋一個章</h2>
           <p>每一步都有老師陪著確認，不確定的地方，參觀時直接問我們。</p>
         </div>
         <ol class="ap-visas">
@@ -450,7 +446,7 @@ onBeforeUnmount(() => {
       <div class="ap-wrap">
         <div class="ap-runhead"><span>{{ chapterOf('fees')?.no }}・收退費辦法</span><span>第 {{ chapterOf('fees')?.page }} 頁</span></div>
         <div class="ap-head">
-          <h2 id="fees-title">補助與退費，<br>一次看清楚。</h2>
+          <h2 id="fees-title">補助與退費<br>一次看清楚</h2>
           <p v-if="admission.feeIntro">{{ admission.feeIntro }}</p>
         </div>
         <template v-if="admission.subsidies.length">
@@ -505,5 +501,4 @@ onBeforeUnmount(() => {
   </main>
 </template>
 
-<style src="../assets/css/admission-fonts.css"></style>
 <style src="../assets/css/admission-passport.css"></style>

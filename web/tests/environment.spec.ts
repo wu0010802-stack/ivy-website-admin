@@ -9,7 +9,6 @@ import { environmentSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ENVIRONMENT_HERO_ASPECT, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, responsiveImage } from '../app/utils/responsive-image'
 import { daySegments, dotCount, mapSegments, mapSegmentsNarrow } from '../app/utils/environment-route'
 import manifest from '../app/generated/image-manifest.json'
-import fontManifest from '../app/generated/environment-font-manifest.json'
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
@@ -130,44 +129,14 @@ describe('常春藤環境頁木頭積木版（2026-10-30 比稿選 D，校園環
     for (const gone of ['../app/utils/rough-sketch.ts', '../app/utils/environment-motion.ts', '../app/utils/environment-doodles.ts']) expect(existsSync(fileURLToPath(new URL(gone, import.meta.url)))).toBe(false)
   })
 
-  it('字型：圓體 400／700／800 與芫荽各有 critical 分片，大標那片預載，檔案都在 public', () => {
-    const faces = fontManifest.faces as Record<string, { critical: { src: string; characters: number } }>
-    const publicFile = (url: string) => fileURLToPath(new URL(`../public${url}`, import.meta.url))
-    expect(Object.keys(faces).sort()).toEqual(['hand-400', 'round-400', 'round-700', 'round-800'])
-    expect(fontManifest.preload).toEqual([faces['round-800']!.critical.src])
-    const inline = read('../app/assets/css/environment-fonts.css')
-    for (const [key, face] of Object.entries(faces)) {
-      expect(existsSync(publicFile(face.critical.src)), key).toBe(true)
-      expect(inline).toContain(`src:url(${face.critical.src})`)
-    }
-    expect(existsSync(publicFile(fontManifest.stylesheet.src))).toBe(true)
-    for (const weight of [400, 700, 800]) expect(inline).toContain(`font-family:'Chiron GoRound TC';font-weight:${weight};`)
-    expect(inline).toContain("font-family:'Iansui';font-weight:400;")
-  })
-
-  it('一開始畫得到的字都在 critical；隱藏分頁的字在 tour 分片（environment-font-chars.json）', () => {
-    const chars = JSON.parse(read('../app/generated/environment-font-chars.json')).groups as Record<string, string>
-    const inline = read('../app/assets/css/environment-fonts.css')
-    const faces = fontManifest.faces as Record<string, { critical: { characters: number } }>
-    const covered = (family: string, weight: string, kind: string) => {
-      const rule = inline.split('\n').find((line) => line.includes(`font-family:'${family}';font-weight:${weight};`) && line.includes(`-${kind}-`))
-      const ranges = (rule?.match(/unicode-range:([^}]+)/)?.[1] ?? '').split(',').filter(Boolean)
-      return (cp: number) => ranges.some((range) => {
-        const [a, b = a] = range.replace('U+', '').split('-').map((hex) => parseInt(hex, 16))
-        return cp >= a! && cp <= b!
-      })
-    }
-    for (const [key, text] of Object.entries(chars)) {
-      const [code, weight, hidden] = key.split('-')
-      const family = code === 'round' ? 'Chiron GoRound TC' : 'Iansui'
-      expect(faces[`${code}-${weight}`], key).toBeTruthy()
-      const inCritical = covered(family, weight!, 'critical')
-      const inTour = covered(family, weight!, 'tour')
-      for (const char of new Set(text)) {
-        const cp = char.codePointAt(0)!
-        expect(hidden ? inCritical(cp) || inTour(cp) : inCritical(cp), `${key} ${char}`).toBe(true)
-      }
-    }
+  it('字型跟全站一致（2026-11-03）：標題與積木上的名稱用 LINE Seed、內文系統字，不再載圓體與芫荽', () => {
+    const css = read('../app/assets/css/environment.css')
+    expect(component).not.toMatch(/environment-fonts/)
+    expect(css).not.toMatch(/Chiron|Iansui|renv-round/)
+    expect(css).toMatch(/\.renv\{[^}]*font-family:var\(--font\);/)
+    expect(css).toContain('.renv :where(h1,h2,h3,h4){font-family:var(--font-head);')
+    // LINE Seed 只用 Bold 700（已預載的那個字重），800 留給首屏「新發現」這類重點字
+    expect(css).not.toMatch(/font-weight:\s*(800|900)/)
   })
 })
 

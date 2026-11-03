@@ -4,7 +4,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveAboutPage, type LiveCurriculumPage } from '../app/utils/content-overlay'
 import { aboutHeroAttrs, curriculumHeroAttrs, type MediaInfoMap } from '../app/utils/media-image'
 import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, responsiveImage } from '../app/utils/responsive-image'
-import { pageMarkedLines, pagePhotoAlt, pagePhotoStyle, pageTitleLines, rocYear, withPhotoStyle } from '../app/utils/page-content'
+import { pageMarkedLines, pagePhotoAlt, pagePhotoStyle, pageTitleLines, plainTitle, plainTitleLine, rocYear, withPhotoStyle } from '../app/utils/page-content'
 
 const site = fixture as unknown as SiteContent
 const MEDIA = '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c'
@@ -18,8 +18,19 @@ function livePayload<T>(source: object): T {
 }
 
 describe('整頁內容的小工具', () => {
-  it('標題用 \\n 換行', () => {
-    expect(pageTitleLines('從動手做開始，\n愛上學習。')).toEqual(['從動手做開始，', '愛上學習。'])
+  it('標題用 \\n 換行；標題大字不放逗號句號（2026-11-03）', () => {
+    expect(pageTitleLines('從動手做開始，\n愛上學習。')).toEqual(['從動手做開始', '愛上學習'])
+  })
+  it('去標點：行尾的「，。」拿掉（引號、括號裡的也是），行中間的換空格；問號、驚嘆號、頓號、引號照留', () => {
+    expect(plainTitleLine('我的「為什麼」，')).toBe('我的「為什麼」')
+    expect(plainTitleLine('「好。」')).toBe('「好」')
+    expect(plainTitleLine('「我自己來！」')).toBe('「我自己來！」')
+    expect(plainTitleLine('寶貝何時入學？')).toBe('寶貝何時入學？')
+    expect(plainTitleLine('把每個孩子，放在心上。')).toBe('把每個孩子 放在心上')
+    expect(plainTitleLine('讀故事、做作品，也到戶外。')).toBe('讀故事、做作品 也到戶外')
+    expect(plainTitleLine('，')).toBe('')
+    expect(plainTitle('五顆心，\n照顧每一天。')).toBe('五顆心\n照顧每一天')
+    expect(pageTitleLines('一，\n。\n二')).toEqual(['一', '二'])
   })
   it('空行不輸出（官網不出現空的 <br>）', () => {
     expect(pageTitleLines('a\n')).toEqual(['a'])
@@ -28,8 +39,8 @@ describe('整頁內容的小工具', () => {
   })
   it('顏料標示只畫第一次出現的地方；找不到或留空就整行不畫', () => {
     expect(pageMarkedLines('從動手做開始，\n愛上學習。', '動手做')).toEqual([
-      { before: '從', mark: '動手做', after: '開始，' },
-      { before: '愛上學習。', mark: '', after: '' }
+      { before: '從', mark: '動手做', after: '開始' },
+      { before: '愛上學習', mark: '', after: '' }
     ])
     expect(pageMarkedLines('一\n二', '三')).toEqual([{ before: '一', mark: '', after: '' }, { before: '二', mark: '', after: '' }])
     expect(pageMarkedLines('一', '')).toEqual([{ before: '一', mark: '', after: '' }])

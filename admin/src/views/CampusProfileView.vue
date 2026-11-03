@@ -146,8 +146,8 @@ function blankError(value: string | null | undefined): string {
       <div class="field-row">
         <el-form-item label="校名" required :error="blankError(editor.form.value.name)">
           <el-input v-model="editor.form.value.name" placeholder="例如：義華校" />
-          <!-- 首頁五校大標用明體子集。 -->
-          <GlyphHint :value="editor.form.value.name" :fonts="['serif', 'bd']" />
+          <!-- 首頁五校大標用官網標題字型 LINE Seed（2026-11-03 起不再是明體）。 -->
+          <GlyphHint :value="editor.form.value.name" />
         </el-form-item>
         <el-form-item label="行政區">
           <el-input v-model="editor.form.value.district" placeholder="例如：鳳山區" />

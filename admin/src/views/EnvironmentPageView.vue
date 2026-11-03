@@ -44,11 +44,9 @@ const navSections = computed<EditorSection[]>(() => [
   { id: 'section-env-tour', label: '04 五所校園', fields: ['tour_title', 'tour_text', 'tour_hint'] },
 ])
 
-// 整頁都是圓體（標題 800、小標 700、內文 400）：罕用字會退回系統字，欄位下方提示。
-// 圓體 800 只補最常用的字（字型目錄要在 15 MB 內），所以 800 的大標（首屏 h1 與四章 h2）用嚴格的字表，
-// 其餘欄位（小標、內文）用 400／700 的字表。「大標裡畫螢光的字」是大標的一段，不另外檢查。
-const ENV_TITLE_FONTS: TitleFontSubset[] = ['environment']
-const ENV_FONTS: TitleFontSubset[] = ['environmentText']
+// 2026-11-03 字型統一：環境頁的標題、章名、五顆心、名稱類欄位在官網用 LINE Seed（標題欄位靠 title 預設提示），
+// 其餘內文類欄位是系統字，不需要缺字提示。「大標裡畫螢光的字」是大標的一段，不另外檢查。
+const ENV_HEAD_FONTS: TitleFontSubset[] = ['bd']
 
 const CARE_PHOTO_HELP = '五張照片各裝在一種積木形狀裡（拱、圓、四分之一圓、倒拱、半圓），會裁掉邊緣；重點放在中間，或在下面點選焦點。留空就用官網內建的照片。'
 
@@ -78,11 +76,11 @@ onMounted(editor.load)
       />
 
       <h3 id="section-env-hero" class="sub-title" data-section-anchor tabindex="-1">首屏</h3>
-      <PageCopyField v-model="form.hero_title" label="首屏大標" hint="envHeroTitle" :fonts="ENV_TITLE_FONTS" title />
+      <PageCopyField v-model="form.hero_title" label="首屏大標" hint="envHeroTitle" title />
       <PageCopyField v-model="form.hero_highlight" label="大標裡畫螢光的字" hint="envHighlight" help="要和大標同一行裡的字一模一樣，官網會在那幾個字下面畫螢光；留空就不畫。" />
       <p v-if="highlightProblem" class="page-copy__warn" role="status">大標裡找不到「{{ form.hero_highlight }}」（或跨了行），這樣存檔會被擋下。</p>
-      <PageCopyField v-model="form.hero_lede" label="首屏介紹" hint="envHeroLede" :fonts="ENV_FONTS" multiline />
-      <PageCopyField v-model="form.hero_notice" label="首屏提醒" hint="envHeroNotice" :fonts="ENV_FONTS" help="清空就不顯示。" />
+      <PageCopyField v-model="form.hero_lede" label="首屏介紹" hint="envHeroLede" multiline />
+      <PageCopyField v-model="form.hero_notice" label="首屏提醒" hint="envHeroNotice" help="清空就不顯示。" />
       <PagePhotoField
         v-model:photo="form.hero_photo"
         v-model:alt="form.hero_photo_alt"
@@ -101,7 +99,7 @@ onMounted(editor.load)
             :model-value="name"
             :label="`章名第 ${i + 1} 個`"
             hint="envChapterName"
-            :fonts="ENV_FONTS"
+            :fonts="ENV_HEAD_FONTS"
             :help="ENVIRONMENT_CHAPTER_HINTS[i]"
             @update:model-value="(value: string) => (form.chapter_names[i] = value)"
           />
@@ -109,8 +107,8 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-env-care" class="sub-title" data-section-anchor tabindex="-1">01 幼兒保育</h3>
-      <PageCopyField v-model="form.care_title" label="幼兒保育的標題" hint="envCareTitle" :fonts="ENV_TITLE_FONTS" title />
-      <PageCopyField v-model="form.care_lead" label="幼兒保育的引言" hint="envCareLead" :fonts="ENV_FONTS" help="接在五顆心前面，結尾的冒號自己打。" />
+      <PageCopyField v-model="form.care_title" label="幼兒保育的標題" hint="envCareTitle" title />
+      <PageCopyField v-model="form.care_lead" label="幼兒保育的引言" hint="envCareLead" help="接在五顆心前面，結尾的冒號自己打。" />
       <h4 class="sub-sub-title">五顆心</h4>
       <div data-list="hearts" class="env-hearts">
         <div v-for="(heart, i) in form.hearts" :key="i" :data-list-item="i">
@@ -118,12 +116,12 @@ onMounted(editor.load)
             :model-value="heart"
             :label="`第 ${i + 1} 顆心`"
             hint="envHeart"
-            :fonts="ENV_FONTS"
+            :fonts="ENV_HEAD_FONTS"
             @update:model-value="(value: string) => (form.hearts[i] = value)"
           />
         </div>
       </div>
-      <PageCopyField v-model="form.care_text" label="幼兒保育的說明" hint="envCareText" :fonts="ENV_FONTS" multiline />
+      <PageCopyField v-model="form.care_text" label="幼兒保育的說明" hint="envCareText" multiline />
       <PagePhotoField
         v-model:photo="form.care_photo"
         v-model:alt="form.care_photo_alt"
@@ -139,8 +137,8 @@ onMounted(editor.load)
       <div data-list="care_items">
         <div v-for="(item, i) in form.care_items" :key="i" class="page-copy__item" :data-list-item="i">
           <p class="page-copy__item-title">第 {{ i + 1 }} 件小事</p>
-          <PageCopyField v-model="item.title" label="名稱" hint="envCareItemTitle" :fonts="ENV_FONTS" />
-          <PageCopyField v-model="item.text" label="說明" hint="envCareItemText" :fonts="ENV_FONTS" multiline />
+          <PageCopyField v-model="item.title" label="名稱" hint="envCareItemTitle" :fonts="ENV_HEAD_FONTS" />
+          <PageCopyField v-model="item.text" label="說明" hint="envCareItemText" multiline />
           <PagePhotoField
             v-model:photo="item.photo"
             v-model:alt="item.photo_alt"
@@ -155,13 +153,13 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-env-spaces" class="sub-title" data-section-anchor tabindex="-1">02 校園環境</h3>
-      <PageCopyField v-model="form.spaces_title" label="校園環境的標題" hint="envSpacesTitle" :fonts="ENV_TITLE_FONTS" title />
-      <PageCopyField v-model="form.spaces_text" label="校園環境的說明" hint="envSpacesText" :fonts="ENV_FONTS" multiline />
+      <PageCopyField v-model="form.spaces_title" label="校園環境的標題" hint="envSpacesTitle" title />
+      <PageCopyField v-model="form.spaces_text" label="校園環境的說明" hint="envSpacesText" multiline />
       <h4 class="sub-sub-title">主打區</h4>
       <div class="page-copy__item">
-        <PageCopyField v-model="form.feature.tag" data-field="feature.tag" label="主打區的標籤" hint="envFeatureTag" :fonts="ENV_FONTS" />
-        <PageCopyField v-model="form.feature.title" data-field="feature.title" label="主打區的標題" hint="envFeatureTitle" :fonts="ENV_FONTS" title />
-        <PageCopyField v-model="form.feature.text" data-field="feature.text" label="主打區的說明" hint="envFeatureText" :fonts="ENV_FONTS" multiline />
+        <PageCopyField v-model="form.feature.tag" data-field="feature.tag" label="主打區的標籤" hint="envFeatureTag" />
+        <PageCopyField v-model="form.feature.title" data-field="feature.title" label="主打區的標題" hint="envFeatureTitle" title />
+        <PageCopyField v-model="form.feature.text" data-field="feature.text" label="主打區的說明" hint="envFeatureText" multiline />
         <PagePhotoField
           v-model:photo="form.feature.photo"
           v-model:alt="form.feature.photo_alt"
@@ -177,9 +175,9 @@ onMounted(editor.load)
       <div data-list="spaces">
         <div v-for="(space, i) in form.spaces" :key="i" class="page-copy__item" :data-list-item="i">
           <p class="page-copy__item-title">第 {{ i + 1 }} 個空間</p>
-          <PageCopyField v-model="space.title" label="名稱" hint="envSpaceTitle" :fonts="ENV_FONTS" />
-          <PageCopyField v-model="space.text" label="說明" hint="envSpaceText" :fonts="ENV_FONTS" multiline />
-          <PageCopyField v-model="space.campus_label" label="照片上的校名" hint="envSpaceCampus" :fonts="ENV_FONTS" help="只有確定是哪一校拍的照片才填，其餘留空就不顯示校名。" />
+          <PageCopyField v-model="space.title" label="名稱" hint="envSpaceTitle" :fonts="ENV_HEAD_FONTS" />
+          <PageCopyField v-model="space.text" label="說明" hint="envSpaceText" multiline />
+          <PageCopyField v-model="space.campus_label" label="照片上的校名" hint="envSpaceCampus" help="只有確定是哪一校拍的照片才填，其餘留空就不顯示校名。" />
           <PagePhotoField
             v-model:photo="space.photo"
             v-model:alt="space.photo_alt"
@@ -194,9 +192,9 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-env-meals" class="sub-title" data-section-anchor tabindex="-1">03 幼兒餐點</h3>
-      <PageCopyField v-model="form.meals_title" label="幼兒餐點的標題" hint="envMealsTitle" :fonts="ENV_TITLE_FONTS" title />
-      <PageCopyField v-model="form.meals_text" label="幼兒餐點的說明" hint="envMealsText" :fonts="ENV_FONTS" multiline />
-      <PageCopyField v-model="form.meals_day_title" label="一天吃什麼的標題" hint="envMealsDayTitle" :fonts="ENV_FONTS" />
+      <PageCopyField v-model="form.meals_title" label="幼兒餐點的標題" hint="envMealsTitle" title />
+      <PageCopyField v-model="form.meals_text" label="幼兒餐點的說明" hint="envMealsText" multiline />
+      <PageCopyField v-model="form.meals_day_title" label="一天吃什麼的標題" hint="envMealsDayTitle" :fonts="ENV_HEAD_FONTS" />
       <h4 class="sub-sub-title">一天的五個時段</h4>
       <p class="field-help page-copy__list-help">官網把這五個時段由早到晚排成一條時間軸，小圖示依序號固定（吐司、香蕉、碗、蘋果、杯子），所以時間要由早到晚，不能同一時間。</p>
       <div data-list="meals">
@@ -209,15 +207,15 @@ onMounted(editor.load)
               @blur="meal.time = normalizeMomentTime(meal.time)"
             />
           </el-form-item>
-          <PageCopyField v-model="meal.name" label="名稱" hint="envMealName" :fonts="ENV_FONTS" />
-          <PageCopyField v-model="meal.note" label="小字" hint="envMealNote" :fonts="ENV_FONTS" />
-          <PageCopyField v-model="meal.text" label="說明" hint="envMealText" :fonts="ENV_FONTS" multiline />
+          <PageCopyField v-model="meal.name" label="名稱" hint="envMealName" :fonts="ENV_HEAD_FONTS" />
+          <PageCopyField v-model="meal.note" label="小字" hint="envMealNote" />
+          <PageCopyField v-model="meal.text" label="說明" hint="envMealText" multiline />
         </div>
       </div>
 
       <h3 id="section-env-tour" class="sub-title" data-section-anchor tabindex="-1">04 五所校園</h3>
-      <PageCopyField v-model="form.tour_title" label="五所校園的標題" hint="envTourTitle" :fonts="ENV_TITLE_FONTS" title />
-      <PageCopyField v-model="form.tour_text" label="五所校園的說明" hint="envTourText" :fonts="ENV_FONTS" multiline help="場景的照片與說明在「校園探索」，這裡只改這一章的標題與段落。" />
+      <PageCopyField v-model="form.tour_title" label="五所校園的標題" hint="envTourTitle" title />
+      <PageCopyField v-model="form.tour_text" label="五所校園的說明" hint="envTourText" multiline help="場景的照片與說明在「校園探索」，這裡只改這一章的標題與段落。" />
     </el-form>
   </ContentEditor>
 </template>

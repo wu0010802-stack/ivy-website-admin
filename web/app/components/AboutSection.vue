@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { pickImage } from '~/utils/media-image'
+import { plainTitle } from '~/utils/page-content'
 import type { AboutContent } from '~/types/site-content'
 import { useCurtain, useRelayProgress } from '~/composables/useCurtain'
 
@@ -52,7 +53,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
           <div class="belief-layout">
             <div class="belief-main">
               <p v-if="about.sinceLabel" class="belief-since" lang="en">{{ about.sinceLabel }}</p>
-              <h2 id="about-title">{{ about.title }}</h2>
+              <h2 id="about-title">{{ plainTitle(about.title) }}</h2>
               <p class="belief-text"><span>{{ copy.lead }}</span><span id="belief-full-copy" class="belief-more" :class="{ 'is-expanded': expanded }">{{ copy.rest }}</span></p>
               <button v-if="copy.rest" class="belief-copy-toggle" type="button" :aria-expanded="expanded" aria-controls="belief-full-copy" @click="toggleCopy">{{ expanded ? '收合介紹' : '閱讀完整介紹' }}</button>
             </div>

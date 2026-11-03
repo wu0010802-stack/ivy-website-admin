@@ -25,7 +25,6 @@ vi.mock('../app/utils/environment-route', () => ({
   }
 }))
 // 字型樣式表交給瀏覽器去抓；這裡不要讓 happy-dom 真的發請求
-vi.mock('../app/utils/environment-fonts', () => ({ ENVIRONMENT_FONT_PRELOAD: [], attachEnvironmentFontStylesheet: () => {} }))
 
 const site = fixture as unknown as SiteContent
 const NuxtLink = defineComponent({

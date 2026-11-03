@@ -31,8 +31,26 @@ export function assertItems(list: unknown, fields: readonly string[], label: str
   ;(list as unknown[]).forEach((item, index) => assertStrings(item, fields, `${label}[${index}]`))
 }
 
+/**
+ * 2026-11-03：標題大字不放逗號、句號（比照首屏「在常春藤⏎每一天都有新發現」）。
+ * 行尾的「，」「。」拿掉（換行就是停頓；收在引號、括號裡的也拿掉，只留括號）；行中間的換成一個空格，
+ * 保留停頓，也讓窄螢幕在 keep-all 下有地方換行。問號、驚嘆號、頓號、引號照留。
+ * 後台內容照原樣存，官網輸出時才處理，所以後台打了標點也會自動拿掉。
+ */
+export function plainTitleLine(line: string): string {
+  return line
+    .replace(/[，。]+(?=[」』）]*\s*$)/u, '')
+    .replace(/\s*[，。]+\s*/gu, ' ')
+    .trim()
+}
+
+/** 不分行輸出的標題（首頁理念大標、環境頁「一天吃這些」）：每一行都去掉逗號、句號。 */
+export function plainTitle(text: string): string {
+  return text.split('\n').map(plainTitleLine).filter(Boolean).join('\n')
+}
+
 export function pageTitleLines(text: string): string[] {
-  return text.split('\n').filter((line) => line.trim() !== '')
+  return text.split('\n').map(plainTitleLine).filter((line) => line !== '')
 }
 
 export interface MarkedLine {

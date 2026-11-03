@@ -12,10 +12,9 @@
 import type { Campus, EnvironmentPageContent, TourScene } from '~/types/site-content'
 import { environmentHeroAttrs } from '~/utils/media-image'
 import { responsiveImage } from '~/utils/responsive-image'
-import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines } from '~/utils/page-content'
+import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitleLines, plainTitle } from '~/utils/page-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
-import { attachEnvironmentFontStylesheet, ENVIRONMENT_FONT_PRELOAD } from '~/utils/environment-fonts'
 import type { EnvironmentRoutes } from '~/utils/environment-route'
 
 const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>()
@@ -133,8 +132,6 @@ function onTabKey(event: KeyboardEvent, index: number) {
   void selectTab(tours.value[(target + count) % count]!.campus.key, true)
 }
 
-useHead({ link: ENVIRONMENT_FONT_PRELOAD.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: '' })) })
-
 // ---------- 積木落下：一開始就在視窗裡的不動（首屏與 LCP 照片不能先藏起來），往下捲到才落定 ----------
 interface Drop { replay: (scope: HTMLElement) => void; destroy: () => void }
 function createDrop(scope: HTMLElement): Drop {
@@ -168,7 +165,6 @@ let drop: Drop | null = null
 let routes: EnvironmentRoutes | null = null
 let disposed = false
 onMounted(async () => {
-  attachEnvironmentFontStylesheet(document)
   if (!root.value) return
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   if (!reducedMotion && 'IntersectionObserver' in window) drop = createDrop(root.value)
@@ -326,7 +322,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
         </a>
       </div>
       <div class="renv-wrap renv-day">
-        <h3 class="renv-day-title">{{ page.mealsDayTitle }}</h3>
+        <h3 class="renv-day-title">{{ plainTitle(page.mealsDayTitle) }}</h3>
         <div class="renv-day-track">
           <svg class="renv-route" data-route="day" aria-hidden="true" focusable="false" />
           <ol class="renv-day-list">
@@ -427,5 +423,4 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
   </main>
 </template>
 
-<style src="../assets/css/environment-fonts.css"></style>
 <style src="../assets/css/environment.css"></style>

@@ -82,10 +82,10 @@ describe('年數由今年算', () => {
     expect([29, 30, 31, 37, 38, 40].map(yearsSpoken)).toEqual(['近三十年', '三十年', '三十多年', '三十多年', '近四十年', '四十年'])
   })
   it('第一章標題：1997 是第 1 年，2026 是第 30 年，2027 滿 30 年；不再重複首屏的「五所校園」', () => {
-    expect(storyYearTitle(1997, 2026)).toEqual(['走到今年，', '是第 30 年。'])
-    expect(storyYearTitle(1997, 2027)).toEqual(['走到今年，', '滿 30 年。'])
-    expect(storyYearTitle(1997, 2028)).toEqual(['走到今年，', '是第 32 年。'])
-    expect(storyYearTitle(1998, 2026)).toEqual(['走到今年，', '是第 29 年。'])
+    expect(storyYearTitle(1997, 2026)).toEqual(['走到今年', '是第 30 年'])
+    expect(storyYearTitle(1997, 2027)).toEqual(['走到今年', '滿 30 年'])
+    expect(storyYearTitle(1997, 2028)).toEqual(['走到今年', '是第 32 年'])
+    expect(storyYearTitle(1998, 2026)).toEqual(['走到今年', '是第 29 年'])
     expect(storyYearTitle(1997, 2026).join('')).not.toContain('五所校園')
   })
   it('首屏介紹：內建原文換年數，2026 年和原文一字不差；後台改寫過的照後台', () => {
@@ -192,8 +192,8 @@ describe('換版：家長怎麼說', () => {
     expect(component).not.toContain('.slice(0, 4)')
     expect(template).toContain('<section v-if="voices.length" id="voices"')
   })
-  it('章標題是使用者 10-30 指定的「孩子的進步，家長看得見。」，不再取第一位家長的原話', () => {
-    expect(component).toContain("const VOICES_TITLE = ['孩子的進步，', '家長看得見。']")
+  it('章標題是使用者 10-30 指定的「孩子的進步，家長看得見。」（11-03 起標題不放逗號句號），不再取第一位家長的原話', () => {
+    expect(component).toContain("const VOICES_TITLE = ['孩子的進步', '家長看得見']")
     expect(template).toContain('v-for="(line, i) in VOICES_TITLE"')
   })
   it('按播放才插 youtube-nocookie；沒有 JS 時是連到 YouTube 的連結', () => {

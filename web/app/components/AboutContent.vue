@@ -57,7 +57,7 @@ function onDomainToggle(index: number, event: Event) {
 // 家長怎麼說：各校的 testimonials（後台自訂，沒自訂的校用內建）五校輪流取，最多四位；沒有影片時整章不出現
 const voices = computed(() => pickVoices(props.campuses))
 const voiceCampuses = computed(() => [...new Map(voices.value.map((v) => [v.campus.key, v.campus])).values()])
-const VOICES_TITLE = ['孩子的進步，', '家長看得見。']
+const VOICES_TITLE = ['孩子的進步', '家長看得見']
 // 封面：後台選的素材用它的 srcset 與焦點；內建靜態圖與 YouTube 縮圖只有網址（卡紙裡 16:9 裁切）
 const POSTER_SIZES = '(min-width: 901px) 600px, 90vw'
 function posterAttrs(item: CampusTestimonial) {

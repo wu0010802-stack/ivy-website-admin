@@ -1,3 +1,15 @@
+## 2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號（`feature/font-unify-20261103`）
+
+使用者看過正式站字型盤點後要「統一成首屏『在常春藤每一天都有新發現』那套」，之後再要「標題大字的句號跟逗號拿掉」。規則見 DESIGN.md 最上面兩節。
+
+- **字型**：全站標題一律 LINE Seed TW 700（800 只留首屏「新發現」、30 週年大標），內文、小標籤、按鈕系統字。首頁「分校資訊」與五校校名、預約頁校名（明體 500）、入學護照印章與券根（明體 900）、環境頁標題與積木名稱（圓體 800）都改 LINE Seed 700；入學護照 12–14px 小標（明體 600）與環境頁內文（圓體 400）改系統字；首頁「最新消息」區塊標題（系統黑體 600）改 LINE Seed 700。
+- **刪除**：分校明體三個子集、入學護照明體分片、環境頁圓體與芫荽分片（共 16.38 MB）、四支產生腳本、`admission-fonts.spec.ts`／`environment-fonts.spec.ts`、`chars-serif.txt`／`chars-environment*.txt`、`studio.css` 沒人用的 `--campus-heading`。後台缺字提示只剩 `bd`／`eb` 兩份字表。
+- **LINE Seed 重切**：`page-font-chars.json` 改用本機新版畫面讀正式站發布內容重量（只送 GET），再跑 `subset-critical-fonts.py`。各頁 LINE Seed：首頁 5 片 51.5 KB、關於 8 片 55.0 KB、特色教學 6 片 56.5 KB、環境 6 片 59.1 KB、入學 9 片 68.9 KB、預約 4 片 35.5 KB、30 週年 7 片 62.8 KB。環境頁原本還要另載圓體 critical 三片約 165 KB、入學頁另載明體 critical 兩片約 109 KB，現在都不用。印章試過 800：入學頁 LINE Seed 到 15 片 113.5 KB、超過每頁 100 KB，改 700。
+- **標點**：`plainTitleLine` 在官網輸出時把標題行尾的「，。」拿掉、行中間的換成空格；問號、驚嘆號、頓號、引號照留。改前正式站 31 個大標有逗號或句號。後台內容不用改，後台標題欄位說明補一句「逗號、句號官網會自動拿掉」。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 109 檔 1342 項全過（環境頁兩份渲染快照只差標點，已更新）；admin `vue-tsc` 通過、`vitest` 167 檔 3216 項過（1 skipped）；`npm --prefix web run build` 通過。fixture dev server 用 Playwright 量桌機 1440／手機 390：各頁大標都是 LINE Seed（CDP 逐字查）、大標沒有逗號句號；不再請求明體、圓體字檔。
+- **e2e**：`npm run test:e2e:stack` 156 項全過（7.6 分）、`npm run test:e2e` 34 過 6 skipped；stack 的 visual 基準只有後台五張，這次沒動到。
+- **沒跑**：後端測試（沒動後端與 fixture）、iOS 實機。
+
 ## 2026-11-03 特色教學：兩張寬幅照拿掉圖說、段落水彩不再被切成直線（`feature/curriculum-kite-20261103`）
 
 使用者要求拿掉 04 五件事結尾風箏照的圖說，並指出照片下方顏料「分層怪怪的」；接著 03 美術館地板畫的圖說也拿掉。規則見 DESIGN.md「特色教學寬幅照拿掉圖說、段落水彩下緣淡出」。

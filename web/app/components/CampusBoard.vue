@@ -571,7 +571,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 
 <style scoped>
 
-.campus-panorama.campus-gallery{--green:var(--ivy-campus-green);--deep:var(--ivy-campus-deep);--paper:var(--ivy-campus-paper);--gold:var(--ivy-campus-gold);--muted:var(--ivy-campus-muted);--line:var(--ivy-campus-line);--control:var(--ivy-campus-control);--control-border:var(--ivy-campus-control-border);--control-dot:var(--ivy-campus-control-dot);--control-hover:var(--ivy-campus-control-hover);--background:var(--ivy-campus-bg);--selected:color-mix(in oklch,var(--green) 7%,var(--background));--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--font-head:var(--font-serif);--heading-ink:var(--ivy-campus-heading-ink);--heading-accent:var(--ivy-campus-heading-accent);--heading-rule:var(--ivy-campus-heading-rule);--heading-selected:var(--ivy-campus-heading-selected);--font-latin:'Source Sans 3','Helvetica Neue',Arial,sans-serif;--card-width:min(80vw,1200px);--card-gap:20px;--radius:28px;--ease:cubic-bezier(.22,1,.36,1)}
+.campus-panorama.campus-gallery{--green:var(--ivy-campus-green);--deep:var(--ivy-campus-deep);--paper:var(--ivy-campus-paper);--gold:var(--ivy-campus-gold);--muted:var(--ivy-campus-muted);--line:var(--ivy-campus-line);--control:var(--ivy-campus-control);--control-border:var(--ivy-campus-control-border);--control-dot:var(--ivy-campus-control-dot);--control-hover:var(--ivy-campus-control-hover);--background:var(--ivy-campus-bg);--selected:color-mix(in oklch,var(--green) 7%,var(--background));--font:'PingFang TC','Microsoft JhengHei',system-ui,sans-serif;--heading-ink:var(--ivy-campus-heading-ink);--heading-accent:var(--ivy-campus-heading-accent);--heading-rule:var(--ivy-campus-heading-rule);--heading-selected:var(--ivy-campus-heading-selected);--font-latin:'Source Sans 3','Helvetica Neue',Arial,sans-serif;--card-width:min(80vw,1200px);--card-gap:20px;--radius:28px;--ease:cubic-bezier(.22,1,.36,1)}
 .campus-gallery,.campus-gallery *{box-sizing:border-box}
 .campus-panorama.campus-gallery{position:relative;isolation:isolate;min-height:0;color:var(--deep);background:var(--background);font:var(--fs-md)/1.7 var(--font);-webkit-font-smoothing:antialiased}
 .campus-gallery :is(button,a){-webkit-tap-highlight-color:transparent}
@@ -586,7 +586,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .campus-panorama.campus-gallery{padding:64px 0 60px}
 .gallery-heading{display:flex;flex-direction:column;justify-content:center;align-items:center;gap:16px;margin-bottom:36px}
 .gallery-title{display:flex;flex-direction:column;align-items:center;gap:4px;margin-top:24px;text-align:center}
-.gallery-title h2{margin:0;color:var(--heading-ink);font:500 clamp(40px,3.9vw,56px)/1.4 var(--font-head);letter-spacing:.1em;padding-inline-start:.1em;white-space:nowrap}
+.gallery-title h2{margin:0;color:var(--heading-ink);font:700 clamp(40px,3.9vw,56px)/1.4 var(--font-head);letter-spacing:.04em;padding-inline-start:.04em;white-space:nowrap}
 .gallery-title>span{color:var(--heading-accent);font:italic clamp(var(--fs-lg),1.7vw,var(--fs-2xl))/1.3 Georgia,'Times New Roman',serif;letter-spacing:.015em}
 .campus-tabs{--tab-hover-line:var(--ivy-campus-tab-hover-line);display:flex;justify-content:center;width:min(100%,1040px);gap:12px}
 .campus-tabs button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;min-width:0;min-height:176px;gap:8px;padding:12px 10px 15px;border:1px solid transparent;border-radius:0;background:transparent;font-size:var(--fs-lg);letter-spacing:.065em;white-space:nowrap;color:var(--muted);transition:color .2s}
@@ -719,7 +719,7 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .campus-details{display:grid;grid-template-columns:minmax(220px,.95fr) minmax(0,1.35fr) auto;align-items:center;gap:clamp(24px,3.2vw,48px);padding-block:32px 12px;border-top:1px solid var(--line);scroll-margin-top:80px}
 .campus-identity{min-width:0}
 .campus-district{display:block;font-size:var(--fs-sm);letter-spacing:.12em;color:var(--muted)}
-.campus-identity h3{margin:9px 0 12px;color:var(--heading-ink);font:500 var(--fs-campus-name)/1.25 var(--font-head);letter-spacing:.065em}
+.campus-identity h3{margin:9px 0 12px;color:var(--heading-ink);font:700 var(--fs-campus-name)/1.25 var(--font-head);letter-spacing:.04em}
 .campus-contact{min-width:0;padding:4px 0 4px clamp(24px,3vw,44px);border-inline-start:1px solid var(--line)}
 .contact-row{display:flex;align-items:center;gap:13px;min-height:44px;font-size:var(--fs-md)}
 .contact-row .icon{width:18px;height:18px;color:var(--muted)}

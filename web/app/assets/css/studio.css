@@ -101,7 +101,7 @@ body:has(.hn-dialog[open]){overflow:hidden}
   isolation:isolate;
   background:var(--campus-surface);
 }
-.campus-panorama{--campus-heading:'Songti TC','Noto Serif TC','PMingLiU',serif;padding-block:64px 72px}
+.campus-panorama{padding-block:64px 72px}
 .campus-panorama>.container{width:min(1560px,calc(100% - 96px))}
 .campus-panorama .eyebrow{font-family:Georgia,serif;letter-spacing:.25em;font-size:var(--fs-md);text-transform:uppercase;margin-bottom:12px}
 @media(max-width:1100px){.campus-panorama>.container{width:calc(100% - 64px)}}

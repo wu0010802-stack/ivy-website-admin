@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { pickImage } from '~/utils/media-image'
+import { pageTitleLines } from '~/utils/page-content'
 import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
@@ -458,7 +459,8 @@ function liftCssPrint(inFlight: boolean) {
 }
 
 const kicker = computed(() => `${String(props.index + 1).padStart(2, '0')} / ${props.moment.label}`)
-const titleLines = computed(() => props.moment.title.split('\n'))
+// 標題大字不放逗號、句號（WebGL 畫布也讀這份）
+const titleLines = computed(() => pageTitleLines(props.moment.title))
 </script>
 
 <template>

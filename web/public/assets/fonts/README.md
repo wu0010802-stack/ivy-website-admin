@@ -17,8 +17,9 @@ zip 為 `LINE_Seed_TW.zip`（ver02，Version 1.400），sha256 記在 `web/app/g
 - `chars-bd.txt`／`chars-eb.txt`：`web/` 完整字型的 cmap 字表（各 13,915 字，內容相同），後台
   `useTitleFontCoverage` 的缺字提示讀這兩份——因為是完整字型，能提示到的缺字只剩罕見字（Ext-B 區）與
   emoji，一般中文字不會再缺。
-- `chars-serif.txt`：跟 LINE Seed 無關，是明體（Noto Serif TC）子集聯集，31 字，見下方「分校區塊明體」。
 - 內文維持系統字（PingFang TC / 微軟正黑體 / Noto Sans CJK），引言不用標題字型。
+- **2026-11-03 字型統一**：全站標題（含首頁分校資訊與校名、預約頁校名、入學護照的印章、環境頁）一律 LINE Seed；
+  標題 700，800 只用在重點字（首屏「新發現」、30 週年大標）。明體與環境頁圓體已退場，見下方「已退場的字型」。
 
 ## 分片切法與首屏預載（`scripts/subset-critical-fonts.py`）
 
@@ -66,48 +67,20 @@ unicode-range 仍含 `U+20`，讓它成為 CSS 的 first available font（決定
 `lineseed-bd-remaining-*`）與 `scripts/optimize-site-fonts.py`。`scripts/check-font-coverage.py` 是給
 凍結原型用的舊工具，不受這次改動影響。
 
-## 常春藤環境頁字型（`scripts/subset-environment-fonts.py`，2026-10-12 補圓體 700／800 常用字）
+## 已退場的字型（2026-11-03 字型統一）
 
-`/environment` 用圓體 Chiron GoRound TC（800 大標、700 小標、400 內文）與手寫芫荽 Iansui（2026-10-30 木頭積木版起沒有元素使用，管線照舊切；要拿掉得一起改後台缺字字表），兩套都是 SIL OFL 1.1，原始檔的 sha256 釘在腳本的 `SOURCES`。環境頁前三章開放後台編輯後，任何字重都可能出現任何常用字，所以四個字重（圓體 400／700／800、芫荽 400）都切 critical 加「其餘分片」；其餘分片由字頻表（`scripts/data/noto-sans-tc-frequency-tiers.json`）的常用字扣掉 critical，由常用到罕用切成約 40 KB 一片，寫進帶雜湊的 `environment/environment-fonts-extended-<hash>.css`，頁面執行時才掛上，用到新字才下載。字頻表以外的罕用字退回系統字。
+使用者要求前台字型統一成首屏「在常春藤每一天都有新發現」的 LINE Seed TW：標題一律 LINE Seed，內文、小標籤、按鈕用系統字。
+下列字型的字檔、`@font-face`、產生腳本、manifest 與測試已刪除；要追溯原檔看 `8c230fd4`（刪除前最後一版 main）。
 
-| 字重 | 其餘分片補到 |
-|---|---|
-| 圓體 400、芫荽 400 | 字頻表全部（芫荽以字型本身有的字為限） |
-| 圓體 700 | 字頻表全部（15,438 字、117 片） |
-| 圓體 800 | 只補字頻表前 3,000 字，標點照補（腳本的 `COMMON_LIMITS`） |
-
-輸出目錄 `web/public/assets/fonts/environment/` 整個要在 15 MB 內（`web/tests/environment-fonts.spec.ts` 擋）。800 全補會到 16.8 MB，所以限制在前 3,000 字；2026-10-12 補完後目錄約 13.7 MB（補之前約 8.2 MB）。
-
-後台缺字提示讀的兩份字表（格式同 `chars-bd.txt`：依碼位排序、不含空白）也由這支腳本一起產出：
-
-- `chars-environment.txt`：四個字重都有的字（4,174 字；2026-10-30 木頭積木版依新用字重切後）。給用圓體 800 的大標欄位（首屏 h1 與四章 h2；admin 的 `useTitleFontCoverage('environment')`）。
-- `chars-environment-text.txt`：圓體 400、700 與芫荽都有的字（10,754 字）。給其餘欄位（小標、內文、便條；`useTitleFontCoverage('environmentText')`）。800 只補最常用的字，所以這份比上一份多很多。
-
-字表以外的字，後台欄位下方會寫「環境頁字型沒有「X」，這幾個字會用系統字顯示」，官網也真的退回系統字。重切時兩份字表要一起更新；`web/tests/environment-fonts.spec.ts` 會檢查它們等於各字重涵蓋範圍的交集。
-
-重切指令（需 fontTools 4.63.0＋Brotli）：
-
-```sh
-node scripts/environment-font-chars.cjs http://127.0.0.1:3107   # 先量各字重在本頁一開始就畫得到的字（要先起本機 server）
-uv run --no-project --with 'fonttools[woff]==4.63.0' python scripts/subset-environment-fonts.py
-```
-
-**腳本內建的下載很慢，而且沒有 timeout**：它用 `urllib` 從 GitHub 的 google/fonts 抓可變字型 `ChironGoRoundTC[wght].ttf`（約 51 MB）、`Iansui-Regular.ttf`（約 9 MB）與兩份授權檔，網路差時會卡很久也不會逾時。可以先用 curl 把原始檔放進 `output/fonts-src/`（已 gitignore），腳本看到檔案已在就不再下載，sha256 仍由腳本核對，對不上會直接 assert 失敗：
-
-```sh
-mkdir -p output/fonts-src && cd output/fonts-src
-curl -fL --max-time 600 -o 'ChironGoRoundTC[wght].ttf' 'https://github.com/google/fonts/raw/main/ofl/chirongoroundtc/ChironGoRoundTC%5Bwght%5D.ttf'
-curl -fL --max-time 600 -o Iansui-Regular.ttf 'https://github.com/google/fonts/raw/main/ofl/iansui/Iansui-Regular.ttf'
-curl -fL -o chiron-goround-tc-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/chirongoroundtc/OFL.txt'
-curl -fL -o iansui-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/iansui/OFL.txt'
-```
-
-## 明體改為全站共用（2026-09-23）
-
-- `Ivy Campus Serif` 的 `@font-face` 從 `CampusBoard.vue` 移到 `web/app/assets/css/typography.css`，改成全站宣告；首頁分校資訊、分校頁校名、預約頁大標共用 `--font-serif`。
-- 新增 `noto-serif-tc-500-visit.woff`（3.9 KB，9 字：帶著好奇來園走，。），來源同樣是 Google Fonts CSS API 的 `text=`，紀錄在 `noto-serif-tc-500-visit.json`，授權同 `noto-serif-tc-500-campus-OFL.txt`。兩個子集用互斥的 `unicode-range` 分流，不動既有 campus 子集。
-- 預約頁大標原本吃系統字 `Songti TC → Noto Serif TC → PMingLiU`，Windows 會落到新細明體；改用自託管子集後各平台一致。改預約頁大標文案時要同步擴充此子集並驗證 cmap。
-- `chars-serif.txt`（2026-09-25）＝三個明體子集 JSON 的 `characters` 聯集，後台「校名」「首頁五校區塊標題」的缺字提示讀這份（`chars-bd.txt`／`chars-eb.txt` 同理）。擴充明體子集時一併更新，`web/tests/site-structure.spec.ts` 會檢查兩邊一致。
+- **分校明體** `Ivy Campus Serif`（Noto Serif TC 500 三個子集 `noto-serif-tc-500-{campus,visit,admission}.woff`，2026-09-22／23）：
+  首頁「分校資訊」與五校校名、預約頁選中校名改 LINE Seed 700。`chars-serif.txt` 一併刪除，後台「校名」「首頁五校區塊標題」改讀 `chars-bd.txt`。
+- **入學護照明體** `Ivy Passport Serif`（Noto Serif TC 600／900 分片 `admission/`，`scripts/subset-admission-fonts.py`、`admission-font-chars.cjs`，2026-09-28）：
+  印章與券根改 LINE Seed 700（原本 Black 900；試過 800，本頁多一組 ExtraBold 分片會超過每頁 100 KB）；12–14px 的小標改系統字 600。LINE Seed 沒有「・」（U+30FB），印章外圈的「・」由系統字補。
+- **環境頁圓體與手寫字** Chiron GoRound TC 400／700／800、芫荽 Iansui（`environment/`，約 13.7 MB，`scripts/subset-environment-fonts.py`、`environment-font-chars.cjs`，2026-09-28 起）：
+  標題與積木上的名稱、數字改 LINE Seed 700（原本 800 的也降到 700），內文、小標籤、按鈕改系統字。
+  `chars-environment.txt`／`chars-environment-text.txt` 刪除，後台環境頁的標題、章名、五顆心、名稱類欄位改讀 `chars-bd.txt`，內文類欄位不再提示。
+- 統一後各頁 LINE Seed 用字變了，`page-font-chars.json` 用本機新版畫面讀正式站發布內容重量（`NUXT_WEBSITE_API_INTERNAL_BASE=https://web-production-04caa.up.railway.app`、`NUXT_PUBLIC_CONTENT_MODE=live`、只送 GET），再重跑 `subset-critical-fonts.py`。
+- `web/tests/site-structure.spec.ts` 的「字型統一」測試擋這些字型名稱與字檔再出現。
 
 ## LINE Seed TW 原始檔與標點（2026-09-23 查證；ver02 已於 2026-09-25 取得並換上完整字型，見上）
 
@@ -117,14 +90,6 @@ curl -fL -o iansui-OFL.txt 'https://github.com/google/fonts/raw/main/ofl/iansui/
 ## 入學資訊頁補字（2026-09-24；此節描述的 737 字子集已於 2026-09-25 由上方完整字型取代）
 
 歷史紀錄：`lineseed-bd.woff` 曾在 2026-09-24 從 725 字擴充到 737 字（入學資訊頁新增 12 字：二冊囉寶曲月楚註貝退遲部）。2026-09-25 起 `web/` 已改用完整字型，不再需要逐次擴充子集補字；`chars-bd.txt`／`chars-eb.txt` 已是完整 cmap。凍結原型仍停在 737 字子集（見上），不會再補。
-- `noto-serif-tc-500-admission.woff`（8 字：一到參學從步觀開）給入學資訊頁 hero 大標「從參觀到開學，一步一步來。」，「，。來」由 visit 子集提供；來源記在 `noto-serif-tc-500-admission.json`，宣告在 `typography.css`（明體子集不受這次 LINE Seed 改動影響）。
-
-## 分校區塊明體（2026-09-22）
-
-- `noto-serif-tc-500-campus.woff`：Noto Serif TC 500，CSS 名稱為 `Ivy Campus Serif`；原本只給 `CampusBoard.vue` 的中文區塊標題和校名，2026-09-23 起分校頁校名也共用（見上節）。
-- 透過 Google Fonts CSS API 的 `text=` 取得目前所需字元，轉為 5,252-byte WOFF 自行託管；使用者瀏覽時不連第三方字型服務。來源 URL、字元與 unicode range 記在 `noto-serif-tc-500-campus.json`，OFL 1.1 授權附於 `noto-serif-tc-500-campus-OFL.txt`。
-- fontTools cmap 已驗證「分校資訊／義華校／明華校／崇德校／國際校／仁武校」全部涵蓋。新增校名或修改區塊標題時，需同步擴充此子集並驗證 cmap；目前 fallback 為 Noto Serif TC／Songti TC／PMingLiU／serif。
-- 只使用於 Nuxt `web/`；不加入已凍結根目錄原型或其打包器。
 
 ## 開場片頭倒數數字（2026-09-23）
 
