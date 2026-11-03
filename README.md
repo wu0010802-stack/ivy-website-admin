@@ -1,3 +1,11 @@
+## 2026-11-03 關於頁首屏大標：字距、字級、介紹段落同寬（`feature/about-title-20261103`）
+
+使用者覺得 /about「從一間幼兒園 長成五所校園」排版怪。比稿 A／B／C 後選 A，規則見 DESIGN.md「關於頁首屏大標」。
+
+- `about.css`：`.abh h1` 加字距 `.02em`、桌機上限 `3.75rem`→`4.25rem`（1440 寬 60→66.6px）、900px 以下 `8.4vw`/`2.5rem`→`10.5vw`/`2.75rem`（390 寬 32.8→41px）；`.abh-hero-text` 改 `width:fit-content`（保底 `min(100%,22.5rem)`）、`.abh-lede` 加 `contain:inline-size`，介紹段落跟大標同寬（1440 寬 504→407px）。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過；fixture dev server 用 Playwright 量 1680／1440／1280／1100／960／901／900／768／390／320：大標兩行、沒有溢出與橫向捲動，桌機文字欄等於大標寬（1100 以下由 22.5rem 保底）；把標題換成「關於我們」時段落維持 360px、換成兩行 11 字的長標題時照常在欄內折行。
+- **沒跑**：stack e2e（含視覺基準）、iOS 實機；沒有 `versions/` 快照（sparse worktree，改動都在 git）。
+
 ## 2026-11-03 入學頁：收退費收進「常見問題」、新增 11 題問答（`feature/admission-ux-20261103`）
 
 使用者要求優化入學頁 UI/UX、多新增幼兒園的問答、退費縮小或拿掉。規則見 DESIGN.md「入學頁：收退費收進常見問題、新增 11 題問答」。

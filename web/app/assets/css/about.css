@@ -15,7 +15,9 @@
 }
 .abh :where(p,li,figcaption){text-wrap:pretty}
 .abh h1,.abh h2,.abh h3{color:var(--ivy-forest)}
-.abh h1{font-size:clamp(2.25rem,1.1rem + 3.4vw,3.75rem);line-height:1.22}
+/* 2026-11-03：字距 .02em、上限 4.25rem 同特色教學大標。原本 normal＋60px，標題拿掉逗號句號後兩行剛好 6 字，
+   擠成一塊比介紹段落還窄的字牆，「從一間」的「一」也貼著前後字像破折號 */
+.abh h1{font-size:clamp(2.25rem,1.1rem + 3.4vw,4.25rem);line-height:1.22;letter-spacing:.02em}
 .abh h2{font-size:clamp(1.875rem,1.1rem + 2.4vw,3.375rem);line-height:1.28}
 .abh-wrap{width:min(100% - 2 * var(--abh-gutter),1200px);margin-inline:auto}
 .abh-sec{margin-top:var(--abh-sec)}
@@ -40,7 +42,10 @@
 
 /* ---------- 首屏：左大標、右卡紙照片，下面一排章節索引（同特色教學、環境、入學頁） ---------- */
 .abh-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(32px,6vw,96px);align-items:center;padding-top:clamp(48px,6vw,96px)}
-.abh-lede{margin-top:24px;max-width:28em;font-size:var(--fs-lg);line-height:2;color:var(--muted)}
+/* 介紹段落跟大標同寬：文字欄縮到大標的寬度，段落 contain:inline-size 不撐寬，後台改標題也不用重算；
+   標題很短時文字欄至少 22.5rem，段落才不會擠成窄條（手機文字欄是 display:contents，這兩條不作用） */
+.abh-hero-text{width:fit-content;min-width:min(100%,22.5rem)}
+.abh-lede{margin-top:24px;max-width:28em;font-size:var(--fs-lg);line-height:2;color:var(--muted);contain:inline-size}
 .abh-hero-art{position:relative;padding:8% 2% 4% 14%}
 .abh-hero-art .is-back{position:absolute;left:0;top:0;z-index:0;width:38%;--c:var(--studio-blue);--r:-4deg;--ar:4/5}
 .abh-hero-art .is-main{z-index:1;--r:1.2deg}
@@ -168,7 +173,7 @@
 /* ---------- 900px 以下：單欄 ---------- */
 @media (max-width:900px){
   .abh{--abh-sec:88px}
-  .abh h1{font-size:clamp(1.875rem,8.4vw,2.5rem)}
+  .abh h1{font-size:clamp(1.875rem,10.5vw,2.75rem)}
   .abh h2{font-size:clamp(1.625rem,7vw,2.125rem)}
   .abh-hero,.abh-split,.abh-split.is-voices{grid-template-columns:1fr}
   /* 首屏：大標 → 照片 → 介紹 → 索引 */
