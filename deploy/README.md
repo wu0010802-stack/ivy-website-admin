@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 環境頁保育主照片、特色教學四個年段換成雲端素材（main CI 部署，沒有 migration）
+
+- **內容**：`1d14ed10`（README「2026-11-03 環境頁保育主照片、特色教學『四個年段』照片換成雲端素材」）。環境頁保育主照片 `env-care-teacher` 換成 115招生照片「絲瓜棚1」（1477px，裁 2.2:1）、特色教學「從幼幼班到大班」`cur-years` 換成中秋節活動照（Canon 原檔縮 1800×1200）；替代文字重寫，四個年段圖說內建值改「老師陪在身後，孩子笑著往前走。」。檔名不變，正式站這兩格照片沒在後台換過，部署即生效。只動 web/、admin 預設值與測試。
+- **提交**：worktree `care-years-photos-20261103`（從 origin/main `518227ed`，sparse），web typecheck＋單元 111 檔 1355 全過、admin 三檔 61 過；本機 `test:e2e:stack`（測試庫 `ivy_website_e2e_careyears_test`，跑完已刪）156 項全過。推之前 `env-tour-colour` 先推了 `fd7264bb`，rebase 後 README 與環境頁渲染快照有衝突（快照取 main 版重產，和 main 只差保育主照片那一處），重跑 typecheck、單元 1357 全過。使用者說「部署」後由使用者推 main（fast-forward）。
+- **CI**：main run 41591111644 全綠（含 E2E），Deploy success（06:45:30–06:50:29Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `1d14ed10`、created_at `2026-11-03T06:46:08Z`；health 200。`/environment`、`/curriculum` 200，新雜湊都在（保育 3 次、四個年段 5 次）、舊雜湊 0 次，新替代文字、保育 `50% 50%`、新圖說都在；新圖檔 200 `image/webp`。Playwright 桌機 1440@2x／手機 390@3x：兩張都載到新檔，console 只有被攔下的 `/api/telemetry`。
+- **更正**：提交時以為四個年段圖說是後台已發布值、要另外在後台改；實際上正式站的特色教學頁從沒在後台發布過（`/api/published-site` 的 `curriculumPage` 走 fixture），新圖說已隨部署生效，不用改後台。
+- **待園方**：保育主照片要「絲瓜棚」原始檔（桌機 Retina 只有 0.6 倍像素）。
+
 ## 2026-11-03 環境頁五所校園分頁的建築上色（main CI 部署，沒有 migration）
 
 - **內容**：`fd7264bb`（README「2026-11-03 環境頁五所校園分頁的建築上色」）。`/environment` 第四章五校分頁在墨線底下墊一層透明底淡彩 `campus-line-art-<校>-wash`（由首頁既有的 `-colour` 轉成透明底，單張 240w、12–15 KB），不用混合模式。只動 web/、圖片腳本與測試；首頁五校分頁沒改。
