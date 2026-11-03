@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 特色教學兩張寬幅照拿掉圖說、段落水彩下緣淡出（main CI 部署，沒有 migration）
+
+- **內容**：`7e450530`（README「2026-11-03 特色教學：兩張寬幅照拿掉圖說、段落水彩不再被切成直線」）。`/curriculum` 04 五件事風箏照、03 美術館地板畫拿掉圖說，刪掉 `.cur-band figcaption`；`.cur-sec > .cur-wash` 在下方留白區 mask 淡出，修掉五件事與課程方向藝術共創底部被 canvas 切出的水平直線。只動 web/ 與文件。
+- **提交**：worktree `curriculum-kite-20261103`（從 origin/main `518227ed`，sparse），web typecheck＋單元 1355 全過、Playwright 截 1440／1280／1100／900／390。推之前 main 前進到 `8c230fd4`，rebase 後 README、DESIGN.md 兩處「同位置各加一段」衝突（兩段都留），重跑 typecheck、單元 1357 全過。使用者說「幫我部署」後由使用者推 main（fast-forward）。沒跑本機 stack e2e。
+- **CI**：main run 41598380901 全綠（含 E2E），Deploy success（07:51:40–07:55:19Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `7e450530`、created_at `2026-11-03T07:52:06Z`；health 200。`/curriculum` 200，「果嶺公園」「一起畫地板畫」0 次、兩張照片還在，頁面只剩四個年段一個圖說；內嵌 CSS 有段落下緣 mask、沒有 `.cur-band figcaption`。Playwright 桌機 1440@2x／手機 390@3x：兩張寬幅照都沒有圖說，風箏照下方綠色在留白區淡掉、沒有直線，console 只有被攔下的 `/api/telemetry`。
+
 ## 2026-11-03 環境頁保育主照片、特色教學四個年段換成雲端素材（main CI 部署，沒有 migration）
 
 - **內容**：`1d14ed10`（README「2026-11-03 環境頁保育主照片、特色教學『四個年段』照片換成雲端素材」）。環境頁保育主照片 `env-care-teacher` 換成 115招生照片「絲瓜棚1」（1477px，裁 2.2:1）、特色教學「從幼幼班到大班」`cur-years` 換成中秋節活動照（Canon 原檔縮 1800×1200）；替代文字重寫，四個年段圖說內建值改「老師陪在身後，孩子笑著往前走。」。檔名不變，正式站這兩格照片沒在後台換過，部署即生效。只動 web/、admin 預設值與測試。

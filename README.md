@@ -5,6 +5,7 @@
 - `CurriculumContent.vue`：`KITE`、`FLOOR` 拿掉 `caption` 與 `<figcaption>`；`curriculum.css` 刪掉沒用到的 `.cur-band figcaption`。
 - `curriculum.css`：`.cur-sec > .cur-wash` 下方留白區 mask 淡出，修掉 04 五件事（900–1440）與 02 課程方向藝術共創（1280–1440）底部被 canvas 切出的水平直線。
 - **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 111 檔 1355 項全過；fixture dev server 用 Playwright 截 1440／1280／1100／900／390：風箏照沒有圖說、兩處切口都改成在留白區淡掉，地板畫圖說還在。
+- **已部署**：main `7e450530`（run 41598380901 全綠），線上驗證見 deploy/README.md。
 - **沒跑**：stack e2e（含視覺基準）、iOS 實機。
 
 ## 2026-11-03 環境頁保育主照片、特色教學「四個年段」照片換成雲端素材（`feature/care-years-photos-20261103`）
