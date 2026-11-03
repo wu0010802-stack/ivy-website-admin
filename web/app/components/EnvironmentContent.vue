@@ -27,7 +27,7 @@ interface Look { shape: string; ar?: number; color: Block; back?: [string, Block
 
 // 內建照片與它的 alt 留在這裡（後台沒換照片時用；換了照片就用後台的圖、焦點與說明，後台沒填說明則用素材庫的說明）。
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
-const CARE_PHOTO_ALT = '老師拿著鈴鼓，帶幼幼班孩子一起拍手唱歌'
+const CARE_PHOTO_ALT = '老師抱著孩子站在絲瓜棚前，托起一條剛開花的小絲瓜給她看'
 const FEATURE_ALT = '孩子們在遊戲區跑跳，有人從黃色溜滑梯滑下來'
 const CARE = [
   { image: 'env-care-health', alt: '老師幫戴著口罩的孩子確認身體狀況' },
@@ -244,7 +244,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <div class="renv-ph" data-drop>
             <div class="renv-ph-back renv-blk s-d c-sage" aria-hidden="true" />
             <div class="renv-frame s-d c-terra">
-              <img v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc((100vw - 32px) * 1.36), 1320px')" :style="pagePhotoStyle('0% 30%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy">
+              <img v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc(100vw - 32px), 1320px')" :style="pagePhotoStyle('50% 50%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy">
             </div>
           </div>
         </div>

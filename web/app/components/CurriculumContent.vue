@@ -86,7 +86,7 @@ const CHAPTERS = [
 ] satisfies { id: string, no: string, pigment: Pigment, tilt: number }[]
 
 const HERO_ALT = '孩子閉上眼睛，雙手合十靜下心來'
-const YEARS_ALT = '老師張開雙手，和孩子們笑成一團'
+const YEARS_ALT = '穿園服的老師彎著腰護在綁雙馬尾的小女孩身後，兩人都笑著'
 
 const heroLines = computed(() => pageMarkedLines(props.page.heroTitle, props.page.heroHighlight))
 const chapters = computed(() => CHAPTERS.map((look, i) => ({ ...look, ...props.page.chapters[i]! })))

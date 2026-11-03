@@ -85,7 +85,7 @@ export function curriculumPageDraft(): CurriculumPagePayload {
     spiral_text: '以螺旋式的方法加深、加廣課程，延伸孩子各項能力。',
     years_photo: null,
     years_photo_alt: '',
-    years_caption: '老師和孩子們一起笑成一團。',
+    years_caption: '老師陪在身後，孩子笑著往前走。',
     years: [
       { motto: '老師好愛我', text: '全方位的保育環境，給孩子安全感及信賴感，這是寶貝第一個團體生活喔。' },
       { motto: '我會自己做', text: '會自己吃飯、會自己整理，會跟好朋友玩，也會跟老師分享，更會自己主動唸好好玩的故事書喔。' },

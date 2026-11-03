@@ -862,28 +862,24 @@
     ]
   },
   "env-care-teacher": {
-    "width": 2221,
-    "height": 743,
+    "width": 1477,
+    "height": 671,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-480.webp",
+        "src": "/assets/responsive/env-care-teacher-064bff104ef0-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-800.webp",
+        "src": "/assets/responsive/env-care-teacher-064bff104ef0-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-1200.webp",
+        "src": "/assets/responsive/env-care-teacher-064bff104ef0-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-1600.webp",
-        "width": 1600
-      },
-      {
-        "src": "/assets/responsive/env-care-teacher-b2e63b0f1b87-2221.webp",
-        "width": 2221
+        "src": "/assets/env-care-teacher.webp",
+        "width": 1477
       }
     ]
   },
@@ -1208,28 +1204,28 @@
     ]
   },
   "cur-years": {
-    "width": 1667,
-    "height": 1111,
+    "width": 1800,
+    "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-years-a39d4aab82d5-480.webp",
+        "src": "/assets/responsive/cur-years-5797e974a671-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/cur-years-a39d4aab82d5-800.webp",
+        "src": "/assets/responsive/cur-years-5797e974a671-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/cur-years-a39d4aab82d5-1200.webp",
+        "src": "/assets/responsive/cur-years-5797e974a671-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/cur-years-a39d4aab82d5-1600.webp",
+        "src": "/assets/responsive/cur-years-5797e974a671-1600.webp",
         "width": 1600
       },
       {
-        "src": "/assets/responsive/cur-years-a39d4aab82d5-1667.webp",
-        "width": 1667
+        "src": "/assets/responsive/cur-years-5797e974a671-1800.webp",
+        "width": 1800
       }
     ]
   },
