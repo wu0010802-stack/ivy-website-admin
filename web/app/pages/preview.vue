@@ -220,7 +220,7 @@ onBeforeUnmount(() => {
       </div>
       <template v-else>
         <SiteHeader :content="draft" />
-        <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" />
+        <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" :campuses="draft.campuses" />
         <CurriculumContent v-else-if="page === 'curriculum'" :page="draft.curriculumPage" />
         <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" :anniversary="anniversaryEnabled(draft.siteMeta)" />
         <EnvironmentContent v-else-if="page === 'environment'" :campuses="draft.campuses" :page="draft.environmentPage" />

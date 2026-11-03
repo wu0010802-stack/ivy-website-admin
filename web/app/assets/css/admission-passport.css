@@ -21,7 +21,7 @@
   overflow-x: clip;
 }
 .ap h1, .ap h2, .ap h3 { letter-spacing: .02em; word-break: keep-all; overflow-wrap: anywhere; }
-.ap h4, .ap figure, .ap fieldset { margin: 0; }
+.ap h4, .ap h5, .ap figure, .ap fieldset { margin: 0; }
 .ap p { max-width: none; text-wrap: pretty; }
 /* 清單與條款也避免孤字（2026-10-12；標題照舊 balance）。 */
 .ap li { text-wrap: pretty; }
@@ -98,7 +98,6 @@
 .ap-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 64px; align-items: end; margin-bottom: 56px; }
 .ap-head h2 { font-size: clamp(2.125rem, 3.2vw, 3rem); line-height: 1.45; color: var(--deep); }
 .ap-head p { max-width: 32em; font-size: var(--fs-md); color: var(--muted); }
-.ap-sub { margin-bottom: 16px; font: 600 var(--fs-sm)/1.6 var(--font); letter-spacing: .3em; color: var(--muted); }
 
 /* ── 第 2 頁：簽證欄（表格線，不做卡片）── */
 .ap-visas { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1.5px solid var(--ap-rule); border-left: 1.5px solid var(--ap-rule); }
@@ -157,7 +156,8 @@
   .ap-slot button:hover { background: color-mix(in oklch, var(--ap-page-alt) 88%, var(--mint)); }
   /* 其他可點的地方也給滑鼠回饋（2026-10-13）：完整對照表的鈕、退費條文、必備品勾選列原本滑過去沒有變化。 */
   .ap-table summary:hover .ap-pill { border-color: var(--green); }
-  .ap-refunds summary:hover .ap-clause-title { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+  .ap-faq summary:hover .ap-faq-q { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+  .ap-faq-link:hover, .ap-faq-phones a:hover { text-decoration-thickness: 2px; }
   .ap-bring label:hover input:not(:checked) + .ap-box { background: color-mix(in oklch, var(--white) 55%, var(--mint)); }
 }
 .ap-detail { grid-area: detail; margin-top: 28px; }
@@ -241,9 +241,33 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-clauses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px dashed var(--ap-rule); font-size: var(--fs-sm); line-height: 1.85; }
 .ap-clause-mark { font: 600 var(--fs-xs)/1.9 var(--font); color: var(--muted); }
 
-/* ── 第 5 頁：收退費 ── */
-.ap-coupons { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-/* 補助券：主體與存根之間一條打孔撕線，上下各一個半圓缺口（mask 只用黑白，與顏色無關） */
+/* ── 第 5 頁：常見問題（2026-11-03）──
+   原本的「收退費辦法」整章收進來：補助那題預設打開（補助券、津貼表），退費條款收成一題。
+   版面是表格線、不做卡片：桌機組名在左欄、題目在右欄；「問」朱紅框、「答」深綠框，同簽證欄兩種墨。 */
+.ap-faq { border-top: 1.5px solid var(--ap-rule); }
+.ap-faq-group { display: grid; grid-template-columns: minmax(0, 220px) minmax(0, 1fr); gap: 0 48px; padding: 20px 0 28px; border-bottom: 1.5px solid var(--ap-rule); }
+.ap-faq-group > h3 { padding-top: 18px; font-size: var(--fs-xl); line-height: 1.4; color: var(--deep); }
+.ap-faq-list > li + li { border-top: 1px dashed var(--ap-rule); }
+.ap-faq summary { display: grid; grid-template-columns: 30px minmax(0, 1fr) 28px; gap: 16px; align-items: center; min-height: 64px; padding: 12px 0; list-style: none; cursor: pointer; }
+.ap-faq summary::-webkit-details-marker { display: none; }
+.ap-faq summary:focus-visible { outline: 3px solid var(--leaf); outline-offset: 4px; border-radius: 4px; }
+.ap-faq-mark { display: grid; place-items: center; width: 30px; height: 30px; border: 1.5px solid var(--ap-red); border-radius: 5px; font: 700 var(--fs-sm)/1 var(--font-head); color: var(--ap-red); }
+.ap-faq-mark-a { border-color: var(--green); color: var(--green); }
+.ap-faq-q { font-size: var(--fs-lg); font-weight: 700; line-height: 1.6; color: var(--deep); }
+.ap-faq summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
+.ap-faq details[open] > summary .icon { transform: rotate(45deg); }
+.ap-faq-a { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 16px; padding: 0 44px 28px 0; }
+.ap-faq-body { display: grid; justify-items: start; gap: 14px; min-width: 0; max-width: 46em; font-size: var(--fs-md); line-height: 1.85; }
+.ap-faq-body > * { max-width: 100%; }
+.ap-faq-fine { font-size: var(--fs-sm); color: var(--muted); }
+.ap-faq-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font-weight: 700; color: var(--green); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
+/* 各校電話：一列一校，號碼可直接撥 */
+.ap .ap-faq-phones { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 200px), 1fr)); column-gap: 28px; width: 100%; }
+.ap-faq-phones li { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px dashed var(--ap-rule); }
+.ap-faq-phones span { font-weight: 600; }
+.ap-faq-phones a { padding: 10px 0; font: 400 var(--fs-md)/1.5 var(--font-date); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--green); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+/* 補助券（後台有填才出現）：主體與存根之間一條打孔撕線，上下各一個半圓缺口（mask 只用黑白，與顏色無關） */
+.ap .ap-coupons { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 260px), 1fr)); gap: 20px; width: 100%; }
 .ap-coupon { --notch: 11px; --stub: 76px; position: relative; display: grid; grid-template-columns: minmax(0, 1fr) var(--stub); min-height: 190px; border: 1.5px solid var(--ap-rule); border-radius: 10px; background: var(--white);
   -webkit-mask: radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 0, transparent 98%, var(--text)) top / 100% 51% no-repeat, radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 100%, transparent 98%, var(--text)) bottom / 100% 51% no-repeat;
   mask: radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 0, transparent 98%, var(--text)) top / 100% 51% no-repeat, radial-gradient(circle var(--notch) at calc(100% - var(--stub)) 100%, transparent 98%, var(--text)) bottom / 100% 51% no-repeat; }
@@ -265,11 +289,10 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 /* 直排裡的「01」縱中橫：兩位數字直立占一格，不再橫躺壓到「第」（2026-10-13）。字型跟「補助券」一樣用護照明體：
    內文的黑體備用字型沒有直排字距資料時，縱中橫的數字會疊在「第」上。 */
 .ap-tcy { text-combine-upright: all; letter-spacing: 0; }
-.ap-fees-grid { display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 1fr); gap: 48px; align-items: start; margin-top: 56px; }
-.ap-fees-grid.no-allowance { grid-template-columns: 1fr; }
-.ap-rate { width: 100%; border-collapse: collapse; border: 1.5px solid var(--ap-rule); background: var(--white); }
+/* 育兒津貼表：放在答案欄裡，不撐滿 */
+.ap-rate { width: min(100%, 420px); border-collapse: collapse; border: 1.5px solid var(--ap-rule); background: var(--white); }
 .ap-rate caption { padding: 0 0 12px; text-align: left; }
-.ap-rate caption b { display: block; font: 700 var(--fs-xl)/1.4 var(--font-head); color: var(--deep); }
+.ap-rate caption b { display: block; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--deep); }
 .ap-rate caption small { font-size: var(--fs-xs); color: var(--muted); }
 .ap-rate th, .ap-rate td { padding: 14px 18px; border-bottom: 1px dashed var(--ap-rule); text-align: left; }
 .ap-rate thead th { border-bottom: 1.5px solid var(--ap-rule); font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
@@ -277,22 +300,15 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-rate td { text-align: right; font-size: var(--fs-sm); color: var(--muted); }
 .ap-rate thead th:last-child { text-align: right; }
 .ap-rate td b { font: 700 var(--fs-2xl) var(--font-head); font-variant-numeric: tabular-nums; color: var(--deep); }
-.ap-refunds h3 { font-size: var(--fs-xl); color: var(--deep); }
-.ap-refunds > p { margin-top: 4px; font-size: var(--fs-sm); color: var(--muted); }
-.ap-refunds ol { margin-top: 14px; border-top: 1.5px solid var(--ap-rule); }
-.ap-refunds ol > li { border-bottom: 1px solid var(--ap-rule); }
-.ap-refunds summary { display: grid; grid-template-columns: 64px minmax(0, 1fr) 28px; gap: 12px; align-items: center; min-height: 62px; padding: 8px 0; list-style: none; cursor: pointer; }
-.ap-refunds summary::-webkit-details-marker { display: none; }
-.ap-clause-no { font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .08em; color: var(--ap-red); }
-.ap-clause-title { font-weight: 700; }
-.ap-refunds summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
-.ap-refunds details[open] summary .icon { transform: rotate(45deg); }
-.ap-clause-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 4px 0 22px 76px; font-size: var(--fs-sm); line-height: 1.85; }
-/* 退費條文一組一列、類別在左（2026-10-13）：原本三組並排各約 290px，條文斷成「1/3 入／園」「收／取 2/3」。 */
+/* 退費條款：一條一段，類別在左（2026-10-13 一組一列的規則沿用） */
+.ap-faq-clauses { width: 100%; border-top: 1px solid var(--ap-rule); }
+.ap-faq-clause { padding: 14px 0 16px; border-bottom: 1px dashed var(--ap-rule); }
+.ap-faq-clause h4 { font-size: var(--fs-md); font-weight: 700; line-height: 1.6; color: var(--deep); }
+.ap-clause-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding-top: 8px; font-size: var(--fs-sm); line-height: 1.85; }
 .ap-clause-body > div { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 2px 16px; }
-.ap-clause-body > div > h4 { line-height: 2.16; }
+.ap-clause-body > div > h5 { line-height: 2.16; }
 /* 退費小項是後台文字：內文字型粗體 */
-.ap-clause-body h4 { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; color: var(--green); }
+.ap-clause-body h5 { font-size: var(--fs-xs); font-weight: 700; letter-spacing: .12em; color: var(--green); }
 .ap-clause-body ul li { position: relative; padding-left: 14px; }
 .ap-clause-body ul li::before { content: ''; position: absolute; left: 0; top: .8em; width: 5px; height: 5px; border-radius: 50%; background: var(--ap-rule); }
 .ap-clause-note { grid-column: 1 / -1; color: var(--muted); }
@@ -307,10 +323,8 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
   .ap-answer { order: 1; }
   .ap-field-static { order: 2; }
-  /* 單欄時券面跟下面的津貼表同寬，不再縮在左邊 560px、右邊空一大塊（2026-10-13）。 */
-  .ap-coupons { grid-template-columns: 1fr; }
   .ap-coupon { min-height: 150px; }
-  .ap-fees-grid { grid-template-columns: 1fr; }
+  .ap-faq-group { grid-template-columns: minmax(0, 160px) minmax(0, 1fr); column-gap: 32px; }
   .ap-week { grid-template-columns: 1fr; }
 }
 /* ── 手機 ── */
@@ -343,6 +357,8 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-datapage > .ap-rosette-host { right: -120px; top: 250px; width: 360px; }
   .ap-answer-lead { font-size: var(--fs-2xl); }
   .ap-stampzone { min-height: 200px; margin-top: 8px; }
+  /* 還沒輸入生日不留空白章框（2026-11-03）：虛線圓占掉約 200px，生日欄跟班別格中間空一大塊；蓋章時才出現。 */
+  .ap-stampzone:not(.stamped) { display: none; }
   .ap-stampzone::before { width: 176px; height: 176px; }
   .ap-result { width: 172px; height: 172px; }
   .ap-result .ap-stamp svg { width: 172px; height: 172px; }
@@ -374,9 +390,14 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-clauses li { grid-template-columns: 52px minmax(0, 1fr); }
   .ap-coupon { --stub: 60px; min-height: 164px; }
   .ap-coupon-amt b { font-size: var(--fs-4xl); }
-  .ap-fees-grid { gap: 36px; margin-top: 40px; }
-  .ap-refunds summary { grid-template-columns: 52px minmax(0, 1fr) 24px; }
-  .ap-clause-body { padding-left: 0; }
+  .ap-faq-group { grid-template-columns: 1fr; padding: 22px 0 18px; }
+  .ap-faq-group > h3 { padding-top: 0; margin-bottom: 4px; font-size: var(--fs-lg); }
+  .ap-faq summary { grid-template-columns: 26px minmax(0, 1fr) 22px; gap: 12px; min-height: 60px; }
+  .ap-faq-mark { width: 26px; height: 26px; font-size: var(--fs-xs); }
+  .ap-faq-q { font-size: var(--fs-md); }
+  /* 手機答案不留「答」那一欄，字從左緣開始 */
+  .ap-faq-a { grid-template-columns: minmax(0, 1fr); padding: 0 0 22px; }
+  .ap-faq-mark-a { display: none; }
   .ap-clause-body > div { grid-template-columns: minmax(0, 1fr); }
 }
 /* 320 寬一欄只有 56px，62px 的印章左右壓進鄰欄、最後一枚超出內容區（2026-10-02 手機審查）：360 以下印章最寬等於欄寬。 */
@@ -394,7 +415,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-wear .ap-stamp svg { width: min(62px, 100%); height: auto; margin-inline: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ap-action, .ap-stampzone::before, .ap-stamp-hint, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-refunds summary .icon { transition: none; }
+  .ap-action, .ap-stampzone::before, .ap-stamp-hint, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-faq summary .icon { transition: none; }
 }
 @media (forced-colors: active) {
   .ap-rosette, .ap-band { display: none; }

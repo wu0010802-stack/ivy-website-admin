@@ -9,7 +9,7 @@ usePageSeo(computed(() => data.value?.content), 'admission')
 <template>
   <div v-if="data">
     <SiteHeader :content="data.content" />
-    <AdmissionContent :admission="data.content.admission" />
+    <AdmissionContent :admission="data.content.admission" :campuses="data.content.campuses" />
     <SiteFooter :content="data.content" />
   </div>
 </template>

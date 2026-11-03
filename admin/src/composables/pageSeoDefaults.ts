@@ -36,7 +36,7 @@ const BRAND = '常春藤教育機構'
 export const PAGE_SEO_DEFAULTS: Readonly<Record<PageSeoKey, { title: string; description: string }>> = {
   admission: {
     title: `入學資訊｜入學流程、新生須知、收退費與分班｜${BRAND}`,
-    description: '常春藤幼兒園入學流程、新生入園須知、收退費辦法與補助，並可依寶貝生日查詢就讀班級。',
+    description: '常春藤幼兒園入學流程、依寶貝生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等常見問題。',
   },
   about: {
     title: `關於常春藤｜1997 年創立、五所校園與全人教育｜${BRAND}`,

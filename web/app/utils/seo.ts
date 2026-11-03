@@ -85,7 +85,7 @@ export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'admission', {
     title: `入學資訊｜入學流程、新生須知、收退費與分班｜${site.siteMeta.brandName}`,
-    description: '常春藤幼兒園入學流程、新生入園須知、收退費辦法與補助，並可依寶貝生日查詢就讀班級。'
+    description: '常春藤幼兒園入學流程、依寶貝生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等常見問題。'
   })
   const canonical = origin ? `${origin}${ADMISSION_PATH}` : undefined
   const imagePath = share.path
@@ -349,7 +349,7 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'>): st
     ''
   ]
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
-  out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、新生入園須知、收退費辦法與補助、依生日查詢就讀班級。`, '')
+  out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、依生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等問答。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   if (anniversaryEnabled(site.siteMeta)) out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')

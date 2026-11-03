@@ -1,3 +1,15 @@
+## 2026-11-03 入學頁：收退費收進「常見問題」、新增 11 題問答（`feature/admission-ux-20261103`）
+
+使用者要求優化入學頁 UI/UX、多新增幼兒園的問答、退費縮小或拿掉。規則見 DESIGN.md「入學頁：收退費收進常見問題、新增 11 題問答」。
+
+- `AdmissionContent.vue`：第 5 頁「收退費辦法」換成「常見問題」三組 11 題；退費條款收成一題預設收合，補助那題（沿用 `#fees`）預設打開放津貼表與補助券；「怎麼預約參觀」列各校電話（新選填 prop `campuses`，`pages/admission.vue`、`pages/preview.vue` 傳入）；網址錨點會打開對應題目。問答文字在新檔 `utils/admission-faq.ts`。
+- `admission-passport.css`：刪掉退費手風琴、收退費兩欄格線與「政府補助」小標的樣式，新增常見問題樣式；手機還沒輸入生日不顯示空白章框。
+- 同日先上線的「前台字型統一」已拿掉護照明體，rebase 時入學頁字型檔一律取刪除。LINE Seed：`page-font-chars.json` 只換 `/admission` 一項後重切（68 片換新），入學頁從 12–13 片 152–182 KB 降到 9 片 69 KB。
+- 入學頁搜尋描述與 llms.txt 那句改寫（`seo.ts`＋後台 `pageSeoDefaults.ts`）。
+- 新測試 `web/tests/admission-faq.spec.ts`（SSR 渲染：退費收在一題、補助預設打開、題數、電話、清空後題目拿掉、新生準備清空時連結拿掉）。
+- **驗證**：`npm --prefix web run typecheck` 通過；rebase 到字型統一（`0ed388ef`）之後 `npm run test:website` 110 檔 1351 項全過（本機殘留的空目錄 `public/assets/fonts/admission` 刪掉後）；後台 `siteMetaSeo`／`admissionContent` 兩檔過；fixture dev server 用 Playwright 截 1440／390、axe（WCAG 2.2 AA）常見問題區 0 違規、可點目標都 ≥44px、`#faq-refund`／`#fees` 錨點會打開題目。
+- **沒跑**：stack e2e（含視覺基準）、iOS 實機；沒有 `versions/` 快照（sparse worktree，改動都在 git）。
+
 ## 2026-11-03 前台字型統一成 LINE Seed TW、標題大字拿掉逗號句號（`feature/font-unify-20261103`）
 
 使用者看過正式站字型盤點後要「統一成首屏『在常春藤每一天都有新發現』那套」，之後再要「標題大字的句號跟逗號拿掉」。規則見 DESIGN.md 最上面兩節。

@@ -7,15 +7,19 @@
 // 同日裁定延續：這頁不放預約參觀（預約入口只留頁首金色鈕）；分班是成長軌道邏輯（生日 → 一句話答案 →
 // 五格學年度欄位，寶貝那格蓋章 → 點格看出生區間），規則在 utils/admission-classes.ts；老師叮嚀不用翻面就看得到。
 // 內容（步驟、須知、金額、退費）由後台 admission_content 管理；區塊大標、印章上的固定字寫在這裡。
+// 2026-11-03：第 5 頁「收退費辦法」收進最後一章「常見問題」（utils/admission-faq.ts）：補助那題預設打開，
+// 退費條款變成一題、預設收合；津貼表、補助券、退費條款照樣讀後台內容。
 import { admissionHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, CLASS_BY_OFFSET, classPlan, classRanges, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
 import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
 import { splitStampText } from '~/utils/passport-stamp'
 import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
-import type { AdmissionContent } from '~/types/site-content'
+import { ADMISSION_FAQ, type AdmissionFaqItem } from '~/utils/admission-faq'
+import type { AdmissionContent, Campus } from '~/types/site-content'
 
-const props = defineProps<{ admission: AdmissionContent }>()
+// campuses 給常見問題「怎麼預約參觀」列各校電話；沒傳時那一題只有文字。
+const props = defineProps<{ admission: AdmissionContent; campuses?: Campus[] }>()
 const admission = computed(() => props.admission)
 const hero = admissionHeroImage()
 const pad2 = (n: number) => String(n).padStart(2, '0')
@@ -28,12 +32,31 @@ const hasNewcomerExtras = computed(() => {
 // 新生準備的標題：結尾括號另包一段整段換行（splitTrailingParen）
 const phaseTitles = computed(() => admission.value.phases.map(phase => splitTrailingParen(phase.title)))
 const showNewcomer = computed(() => admission.value.phases.length > 0 || hasNewcomerExtras.value)
+
+// ---------- 常見問題：讀後台內容的題目，內容清空就整題拿掉 ----------
+const phones = computed(() => (props.campuses ?? []).filter((campus) => campus.phone))
+function faqVisible(item: AdmissionFaqItem) {
+  const a = admission.value
+  if (item.slot === 'allowance') return a.allowance.length > 0 || a.subsidies.length > 0
+  if (item.slot === 'refunds') return a.refunds.length > 0
+  return true
+}
+const faqGroups = computed(() => ADMISSION_FAQ.map((group) => ({
+  ...group,
+  items: group.items.filter(faqVisible).map((item) => ({
+    ...item,
+    // 新生準備整章被清空時，「看新生準備」不留點了沒反應的錨點
+    link: item.link?.href === '#newcomer' && !showNewcomer.value ? undefined : item.link
+  }))
+})).filter((group) => group.items.length > 0))
+const faqCount = computed(() => faqGroups.value.reduce((sum, group) => sum + group.items.length, 0))
+
 // 目錄與章節同一個條件：後台把新生須知全部清空時，目錄也一起拿掉，不留點了沒反應的錨點。
 const chapters = computed(() => [
   { id: 'process', label: '入學流程', hint: `${admission.value.steps.length} 個步驟` },
   { id: 'classes', label: '分班對照', hint: '輸入生日查班別' },
   ...(showNewcomer.value ? [{ id: 'newcomer', label: '新生準備', hint: '必備品與叮嚀' }] : []),
-  { id: 'fees', label: '收退費辦法', hint: '補助與退費規定' }
+  { id: 'faq', label: '常見問題', hint: `補助、退費等 ${faqCount.value} 題` }
 ].map((chapter, i) => ({ ...chapter, no: pad2(i + 1), page: i + 2 })))
 const chapterOf = (id: string) => chapters.value.find((chapter) => chapter.id === id)
 
@@ -136,9 +159,17 @@ function onResize() {
   window.clearTimeout(resizeTimer)
   resizeTimer = window.setTimeout(drawGuilloche, 150)
 }
+/** 網址帶常見問題的錨點（#faq-refund、舊連結 #fees）就把那一題打開。 */
+function openFaqFromHash() {
+  const id = decodeURIComponent(location.hash.slice(1))
+  const target = id ? document.getElementById(id) : null
+  if (target instanceof HTMLDetailsElement && root.value?.contains(target)) target.open = true
+}
 onMounted(async () => {
   drawGuilloche()
   window.addEventListener('resize', onResize)
+  openFaqFromHash()
+  window.addEventListener('hashchange', openFaqFromHash)
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
   // gsap 只在這頁動態載入；載入失敗就不做動作，印章直接出現
   const loaded = reducedMotion ? null : await import('gsap').then(({ gsap }) => createAdmissionMotion(gsap)).catch(() => null)
@@ -164,6 +195,7 @@ onBeforeUnmount(() => {
   window.clearTimeout(welcomeTimer)
   window.clearTimeout(resizeTimer)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('hashchange', openFaqFromHash)
   motion?.destroy()
 })
 </script>
@@ -438,63 +470,90 @@ onBeforeUnmount(() => {
       </div>
     </section>
 
-    <!-- 第 5 頁：收退費。補助做成有撕線的補助券；退費規定是編號條款。 -->
-    <section id="fees" class="ap-section ap-tint-alt" aria-labelledby="fees-title">
-      <div class="ap-band-host" data-band="fees" aria-hidden="true">
-        <svg v-if="bands.fees" class="ap-band" :viewBox="`0 0 ${bands.fees.width} 24`" :width="bands.fees.width" height="24" focusable="false"><path v-for="(d, i) in bands.fees.paths" :key="i" :d="d" /></svg>
+    <!-- 第 5 頁：常見問題（2026-11-03）。原本的收退費整章收進來：補助那題預設打開（補助券、津貼表），
+         退費條款收成一題、預設收合。問答文字在 utils/admission-faq.ts，津貼、補助、退費照樣讀後台內容。 -->
+    <section id="faq" class="ap-section ap-tint-alt" aria-labelledby="faq-title">
+      <div class="ap-band-host" data-band="faq" aria-hidden="true">
+        <svg v-if="bands.faq" class="ap-band" :viewBox="`0 0 ${bands.faq.width} 24`" :width="bands.faq.width" height="24" focusable="false"><path v-for="(d, i) in bands.faq.paths" :key="i" :d="d" /></svg>
       </div>
       <div class="ap-wrap">
-        <div class="ap-runhead"><span>{{ chapterOf('fees')?.no }}・收退費辦法</span><span>第 {{ chapterOf('fees')?.page }} 頁</span></div>
+        <div class="ap-runhead"><span>{{ chapterOf('faq')?.no }}・常見問題</span><span>第 {{ chapterOf('faq')?.page }} 頁</span></div>
         <div class="ap-head">
-          <h2 id="fees-title">補助與退費<br>一次看清楚</h2>
-          <p v-if="admission.feeIntro">{{ admission.feeIntro }}</p>
+          <h2 id="faq-title">入學前<br>爸媽常問的事</h2>
         </div>
-        <template v-if="admission.subsidies.length">
-          <h3 class="ap-sub">政府補助</h3>
-          <ul class="ap-coupons">
-            <li v-for="(subsidy, i) in admission.subsidies" :key="i" class="ap-coupon">
-              <div class="ap-coupon-main">
-                <div class="ap-rosette-host ap-coupon-rosette" data-rosette="coupon" :data-key="`coupon-${i}`" aria-hidden="true">
-                  <svg v-if="rosettes[`coupon-${i}`]" class="ap-rosette" :viewBox="`0 0 ${rosettes[`coupon-${i}`]!.size} ${rosettes[`coupon-${i}`]!.size}`" focusable="false"><path v-for="(d, k) in rosettes[`coupon-${i}`]!.paths" :key="k" :d="d" /></svg>
-                </div>
-                <p class="ap-coupon-by">{{ subsidy.by }}</p>
-                <p class="ap-coupon-amt"><b>{{ subsidy.amount }}</b><span>{{ subsidy.unit }}</span></p>
-                <p class="ap-coupon-who">{{ subsidy.who }}</p>
-              </div>
-              <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small></div>
-            </li>
-          </ul>
-        </template>
-        <div class="ap-fees-grid" :class="{ 'no-allowance': !admission.allowance.length }">
-          <table v-if="admission.allowance.length" class="ap-rate">
-            <caption><b>{{ admission.allowanceTitle }}</b><small v-if="admission.allowanceNote">{{ admission.allowanceNote }}</small></caption>
-            <thead><tr><th scope="col">胎次</th><th scope="col">每月</th></tr></thead>
-            <tbody>
-              <tr v-for="(row, i) in admission.allowance" :key="i"><th scope="row">{{ row.order }}</th><td><b>{{ row.amount }}</b> 元</td></tr>
-            </tbody>
-          </table>
-          <div v-if="admission.refunds.length" class="ap-refunds">
-            <h3>退費規定</h3>
-            <p>實際金額以園方開立的退費單據為準。</p>
-            <ol>
-              <li v-for="(refund, i) in admission.refunds" :key="i">
-                <details :open="i === 0">
+        <div class="ap-faq">
+          <section v-for="(group, g) in faqGroups" :key="group.title" class="ap-faq-group" :aria-labelledby="`ap-faq-group-${g}`">
+            <h3 :id="`ap-faq-group-${g}`">{{ group.title }}</h3>
+            <ul class="ap-faq-list">
+              <li v-for="item in group.items" :key="item.id">
+                <details :id="item.id" :open="item.open">
                   <summary>
-                    <span class="ap-clause-no">第 {{ i + 1 }} 條</span>
-                    <span class="ap-clause-title">{{ refund.title }}</span>
+                    <span class="ap-faq-mark" aria-hidden="true">問</span>
+                    <span class="ap-faq-q">{{ item.q }}</span>
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-plus" /></svg>
                   </summary>
-                  <div class="ap-clause-body">
-                    <div v-for="(group, g) in refund.groups" :key="g">
-                      <h4 v-if="group.label">{{ group.label }}</h4>
-                      <ul><li v-for="(line, l) in group.lines" :key="l">{{ line }}</li></ul>
+                  <div class="ap-faq-a">
+                    <span class="ap-faq-mark ap-faq-mark-a" aria-hidden="true">答</span>
+                    <div class="ap-faq-body">
+                      <p v-for="(line, l) in item.a" :key="l">{{ line }}</p>
+
+                      <template v-if="item.slot === 'allowance'">
+                        <ul v-if="admission.subsidies.length" class="ap-coupons">
+                          <li v-for="(subsidy, i) in admission.subsidies" :key="i" class="ap-coupon">
+                            <div class="ap-coupon-main">
+                              <div class="ap-rosette-host ap-coupon-rosette" data-rosette="coupon" :data-key="`coupon-${i}`" aria-hidden="true">
+                                <svg v-if="rosettes[`coupon-${i}`]" class="ap-rosette" :viewBox="`0 0 ${rosettes[`coupon-${i}`]!.size} ${rosettes[`coupon-${i}`]!.size}`" focusable="false"><path v-for="(d, k) in rosettes[`coupon-${i}`]!.paths" :key="k" :d="d" /></svg>
+                              </div>
+                              <p class="ap-coupon-by">{{ subsidy.by }}</p>
+                              <p class="ap-coupon-amt"><b>{{ subsidy.amount }}</b><span>{{ subsidy.unit }}</span></p>
+                              <p class="ap-coupon-who">{{ subsidy.who }}</p>
+                            </div>
+                            <div class="ap-coupon-stub" aria-hidden="true"><span>補助券</span><small>第<span class="ap-tcy">{{ pad2(i + 1) }}</span>張</small></div>
+                          </li>
+                        </ul>
+                        <table v-if="admission.allowance.length" class="ap-rate">
+                          <caption><b>{{ admission.allowanceTitle }}</b><small v-if="admission.allowanceNote">{{ admission.allowanceNote }}</small></caption>
+                          <thead><tr><th scope="col">胎次</th><th scope="col">每月</th></tr></thead>
+                          <tbody>
+                            <tr v-for="(row, i) in admission.allowance" :key="i"><th scope="row">{{ row.order }}</th><td><b>{{ row.amount }}</b> 元</td></tr>
+                          </tbody>
+                        </table>
+                      </template>
+
+                      <template v-else-if="item.slot === 'refunds'">
+                        <p v-if="admission.feeIntro">{{ admission.feeIntro }}</p>
+                        <div class="ap-faq-clauses">
+                          <div v-for="(refund, i) in admission.refunds" :key="i" class="ap-faq-clause">
+                            <h4>{{ refund.title }}</h4>
+                            <div class="ap-clause-body">
+                              <div v-for="(group, k) in refund.groups" :key="k">
+                                <h5 v-if="group.label">{{ group.label }}</h5>
+                                <ul><li v-for="(line, l) in group.lines" :key="l">{{ line }}</li></ul>
+                              </div>
+                              <p v-if="refund.note" class="ap-clause-note">{{ refund.note }}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <p class="ap-faq-fine">實際金額以園方開立的退費單據為準。</p>
+                      </template>
+
+                      <ul v-else-if="item.slot === 'phones' && phones.length" class="ap-faq-phones">
+                        <li v-for="campus in phones" :key="campus.key">
+                          <span>{{ campus.name }}</span>
+                          <a :href="`tel:${campus.phone}`" :aria-label="`撥打${campus.name}電話 ${campus.phone}`">{{ campus.phone }}</a>
+                        </li>
+                      </ul>
+
+                      <template v-if="item.link">
+                        <a v-if="item.link.href.startsWith('#')" class="ap-faq-link" :href="item.link.href">{{ item.link.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></a>
+                        <NuxtLink v-else class="ap-faq-link" :to="item.link.href">{{ item.link.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+                      </template>
                     </div>
-                    <p v-if="refund.note" class="ap-clause-note">{{ refund.note }}</p>
                   </div>
                 </details>
               </li>
-            </ol>
-          </div>
+            </ul>
+          </section>
         </div>
       </div>
     </section>
