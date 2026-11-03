@@ -2198,5 +2198,55 @@
         "width": 2000
       }
     ]
+  },
+  "campus-line-art-yihua-wash": {
+    "width": 240,
+    "height": 160,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-yihua-wash-31b7ea096b43-240.webp",
+        "width": 240
+      }
+    ]
+  },
+  "campus-line-art-minghua-wash": {
+    "width": 240,
+    "height": 160,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-minghua-wash-680a48c34c69-240.webp",
+        "width": 240
+      }
+    ]
+  },
+  "campus-line-art-chongde-wash": {
+    "width": 240,
+    "height": 160,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-chongde-wash-00e5edb650ff-240.webp",
+        "width": 240
+      }
+    ]
+  },
+  "campus-line-art-international-wash": {
+    "width": 240,
+    "height": 160,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-international-wash-96a6afeb09d6-240.webp",
+        "width": 240
+      }
+    ]
+  },
+  "campus-line-art-renwu-wash": {
+    "width": 240,
+    "height": 160,
+    "candidates": [
+      {
+        "src": "/assets/responsive/campus-line-art-renwu-wash-0c4ae59bbe7f-240.webp",
+        "width": 240
+      }
+    ]
   }
 }

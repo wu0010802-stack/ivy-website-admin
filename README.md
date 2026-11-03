@@ -1,3 +1,12 @@
+## 2026-11-03 環境頁五所校園分頁的建築上色（`feature/env-tour-colour-20261103`）
+
+使用者要 `/environment` 第四章五校分頁「裡面的建築物上成彩色」。規則見 DESIGN.md「環境頁五所校園分頁建築上色」。
+
+- 沿用首頁五校分頁 hover 時的淡彩層 `campus-line-art-<校>-colour`，`optimize-site-images.py` 另產透明底 `-wash`（單張 240w，12–15 KB），在 `EnvironmentContent.vue` 墊在 `-ink` 墨線底下，不用混合模式。
+- 試過把淡彩和墨線合成一張：480w 要 47–76 KB，改兩層堆疊（20＋15 KB）；淡彩層 240w 放大和 480w 看不出差別。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 111 檔 1357 項全過（`campus-line-ink.spec.ts` 新增兩項；環境頁 `<main>` 快照只多五張淡彩層）；fixture dev server 用 Playwright 截桌機 1440@2 與手機 390@3：五校都載到 `-wash` 240w＋`-ink` 480w，兩層框完全重合、`mix-blend-mode` 都是 normal。
+- **沒跑**：stack e2e、iOS 實機。
+
 ## 2026-11-03 特色教學四張、環境頁安全角落換成「115招生照片」（`feature/chongde-photos-20261103`）
 
 使用者給園方共用雲端的「115招生照片」資料夾問哪些適合放前台，盤點後同意先換「解析度夠用的卡片位置」。挑片板與原檔在本機 `output/drive-115-recruit-20261103/`（不進版控）。推測是崇德校（招生影片片尾地址、操場場地），待園方確認，所以替代文字不寫校名。規則見 DESIGN.md「特色教學與環境頁換『115招生照片』」。

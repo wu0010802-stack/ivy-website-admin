@@ -203,9 +203,11 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-tour-head .renv-text{margin-top:20px}
 .renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px;margin-top:52px;padding-bottom:var(--side)}
 .renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.94;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:800;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
-.renv-tour-art{display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
-/* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊 */
-.renv-tour-tab img{width:100%;height:100%;object-fit:contain;object-position:50% 62%}
+.renv-tour-art{position:relative;display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
+/* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊。
+   2026-11-03 起墊一層透明底淡彩 `-wash`（建築上色），兩層都有定位、照 DOM 順序疊，墨線在上；object-fit 相同才對位。 */
+.renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:contain;object-position:50% 62%}
+.renv-tour-tab .renv-tour-wash{position:absolute;inset:0}
 @media (hover:hover){.renv-tour-tab:hover{transform:translateY(-2px);box-shadow:0 calc(var(--side) + 2px) 0 var(--s)}}
 .renv-tour-tab b{display:flex;align-items:center;gap:8px;font-weight:800}
 .renv-tour-tab[aria-selected="true"]{transform:translateY(5px);box-shadow:0 2px 0 var(--s),inset 0 0 0 3px var(--renv-ink)}

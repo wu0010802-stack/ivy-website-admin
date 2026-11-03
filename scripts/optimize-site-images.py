@@ -1,6 +1,6 @@
 """產生 Nuxt 官網響應式 WebP 與社群分享 JPG；保留母檔，內容雜湊避免長效快取過期。
 
-執行：python3 scripts/optimize-site-images.py（需 Pillow）；
+執行：python3 scripts/optimize-site-images.py（需 Pillow、numpy）；
 只更新部分素材：加 `--only day-hello day-discover …`，保留 manifest 其他項目。
 
 - 預設 q84／[480, 800, 1200, 1600]；`OVERRIDES` 針對 Lighthouse 判定壓縮不足的照片
@@ -17,6 +17,7 @@ from pathlib import Path
 from hashlib import sha256
 import json
 import argparse
+import numpy as np
 from PIL import Image, ImageOps
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -100,6 +101,41 @@ def ink_line_art(source: Path) -> None:
     manifest[name] = {'width': INK_WIDTHS[-1], 'height': round(height * INK_WIDTHS[-1] / width), 'candidates': candidates}
 
 
+# 2026-11-03：環境頁五校分頁改彩色。`<代號>-wash`＝淡彩層 `<代號>-colour`（照片色水彩、白底）轉成透明底，
+# 墊在 `-ink` 墨線底下直接堆疊；樣子等同首頁分頁 hover 時「-colour multiply 紙底＋墨線」，一樣不用混合模式。
+# 白底轉 alpha（color to alpha）：a＝max(1−R, 1−G, 1−B)，色＝1 − (1−C)/a；疊在紙底 P 上＝C − (1−a)(1−P)，
+# 與 multiply 的 P×C 最多差 1−P（米白紙約 2%）。淡彩層與線稿同為 3:2、同一框描的，object-fit 相同就對位。
+# 淡彩層本身是糊的，只出一張 240w（約 15 KB）給所有 DPR 放大用：480w 34 KB，放大後看不出差別（2026-11-03 實測）。
+# 不和墨線合成一張：墨線細節會同時進 RGB 與 alpha，480w 要 47–76 KB。
+WASH_WIDTH = 240
+WASH_ALPHA_QUALITY = 70
+
+
+def colour_to_alpha(image: Image.Image) -> Image.Image:
+    rgb = np.asarray(image.convert('RGB'), dtype=np.float32) / 255
+    alpha = (1 - rgb).max(axis=2)
+    colour = 1 - (1 - rgb) / np.maximum(alpha, 1e-6)[..., None]
+    rgba = np.dstack([colour, alpha]).clip(0, 1)
+    return Image.fromarray((rgba * 255 + .5).astype(np.uint8), 'RGBA')
+
+
+def wash_line_art(source: Path) -> None:
+    name = f'{source.stem}-wash'
+    colour_source = ASSETS / f'{source.stem}-colour.webp'
+    salt = f'wash-v1-aq{WASH_ALPHA_QUALITY}-{WASH_WIDTH}'.encode()
+    digest = sha256(colour_source.read_bytes() + salt).hexdigest()[:12]
+    with Image.open(colour_source) as original:
+        image = ImageOps.exif_transpose(original).convert('RGB')
+        box = (WASH_WIDTH, round(image.height * WASH_WIDTH / image.width))
+        target = OUTPUT / f'{name}-{digest}-{WASH_WIDTH}.webp'
+        if not target.exists():
+            colour_to_alpha(image.resize(box, Image.Resampling.LANCZOS)).save(
+                target, 'WEBP', quality=DEFAULT_QUALITY, alpha_quality=WASH_ALPHA_QUALITY, method=6)
+    (ASSETS / f'{name}.webp').write_bytes(target.read_bytes())
+    manifest[name] = {'width': box[0], 'height': box[1],
+                      'candidates': [{'src': f'/assets/responsive/{target.name}', 'width': WASH_WIDTH}]}
+
+
 # 非照片：logo.webp 是頁首校徽的無損版（PNG 轉檔、供 SVG 濾鏡去背），不做響應式衍生。
 SKIP = {'logo'}
 
@@ -110,11 +146,12 @@ manifest_path = ROOT / 'web/app/generated/image-manifest.json'
 manifest = json.loads(manifest_path.read_text()) if args.only and manifest_path.exists() else {}
 sources = [ASSETS / f'{name}.webp' for name in args.only] if args.only else sorted(ASSETS.glob('*.webp'))
 for source in sources:
-    # `-ink` 是下面 ink_line_art() 從線稿產生的，不當母檔
-    if source.stem in SKIP or source.stem.endswith('-ink'):
+    # `-ink`／`-wash` 是下面 ink_line_art()／wash_line_art() 從線稿與淡彩層產生的，不當母檔
+    if source.stem in SKIP or source.stem.endswith(('-ink', '-wash')):
         continue
     if source.stem in LINE_ART_INK:
         ink_line_art(source)
+        wash_line_art(source)
     day = source.stem in DAY_PHOTOS
     override = OVERRIDES.get(source.stem, {})
     quality = DAY_QUALITY if day else override.get('quality', DEFAULT_QUALITY)

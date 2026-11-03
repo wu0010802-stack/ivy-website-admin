@@ -1,3 +1,14 @@
+## 環境頁五所校園分頁建築上色（2026-11-03，`feature/env-tour-colour-20261103`）
+
+使用者要第四章五校分頁「裡面的建築物上成彩色」。
+
+- **素材**：沿用首頁五校分頁 hover 用的淡彩層 `campus-line-art-<校>-colour`（照片色水彩、白底，與線稿同框描、3:2），不重畫。`scripts/optimize-site-images.py` 另產透明底 `campus-line-art-<校>-wash`（白底轉 alpha：a＝max(1−R,1−G,1−B)），**墊在既有 `-ink` 墨線底下直接堆疊**；樣子等同首頁「`-colour` multiply 紙底＋墨線」，但仍不用混合模式（見下面 10-02「五校線稿小圖用透明底墨線版」，iPhone 合成層會露底）。換淡彩層或線稿原圖後重跑 `--only campus-line-art-<校>`，`-ink`、`-wash` 一起重產。
+- **只出一張 240w**（約 12–15 KB）給所有 DPR 放大用：淡彩層本身是糊的，480w（34 KB）放大後看不出差別。
+- **不和墨線合成一張**：墨線細節會同時進 RGB 與 alpha，480w 要 47–76 KB；分兩層是 20＋15 KB。
+- **對位**：兩張都 `object-fit:contain`、`object-position:50% 62%`，淡彩層 `position:absolute;inset:0`、墨線 `position:relative`，照 DOM 順序疊（淡彩在前、墨線在上）。少了墨線的定位，淡彩層會蓋到墨線上面。
+- 和墨線一樣固定用內建素材：後台換過線稿或淡彩層（`lineArtMedia`／`lineArtColourMedia`）時，環境頁不跟著換。
+- **沒驗證**：Safari／iOS 實機。
+
 ## 常春藤環境頁換成木頭積木版（2026-10-30 定案 D2，`feature/env-blocks-20261030`）
 
 使用者先要 `/environment`「精緻但保留活潑」，看過精修版後說舊版「畫面有點髒，有種解析度不夠高的感覺」（來源是 Rough.js 細斜紋填色與蠟筆濾鏡的像素雜訊），接著要「探索其他風格」。比稿 `design/environment-style-directions-20261030/`（Desktop 工作區，不進版控）A 圓圓日常／B 貼紙簿／C 剪紙劇場／D 木頭積木，**選 D**，再要求「校園環境像 A 一樣有線串聯圖片，幼兒餐點也類似 A，圖片不用解釋或註解」＝D2。**取代**下面 09-28 手繪版、09-28 GSAP 動態層、10-19 蠟筆塗鴉三節（那三節保留當歷史）。A、B、C 看過未選，不要再主動提。

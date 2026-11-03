@@ -369,7 +369,10 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
             @click="selectTab(tour.campus.key)"
             @keydown="onTabKey($event, i)"
           >
-            <span class="renv-tour-art"><img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async"></span>
+            <span class="renv-tour-art">
+              <img class="renv-tour-wash" v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-wash`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async">
+              <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async">
+            </span>
             <b>{{ tour.campus.name }}</b>
           </button>
         </div>

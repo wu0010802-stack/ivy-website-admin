@@ -60,6 +60,30 @@ describe('五校線稿墨線版', () => {
     expect(board).not.toContain('.campus-tab-art`)')
   })
 
+  // 2026-11-03：環境頁五校分頁上色。淡彩層 `-colour` 是白底、原本只能 multiply，另產透明底 `-wash` 墊在墨線下面。
+  it('五校都有透明底淡彩層 -wash：3:2、單一 240w 候選、帶 alpha', () => {
+    for (const key of KEYS) {
+      const info = images[`campus-line-art-${key}-wash`]
+      expect(info, key).toBeDefined()
+      expect(info!.width / info!.height).toBeCloseTo(1.5, 2)
+      expect(info!.candidates.map((candidate) => candidate.width)).toEqual([240])
+      const master = resolve(here, `../public/assets/campus-line-art-${key}-wash.webp`)
+      expect(hasAlpha(master)).toBe(true)
+      expect(hasAlpha(resolve(here, `../public${info!.candidates[0]!.src}`))).toBe(true)
+    }
+  })
+
+  it('環境頁五校分頁：淡彩層在墨線底下，兩層都不用混合模式', () => {
+    const env = read('../app/components/EnvironmentContent.vue')
+    const wash = env.indexOf('responsiveImage(`campus-line-art-${tour.campus.key}-wash`')
+    expect(wash).toBeGreaterThanOrEqual(0)
+    expect(wash).toBeLessThan(env.indexOf('responsiveImage(`campus-line-art-${tour.campus.key}-ink`'))
+    const css = read('../app/assets/css/environment.css')
+    expect(rule(css, '.renv-tour-tab .renv-tour-wash')).not.toMatch(/mix-blend-mode|filter:/)
+    // 兩層都要有定位，淡彩層 absolute 才不會蓋過墨線
+    expect(rule(css, '.renv-tour-tab img')).toContain('position:relative')
+  })
+
   it('環境頁五校分頁與預約結果也用墨線版', () => {
     expect(read('../app/components/EnvironmentContent.vue')).toContain('responsiveImage(`campus-line-art-${tour.campus.key}-ink`')
     expect(rule(read('../app/assets/css/environment.css'), '.renv-tour-tab img')).not.toMatch(/mix-blend-mode|filter:/)
