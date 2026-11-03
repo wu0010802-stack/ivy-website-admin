@@ -69,9 +69,9 @@ const DAILY = [
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
 
 // 03、04 各收一張寬幅照片（2026-10-30 從義華校 NAS 素材庫挑）：美術館接全校在廣場的地板畫空拍，
-// 五件事接果嶺公園親子放風箏。只是內建照片與圖說，後台沒有對應欄位。桌機 16:9 不裁，手機 4:3。
-const FLOOR = { image: 'cur-floor-painting', alt: '從空中往下拍，孩子們散坐在綠色廣場上，用粉筆畫滿彩色圖案', caption: '義華校全校在廣場一起畫地板畫', wash: 'sun,.5,.5,.7,.6,.024,40', position: '50% 50%' }
-const KITE = { image: 'cur-kite', alt: '綁著馬尾的女孩在草坡上笑著回頭，手上的彩虹風箏飄在身後', caption: '義華校親子到果嶺公園放風箏', wash: 'leaf,.4,.5,.7,.6,.024,40', position: '24% 50%' }
+// 五件事接果嶺公園親子放風箏。只是內建照片，後台沒有對應欄位；兩張的圖說 2026-11-03 依使用者要求拿掉。桌機 16:9 不裁，手機 4:3。
+const FLOOR = { image: 'cur-floor-painting', alt: '從空中往下拍，孩子們散坐在綠色廣場上，用粉筆畫滿彩色圖案', wash: 'sun,.5,.5,.7,.6,.024,40', position: '50% 50%' }
+const KITE = { image: 'cur-kite', alt: '綁著馬尾的女孩在草坡上笑著回頭，手上的彩虹風箏飄在身後', wash: 'leaf,.4,.5,.7,.6,.024,40', position: '24% 50%' }
 const BAND_SIZES = '(max-width: 1100px) 100vw, 1000px'
 
 // 教學理念五項各配一種顏料（文字在後台）。
@@ -201,7 +201,6 @@ useWatercolor(root)
         </ul>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="FLOOR.wash"><img v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy"></div>
-          <figcaption>{{ FLOOR.caption }}</figcaption>
         </figure>
       </div>
     </section>
@@ -227,7 +226,6 @@ useWatercolor(root)
         </ol>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="KITE.wash"><img v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy"></div>
-          <figcaption>{{ KITE.caption }}</figcaption>
         </figure>
       </div>
     </section>

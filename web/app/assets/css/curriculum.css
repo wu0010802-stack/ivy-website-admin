@@ -25,6 +25,8 @@
 .cur-hero > .cur-wrap, .cur-sec > .cur-wrap { position: relative; z-index: 1; }
 /* 首屏上緣：右上角天藍顏料變形後會超出 canvas，捲動後頁首縮成膠囊時看得到一條水平切線；上緣 56px 淡出（2026-10-13） */
 .cur-hero > .cur-wash { -webkit-mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); }
+/* 段落下緣：顏料變形後外擴約半個橫向半徑，段末的橫幅照（五件事的風箏、課程方向的藝術共創）會被 canvas 切成一條水平直線；在下方留白區淡出（2026-11-03） */
+.cur-sec > .cur-wash { -webkit-mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); }
 .cur-grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: multiply; opacity: .4; background-size: 256px 256px; }
 /* 顏料團：背景圖由 useWatercolor 依元素大小生成，畫好才淡入 */
 .cur-blot { position: absolute; background: center / 100% 100% no-repeat; pointer-events: none; transition: opacity .8s, transform 1.4s var(--cur-ease); }
@@ -172,7 +174,6 @@
 /* ---------- 03、04 結尾的寬幅照片 ---------- */
 .cur-band { max-width: 1000px; margin: clamp(56px, 7vw, 104px) auto 0; }
 .cur-band .cur-frame { aspect-ratio: 16 / 9; }
-.cur-band figcaption { margin-top: 12px; font-size: var(--fs-sm); color: var(--muted); }
 .cur-thing-no { position: relative; isolation: isolate; display: grid; place-items: center; width: 44px; height: 44px; margin: 18px 0 4px; font-size: var(--fs-sm); color: var(--deep); }
 .cur-thing-no .cur-blot { inset: -12px; z-index: -1; transition-delay: .5s; }
 .cur-thing h3 { margin: 0 0 8px; font: 700 var(--fs-2xl)/1.4 var(--font-head); color: var(--green); }
