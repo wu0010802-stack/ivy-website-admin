@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-03 環境頁五所校園分頁的建築上色（main CI 部署，沒有 migration）
+
+- **內容**：`fd7264bb`（README「2026-11-03 環境頁五所校園分頁的建築上色」）。`/environment` 第四章五校分頁在墨線底下墊一層透明底淡彩 `campus-line-art-<校>-wash`（由首頁既有的 `-colour` 轉成透明底，單張 240w、12–15 KB），不用混合模式。只動 web/、圖片腳本與測試；首頁五校分頁沒改。
+- **提交**：worktree `env-tour-colour-20261103`（從 origin/main `518227ed`，sparse），web typecheck＋單元 111 檔 1357 全過；本機 `test:e2e:stack`（測試庫 `ivy_website_e2e_envtour_test`，跑完已刪）156 項全過（負載 34–40）。使用者說「上線」後由使用者推 main（fast-forward）。
+- **CI**：main run 41590017165 全綠（含 E2E），Deploy success（06:34:26–06:38:26Z）。
+- **線上驗證**（只發 GET，遙測攔下）：`/release.json` base_commit `fd7264bb`、created_at `2026-11-03T06:34:54Z`；health 200。`/environment` 200，五張 `renv-tour-wash` 都在、新雜湊圖檔 200 `image/webp`。Playwright 桌機 1440@2／手機 390@3：五校都載到 `-wash` 240w＋`-ink` 480w、兩層框完全重合、沒有橫向捲動，失敗請求只有被攔下的 `/api/telemetry`。
+- **沒驗證**：iOS 實機。
+
 ## 2026-11-03 特色教學四張、環境頁安全角落換成 115 招生照片（main CI 部署，沒有 migration）
 
 - **內容**：`e64839f9`（README「2026-11-03 特色教學四張、環境頁安全角落換成『115招生照片』」）。統整課程、多元文化、自主學習、五件事大肌肉時間、環境頁安全角落設計換成園方雲端「115招生照片」（推測崇德校、待園方確認，替代文字不寫校名）；原檔是 LINE 壓過的 1477px，母檔照原尺寸。檔名不變，正式站已發布內容裡這兩頁的課程方向、五件事、六個空間照片欄位全是空的（部署前用 `/api/published-site` 確認），部署即生效。只動 web/ 與測試。
