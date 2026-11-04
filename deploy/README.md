@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-04 資安強化：公開頁 script-src CSP、拿掉 x-powered-by（main CI 部署，沒有 migration）
+
+- **內容**：`6223f93c`（README「2026-11-04 資安強化：公開頁加上 script-src CSP」）。公開頁 CSP 改成 `script-src 'self' https://challenges.cloudflare.com 'sha256-…'; script-src-attr 'none'; form-action 'self'` 加原本三條；SSR 頁面在 `render:html` 依實際 HTML 算 inline script 雜湊，用戶端換頁插入的 script 本文集中在 `web/app/utils/inline-scripts.ts`；拿掉 `x-powered-by: Nuxt`；開發依賴 werkzeug 3.1.9。
+- **提交**：worktree `security-hardening-20261104`（從 origin/main `93b161ae`，sparse），fast-forward 推 main。本機 web typecheck、單元 111 檔 1361 全過；stack 整套 156＋新 `public-csp.spec.ts` 14 全過；後端 moto 兩檔 29 過。
+- **CI**：main run 41754502905 全綠（含 E2E），Deploy success（01:36:26–01:40:07Z）。
+- **線上驗證**（擋 telemetry／analytics-events、只發 GET）：`/release.json` base_commit `6223f93c`、created_at `2026-11-04T01:36:53Z`；`/`、`/about`、`/anniversary`、靜態字型都帶新 CSP，`/admin/` 仍是後台 CSP，`x-powered-by` 已不見；health ok。Playwright（Chrome）桌機 1440 與手機 390 各 11 頁（含 404 頁）＋用戶端換頁 /about → /anniversary → / → /news → /visit：`securitypolicyviolation` 0 筆、都有 hydrate、`motion-layout` 有跑，換頁時 `anni-intro-gate`、`entrance-curtain` 有插入且沒被擋。反向對照：在 /news 注入 inline script、`onerror` 屬性、外站腳本，三種都被擋（部署前三種都會執行）。
+- **GitHub 設定（同日，不在部署裡）**：開了祕密掃描、推送防護、Dependabot 告警、私下回報漏洞；使用者用 `!` 加了 main 規則集（禁 force push／刪除，id 26499371）與 Actions `sha_pinning_required`。Dependabot 開啟後回報 181 則：173 則在 `versions/` 兩個 9 月快照的舊 lock 檔（15 critical、89 high 全在這裡，不建置不部署）；正式程式 8 則都是 medium／low（werkzeug 本次已升、Mako 只影響 Windows 的 TemplateLookup，和這段紀錄同一次推送升 1.4.3（只動 `backend/uv.lock`，會再觸發一次 CI 與部署）、其餘是 npm 放行清單裡的建置鏈與開發依賴）。
+- **沒驗**：iOS／Android 實機；Turnstile 正式站沒設 key，載入路徑只驗到 CSP 有放行；後台登入後的 /preview 即時預覽只在本機 stack 驗過。
+
 ## 2026-11-03 關於頁首屏改成一張 3:2 卡紙，照片換成中都濕地校外教學（main CI 部署，沒有 migration）
 
 - **內容**：`71f8f2bd`（README「2026-11-03 關於頁首屏：一張 3:2 卡紙、照片換成校外教學」）。拿掉後排小卡（`about-curious` 只剩預約頁用）；首屏卡紙 3:2、框 16px（900px 以下 10px）、淡漸層、照片邊細線、`--abh-shadow-lift`；`about-hero` 換成園方雲端「20250529 中都濕地校外教學」06（2000×1333）、替代文字改寫；`ABOUT_HERO_SIZES` 改 `(max-width: 900px) calc(100vw - 68px), 560px`；4 個舊雜湊衍生檔移除。後台「關於常春藤頁」拿掉首屏後排照片欄、首屏預覽改 3:2；後端 `hero_back_photo` 欄位保留。
