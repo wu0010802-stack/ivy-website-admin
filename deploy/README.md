@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級升一階（main CI 部署，沒有 migration）
+
+- **內容**：`3220631d`（README「2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級放大」）。`tokens.css` `--ivy-footer-bg` `#094328`、`--ivy-footer-text` `#fff`、`--ivy-footer-line` 白 30%、新增 `--ivy-footer-edge` 黃銅 `oklch(78% .075 85)`（`SiteFooter.vue` 頂端 2px）；頁尾字級各升一階（連結 16px、區域 14px、標籤 18px、版權 14px、英文副標 13px／≤400px 12px、手機品牌名 20px）。兩輪深綠比稿在 Desktop 工作區 `design/footer-dark-green-directions-20261104/`（不進版控），比稿用的 dev 切換列 plugin 已刪。
+- **提交**：worktree `footer-olive-20261104`（從 origin/main `b957d9dc`，sparse），rebase 到 `6a89d10e`（只有部署紀錄，無衝突）。web typecheck 通過、單元 111 檔 1361 全過；fixture dev server 用 Playwright 量九頁桌機 1440／手機 390 的頁尾底色與金線、1440／1000／390／320 無橫向溢出。
+- **CI**：main run 41766670832 全綠（含 E2E），Deploy success（03:28:33–03:32:27Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `3220631d`、created_at `2026-11-04T03:29:00Z`；health 200。`/`、`/about` 桌機 1440（DPR2）與手機 390（DPR3）：頁尾底色 `rgb(9, 67, 40)`、文字 `rgb(255, 255, 255)`、頂端 `2px oklch(0.78 0.075 85)`；連結 16px、標籤 18px、區域 14px、版權 14px、英文副標桌機 13px／手機 12px；無橫向溢出。
+- **沒驗**：iOS 實機；其他七頁只在本機 fixture 量過。
+
 ## 2026-11-04 五件事閱讀、五件事結尾寬幅、環境頁保育主照片換新照片（main CI 部署，沒有 migration）
 
 - **內容**：`b957d9dc`（README「2026-11-04 換三張照片：五件事閱讀、五件事結尾寬幅、環境頁保育主照片」）。`cur-daily-reading` 崇德校 FB 粉專圖書室（1280×800）；`cur-kite`（代號沿用）園方雲端「STEAM人造雪」（2000×1125）取代放風箏；`env-care-teacher` 園方雲端「外師戶外課」（2640×1200）取代 1477px 絲瓜棚，男孩衛衣卡通印花經使用者同意修成素面。三段替代文字、環境頁測試與兩份渲染快照、後台「幼兒保育照片」內建說明同步。三格正式站都沒有後台上傳的照片，部署即生效。
