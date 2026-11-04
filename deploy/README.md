@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-04 五件事閱讀、五件事結尾寬幅、環境頁保育主照片換新照片（main CI 部署，沒有 migration）
+
+- **內容**：`b957d9dc`（README「2026-11-04 換三張照片：五件事閱讀、五件事結尾寬幅、環境頁保育主照片」）。`cur-daily-reading` 崇德校 FB 粉專圖書室（1280×800）；`cur-kite`（代號沿用）園方雲端「STEAM人造雪」（2000×1125）取代放風箏；`env-care-teacher` 園方雲端「外師戶外課」（2640×1200）取代 1477px 絲瓜棚，男孩衛衣卡通印花經使用者同意修成素面。三段替代文字、環境頁測試與兩份渲染快照、後台「幼兒保育照片」內建說明同步。三格正式站都沒有後台上傳的照片，部署即生效。
+- **提交**：worktree `chongde-fb-reading-20261104`（從 origin/main `93b161ae`，sparse），rebase 到 `ee93b32c`（README 頂部與資安強化衝突，兩段都留）。web typecheck、單元 111 檔 1361 全過；admin `environmentPage*`／`curriculumPage` 3 檔 60 過；後端獨立測試庫 `test_media_slots.py`＋`test_content_rules.py` 34 過；本機 stack 169 項全過；fixture dev server 用 Playwright 截 1440（DPR2）／390（DPR3）。
+- **CI**：main run 41760294546 全綠（含 E2E），Deploy success（02:28:36–02:32:38Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `b957d9dc`、created_at `2026-11-04T02:29:02Z`。`/curriculum` 新雜湊 `cur-daily-reading-86594546a10f` 3 處、`cur-kite-533c8fb39fb9` 5 處，舊雜湊 `c480ef38a5a3`／`e62bd741f841` 0；`/environment` 新雜湊 `env-care-teacher-e0497f7d0b49` 5 處、舊 `064bff104ef0` 0、「絲瓜棚」0；三段新替代文字都在；新衍生檔（含 2640w）回 200；health ok。
+- **沒驗**：iOS 實機；後台環境頁編輯畫面沒有登入看；照片肖像同意待園方確認。
+
 ## 2026-11-04 資安強化：公開頁 script-src CSP、拿掉 x-powered-by（main CI 部署，沒有 migration）
 
 - **內容**：`6223f93c`（README「2026-11-04 資安強化：公開頁加上 script-src CSP」）。公開頁 CSP 改成 `script-src 'self' https://challenges.cloudflare.com 'sha256-…'; script-src-attr 'none'; form-action 'self'` 加原本三條；SSR 頁面在 `render:html` 依實際 HTML 算 inline script 雜湊，用戶端換頁插入的 script 本文集中在 `web/app/utils/inline-scripts.ts`；拿掉 `x-powered-by: Nuxt`；開發依賴 werkzeug 3.1.9。
