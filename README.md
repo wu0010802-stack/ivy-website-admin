@@ -1,3 +1,13 @@
+## 2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級放大（`feature/footer-olive-20261104`）
+
+使用者先指定頁尾 RGB 98 121 78＋白字＋文字大一點，看過後保留字級與白字、底色另外比稿：第一輪十個深綠選 E 森林綠，第二輪以 E 延伸十色 × 三種收尾，定案 E4 賽車綠＋金色上緣。規則見 DESIGN.md「頁尾賽車綠底＋白字＋黃銅上緣、字級升一階」；比稿在 Desktop 工作區 `design/footer-dark-green-directions-20261104/`（`index.html` 第二輪、`round1.html` 第一輪）。
+
+- `tokens.css` 第 6 節：`--ivy-footer-bg` `oklch(92% .038 150)` → `#094328`、`--ivy-footer-text` `--green` → `#fff`、`--ivy-footer-line` `--line` → 白 30%、新增 `--ivy-footer-edge` 黃銅 `oklch(78% .075 85)`；`SiteFooter.vue` 頂端 2px 黃銅線。白字對比 11.4:1。
+- 字級各升一階：連結／校名／電話／標語 16px、區域 14px、「我們的大家庭」18px、版權列 14px、英文副標 13px（≤400px 12px）、手機品牌名 20px。`docs/brand/brand-guidelines.md` 頁尾列同步改。
+- 比稿時在 dev server 用的切換列（`web/app/plugins/zz-footer-compare.client.ts`，只在 nuxt dev 載入）定案後已刪除。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 111 檔 1361 項全過；fixture dev server 用 Playwright 量九頁（首頁、關於、入學、30 週年、特色教學、環境、最新消息、預約、/privacy 的 404 頁）桌機 1440 與手機 390：頁尾底色都是 `rgb(9, 67, 40)`、頂端 2px 黃銅線、頁尾頂端沒有被其他區塊蓋住（elementFromPoint）；字級與白字的量測同上一版，1440／1000／390／320 無橫向溢出，英文副標 320–1440 都是一行。
+- **沒跑**：stack e2e（視覺基準只拍後台）、後端測試（沒動 fixture）、iOS 實機。
+
 ## 2026-11-04 換三張照片：五件事閱讀、五件事結尾寬幅、環境頁保育主照片（`feature/chongde-fb-reading-20261104`）
 
 使用者看過崇德＋國際校 FB 相片盤點（3343＋4307 張）後先換閱讀這張，接著指定換掉五件事結尾的放風箏與環境頁保育主照片（絲瓜棚）。規則見 DESIGN.md「五件事閱讀素養換崇德校 FB 粉專照片」「五件事結尾寬幅與保育主照片換園方雲端原檔」。

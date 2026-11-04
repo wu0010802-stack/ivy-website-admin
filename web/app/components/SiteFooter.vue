@@ -56,14 +56,16 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
 </template>
 
 <style scoped>
-/* 2026-10-20 調亮：頁尾改淡綠底，文字全部品牌深綠（取代 09-24 的深森林綠＋全白字），層次仍只靠字級與字重。色票在 tokens.css 的 --ivy-footer-*。 */
+/* 2026-11-04：頁尾改賽車綠底＋全白字＋頂端 2px 黃銅線、字級各升一階（取代 10-20 的淡綠底＋深綠字），層次仍只靠字級與字重。色票在 tokens.css 的 --ivy-footer-*，字級在 styles.css 的 .footer-*。 */
 .footer {
   --footer-bg: var(--ivy-footer-bg);
   --footer-text: var(--ivy-footer-text);
   --footer-line: var(--ivy-footer-line);
+  --footer-edge: var(--ivy-footer-edge);
   --footer-focus: var(--footer-text);
   background: var(--footer-bg);
   color: var(--footer-text);
+  border-top: 2px solid var(--footer-edge);
 }
 .footer-main p,
 .footer-main .footer-label,
@@ -85,7 +87,7 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
   list-style: none;
 }
 .footer-campuses li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
-.footer-campus-area { font-size: var(--fs-xs); letter-spacing: .04em; }
+.footer-campus-area { font-size: var(--fs-sm); letter-spacing: .04em; }
 .footer-campuses .footer-campus-phone { justify-self: start; font-family: var(--font-date); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 @media (max-width: 1000px) {
@@ -105,6 +107,7 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
     --footer-bg: Canvas;
     --footer-text: CanvasText;
     --footer-line: CanvasText;
+    --footer-edge: CanvasText;
     --footer-focus: Highlight;
   }
 }
