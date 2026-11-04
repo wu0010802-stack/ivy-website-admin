@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { apiFieldErrors, focusNextFieldOnEnter, validateVisitContact } from '../app/utils/visit-form'
 import { wrapLines } from '../app/utils/cjkWrap'
+import { ANNI_INTRO_GATE_SCRIPT } from '../app/utils/inline-scripts'
 
 // 2026-10-12 手機版第四輪審查後的修正。多半是版面與樣式，比照 mobile-ux-20261002 鎖住原始碼裡的
 // 關鍵寫法，避免之後改版時悄悄退回；實測數字見 README 同日段落、DESIGN.md「手機版第四輪審查」。
@@ -198,7 +199,9 @@ describe('30 週年頁', () => {
   it('開場按鈕底色加深；深色蓋層 5 秒沒開始播就拿掉', () => {
     const intro = read('../app/components/AnniversaryIntro.vue')
     expect(intro).toContain('background: rgb(var(--ink) / .75); color: var(--paper);')
-    expect(intro).toContain("setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)")
+    // 閘門本文 2026-11-04 起在 utils/inline-scripts.ts（公開頁 CSP 登記雜湊用），元件直接引用。
+    expect(intro).toContain('innerHTML: ANNI_INTRO_GATE_SCRIPT')
+    expect(ANNI_INTRO_GATE_SCRIPT).toContain("setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)")
   })
   it('總覽地圖校名 12px、年份 11px，補點擊範圍；授權署名與區名不再疊 opacity', () => {
     const map = read('../app/components/AnniversaryMap.vue')

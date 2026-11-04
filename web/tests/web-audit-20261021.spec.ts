@@ -2,8 +2,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { ANNI_INTRO_SESSION_KEY } from '../app/utils/anniversary/timeline'
-import { HERO_MIN_DOWNLINK_MBPS } from '../app/utils/media-policy'
+import { ANNI_INTRO_GATE_SCRIPT } from '../app/utils/inline-scripts'
 
 // 2026-10-21 正式站效能與畫面掃描的前五條修正（README 同日段落）。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -32,11 +31,11 @@ describe('three 不進任何頁面的 SSR prefetch', () => {
 })
 
 describe('30 週年開場影片的連線閘門', () => {
-  const intro = read('../app/components/AnniversaryIntro.vue')
-  const template = /innerHTML: `([^`]+)`/.exec(intro)![1]!
-  const gate = template
-    .replace('${ANNI_INTRO_SESSION_KEY}', ANNI_INTRO_SESSION_KEY)
-    .replace('${HERO_MIN_DOWNLINK_MBPS}', String(HERO_MIN_DOWNLINK_MBPS))
+  // 閘門本文 2026-11-04 起放在 utils/inline-scripts.ts（公開頁 CSP 要登記它的 sha256），元件直接引用。
+  const gate = ANNI_INTRO_GATE_SCRIPT
+  it('元件放進 head 的就是這支閘門', () => {
+    expect(read('../app/components/AnniversaryIntro.vue')).toContain('innerHTML: ANNI_INTRO_GATE_SCRIPT')
+  })
 
   function run(connection?: object) {
     const dataset: Record<string, string> = {}

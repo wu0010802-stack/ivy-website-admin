@@ -1,3 +1,16 @@
+## 2026-11-04 資安強化：公開頁加上 script-src CSP（`fix/security-hardening-20261104`）
+
+使用者要「提升專案的資安」。10-27 稽核之後後端幾乎沒有新改動，這輪改看公開 repo、CI 供應鏈、正式站設定與依賴，並補上延後已久的公開頁腳本 CSP（稽核 `shared-origin-no-script-csp`）。
+
+- **為什麼**：後台與公開站同源、session cookie 是 `Path=/`，公開頁（含編輯看草稿的 `/preview`）只要被注入一段腳本，就能同源呼叫後台 API。正式站原本的公開頁 CSP 只有 frame-ancestors／base-uri／object-src；實測在正式站注入 inline script、`onerror` 事件屬性、外站腳本三種都會執行。
+- **做法**（`web/server/utils/script-csp.ts`、`server/plugins/security-headers.ts`）：公開頁 CSP 改成 `script-src 'self' https://challenges.cloudflare.com 'sha256-…'; script-src-attr 'none'; form-action 'self'` 加原本三條。SSR 頁面在 `render:html` 依最後送出的 HTML 逐支算 inline script 雜湊（Nuxt 的 importmap、`window.__NUXT__` 設定、`useHead` 放的幾支）；用戶端換頁時 head 管理器會再插入的 script（`motion-layout`、首頁布幕、30 週年開場閘門）本文集中到 `app/utils/inline-scripts.ts`，雜湊事先放進每一頁。不用 nonce（日後加 HTML 快取也不會對不上）、不用 `strict-dynamic`（會讓 `'self'` 失效）。`application/json`／`ld+json` 資料區塊不算。nuxt dev 不收 script-src。style-src 不收。
+- **順手**：拿掉 Nuxt renderer 固定送的 `x-powered-by: Nuxt`；後端開發依賴 werkzeug 3.1.8 → 3.1.9（PYSEC-2026-4312，只有 moto 用，不進正式映像）。
+- **防呆**：`web/tests/script-csp.spec.ts` 掃 `app/` 與 `nuxt.config.ts`，`useHead` 的 script 本文不是登記過的常數就失敗（沒登記的 inline script SSR 那次會動，用戶端換頁插入時才被擋，最容易漏）；新增 stack e2e `tests/stack/public-csp.spec.ts`：11 頁帶 script-src 且沒有違規、用戶端換頁沒有違規、注入腳本三種都被擋。三支原始碼比對的舊測試改讀 `inline-scripts.ts`。
+- **GitHub（已直接開）**：公開 repo 原本祕密掃描、推送防護、Dependabot 告警、私下回報漏洞都是關的，四項已開（都可關回）。git 歷史 1,893 個 commit 用規則掃過，只有測試用假密碼，沒有真金鑰或個資。
+- **驗證**：`npm --prefix web run typecheck` 通過；web 全套 111 檔 1361 項全過；production build 用 Playwright 對桌機與手機各 11 頁＋用戶端換頁（/about → /anniversary → / → /news → /visit）收 `securitypolicyviolation`：0 筆、hydration 正常、錯誤頁也帶雜湊版 CSP；反向對照在同一份 build 注入三種腳本都被擋、在正式站都會執行。
+- **stack e2e**：本機 `e2e:build`＋整套 156 項全過（含 `editor-live-preview` 後台嵌 /preview，負載約 23 時 8.3 分）；新加的 `public-csp.spec.ts` 14 項全過。後端用獨立測試庫跑用到 moto 的 `test_media_s3.py`／`test_secfix_media.py` 29 項全過。
+- **沒跑**：iOS／Android 實機（CSP 雜湊與 importmap 是 CSP2／Safari 16.4 起的標準功能，未實測）；Turnstile 正式站沒設 key，載入路徑只驗到 CSP 字串含 `https://challenges.cloudflare.com`；後端全套（只改開發依賴，跑了用到 moto 的測試檔）。
+
 ## 2026-11-03 關於頁首屏：一張 3:2 卡紙、照片換成校外教學（`feature/about-hero-photo-20261103`）
 
 使用者要調整 /about 首屏兩張卡紙的照片與框；比稿 A／B／C（`design/about-hero-photo-directions-20261103/`，Desktop checkout、未進版控）選 B，並要換照片。規則見 DESIGN.md「關於頁首屏：一張 3:2 卡紙」。

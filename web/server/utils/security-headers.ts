@@ -1,3 +1,5 @@
+import { publicScriptSources } from './script-csp'
+
 // 全站共用的資安標頭（前台、/admin、同源 /api 代理、靜態資源）。由
 // server/plugins/security-headers.ts 在 nitro 的 request hook 套用：那一步
 // 早於所有 handler，包括被 nitro 排在最前面的靜態資源處理器——後台入口
@@ -6,17 +8,26 @@
 // 個別路徑（例如 /visit/manage 的 Referrer-Policy: no-referrer）在
 // server/middleware/preview-headers.ts 覆寫。
 //
-// 公開頁的 CSP 只收 frame-ancestors／base-uri／object-src 這三條不影響既有
-// 腳本的規則；script-src／style-src 要等把 Nuxt payload、布幕 bootstrap、
-// JSON-LD、YouTube 嵌入、預約表單的 Turnstile 等 inline 與外部來源盤點完、
-// 實機驗證後再收緊（刻意延後，見稽核 shared-origin-no-script-csp）。
+// 公開頁的 CSP（2026-11-04 起）：script-src 'self' 加逐支 inline script 的 sha256、
+// script-src-attr 'none'、form-action 'self'，外加原本的 frame-ancestors／base-uri／object-src。
+// 規則與理由見 script-csp.ts。這裡給的是預設值（靜態檔、API 代理、非 HTML 回應都用它，只含
+// 事先登記的雜湊）；Nuxt 渲染的頁面由 server/plugins/security-headers.ts 在 render:html 換成
+// 含這一頁雜湊的版本。nuxt dev（import.meta.dev）不收 script-src：Vite 與 devtools 會插入
+// 其他 inline script。style-src 不收（見 script-csp.ts）。
 // Permissions-Policy 不關 fullscreen／autoplay／picture-in-picture／
 // encrypted-media：HomeFilms.vue 的 YouTube iframe 需要它們。
 // 麥克風只在 /anniversary 這個文件開給同源（microphone=(self)）：「幫常春藤吹蠟燭」
 // 讓使用者按了按鈕後對著麥克風吹氣（只在瀏覽器裡算頻譜，不錄音、不上傳）；
 // 瀏覽器照樣會先問使用者，iframe 一樣拿不到。其他頁維持 microphone=()。
 // 不送 Cross-Origin-Opener-Policy：後台 Google 登入若走彈出視窗會被它切斷。
-const PUBLIC_CSP = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+const PUBLIC_CSP_BASE = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
+
+/** 公開頁的完整 CSP；pageHashes 是這一頁 SSR inline script 的 hash-source（見 script-csp.ts）。 */
+export function publicCsp(pageHashes: Iterable<string> = []): string {
+  return `script-src ${publicScriptSources(pageHashes)}; script-src-attr 'none'; form-action 'self'; ${PUBLIC_CSP_BASE}`
+}
+
+const PUBLIC_CSP = publicCsp()
 
 // 後台 SPA（Vite 建置）沒有 inline script、不用 eval，也只連同源 API：
 // index.html 只有一支 type=module 的 /admin/assets/*.js；Element Plus 會寫
@@ -25,9 +36,10 @@ const PUBLIC_CSP = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 // 不是稽核 admin-same-origin-as-public-site 的修正：後台與公開站同源、session
 // cookie 是 Path=/，公開頁（含 /preview）只要出現一個 XSS，就能直接同源
 // fetch('/api/website/v1/auth/me') 拿到 CSRF token 呼叫後台 API，或用 iframe
-// 載入 /admin/ 操作，這條 CSP 管不到。那一項仍未關閉（部分緩解、延後）：真正
-// 的修法是後台與 API cookie 移到獨立 origin（admin 子網域、__Host- cookie），
-// 或公開站導入 nonce 型 script-src，併入上面延後的 CSP 收緊工作。
+// 載入 /admin/ 操作，這條 CSP 管不到。2026-11-04 起公開頁也有 script-src（雜湊型，
+// 見 script-csp.ts），注入的 inline script 與外站腳本都會被擋，這一項從「部分緩解」
+// 變成「大致緩解」；真正的修法仍是後台與 API cookie 移到獨立 origin（admin 子網域、
+// __Host- cookie），要等正式網域定案。
 // frame-src 'self'：內容編輯右側嵌同源的 /preview 即時預覽（2026-10-06 方向 D）；原本靠
 // default-src 退回，改成明寫，不允許嵌其他網站。
 // img-src 加 https://wmts.nlsc.gov.tw：招生「區域分析」地圖的底圖是國土測繪中心的電子地圖圖磚
@@ -74,11 +86,19 @@ function decodedPathname(pathname: string): string {
   }
 }
 
-/** path 可含 query；websiteEnv 取執行期設定（NUXT_WEBSITE_ENV）。 */
-export function securityHeadersFor(path: string, websiteEnv: string): Record<string, string> {
+/**
+ * path 可含 query；websiteEnv 取執行期設定（NUXT_WEBSITE_ENV）。
+ * scriptPolicy：公開頁 CSP 要不要帶 script-src；只有 nuxt dev 傳 false（見檔頭）。
+ */
+export function securityHeadersFor(
+  path: string,
+  websiteEnv: string,
+  { scriptPolicy = true }: { scriptPolicy?: boolean } = {}
+): Record<string, string> {
   const pathname = path.split('?')[0] ?? '/'
   const decoded = decodedPathname(pathname)
   const headers: Record<string, string> = { ...BASE_HEADERS }
+  if (!scriptPolicy) headers['Content-Security-Policy'] = PUBLIC_CSP_BASE
   if (MIC_PAGE.test(pathname)) headers['Permissions-Policy'] = PERMISSIONS.replace('microphone=()', 'microphone=(self)')
   if (ADMIN_PATH.test(pathname) || ADMIN_PATH.test(decoded)) {
     headers['Content-Security-Policy'] = ADMIN_CSP

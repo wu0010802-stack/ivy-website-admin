@@ -5,6 +5,7 @@ import { ANNI_MILESTONES, ANNI_YEARS, anniversaryYearIndex, campusCountAt, crayo
 import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
+import { ANNI_INTRO_GATE_SCRIPT } from '../app/utils/inline-scripts'
 import { anniversaryEnabled, anniversarySeo, isAnniversaryHref, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { applyContentOverlay } from '../app/utils/content-overlay'
 import siteFixture from '../server/data/site-fixture.json'
@@ -160,9 +161,11 @@ describe('30 週年分頁：開場影片與素材', () => {
   })
 
   it('開場只在第一次、沒有偏好減少動態、網址沒有錨點時自動播放，而且一律先靜音', () => {
-    expect(intro).toContain('prefers-reduced-motion: reduce')
-    expect(intro).toContain('location.hash')
-    expect(intro).toContain('sessionStorage.getItem')
+    // 第一次繪製前的閘門本文在 utils/inline-scripts.ts（2026-11-04，公開頁 CSP 登記雜湊用）。
+    expect(intro).toContain('innerHTML: ANNI_INTRO_GATE_SCRIPT')
+    expect(ANNI_INTRO_GATE_SCRIPT).toContain('prefers-reduced-motion: reduce')
+    expect(ANNI_INTRO_GATE_SCRIPT).toContain('location.hash')
+    expect(ANNI_INTRO_GATE_SCRIPT).toContain('sessionStorage.getItem')
     expect(intro).toMatch(/v\.muted = true/)
     expect(intro).toContain('略過開場')
     expect(intro).toContain('開聲音')

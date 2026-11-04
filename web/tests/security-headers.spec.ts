@@ -3,12 +3,20 @@ import { createServer, type Server } from 'node:http'
 import { createHooks } from 'hookable'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createApp, eventHandler, setResponseHeader, toNodeListener, type H3Event } from 'h3'
-import { ADMIN_CSP, securityHeadersFor } from '../server/utils/security-headers'
+import { ADMIN_CSP, publicCsp, securityHeadersFor } from '../server/utils/security-headers'
 
 describe('資安標頭', () => {
-  it('公開頁維持原本的 CSP（Nuxt 的 inline script 不受影響）', () => {
+  it('公開頁預設 CSP 限制腳本來源（2026-11-04）：同源＋登記過的 inline 雜湊，不放 unsafe-inline／eval', () => {
     const headers = securityHeadersFor('/campuses/yihua?x=1', 'production')
-    expect(headers['Content-Security-Policy']).toBe("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+    const csp = headers['Content-Security-Policy']
+    expect(csp).toBe(publicCsp())
+    expect(csp).toMatch(/^script-src 'self' https:\/\/challenges\.cloudflare\.com 'sha256-[A-Za-z0-9+/]+=*'/)
+    expect(csp).toContain("script-src-attr 'none'")
+    expect(csp).toContain("form-action 'self'")
+    expect(csp).toContain("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+    expect(csp).not.toContain('unsafe-inline')
+    expect(csp).not.toContain('unsafe-eval')
+    expect(csp).not.toContain('strict-dynamic')
     expect(headers['X-Frame-Options']).toBe('SAMEORIGIN')
     expect(headers['X-Content-Type-Options']).toBe('nosniff')
     expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
@@ -44,7 +52,7 @@ describe('資安標頭', () => {
   it('後台可以用 iframe 嵌同源的 /preview（內容編輯右側預覽），/preview 只給同源嵌', () => {
     expect(ADMIN_CSP).toContain("frame-src 'self'")
     const preview = securityHeadersFor('/preview?embed=1&live=1', 'production')
-    expect(preview['Content-Security-Policy']).toBe("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+    expect(preview['Content-Security-Policy']).toBe(publicCsp())
     expect(preview['X-Frame-Options']).toBe('SAMEORIGIN')
   })
 
@@ -69,6 +77,12 @@ describe('資安標頭', () => {
     for (const path of ['/', '/about', '/visit', '/anniversary-x', '/anniversary/x', '/admin/']) {
       expect(securityHeadersFor(path, 'production')['Permissions-Policy']).toBe('camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()')
     }
+  })
+
+  it('nuxt dev 不收 script-src（Vite／devtools 會插入其他 inline script），其他規則照舊', () => {
+    expect(securityHeadersFor('/', 'development', { scriptPolicy: false })['Content-Security-Policy'])
+      .toBe("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+    expect(securityHeadersFor('/admin/', 'development', { scriptPolicy: false })['Content-Security-Policy']).toBe(ADMIN_CSP)
   })
 
   it('/administrator 之類的路徑不算後台；HSTS 只在正式環境送', () => {
@@ -116,5 +130,5 @@ it('靜態資源處理器（排在所有 middleware 之前）回的 /admin/ 也�
 
   const asset = await fetch(`${base}/assets/x.webp`)
   expect(asset.headers.get('x-content-type-options')).toBe('nosniff')
-  expect(asset.headers.get('content-security-policy')).toBe("frame-ancestors 'self'; base-uri 'self'; object-src 'none'")
+  expect(asset.headers.get('content-security-policy')).toBe(publicCsp())
 })

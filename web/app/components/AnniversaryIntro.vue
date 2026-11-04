@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ANNI_MEDIA } from '~/utils/anniversary/media'
 import { ANNI_INTRO_SESSION_KEY } from '~/utils/anniversary/timeline'
-import { HERO_MIN_DOWNLINK_MBPS } from '~/utils/media-policy'
+import { ANNI_INTRO_GATE_SCRIPT } from '~/utils/inline-scripts'
 
 // 30 週年分頁的開場：30 秒影片《手牽手，走到 30》。
 // 第一次進來自動靜音播放（可開聲音、可略過）；播到海報那一格（29.0 秒，之後影片淡出成黑）
@@ -35,7 +35,8 @@ useHead({
   script: [{
     key: 'anni-intro-gate',
     tagPosition: 'head',
-    innerHTML: `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;var c=navigator.connection;if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')||(c.downlink>0&&c.downlink<${HERO_MIN_DOWNLINK_MBPS})))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`
+    // 本文放在 utils/inline-scripts.ts：公開頁 CSP 要事先登記它的 sha256（用戶端換頁插入時用）。
+    innerHTML: ANNI_INTRO_GATE_SCRIPT
   }]
 })
 
