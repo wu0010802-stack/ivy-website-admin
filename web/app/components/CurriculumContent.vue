@@ -65,15 +65,18 @@ const DAILY = [
   // 2026-11-03 教具操作改用明華校 FB 粉專的雷射光木框（2025-01-09 貼文，老師自製的教具；原圖 2048×1382，母檔置中裁 8:5）
   { image: 'cur-daily-materials', alt: '孩子們圍在木框邊，看綠色雷射光打到小鏡子上再反射出去', pigment: 'sun', wash: 'sun,.46,.5,.7,.5' },
   { image: 'cur-daily-art', alt: '男孩拿著剪刀，專心沿著線剪紙', pigment: 'orange', wash: 'orange,.56,.5,.7,.5' },
-  { image: 'cur-daily-reading', alt: '兩個女孩靠在一起看繪本', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
+  // 2026-11-04 閱讀素養改用崇德校 FB 粉專的圖書室（2025-07-03 貼文；FB 原圖 1280×960，母檔置中裁 8:5 → 1280×800）
+  { image: 'cur-daily-reading', alt: '孩子們坐在圖書室的彩色坐墊上，各自翻開一本繪本，身後整面書櫃擺滿童書', pigment: 'mint', wash: 'mint,.46,.5,.7,.5' },
   // 2026-11-03 大肌肉時間改用「115招生照片」的足球課（4:3 原檔裁成 8:5、垂直取 60%）
   { image: 'cur-daily-motor', alt: '三個孩子在草地上練足球，把球停進紅色圈圈，旁邊排著三角錐', pigment: 'leaf', wash: 'leaf,.56,.5,.7,.5' }
 ] satisfies { image: string, alt: string, pigment: Pigment, wash: string }[]
 
 // 03、04 各收一張寬幅照片（2026-10-30 從義華校 NAS 素材庫挑）：美術館接全校在廣場的地板畫空拍，
 // 五件事接果嶺公園親子放風箏。只是內建照片，後台沒有對應欄位；兩張的圖說 2026-11-03 依使用者要求拿掉。桌機 16:9 不裁，手機 4:3。
+// 2026-11-04 五件事這張依使用者要求換掉放風箏，改用園方雲端「STEAM人造雪」（2024-12-13，4759×3188 置中裁 16:9 → 2000×1125）；
+// 代號 cur-kite 沿用不改名。三個孩子在正中，手機 4:3 置中只切掉左右邊緣入鏡的孩子。
 const FLOOR = { image: 'cur-floor-painting', alt: '從空中往下拍，孩子們散坐在綠色廣場上，用粉筆畫滿彩色圖案', wash: 'sun,.5,.5,.7,.6,.024,40', position: '50% 50%' }
-const KITE = { image: 'cur-kite', alt: '綁著馬尾的女孩在草坡上笑著回頭，手上的彩虹風箏飄在身後', wash: 'leaf,.4,.5,.7,.6,.024,40', position: '24% 50%' }
+const KITE = { image: 'cur-kite', alt: '三個孩子坐在操場的人造雪堆旁，捧起一把雪笑開了', wash: 'leaf,.4,.5,.7,.6,.024,40', position: '50% 50%' }
 const BAND_SIZES = '(max-width: 1100px) 100vw, 1000px'
 
 // 教學理念五項各配一種顏料（文字在後台）。

@@ -126,10 +126,10 @@ onMounted(editor.load)
         v-model:photo="form.care_photo"
         v-model:alt="form.care_photo_alt"
         label="幼兒保育照片"
-        builtin="官網內建的老師抱孩子看絲瓜的照片"
+        builtin="官網內建的外籍老師蹲在男孩身邊的照片"
         :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.care)"
         :previews="ENVIRONMENT_PHOTO_PREVIEWS.care"
-        help="橫幅積木，右端是半圓，桌機約 2.75:1、手機約 2.2:1；請用寬 2000 以上的照片。官網內建照片的重點在最左邊，換成自己的照片後沒設焦點就取中間，請在下面點選焦點。"
+        help="橫幅積木，右端是半圓，桌機約 2.75:1、手機約 2.2:1；請用寬 2000 以上的照片。官網內建照片的重點在中間，換成自己的照片後沒設焦點也取中間，請在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

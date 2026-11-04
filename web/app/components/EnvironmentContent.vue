@@ -26,7 +26,9 @@ interface Look { shape: string; ar?: number; color: Block; back?: [string, Block
 
 // 內建照片與它的 alt 留在這裡（後台沒換照片時用；換了照片就用後台的圖、焦點與說明，後台沒填說明則用素材庫的說明）。
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
-const CARE_PHOTO_ALT = '老師抱著孩子站在絲瓜棚前，托起一條剛開花的小絲瓜給她看'
+// 2026-11-04 保育主照片換成園方雲端「外師戶外課」（2026-01-23，Canon 6090×4060，母檔 2.2:1 → 2640×1200）：
+// 取代 1477px 的絲瓜棚（桌機 Retina 只有 0.56 倍）。老師和孩子在正中，桌機 2.75:1 置中也不會切到頭。
+const CARE_PHOTO_ALT = '外籍老師蹲在拿球棒的男孩身邊，一起看著前方的球座，替他加油'
 const FEATURE_ALT = '孩子們在遊戲區跑跳，有人從黃色溜滑梯滑下來'
 const CARE = [
   { image: 'env-care-health', alt: '老師幫戴著口罩的孩子確認身體狀況' },

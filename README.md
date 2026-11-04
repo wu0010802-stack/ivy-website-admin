@@ -1,3 +1,14 @@
+## 2026-11-04 換三張照片：五件事閱讀、五件事結尾寬幅、環境頁保育主照片（`feature/chongde-fb-reading-20261104`）
+
+使用者看過崇德＋國際校 FB 相片盤點（3343＋4307 張）後先換閱讀這張，接著指定換掉五件事結尾的放風箏與環境頁保育主照片（絲瓜棚）。規則見 DESIGN.md「五件事閱讀素養換崇德校 FB 粉專照片」「五件事結尾寬幅與保育主照片換園方雲端原檔」。
+
+- `cur-daily-reading` ← 崇德校圖書室，三個孩子坐在坐墊上各自看繪本（2025-07-03 貼文，FB 原圖 1280×960，母檔置中裁 8:5 → 1280×800，WebP q88）；取代 1200×816 的兩個女孩看繪本。
+- `cur-kite`（代號沿用）← 園方雲端「20241213 STEAM人造雪／IMG_9510」：三個孩子坐在人造雪堆旁笑開（4759×3188 置中裁 16:9 → 2000×1125）；焦點 `24% 50%` → `50% 50%`。同批 IMG_9249 構圖更好但左上有孩子戴口罩、右邊女孩鞋子印彩虹小馬，沒用。
+- `env-care-teacher` ← 園方雲端「20260123 外師戶外課／2026戶外外師課-9164」：外師蹲在拿球棒的男孩身邊替他加油（6090×4060，從 y=500 裁 2.2:1 → 2640×1200）；取代 1477×671 的絲瓜棚（桌機 Retina 只有 0.56 倍）。**男孩衛衣原本印史努比與 WORLD FAMOUS，使用者同意後修成素面**（OpenCV，只修印花筆畫，球棒與手貼回原像素，腳本在 session scratchpad `tools/retouch_print.py`）。同一堂課 8964（老師扶著揮棒）放進桌機 2.75:1 會切掉老師頭頂與球棒，沒用。
+- `optimize-site-images.py --only cur-daily-reading cur-kite env-care-teacher`，16 個舊雜湊檔 `git rm`；三段替代文字改寫；`environment-page-overlay.spec.ts` 跟著改替代文字、環境頁兩份渲染快照 `-u` 更新（只差替代文字與 srcset）；後台環境頁「幼兒保育照片」的內建照片說明與焦點提示改寫。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過；admin `environmentPage*` 2 檔 44 項過；fixture dev server 用 Playwright 截 1440（DPR2）／390（DPR3）：閱讀卡桌機 800w／手機 1200w，寬幅桌機 2000w／手機 1200w（4:3 三個孩子都在），保育主照片桌機 2640w（2.75:1 老師與孩子都在、頭沒切）／手機 1200w。
+- **沒跑**：stack e2e（含視覺基準）、後端測試（沒動 fixture 與檔名）、iOS 實機；沒有 `versions/` 快照（sparse worktree，改動都在 git）。原圖在 session scratchpad。
+
 ## 2026-11-04 資安強化：公開頁加上 script-src CSP（`fix/security-hardening-20261104`）
 
 使用者要「提升專案的資安」。10-27 稽核之後後端幾乎沒有新改動，這輪改看公開 repo、CI 供應鏈、正式站設定與依賴，並補上延後已久的公開頁腳本 CSP（稽核 `shared-origin-no-script-csp`）。
