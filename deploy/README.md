@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-04 環境頁首屏彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片（main CI 部署，沒有 migration）
+
+- **內容**：`48845aab`（README「2026-11-04 環境頁首屏：彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片」）。`EnvironmentContent.vue` 首屏五層 `.renv-rb` 換成 `.renv-arch`（赤陶拱窗＋錯開的芥末拱）；901 以上 `.renv-hero-fig` 改 `container-type: size`、拱底與目次底切齊；1180 以下目次改六欄排法、901–1180 照片欄 46%；`ENVIRONMENT_HERO_ASPECT` 4/5、sizes `(max-width: 900px) calc((100vw - 74px) * f), 480f px`；後台首屏照片裁切預覽 4:5。比稿三輪 A–H 在 Desktop 工作區 `design/environment-hero-frame-directions-20261104/`（不進版控）。
+- **提交**：worktree `env-hero-arch-20261104`（從 origin/main `6a89d10e`，sparse），rebase 到 `3220631d`（頁尾那版，README／DESIGN 開頭段落衝突，兩段都留）。rebase 前：web／admin typecheck 通過，web 111 檔 1363、admin 167 檔 3216（1 skipped）全過，本機 `test:e2e:stack` 169 項全過（測試庫 `ivy_website_e2e_envarch_test` 已刪）；rebase 後重跑 web typecheck 與 web 單元 1363 全過。
+- **CI**：main run 41768279401 全綠（含 E2E），Deploy success（03:43:54–03:48:22Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `48845aab`、created_at `2026-11-04T03:44:20Z`；health 200。`/environment` SSR 有 `.renv-arch`／`-back`／`-face`／`-photo` 各一、沒有 `renv-rainbow`，首屏 sizes `calc((100vw - 74px) * 2.62), 1258px`。1440（DPR2）／1024（DPR2）／960／390（DPR3）：無橫向溢出、目次與拱（含芥末墊塊）不重疊、901 以上拱底與目次底差 0；照片 454×578／367×469／340×435／317×403，主控台沒有錯誤。
+- **沒驗**：iOS／Android 實機（`container-type: size` 需 Safari 16 起）；後台首屏照片的 4:5 裁切預覽沒登入看。
+
 ## 2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級升一階（main CI 部署，沒有 migration）
 
 - **內容**：`3220631d`（README「2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級放大」）。`tokens.css` `--ivy-footer-bg` `#094328`、`--ivy-footer-text` `#fff`、`--ivy-footer-line` 白 30%、新增 `--ivy-footer-edge` 黃銅 `oklch(78% .075 85)`（`SiteFooter.vue` 頂端 2px）；頁尾字級各升一階（連結 16px、區域 14px、標籤 18px、版權 14px、英文副標 13px／≤400px 12px、手機品牌名 20px）。兩輪深綠比稿在 Desktop 工作區 `design/footer-dark-green-directions-20261104/`（不進版控），比稿用的 dev 切換列 plugin 已刪。
