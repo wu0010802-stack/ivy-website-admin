@@ -80,22 +80,40 @@ describe('常春藤環境頁木頭積木版（2026-10-30 比稿選 D，校園環
     expect(component).toContain('data-cta-entry="environment"')
   })
 
-  it('首屏照片：頁面 <img> 與預載共用 environmentHeroImage()，sizes 依彩虹最內圈拱框（約 3:4）的裁切放大', () => {
+  it('首屏照片：頁面 <img> 與預載共用 environmentHeroImage()，sizes 依赤陶拱窗（約 4:5）的裁切放大', () => {
     const { width, height } = (manifest as Record<string, { width: number; height: number }>)[ENVIRONMENT_HERO_IMAGE]!
     const factor = Number((width / height / ENVIRONMENT_HERO_ASPECT).toFixed(2))
     const attrs = environmentHeroImage()
-    expect(ENVIRONMENT_HERO_ASPECT).toBe(3 / 4)
-    expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 140px) * ${factor}), ${Math.round(320 * factor)}px`)
+    expect(ENVIRONMENT_HERO_ASPECT).toBe(4 / 5)
+    expect(attrs.sizes).toBe(`(max-width: 900px) calc((100vw - 74px) * ${factor}), ${Math.round(480 * factor)}px`)
     expect(attrs.srcset).toBeTruthy()
     // 2026-10-12 首屏照片後台可換：<img> 與預載改走 environmentHeroAttrs（沒換照片時 ＝ environmentHeroImage()，見 environment-page-overlay.spec.ts）
     expect(environmentHeroAttrs(site.environmentPage)).toEqual(attrs)
     expect(component).toContain('environmentHeroAttrs(page)')
     expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'environment') return environmentHeroAttrs(site.value.environmentPage)")
-    // 框寬：桌機彩虹 540px、五道拱各 17＋5px；900 以下彩虹滿版、每道 11＋3px
+    // 框：2026-11-04 起一塊赤陶拱（邊 20px，後面錯開 26px 墊芥末拱），桌機照片最寬 (540 − 26) − 2×20；900 以下邊 14px、錯開 13px
     const css = read('../app/assets/css/environment.css')
-    expect(css).toContain('.renv-rainbow{--t:17px;--g:5px;width:100%;max-width:540px;')
-    expect(css).toContain('.renv-rainbow{--t:11px;--g:3px;')
-    expect(component.match(/class="renv-rb c-/g)).toHaveLength(5)
+    expect(css).toContain('.renv-arch{--ar:.8;--t:20px;--off:26px;')
+    expect(css).toContain('.renv-arch{--t:14px;--off:13px}')
+    expect(component.match(/class="renv-arch-(back|face)[ "]/g)).toHaveLength(2)
+    expect(component).not.toContain('renv-rainbow')
+  })
+
+  it('首屏 901 以上框站在地上：照片欄是尺寸容器，拱貼右下、底緣和目次切齊、頂最高到大標頂', () => {
+    const css = read('../app/assets/css/environment.css')
+    expect(css).toContain('.renv-hero-fig{position:relative;align-self:stretch;container-type:size}')
+    expect(css).toContain('.renv-arch{position:absolute;right:var(--off);bottom:0;width:auto;height:min(100cqh - clamp(8px,2.8vw,40px) - 8px,(100cqw - var(--off)) / var(--ar))}')
+    // 大標頂＝字欄的 padding-top，兩邊要用同一個 clamp
+    expect(css).toContain('.renv-hero-txt{grid-area:txt;padding-top:clamp(8px,2.8vw,40px);')
+  })
+
+  it('901–1180 兩欄時目次積木縮到字欄寬，不會蓋到首屏照片（2026-11-04 前 901–1100 會蓋到）', () => {
+    const css = read('../app/assets/css/environment.css')
+    // 桌機固定寬的最寬一列（03 180＋間距 22＋04 300）＝502px，比 901–1180 的字欄寬，所以這段要用六欄排法
+    expect(css).toContain('.renv-index li:nth-child(3) a{--rm:24px;width:180px}')
+    expect(css).toContain('.renv-index li:nth-child(4) a{width:300px;')
+    expect(css).toMatch(/@media \(width<=1180px\)\{\s*\.renv-index ul\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\);[^}]*\}[^@]*\.renv-index li a\{width:100% !important\}/)
+    expect(css).toContain('@media (900px<width<=1180px){.renv-hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,46%)}}')
   })
 
   it('頁首用實底：淺色紙底首屏不能配透明白字頁首', () => {

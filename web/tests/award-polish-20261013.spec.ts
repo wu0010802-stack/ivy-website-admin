@@ -38,7 +38,7 @@ describe('30 週年開場飛進相框不算版面位移', () => {
 })
 
 describe('常春藤環境頁首屏大標兩欄時不擠出孤字', () => {
-  // 2026-10-30 木頭積木版：首屏右欄是 540px 的彩虹，字欄寬不再是 vw 的固定比例，改用容器單位（字欄寬 ÷ 9.6）
+  // 2026-10-30 木頭積木版：首屏右欄是 540px 的照片欄（11-04 起 1180 以下 46%），字欄寬不再是 vw 的固定比例，改用容器單位（字欄寬 ÷ 9.6）
   it('字級上限跟著字欄寬（10.4cqi，一行 9 字），字欄是 inline-size 容器', () => {
     const css = read('app/assets/css/environment.css')
     expect(css).toContain('.renv h1{font-size:clamp(1.75rem,min(1rem + 3.6vw,10.4cqi),3.85rem);')

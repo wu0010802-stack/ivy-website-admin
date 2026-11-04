@@ -18,15 +18,15 @@ export const ADMISSION_HERO_IMAGE = 'day-hello'
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
 
 /**
- * 常春藤環境頁（2026-10-30 木頭積木版）的首屏照片在彩虹疊疊樂最內圈的拱裡（environment.css 的 `.renv-rainbow-photo`），
- * object-fit: cover，框是直的（約 3:4）；橫幅原圖（1960×934）左右被裁掉，實際要畫的寬度＝框寬 × (原圖寬高比 ÷ 3/4)。
- * 桌機彩虹寬 540px、五道拱各佔 22px（拱 17＋縫 5），框寬 540 − 220 = 320px；900px 以下彩虹滿版、
- * 每道 14px（11＋3），框寬＝視窗 − 140px。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
+ * 常春藤環境頁的首屏照片在赤陶拱積木的拱窗裡（2026-11-04 起，environment.css 的 `.renv-arch-photo`；之前是彩虹疊疊樂最內圈的拱），
+ * object-fit: cover，框是直的（約 4:5）；橫幅原圖（1960×934）左右被裁掉，實際要畫的寬度＝框寬 × (原圖寬高比 ÷ 4/5)。
+ * 桌機照片最寬 (540 − 26) − 2×20 = 474px → 480px；900px 以下拱在版心裡、往右錯開 13px、邊 14px，
+ * 照片寬＝視窗 − 74px（390 寬 316px）。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
  */
-export const ENVIRONMENT_HERO_ASPECT = 3 / 4
-/** factor＝原圖寬高比 ÷ 3/4（至少 1）：橫幅被裁成拱框時，要畫的寬度是框寬乘上它。 */
+export const ENVIRONMENT_HERO_ASPECT = 4 / 5
+/** factor＝原圖寬高比 ÷ 4/5（至少 1）：橫幅被裁成拱框時，要畫的寬度是框寬乘上它。 */
 export function environmentHeroSizes(factor: number) {
-  return `(max-width: 900px) calc((100vw - 140px) * ${factor}), ${Math.round(320 * factor)}px`
+  return `(max-width: 900px) calc((100vw - 74px) * ${factor}), ${Math.round(480 * factor)}px`
 }
 export function environmentHeroImage() {
   const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_IMAGE] : undefined

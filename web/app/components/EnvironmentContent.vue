@@ -183,7 +183,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
 
 <template>
   <main id="main" ref="root" tabindex="-1" class="renv" data-cta-entry="environment">
-    <!-- 首屏：大標、彩虹疊疊樂裡的照片、四塊積木目次 -->
+    <!-- 首屏：大標、赤陶拱積木裡的照片、四塊積木目次 -->
     <section class="renv-hero" aria-labelledby="environment-title">
       <div class="renv-wrap renv-hero-grid">
         <div class="renv-hero-txt">
@@ -192,19 +192,12 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <p v-if="page.heroNotice" class="renv-notice">{{ page.heroNotice }}</p>
         </div>
         <div class="renv-hero-fig">
-          <!-- 五道同心拱由外而內：赤陶、芥末、鼠尾草、霧藍、淡粉，照片在最內圈 -->
-          <div class="renv-rainbow">
-            <div class="renv-rb c-terra"><div class="renv-rb-gap">
-              <div class="renv-rb c-mustard"><div class="renv-rb-gap">
-                <div class="renv-rb c-sage"><div class="renv-rb-gap">
-                  <div class="renv-rb c-mist"><div class="renv-rb-gap">
-                    <div class="renv-rb c-pink"><div class="renv-rb-gap">
-                      <img class="renv-rainbow-photo" v-bind="environmentHeroAttrs(page)" :style="pagePhotoStyle('70% 38%', page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
-                    </div></div>
-                  </div></div>
-                </div></div>
-              </div></div>
-            </div></div>
+          <!-- 一塊赤陶拱積木：拱窗放照片，後面錯開墊一塊芥末拱（2026-11-04 取代五道的彩虹疊疊樂） -->
+          <div class="renv-arch">
+            <div class="renv-arch-back renv-blk c-mustard" aria-hidden="true" />
+            <div class="renv-arch-face c-terra">
+              <img class="renv-arch-photo" v-bind="environmentHeroAttrs(page)" :style="pagePhotoStyle('70% 38%', page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+            </div>
           </div>
         </div>
         <nav class="renv-index" aria-label="本頁章節">

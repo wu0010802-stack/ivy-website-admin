@@ -88,7 +88,7 @@ onMounted(editor.load)
         builtin="官網內建的兩個孩子擁抱的照片"
         :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.hero)"
         :previews="ENVIRONMENT_PHOTO_PREVIEWS.hero"
-        help="放在彩虹疊疊樂最內圈的拱裡，裁成直的（約 3:4），左右會被裁掉；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
+        help="放在赤陶拱積木的拱窗裡，裁成直的（約 4:5），左右會被裁掉；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

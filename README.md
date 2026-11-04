@@ -1,3 +1,15 @@
+## 2026-11-04 環境頁首屏：彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片（`feature/env-hero-arch-20261104`）
+
+使用者截圖 /environment 首屏的彩虹疊疊樂要「換個框」；比稿三輪 A–H（`design/environment-hero-frame-directions-20261104/`，Desktop checkout、未進版控）選 A。規則見 DESIGN.md「環境頁首屏換成赤陶拱積木」。
+
+- `EnvironmentContent.vue` 五層 `.renv-rb` 換成 `.renv-arch`：赤陶拱（邊 20px，900 以下 14px）中間開拱窗放照片，窗頂露出一道赤陶側面，後面錯開 26px（900 以下 13px）墊一塊同形芥末拱。
+- **站在地上**：901 以上 `.renv-hero-fig` 是 `container-type: size`（不撐高），拱貼右下角，正面底緣和四塊目次的底緣切齊、拱頂最高到大標頂。1440 寬照片 320×419 → 454×578；390 寬 250×312 → 317×403。
+- **修版面 bug**：目次積木桌機是固定寬（最寬一列 502px），901–1100 兩欄時字欄比它窄，「04 五所校園」「02 校園環境」蓋到首屏照片（量測 901／960／1024／1100 都重疊）。1180 以下目次改用手機的六欄排法縮到字欄寬，901–1180 照片欄收到 46%。
+- `ENVIRONMENT_HERO_ASPECT` 3/4 → 4/5（實際拱窗約 0.785），`environmentHeroSizes` 改 `(max-width: 900px) calc((100vw - 74px) * f), 480f px`（內建照片 1258px）；後台首屏照片的裁切預覽改 4:5、說明改「赤陶拱積木的拱窗」。
+- 測試：`environment.spec.ts` 改寫首屏照片那條、加「站在地上」與「901–1180 目次縮放」兩條；`environment-page-overlay.spec.ts` 換照片的 sizes；admin `environmentPageDraft.test.ts` 預覽比例；`environment-render.spec.ts` 快照 `-u`（只差首屏那段）。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix admin run typecheck` 通過；web 全套 111 檔 1363 項、admin 167 檔 3216 項（1 skipped）全過；fixture dev server 用 Playwright 量 1440／1280／1181／1180／1100／1024／960／901／768／390／360：都沒有橫向捲動、目次與拱（含芥末墊塊）不重疊、901 以上拱底與目次底差 0、主控台沒有錯誤；axe（wcag2a／2aa／21aa／22aa）首屏 1440／1024／390 沒有違規；`page-copy-stress.cjs /environment` 目次章名 6 字在五個寬度都塞得下（另有 5 條「找不到 .renv-lede 等」是 fixture 內容沒有那些欄位，和這次無關）。
+- **沒跑**：stack e2e（視覺基準只有後台頁，不含環境頁；a11y／hydration／keyboard 會走 /environment）、iOS／Android 實機（`container-type: size` 是 Safari 16 起）；沒有 `versions/` 快照（sparse worktree，改動都在 git）。
+
 ## 2026-11-04 頁尾改賽車綠底＋白字＋黃銅上緣、字級放大（`feature/footer-olive-20261104`）
 
 使用者先指定頁尾 RGB 98 121 78＋白字＋文字大一點，看過後保留字級與白字、底色另外比稿：第一輪十個深綠選 E 森林綠，第二輪以 E 延伸十色 × 三種收尾，定案 E4 賽車綠＋金色上緣。規則見 DESIGN.md「頁尾賽車綠底＋白字＋黃銅上緣、字級升一階」；比稿在 Desktop 工作區 `design/footer-dark-green-directions-20261104/`（`index.html` 第二輪、`round1.html` 第一輪）。

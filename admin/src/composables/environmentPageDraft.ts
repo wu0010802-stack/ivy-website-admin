@@ -26,7 +26,7 @@ export const ENVIRONMENT_BUILTIN_PHOTOS = {
 // 照顧的小事 4:3；六個空間照片依原本比例整張顯示，不裁切，所以沒有焦點預覽。
 // 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，這裡給最接近的矩形比例預覽裁切（形狀的圓角另外再裁掉一點邊緣）
 export const ENVIRONMENT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（彩虹最內圈的拱，約 3:4）', ratio: '3 / 4' }],
+  hero: [{ label: '官網裁切（赤陶拱窗，約 4:5）', ratio: '4 / 5' }],
   care: [{ label: '官網裁切（桌機 2.75:1）', ratio: '2.75 / 1' }, { label: '手機（2.2:1）', ratio: '2.2 / 1' }],
   feature: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
   careItem: [{ label: '官網裁切（約 4:5）', ratio: '4 / 5' }],

@@ -191,8 +191,8 @@ export function aboutHeroAttrs(page: Pick<AboutPageContent, 'heroPhoto'>) {
 
 /**
  * 常春藤環境頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用，才不會多下載一張。沒換照片用內建圖
- * （environmentHeroImage）；換了照片，sizes 的倍率依那張照片的寬高比重算（3:2 相框 object-fit: cover，
- * 比 3:2 寬的橫幅左右被裁，要畫的寬度＝框寬 × 寬高比 ÷ 1.5）。
+ * （environmentHeroImage）；換了照片，sizes 的倍率依那張照片的寬高比重算（約 4:5 的拱窗 object-fit: cover，
+ * 比 4:5 寬的橫幅左右被裁，要畫的寬度＝框寬 × 寬高比 ÷ ENVIRONMENT_HERO_ASPECT）。
  */
 export function environmentHeroAttrs(page: Pick<EnvironmentPageContent, 'heroPhoto'>) {
   const photo = page.heroPhoto

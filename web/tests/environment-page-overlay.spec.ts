@@ -264,12 +264,12 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     const next = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, media)
     const attrs = environmentHeroAttrs(next)
     expect(attrs.src).toBe(`/api/website/v1/public/media/${HERO}/file`)
-    // 2400×1200 的 2:1 照片塞進彩虹最內圈約 3:4 的拱框，左右被裁，要畫的寬度是框寬 × (2 ÷ 0.75)
+    // 2400×1200 的 2:1 照片塞進約 4:5 的赤陶拱窗，左右被裁，要畫的寬度是框寬 × (2 ÷ 0.8)
     expect(attrs.width).toBe(2400)
     const wide = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 2400, height: 1200, variants: [{ kind: 'thumbnail', width: 480, height: 240 }, { kind: 'large', width: 1600, height: 800 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 140px) * 2.67), 854px')
-    // 不比 3:4 寬的照片不放大
+    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 2.5), 1200px')
+    // 不比 4:5 寬的照片不放大
     const tall = overlay({ ...livePayload(), hero_photo: { media_id: CARE } }, { ...media, [CARE]: info(CARE, { width: 1200, height: 1600, variants: [{ kind: 'thumbnail', width: 360, height: 480 }, { kind: 'large', width: 900, height: 1200 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 140px) * 1), 320px')
+    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 1), 480px')
   })
 })
