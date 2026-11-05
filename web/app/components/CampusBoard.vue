@@ -550,9 +550,10 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }}</a>
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
-        <div class="social-row">
+        <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，
+             10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「LINE 好友」；不要拿義華的 LINE 代填。 -->
+        <div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">
           <a v-if="current.line" :href="current.line" aria-label="LINE 好友（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE 好友</a>
-          <span v-else><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE · 待園方提供</span>
           <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
           <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
           <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
@@ -727,7 +728,7 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .contact-row a:hover{text-decoration:underline;text-underline-offset:5px}
 .phone{font-family:var(--font-latin);font-size:var(--fs-3xl);font-weight:400;letter-spacing:.015em;font-variant-numeric:tabular-nums}
 .social-row{display:flex;align-items:center;gap:8px 20px;color:var(--muted);font-size:var(--fs-sm);margin-top:7px;flex-wrap:wrap}
-.social-row a,.social-row span{display:inline-flex;align-items:center;min-height:44px;gap:8px}
+.social-row a{display:inline-flex;align-items:center;min-height:44px;gap:8px}
 .social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
 /* 四個社群連結在 318–423px 寬的欄裡會排成 3＋1，YouTube 單獨掉到第二行（390、760 實測，2026-10-13）：
    欄寬不到一排放得下的寬度時改成 2×2 對齊的兩欄。量的是聯絡欄本身（容器查詢），手機與平板兩欄版都適用；不支援 :has／容器查詢時照舊換行。 */

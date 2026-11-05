@@ -1,3 +1,19 @@
+## 2026-11-04 前台 TA 檢視：不需園方資料的快修（`feature/ta-quick-fixes-20261104`）
+
+使用者看完前台 TA（目標家長）檢視（私人 Artifact `74KNJ2Si4f2DGpFm59XyUW`；原始結果、截圖與腳本在 Desktop checkout 的 `output/ta-review-20261104/`，未進版控）後要「不需園方資料、現在就能動手的這些都先做」。清單 12 條：T01（首頁與 /news 唯一一則是標題「讚」、分類 test 的測試消息）是正式站後台內容，要在後台「各校消息與活動」→ 義華校把那則移除後發布，**不在程式裡**；其餘 11 條如下。規則見 DESIGN.md 頂部「前台 TA 檢視快修」。
+
+- **T07 首頁五校卡**：沒有 LINE 的校區不再顯示「LINE · 待園方提供」（`CampusBoard.vue`），整列沒有社群就不出現；拿掉用不到的 `.social-row span` 樣式。
+- **T02 分班工具**（`admission-classes.ts`、`AdmissionContent.vue`）：還沒到幼幼班的孩子，已滿 2 歲說「已經滿 2 歲，有名額就可以來上學」，未滿說滿 2 歲那天；另列「照生日分班，116 學年度讀幼幼班」與「116 學年度以前先來上學，編在哪一班，參觀時和校區確認」。原本說「2027 年 8 月起可以開始讀幼幼班」，今天已滿 2 歲的家長會以為現在不收。印章不再寫「預計入學」；320 寬答案句與生日欄被撐出卡片的問題一併修（`.ap-fields` 改 `minmax(0,1fr)`）。
+- **T14／T15／T38 入學頁常見問題**（`admission-faq.ts`）：轉園與學期中入學合成第一題、預設打開、題下列各校電話；`#faq-midterm` 舊連結落到這題；目錄提示改「轉園、補助、退費等 N 題」；「幾歲可以入學」改滿 2 歲有名額就能入學；「怎麼預約參觀」與流程第 1 格（fixture）不寫死哪幾校能線上預約；新增「阿公阿嬤或保母可以來接嗎？」。
+- **T12／T13 首頁文字**（`public-copy.ts` 的 `withTaFacts`，原文一字不差才換）：關於段第一句改成「1997 年，第一間常春藤在高雄義華路成立，現在有義華、明華、崇德、國際、仁武五所幼兒園。」並分三段（`AboutSection.vue` 支援換行分段，`utils/about-copy.ts`）；孩子的一天背面五則從「參觀時再問」改成站上已有的事實，下雨天那則照舊。
+- **T23 頁尾**（`SiteFooter.vue`）：每校加一行完整地址連 Google 地圖、電話前加圖示；校區清單標題改「各校地址與電話」（`withTaFacts`），並加 `aria-labelledby`。
+- **T24 預約頁**（`VisitForm.vue`、`visit-booking.css`）：義華卡在「可線上預約」旁也放撥號；選校卡地址 12→14px；五張卡校名在 1440／1024／961 寬對齊；第二步地址連 Google 地圖。桌機色帶壓矮沒做（要使用者決定）。
+- **T34／T37 環境頁、特色教學**（fixture，同步後台初稿 `curriculumPageDraft.ts`、`environmentPageDraft.ts` 與 `overlay-baseline-20260925.json`，環境頁兩份渲染快照 `-u`）：年段卡改家長視角、「螺旋式課程」改「一年一年學」、統整課程解釋奧福與感統；環境頁拿掉「贏在人生的起跑點」「快速戒除尿布」。
+- **審查**：程式正確性、文案事實與規則、UI 與無障礙三份審查加逐條反證（30 條、推翻 2 條），修了 320 寬分班答案被切、頁尾地址蓋到電話下緣、義華卡校名高 30px 與撥號膠囊蓋到金色膠囊、地址只剩「號」換行、第二步地圖連結太小、讀屏「今年在這一格」、學期中編班說法的範圍、「開學前三天」歧義、拍立得「每天有」改「常做」等。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix admin run typecheck` 通過；web 全套 112 檔 1371 項、admin 167 檔 3216 項（1 skipped）全過；後端讀 fixture 的 10 支（content_initialize、curriculum／environment／about／admission 內容、media_slots、home_news、publishing_workflow、campus_testimonials、site_structure）273 項過（自己的測試庫 `ivy_website_taqf_test`）。本機 nuxt dev 接正式站公開 API（只發 GET）用 Playwright 斷言 54 項全過：桌機 1440、手機 390，320 寬分班工具三種生日不被切掉，1440／1024／961 寬五張選校卡校名對齊，頁尾電話下緣用 elementFromPoint 點到的是電話。
+- **沒跑**：後端全套、stack／公開 e2e（grep 過 `tests/` 沒有依賴改動的字；`editor-live-preview` 用校名篩頁尾列，新地址不含他校校名）、`contract:check`（沒動 API 與型別契約）、iOS／Android 實機與瀏覽器字級放大。字型：常見問題題目與頁尾標題是內文字型；特色教學新小標只用該頁字表已有的字；分班工具答案句只在輸入生日後出現，沒有重切 LINE Seed。
+- **沒做／待決定**：預約頁桌機色帶壓矮；已滿 2 歲時大印章仍是「116 學年度 幼幼班」（視覺取捨）；首屏副文、主選單加「五所校園」、年段配圖（都挑戰既有定案）；T38「（使用一個月）」與新生準備改名、學期中滿 2 歲的實際編班（待園方）；後台編輯欄位與草稿預覽仍是原文（`withTaFacts` 只換一字不差的原文）。沒有 `versions/` 快照（sparse worktree，改動都在 git）。
+
 ## 2026-11-04 環境頁首屏：彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片（`feature/env-hero-arch-20261104`）
 
 使用者截圖 /environment 首屏的彩虹疊疊樂要「換個框」；比稿三輪 A–H（`design/environment-hero-frame-directions-20261104/`，Desktop checkout、未進版控）選 A。規則見 DESIGN.md「環境頁首屏換成赤陶拱積木」。

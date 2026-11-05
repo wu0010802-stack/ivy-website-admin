@@ -113,6 +113,12 @@ describe('選單「找到你的校園」', () => {
     expect(template).not.toContain('待園方提供')
     expect(read('../app/assets/css/studio.css')).not.toContain('#menu-campuses button')
   })
+
+  it('首頁五校卡也一樣：沒有 LINE 的校區不寫「待園方提供」，整列沒有社群時不留空列（2026-11-04）', () => {
+    const board = read('../app/components/CampusBoard.vue').replace(/<!--[\s\S]*?-->/g, '')
+    expect(board).not.toContain('待園方提供')
+    expect(board).toContain('<div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">')
+  })
 })
 
 describe('原型的來源說明拿掉', () => {

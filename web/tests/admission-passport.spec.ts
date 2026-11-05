@@ -126,9 +126,10 @@ describe('入學護照頁面（AdmissionContent.vue）', () => {
     expect(component).not.toContain('adm-visit')
   })
 
-  it('大章寫「分班對照」「預計入學」，不寫「核定」「錄取」（避免家長以為名額已確定）', () => {
+  it('大章寫「分班對照」，不寫「核定」「錄取」（避免家長以為名額已確定）', () => {
     expect(component).toContain('常春藤幼兒園・分班對照')
-    expect(component).toContain('常春藤幼兒園・預計入學')
+    // 2026-11-04：還沒到幼幼班的孩子滿 2 歲有名額就能入學，章上不再寫「預計入學」（會讀成要等到那一年）
+    expect(component).not.toContain('常春藤幼兒園・預計入學')
     const code = component.replace(/<!--[\s\S]*?-->|\/\/.*$/gm, '')
     expect(code).not.toMatch(/核定|錄取|核准/)
   })

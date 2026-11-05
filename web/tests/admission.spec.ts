@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveAdmissionContent } from '../app/utils/content-overlay'
-import { academicYear, classPlan, classRanges, classTable, cohortOf, parseBirthday, taipeiYmd } from '../app/utils/admission-classes'
+import { academicYear, classPlan, classRanges, classTable, cohortOf, parseBirthday, secondBirthday, taipeiYmd } from '../app/utils/admission-classes'
 import { admissionSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 
 const site = fixture as unknown as SiteContent
@@ -22,8 +22,21 @@ describe('分班對照（舊官網分班表規則）', () => {
   })
 
   it('還沒到幼幼班、或已上小學，摘要講清楚', () => {
-    expect(classPlan({ year: 2024, month: 10, day: 3 }, 115).summary).toBe('寶貝 116 學年度（2027 年 8 月起）可以開始讀幼幼班。')
-    expect(classPlan({ year: 2015, month: 1, day: 1 }, 115).summary).toBe('寶貝已到國小年齡囉。')
+    const today = { year: 2026, month: 11, day: 4 }
+    // 2026-11-04 TA 檢視：學期中已滿 2 歲的孩子，有名額就能入學，不再說「2027 年 8 月起」才能讀
+    expect(classPlan({ year: 2024, month: 10, day: 3 }, 115, today).summary).toBe('寶貝已經滿 2 歲，有名額就可以來上學。')
+    expect(classPlan({ year: 2024, month: 11, day: 4 }, 115, today).summary).toBe('寶貝已經滿 2 歲，有名額就可以來上學。')
+    expect(classPlan({ year: 2024, month: 11, day: 5 }, 115, today).summary).toBe('寶貝 2026 年 11 月 5 日滿 2 歲，之後有名額就可以來上學。')
+    expect(classPlan({ year: 2025, month: 10, day: 3 }, 115, today).summary).toBe('寶貝 2027 年 10 月 3 日滿 2 歲，之後有名額就可以來上學。')
+    expect(classPlan({ year: 2015, month: 1, day: 1 }, 115, today).summary).toBe('寶貝已到國小年齡囉。')
+  })
+
+  it('滿 2 歲那天：2/29 出生、那年沒有 2/29 時算 3/1；只有還沒到幼幼班時才有 turnsTwo', () => {
+    const today = { year: 2026, month: 11, day: 4 }
+    expect(secondBirthday({ year: 2024, month: 2, day: 29 })).toEqual({ year: 2026, month: 3, day: 1 })
+    expect(secondBirthday({ year: 2024, month: 2, day: 28 })).toEqual({ year: 2026, month: 2, day: 28 })
+    expect(classPlan({ year: 2024, month: 10, day: 3 }, 115, today).turnsTwo).toEqual({ year: 2026, month: 10, day: 3, reached: true })
+    expect(classPlan({ year: 2022, month: 5, day: 10 }, 115, today).turnsTwo).toBeNull()
   })
 
   it('成長軌道：讀幼兒園停在今年那一站，還沒入學停幼幼班、已上小學停小一，並列出之後每一年', () => {
@@ -32,7 +45,7 @@ describe('分班對照（舊官網分班表規則）', () => {
       next: ['116 學年度升大班', '117 學年度（2028 年 8 月）上小一']
     })
     expect(classPlan({ year: 2024, month: 10, day: 3 }, 115)).toMatchObject({
-      cohort: 113, status: 'young', position: 0, next: ['2027 年 8 月起，之後每年 8 月升一班']
+      cohort: 113, status: 'young', position: 0, next: ['照生日分班，116 學年度讀幼幼班，之後每年升一班', '116 學年度以前先來上學，編在哪一班，參觀時和校區確認']
     })
     expect(classPlan({ year: 2019, month: 12, day: 31 }, 115)).toMatchObject({ status: 'school', position: 4, next: ['115 學年度讀小一'] })
     expect(classPlan({ year: 2015, month: 1, day: 1 }, 115)).toMatchObject({ status: 'school', position: 4, next: [] })

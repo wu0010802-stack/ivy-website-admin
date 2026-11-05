@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { BookingContent, Campus } from '~/types/site-content'
 import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
+import { campusMapUrl } from '~/utils/site-links'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
@@ -328,6 +329,11 @@ function campusCall(campus: Campus): { href: string; number: string } | null {
   const cta = campusVisitCta(campus, action)
   return cta.kind === 'phone' ? { href: cta.href, number: cta.href.replace(/^tel:/, '') } : null
 }
+// 可線上預約的校區，卡片上也給撥號（2026-11-04 TA 檢視）：原本只有來電的四校卡片有電話，義華要選卡、
+// 進第二步才看得到號碼。號碼用五校介紹的電話，排在「可線上預約」旁邊。
+function onlineCall(campus: Campus): { href: string; number: string } | null {
+  return campusActions.value[campus.key]?.kind === 'form' && campus.phone ? { href: `tel:${campus.phone}`, number: campus.phone } : null
+}
 
 // 送出列直接寫出這次要預約的日期與場次，按下前最後確認一次。
 const bookingSummary = computed(() => selectedSlot.value
@@ -647,7 +653,8 @@ async function onSubmit() {
             </span>
           </div>
           <div class="visit-aside-info">
-            <p><svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>{{ selectedCampus.address }}</p>
+            <!-- 地址連 Google 地圖（2026-11-04 TA 檢視），同首頁五校卡與頁尾；選校卡本身是 label，地圖連結只放這裡。 -->
+            <p><svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg><a class="visit-aside-map" :href="campusMapUrl(selectedCampus)" target="_blank" rel="noopener noreferrer" :aria-label="`${selectedCampus.address}，在 Google 地圖開啟（另開分頁）`">{{ selectedCampus.address }}</a></p>
             <a v-if="selectedCampus.phone" class="visit-aside-phone" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ selectedCampus.phone }}</a>
             <button v-if="!submitted" class="visit-change" type="button" :disabled="submitting" @click="changeCampus">更換校區</button>
           </div>
@@ -683,7 +690,7 @@ async function onSubmit() {
                     <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
                     <!-- 來電的校區把「來電洽詢」換成撥號連結：連結在 label 裡，點它只撥號、不會選到這張卡（HTML 規定 label
                          遇到裡面的互動元素不轉送點擊）。radio 的名稱已含「來電洽詢」，連結另外唸校名與號碼。 -->
-                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><span v-else class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span></span>
+                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
                     <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
                   </span>
                 </label>

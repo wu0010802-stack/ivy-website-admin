@@ -66,10 +66,26 @@ export interface ClassPlan {
   position: number
   /** 摘要之後的每一年，例如「116 學年度升大班」。 */
   next: string[]
+  /** 還沒到幼幼班（young）時：滿 2 歲那天，以及今天是否已滿 2 歲；其他狀態是 null。 */
+  turnsTwo: (YMD & { reached: boolean }) | null
 }
 
-/** 依生日列出幼幼班到小一每一年的班級，並寫一句摘要。 */
-export function classPlan(birth: YMD, currentYear: number): ClassPlan {
+/** 滿 2 歲那天（2/29 出生、那年沒有 2/29 時算 3/1）。 */
+export function secondBirthday(birth: YMD): YMD {
+  const year = birth.year + 2
+  const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0
+  return birth.month === 2 && birth.day === 29 && !leap ? { year, month: 3, day: 1 } : { year, month: birth.month, day: birth.day }
+}
+
+const ymdKey = (d: YMD) => d.year * 10000 + d.month * 100 + d.day
+
+/**
+ * 依生日列出幼幼班到小一每一年的班級，並寫一句摘要。
+ * 2026-11-04 TA 檢視：幼幼班的屆別照法定入學年齡（Y+3 學年度），但滿 2 歲、有名額就能入學（園方海報「滿2歲即可入學」），
+ * 原本對學期中已滿 2 歲的孩子說「2027 年 8 月起可以開始讀幼幼班」，家長會以為現在不收。還沒到幼幼班的孩子改成先講
+ * 滿 2 歲那天；學期中入學編在哪一班各校安排不同，不寫死，請家長參觀時確認。today 預設台北今天。
+ */
+export function classPlan(birth: YMD, currentYear: number, today: YMD = taipeiYmd()): ClassPlan {
   const cohort = cohortOf(birth)
   const rows = PLAN_OFFSETS.map((offset) => ({
     year: cohort + offset,
@@ -79,17 +95,21 @@ export function classPlan(birth: YMD, currentYear: number): ClassPlan {
   }))
   const index = rows.findIndex((row) => row.current)
   const now = rows[index]
+  const status: ClassStatus = index >= 0 && index < KINDERGARTEN_OFFSETS.length ? 'enrolled' : cohort + 3 > currentYear ? 'young' : 'school'
+  const two = secondBirthday(birth)
+  const turnsTwo = status === 'young' ? { ...two, reached: ymdKey(today) >= ymdKey(two) } : null
+
   let summary: string
   if (now) summary = `${currentYear} 學年度，寶貝就讀${now.name}。`
-  else if (cohort + 3 > currentYear) summary = `寶貝 ${cohort + 3} 學年度（${cohort + 3 + 1911} 年 8 月起）可以開始讀幼幼班。`
+  else if (turnsTwo?.reached) summary = '寶貝已經滿 2 歲，有名額就可以來上學。'
+  else if (turnsTwo) summary = `寶貝 ${turnsTwo.year} 年 ${turnsTwo.month} 月 ${turnsTwo.day} 日滿 2 歲，之後有名額就可以來上學。`
   else summary = '寶貝已到國小年齡囉。'
 
-  const status: ClassStatus = index >= 0 && index < KINDERGARTEN_OFFSETS.length ? 'enrolled' : cohort + 3 > currentYear ? 'young' : 'school'
   let next: string[]
   if (status === 'enrolled') {
     next = rows.slice(index + 1).map((row) => row === rows.at(-1) ? `${row.year} 學年度（${row.year + 1911} 年 8 月）上小一` : `${row.year} 學年度升${row.name}`)
-  } else if (status === 'young') next = [`${cohort + 3 + 1911} 年 8 月起，之後每年 8 月升一班`]
+  } else if (status === 'young') next = [`照生日分班，${cohort + 3} 學年度讀幼幼班，之後每年升一班`, `${cohort + 3} 學年度以前先來上學，編在哪一班，參觀時和校區確認`]
   else next = now ? [`${currentYear} 學年度讀小一`] : []
   const position = status === 'enrolled' ? index : status === 'young' ? 0 : rows.length - 1
-  return { summary, rows, cohort, status, position, next }
+  return { summary, rows, cohort, status, position, next, turnsTwo }
 }

@@ -319,7 +319,8 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-toc ol { grid-template-columns: 1fr 1fr; }
   .ap-visas { grid-template-columns: 1fr 1fr; }
   .ap-datapage { grid-template-columns: minmax(0, 1fr) 260px; column-gap: 28px; padding: 28px; }
-  .ap-fields { grid-template-columns: 1fr; }
+  /* minmax(0,…)：答案句裡的 ap-nowrap 比欄寬時不撐寬整欄（2026-11-04，320 寬生日框與答案被卡片切掉）。 */
+  .ap-fields { grid-template-columns: minmax(0, 1fr); }
   /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
   .ap-answer { order: 1; }
   .ap-field-static { order: 2; }
@@ -353,7 +354,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-visa { grid-template-columns: minmax(0, 1fr) 88px; min-height: 0; padding: 16px 14px 18px 16px; }
   .ap-visa-stamp { min-height: 96px; }
   .ap-visa-stamp .ap-stamp svg { width: 84px; height: 84px; }
-  .ap-datapage { grid-template-columns: 1fr; grid-template-areas: 'fields' 'stamp' 'slots' 'detail'; padding: 20px 16px 24px; }
+  .ap-datapage { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'fields' 'stamp' 'slots' 'detail'; padding: 20px 16px 24px; }
   .ap-datapage > .ap-rosette-host { right: -120px; top: 250px; width: 360px; }
   .ap-answer-lead { font-size: var(--fs-2xl); }
   .ap-stampzone { min-height: 200px; margin-top: 8px; }

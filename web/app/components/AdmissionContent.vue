@@ -56,7 +56,7 @@ const chapters = computed(() => [
   { id: 'process', label: '入學流程', hint: `${admission.value.steps.length} 個步驟` },
   { id: 'classes', label: '分班對照', hint: '輸入生日查班別' },
   ...(showNewcomer.value ? [{ id: 'newcomer', label: '新生準備', hint: '必備品與叮嚀' }] : []),
-  { id: 'faq', label: '常見問題', hint: `補助、退費等 ${faqCount.value} 題` }
+  { id: 'faq', label: '常見問題', hint: `轉園、補助、退費等 ${faqCount.value} 題` }
 ].map((chapter, i) => ({ ...chapter, no: pad2(i + 1), page: i + 2 })))
 const chapterOf = (id: string) => chapters.value.find((chapter) => chapter.id === id)
 
@@ -83,15 +83,17 @@ function slotState(i: number) {
 function slotLabel(i: number) {
   const station = stations[i]!
   const p = plan.value
-  return p ? `${station.name}，寶貝 ${p.rows[i]!.year} 學年度${p.position === i ? '（今年在這一格）' : ''}` : `${station.name}，${station.age} 歲`
+  // 「今年在這一格」只給已經在讀幼兒園的孩子：還沒到幼幼班（停在第一格）、已到國小年齡（停在小一）都不是今年讀的班。
+  return p ? `${station.name}，寶貝 ${p.rows[i]!.year} 學年度${p.position === i && p.status === 'enrolled' ? '（今年在這一格）' : ''}` : `${station.name}，${station.age} 歲`
 }
 // 大章：同一個答案不重蓋；換答案時舊章拿起、新章蓋下（key 換了，Transition 各自跑 leave／enter）。
-// 「蓋章＝核准」的誤會：章上寫「分班對照」「預計入學」，不寫「核定」「錄取」。
+// 「蓋章＝核准」的誤會：章上只寫「分班對照」，不寫「核定」「錄取」（2026-11-04 起也不寫「預計入學」，見下）。
 const resultStamp = computed(() => {
   const p = plan.value
   if (!p) return null
   if (p.status === 'enrolled') return { key: `e-${p.cohort}`, ring: '常春藤幼兒園・分班對照', lines: [`${currentYear} 學年度`, p.rows[p.position]!.name], mode: 'label' as const, tone: 'red' as const }
-  if (p.status === 'young') return { key: `y-${p.cohort}`, ring: '常春藤幼兒園・預計入學', lines: [`${p.cohort + 3} 學年度`, '幼幼班'], mode: 'label' as const, tone: 'red' as const }
+  // 2026-11-04：還沒到幼幼班的孩子，滿 2 歲有名額就能入學（見 classPlan），章上不再寫「預計入學」，只標依分班表哪一年讀幼幼班。
+  if (p.status === 'young') return { key: `y-${p.cohort}`, ring: '常春藤幼兒園・分班對照', lines: [`${p.cohort + 3} 學年度`, '幼幼班'], mode: 'label' as const, tone: 'red' as const }
   return { key: 's', ring: '常春藤幼兒園・分班對照', lines: ['已到', '國小年齡'], mode: 'pair' as const, tone: 'green' as const }
 })
 const babyTone = computed(() => (plan.value?.status === 'young' ? 'red' : 'green'))
@@ -160,8 +162,12 @@ function onResize() {
   resizeTimer = window.setTimeout(drawGuilloche, 150)
 }
 /** 網址帶常見問題的錨點（#faq-refund、舊連結 #fees）就把那一題打開。 */
+// 2026-11-04 轉園與學期中入學合成一題（#faq-transfer），11-03 上線的 #faq-midterm 舊連結落到同一題。
+const FAQ_ALIASES: Record<string, string> = { 'faq-midterm': 'faq-transfer' }
 function openFaqFromHash() {
-  const id = decodeURIComponent(location.hash.slice(1))
+  const raw = decodeURIComponent(location.hash.slice(1))
+  const id = FAQ_ALIASES[raw] ?? raw
+  if (id !== raw) document.getElementById(id)?.scrollIntoView()
   const target = id ? document.getElementById(id) : null
   if (target instanceof HTMLDetailsElement && root.value?.contains(target)) target.open = true
 }
@@ -321,7 +327,8 @@ onBeforeUnmount(() => {
               <template v-if="plan">
                 <p class="ap-answer-lead">
                   <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，<span class="ap-nowrap">寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</span></template>
-                  <template v-else-if="plan.status === 'young'">寶貝 <em>{{ plan.cohort + 3 }} 學年度</em><span class="ap-nowrap">可以開始讀幼幼班。</span></template>
+                  <template v-else-if="plan.turnsTwo?.reached">寶貝<em>已經滿 2 歲</em>，<span class="ap-nowrap">有名額就可以來上學。</span></template>
+                  <template v-else-if="plan.turnsTwo">寶貝 <em>{{ plan.turnsTwo.year }} 年 {{ plan.turnsTwo.month }} 月 {{ plan.turnsTwo.day }} 日</em>滿 2 歲，之後<span class="ap-nowrap">有名額就可以來上學。</span></template>
                   <template v-else>寶貝已到國小年齡囉。</template>
                 </p>
                 <ul v-if="plan.next.length" class="ap-answer-next">

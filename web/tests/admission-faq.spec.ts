@@ -41,7 +41,17 @@ describe('常見問題資料（utils/admission-faq.ts）', () => {
     expect(new Set(items.map((item) => item.id)).size).toBe(items.length)
     const fees = items.find((item) => item.id === 'fees')
     expect(fees).toMatchObject({ slot: 'allowance', open: true })
-    expect(items.filter((item) => item.open)).toHaveLength(1)
+    // 2026-11-04 TA 檢視：轉園與學期中入學合成第一題、預設打開，題目下列各校電話
+    expect(items.filter((item) => item.open).map((item) => item.id)).toEqual(['faq-transfer', 'fees'])
+    expect(ADMISSION_FAQ[0]!.items[0]).toMatchObject({ id: 'faq-transfer', slot: 'phones', open: true })
+  })
+
+  it('滿 2 歲有名額就能入學，不寫死學期中入學的編班；不寫死哪幾校能線上預約（2026-11-04）', () => {
+    const answer = (id: string) => items.find((item) => item.id === id)!.a.join('')
+    expect(answer('faq-age')).toContain('滿 2 歲、有名額就可以入學')
+    expect(answer('faq-age')).not.toContain('當年 9 月 1 日前滿 2 歲')
+    expect(answer('faq-visit')).not.toMatch(/義華|明華|崇德|國際|仁武/)
+    expect(answer('faq-pickup')).toContain('30 分鐘')
   })
 
   it('這頁不放預約參觀：延伸連結不連到 /visit；文案不用破折號', () => {
@@ -64,10 +74,21 @@ describe('入學頁常見問題（AdmissionContent.vue）', () => {
     expect(questionCount(html)).toBe(ADMISSION_FAQ.reduce((sum, group) => sum + group.items.length, 0))
   })
 
+  it('轉園題排第一、預設打開，題目下就列各校電話（2026-11-04）', async () => {
+    const html = await render(site.admission, site.campuses)
+    expect(html).toMatch(/<details id="faq-transfer" open/)
+    const transfer = html.slice(html.indexOf('id="faq-transfer"'), html.indexOf('id="faq-age"'))
+    expect(transfer).toContain('ap-faq-phones')
+    for (const campus of site.campuses) expect(transfer).toContain(`href="tel:${campus.phone}"`)
+    expect(html.indexOf('id="faq-transfer"')).toBeLessThan(html.indexOf('id="faq-age"'))
+    // 11-03 上線的 #faq-midterm 舊連結落到轉園題
+    expect(read('../app/components/AdmissionContent.vue')).toContain("const FAQ_ALIASES: Record<string, string> = { 'faq-midterm': 'faq-transfer' }")
+  })
+
   it('目錄最後一章是常見問題，小字寫題數', async () => {
     const html = await render(site.admission, site.campuses)
     expect(html).toContain('<b>常見問題</b>')
-    expect(html).toContain(`補助、退費等 ${questionCount(html)} 題`)
+    expect(html).toContain(`轉園、補助、退費等 ${questionCount(html)} 題`)
   })
 
   it('「怎麼預約參觀」列各校電話（可直接撥），沒有往 /visit 的連結', async () => {
@@ -83,7 +104,7 @@ describe('入學頁常見問題（AdmissionContent.vue）', () => {
     const html = await render(empty, site.campuses)
     expect(html).not.toContain('id="fees"')
     expect(html).not.toContain('id="faq-refund"')
-    expect(html).toContain(`補助、退費等 ${questionCount(html)} 題`)
+    expect(html).toContain(`轉園、補助、退費等 ${questionCount(html)} 題`)
     expect(questionCount(html)).toBe(ADMISSION_FAQ.reduce((sum, group) => sum + group.items.length, 0) - 2)
   })
 

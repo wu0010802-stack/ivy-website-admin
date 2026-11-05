@@ -140,9 +140,43 @@ export function withoutRepeatedCopy(site: SiteContent): SiteContent {
   }
 }
 
+// 2026-11-04 TA 檢視（前台給目標家長看的事實）：首頁關於段第一句改成交代身分（高雄五所幼兒園、1997 年創立），
+// 一整段約 300 字拆成三段；孩子的一天背面原本六則都回答「參觀時再問」，站上別頁其實已經寫了答案的五則改成事實
+// （入學頁新生準備與接送安全、特色教學五件事、常見問題的餐點；下雨天怎麼調整站上沒有資料，照舊）；頁尾校區清單
+// 的標題改成直接說是什麼（不用「五所校園」：頁尾導覽已有同名連結）。後台都能改：原文一字不差才換，園方改過的照園方的；內建內容與後台預設仍是原文。
+const ABOUT_BODY = '自 1997 年在高雄創立，常春藤以專業保育與溫暖陪伴，為孩子打造安全、安心的成長環境。近三十年來，我們始終相信，幼兒園不只是上學的地方，更是孩子第一次離開家、認識世界的起點。因此，我們的課程從孩子的興趣與生活出發，讓他們在遊戲、繪本、藝術與戶外觀察中提問、動手嘗試，也在相處中練習合作與關懷；老師細心觀察、適時引導，尊重每個孩子不同的步調，陪伴他們學會照顧自己、理解他人。美語同樣融入每一天，從早晨問候、歌謠繪本到點心時間與遊戲對話，孩子在自然的互動裡聽、說、玩，先喜歡上這個語言，再慢慢累積開口的自信。我們希望每個孩子離開常春藤時，都帶著充滿好奇、值得珍藏的童年，以及面對世界的勇氣。'
+const ABOUT_BODY_FACTS = [
+  '1997 年，第一間常春藤在高雄義華路成立，現在有義華、明華、崇德、國際、仁武五所幼兒園。',
+  '我們相信，幼兒園是孩子第一次離開家、認識世界的起點。課程從孩子的興趣與生活出發，讓他們在遊戲、繪本、藝術與戶外觀察中提問、動手嘗試，也在相處中練習合作與關懷；老師細心觀察、適時引導，尊重每個孩子不同的步調，陪伴他們學會照顧自己、理解他人。',
+  '美語融入每一天，從早晨問候、歌謠繪本到點心時間與遊戲對話，孩子在自然的互動裡聽、說、玩，先喜歡上這個語言，再慢慢累積開口的自信。'
+].join('\n')
+const DAY_ANSWERS: Readonly<Record<string, string>> = {
+  '參觀時可以與園所聊聊：初次入園的陪伴方式、家長如何與老師聯繫，以及可以事先做哪些準備。':
+    '前三天以半天為主，入園時爸爸媽媽可以稍微陪一下；開學前約一週，導師會先打電話了解孩子。',
+  '可以詢問該校如何安排探索活動、使用哪些教具與素材，以及如何依照年齡和孩子的興趣調整內容。':
+    '常做五件事：靜心、教具操作、美術創作、閱讀和大肌肉時間；教具由老師依孩子的年齡與能力設計。',
+  '參觀時可詢問餐點安排、食物過敏或特殊飲食需求的溝通方式，以及老師如何協助孩子練習用餐。':
+    '廚房每天現煮早餐、午餐和下午點心，另外每天兩份蔬果；食物過敏或特殊飲食，開學前先告訴導師。',
+  '可以向園所了解休息空間與安排，以及孩子尚未習慣午休時，老師會如何陪伴和與家長溝通。':
+    '午休請帶自己的棉被和枕頭；孩子還不習慣午睡的話，老師怎麼陪，參觀時可以先聊聊。',
+  '可以詢問園所的接送流程、家長與老師的聯繫方式，以及如何了解孩子在校的生活情況。':
+    '接孩子時出示接送證；臨時請別人代接，要在對方到園前 30 分鐘打電話告訴老師。'
+}
+
+/** 把已經有答案、卻寫成「參觀時再問」或一段形容詞的原文，換成站上查得到的事實（不修改傳入的物件）。 */
+export function withTaFacts(site: SiteContent): SiteContent {
+  const { home, dayExperience: day, footer } = site
+  return {
+    ...site,
+    home: { ...home, about: { ...home.about, bodyText: swap(home.about.bodyText, ABOUT_BODY, ABOUT_BODY_FACTS) } },
+    dayExperience: day && { ...day, moments: day.moments.map((moment) => ({ ...moment, answer: DAY_ANSWERS[moment.answer] ?? moment.answer })) },
+    footer: { ...footer, campusListLabel: swap(footer.campusListLabel, '我們的大家庭', '各校地址與電話') }
+  }
+}
+
 /** 僅替換已知原型原文，不蓋掉園方後來發布的自訂說明；順便拿掉官網已不顯示的舊欄位。 */
 export function publicCopy(source: SiteContent): SiteContent {
-  const site = withoutRepeatedCopy(withSourceNotes(withoutRetiredFields(source)))
+  const site = withTaFacts(withoutRepeatedCopy(withSourceNotes(withoutRetiredFields(source))))
   return {
     ...site,
     siteMeta: { ...site.siteMeta, description: site.siteMeta.description === OLD_DESCRIPTION

@@ -83,3 +83,31 @@ it('fixture 的 _todo 維護備註不進公開資料：任何層級都沒有，�
   expect(live.home.hero.heroImage).toBeTruthy()
   expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
 })
+
+// 2026-11-04 TA 檢視：首頁關於段第一句交代身分並分段、孩子的一天背面改成站上已有的事實、頁尾校區標題直接說是什麼。
+it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換，園方改過的照園方的', () => {
+  const site = fixture as unknown as SiteContent
+  const result = publicCopy(site)
+  const [lead, ...rest] = result.home.about.bodyText.split('\n')
+  expect(lead).toBe('1997 年，第一間常春藤在高雄義華路成立，現在有義華、明華、崇德、國際、仁武五所幼兒園。')
+  expect(rest).toHaveLength(2)
+  expect(result.home.about.bodyText).not.toContain('專業保育與溫暖陪伴')
+  const answers = Object.fromEntries(result.dayExperience.moments.map((moment) => [moment.key, moment.answer]))
+  expect(answers.hello).toContain('前三天以半天為主')
+  expect(answers.home).toContain('30 分鐘')
+  // 下雨天怎麼調整站上沒有資料，照舊
+  expect(answers.outside).toBe(site.dayExperience.moments.find((moment) => moment.key === 'outside')!.answer)
+  for (const answer of Object.values(answers).filter((a) => a !== answers.outside)) expect(answer).not.toMatch(/^(參觀時|可以詢問|可以向園所)/)
+  expect(result.footer.campusListLabel).toBe('各校地址與電話')
+  const custom = publicCopy({
+    ...site,
+    home: { ...site.home, about: { ...site.home.about, bodyText: 'CMS 自訂介紹。' } },
+    dayExperience: { ...site.dayExperience, moments: site.dayExperience.moments.map((moment) => ({ ...moment, answer: 'CMS 自訂答案' })) },
+    footer: { ...site.footer, campusListLabel: 'CMS 自訂標題' }
+  })
+  expect(custom.home.about.bodyText).toBe('CMS 自訂介紹。')
+  expect(custom.dayExperience.moments.every((moment) => moment.answer === 'CMS 自訂答案')).toBe(true)
+  expect(custom.footer.campusListLabel).toBe('CMS 自訂標題')
+  // 內建內容本身不改（後端初始化讀 fixture）
+  expect(site.home.about.bodyText.startsWith('自 1997 年在高雄創立')).toBe(true)
+})

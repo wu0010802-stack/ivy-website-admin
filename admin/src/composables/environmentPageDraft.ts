@@ -95,9 +95,9 @@ export function environmentPageDraft(): EnvironmentPagePayload {
     spaces: [
       { title: '乾淨溫馨的教室', text: '課程統整，全方位主題教學，帶領孩子走出戶外，接觸大自然。', note: '陽光照進來', campus_label: '', ...noPhoto() },
       { title: '多樣操作教具', text: '多樣性教具提升寶貝邏輯思維；多元玩法搭配豐富內容，讓寶貝養成自主學習的好習慣。', note: '各式操作教具', campus_label: '', ...noPhoto() },
-      { title: '戶外廣場', text: '寬敞明亮的大廣場，給予寶貝充足的空間伸展肢體、跑跑跳跳，讓寶貝贏在人生的起跑點！', note: '跑跑跳跳的大廣場', campus_label: '明華校', ...noPhoto() },
+      { title: '戶外廣場', text: '寬敞明亮的大廣場，孩子有足夠的空間跑跑跳跳、伸展身體。', note: '跑跑跳跳的大廣場', campus_label: '明華校', ...noPhoto() },
       { title: '安全角落設計', text: '厚軟墊防撞設計，加強角落安全性，寶貝唱唱跳跳好開心。', note: '厚軟墊防撞', campus_label: '', ...noPhoto() },
-      { title: '套房式衛廁', text: '連接教室的套房式衛廁，時刻注意寶貝的安全及如廁狀況；安心環境幫助幼幼寶貝快速戒除尿布好放心！', note: '孩子高度的洗手台', campus_label: '', ...noPhoto() },
+      { title: '套房式衛廁', text: '連接教室的套房式衛廁，老師隨時留意寶貝的安全與如廁狀況；還在包尿布的寶貝，老師陪著慢慢練習。', note: '孩子高度的洗手台', campus_label: '', ...noPhoto() },
       { title: '可愛動物區', text: '可愛動物區激發寶貝主動探索大自然生態的熱情與動力，培養責任心與好奇心。', note: '餵小兔子吃紅蘿蔔', campus_label: '', ...noPhoto() },
     ],
     meals_title: '多一點天然，\n少一點加工。',
