@@ -13,6 +13,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 首頁「關於常春藤」照片撐滿左欄、換崇德操場照、內文改寫（main CI 部署，沒有 migration）
+
+- **內容**：`98b63a60`（README「2026-11-05 首頁『關於常春藤』照片對齊、換照、內文改寫」），分支 `feature/home-about-a-20261105` rebase 到 main `f0fa90f6` 後由使用者推上。
+  - `studio.css`／`AboutSection.vue`：≥901px 照片從標題那列跨到內文末行、撐滿後 `object-fit:cover`（`contain:size`、最高 52vw），有 SINCE 時 `.has-since`；≥1101px 左欄收到內文寬、欄距 5vw；`sizes` 改寫。
+  - `home-about` 母檔換 115 招生照片「戶外活動5」（1477×1108），新雜湊 `d94cfbb255e3`、舊 `aa3afde8717a` 5 檔刪除；fixture／overlay 替代文字、後台「首頁 → 關於常春藤」內建圖說明與焦點預覽同步。
+  - `public-copy.ts` `ABOUT_BODY_FACTS` 改成新的三段介紹（後台內容仍是原文、一字不差才換）。沒有新環境變數、後端與資料庫變動。
+- **提交前驗證**：web typecheck 通過、`test:website` 1499 過；admin 三檔 102 過、`vue-tsc` 無錯；後端 `test_media_slots.py`＋`test_about_page_content.py` 48 過（獨立測試庫）；本機 stack e2e 169 過（`E2E_DB_NAME=ivy_website_e2e_homeabout_test`）。
+- **CI**：main run 42023618788 全綠（web、admin、後端三組、E2E），Deploy success（12:07:52–12:12:15Z）。
+- **線上驗證**（只發 GET，Playwright 擋遙測）：首頁 SSR 新雜湊 3 處、舊雜湊 0、舊檔 404、新檔 200；新內文第一句與新替代文字在，`/api/published-site` 的 `home.about.bodyText` 是新版；1440（DPR2）照片頂 195、底 617、末行字底 620，載母檔；390（DPR3）載 1200w；兩個寬度都沒有橫向捲動。
+- **沒驗**：iOS 實機、axe。
+
 ## 2026-11-05 孩子的一天大標下的小字改英文（main CI 部署，沒有 migration）
 
 - **內容**：`dcf47c06`（README「2026-11-05 孩子的一天小字改英文」），分支 `feature/day-cards-20261105` rebase 到 main `303bd926` 後由使用者推上。
