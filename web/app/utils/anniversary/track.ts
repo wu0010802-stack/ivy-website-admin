@@ -20,6 +20,9 @@ interface CardState {
   key: string
   canvas: HTMLCanvasElement
   triggerY: number
+  /** 卡片在文件裡的上下緣（measure 時量）：畫面外的卡片不畫 */
+  top: number
+  bottom: number
   started: number
   done: boolean
   tex: CardTextures | null
@@ -64,7 +67,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
 
   const gl = PaperGL.create(paperCss)
   const cards: CardState[] = [...track.querySelectorAll<HTMLElement>('.anni-campus')].map((el) => ({
-    el, key: el.dataset.campus!, canvas: el.querySelector<HTMLCanvasElement>('.anni-card-canvas')!, triggerY: 0, started: -1, done: false, tex: null
+    el, key: el.dataset.campus!, canvas: el.querySelector<HTMLCanvasElement>('.anni-card-canvas')!, triggerY: 0, top: 0, bottom: 0, started: -1, done: false, tex: null
   }))
   let crest: CrestTextures | null = null
   let crestStart = -1, crestDone = false
@@ -121,47 +124,76 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
   let fp: FinalePath = buildFinalePath([-60, 60])
   const scaleDpr = () => Math.min(devicePixelRatio || 1, 2)
   const sizeKids = (canvas: HTMLCanvasElement, cssW: number) => {
+    // 尺寸沒變就不重配（2026-11-05）：紙偶每一幀都整張重畫，重配只是多清空一次（原本 RO 回呼那一幀紙偶會空白）
+    const w = Math.round(cssW * scaleDpr())
+    if (canvas.width === w && canvas.style.width === `${cssW}px`) return
     canvas.style.width = `${cssW}px`
-    canvas.width = Math.round(cssW * scaleDpr())
+    canvas.width = w
     canvas.height = Math.round(canvas.width / PUPPET_ASPECT)
     canvas.style.height = `${cssW / PUPPET_ASPECT}px`
   }
+  // 蠟筆線與結尾 30 畫布的輸入簽章與「重配後畫了幾段」（2026-11-05）：簽章沒變、畫布上只有從 0 一次畫到底的一段時，
+  // 重配再從頭畫的結果逐像素相同，就略過（掛載時 measure 與 RO 第一次回呼原本各重配、重畫一次；手機蠟筆線一張約 4 MB）。
+  // 畫過兩段以上就照原本重配重畫：點是從每段的起點每 0.9px 蓋一顆，分段畫和一次畫的位置不同。
+  let inkSig = '', inkPasses = 0, fSig = '', fPasses = 0
   const measure = () => {
+    // 先量完再寫（2026-11-05）：原本每張卡量完 rect 就改畫布尺寸、下一張再量，每量一次都逼出一次 layout（掛載時 7 次）。
+    // 寫的都是絕對定位的畫布與只給絕對定位子元素用的 CSS 變數，不會改到後面量到的幾何。
     const r = track.getBoundingClientRect()
-    trackTop = r.top + scrollY
-    trackH = track.offsetHeight
-    railW = rail.offsetWidth
-    railLeft = rail.getBoundingClientRect().left
-    kidsFlip = railW < 130
-    marks = [...track.querySelectorAll<HTMLElement>('.anni-years > li')].map((li) => {
+    const sy = scrollY
+    const tH = track.offsetHeight
+    const rW = rail.offsetWidth
+    const rLeft = rail.getBoundingClientRect().left
+    const nextMarks = [...track.querySelectorAll<HTMLElement>('.anni-years > li')].map((li) => {
       const label = li.querySelector<HTMLElement>('.anni-year')!
       const lr = label.getBoundingClientRect()
       return { year: Number(li.dataset.year), y: lr.top + lr.height / 2 - r.top }
     })
-    for (const c of cards) {
-      const cr = c.el.getBoundingClientRect()
+    const boxes = cards.map((c) => ({ cr: c.el.getBoundingClientRect(), w: c.canvas.offsetWidth, h: c.canvas.offsetHeight }))
+    const fr = finale.getBoundingClientRect()
+    const fH = finale.offsetHeight
+    const boxW = fBox.clientWidth, boxH = fBox.clientHeight
+
+    trackTop = r.top + sy
+    trackH = tH
+    railW = rW
+    railLeft = rLeft
+    kidsFlip = railW < 130
+    marks = nextMarks
+    cards.forEach((c, i) => {
+      const { cr, w: cw, h: ch } = boxes[i]!
       c.triggerY = cr.top - r.top + 10
-      const w = Math.round(c.canvas.offsetWidth * scaleDpr()), h = Math.round(c.canvas.offsetHeight * scaleDpr())
+      c.top = cr.top + sy
+      c.bottom = cr.bottom + sy
+      const w = Math.round(cw * scaleDpr()), h = Math.round(ch * scaleDpr())
       if (w && h && (c.canvas.width !== w || c.canvas.height !== h)) { c.canvas.width = w; c.canvas.height = h; c.done = false }
-    }
+    })
     // 蠟筆線畫布：整條時間軸高；太高時降低解析度（iOS 單一 canvas 有面積上限）
     dpr = Math.min(devicePixelRatio || 1, 2, 12000 / Math.max(1, trackH))
     ink.style.height = `${trackH}px`
-    ink.width = Math.max(1, Math.round(railW * dpr))
-    ink.height = Math.max(1, Math.round(trackH * dpr))
-    inkDrawnTo = 0
+    const iw = Math.max(1, Math.round(railW * dpr)), ih = Math.max(1, Math.round(trackH * dpr))
+    const sig = [iw, ih, dpr, railW, trackH, ...marks.map((m) => m.y)].join()
+    if (sig !== inkSig || inkPasses > 1) {
+      ink.width = iw
+      ink.height = ih
+      inkDrawnTo = 0
+      inkSig = sig; inkPasses = 0
+    }
     const kw = kidsFlip ? 62 : 132
     sizeKids(kids, kw)
     // 結尾：字形放在舞台中間，入口接在軌道末端的線頭（兩邊都是 .container，左緣對齊）
-    const fr = finale.getBoundingClientRect()
-    finaleTop = fr.top + scrollY
-    finaleH = finale.offsetHeight
-    const boxW = fBox.clientWidth, boxH = fBox.clientHeight
+    finaleTop = fr.top + sy
+    finaleH = fH
     lay = finaleLayout(boxW, boxH)
     fp = buildFinalePath([(xAt(trackH) - lay.ox) / lay.k, lay.oy / lay.k])
     fDpr = scaleDpr()
-    fInk.width = Math.max(1, Math.round(boxW * fDpr)); fInk.height = Math.max(1, Math.round(boxH * fDpr))
-    fDrawn = 0
+    const fw = Math.max(1, Math.round(boxW * fDpr)), fh = Math.max(1, Math.round(boxH * fDpr))
+    const fsig = [fw, fh, fDpr, boxW, boxH, railW, trackH].join()
+    if (fsig !== fSig || fPasses > 1) {
+      fInk.width = fw; fInk.height = fh
+      fDrawn = 0
+      fSig = fsig; fPasses = 0
+    }
     const cx = lay.ox + ZERO.cx * lay.k, cy = lay.oy - ZERO.cy * lay.k
     const d = Math.min(ZERO.rx, ZERO.ry) * 2 * lay.k * 0.94
     fBox.style.setProperty('--crest-x', `${cx.toFixed(1)}px`)
@@ -184,6 +216,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     g.setTransform(dpr, 0, 0, dpr, 0, 0)
     const w = lineW()
     for (let y = inkDrawnTo; y < to; y += 0.9) stamp(g, crayonRGB, xAt(y), y, w, y)
+    inkPasses++
     // 年份刻度：線頭經過時，在線的左側點一小橫
     g.fillStyle = muted
     for (const m of marks) if (m.y >= inkDrawnTo && m.y < to) g.fillRect(xAt(m.y) - w - 9, m.y - 1, 8, 2)
@@ -214,6 +247,7 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
       const w = w0 * (1 + 0.75 * easeInOut(s / lead)) * taper
       stamp(g, crayonRGB, x, y, w, d * 7.31, Math.sin(p.angle), Math.cos(p.angle))
     }
+    fPasses++
     fDrawn = to
   }
 
@@ -226,13 +260,17 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     const hf = scrollY + innerHeight * 0.58 - finaleTop
     return Math.max(0, hf / Math.max(1, finaleH - innerHeight * 0.57))
   }
-  const renderCard = (c: CardState, now: number) => {
+  const renderCard = (c: CardState, now: number, near = true) => {
     if (!gl || !c.tex || c.done) return
     const t = c.started < 0 ? 0 : (now - c.started) / 1000
     const draw = opts.reduce ? 1 : easeInOut((t - 0.35) / 1.0)
     const wash = opts.reduce ? 1 : easeOut((t - 0.75) / 1.2)
+    const finished = draw >= 1 && wash >= 1
+    // 畫面外的卡片這一幀不畫（2026-11-05）：drawCard 只是 draw、wash 的函數，略過不影響之後的幀；時間照走，
+    // 畫完的那一格一定畫上去，捲回來就是畫好的樣子。原本快速捲動時卡片捲到很遠了還每幀畫（WebGL＋drawImage 快照）。
+    if (!near && !finished) return
     gl.drawCard(c.tex, c.canvas, draw, wash)
-    if (draw >= 1 && wash >= 1) c.done = true
+    if (finished) c.done = true
   }
   /** 把紙偶畫布上的 anchor 點（0–1）放到 (x, y)；預設 anchor 是蠟筆尖。minLeft：畫布左緣至少到這裡（不縮放時用） */
   const placeKids = (canvas: HTMLCanvasElement, x: number, y: number, flip: boolean, scale = 1, alpha = 1, anchor: readonly [number, number] = PUPPET_TIP, minLeft = -Infinity) => {
@@ -256,10 +294,15 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     const speed = Math.min(1, Math.abs(dy) / 24)
     stride += (speed - stride) * Math.min(1, dt * 8)
     phase += Math.abs(dy) * 0.045
+    // 進到結尾（u>0）時時間軸的紙偶藏起來，不必擺位置、畫（2026-11-05）；u 回到 0 的同一幀就會重畫
+    const u = finaleU()
+    const kidsHidden = u > 0
     // 窄螢幕：紙偶翻到背面（鏡像）站在線的左邊，蠟筆尖一樣對著線頭。
     // 線擺到最左時翻面的紙偶會超出視窗左緣（390 寬 −25px、320 寬 −29px），左緣夾在視窗內 4px（2026-10-13）。
-    placeKids(kids, xAt(head), head, kidsFlip, 1, 1, PUPPET_TIP, 4 - railLeft)
-    puppet.draw(kids, { phase, stride })
+    if (!kidsHidden) {
+      placeKids(kids, xAt(head), head, kidsFlip, 1, 1, PUPPET_TIP, 4 - railLeft)
+      puppet.draw(kids, { phase, stride })
+    }
     // 年份（整數給計數器，小數給地圖）
     const yf = yearAtOffset(head, marks)
     const yr = Math.floor(yf + 1e-6)
@@ -267,17 +310,18 @@ export async function mountTrack(track: HTMLElement, opts: TrackOptions): Promis
     if (opts.onProgress && Math.abs(yf - lastProg) > 1e-4) { lastProg = yf; opts.onProgress(yf) }
     // 卡片立起
     let busy = stride > 0.01
+    // 卡片在視窗上下各半個視窗高內才畫（用當下的 scrollY，跳轉進來的那一幀也畫得到）
+    const nearTop = scrollY - innerHeight * 0.5, nearBottom = scrollY + innerHeight * 1.5
     for (const c of cards) {
       if (c.started < 0 && maxHead >= c.triggerY) {
         c.started = now
         c.el.querySelector<HTMLElement>('.anni-card')!.dataset.state = 'pop'
       }
-      if (c.started >= 0 && !c.done) { renderCard(c, now); busy = true }
+      if (c.started >= 0 && !c.done) { renderCard(c, now, c.bottom > nearTop && c.top < nearBottom); busy = true }
     }
     // 結尾：線接進來畫 30，畫完孩子跳進 0，校徽印上去
-    const u = finaleU()
     const fz = finalePhase(u)
-    kids.style.visibility = u > 0 ? 'hidden' : ''
+    kids.style.visibility = kidsHidden ? 'hidden' : ''
     fKids.style.visibility = u > 0 ? 'visible' : 'hidden'
     if (u > 0) {
       fMax = Math.max(fMax, fz.s)

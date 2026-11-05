@@ -37,7 +37,9 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
     deep: tok('--deep'), green: tok('--green'), white: tok('--white'), muted: tok('--muted'),
     sun: paint('--ivy-paint-sun-rgb'), mint: paint('--ivy-paint-mint-rgb'), orange: paint('--ivy-paint-orange-rgb'), sky: paint('--ivy-paint-sky-rgb'), leaf: paint('--ivy-paint-leaf-rgb')
   }
-  const crayonCols = opts.colors.map((c) => (c.includes('var(') ? resolveColor(c, stage) : c))
+  const crayonCols = opts.colors.map((c) => (c.includes('var(') ? resolveColor(c, stage, css) : c))
+  // 光暈的顏色掛載時取一次（2026-11-05）：原本 flame() 每支蠟燭每幀讀兩次 live computed style（點著時每幀 60 次）；tokens 是靜態值
+  const sunRGB = tok('--ivy-paint-sun-rgb')
 
   // ── 蛋糕（一次畫好） ──
   const { default: rough } = await import('roughjs')
@@ -127,8 +129,8 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
     const sway = opts.reduce ? 0 : Math.sin(t * 1.8 + i) * 0.05
     // 光暈
     const halo = g.createRadialGradient(x, y - h * 0.45, 0, x, y - h * 0.45, 40 * c.s)
-    halo.addColorStop(0, `rgb(${tok('--ivy-paint-sun-rgb')} / ${0.34 * c.heat})`)
-    halo.addColorStop(1, `rgb(${tok('--ivy-paint-sun-rgb')} / 0)`)
+    halo.addColorStop(0, `rgb(${sunRGB} / ${0.34 * c.heat})`)
+    halo.addColorStop(1, `rgb(${sunRGB} / 0)`)
     g.fillStyle = halo
     g.fillRect(x - 40 * c.s, y - h * 0.45 - 40 * c.s, 80 * c.s, 80 * c.s)
     g.save()
@@ -268,7 +270,9 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
       g.globalAlpha = 1
     }
     drawBits(dt)
-    const busy = !opts.reduce || smokes.length || bits.length || sparks.length || hold || holdLevel > 0.01 || mic || (ptr && now - ptr.t < 200) || celebrateAt > 0 || pending.length
+    // 火焰閃爍只在還有點著的蠟燭時要每幀畫（2026-11-05）：原本沒開減少動態就恆為真，30 支吹熄、彩帶落完後仍每幀清一張空畫布。
+    // 停下前的最後一格已經是空白；再點一次、按住、劃過、麥克風、IO／RO 都會 kick 回來。
+    const busy = (!opts.reduce && lit > 0) || smokes.length || bits.length || sparks.length || hold || holdLevel > 0.01 || mic || (ptr && now - ptr.t < 200) || celebrateAt > 0 || pending.length
     if (visible && busy) raf = requestAnimationFrame(frame)
   }
   const kick = () => { if (!raf && visible) { last = performance.now(); raf = requestAnimationFrame(frame) } }
@@ -335,13 +339,25 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
   }
 }
 
-/** var(--token) 之類的顏色交給瀏覽器算出實際值（canvas 吃不了 var()） */
-function resolveColor(cssColor: string, host: HTMLElement): string {
+/**
+ * var(--token) 之類的顏色換成實際值（canvas 吃不了 var()）。
+ * 2026-11-05 起直接代入 host 上算好的 token：原本插一個探針 span 再讀 computed color，每插一次都是同步的整頁樣式重算，
+ * 蛋糕掛載時連續 6 次。代入後的 oklch(…)／rgb(r g b) 與探針讀回的 rgb(r, g, b)／oklch(…) 是同一個顏色（SVG fill、canvas 結果相同）。
+ * 帶預設值、巢狀或沒定義的 var() 才退回探針。
+ */
+export function resolveColor(cssColor: string, host: HTMLElement, style: CSSStyleDeclaration = getComputedStyle(host)): string {
+  let ok = true
+  const v = cssColor.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
+    const t = style.getPropertyValue(name).trim()
+    if (!t) ok = false
+    return t
+  })
+  if (ok && !v.includes('var(')) return v
   const probe = document.createElement('span')
   probe.style.color = cssColor
   probe.hidden = true
   host.appendChild(probe)
-  const v = getComputedStyle(probe).color
+  const probed = getComputedStyle(probe).color
   probe.remove()
-  return v
+  return probed
 }
