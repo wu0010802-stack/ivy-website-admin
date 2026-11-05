@@ -48,17 +48,17 @@ onMounted(editor.load)
       <el-form-item label="照片">
         <MediaSlotField
           v-model="editor.form.value.photo"
-          builtin="官網內建的孩子讀繪本照片"
+          builtin="官網內建的孩子在操場奔跑照片"
           builtin-src="/assets/home-about.webp"
-          :focus-previews="[{ label: '官網裁切（3:2）', ratio: '3 / 2' }]"
+          :focus-previews="[{ label: '手機（3:2）', ratio: '3 / 2' }, { label: '電腦窄螢幕（接近正方）', ratio: '1 / 1' }]"
           :disabled="editor.readOnly.value"
           @picked="onPickPhoto"
           @cleared="editor.form.value.photo_alt = ''"
         />
-        <span class="field-help">這一區放一張圓角照片，官網裁成 3:2 橫式，建議寬 1200 以上。</span>
+        <span class="field-help">這一區放一張圓角照片。手機裁成 3:2 橫式；電腦版照片和左邊文字一樣高，螢幕越窄越接近正方，主角請放在畫面中間附近。建議寬 1200 以上。</span>
       </el-form-item>
       <el-form-item v-if="editor.form.value.photo" label="圖片說明（給看不到照片的人）">
-        <el-input v-model="editor.form.value.photo_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子們坐在草地上讀繪本" />
+        <el-input v-model="editor.form.value.photo_alt" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="200" placeholder="例如：孩子們在操場草地上笑著跑過來" />
         <span class="field-help">給看不見照片的家長，官網不會顯示出來；換照片時會換成素材庫裡新照片的說明，留空時官網也用素材庫的說明。</span>
       </el-form-item>
       <el-form-item label="照片下方文字">

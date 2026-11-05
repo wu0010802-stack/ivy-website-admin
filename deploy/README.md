@@ -13,6 +13,28 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 首頁「關於常春藤」照片撐滿左欄、換崇德操場照、內文改寫（main CI 部署，沒有 migration）
+
+- **內容**：`98b63a60`（README「2026-11-05 首頁『關於常春藤』照片對齊、換照、內文改寫」），分支 `feature/home-about-a-20261105` rebase 到 main `f0fa90f6` 後由使用者推上。
+  - `studio.css`／`AboutSection.vue`：≥901px 照片從標題那列跨到內文末行、撐滿後 `object-fit:cover`（`contain:size`、最高 52vw），有 SINCE 時 `.has-since`；≥1101px 左欄收到內文寬、欄距 5vw；`sizes` 改寫。
+  - `home-about` 母檔換 115 招生照片「戶外活動5」（1477×1108），新雜湊 `d94cfbb255e3`、舊 `aa3afde8717a` 5 檔刪除；fixture／overlay 替代文字、後台「首頁 → 關於常春藤」內建圖說明與焦點預覽同步。
+  - `public-copy.ts` `ABOUT_BODY_FACTS` 改成新的三段介紹（後台內容仍是原文、一字不差才換）。沒有新環境變數、後端與資料庫變動。
+- **提交前驗證**：web typecheck 通過、`test:website` 1499 過；admin 三檔 102 過、`vue-tsc` 無錯；後端 `test_media_slots.py`＋`test_about_page_content.py` 48 過（獨立測試庫）；本機 stack e2e 169 過（`E2E_DB_NAME=ivy_website_e2e_homeabout_test`）。
+- **CI**：main run 42023618788 全綠（web、admin、後端三組、E2E），Deploy success（12:07:52–12:12:15Z）。
+- **線上驗證**（只發 GET，Playwright 擋遙測）：首頁 SSR 新雜湊 3 處、舊雜湊 0、舊檔 404、新檔 200；新內文第一句與新替代文字在，`/api/published-site` 的 `home.about.bodyText` 是新版；1440（DPR2）照片頂 195、底 617、末行字底 620，載母檔；390（DPR3）載 1200w；兩個寬度都沒有橫向捲動。
+- **沒驗**：iOS 實機、axe。
+
+## 2026-11-05 孩子的一天大標下的小字改英文（main CI 部署，沒有 migration）
+
+- **內容**：`dcf47c06`（README「2026-11-05 孩子的一天小字改英文」），分支 `feature/day-cards-20261105` rebase 到 main `303bd926` 後由使用者推上。
+  - `public-copy.ts` 的 `dayEyebrow`：後台兩欄都是原文（「孩子的一天」＋「A DAY AT IVY」）時只留英文；園方改過任一欄就照園方的。
+  - `DayExperience.vue` 只剩英文時加 `.is-en`，`styles.css` 讓英文沿用整行眉標字級。
+  - 只動 web 的輸出與樣式，沒有新環境變數、後端與資料庫變動。同批提的兩張新卡（10:00 美語時光、15:30 一起創作）是後台內容，不在這次部署。
+- **提交前驗證**：web typecheck 通過，`test:website` 1372 過；本機 stack e2e 169 過（`E2E_DB_NAME=ivy_website_e2e_daycards_test`）。
+- **CI**：main run 41953549570 全綠（web、admin、後端三組、E2E），Deploy success（02:18:38–02:22:54Z）。之後別的 session 的 `3c475d33` 再部署，包含這次提交。
+- **線上驗證**（只發 GET，Playwright 擋遙測）：首頁 SSR 是 `<span class="is-en eyebrow"><span lang="en">A DAY AT IVY</span></span>`；桌機 1440、手機 390 截圖，大標下是金色英文小字、字級與原本的中文相同。
+- **沒驗**：iOS 實機；金色小字的對比沒有重新量。
+
 ## 2026-11-05 前台流暢度第一批：頁首 :has 改 class、@property 集中（main CI 部署，沒有 migration）
 
 - **內容**：`3c475d33`（README「2026-11-05 前台流暢度第一批」），從 main `9ffc09e8` fast-forward 推上（PR #61，分支 `claude/kind-sagan-61hcdh`），使用者要求推 main。

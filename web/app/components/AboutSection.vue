@@ -12,6 +12,9 @@ const copy = computed(() => aboutCopy(props.about.bodyText))
 const hasMore = computed(() => Boolean(copy.value.rest || copy.value.more.length))
 // 2026-09-23 起只放一張圓角照片（原本主照＋小照疊放）；資料仍是陣列，取第一張。
 const photo = computed(() => props.about.photos[0])
+// 2026-11-05 桌機照片撐滿左欄高度、object-fit:cover 裁切：1440 以上框約 41–47vw；901–1100 框接近正方或直式，
+// 橫圖要放大到框高才蓋滿，實際畫出的寬約 60–66vw，sizes 照畫出的寬寫，不然會選到太小的檔。
+const ABOUT_PHOTO_SIZES = '(max-width: 900px) 90vw, (max-width: 1100px) 66vw, 48vw'
 
 // 收合時按鈕上方的長段落被移除，版面會整段往上縮（320 寬時按鈕與段落直接跑出畫面）；
 // DOM 更新後依按鈕原本的位置補捲動，讓它停在點下去的地方。展開是往按鈕上方長，不用補。
@@ -48,7 +51,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
           </div>
         </div>
         <div class="container belief-content">
-          <div class="belief-layout">
+          <div class="belief-layout" :class="{ 'has-since': about.sinceLabel }">
             <div class="belief-main">
               <p v-if="about.sinceLabel" class="belief-since" lang="en">{{ about.sinceLabel }}</p>
               <h2 id="about-title">{{ plainTitle(about.title) }}</h2>
@@ -64,7 +67,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
             </div>
             <figure v-if="photo" class="belief-photo">
               <img
-                v-bind="pickImage(photo.image, photo.media, '(max-width: 900px) 90vw, 42vw')"
+                v-bind="pickImage(photo.image, photo.media, ABOUT_PHOTO_SIZES)"
                 :alt="photo.alt"
                 :style="photo.media?.position ? { objectPosition: photo.media.position } : undefined"
                 loading="lazy"

@@ -88,8 +88,9 @@ it('fixture 的 _todo 維護備註不進公開資料：任何層級都沒有，�
 it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換，園方改過的照園方的', () => {
   const site = fixture as unknown as SiteContent
   const result = publicCopy(site)
-  const [lead, ...rest] = result.home.about.bodyText.split('\n')
-  expect(lead).toBe('1997 年，第一間常春藤在高雄義華路成立，現在有義華、明華、崇德、國際、仁武五所幼兒園。')
+  // 11-05 改成使用者要的新介紹（三段），第一段先交代身分
+  const [first, ...rest] = result.home.about.bodyText.split('\n')
+  expect(first).toMatch(/^民國\u00a086\u00a0年，第一間常春藤在高雄三民區義華路成立；.*現在是五所幼兒園。/)
   expect(rest).toHaveLength(2)
   expect(result.home.about.bodyText).not.toContain('專業保育與溫暖陪伴')
   const answers = Object.fromEntries(result.dayExperience.moments.map((moment) => [moment.key, moment.answer]))

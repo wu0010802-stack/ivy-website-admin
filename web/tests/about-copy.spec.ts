@@ -14,10 +14,10 @@ describe('首頁關於段的摘要與分段（utils/about-copy.ts）', () => {
     expect(copy.more).toEqual([])
   })
 
-  it('正式站的三段內容：第一段只有一句，摘要就是整段，其餘兩段收進「閱讀完整介紹」', () => {
+  it('正式站的三段內容：摘要是第一段第一句（交代五所學校），第一段其餘與後兩段收進「閱讀完整介紹」', () => {
     const copy = aboutCopy(publicCopy(fixture as unknown as SiteContent).home.about.bodyText)
-    expect(copy.lead).toBe('1997 年，第一間常春藤在高雄義華路成立，現在有義華、明華、崇德、國際、仁武五所幼兒園。')
-    expect(copy.rest).toBe('')
+    expect(copy.lead).toBe('民國\u00a086\u00a0年，第一間常春藤在高雄三民區義華路成立；之後有了明華、崇德、國際和仁武，現在是五所幼兒園。')
+    expect(copy.rest).toMatch(/^近三十年來/)
     expect(copy.more).toHaveLength(2)
   })
 
