@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 admin 開發依賴 glob 14、minimatch 11（main CI 部署，沒有 migration）
+
+- **內容**：`5304c0f1`（README「2026-11-05 admin 開發依賴：glob 14、minimatch 11」）。上一筆升級後 GitHub 重新掃描冒出 minimatch GHSA-g3hv-75wg-m249；`admin/package.json` 新增 `overrides`：`js-beautify` 的 `glob ^14.0.3`、`editorconfig` 的 `minimatch ^11.0.4`（都是 `@vue/test-utils` 帶進來的開發依賴，正式打包內容不變）。
+- **提交**：worktree `deps-admin-20261105`（從 origin/main `a72a3d40`，sparse），main 沒動、直接推。admin `npm audit` 0、typecheck、`vite build` 過；本機全套在負載 15–53 下兩次各有不同檔逾時失敗、單獨重跑全過，以 CI 為準。使用者用 `!` 推 main。
+- **CI**：main run 41962622079 全綠，Frontend (admin) 167 檔 3216 passed、1 skipped；E2E 03:36:12–03:48:31Z；Deploy success（03:42:44–03:47:07Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `5304c0f1`、created_at `2026-11-05T03:43:10Z`；health 200；`/`、`/visit`、`/admin/` 200。Dependabot #183 minimatch、#1 glob（admin）已 fixed；剩 #180 deepmerge（無修正版）與 #184（`versions/` 舊快照），dismiss 待使用者決定。
+
 ## 2026-11-05 依賴升級：glob 14（web 建置依賴）與 pytest 9（main CI 部署，沒有 migration）
 
 - **內容**：`a86a3382`（README「2026-11-05 依賴升級：Dependabot 三則警示」）。web `overrides` 只對 `@vercel/nft`、`archiver-utils` 指定 `glob ^14.0.3`（GHSA-3g3m-2fjr-6pw4）；backend 開發依賴 pytest 9.2.0（GHSA-6w46-j5rx-g56g），pytest-asyncio 1.4.1.post1、pytest-split 0.11.0 跟著升，補 `asyncio_default_fixture_loop_scope = "function"`。deepmerge（GHSA-gcqx-w48m-w2h4）沒有修正版、只在建置時用，未處理。
