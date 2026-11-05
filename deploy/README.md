@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 預約頁迎賓區文字與照片改 5:7（main CI 部署，沒有 migration）
+
+- **內容**：`20759ff8`（README「2026-11-05 預約頁迎賓區版面比例」）。使用者截圖 /visit 第一步迎賓區要調版面比例：`.visit-welcome-inner` 欄寬 `1.05fr:1fr` → `5fr:7fr`、欄距上限 96 → 64px，大標上限 4.25 → 4.75rem（961 以上且高 820 以下 3.5 → 4rem），色帶上下內距收小吸收照片變高；照片比例（2:1／12:5）、960 以下單欄、760 以下拿掉照片都不動；歡迎照 `sizes` 改 `(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)`。
+- **提交**：worktree `visit-hero-ratio-20261105`（從 origin/main `38a57069`，sparse），main 沒動、直接推。web typecheck 通過、web 112 檔 1371 全過；只改 CSS 與 sizes，沒跑後端測試與本機 stack e2e。使用者用 `!` 推 main。
+- **CI**：main run 41950957562 全綠（含 E2E，01:53:01–02:06:01Z），Deploy success（01:59:51–02:03:47Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `20759ff8`、created_at `2026-11-05T02:00:21Z`；health 200。七種桌機視窗量到的幾何與本機一致：1440×900 照片 709×355、標題與照片間距約 220px（原 391）、選校標題 y=752、選校卡上緣仍在第一屏；1288×760 照片 662×276、大標 54px；1280×720 選校標題 y=600。390×844 照片 `display:none`、第一張卡 y=448；768×1024 第一張卡 y=911；兩者無橫向捲動。
+- **沒驗**：iOS／Android 實機、瀏覽器字級放大。
+
 ## 2026-11-05 頁尾退回原版（main CI 部署，沒有 migration）
 
 - **內容**：`38a57069`（README「2026-11-05 頁尾退回原版」）。使用者看了 `f6643bbd` 上線的頁尾（每校多一行地址連 Google 地圖、標題「各校地址與電話」）說「這邊太長了 幫我退回上一版」：`SiteFooter.vue` 還原成 `a9b9e54a` 版（一校一列校名、區域、電話），`withTaFacts` 拿掉頁尾標題替換，標題照舊「我們的大家庭」。同批其他改動不動。
