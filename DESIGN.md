@@ -1,3 +1,65 @@
+## 前台流暢度第二批：各頁捲動與載入少做重工（2026-11-05，`claude/kind-sagan-61hcdh`）
+
+接第一批（下一節）。外觀、節奏、時機都不變：每項都用像素雜湊、computed style、次數或元素數驗證過；驗證不出逐像素相同的項目就撤回，列在下面「量過、不做」。量測與數字見 README 同日段落。
+
+**全站通則**
+- **捲動或 rAF 每幀寫的繼承型自訂屬性，寫在讀它的元素上**。最小共同祖先底下如果掛著大量不讀它的子樹，就逐一寫在讀者身上。例如 `--word-fade` 寫在 `.day-intro` 與 `.day-film-shade`，不寫整個 section：底下有六張拍立得，寫在 section 每次重算約 225 個元素，寫在讀者上是 12 個。新增讀者時要一起加進 `DayExperience` 的 paintFade；`smoothness-20261105-prints.spec.ts` 會擋。
+- **捲動中寫 `inert` 一律先比對**，值沒變就不寫。Chromium 同值重設也會改屬性、重算樣式。
+- **解析 `var()` 顏色不要插拔探針節點**。拍立得用已經插在卡片裡的 `canvas.paper-view`，改 inline color、讀 computed、在同一個同步工作內還原；30 週年把 token 代入後交給 canvas 解析。**強制色彩下照舊走探針**，因為要拿到系統色。
+- **canvas／WebGL 用的圖改用 `utils/decoded-bitmap.ts`**（fetch→createImageBitmap，在 worker 解碼）。它不保證逐像素相同，每個呼叫端都要自己比對：
+  - WebGL 等尺寸上傳、2D 預設平滑品質：相同。
+  - 2D 設 `imageSmoothingQuality` medium／high 又要縮放：Chrome 對 ImageBitmap 與 `<img>` 的結果不同，最多差 12/255。拍立得照片因此不換。
+  - fetch 明講 `priority:'low'`（背景素材，原本 `new Image()` 就是 Low）。用完要 `close()`；共用的點陣圖要計數，最後一個用完才關（五校的 holdImage／releaseImage）。
+  - 手機上 `<img>.naturalWidth` 是 srcset 密度換算後的值，算裁切比例不能拿點陣圖的寬高代替。
+- **production 的 CSS 經 lightningcss 壓縮，數字只留 6 位有效數字**，自訂屬性的值也一樣。需要更高精度的 cubic-bezier 或時長，放在 JS 用 inline style 掛上：特色教學的 `BLOOM_EASE`、五校的 `BLOOM_TRANSITION`。改完要在 build 後的輸出上驗證。
+- **`mask-size` 暈開截在遮罩蓋滿的那一點**：同一條 cubic-bezier 用 de Casteljau 切出前段子曲線，每個時間點的畫面相同，只是不再空轉重繪。bloomCanvas 的實心核心半徑是 0.17，468% 時框的四角在核心內。
+  - 特色教學：724.265ms 到 468%（原 2.2s 到 520%）。
+  - 五校：1100.457ms 到 468%，收尾仍在 1.7 秒，因為輪播從收尾才開始算四秒。
+  - 改核心半徑、曲線或時長，都要重新推算；測試會擋。
+
+**各頁**
+- **拍立得**：mountPaper 的 initial 也帶 active。buildScene 最後那次同步 render 就是第一幀，掛載後不再 kick；DayMomentCard 先 `onPointerLeave()` 再指定 paper。每次掛載只 render 一次，正面只上傳一次。`.webgl-ready` 底下藏起來的照片、時間戳、乳白層設 `transition:none`；CSS 版的時長不受影響。
+- **消息紙頁尾**：陰影不再對 sheet 做 box-shadow 動畫（每幀整張重錄）。rise 結束時 step-end 換手給 `.news-transition-paper::before` 的同一道陰影，頁尾段只淡它的 opacity。
+  - `::before` 基底是 `visibility:hidden`，時間軸沒解析成功時不會疊成兩道陰影。
+  - 換手成立的前提：rise 結束時紙是 scale(1)、圓角 0，而且 `.home-news` 至少一個視窗高。
+  - JS 備援的 `--home-footer-progress` 寫在紙上，不寫 `.home-page`。
+- **五校淡彩速寫**：
+  - 線稿層、淡彩層、水彩多邊形依尺寸快取（keepSketches 範圍）；多邊形 random 的取用順序不可改。
+  - 多邊形只在有換校意圖時才在閒置時間預算：手動換校後的鄰卡、分頁 pointerenter／pointerdown／focus、區塊接近時的目前這校。自動輪播與抵達只預建線稿層。
+  - 閒置每塊取 min(8ms, `deadline.timeRemaining()`)。
+  - 暫存 canvas 重用；只合成有新筆觸的「整列」，不能裁左右，會因 Skia 的取樣起點差 1–5 階。
+  - CampusBoard 卸載時先 `develop.cancel()` 再 `releaseSketches()`。之後新加的模組層快取都要在裡面一起清。
+  - 點擊後先讓出一幀才建畫布（t0＝點擊後一幀），**待業主確認**。
+- **特色教學**：
+  - 段落淡出改成蓋在 canvas 上的紙色漸層（`.cur-hero::after`、`.cur-sec::after`），最多差 3/255。前提是 canvas 底下只有純色 `--paper`；段落加了背景就要改回 mask。列印時換回 mask，強制色彩時藏起蓋層。
+  - pump 只重合成當幀改到的團的整數外框。新增會改 done 或可見 canvas 的路徑，要把範圍記進 `layer.rects`。
+  - 轉場遮罩的網址只在要暈開的那一步寫到 `<html>`，寫在 `<html>` 的繼承屬性會整頁重算。三張 PNG 快取在 Cache Storage `ivy-cur-enter-<版本>-<buildId>`：每次部署重產一次，開頁時刪掉舊的；查快取 1.5 秒逾時就照常產生；查得晚時第一張也只在閒置時畫。命中時第一次閒置就能播。
+- **30 週年**：
+  - 蛋糕在沒有點著的蠟燭、煙、彩帶、慶祝倒數時 rAF 就停。
+  - 時間軸卡片在視窗上下各半個視窗高以外不畫，但時間照走；進結尾時隱藏的紙偶不擺、不畫。
+  - `track.measure()` 先讀後寫；輸入簽章相同、而且只畫過從 0 到底的一段時才略過重配，分段畫和一次畫的點位置不同。
+  - 拼圖的 120ms 輪詢只在看得到時跑。
+- **環境頁圓點小路**：
+  - 量長度的 path 常駐在 `svg.renv-route` 的第一個子節點（fill=none、只改 d）。不要改成在文件外量，Safari 沒驗過。
+  - 先讀完所有路線的版面，再算點，最後每條路線一個 fragment、一次 `replaceChildren`。
+  - RO 初次通知與 fonts.ready 在版面簽章相同、還沒有圓點亮過時不重建。
+  - 未亮的圓點 `visibility:hidden`。`[data-drop]` 積木不能這樣做，裡面有連結與照片 alt。
+- **入學頁防偽細紋**：寬度與尺寸都沒變的 resize（手機網址列）直接 return。
+
+**量過、不做（勿再主動提）**
+- 拍立得照片改用 decodedBitmap：在 high 平滑品質下不等價（見上）。
+- 30 週年蠟筆點改成「迴圈外不透明色＋每顆 globalAlpha」：斜向法線、非整數座標時差 1–3。
+- /about 六圈播放中關掉 fill-opacity 轉場：每幀被重新瞄準的轉場實際做了約 0.5 秒的平滑，關掉會差約 1 階。
+- 五校自動換校沿用預覽線稿、跳過 render(t0)：預覽是直接 drawImage，中央第一幀是經 scratch 中轉，兩者最多差 14/255。
+- `useNewsTransition` 改成只在紙附近才量（IntersectionObserver）：IO 晚一幀，跳到頁底時 inert 晚設，五校輪播會被當成看得到、多抓整組線稿。
+- `news-sheet-rise` 把 transform 拆給合成器：合成層不做 raster translation，連終態都有次像素重取樣。
+- 各 scroll→rAF 改在 scroll 事件讀 scrollY：總 style 工作不變，只把強制的那份挪回 rendering 階段。
+
+**待業主決定**
+- 入學頁蓋章補間中用 `text-rendering:geometricPrecision`：手機捲到印章時少約 0.4 秒重排（4×），停住後的畫面相同，但補間途中字的位置最多差約 1px。實作後已撤回。
+- 特色教學全頁紙紋 `multiply` 改成等價的黑色 alpha：捲動合成少一層，藍色通道最多差約 1/255、紙紋的暖色偏移消失。
+- 五校 t0 改成點擊後一幀（見上）。
+
 ## 前台流暢度：頁首狀態掛在 header 上、@property 集中註冊（2026-11-05，`claude/kind-sagan-61hcdh`）
 
 - **不要用 body／html 當 `:has()` 的錨點，再接後代選擇器**（`body:has(.x) .y`）。body 底下任何節點插入或移除，Blink 都要重新判定 body 的 `:has`；後代規則最右段只要有一條收斂不到 class（例如 `:focus-visible`、標籤），失效範圍就是整棵子樹，實測每次 630–820 個元素重算。只作用在 body／html 自己的 `:has`（`body:has(dialog[open]){overflow:hidden}` 這類）每次只重算自己，可以用。`web/tests/smoothness-20261105.spec.ts` 會擋。
@@ -377,7 +439,7 @@
 使用者覺得諾貝爾幼兒園官網（nobelschool.com.tw）比較明亮，要求比對並改善。量測與比對整理在私人 Artifact「官網明亮度對照」：兩站頁面底色一樣亮，差在我們有大片深色面、配色偏灰。改善分三層，使用者看過模擬後要求調亮；這次只做第一層（不動版面），第二層首屏影片調色另外上線（下一節「首屏影片調亮」），第三層（加入淺而鮮豔的區塊底色，會撞到品牌規範「金色不當大面積背景」）未做。
 
 - **使用者回饋「有點太亮」**：同日第一版（紗只留上下緣、頁尾 `oklch(95.5% .032 140)`、薄荷 `oklch(92% .045 145)`）看過後要求調暗一點，下列是收回約一半的定案值。三版並排截圖在 Desktop 工作區 `output/brighten-20261020/three-{desktop,mobile}.png`。
-- **孩子的一天**：原本整段蓋 `.6／.34／.6` 的墨綠紗（約佔首頁桌機一半高度）。常駐紗減為 `.34／.18 42%／.36`。開場大標那一屏另疊 `.day-film-shade::before`（`.39／.2 42%／.48`），和常駐層合起來上方與中段等於舊值、底緣 .67 比舊的 .6 深一點；跟大標共用 `--word-fade`（`DayExperience.vue` 改寫在 section 上），`(fade − .16) / .84` 換成 opacity，拍立得上來時一起淡到 0。底部說明字一定落在影片底部兩百多 px 內，它自己的淡墨綠帶從 `.35` 加到 `.6`。
+- **孩子的一天**：原本整段蓋 `.6／.34／.6` 的墨綠紗（約佔首頁桌機一半高度）。常駐紗減為 `.34／.18 42%／.36`。開場大標那一屏另疊 `.day-film-shade::before`（`.39／.2 42%／.48`），和常駐層合起來上方與中段等於舊值、底緣 .67 比舊的 .6 深一點；跟大標共用 `--word-fade`（`DayExperience.vue` 寫在 `.day-intro` 與 `.day-film-shade` 上；2026-11-05 起不寫 section，見最上方「前台流暢度第二批」），`(fade − .16) / .84` 換成 opacity，拍立得上來時一起淡到 0。底部說明字一定落在影片底部兩百多 px 內，它自己的淡墨綠帶從 `.35` 加到 `.6`。
 - **頁尾**：深森林綠＋全白字改成淡綠底 `oklch(92% .038 150)`（約 `#D4ECD8`）＋全部品牌深綠字 `--green`、分隔線 `--line`；層次仍只靠字級與字重。**取代 09-24 的「A 深森林綠＋文字全白」。**（2026-11-04 起已被「頁尾賽車綠底＋白字＋黃銅上緣」取代。）
 - **浮動膠囊**：墨綠毛玻璃改米白毛玻璃 `--ivy-pill-glass`（`oklch(99% .008 95 / .9)`）＋深綠字、`--muted` 次字、墨綠 14–16% 細框與較淡的投影；預約鈕 hover 從米白改 `--gold`（米白會和膠囊融在一起），校徽白圓加一圈細線。**取代 09-18「為什麼是深綠」的判斷**：米白膠囊和淺色區塊的邊界對比仍只有 1.0–1.4，形狀靠細框與投影撐住，使用者看過模擬後接受。
 - **薄荷色帶** `--ivy-forest-mist`：`#c5ded0` → `oklch(90% .04 152)`（約 `#CBE6D1`），首頁理念區、/about 立體書桌面、預約頁色帶一起變；巨大淡字 `--ivy-forest-ghost` 不動。
@@ -604,7 +666,7 @@
   - 每頁那 1–2 支重複的阻塞樣式表（頁面元件的 CSS 已 inline，又因為 `/preview` 直接用各頁元件、元件被抽成沒有來源檔的共用 chunk 而再 link 一次）：限速手機（1.6 Mbps／150 ms／CPU 4×）把它們換成空檔，LCP 沒有變（誤差內），不為此改即時預覽頁的結構。`SiteFooter.css` 本來就還要（隱私說明對話框只在用戶端出現，CSS 沒有 inline）。
   - 執行時掛上的 LINE Seed 其餘分片樣式表（`lineseed-extended-*.css`）降優先權：換成空檔後 LCP 不變。
   - 站內 NuxtLink 換頁不會重抓 `/api/published-site`（實測 0 次，同第四輪）。
-  - 首頁最新消息進度條每 50 ms 更新：CPU profile 裡看不到；那段時間的 CPU 是水彩、遮罩這些一次性效果。特色教學轉場遮罩已經是閒置時逐張產生。
+  - 首頁最新消息進度條每 50 ms 更新：CPU profile 裡看不到；那段時間的 CPU 是水彩、遮罩這些一次性效果。特色教學轉場遮罩已經是閒置時逐張產生。（2026-11-05：產生時機不變，但第二頁起改從 Cache Storage 取，不再每頁重畫，見最上方「前台流暢度第二批」。）
   - 校區座標快取、招生機會先依里中心篩里、頁首徽章改輕量端點：本機量差距都在 10 ms 內，不值得加快取失效或新 API。
 
 ## 招生入學：里的變化（2026-10-14，`feature/admissions-village-trends-20261014`，A 段；C 段所得、D 段國小學區）
@@ -1336,7 +1398,7 @@
 使用者最喜歡 /curriculum 的水彩畫面、效果與換頁接續，要在首頁呈現這個風格、但不要跟 curriculum 一樣。提了三個方向（A 五校淡彩速寫、B 孩子的一天→五校水彩滲接、C 最新消息水彩紙），A、B 做成首頁上的比稿（`?wc=a|b`，定案後已移除），看過後兩個都上。**本節取代**下方「特色教學頁水彩版」的「水彩層只在此頁」：首頁這兩處也用 `utils/watercolor.ts`，其他內頁照舊不搬。
 
 - **跟 curriculum 的分別**：curriculum 是抽象顏料團墊在照片與文字後面、捲到才暈開；首頁 A 是把顏料畫進建築（具象的淡彩速寫、跟換校互動綁在一起），B 是把換頁暈開的語言改成跟著捲動、可以倒捲的區塊接續。
-- **A 淡彩速寫**（`utils/campusSketch.ts`、`CampusBoard.vue`）：大照片 → 鉛筆線稿由左往右畫出（1.1 秒）→ 十團水彩從建築中央往外滲開上色、每團外圈描邊積色（0.45 秒起、每團錯開 120ms）＋天空兩筆 `--ivy-paint-sky` → 2.8 秒起照片以 bloomCanvas 遮罩從中央暈開回來（1.7 秒，`transitionend` 收尾）。
+- **A 淡彩速寫**（`utils/campusSketch.ts`、`CampusBoard.vue`）：大照片 → 鉛筆線稿由左往右畫出（1.1 秒）→ 十團水彩從建築中央往外滲開上色、每團外圈描邊積色（0.45 秒起、每團錯開 120ms）＋天空兩筆 `--ivy-paint-sky` → 2.8 秒起照片以 bloomCanvas 遮罩從中央暈開回來（1.7 秒，`transitionend` 收尾；2026-11-05 起 mask-size 轉場在遮罩蓋滿的 468% 就停，收尾仍在 1.7 秒，見最上方「前台流暢度第二批」）。
   - **只在第一次看到與手動換校時播**；自動輪播照舊滑動、不重播（已由下一條「左右預覽是線稿」改成只暈開），畫的期間輪播計時暫停。第一次要等照片中央真的露出來才畫（`elementFromPoint`）：五校在孩子的一天簾幕底下時 IntersectionObserver 就已算可見，不等的話家長看到時已經畫完一半。
   - **左右預覽是線稿**（2026-09-29 晚，使用者要求）：原本鄰卡是彩色照片，手動換校滑到中央後才被蓋成線稿再上色，看起來「彩色→黑白→彩色」。現在不在中央、有對位的卡都在 canvas 畫好靜態線稿（`paintSketchStill`＝淡彩速寫描完線、還沒上色的那一幀），卡片 `data-art="line"` 藏照片；換到中央時 `developSketch({ from: 'sketch' })` 同步掛 `is-sketch` 接手，不再描線：手動換校（點卡、分頁、圓點、鍵盤、拖曳）0.2 秒起上水彩、2.55 秒起照片暈開；**自動輪播只暈開**（`wash: false`，0.45 秒起），兩者期間輪播計時都暫停，照片完整露出後才算四秒。離開中央的那張照片邊滑邊淡回線稿（0.6 秒）。
     - **第一次捲到也從線稿開始**（2026-10-01 使用者裁定）：預設中央校與左右預覽一起預畫完整線稿，露出中央後直接接上水彩、暈開成照片，不先顯示彩色再退回線稿。第一張從 SSR 即標記等待線稿，JS 模式在素材載好前保留紙底；等待與上色期間輪播不計時。線稿載入失敗、後台換過素材（對位不上）、減少動態、強制色彩或無 JS 時照常顯示照片。其他手動切換尚未有線稿的卡仍從照片畫起，自動輪播只滑動。
@@ -1429,7 +1491,7 @@
 
 - **範圍只有這一條**：從其他頁點連結進入 `/curriculum`。**09-26「不開全站換頁動畫」仍然有效**，其他頁面之間照舊立即切換；要再加別條路徑（例如五校卡→分校頁、消息卡→單篇）要使用者另外同意。
 - **效果**：新頁從畫面中央以三團水彩遮罩滲開（三層略不同中心與速度，邊緣一路在變），0.9 秒、`cubic-bezier(.33,.12,.3,1)`（前段不要太快，否則前三成時間就蓋滿、看不到滲開）。舊頁不淡出；頁首原地淡換不參與暈開。遮罩最後大小依「最遠的角 ÷ 實心核心 0.24」算，確保四角蓋滿。
-- **不播**：首次進站（有開場布幕）、上一頁／下一頁（iPhone 左滑返回時 Safari 自己有動畫）、減少動態、強制色彩、不支援 View Transitions、遮罩還沒在閒置時間產生好。
+- **不播**：首次進站（有開場布幕）、上一頁／下一頁（iPhone 左滑返回時 Safari 自己有動畫）、減少動態、強制色彩、不支援 View Transitions、遮罩還沒在閒置時間產生好。（2026-11-05 起三張遮罩跨頁快取在 Cache Storage，命中時第一次閒置就算產生好，見最上方「前台流暢度第二批」。）
 - **實作地雷**：主選單與頁尾是一般 `<a>`，要攔點擊改走 `router.push` 才有 SPA 過場（只攔會播的那次）；View Transition 更新 DOM 期間不能用 `requestAnimationFrame` 等新頁（不會觸發，mock 實測卡到逾時）；頁首的 `view-transition-name` 只能在 `html.curriculum-enter` 期間存在。
 - 看過未選：B 從點擊處暈開、C 一大筆水彩刷過去。
 
@@ -2242,7 +2304,7 @@
 
 - **首屏 hero 底線**：不再用 `stroke-dashoffset` 沿路徑描畫（非合成屬性、每幀重繪 SVG），改成 `.hero-underline` 遮罩框向右滑＋內層 SVG 反向滑的雙層 transform 擦出；節奏、延遲、曲線與原本相同，減少動態直接顯示完成狀態。
 - **簾幕幾何在 hydration 前就要預留**（`web/app/assets/css/performance.css`）：`useCurtain` 量出 `--belief-own`／`--day-own` 之前，track 用 `padding-bottom` 補捲動距離、下一段用負邊距先疊到同一位置（含 seam=2 與 760px 以下的變體），量完只是換成 sticky，不再位移。改簾幕的 `[data-motion="on"]` 規則時，performance.css 的 `:not([data-motion])` 版本要同步。
-- **捲動驅動動畫只掛在真正會動的元素上**：五校→消息換頁與頁尾進場原本對整段 wrapper 的 inherited 自訂屬性（`--news-paper-progress`、`--home-footer-progress`）做 view-timeline 動畫，每幀整棵子樹 style recalc；原生路徑改成直接對 underlay／sheet／`::before`／`::after` 做 transform、opacity、border-radius、box-shadow 動畫（wrapper 只留 `timeline-scope`），變數只保留給 JS 備援（`useNewsTransition`／`useHomeFooterFade` 的 fallback）。首屏 `home-reveal-curtain`（clip-path）與 `home-reveal-copy`（color）維持原樣：改成 transform 會壓扁內容、改雙層交叉淡化中段色會與設計不同。
+- **捲動驅動動畫只掛在真正會動的元素上**：五校→消息換頁與頁尾進場原本對整段 wrapper 的 inherited 自訂屬性（`--news-paper-progress`、`--home-footer-progress`）做 view-timeline 動畫，每幀整棵子樹 style recalc；原生路徑改成直接對 underlay／sheet／`::before`／`::after` 做 transform、opacity、border-radius、box-shadow 動畫（wrapper 只留 `timeline-scope`），變數只保留給 JS 備援（`useNewsTransition`／`useHomeFooterFade` 的 fallback）。首屏 `home-reveal-curtain`（clip-path）與 `home-reveal-copy`（color）維持原樣：改成 transform 會壓扁內容、改雙層交叉淡化中段色會與設計不同。（2026-11-05：頁尾段的陰影不再對 sheet 做 box-shadow 動畫，改由 `.news-transition-paper::before` 以 opacity 淡出；JS 備援的 `--home-footer-progress` 改寫在紙上。見最上方「前台流暢度第二批」。）
 - **拍立得 WebGL（保留，不回 CSS 3D）**：觸控裝置貼圖 DPR 上限 1.5（2026-09-23 起改為全裝置最高 3×，見「日常照片畫質」）、shadow map 512、顯影改六格預繪交叉淡化（不逐幀 `ctx.filter`）、建場景分三段讓出主執行緒並用 `compileAsync`、WebGL 探測整頁一次、觸控裝置同時最多保留 2 張（`paper-budget.ts`，離視窗最遠的卸回 CSS 版、捲回再掛）；桌機維持「接近視窗立即掛載」時序；共用 renderer 持有一個暖身場景讓 shader program 不被釋放。
 - **分校卡片**：只有當前與左右鄰卡綁 `src`／`srcset`（`loading=lazy` 擋不住橫向排在視窗外但在預載邊距內的卡），沒綁的卡保留 width／height 佔位；水滴進場與輪播時鐘不受影響。
 - **字型與資源載入**：LINE Seed Bold 只有 `font-subsets.css` 這一份 `@font-face`（`scripts/subset-critical-fonts.py` 切成 critical／remaining 兩段 `unicode-range`，檔名帶內容雜湊），`styles.css` 不得再宣告整包 `lineseed-bd`——兩份都留時瀏覽器會同時下載 154 KB 整包與 150 KB remaining（2026-09-22 線上實測，首屏字型 171 → 343 KB、FCP 1.6 → 3.3 s）。critical 字集從實際 SSR 首屏文字推導（`scripts/first-screen-chars.cjs` 在 320–1440 六種視窗量首頁、五個分校頁、visit 的首屏 LINE Seed Bold 用字，2026-09-22 為 53 字／13.8 KB），只 preload critical；remaining 交給 CSS 自己發現。critical 的 `unicode-range` 必須含 `U+20`：CSS 行框高度取家族裡涵蓋空白字元的第一個 face 的度量，兩段都不含 U+20 時行框會改用 PingFang（1.40em vs LINE Seed 1.61em），所有標題往上跑 2–4px（截圖比對抓到）。h1 的 EB 與兩個品牌字子集照舊 preload；品牌字 `@font-face` 併進 `styles.css`，不再載 `brand-fonts.css`；`nitro.compressPublicAssets` 預產 br／gz、SSR HTML 由 `server/plugins/compress-html.ts` 壓 brotli。
