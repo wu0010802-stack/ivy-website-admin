@@ -1,3 +1,20 @@
+## 2026-11-05 錯誤回報、外部存活監測、照片 AVIF、後台手機通知（`feature/monitor-push-avif-20261105`）
+
+使用者問前台除了 RWD 還能導入什麼技術，從建議清單挑了四項先做：錯誤監控、外部存活監測、AVIF、後台 PWA＋推播。規則見 DESIGN.md 最上方三段。
+
+- **錯誤回報**：官網（`web/app/plugins/error-report.client.ts`）、後台（`admin/src/utils/errorReport.ts`）的未處理錯誤經 Nitro `POST /api/client-errors` 轉給 API；API 的 5xx 由 `main.py` 兩個 handler 擷取（`backend/app/operations/error_reports.py`）。分組存進 `error_groups`（migration `9d4e7a2c1f60`），系統狀態頁新增「錯誤回報」區塊（`ErrorReportsPanel.vue`，`#errors`）與總覽的「需要注意」列。不存 IP／query／hash，訊息與堆疊遮蔽，保存 90 天；分組指紋不含行號與打包雜湊；網路中斷、擴充套件等不回報。隱私權政策初稿（`privacyPolicyDraft.ts`）加一句錯誤紀錄。
+- **外部存活監測**：`.github/workflows/uptime.yml`＋`deploy/uptime_check.py`，每 10 分鐘打首頁、health、`/api/public-site`、`/admin/`，三輪、間隔 20 秒，失敗由 GitHub 寄 workflow 失敗信。合併到 main 後才會開始排程。
+- **AVIF**：`optimize-site-images.py` 對 manifest 裡 79 張照片產 321 個 AVIF（24 MB，約同寬 WebP 的 71%），`image-manifest.json` 只多 `avif` 欄位。新元件 `ResponsivePicture.vue` 取代 49 處 `<img v-bind>`，首屏預載改預載 AVIF（`heroPreloadLink`），預取改 `prefetchImage()`；CSS 子代選擇器補 `:where(picture)>img`。後台上傳素材沒動。
+- **後台手機通知**：`admin/public/manifest.webmanifest`、`sw.js`、三張圖示（`scripts/build-admin-pwa-icons.py`）；「我的帳號」新增「手機通知」區塊。後端 `push_subscriptions` 表（migration `b5e8f1c3a7d2`）、`notifications/web_push.py`（`http-ece`＋`py-vapid`＋httpx，pip-audit 無漏洞）、訂閱 API、新預約與網站錯誤兩種推播、系統狀態的「手機推播」列、CLI `generate-vapid-keys`。後台 CSP 補 `worker-src`／`manifest-src`，`/admin/sw.js` 等找不到時回 404（不再回 index.html）。正式站要設三個 VAPID 變數才會啟用（`deploy/README.md`「後台手機通知與加到主畫面」）。
+- **主 session 審查後的修正**：分組指紋拿掉行號與打包雜湊；前後台忽略連不上伺服器的 fetch 錯誤；`<source>` 加 `display:none`（入學頁照片被擠到第二欄）；錯誤推播收件人改用權限表 `roles_with("system.status")`（`test_permission_table` 擋下寫死角色）；錯誤列表手機版標題換行。
+- **驗證**（Node 22，本機負載 10–14）：
+  - web typecheck 通過；`npm run test:website` 120 檔 1584 項全過。admin typecheck 通過；admin 全套 3323 項中 3321 過、1 略過，`admissionsView.test.ts` (h) 在全套並行時逾時，單獨跑 21 項全過。契約檢查一致。
+  - 後端全套（獨立測試庫）4961 過、1 敗（寫死角色，已修；`test_permission_table`＋`test_error_alerts` 重跑 23 項過）。
+  - e2e：公開站 34 項、stack 169 項全過。
+  - AVIF 版面：本機 production build 用正式站內容（live）對正式站，7 頁 × 桌機 1440／手機 390，每張 `<img>` 位置、大小、頁高逐一比對，修正後 14 組 0 差異、無 pageerror。圖片傳輸量（含延遲載入）：桌機 /visit 1385→924 KB、/curriculum 2505→1931 KB、/about 561→418 KB，手機 /about 961→681 KB、/visit 374→260 KB；首頁內建照片 2458→1721 KB（另有約 2.3 MB 後台素材未轉）。AVIF 偵測用的 1×1 data URI 在 Chrome 解得開。
+  - 後台畫面：stack 環境用測試金鑰截桌機與手機，錯誤列表、手機通知各狀態（可開啟、iPhone 未加入主畫面、編輯者看不到）、無橫向捲動、無 pageerror；headless Chrome 沒有推播服務，按「開啟通知」會失敗並提示「通知沒有開啟成功，請再試一次」，Service worker 有註冊成功。
+- **沒驗**：真實推播服務（FCM／Apple／Mozilla）的送達與 VAPID 簽章、iPhone 從主畫面開啟的實機流程、Safari 實機的 AVIF 與偵測、GitHub 排程的實際執行與失敗信。
+
 ## 2026-11-05 首頁「關於常春藤」照片對齊、換照、內文改寫（`feature/home-about-a-20261105`）
 
 使用者截圖首頁「把每個孩子 放在心上」：「幫我調整一下照片跟文字的位子，以及照片幫我換一張」，之後又給一份新的介紹文字，問要濃縮還是縮小字，看過濃縮版再要求改寫。比稿 `design/home-about-directions-20261105`（代理正式站，`?layout=a|b|c&photo=p1…p6`）選 A 對齊修正＋候選 4。規則見 DESIGN.md「關於常春藤：單張圓角照片」底下的 11-05 補充。

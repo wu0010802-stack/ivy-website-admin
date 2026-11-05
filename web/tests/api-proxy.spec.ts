@@ -98,6 +98,14 @@ describe('/public/telemetry 只給伺服器內部轉送（稽核 public-telemetr
   })
 })
 
+describe('/public/client-errors 同樣只給伺服器內部轉送（2026-11-05 前端錯誤回報）', () => {
+  it.each(['/api/website/v1/public/client-errors', '/api/website/v1/public/client-errors/', '/api/website/v1/public/%63lient-errors', '/api/website/v1//public//client-errors'])('%s → 404', async (path) => {
+    const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
+    expect(response.status).toBe(404)
+    expect(upstreamHits).toEqual([])
+  })
+})
+
 describe('素材邊讀邊送（稽核 web-proxy-no-backpressure-oom、proxy-no-upstream-abort）', () => {
   const MEDIA = '/api/website/v1/public/media/0b7c3b3e-1a2b-4c5d-8e9f-001122334455/file'
 

@@ -62,6 +62,8 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
           '',
           '這些統計不記錄您的 IP，也不使用 cookie 識別您。您的瀏覽器若開啟「不要追蹤」（Do Not Track）或 Global Privacy Control，本網站就不會送出這些統計。',
           '',
+          '另外，網站發生錯誤時，我們會記錄出錯的頁面路徑、瀏覽器類型與錯誤內容，用來找出並修正問題；這類紀錄不含可識別個人的資料，保存 90 天，不受上述「不要追蹤」設定影響。',
+          '',
           '為了防止濫用（例如大量自動送出預約），我們會把連線來源 IP 經過不可逆的雜湊處理後，短暫保存，時間到就刪除。',
           '',
           '【待確認：若已啟用 Cloudflare Turnstile，保留這一段：送出預約時，本網站使用 Cloudflare Turnstile 判斷是不是自動程式，過程中會把您的 IP 提供給 Cloudflare。未啟用就整段刪除。】',

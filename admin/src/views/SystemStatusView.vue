@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import { apiErrorCode, apiErrorMessage } from '../api/errors'
 import { maskEmail } from '../api/labels'
 import type { SystemEmailTestOut, SystemStatusItem, SystemStatusOut } from '../api/types'
+import ErrorReportsPanel from '../components/ErrorReportsPanel.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { notifyError } from '../composables/notify'
 import { useAuthStore } from '../stores/auth'
@@ -29,6 +30,7 @@ const refreshing = ref(false)
 const loadError = ref<string | null>(null)
 const sending = ref(false)
 const testResult = ref<{ ok: boolean; text: string } | null>(null)
+const errorsPanel = ref<InstanceType<typeof ErrorReportsPanel> | null>(null)
 
 function rowsOf(items: SystemStatusItem[], section: StatusSection): Row[] {
   return items.map((item) => ({ item, label: itemLabel(item, section), text: describeItem(item, section), link: itemLink(item, section) }))
@@ -52,7 +54,7 @@ const canSendTest = computed(() => {
   return row !== undefined && (row.level === 'ok' || Boolean(row.detail?.sink))
 })
 
-async function load(options: { quiet?: boolean } = {}) {
+async function load(options: { quiet?: boolean; errors?: boolean } = {}) {
   const quiet = Boolean(options.quiet) && data.value !== null
   if (quiet) refreshing.value = true
   else {
@@ -62,6 +64,8 @@ async function load(options: { quiet?: boolean } = {}) {
   try {
     data.value = await api.get<SystemStatusOut>('/admin/system-status')
     loadError.value = null
+    // 「重新整理」連錯誤回報一起更新；第一次載入時面板還沒掛上，掛上後自己會讀。
+    if (quiet && options.errors !== false) void errorsPanel.value?.reload()
   } catch (err) {
     const message = apiErrorMessage(err, '讀不到系統狀態，請重新載入')
     if (quiet) notifyError(message)
@@ -131,6 +135,8 @@ onMounted(() => load())
           </li>
         </ul>
       </section>
+      <!-- 錯誤區塊按「標為已處理」後，背景工作那一列的數字也要跟著變（錯誤清單它自己已經重讀了）。 -->
+      <ErrorReportsPanel ref="errorsPanel" @changed="load({ quiet: true, errors: false })" />
     </template>
   </div>
 </template>

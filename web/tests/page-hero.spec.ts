@@ -29,7 +29,7 @@ describe('內頁 hero 的 sizes', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain("if (page === 'admission') return admissionHeroImage()")
     const component = read('../app/components/AdmissionContent.vue')
     expect(component).toContain('const hero = admissionHeroImage()')
-    expect(component).toContain('<img v-bind="hero"')
+    expect(component).toContain('<ResponsivePicture v-bind="hero"')
     expect(read('../app/assets/css/admission-passport.css')).toMatch(/\.ap-photo img \{[^}]*aspect-ratio: 4 \/ 3/)
   })
 

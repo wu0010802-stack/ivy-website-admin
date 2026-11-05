@@ -2243,6 +2243,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
+| api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
@@ -2252,6 +2253,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
+| web | `NUXT_ERROR_REPORTS_ENABLED`（選填，預設 production 開、其他環境關；官網與後台前端錯誤回報的開關，設 `false` 即停止收錄，伺服器直接回 204，見下方「前端錯誤回報與外部存活監測」） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
@@ -2297,6 +2299,45 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 **這個 header 只有在 api 不直接對外時才可信任**（目前 api 無公開 domain，
 符合此前提）。若日後把 api 直接暴露到公網，必須先拿掉這個設定或改成解析
 可信任的 `X-Forwarded-For` 尾段，否則任何人都能偽造訪客 IP 繞過限流。
+
+### 前端錯誤回報與外部存活監測（2026-11-05）
+
+**前端錯誤回報**：官網（`web/app/plugins/error-report.client.ts`）與後台（`admin/src/utils/errorReport.ts`，只在正式建置）的未處理 JS 錯誤，以及 API 的未處理例外（`backend/app/main.py` 的兩個 handler），依 fingerprint 分組存進 `error_groups` 表（migration `9d4e7a2c1f60`，只新增一張空表）。總管理者在後台「系統狀態」頁的「錯誤回報」區塊（`/admin/system-status#errors`）看、標為已處理；同一種錯誤再發生會自動回到未處理。過去 24 小時還有未處理錯誤時，系統狀態多一列「錯誤回報」顯示「要注意」，計入營運總覽的「系統狀態有 N 項要注意」。
+
+- **路徑**：瀏覽器 → web `POST /api/client-errors`（來源檢查、本文上限 8192 bytes、白名單驗證、每來源每分鐘 20 筆／全站 300 筆）→ api `POST /api/website/v1/public/client-errors`（單一來源每分鐘 60 筆超過回 429、全站每日 5000 筆超過安靜丟棄）。瀏覽器不能直接打 api 的這支（web 代理回 404）。
+- **不存個資**：不存 IP、cookie、帳號，也不存 query string 與 hash；頁面路徑只留 pathname；訊息與堆疊先在瀏覽器遮蔽（網址 query、Email、身分證、7 位以上數字、20 字以上的連續串），api 收到後再遮一次；API 例外另外套資料庫例外的遮蔽（和平台日誌共用同一份邏輯）。**不因 DNT／GPC 停用**（回報裡沒有識別資訊），隱私權政策初稿已補一句。
+- **保存**：最後發生超過 90 天的錯誤組自動刪除（每個程序每天最多清一次）。
+- **開關**：`NUXT_ERROR_REPORTS_ENABLED`（web，選填）。production 預設開；設 `false` 後伺服器直接回 204（執行期改變數即可，不用重建映像）。
+- **回退**：舊版程式不認識 `error_groups`，表留著不影響；要停用只關開關即可。
+
+**外部存活監測**：`.github/workflows/uptime.yml` 每 10 分鐘執行 `deploy/uptime_check.py`，從 GitHub 的機器打正式站，檢查首頁、`/api/website/v1/health`（status ok、environment production）、`/api/public-site`（有已發布內容，會讀資料庫）、`/admin/`；每項最多 3 次、間隔 20 秒（撐過部署重啟）、逾時 15 秒，失敗就用 `::error::` 註記並讓 workflow 失敗。User-Agent 固定 `ivy-website-uptime/1.0`，不帶帳號或 email。
+
+- **通知**：workflow 失敗時 GitHub 寄失敗通知信給**最後修改排程（cron 那一行）的人**；對方的 GitHub 帳號通知設定要開 Actions 失敗通知（Settings → Notifications → Actions）。要換人，由新的人修改一次 `uptime.yml` 的 cron 並提交。
+- **限制**：排程只在預設分支（main）執行，GitHub 負載高時可能延遲數分鐘甚至略過一次；公開 repo 連續 60 天沒有任何活動，GitHub 會自動停用排程（到 Actions 頁手動重新啟用）。這是外部的粗略監測，不取代 Railway 自己的 healthcheck。
+- **改網址**：預設打正式站網址；要改打別的網址，在 repo 的 Settings → Secrets and variables → Actions → Variables 設 `UPTIME_BASE_URL`。也可以在 Actions 頁手動 Run workflow 立刻跑一次。
+- **本機試跑**：`python3 deploy/uptime_check.py [網址]`（結束碼 0 全部正常、1 有項目失敗）。
+
+### 後台手機通知與加到主畫面（2026-11-05）
+
+後台是 PWA（`admin/public/manifest.webmanifest`、`sw.js`）：老師把後台加到手機主畫面後，在「我的帳號」→「手機通知」按「開啟通知」，之後：
+
+- 官網有人預約參觀（`visit_request_created`）時，涵蓋該校、能處理案件（`booking.handle`）的人手機會跳通知，點了開預約明細。內容只有校名與參觀時間，**不放家長姓名、電話、Email**（鎖定畫面看得到）。
+- 網站出現新的錯誤（錯誤回報第一次出現的一組，或已處理後又發生）時，啟用中的總管理者會收到通知，點了開系統狀態頁的錯誤區塊。**全站 15 分鐘節流**：任何一組在 15 分鐘內推過，就不再推別組（部署出狀況時一次冒出幾十種錯誤，手機只響一次），被擋掉的那組不補推、仍在系統狀態頁。
+- iPhone 一定要先在 Safari 按分享 →「加入主畫面」、從主畫面打開才能開啟通知（iOS 16.4 起的限制）。
+
+**啟用步驟**（需要人在終端機做，agent 不替你設）：
+
+1. 在 `backend/` 執行 `python -m app.cli generate-vapid-keys`，印出三行 `WEBSITE_VAPID_*`。
+2. 把三行設到 Railway 的 api 服務變數，重新部署。公鑰與私鑰缺一個、或不配對，API 會拒絕啟動，所以兩個要一起設。
+3. 到後台「系統狀態」看「手機推播」一列變成「正常」；再到「我的帳號」開啟通知、按「傳送測試通知」。
+
+**運作細節**：
+
+- 資料表 `push_subscriptions`（migration `b5e8f1c3a7d2`，連同 `error_groups.alerted_at` 一個可為 NULL 的欄位；新增空表與欄位，不改既有資料，上一版程式照常可用）。每台裝置一列、每人最多 10 台；回 404／410 或連續失敗 10 次的訂閱自動刪除。
+- 伺服器只對推播服務的白名單位址送請求（`fcm.googleapis.com`、`updates.push.services.mozilla.com`、`web.push.apple.com`、`*.push.apple.com`、`*.notify.windows.com`，https、預設埠），訂閱時驗一次、送出前再驗一次，不跟隨轉址。API 與 log 都不回傳 endpoint 與金鑰。
+- 推播失敗（任何原因）只記 warning，不影響站內通知、LINE、Email，也不讓整筆 outbox 重試。同一則新預約對同一人最多推一次（`notification_deliveries` 去重）。超過 24 小時的舊訊息不推。
+- 出貨檢查：`/admin/sw.js`、`/admin/manifest.webmanifest` 回 `Cache-Control: no-cache`（每次重新驗證）；建置漏檔時這兩個與 `pwa-*.png` 回 404，不回 `index.html`。
+- **回退**：拿掉 `WEBSITE_VAPID_*` 變數即停用（API 照常啟動、「手機推播」一列顯示未設定、「我的帳號」顯示「尚未開放」）；資料表與欄位留著不影響。要整批清掉訂閱：`DELETE FROM push_subscriptions`。換金鑰後，每台裝置要在「我的帳號」重新按「開啟通知」（舊訂閱綁在舊的公鑰上，畫面會自動當成還沒開啟）。
 
 ### 通知 worker 與逾期占位（2026-09-22）
 

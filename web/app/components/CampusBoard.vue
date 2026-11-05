@@ -469,16 +469,16 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
-            <img
+            <ResponsivePicture
               class="campus-tab-art" :class="{ 'is-blend': lineArtBlends(campus) }"
               v-bind="lineArtInkImage(campus, '(max-width: 360px) 48px, (max-width: 700px) 60px, 160px')"
               alt="" aria-hidden="true" loading="lazy" decoding="async"
-            >
-            <img
+            />
+            <ResponsivePicture
               class="campus-tab-colour"
               v-bind="pickImage(`campus-line-art-${campus.key}-colour`, campus.lineArtColourMedia, '160px')"
               alt="" aria-hidden="true" loading="lazy" decoding="async"
-            >
+            />
           </span>
           <span class="campus-tab-label">{{ campus.name }}</span>
         </button>
@@ -501,12 +501,12 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
             draggable="false" @click.capture="onPhotoClick($event, i)"
           >
             <canvas v-if="sketchRegistration(campus)" class="sketch-canvas" aria-hidden="true" />
-            <img
+            <ResponsivePicture
               v-bind="cardImage(campus, i)"
               :alt="i === index ? `${campus.name}校園外觀` : ''"
               :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"
               :fetchpriority="i === index ? 'auto' : 'low'" loading="lazy" decoding="async" draggable="false"
-            >
+            />
           </div>
         </div>
       </div>

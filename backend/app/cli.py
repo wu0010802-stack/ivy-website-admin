@@ -1023,6 +1023,27 @@ async def enrollment_history_import_command(*, file: Path) -> None:
         print(f"注意：{warning}")
 
 
+def generate_vapid_keys_command() -> None:
+    """產生手機推播（Web Push）用的 VAPID 金鑰，印成可以直接貼進 Railway 變數的三行。
+
+    給使用者自己在終端機跑、自己設到 Railway：私鑰只放環境變數，不進 repo、不寫檔、不進 log。
+    不需要資料庫與其他設定。subject 是推播服務出問題時用來聯絡我們的網址或信箱，建議填後台網址。"""
+    import os
+
+    from app.notifications import vapid
+
+    public_key, private_key = vapid.generate_key_pair()
+    subject = (os.environ.get("WEBSITE_ADMIN_ORIGIN") or "").strip().rstrip("/") or "https://<後台網址>"
+    print(f"WEBSITE_VAPID_PUBLIC_KEY={public_key}")
+    print(f"WEBSITE_VAPID_PRIVATE_KEY={private_key}")
+    print(f"WEBSITE_VAPID_SUBJECT={subject}")
+    print(
+        "三個變數一起設到 api 服務才會啟用；私鑰只放在 Railway 變數，不要貼進聊天、程式碼或文件。"
+        "WEBSITE_VAPID_SUBJECT 填後台網址（https://…）或 mailto:信箱。",
+        file=sys.stderr,
+    )
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -1042,7 +1063,8 @@ def main() -> None:
             "enrolled-match --roster <xls> --campus <key> --out <JSON> [--roster-date YYYY-MM-DD] [--allow-low-hit]|"
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>|"
             "enrollment-history-extract --file <xls> --campus <key> --out <JSON>|"
-            "enrollment-history-extract --headers-only --file <xls>|enrollment-history-import --file <JSON>>",
+            "enrollment-history-extract --headers-only --file <xls>|enrollment-history-import --file <JSON>|"
+            "generate-vapid-keys>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -1119,6 +1141,8 @@ def main() -> None:
         enrollment_history_extract_command(**enrollment_history_extract_options(sys.argv[2:]))
     elif command == "enrollment-history-import":
         asyncio.run(enrollment_history_import_command(**enrollment_history_import_options(sys.argv[2:])))
+    elif command == "generate-vapid-keys":
+        generate_vapid_keys_command()
     else:
         print(f"未知指令：{command}", file=sys.stderr)
         raise SystemExit(1)

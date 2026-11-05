@@ -154,7 +154,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
       </div>
       <div class="abh-hero-art">
         <figure class="abh-card">
-          <img v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+          <ResponsivePicture v-bind="withPhotoStyle(aboutHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high" />
           <figcaption v-if="page.heroCaption">{{ page.heroCaption }}</figcaption>
         </figure>
       </div>
@@ -178,7 +178,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
         <li v-for="item in milestones" :key="item.key" :style="{ '--c': item.color }">
           <!-- 卡紙只放照片：年份、校名都在旁邊的字裡（10-30 前卡紙另貼年份貼紙、底下寫校名，手機上下疊時同一行字連出現兩次） -->
           <figure class="abh-card" :style="{ '--c': item.color, '--r': `${item.tilt}deg` }" aria-hidden="true">
-            <img v-if="item.campus" v-bind="pickImage(item.campus.image, item.campus.imageMedia, CAMPUS_SIZES)" alt="" loading="lazy">
+            <ResponsivePicture v-if="item.campus" v-bind="pickImage(item.campus.image, item.campus.imageMedia, CAMPUS_SIZES)" alt="" loading="lazy" />
             <span v-else class="abh-blank" />
           </figure>
           <div class="abh-tl-text">
@@ -248,7 +248,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
               <figure class="abh-cut" :style="sceneStyle(SCENE.house, 2)">
                 <AboutCrayon name="house" view-box="0 0 300 340" />
                 <span class="abh-window">
-                  <img v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 220px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy">
+                  <ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs('about-together', page.hopePhoto, '(max-width: 900px) 40vw, 220px'), page.hopePhoto)" :alt="pagePhotoAlt(HOPE_ALT, page.hopePhoto, page.hopePhotoAlt)" loading="lazy" />
                   <i class="abh-tape is-l" aria-hidden="true" /><i class="abh-tape is-r" aria-hidden="true" />
                 </span>
                 <AboutCrayon class="abh-vine" name="ivy" view-box="0 0 300 340" />
@@ -283,7 +283,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
               allow="autoplay; encrypted-media; picture-in-picture; fullscreen" referrerpolicy="strict-origin-when-cross-origin"
             />
             <a v-else class="abh-play" :href="`https://www.youtube.com/watch?v=${voices[shownVoice]!.youtubeId}`" target="_blank" rel="noopener noreferrer" :aria-label="`播放${voices[shownVoice]!.speaker}的分享影片（YouTube）`" @click.prevent="playing = true">
-              <img v-bind="posterAttrs(voices[shownVoice]!)" :alt="voices[shownVoice]!.posterAlt ?? ''" loading="lazy" decoding="async">
+              <ResponsivePicture v-bind="posterAttrs(voices[shownVoice]!)" :alt="voices[shownVoice]!.posterAlt ?? ''" loading="lazy" decoding="async" />
               <span class="abh-play-mark" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-play" /></svg></span>
             </a>
           </div>

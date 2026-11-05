@@ -32,6 +32,7 @@ from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, deployment_email_adapter
 from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
+from app.notifications.web_push import PushSender, new_client as new_push_client
 from app.operations import audit_service, retention_service
 from app.operations.models import RetentionRunTrigger
 from app.workers.runner import process_outbox_until_drained
@@ -94,6 +95,7 @@ async def run_cycle(
     *,
     worker_id: str,
     line_transport: httpx.AsyncBaseTransport | None = None,
+    push_transport: httpx.AsyncBaseTransport | None = None,
 ) -> CycleResult:
     """跑一輪。每一步用自己的 session，某一步失敗只記下來，不擋後面的步驟。"""
     async with session_factory() as lock_db:
@@ -110,7 +112,11 @@ async def run_cycle(
         # 結束失效，連線還回池後恢復預設。
         await lock_db.execute(text("SET LOCAL idle_in_transaction_session_timeout = 0"))
         try:
-            return await _run_steps(session_factory, settings, worker_id=worker_id, line_transport=line_transport)
+            # push_transport 只在有給的時候才往下傳（測試替換 _run_steps 的簽章不含它）。
+            extra = {"push_transport": push_transport} if push_transport is not None else {}
+            return await _run_steps(
+                session_factory, settings, worker_id=worker_id, line_transport=line_transport, **extra
+            )
         finally:
             await lock_db.rollback()
 
@@ -121,6 +127,7 @@ async def _run_steps(
     *,
     worker_id: str,
     line_transport: httpx.AsyncBaseTransport | None,
+    push_transport: httpx.AsyncBaseTransport | None = None,
 ) -> CycleResult:
     result = CycleResult(ran=True)
 
@@ -191,11 +198,13 @@ async def _run_steps(
         assert settings.line_messaging_access_token is not None
         line = LineMessagingClient(settings.line_messaging_access_token, transport=line_transport)
         result.line_configured = True
+    # 手機推播（2026-11-05）：金鑰設好才建；送出失敗不影響其他管道（services.dispatch_outbox_message）。
+    push = PushSender(settings, new_push_client(push_transport)) if settings.web_push_enabled else None
     try:
         async with session_factory() as db:
             outbox = await process_outbox_until_drained(
                 db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin,
-                access_secret=settings.session_secret,
+                access_secret=settings.session_secret, push=push,
             )
         result.notifications_sent = outbox["sent"]
         result.notifications_failed = outbox["failed"]
@@ -206,6 +215,8 @@ async def _run_steps(
     finally:
         if line is not None:
             await line.aclose()
+        if push is not None:
+            await push.client.aclose()
 
     try:
         async with session_factory() as db:

@@ -12,6 +12,9 @@
   社群平台對 WebP 支援不一致。檔名固定不帶雜湊，分享快取靠 URL 穩定。
 - `DAY_PHOTOS`（常春藤的一天五張照片）保留影片原生解析度：衍生小圖 q92 並多一個
   160w，原生尺寸直接複製母檔到版本化網址，不再重新壓縮。
+- 照片另產同寬的 AVIF（2026-11-05）：manifest 候選多一個 `avif` 欄位，前台用
+  `<picture><source type="image/avif">` 提供、WebP 當退路。AVIF 只有比同寬 WebP 小
+  `AVIF_MAX_RATIO` 以上才採用；線稿、去背圖與只經 JS 載入的插畫不產。
 """
 from pathlib import Path
 from hashlib import sha256
@@ -64,6 +67,29 @@ OG_CENTERING = {'hero-campus-restored-v1-still': (0.5, 0.75)}
 
 def encode(image: Image.Image, target: Path, quality: int) -> None:
     image.save(target, 'WEBP', quality=quality, method=6)
+
+
+# 2026-11-05 AVIF：repo 沒有 JPG 原檔，母檔本身就是 q88–94 的 WebP，所以同源比較（母檔縮到同寬、
+# 各自壓縮）：30 張 480–1600w 照片，AVIF q65 合計約 WebP q84 的 71%，q70 約 87%。SSIM 對母檔
+# q65 約 0.955、WebP 約 0.983——差在 AVIF 會把石頭、草地的細顆粒抹平；DPR2 原寸幾乎看不出，
+# 臉部與文字邊緣沒差。WebP 品質越高，對應的 AVIF 品質也拉高（日常照 q92→75）。
+# 量法與對照圖：本 session scratchpad 的 avif_fair.py／cmp-zoom4x.png（未進 repo）。
+AVIF_QUALITY = {DEFAULT_QUALITY: 65, DAY_QUALITY: 75, 72: 58, 68: 55}
+AVIF_SPEED = 6
+# 比同寬 WebP 小不到 10% 就不值得多一個檔（線稿類實測 AVIF 反而更大）。
+AVIF_MAX_RATIO = 0.9
+# 線稿（含 -colour 淡彩母檔）、劇院布幕海報、30 週年投影插畫：不是照片，或只經 JS 字串載入、用不到 <picture>。
+AVIF_SKIP_PREFIXES = ('campus-line-art', 'entrance-poster', 'ivy-30th-anniversary-projection')
+
+
+def avif_candidate(image: Image.Image, webp: Path, target: Path, quality: int) -> str | None:
+    """產生（或沿用）與 `webp` 同寬的 AVIF；不夠小就刪掉、回 None。"""
+    if not target.exists():
+        image.save(target, 'AVIF', quality=quality, speed=AVIF_SPEED)
+    if target.stat().st_size > webp.stat().st_size * AVIF_MAX_RATIO:
+        target.unlink()
+        return None
+    return f'/assets/responsive/{target.name}'
 
 
 # 2026-10-02：五校線稿另產「墨線」版 `<代號>-ink`（黑線、透明底，濃淡在 alpha），給首頁分校分頁、
@@ -166,27 +192,45 @@ for source in sources:
         width, height = image.size
         candidates = []
         digest = sha256(source.read_bytes() + salt).hexdigest()[:12]
+        avif_quality = AVIF_QUALITY[quality]
+        make_avif = image.mode == 'RGB' and not source.stem.startswith(AVIF_SKIP_PREFIXES)
+        avif_digest = sha256(source.read_bytes() + f'avif-q{avif_quality}-s{AVIF_SPEED}-v1'.encode()).hexdigest()[:12]
+
+        def candidate(webp: Path, size: int, scaled: Image.Image | None) -> dict:
+            entry = {'src': f'/assets/responsive/{webp.name}' if webp.parent == OUTPUT else f'/assets/{webp.name}',
+                     'width': size}
+            if make_avif:
+                avif_target = OUTPUT / f'{source.stem}-{avif_digest}-{size}.avif'
+                if not avif_target.exists() and scaled is None:
+                    scaled = image.resize((size, round(height * size / width)), Image.Resampling.LANCZOS)
+                avif = avif_candidate(scaled, webp, avif_target, avif_quality)
+                if avif:
+                    entry['avif'] = avif
+            return entry
+
         for size in widths:
             if size >= width:
                 continue
             target = OUTPUT / f'{source.stem}-{digest}-{size}.webp'
+            scaled = None
             if not target.exists():
-                encode(image.resize((size, round(height * size / width)), Image.Resampling.LANCZOS), target, quality)
-            candidates.append({'src': f'/assets/responsive/{target.name}', 'width': size})
+                scaled = image.resize((size, round(height * size / width)), Image.Resampling.LANCZOS)
+                encode(scaled, target, quality)
+            candidates.append(candidate(target, size, scaled))
         full = OUTPUT / f'{source.stem}-{digest}-{width}.webp'
         if day:
             # 正式站的原檔網址有一天快取；原生尺寸也用版本化網址，直接複製以免再次壓縮。
             full.write_bytes(source.read_bytes())
-            candidates.append({'src': f'/assets/responsive/{full.name}', 'width': width})
+            candidates.append(candidate(full, width, image))
             manifest[source.stem] = {'width': width, 'height': height, 'candidates': candidates}
             continue
         if not full.exists():
             encode(image, full, quality)
         if full.stat().st_size <= source.stat().st_size * (1 - FULL_REENCODE_MIN_SAVING):
-            candidates.append({'src': f'/assets/responsive/{full.name}', 'width': width})
+            candidates.append(candidate(full, width, image))
         else:
             full.unlink()
-            candidates.append({'src': f'/assets/{source.name}', 'width': width})
+            candidates.append(candidate(source, width, image))
         manifest[source.stem] = {'width': width, 'height': height, 'candidates': candidates}
 
 for name in OG_IMAGES:

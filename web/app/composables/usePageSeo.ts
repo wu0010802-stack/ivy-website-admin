@@ -1,6 +1,6 @@
 import type { NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, anniversarySeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
-import { admissionHeroImage } from '~/utils/responsive-image'
+import { admissionHeroImage, heroPreloadLink } from '~/utils/responsive-image'
 import { aboutHeroAttrs, curriculumHeroAttrs, environmentHeroAttrs, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
@@ -57,7 +57,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
   useHead(() => ({
     link: [
       ...(seo.value?.canonical ? [{ rel: 'canonical' as const, href: seo.value.canonical }] : []),
-      ...(hero.value ? [{ rel: 'preload' as const, as: 'image' as const, href: hero.value.src, imagesrcset: hero.value.srcset, imagesizes: hero.value.sizes, fetchpriority: 'high' as const }] : [])
+      ...(hero.value ? [heroPreloadLink(hero.value)] : [])
     ],
     script: seo.value?.graph.length ? [{ key: 'public-structured-data', type: 'application/ld+json', innerHTML: serializeJsonLd({ '@context': 'https://schema.org', '@graph': seo.value.graph }) }] : []
   }))

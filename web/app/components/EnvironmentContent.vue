@@ -196,7 +196,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <div class="renv-arch">
             <div class="renv-arch-back renv-blk c-mustard" aria-hidden="true" />
             <div class="renv-arch-face c-terra">
-              <img class="renv-arch-photo" v-bind="environmentHeroAttrs(page)" :style="pagePhotoStyle('70% 38%', page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+              <ResponsivePicture class="renv-arch-photo" v-bind="environmentHeroAttrs(page)" :style="pagePhotoStyle('70% 38%', page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high" />
             </div>
           </div>
         </div>
@@ -235,7 +235,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <div class="renv-ph" data-drop>
             <div class="renv-ph-back renv-blk s-d c-sage" aria-hidden="true" />
             <div class="renv-frame s-d c-terra">
-              <img v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc(100vw - 32px), 1320px')" :style="pagePhotoStyle('50% 50%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy">
+              <ResponsivePicture v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc(100vw - 32px), 1320px')" :style="pagePhotoStyle('50% 50%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy" />
             </div>
           </div>
         </div>
@@ -244,7 +244,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
             <div class="renv-care-ph">
               <div class="renv-ph" data-drop :style="{ '--i': i }">
                 <div class="renv-frame" :class="[item.look.shape, `c-${item.look.color}`]" :style="frameStyle(item.look)">
-                  <img v-bind="pagePhotoAttrs(item.image, item.photo, '(max-width: 900px) 75vw, 380px')" :style="pagePhotoStyle(item.look.pos, item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy">
+                  <ResponsivePicture v-bind="pagePhotoAttrs(item.image, item.photo, '(max-width: 900px) 75vw, 380px')" :style="pagePhotoStyle(item.look.pos, item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy" />
                 </div>
               </div>
               <div v-if="item.look.ped" class="renv-care-ped renv-blk" :class="`c-${item.look.ped}`" data-drop aria-hidden="true" />
@@ -268,7 +268,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <div class="renv-ph" data-drop>
             <div class="renv-ph-back renv-blk s-qbl c-mustard" aria-hidden="true" />
             <div class="renv-frame s-qbl c-sage">
-              <img v-bind="pagePhotoAttrs('env-space-playground', page.feature.photo, '(max-width: 900px) calc(100vw - 32px), 680px')" :style="pagePhotoStyle(undefined, page.feature.photo)" :alt="pagePhotoAlt(FEATURE_ALT, page.feature.photo, page.feature.photoAlt)" loading="lazy">
+              <ResponsivePicture v-bind="pagePhotoAttrs('env-space-playground', page.feature.photo, '(max-width: 900px) calc(100vw - 32px), 680px')" :style="pagePhotoStyle(undefined, page.feature.photo)" :alt="pagePhotoAlt(FEATURE_ALT, page.feature.photo, page.feature.photoAlt)" loading="lazy" />
             </div>
           </div>
           <div class="renv-feature-copy">
@@ -285,7 +285,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
                 <div class="renv-ph" data-drop :style="phStyle(space.look)">
                   <div class="renv-ph-back renv-blk" :class="[space.look.back![0], `c-${space.look.back![1]}`]" :style="backStyle(space.look)" aria-hidden="true" />
                   <div class="renv-frame" :class="[space.look.shape, `c-${space.look.color}`]" :style="frameStyle(space.look)">
-                    <img v-bind="pagePhotoAttrs(space.image, space.photo, '(max-width: 900px) calc((100vw - 82px) * 1.6), 660px')" :style="pagePhotoStyle(space.look.pos, space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy">
+                    <ResponsivePicture v-bind="pagePhotoAttrs(space.image, space.photo, '(max-width: 900px) calc((100vw - 82px) * 1.6), 660px')" :style="pagePhotoStyle(space.look.pos, space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy" />
                   </div>
                   <span v-if="space.campusLabel" class="renv-campus renv-blk c-mustard">{{ space.campusLabel }}</span>
                   <span class="renv-dot renv-stop-no" :class="`c-${space.look.color}`" lang="en" aria-hidden="true">{{ i + 1 }}</span>
@@ -312,7 +312,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
         </div>
         <a class="renv-book" :href="meal.href" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">
           <span class="renv-book-arch renv-blk s-arch c-terra" data-drop />
-          <img class="renv-book-cover" v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 162px, 224px')" alt="" loading="lazy" data-drop :style="{ '--i': 1 }">
+          <ResponsivePicture class="renv-book-cover" v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 162px, 224px')" alt="" loading="lazy" data-drop :style="{ '--i': 1 }" />
           <span class="renv-book-semi renv-blk s-semi c-sage" data-drop :style="{ '--i': 2 }" />
         </a>
       </div>
@@ -361,8 +361,8 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
             @keydown="onTabKey($event, i)"
           >
             <span class="renv-tour-art">
-              <img class="renv-tour-wash" v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-wash`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async">
-              <img v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async">
+              <ResponsivePicture class="renv-tour-wash" v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-wash`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async" />
+              <ResponsivePicture v-bind="responsiveImage(`campus-line-art-${tour.campus.key}-ink`, '(max-width: 900px) 124px, 200px')" alt="" loading="lazy" decoding="async" />
             </span>
             <b>{{ tour.campus.name }}</b>
           </button>
@@ -383,7 +383,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
               <div class="renv-ph" data-drop>
                 <div class="renv-ph-back renv-blk s-arch" :class="`c-${TOUR_COLORS[(t + 2) % 5]}`" aria-hidden="true" />
                 <div class="renv-frame s-arch" :class="`c-${TOUR_COLORS[t % 5]}`">
-                  <img v-bind="sceneImage(tour.scenes[0]!, true)" :style="pagePhotoStyle(undefined, tour.scenes[0]!.imageMedia)" :alt="`${tour.campus.name}的${tour.scenes[0]!.name}`" loading="lazy" decoding="async">
+                  <ResponsivePicture v-bind="sceneImage(tour.scenes[0]!, true)" :style="pagePhotoStyle(undefined, tour.scenes[0]!.imageMedia)" :alt="`${tour.campus.name}的${tour.scenes[0]!.name}`" loading="lazy" decoding="async" />
                 </div>
               </div>
               <h4>{{ tour.scenes[0]!.name }}</h4>
@@ -393,7 +393,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
                 <div class="renv-ph" data-drop :style="{ '--i': s + 1 }">
                   <div class="renv-ph-back renv-blk s-circle" :class="`c-${TOUR_COLORS[(t + 3 + s) % 5]}`" aria-hidden="true" />
                   <div class="renv-frame s-circle" :class="`c-${TOUR_COLORS[t % 5]}`">
-                    <img v-bind="sceneImage(scene, false)" :style="pagePhotoStyle(undefined, scene.imageMedia)" :alt="`${tour.campus.name}的${scene.name}`" loading="lazy" decoding="async">
+                    <ResponsivePicture v-bind="sceneImage(scene, false)" :style="pagePhotoStyle(undefined, scene.imageMedia)" :alt="`${tour.campus.name}的${scene.name}`" loading="lazy" decoding="async" />
                   </div>
                 </div>
                 <h4>{{ scene.name }}</h4>

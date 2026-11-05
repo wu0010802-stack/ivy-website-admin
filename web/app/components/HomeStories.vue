@@ -73,7 +73,7 @@ function markSeen(id: string) {
           <span class="hs-ring-face">
             <!-- 「全部」用校徽：和頁首一樣從 logo.webp 裁出徽章那一塊。 -->
             <svg v-if="ring.key === 'all'" viewBox="30 26 124 132" aria-hidden="true" focusable="false"><image href="/assets/logo.webp" width="552" height="192" /></svg>
-            <img v-else v-bind="ringImage(ring.key)" :style="ringPosition(ring.key) ? { objectPosition: ringPosition(ring.key) } : undefined" alt="" loading="lazy">
+            <ResponsivePicture v-else v-bind="ringImage(ring.key)" :style="ringPosition(ring.key) ? { objectPosition: ringPosition(ring.key) } : undefined" alt="" loading="lazy" />
           </span>
           <span>{{ ring.label }}</span>
           <small>{{ ring.count }} 則</small>
@@ -82,7 +82,7 @@ function markSeen(id: string) {
       <li v-for="page in follows" :key="page.key">
         <a class="hs-ring" :href="page.href" target="_blank" rel="noopener noreferrer" :aria-label="`${page.name} Facebook 粉絲專頁（另開分頁）`">
           <span class="hs-ring-face">
-            <img v-bind="campusImage(page.campus, '66px')" :style="campusPosition(page.campus) ? { objectPosition: campusPosition(page.campus) } : undefined" alt="" loading="lazy">
+            <ResponsivePicture v-bind="campusImage(page.campus, '66px')" :style="campusPosition(page.campus) ? { objectPosition: campusPosition(page.campus) } : undefined" alt="" loading="lazy" />
           </span>
           <span>{{ campusShort(page.name) }}</span>
           <small>粉專 ↗</small>
@@ -104,7 +104,7 @@ function markSeen(id: string) {
           v-else-if="story.kind === 'news'" type="button" class="hs-card" :class="{ 'is-seen': seen.has(story.id) }"
           :data-story="story.id" @click="openFromCard(story, $event)"
         >
-          <img v-bind="responsiveTourImage(story.article.image, '(max-width: 640px) 60vw, 240px', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt" loading="lazy">
+          <ResponsivePicture v-bind="responsiveTourImage(story.article.image, '(max-width: 640px) 60vw, 240px', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt" loading="lazy" />
           <span class="hs-card-top"><span class="hs-pill">{{ story.article.campus }}</span><span v-if="isSample(story.article)" class="hs-pill">示意</span></span>
           <span class="hs-card-copy"><small>{{ story.article.category }}</small><strong><span v-for="(part, k) in titleClauses(story.article.title)" :key="k" class="hs-clause">{{ part }}</span></strong></span>
         </button>
@@ -119,7 +119,7 @@ function markSeen(id: string) {
       </li>
       <li v-for="page in follows" :key="page.key">
         <a class="hs-card is-follow" :href="page.href" target="_blank" rel="noopener noreferrer" :aria-label="`${page.name}（${page.district}）Facebook 粉絲專頁（另開分頁）`">
-          <img v-bind="campusImage(page.campus, '(max-width: 640px) 60vw, 240px')" :style="campusPosition(page.campus) ? { objectPosition: campusPosition(page.campus) } : undefined" alt="" loading="lazy">
+          <ResponsivePicture v-bind="campusImage(page.campus, '(max-width: 640px) 60vw, 240px')" :style="campusPosition(page.campus) ? { objectPosition: campusPosition(page.campus) } : undefined" alt="" loading="lazy" />
           <span class="hs-card-top"><span class="hs-pill">粉絲專頁</span><span class="hs-play" aria-hidden="true"><svg class="icon"><use href="#i-facebook" /></svg></span></span>
           <span class="hs-card-copy"><small>{{ page.district }}・活動與日常 ↗</small><strong>{{ page.name }}</strong></span>
         </a>
@@ -154,7 +154,7 @@ function markSeen(id: string) {
 .hs-shelf::-webkit-scrollbar { display: none; }
 .hs-shelf > li { flex: none; scroll-snap-align: start; }
 .hs-card { position: relative; display: grid; width: min(58vw, 236px); aspect-ratio: 5 / 7; padding: 0; border: 0; overflow: hidden; border-radius: 18px; background: var(--ivy-news-note); color: rgb(var(--on-dark)); text-align: start; text-decoration: none; cursor: pointer; isolation: isolate; font: inherit; }
-.hs-card > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
+.hs-card > img, .hs-card > :where(picture) > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: -2; }
 .hs-card:not(.is-event, .is-more)::after { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(to top, rgb(var(--ivy-news-backdrop-rgb) / .88) 0%, rgb(var(--ivy-news-backdrop-rgb) / .62) 30%, transparent 62%), linear-gradient(to bottom, rgb(var(--ivy-news-backdrop-rgb) / .3), transparent 26%); }
 .hs-card:focus-visible { outline: 3px solid var(--ivy-news-green); outline-offset: 3px; }
 .hs-card-top { position: absolute; top: 12px; left: 12px; right: 12px; display: flex; justify-content: space-between; align-items: center; gap: 6px; }

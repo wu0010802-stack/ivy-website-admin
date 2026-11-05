@@ -63,6 +63,34 @@ describe('資安標頭', () => {
     expect(securityHeadersFor('/', 'production')['Content-Security-Policy']).not.toContain('nlsc')
   })
 
+  it('後台是 PWA：worker-src 與 manifest-src 明寫 self（2026-11-05），不放行其他來源', () => {
+    expect(ADMIN_CSP).toContain("worker-src 'self';")
+    expect(ADMIN_CSP).toContain("manifest-src 'self';")
+    expect(ADMIN_CSP).not.toMatch(/(?:worker|manifest)-src[^;]*(?:https?:|\*|blob:|data:)/)
+    // 其餘規則不因此放寬：腳本仍只收同源、連線仍只連同源。
+    expect(ADMIN_CSP).toContain("script-src 'self';")
+    expect(ADMIN_CSP).toContain("connect-src 'self';")
+    // 公開頁不帶這兩條。
+    expect(securityHeadersFor('/', 'production')['Content-Security-Policy']).not.toContain('worker-src')
+    expect(securityHeadersFor('/admin/sw.js', 'production')['Content-Security-Policy']).toBe(ADMIN_CSP)
+    expect(securityHeadersFor('/admin/manifest.webmanifest', 'production')['Content-Security-Policy']).toBe(ADMIN_CSP)
+  })
+
+  it('/admin/sw.js 與 /admin/manifest.webmanifest 每次重新驗證（no-cache）；其他後台檔案不受影響', () => {
+    for (const path of ['/admin/sw.js', '/admin/sw.js?v=2', '/admin/manifest.webmanifest', '/%61dmin/sw.js', '/admin/%73w.js']) {
+      const headers = securityHeadersFor(path, 'production')
+      expect(headers['Cache-Control'], path).toBe('no-cache')
+      expect(headers['X-Robots-Tag'], path).toBe('noindex, nofollow')
+    }
+    // 圖示沒有雜湊但很少變，照一般靜態檔處理（不設 Cache-Control）；入口仍是 no-store；有雜湊的資源不變。
+    expect(securityHeadersFor('/admin/pwa-192.png', 'production')['Cache-Control']).toBeUndefined()
+    expect(securityHeadersFor('/admin/', 'production')['Cache-Control']).toBe('private, no-store')
+    expect(securityHeadersFor('/admin/assets/index-abc.js', 'production')['Cache-Control']).toBeUndefined()
+    // 前台同名的檔案不是後台的 worker。
+    expect(securityHeadersFor('/sw.js', 'production')['Cache-Control']).toBeUndefined()
+    expect(securityHeadersFor('/admin/sub/sw.js', 'production')['Cache-Control']).toBeUndefined()
+  })
+
   it('後台入口不快取；有雜湊的後台資源照常快取', () => {
     for (const path of ['/admin', '/admin/', '/admin/index.html']) {
       expect(securityHeadersFor(path, 'production')['Cache-Control']).toBe('private, no-store')

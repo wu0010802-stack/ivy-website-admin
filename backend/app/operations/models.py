@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -136,6 +136,41 @@ class WebVitalSample(Base):
     device: Mapped[str] = mapped_column(String(16), nullable=False)
     value: Mapped[float] = mapped_column(Float, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ErrorGroup(Base):
+    """官網前端、後台與 API 的未處理錯誤，同一種錯誤歸成一列（2026-11-05）。
+
+    fingerprint＝sha256(source|kind|去掉參數的訊息|位置)，數字、十六進位串、UUID、引號內
+    字串先換成佔位符，同一個錯誤帶不同參數仍歸同一組（見 operations/error_reports.py）。
+    只存遮蔽過的訊息與堆疊，不存 IP、cookie、帳號、query string。`resolved_at` 是總管理者按
+    「標為已處理」的時間；之後同一組又發生就清回 NULL（重新開啟）。`last_seen_at` 超過 90
+    天的列刪除。"""
+
+    __tablename__ = "error_groups"
+    __table_args__ = (
+        UniqueConstraint("fingerprint", name="uq_error_groups_fingerprint"),
+        Index("ix_error_groups_last_seen_at", "last_seen_at"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    # web（官網）／admin（後台）／api（伺服器未處理例外）
+    source: Mapped[str] = mapped_column(String(8), nullable=False)
+    kind: Mapped[str] = mapped_column(String(120), nullable=False)
+    message: Mapped[str] = mapped_column(String(500), nullable=False)
+    # JS：堆疊第一個同源 frame 的「檔名:行:列」；Python：最後一個 app/ 底下 frame 的「module:function:lineno」。
+    location: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    path: Mapped[str] = mapped_column(String(300), nullable=False)
+    release: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    sample_stack: Mapped[str | None] = mapped_column(Text, nullable=True)
+    sample_user_agent: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 上一次發出手機推播的時間（notifications/error_alerts.py）：15 分鐘內不重複通知同一組。
+    alerted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class AuditLogEntry(Base):

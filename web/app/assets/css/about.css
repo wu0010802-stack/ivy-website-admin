@@ -36,7 +36,7 @@
 
 /* 卡紙相框：品牌色紙＋照片＋底下一行字，微斜（正式站立體書的卡紙） */
 .abh-card{position:relative;margin:0;padding:8px 8px 0;border-radius:4px;background:var(--c,var(--yellow));box-shadow:var(--abh-shadow);rotate:var(--r,0deg)}
-.abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
+.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
 .abh-blank{background:color-mix(in oklab,var(--paper) 55%,transparent)}
 /* 字色 --ink：森林綠在橘、trail 這類卡紙底上不到 4.5:1（仁武橘底 3.95:1，同舊版緞帶的處理） */
 .abh-card figcaption{padding:10px 4px 11px;text-align:center;font:700 .9375rem/1.4 var(--font-head);color:rgb(var(--ink))}
@@ -52,7 +52,7 @@
 .abh-hero-art{padding:3% 2% 5% 3%}
 .abh-hero-art .abh-card{--ar:3/2;--r:-1.5deg;padding:16px 16px 0;border-radius:6px;background:linear-gradient(155deg,color-mix(in oklab,var(--yellow) 82%,var(--paper)),var(--yellow) 55%);box-shadow:var(--abh-shadow-lift)}
 .abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:16px}
-.abh-hero-art .abh-card>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
+.abh-hero-art .abh-card>img,.abh-hero-art .abh-card>:where(picture)>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
 .abh-index{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,4vw,64px)}
 .abh-index a{display:flex;align-items:center;gap:14px;min-height:56px;color:var(--ivy-forest);text-decoration:none}
 .abh-mk{flex:none;display:grid;place-items:center;width:40px;height:52px;padding-bottom:10px;background:var(--chap);clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);font:700 .9375rem/1 var(--font-date);color:rgb(var(--ink))}

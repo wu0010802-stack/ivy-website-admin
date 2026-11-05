@@ -232,7 +232,7 @@ onBeforeUnmount(() => {
             <div class="ap-runhead"><span>常春藤入學護照</span><span>第 1 頁</span></div>
             <figure class="ap-photo">
               <div class="ap-photo-frame">
-                <img v-bind="hero" alt="兩個男孩手牽著手，在早晨的陽光裡笑開了" loading="eager" fetchpriority="high">
+                <ResponsivePicture v-bind="hero" alt="兩個男孩手牽著手，在早晨的陽光裡笑開了" loading="eager" fetchpriority="high" />
               </div>
               <figcaption>早上到校，牽起好朋友的手。</figcaption>
               <div class="ap-stamp-host ap-welcome">
@@ -418,7 +418,7 @@ onBeforeUnmount(() => {
         <div v-if="admission.phases.length" class="ap-phases">
           <article v-for="(phase, p) in admission.phases" :key="p" class="ap-phase">
             <header class="ap-phase-head">
-              <img v-bind="responsiveImage(PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.name, '(max-width: 760px) 96px, 132px')" :alt="PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.alt" loading="lazy">
+              <ResponsivePicture v-bind="responsiveImage(PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.name, '(max-width: 760px) 96px, 132px')" :alt="PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.alt" loading="lazy" />
               <div>
                 <p class="ap-phase-tag"><span lang="en">{{ pad2(p + 1) }}</span>{{ phase.tag || '新生' }}</p>
                 <h3>{{ phaseTitles[p]!.head }}<span v-if="phaseTitles[p]!.paren" class="ap-keep" :style="{ '--ap-keep-chars': Array.from(phaseTitles[p]!.paren).length }">{{ phaseTitles[p]!.paren }}</span></h3>

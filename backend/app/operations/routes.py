@@ -28,6 +28,7 @@ from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_term_list
 from app.common.timezones import local_day_bounds_utc, now_utc, today_local
+from app.notifications import error_alerts
 from app.notifications.email_adapter import EmailNotConfigured
 from app.notifications.models import UserNotification
 from app.operations import (
@@ -35,6 +36,7 @@ from app.operations import (
     audit_service,
     booking_outcomes_service,
     dashboard_service,
+    error_reports,
     public_caps,
     retention_service,
     system_status,
@@ -185,6 +187,152 @@ async def record_telemetry(
             campus_key=payload.campus, device=payload.device, value=payload.value,
         )
     await db.commit()
+
+
+class ClientErrorIn(BaseModel):
+    """與 web/shared/client-error.ts 的 validateClientError 同一組欄位：web 端先驗過、這裡再驗一次，
+    因為同源代理讓任何人都能直接打到這支公開端點。長度上限只是擋掉離譜的本文，超過欄位長度的
+    一律截斷後入庫（error_reports.client_entry），不拒收。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    source: Literal["web", "admin"]
+    kind: str = Field(max_length=2_000)
+    message: str = Field(max_length=20_000)
+    stack: str | None = Field(default=None, max_length=50_000)
+    path: str = Field(max_length=2_000)
+    release: str | None = Field(default=None, max_length=1_000)
+
+
+@router.post("/public/client-errors", status_code=status.HTTP_204_NO_CONTENT)
+async def record_client_error(
+    payload: ClientErrorIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    # 單一來源每分鐘上限（被擋回 429）與全站每日上限（被擋安靜丟棄、仍回 204），
+    # 同一個限流交易內依序檢查，和 telemetry 一樣。
+    try:
+        admitted = await public_caps.admit(
+            ratelimit.limiter(request),
+            ((error_reports.CLIENT_ERROR_DAILY, public_caps.GLOBAL_KEY),),
+            gate=(error_reports.CLIENT_ERROR_SOURCE_PER_MINUTE, ratelimit.client_key(request)),
+        )
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    if not admitted:
+        return
+    entry = error_reports.client_entry(
+        source=payload.source,
+        kind=payload.kind,
+        message=payload.message,
+        stack=payload.stack,
+        path=payload.path,
+        release=payload.release,
+        user_agent=request.headers.get("user-agent"),
+    )
+    try:
+        outcome = await error_reports.record_client_error(db, entry)
+    except Exception:  # noqa: BLE001 —— 錯誤回報壞了不能讓回報端看到失敗，也不要再丟一筆 500
+        logger.warning("錯誤回報寫入失敗（略過）")
+        await db.rollback()
+        return
+    # 第一次出現或已處理後又發生：背景推到總管理者手機（沒啟用推播時什麼都不做，失敗只記 log）。
+    if outcome is not None and outcome.notify:
+        error_alerts.schedule(request.app, outcome.group_id)
+
+
+class ErrorGroupOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    source: Literal["web", "admin", "api"]
+    kind: str
+    message: str
+    location: str | None
+    path: str
+    release: str | None
+    sample_stack: str | None
+    sample_user_agent: str | None
+    count: int
+    first_seen_at: datetime
+    last_seen_at: datetime
+    resolved_at: datetime | None
+
+
+class ErrorGroupListOut(BaseModel):
+    items: list[ErrorGroupOut]
+    open_count: int
+    open_last_24h: int
+
+
+class ErrorGroupsResolvedOut(BaseModel):
+    resolved: int
+
+
+@router.get("/admin/error-groups", response_model=ErrorGroupListOut)
+async def list_error_groups(
+    status_filter: Literal["open", "resolved", "all"] = Query("open", alias="status"),
+    limit: int = Query(50, ge=1, le=200),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ErrorGroupListOut:
+    """總管理者的錯誤回報（2026-11-05）：官網、後台與 API 的未處理錯誤，同一種錯誤一列。"""
+    require_scope(current_user, "system.status")
+    groups = await error_reports.list_groups(db, status=status_filter, limit=limit)
+    open_count, open_last_24h = await error_reports.open_counts(db, now_utc())
+    return ErrorGroupListOut(
+        items=[ErrorGroupOut.model_validate(group) for group in groups],
+        open_count=open_count,
+        open_last_24h=open_last_24h,
+    )
+
+
+@router.post("/admin/error-groups/resolve-all", response_model=ErrorGroupsResolvedOut)
+async def resolve_all_error_groups(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ErrorGroupsResolvedOut:
+    require_scope(current_user, "system.status")
+    resolved = await error_reports.resolve_all(db, now_utc())
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="system.error_resolve_all",
+        target_type="error_group",
+        target_id="all",
+        metadata={"resolved_count": resolved},
+    )
+    await db.commit()
+    return ErrorGroupsResolvedOut(resolved=resolved)
+
+
+@router.post("/admin/error-groups/{group_id}/resolve", response_model=ErrorGroupOut)
+async def resolve_error_group(
+    group_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> ErrorGroupOut:
+    require_scope(current_user, "system.status")
+    group = await error_reports.resolve(db, group_id, now_utc())
+    if group is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ERROR_GROUP_NOT_FOUND", "message": "找不到這筆錯誤紀錄"},
+        )
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="system.error_resolve",
+        target_type="error_group",
+        target_id=str(group.id),
+    )
+    out = ErrorGroupOut.model_validate(group)
+    await db.commit()
+    return out
 
 
 @router.get("/admin/analytics/traffic")

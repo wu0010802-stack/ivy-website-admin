@@ -6,6 +6,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { AboutPageContent, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveAboutPage } from '../app/utils/content-overlay'
 import AboutContent from '../app/components/AboutContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 後台改過的值會出現在官網：後台存的 payload 經 applyContentOverlay 套到內容，再用伺服器渲染（同官網 SSR）
 // 畫出 AboutContent，看沿革的年份、民國年與首屏索引的年份範圍。Nuxt 的自動匯入在單元測試裡沒有，這裡補上；
@@ -26,6 +27,7 @@ const snake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}
 async function render(page: AboutPageContent, extra: { anniversary?: boolean } = {}): Promise<string> {
   const app = createSSRApp({ render: () => h(AboutContent as Component, { campuses: site.campuses, page, ...extra }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   app.component('AboutWholePerson', defineComponent({ render: () => null }))
   return renderToString(app)
 }

@@ -4,6 +4,7 @@ import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onM
 import fixture from '../server/data/site-fixture.json'
 import type { Campus, SiteContent } from '../app/types/site-content'
 import AboutContent from '../app/components/AboutContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 2026-10-12 即時預覽補洞：關於頁第四章選了第 3 支家長影片後，後台把影片刪到只剩 1 支，
 // pickedVoice／shownVoice 還停在第 3 支，voices[shownVoice] 是 undefined，整頁預覽畫不出來。
@@ -43,6 +44,7 @@ async function mountAbout() {
   document.body.append(host)
   app = createApp({ render: () => h(AboutContent as Component, { campuses: state.campuses, page: site.aboutPage }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   app.component('AboutWholePerson', defineComponent({ render: () => null }))
   app.config.warnHandler = () => {}
   app.config.errorHandler = (error) => { errors.push(error) }

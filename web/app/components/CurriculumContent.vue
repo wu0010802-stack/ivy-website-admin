@@ -120,7 +120,7 @@ useWatercolor(root)
           <p v-if="page.heroNotice" class="cur-notice">{{ page.heroNotice }}</p>
         </div>
         <figure class="cur-hero-photo cur-frame" data-wash="mint,.6,.58,.6,.54,.03,40|sky,.98,.04,.26,.2,.034,30">
-          <img v-bind="withPhotoStyle(curriculumHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high">
+          <ResponsivePicture v-bind="withPhotoStyle(curriculumHeroAttrs(page), page.heroPhoto)" :alt="pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)" loading="eager" fetchpriority="high" />
         </figure>
       </div>
       <nav class="cur-wrap cur-index" aria-label="本頁章節">
@@ -147,7 +147,7 @@ useWatercolor(root)
             </div>
           </div>
           <figure class="cur-years-photo">
-            <div class="cur-frame" data-wash="sky,.6,.58,.58,.56,.026,36"><img v-bind="withPhotoStyle(pagePhotoAttrs('cur-years', page.yearsPhoto, '(max-width: 900px) 100vw, 45vw'), page.yearsPhoto)" :alt="pagePhotoAlt(YEARS_ALT, page.yearsPhoto, page.yearsPhotoAlt)" loading="lazy"></div>
+            <div class="cur-frame" data-wash="sky,.6,.58,.58,.56,.026,36"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs('cur-years', page.yearsPhoto, '(max-width: 900px) 100vw, 45vw'), page.yearsPhoto)" :alt="pagePhotoAlt(YEARS_ALT, page.yearsPhoto, page.yearsPhotoAlt)" loading="lazy" /></div>
             <figcaption v-if="page.yearsCaption">{{ page.yearsCaption }}</figcaption>
           </figure>
         </div>
@@ -176,7 +176,7 @@ useWatercolor(root)
           <li v-for="item in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
             <span v-if="!item.image" class="cur-blot" data-blot="orange" aria-hidden="true" />
             <div v-if="item.image" class="cur-frame" :data-wash="item.wash">
-              <img v-bind="pagePhotoAttrs(item.image, item.photo, item.sizes ?? DIRECTION_SIZES)" :alt="pagePhotoAlt(item.alt ?? '', item.photo, item.photoAlt)" :style="pagePhotoStyle(item.position, item.photo)" loading="lazy">
+              <ResponsivePicture v-bind="pagePhotoAttrs(item.image, item.photo, item.sizes ?? DIRECTION_SIZES)" :alt="pagePhotoAlt(item.alt ?? '', item.photo, item.photoAlt)" :style="pagePhotoStyle(item.position, item.photo)" loading="lazy" />
             </div>
             <div class="cur-dir-copy">
               <h3>{{ item.title }}</h3>
@@ -201,12 +201,12 @@ useWatercolor(root)
         </div>
         <ul class="cur-art-wall" aria-label="孩子的作品" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
-            <div class="cur-frame" :data-wash="art.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy"></div>
+            <div class="cur-frame" :data-wash="art.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy" /></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
         <figure class="cur-band" data-reveal>
-          <div class="cur-frame" :data-wash="FLOOR.wash"><img v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy"></div>
+          <div class="cur-frame" :data-wash="FLOOR.wash"><ResponsivePicture v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy" /></div>
         </figure>
       </div>
     </section>
@@ -224,14 +224,14 @@ useWatercolor(root)
         </div>
         <ol class="cur-daily-list" aria-label="五件事" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
           <li v-for="(item, i) in daily" :key="item.image" class="cur-thing" data-reveal>
-            <div class="cur-frame" :data-wash="item.wash"><img v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy"></div>
+            <div class="cur-frame" :data-wash="item.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy" /></div>
             <p class="cur-thing-no" lang="en"><span class="cur-blot" :data-blot="item.pigment" aria-hidden="true" />{{ String(i + 1).padStart(2, '0') }}</p>
             <h3>{{ item.title }}</h3>
             <p>{{ item.text }}</p>
           </li>
         </ol>
         <figure class="cur-band" data-reveal>
-          <div class="cur-frame" :data-wash="KITE.wash"><img v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy"></div>
+          <div class="cur-frame" :data-wash="KITE.wash"><ResponsivePicture v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy" /></div>
         </figure>
       </div>
     </section>

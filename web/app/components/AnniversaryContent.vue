@@ -235,13 +235,14 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
                       <canvas class="anni-card-canvas" />
                     </div>
                     <div class="anni-card-back">
-                      <img
+                      <ResponsivePicture
                         :src="photoOf(row.campus)!.src"
                         :srcset="photoOf(row.campus)!.srcset"
                         :sizes="photoOf(row.campus)!.sizes"
+                        :avifSrcset="photoOf(row.campus)!.avifSrcset"
                         :alt="`${row.campus.name}校舍外觀`"
                         loading="lazy"
-                      >
+                      />
                     </div>
                   </div>
                   <span class="anni-card-shadow" aria-hidden="true" />
@@ -307,7 +308,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
                 @blur="artActive = -1"
                 @click="openArt(i)"
               >
-                <img :src="a.img.src" :srcset="a.img.srcset" :sizes="a.img.sizes" alt="" loading="lazy">
+                <ResponsivePicture :src="a.img.src" :srcset="a.img.srcset" :sizes="a.img.sizes" :avifSrcset="a.img.avifSrcset" alt="" loading="lazy" />
                 <span>{{ a.label }}</span>
               </button>
             </li>
@@ -319,15 +320,16 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
       </div>
       <dialog ref="lightbox" class="anni-lightbox" :aria-label="artThumbs[lightboxIndex]?.label" @click="closeLightboxOnBackdrop">
         <form method="dialog">
-          <img
+          <ResponsivePicture
             :src="responsiveImage(artThumbs[lightboxIndex]!.image).src"
             :srcset="responsiveImage(artThumbs[lightboxIndex]!.image).srcset"
+            :avifSrcset="responsiveImage(artThumbs[lightboxIndex]!.image).avifSrcset"
             sizes="(max-width: 760px) 92vw, 70vh"
             :width="responsiveImage(artThumbs[lightboxIndex]!.image).width"
             :height="responsiveImage(artThumbs[lightboxIndex]!.image).height"
             :style="{ '--anni-ar': lightboxRatio }"
             :alt="artThumbs[lightboxIndex]!.alt"
-          >
+          />
           <p><b>{{ artThumbs[lightboxIndex]!.label }}</b>{{ artThumbs[lightboxIndex]!.alt }}</p>
           <button class="button outline" type="submit">關閉</button>
         </form>

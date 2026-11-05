@@ -4,6 +4,7 @@ import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onM
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 2026-10-12 即時預覽補洞，2026-10-30 木頭積木版沿用：後台即時預覽換字、換照片或換場景之後版面高度會變，
 // 圓點小路（utils/environment-route.ts，依照片與時間站的位置撒點）要跟著重算。元件要在 page／campuses 變動、
@@ -49,6 +50,7 @@ async function mountEnvironment() {
   document.body.append(host)
   app = createApp({ render: () => h(EnvironmentContent as Component, { campuses: state.campuses, page: state.page }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   app.config.warnHandler = () => {}
   app.mount(host)
   await vi.waitFor(() => expect(routes.create).toHaveBeenCalledOnce())
@@ -102,6 +104,7 @@ describe('環境頁即時預覽換內容後重算圓點小路', () => {
     document.body.append(host)
     app = createApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page: state.page }) })
     app.component('NuxtLink', NuxtLink)
+    app.component('ResponsivePicture', ResponsivePicture)
     app.config.warnHandler = (message) => { warnings.push(message) }
     app.mount(host)
     await vi.waitFor(() => expect(document.querySelector('main.renv')).not.toBeNull())
@@ -119,6 +122,7 @@ describe('環境頁即時預覽換內容後重算圓點小路', () => {
     document.body.append(host)
     app = createApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page: state.page }) })
     app.component('NuxtLink', NuxtLink)
+    app.component('ResponsivePicture', ResponsivePicture)
     const errors = vi.fn()
     app.config.errorHandler = errors
     app.config.warnHandler = () => {}

@@ -1,3 +1,30 @@
+## 照片多一份 AVIF：`<ResponsivePicture>`（2026-11-05，`feature/monitor-push-avif-20261105`）
+
+- **內建照片同寬多產一份 AVIF**（`scripts/optimize-site-images.py`）：WebP q84→AVIF q65、日常照 q92→75、q72→58、q68→55；比同寬 WebP 小不到一成就不採用。線稿（含 `-colour`／`-ink`／`-wash`）、去背圖、布幕海報、30 週年投影不產。依據：repo 沒有 JPG 原檔，母檔本身是 q88–94 的 WebP，所以兩種格式都從母檔縮到同寬再壓來比；30 張照片 AVIF q65 約 WebP 的 71%。SSIM 會從約 0.98 掉到約 0.955，差在石頭、草地這類細顆粒被抹平；DPR2 原寸看不出，臉部與文字邊緣沒差（四倍放大對照留在當天 session 的 scratchpad）。
+- **新增照片或換母檔只跑 `--only <代號>`，不要整份重跑**：現行腳本重產不出 manifest 裡 6 項既有內容（`about-together` 與五校 `-colour` 的 160w 與原尺寸候選；本機 Pillow 的 WebP 大小剛好跨過「省兩成才採用」門檻），整份重跑會改到它們、還會替不在 manifest 的圖多產衍生檔。
+- **前台用 `<ResponsivePicture v-bind="helper(…)">`，不要再寫 `<img v-bind="helper(…)">`**：有 `avifSrcset` 才輸出 `<picture class="responsive-picture"><source type="image/avif"><img></picture>`，沒有（後台素材、線稿）就是原本的 `<img>`。AVIF 那組 srcset 的寬度級距和 WebP 完全相同，沒有 AVIF 的寬度沿用 WebP 網址。`avifSrcset` 不能直接 `v-bind` 到原生 `<img>`（預約頁首圖自己有 `<picture>`，是先拆出來再放 `<source>`）。
+- **`picture.responsive-picture{display:contents}`＋`>source{display:none}` 兩條都要**：只有前一條時，空的 `<source>` 在 grid／flex 父元素裡也算一格，入學頁「新生入學二部曲」的照片被擠到第二欄（版面比對抓到）。寫 CSS 不要只靠 `.x > img` 命中照片；既有規則補 `.x>:where(picture)>img`（權重不變）。呼叫端的 scoped 樣式由元件把父層的 `data-v-*` 補到 `<img>`。
+- **首屏預載**：有 AVIF 時預載 AVIF 那組並標 `type="image/avif"`，看不懂 AVIF 的瀏覽器不預載、照舊由 `<img>` 載 WebP。JS 預取之後會用 `<ResponsivePicture>` 顯示的照片要用 `prefetchImage()`（`utils/avif-support.ts`），否則會白下載一份 WebP。只吃網址的 canvas／WebGL 載入、SVG `<image>`、CSS `url()` 維持 WebP。
+- **不用伺服器依 `Accept` 換格式**：Nitro 的靜態檔處理器排在所有 hook 之後才決定路徑、改不了；而且同一網址回不同格式要 `Vary: Accept`，日後前面加 CDN 容易快取錯格式。
+- 後台上傳的 CMS 素材仍只有 WebP（後端變體），首頁約 2.3 MB 是這類；要做得加後端變體種類與 migration。
+
+## 錯誤回報與外部存活監測（2026-11-05，`feature/monitor-push-avif-20261105`）
+
+- 官網、後台的未處理錯誤（`window` error、`unhandledrejection`、Vue／Nuxt 錯誤）與 API 的 5xx，分組存進 `error_groups`；總管理者在「系統狀態」看、標為已處理，同一組再發生會自動重開。過去 24 小時有未處理錯誤會進總覽的「需要注意」。
+- **不存個資**：不存 IP、cookie、帳號、網址的 query 與 hash（後台 query 常有家長姓名、電話的搜尋字）；訊息與堆疊遮蔽 email、7 位以上數字、身分證、長 token；API 堆疊沿用 `RedactDatabaseErrorDetail` 的遮蔽。保存 90 天。不因 DNT／GPC 停用（不含識別資訊，屬營運必要）。
+- **分組指紋不含行號與打包雜湊**：Python 行號、JS 行:列、`/_nuxt/<雜湊>.js`、`/admin/assets/<名>-<雜湊>.js` 都在算指紋前拿掉，否則每次部署同一個錯誤都開新的一組、再推播一次。存進 DB 的位置照舊有行號。
+- **不回報的**：瀏覽器擴充套件、ResizeObserver、沒有堆疊的 Script error、AbortError、部署換檔名的 chunk 載入失敗、連不上伺服器（`Failed to fetch`／`Load failed`／`NetworkError…`）、後台的 `ApiError`（API 自己記）。每頁最多 5 筆、同一錯誤一頁只送一次。
+- **外部存活監測**：`.github/workflows/uptime.yml` 每 10 分鐘打正式站的首頁、`/api/website/v1/health`、`/api/public-site`（會打到 DB；health 不查 DB）、`/admin/`，失敗就讓 workflow 失敗、由 GitHub 寄信。User-Agent 只寫 `ivy-website-uptime/1.0`。
+
+## 後台手機通知：PWA＋Web Push（2026-11-05，`feature/monitor-push-avif-20261105`）
+
+- **只推兩種**：新的參觀預約（給能處理該校案件的人：總管理者、分校管理者、接待）、網站出現新的錯誤（只給總管理者，全站 15 分鐘最多一則）。其他通知照舊只走站內、LINE、Email。
+- **推播內容不放家長姓名、電話、Email**（鎖定畫面看得到）：新預約只寫「校名｜11/8（六）10:00」，點開到預約明細。
+- 推播任何失敗都不影響站內通知、LINE、Email，也不讓整筆 outbox 重試。伺服器只對 FCM／Mozilla／Apple／WNS 的推播網址送（防 SSRF）。
+- Service worker（`admin/public/sw.js`）只處理推播與點擊，不攔請求、不快取，避免舊版後台卡住。manifest 顏色用後台的 `--admin-accent`；圖示由 `scripts/build-admin-pwa-icons.py` 從校徽產生。
+- iPhone 要先「加入主畫面」、從主畫面打開後台才能開啟通知（iOS 16.4 起的限制）。
+- 啟用要設 `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（`python -m app.cli generate-vapid-keys` 產生），沒設時「我的帳號」顯示「尚未開放」。換人登入同一台裝置不會自動移除訂閱（登出時要不要移除待決定）。
+
 ## 前台流暢度：頁首狀態掛在 header 上、@property 集中註冊（2026-11-05，`claude/kind-sagan-61hcdh`）
 
 - **不要用 body／html 當 `:has()` 的錨點，再接後代選擇器**（`body:has(.x) .y`）。body 底下任何節點插入或移除，Blink 都要重新判定 body 的 `:has`；後代規則最右段只要有一條收斂不到 class（例如 `:focus-visible`、標籤），失效範圍就是整棵子樹，實測每次 630–820 個元素重算。只作用在 body／html 自己的 `:has`（`body:has(dialog[open]){overflow:hidden}` 這類）每次只重算自己，可以用。`web/tests/smoothness-20261105.spec.ts` 會擋。

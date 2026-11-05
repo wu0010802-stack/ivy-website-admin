@@ -19,6 +19,8 @@ dependencies = [
     "authlib>=1.8,<2",
     "itsdangerous>=2.2,<3",
     "boto3>=1.35,<2",
+    "http-ece>=1.2.1,<2",
+    "py-vapid>=1.9.6,<2",
 ]
 
 [dependency-groups]

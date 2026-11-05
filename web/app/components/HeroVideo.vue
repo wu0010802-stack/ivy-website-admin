@@ -21,7 +21,9 @@ const isPlaying = ref(false)
 // 第一格真的開始播才淡入（2026-10-24）：之前影片元素一掛上就蓋在封面上，部分瀏覽器在解出
 // 第一格前會閃一下黑框；iOS 低耗電模式擋自動播放時也維持封面，按播放才淡入。
 const videoReady = ref(false)
-const heroImgEl = ref<HTMLImageElement | null>(null)
+// 首屏照片是 <ResponsivePicture>，ref 抓到的是元件；真正的 <img>（看有沒有載完）在它 expose 的 img。
+const heroPicture = ref<{ img: HTMLImageElement | null } | null>(null)
+const heroImgEl = computed(() => heroPicture.value?.img ?? null)
 const videoSrc = ref('')
 const isMobileVideo = ref(false)
 // 影片載入失敗：後台設了替代圖就換上它，沒設就維持首屏照片（跟以前一樣）。
@@ -264,14 +266,14 @@ onUnmounted(() => {
             <div ref="actionsEl" class="studio-actions" />
           </div>
           <figure ref="imageEl" class="studio-hero-image">
-            <img
-              ref="heroImgEl"
+            <ResponsivePicture
+              ref="heroPicture"
               v-bind="heroImage.attrs"
               :alt="heroImage.alt"
               :style="heroImage.position ? { objectPosition: heroImage.position } : undefined"
               loading="eager"
               fetchpriority="high"
-            >
+            />
             <video
               v-if="showVideo"
               id="hero-video"

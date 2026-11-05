@@ -22,6 +22,9 @@ const MEDIA_PATH = /^\/(?:public|admin)\/media\//
 // 從這裡直接打會繞過那邊的來源檢查、本文上限與配額（稽核
 // public-telemetry-analytics-storage-flood）。
 const TELEMETRY_PATH = /^\/+public\/+telemetry\/*$/
+// 前端錯誤回報同理：只有 web/server/api/client-errors.post.ts 會打（伺服器對伺服器），瀏覽器直接打
+// 會繞過那邊的來源檢查、本文上限與配額。
+const CLIENT_ERRORS_PATH = /^\/+public\/+client-errors\/*$/
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -33,7 +36,7 @@ export default defineEventHandler(async (event) => {
   const rawPath = (event.node.req.url ?? '').replace(/^\/api\/website\/v1/, '')
   if (escapesApiPrefix(path) || escapesApiPrefix(rawPath)) throw createError({ statusCode: 404 })
   const target = apiProxyTarget(config.websiteApiInternalBase, path)
-  if (!target || TELEMETRY_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
+  if (!target || TELEMETRY_PATH.test(target.apiPath) || CLIENT_ERRORS_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
 
   // 一定要顯式覆寫：proxyRequest 預設會把使用者送來的 header 一併轉發，
   // 不覆寫的話任何人都能自己帶一個 x-website-client-ip 來偽造訪客身分、

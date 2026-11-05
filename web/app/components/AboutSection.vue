@@ -66,14 +66,14 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
               </div>
             </div>
             <figure v-if="photo" class="belief-photo">
-              <img
+              <ResponsivePicture
                 v-bind="pickImage(photo.image, photo.media, ABOUT_PHOTO_SIZES)"
                 :alt="photo.alt"
                 :style="photo.media?.position ? { objectPosition: photo.media.position } : undefined"
                 loading="lazy"
                 fetchpriority="low"
                 decoding="async"
-              >
+              />
               <figcaption v-if="about.caption">{{ about.caption }}</figcaption>
             </figure>
           </div>

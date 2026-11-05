@@ -228,7 +228,7 @@ describe('2026-09-28 內容編輯頁 UX（E）', () => {
     // （object-fit: cover，位置用素材庫的預設焦點），後台這裡仍整張顯示原圖，方便看清楚照片。
     it('後台預覽照原比例整張顯示原圖（官網環境頁會裁進積木形狀）', () => {
       const web = readCss('../../../web/app/assets/css/environment.css')
-      expect(web).toMatch(/\.renv-frame>img\{[^}]*object-fit:cover/)
+      expect(web).toMatch(/\.renv-frame>img,\.renv-frame>:where\(picture\)>img\{[^}]*object-fit:cover/)
       const tour = adminSource('CampusTourView.vue')
       const img = /\.tour__stage img \{[^}]*\}/.exec(tour)![0]
       expect(img).toContain('height: auto')

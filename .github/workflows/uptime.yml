@@ -1,0 +1,36 @@
+name: Website uptime
+
+# 外部存活監測（2026-11-05）：每 10 分鐘從 GitHub 的機器打正式站，掛了就讓這個 workflow 失敗，
+# GitHub 會寄失敗通知信（帳號的 Actions 通知要開）。檢查內容與重試規則見 deploy/uptime_check.py，
+# 設定與限制見 deploy/README.md「外部存活監測」。
+# 排程只在預設分支（main）上執行，可能延遲數分鐘；公開 repo 60 天沒有活動，GitHub 會停用排程。
+# 網址預設正式站，要改打別的網址在 repo 的 Variables 設 UPTIME_BASE_URL。
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 上一輪還在重試（最久約 4 分鐘）就讓它跑完，不取消、也不疊兩輪。
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+          sparse-checkout: deploy/uptime_check.py
+          sparse-checkout-cone-mode: false
+      # 網址走環境變數，不直接展開進指令列。
+      - name: Check production
+        env:
+          UPTIME_BASE_URL: ${{ vars.UPTIME_BASE_URL || 'https://web-production-04caa.up.railway.app' }}
+        run: python3 deploy/uptime_check.py "$UPTIME_BASE_URL"

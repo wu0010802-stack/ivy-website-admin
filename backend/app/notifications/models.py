@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -133,3 +133,29 @@ class LineCampusTarget(Base):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class PushSubscription(Base):
+    """後台手機推播（Web Push）的訂閱：一台裝置的瀏覽器一列（2026-11-05）。
+
+    endpoint 是推播服務（FCM、Mozilla、Apple、WNS）發給這個瀏覽器的位址，加上 p256dh 與 auth
+    兩把訂閱端的公開金鑰就能把訊息加密送到那台裝置；知道 endpoint 的人能對那台裝置丟通知，所以
+    API 與 log 都不回傳 endpoint 與金鑰。同一個 endpoint 只會有一列（換人登入同一台裝置就改綁）。
+    404／410 或連續失敗 10 次的訂閱由 notifications/web_push.py 刪除。"""
+
+    __tablename__ = "push_subscriptions"
+    __table_args__ = (UniqueConstraint("endpoint", name="uq_push_subscriptions_endpoint"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    endpoint: Mapped[str] = mapped_column(Text, nullable=False)
+    p256dh: Mapped[str] = mapped_column(String(200), nullable=False)
+    auth: Mapped[str] = mapped_column(String(100), nullable=False)
+    # 由 User-Agent 推得的裝置名稱（「iPhone（主畫面）」「Android Chrome」…），畫面上辨認用。
+    device_label: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")

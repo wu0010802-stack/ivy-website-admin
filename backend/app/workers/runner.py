@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.notifications import service as notification_service
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.line import LineMessagingClient
+from app.notifications.web_push import PushSender
 from app.workers import lease_service
 
 logger = logging.getLogger("app.outbox")
@@ -27,6 +28,7 @@ async def process_outbox_batch(
     line: LineMessagingClient | None = None,
     admin_origin: str | None = None,
     access_secret: str | None = None,
+    push: PushSender | None = None,
 ) -> dict[str, int]:
     """認領並處理最多 `limit` 筆到期的 outbox 工作。每筆工作獨立
     commit/rollback，一筆失敗不影響其他筆繼續處理。`adapter` 為 None 時
@@ -55,6 +57,7 @@ async def process_outbox_batch(
                 line=line,
                 admin_origin=admin_origin,
                 access_secret=access_secret,
+                push=push,
             )
         except Exception as exc:  # noqa: BLE001 - 任何寄送/處理失敗都走重試路徑
             # 先丟掉這一輪還沒提交的工作，再記錄失敗。少了這個 rollback，
