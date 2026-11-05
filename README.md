@@ -1,3 +1,10 @@
+## 2026-11-05 頁尾底色改 #21543F（`feature/footer-green-21543f-20261105`）
+
+使用者問頁尾的綠可以換成什麼，「只考慮綠色」；看過兩輪比稿與其他網站的綠色頁尾參考後，指定 `#21543F`（Tulane University 頁尾的綠）。
+
+- `web/app/assets/css/tokens.css` 第 6 節 `--ivy-footer-bg` `#094328` → `#21543F`（`oklch(40.4% .066 164)`），白字對比 11.4 → 8.73。白字、白 30% 分隔線、頂端 2px 黃銅線、字級都沿用 11-04，`SiteFooter.vue` 只改註解。
+- 比稿在 Desktop 工作區 `design/footer-colour-directions-20261105/`（第一輪 N1–N6 非綠色、第二輪 G1–G9 綠色；本機代理正式站＋`?fc=` 切換），參考圖板在 `output/footer-green-refs-20261105/`（實際量 141 站頁尾，第三方截圖不進版控）。規則記在 DESIGN.md 最上方。
+
 ## 2026-11-05 admin 開發依賴：glob 14、minimatch 11（`fix/deps-admin-20261105`）
 
 上一段升級推上去後，GitHub 重新掃描多出 minimatch 的新警示（GHSA-g3hv-75wg-m249，`>=7 <11.0.1`，10-30 公布）：#183 在 `admin/package-lock.json`（開發依賴、沒被自動略過），#184 在 `versions/` 舊快照。web 已經是 11.0.4（隨 glob 14 帶進來），不受影響。

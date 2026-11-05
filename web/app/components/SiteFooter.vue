@@ -56,7 +56,7 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
 </template>
 
 <style scoped>
-/* 2026-11-04：頁尾改賽車綠底＋全白字＋頂端 2px 黃銅線、字級各升一階（取代 10-20 的淡綠底＋深綠字），層次仍只靠字級與字重。色票在 tokens.css 的 --ivy-footer-*，字級在 styles.css 的 .footer-*。 */
+/* 2026-11-04：頁尾改深綠底＋全白字＋頂端 2px 黃銅線、字級各升一階（取代 10-20 的淡綠底＋深綠字），層次仍只靠字級與字重；2026-11-05 底色改 #21543F。色票在 tokens.css 的 --ivy-footer-*，字級在 styles.css 的 .footer-*。 */
 .footer {
   --footer-bg: var(--ivy-footer-bg);
   --footer-text: var(--ivy-footer-text);
