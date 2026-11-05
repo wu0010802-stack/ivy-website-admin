@@ -13,6 +13,22 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 前台流暢度第一批：頁首 :has 改 class、@property 集中（main CI 部署，沒有 migration）
+
+- **內容**：`3c475d33`（README「2026-11-05 前台流暢度第一批」），從 main `9ffc09e8` fast-forward 推上（PR #61，分支 `claude/kind-sagan-61hcdh`），使用者要求推 main。
+  - studio.css 117 條 `body:has(...)` 後代規則改掛 header 自己的 `.is-hero-page`／`.is-pill-nav`，特異度相同。
+  - 首頁六個 `@property` 搬到 studio.css。
+  - 新增 `utils/decoded-bitmap.ts`，這一批沒有呼叫端。
+  - 只動 web 的樣式與頁首，沒有新環境變數、後端與資料庫變動。
+- **提交前驗證**：web typecheck 通過，受影響與新增的單元測試通過。production build（fixture）上，頁首 computed style 比對三種寬度 × 九頁 × 四種狀態，共 10,690,018 個值、0 差異。PR #61 的 CI（web、admin、後端三組、E2E）全綠。
+- **CI**：main run 41995555256。web、admin、後端三組通過；E2E 的 stack 段通過；Deploy success（08:41:12–08:44:53Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：
+  - `/release.json` 的 base_commit 是 `3c475d33`，created_at `2026-11-05T08:41:41Z`；`/api/website/v1/health` 200。
+  - 量了 `/`、`/about`、`/admission`、`/curriculum`、`/anniversary`、`/environment`、`/news`、`/visit` 八頁，桌機 1440（DPR2）與手機 390（DPR3），全部 200、無頁面錯誤、無橫向溢出。
+  - 頁首 class：首頁是 `header is-hero-page is-pill-nav`，其餘頁照舊。position、底色、捲過 600px 的 compact 膠囊狀態與部署前（`5354fed0`）相同。
+  - 在 main 插入再移除一個 span 時的樣式重算元素數，部署前 140–867、部署後 1–2。
+- **沒驗**：iOS 實機；`/preview` 的預覽首頁頁首（要後台登入）。
+
 ## 2026-11-05 頁尾底色改 #21543F（main CI 部署，沒有 migration）
 
 - **內容**：`5354fed0`（README「2026-11-05 頁尾底色改 #21543F」）。`tokens.css` `--ivy-footer-bg` `#094328` → `#21543F`（`oklch(40.4% .066 164)`，白字對比 8.73）；白字、白 30% 分隔線、頂端 2px 黃銅線、字級沿用 11-04，`SiteFooter.vue` 只改註解。比稿在 Desktop 工作區 `design/footer-colour-directions-20261105/`、綠色頁尾參考圖板在 `output/footer-green-refs-20261105/`（都不進版控）。
