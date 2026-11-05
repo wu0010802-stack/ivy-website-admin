@@ -1,3 +1,14 @@
+## 2026-11-05 首頁「關於常春藤」照片對齊、換照、內文改寫（`feature/home-about-a-20261105`）
+
+使用者截圖首頁「把每個孩子 放在心上」：「幫我調整一下照片跟文字的位子，以及照片幫我換一張」，之後又給一份新的介紹文字，問要濃縮還是縮小字，看過濃縮版再要求改寫。比稿 `design/home-about-directions-20261105`（代理正式站，`?layout=a|b|c&photo=p1…p6`）選 A 對齊修正＋候選 4。規則見 DESIGN.md「關於常春藤：單張圓角照片」底下的 11-05 補充。
+
+- `studio.css`／`AboutSection.vue`：照片從標題那列跨到內文末行、撐滿後 `object-fit:cover`（`contain:size`，最高 52vw），左欄收到內文寬、欄距收成 5vw；有 SINCE 小標時 `.has-since` 從第 2 列起；`sizes` 照實際畫出的寬改寫。1440 照片 606×404 → 680×422，頂對標題字面頂、底對末行字面底（差 3–4px）。
+- 照片：`home-about` 母檔換成 115 招生照片「戶外活動5」（1477×1108，保留 4:3），`optimize-site-images.py --only home-about`，舊雜湊 5 檔 git rm；fixture／overlay 基準的替代文字改「穿著園服的孩子們在操場草地上笑著朝鏡頭跑過來」；後台內建圖名稱、焦點預覽（手機 3:2＋電腦窄螢幕接近正方）與說明改寫。
+- 內文：使用者的四段約 600 字先濃縮成三段，使用者再要「不一定要是我們學校真正的特色」，改寫成給家長讀的三段約 240 字（`public-copy.ts` `ABOUT_BODY_FACTS`；手機摘要＝「民國 86 年…現在是五所幼兒園。」）；兩個單元測試的摘要期望值同步。
+- **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 112 檔 1371 項全過；admin `editVersionsUx`／`pageCopyFields`／`bugfixRegressions` 102 項過、`vue-tsc` 無錯；後端獨立測試庫 `test_media_slots.py`＋`test_about_page_content.py` 48 項過；fixture dev server 用 Playwright 量 1920／1440／1280／1101／1024／901／390／320：沒有橫向捲動，1440 DPR2 選母檔、390 DPR3 選 1200w，數字與「年」不再斷行。
+- **stack e2e**：rebase 到 c4a53ce3 後重新 `npm ci`、`e2e:build`，整套 169 項全過（7.1 分鐘）；rebase 後 web 1499、admin 102、後端 48 項重跑也全過。
+- **沒跑**：axe、iOS 實機。
+
 ## 2026-11-05 前台流暢度第一批：頁首 :has 改 class、@property 集中（`claude/kind-sagan-61hcdh`）
 
 使用者要「優化前台流暢度」。先在 production build（fixture）量各頁：手機 390、CPU 4×、觸控捲動，桌機 1440。量的是捲動畫格、長任務、Long Animation Frame 腳本歸因（sourcemap 對回原始碼）與靜止時的背景工作，再分 8 個區塊讀碼找原因。這一批是全站共用、已驗證的三項，使用者要求先推 main；各頁的修正（拍立得、五校、特色教學、30 週年等）另批。規則見 DESIGN.md 頂部。

@@ -2262,28 +2262,24 @@
     ]
   },
   "home-about": {
-    "width": 1800,
-    "height": 1200,
+    "width": 1477,
+    "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/home-about-aa3afde8717a-480.webp",
+        "src": "/assets/responsive/home-about-d94cfbb255e3-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/home-about-aa3afde8717a-800.webp",
+        "src": "/assets/responsive/home-about-d94cfbb255e3-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/home-about-aa3afde8717a-1200.webp",
+        "src": "/assets/responsive/home-about-d94cfbb255e3-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/home-about-aa3afde8717a-1600.webp",
-        "width": 1600
-      },
-      {
-        "src": "/assets/responsive/home-about-aa3afde8717a-1800.webp",
-        "width": 1800
+        "src": "/assets/home-about.webp",
+        "width": 1477
       }
     ]
   }
