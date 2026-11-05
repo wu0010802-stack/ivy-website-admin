@@ -20,16 +20,12 @@ export function createAdmissionMotion(gsap: typeof Gsap): AdmissionMotion {
       const stamp = el as HTMLElement
       const rot = parseFloat(stamp.style.getPropertyValue('--rot')) || 0
       const bleed = stamp.querySelector('.bleed')
-      // 補間中字用幾何字級，落定時 relayoutSvgText 拿掉（見下）
-      stamp.querySelector('svg')?.setAttribute('data-moving', '')
       const timeline = gsap.timeline({ delay, onComplete: () => { running.delete(timeline); done() } })
       timeline.fromTo(stamp, { opacity: 0, scale: 1.32, rotation: rot - 9, y: -10 }, { opacity: 1, scale: 1, rotation: rot, y: 0, duration: 0.24, ease: 'power3.in', clearProps: 'opacity,transform', onComplete: () => relayoutSvgText(stamp) })
       if (bleed) timeline.fromTo(bleed, { opacity: 0 }, { opacity: 0.14, duration: 0.6, ease: 'expo.out' }, '>-0.02')
       running.add(timeline)
     },
     lift(el, done) {
-      // 拿起來之後整個章就拿掉了，data-moving 不用還原
-      el.querySelector('svg')?.setAttribute('data-moving', '')
       const tween = gsap.to(el, { opacity: 0, scale: 1.12, y: -8, duration: 0.18, ease: 'power2.out', onComplete: () => { running.delete(tween); done() } })
       running.add(tween)
     },
@@ -45,15 +41,10 @@ export function createAdmissionMotion(gsap: typeof Gsap): AdmissionMotion {
  * 的 transform 在補間裡變、版面卻沒重排時，會留著第一格（scale 1.32）的字級：邊框正常，字縮成約 0.76 倍
  * 擠在左上，圓章的環狀字缺一截。蓋章途中捲動頁面就會遇到（headless Chromium 實測約一半機率）。
  * 同步切 display 再量一次，中間不會畫出來，不會閃。
- *
- * 2026-11-05：補間中 svg 掛 data-moving，字改用幾何字級（admission-passport.css）。字級跟著每幀的 scale 變時，
- * 每一幀都要重新 shaping（分片字型的快取每次都 miss，圓章的環狀字還要再排一次）；固定字級就命中快取。
- * 落定後在這裡拿掉、照最終縮放重排，最後的畫面跟原本逐像素相同（全程用幾何字級的話圓章中心字會偏約 1px）。
  */
 function relayoutSvgText(stamp: HTMLElement) {
   const svg = stamp.querySelector('svg')
   if (!svg) return
-  svg.removeAttribute('data-moving')
   svg.style.display = 'none'
   void svg.getBoundingClientRect()
   svg.style.display = ''

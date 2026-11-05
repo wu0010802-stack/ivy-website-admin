@@ -530,12 +530,12 @@ describe('X2 --word-fade 寫在讀它的 .day-intro 與 .day-film-shade 上，�
   })
 
   it('讀 --word-fade 的只有這兩條規則（從 .day-film-shade 自己、.day-intro 父層繼承）；新增讀者要一起寫進 paintFade', () => {
-    const dirs = ['../app/assets/css', '../app/components', '../app/pages']
-    const readers = dirs.flatMap((dir) =>
-      readdirSync(fileURLToPath(new URL(dir, import.meta.url)))
-        .filter((name) => /\.(css|vue)$/.test(name))
-        .flatMap((name) => [...read(`${dir}/${name}`).matchAll(/[^{}]*\{[^{}]*var\(--word-fade/g)].map((m) => `${name}: ${m[0].trim().split('{')[0]}`))
-    )
+    // 遞迴掃整個 web/app（含 pages/news、pages/visit 等子目錄與 app.vue、error.vue）
+    const appDir = fileURLToPath(import.meta.url).replace(/\/tests\/[^/]+$/, '/app')
+    const names = readdirSync(appDir, { recursive: true }) as string[]
+    const readers = names
+      .filter((name) => /\.(css|vue)$/.test(name))
+      .flatMap((name) => [...read(`../app/${name}`).matchAll(/[^{}]*\{[^{}]*var\(--word-fade/g)].map((m) => `${name.split('/').pop()}: ${m[0].trim().split('{')[0]}`))
     expect(readers).toEqual(['styles.css: .day-film-shade::before', 'styles.css: .day-intro>*'])
     expect(read('../app/components/DayExperience.vue')).not.toContain("section.style.setProperty('--word-fade'")
   })

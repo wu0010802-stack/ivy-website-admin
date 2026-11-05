@@ -72,6 +72,9 @@ useNewsTransition(root, previous, paper)
     inset: 0;
     pointer-events: none;
     box-shadow: var(--news-paper-shadow);
+    /* 基底藏起來：時間軸有效時 news-shadow-handon（fill both）一定蓋過它；萬一時間軸沒解析成功，
+       退回只有 sheet 自己一道陰影，不會疊成兩道。 */
+    visibility: hidden;
     animation: news-shadow-handon step-end both, news-shadow-fade linear both;
     animation-timeline: --news-paper, --home-footer;
     animation-range: entry 0% entry 100%, entry 0% entry 100%;

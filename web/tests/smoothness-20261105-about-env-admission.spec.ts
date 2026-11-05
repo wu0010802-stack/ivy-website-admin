@@ -6,11 +6,10 @@ import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onM
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { createEnvironmentRoutes, type EnvironmentRoutes } from '../app/utils/environment-route'
-import { createAdmissionMotion } from '../app/utils/admission-motion'
 import { bandPaths, rosettePaths } from '../app/utils/guilloche'
 import AdmissionContent from '../app/components/AdmissionContent.vue'
 
-// 2026-11-05 前台流暢度：環境頁圓點小路（E1、E2）、入學頁蓋章與防偽細紋（F3、F6）。
+// 2026-11-05 前台流暢度：環境頁圓點小路（E1、E2）、入學頁防偽細紋（F6）。
 // 外觀、節奏、觸發時機都不變，這裡守的是「少做的那些事」真的沒做，以及該做的照舊做。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
@@ -268,52 +267,6 @@ describe('E2 還沒亮的圓點不進重繪（environment.css）', () => {
     expect(css).toContain('@media (prefers-reduced-motion:reduce){.renv-route circle{opacity:1;transform:none;visibility:visible}}')
     // 積木（[data-drop]）裡有連結與照片 alt，不能用 visibility 藏
     expect(css).not.toMatch(/\[data-drop\][^{]*\{[^}]*visibility/)
-  })
-})
-
-describe('F3 入學頁蓋章：補間中 SVG 字用幾何字級，落定後拿掉再重排（utils/admission-motion.ts）', () => {
-  function stampEl() {
-    const host = document.createElement('div')
-    host.innerHTML = `<span class="ap-stamp" style="--rot:-7deg"><svg viewBox="0 0 92 92"><g class="bleed"><text>章</text></g><g class="ink"><text>章</text></g></svg></span>`
-    document.body.append(host)
-    return host.firstElementChild as HTMLElement
-  }
-  function fakeGsap() {
-    const tweens: { target: Element; vars: Record<string, unknown> }[] = []
-    const timeline = () => {
-      const tl = { fromTo: (target: Element, _from: unknown, vars: Record<string, unknown>) => { tweens.push({ target, vars }); return tl }, kill() {} }
-      return tl
-    }
-    const to = (target: Element, vars: Record<string, unknown>) => { tweens.push({ target, vars }); return { kill() {} } }
-    return { gsap: { timeline, to }, tweens }
-  }
-
-  it('蓋下：補間開始前掛上 data-moving；第一段落定時先拿掉，再切 display 照最終縮放重排', () => {
-    const { gsap, tweens } = fakeGsap()
-    const stamp = stampEl()
-    const svg = stamp.querySelector('svg')!
-    createAdmissionMotion(gsap as never).press(stamp, () => {}, 0.12)
-    expect(svg.hasAttribute('data-moving')).toBe(true)
-    let seen: { moving: boolean; display: string } | null = null
-    svg.getBoundingClientRect = () => { seen = { moving: svg.hasAttribute('data-moving'), display: svg.style.display }; return {} as DOMRect }
-    ;(tweens[0]!.vars.onComplete as () => void)()
-    expect(seen).toEqual({ moving: false, display: 'none' })
-    expect(svg.hasAttribute('data-moving')).toBe(false)
-    expect(svg.style.display).toBe('')
-  })
-
-  it('拿起：補間開始前掛上 data-moving（拿起後整個章拿掉，不用還原）', () => {
-    const { gsap } = fakeGsap()
-    const stamp = stampEl()
-    createAdmissionMotion(gsap as never).lift(stamp, () => {})
-    expect(stamp.querySelector('svg')!.hasAttribute('data-moving')).toBe(true)
-  })
-
-  it('幾何字級只在 data-moving 時套用，靜止的章照舊', () => {
-    const css = read('../app/assets/css/admission-passport.css')
-    expect(css).toContain('.ap-stamp svg[data-moving] text { text-rendering: geometricPrecision; }')
-    expect(css).toContain('.ap-stamp text { fill: currentColor; font-family: var(--font-head); font-weight: 700; }')
-    expect(css.match(/text-rendering/g)).toHaveLength(1)
   })
 })
 

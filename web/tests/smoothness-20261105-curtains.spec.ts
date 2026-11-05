@@ -224,6 +224,8 @@ describe('HomeNewsTransition.vue 的頁尾陰影與備援變數', () => {
     expect(before).toContain('inset: 0;')
     expect(before).toContain('pointer-events: none;')
     expect(before).toContain('box-shadow: var(--news-paper-shadow);')
+    // 時間軸沒解析成功時退回只有 sheet 一道陰影（基底藏起來，動畫 fill both 蓋過它）
+    expect(before).toContain('visibility: hidden;')
     expect(before).toContain('animation: news-shadow-handon step-end both, news-shadow-fade linear both;')
     expect(before).toContain('animation-timeline: --news-paper, --home-footer;')
     expect(before).toContain('animation-range: entry 0% entry 100%, entry 0% entry 100%;')

@@ -41,9 +41,6 @@
 .ap-stamp.tone-red { color: var(--ap-red); }
 .ap-stamp.tone-green { color: var(--green); }
 .ap-stamp text { fill: currentColor; font-family: var(--font-head); font-weight: 700; }
-/* 蓋下、拿起的補間中（utils/admission-motion.ts 在 svg 上掛 data-moving）字用幾何字級，不跟著每幀的 scale 重新 shaping；
-   落定後拿掉再照最終縮放重排一次，停住的畫面跟原本逐像素相同（2026-11-05） */
-.ap-stamp svg[data-moving] text { text-rendering: geometricPrecision; }
 .ap-stamp-host { position: relative; }
 
 /* ── 防偽細紋（utils/guilloche.ts）── */
