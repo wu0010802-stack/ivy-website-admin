@@ -4,7 +4,10 @@ import { getCampusSocials } from '~/utils/campus-socials'
 import { isPlainLeftClick } from '~/utils/campusPhotoMorph'
 import { httpsUrl, siteLink } from '~/utils/site-links'
 
-const props = defineProps<{ content: SiteContent }>()
+// hero：這一頁有首頁全幅影片（.studio-hero，首頁與 /preview 預覽首頁時）。頁首的透明疊字版與膠囊規則掛在
+// header 自己的 class 上（studio.css 的 `.is-hero-page`／`.is-pill-nav`），不再用 `body:has(.studio-hero)`：
+// body 當 :has 錨點時，整頁任何節點插入或移除都會讓約八成元素重算樣式（2026-11-05 流暢度量測）。
+const props = defineProps<{ content: SiteContent; hero?: boolean }>()
 
 const route = useRoute()
 
@@ -259,7 +262,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
     ref="headerRef"
     class="header"
     data-cta-entry="header"
-    :class="{ 'is-scrolled': isScrolled, 'is-pill-nav': usePanel, 'is-booking': isBookingPage }"
+    :class="{ 'is-hero-page': hero, 'is-scrolled': isScrolled, 'is-pill-nav': usePanel, 'is-booking': isBookingPage }"
     :data-state="usePanel ? headerState : undefined"
     :data-menu="isMenuOpen ? 'open' : 'closed'"
     @focusout="onFocusout"

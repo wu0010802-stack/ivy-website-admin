@@ -110,32 +110,32 @@ body:has(.hn-dialog[open]){overflow:hidden}
 }
 @media(max-width:380px){.campus-panorama>.container{width:calc(100% - 32px)}}
 /* Homepage: one continuous photograph. The scrim protects the text, not the whole frame. */
-body:has(.studio-hero) {
+body .header.is-hero-page {
   --hero-line:rgb(var(--on-dark) / .6);
 }
-body:has(.studio-hero) .header {
+body .header.is-hero-page {
   position:fixed;
   inset:0 0 auto;
   background:transparent;
   border:0;
   color:var(--white);
 }
-body:has(.studio-hero) .header.is-scrolled {
+body .header.is-hero-page.is-scrolled {
   background:var(--paper);
   color:var(--green);
   isolation:isolate;
   box-shadow:0 2px 5px rgb(var(--ink) / .14),0 8px 20px -8px rgb(var(--ink) / .16);
 }
-body:has(.studio-hero) .header-top {border-bottom:1px solid var(--hero-line)}
-body:has(.studio-hero) .nav-inner a:hover {color:inherit}
-body:has(.studio-hero) .header-top .menu-toggle {
+body .is-hero-page .header-top {border-bottom:1px solid var(--hero-line)}
+body .is-hero-page .nav-inner a:hover {color:inherit}
+body .is-hero-page .header-top .menu-toggle {
   align-items:center;
   flex-shrink:0;
   padding:0;
   border:0;
   border-radius:0;
 }
-body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;width:22px}
+body .is-hero-page .menu-toggle span {background:currentColor;height:2px;width:22px}
 /* 預約鈕：金色滿高色塊，貼齊視窗右緣、左下一道 44px 的弧收回內容
    （2026-09-18 定案，比稿與其他形狀見 design/book-cta-directions/）。全站共用——
    首頁壓在影片上，分校頁與預約頁壓在米白頁首上，兩邊都是同一顆。
@@ -194,7 +194,7 @@ body:has(.studio-hero) .menu-toggle span {background:currentColor;height:2px;wid
 .brand-name {font-family:'Noto Sans TC',var(--font);font-size:1em;font-weight:600;line-height:1.2;letter-spacing:0;white-space:nowrap;color:var(--brand-chinese)}
 .brand-english {display:flex;justify-content:space-between;gap:.25em;font-family:'Source Sans 3',Arial,var(--font);font-size:.6em;font-weight:400;line-height:1.25;letter-spacing:.02em;white-space:nowrap;color:var(--brand-english)}
 .brand-english>span {flex:none;margin-inline-end:-.02em}
-body:has(.studio-hero) .header:not(.is-scrolled) .brand {--brand-chinese:var(--white);--brand-english:var(--white)}
+body .header.is-hero-page:not(.is-scrolled) .brand {--brand-chinese:var(--white);--brand-english:var(--white)}
 @media(max-width:1100px) {
   .brand {--brand-type:1.5rem;--brand-crest-size:3rem}
 }
@@ -220,34 +220,34 @@ body:has(.studio-hero) .header:not(.is-scrolled) .brand {--brand-chinese:var(--w
 @media(max-width:360px) {
   .brand {--brand-type:min(.9375rem,15px);--brand-crest-size:min(1.5rem,24px)}
 }
-body:has(.studio-hero) .header :focus-visible,
+body .header.is-hero-page :focus-visible,
 .studio-hero :focus-visible {outline-color:var(--paper)}
-body:has(.studio-hero) .nav-inner a[aria-current] {
+body .is-hero-page .nav-inner a[aria-current] {
   color:inherit;
   text-decoration-thickness:2px;
   text-underline-offset:8px;
 }
-body:has(.studio-hero) .header.is-scrolled .header-top {
+body .header.is-hero-page.is-scrolled .header-top {
   border-bottom-color:transparent;
   text-shadow:none;
 }
-body:has(.studio-hero) .header.is-scrolled .navigation {color:inherit}
-body:has(.studio-hero) .header.is-scrolled .header-book {
+body .header.is-hero-page.is-scrolled .navigation {color:inherit}
+body .header.is-hero-page.is-scrolled .header-book {
   background:var(--yellow);
   border-color:transparent;
   color:var(--deep);
 }
-body:has(.studio-hero) .header.is-scrolled .menu-toggle {
+body .header.is-hero-page.is-scrolled .menu-toggle {
   border-color:rgb(var(--ink) / .2);
   border-radius:6px;
 }
-body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--green)}
+body .header.is-hero-page.is-scrolled :focus-visible {outline-color:var(--green)}
 @media(hover:hover) {
-  body:has(.studio-hero) .header.is-scrolled .header-book:hover {
+  body .header.is-hero-page.is-scrolled .header-book:hover {
     background:var(--paper);
     border-color:transparent;
   }
-  body:has(.studio-hero) .header.is-scrolled .nav-inner a:hover {
+  body .header.is-hero-page.is-scrolled .nav-inner a:hover {
     color:var(--green);
     text-underline-offset:8px;
   }
@@ -333,8 +333,8 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 .studio-hero-image>img {width:100%;height:100%;aspect-ratio:auto;border-radius:0;object-position:50% 35%}
 @media(max-width:900px) {
   .studio-hero {padding-top:80px}
-  body:has(.studio-hero) .navigation {color:var(--text)}
-  body:has(.studio-hero) .navigation :focus-visible {outline-color:var(--leaf)}
+  body .is-hero-page .navigation {color:var(--text)}
+  body .is-hero-page .navigation :focus-visible {outline-color:var(--leaf)}
 }
 @media(max-width:1000px) {
   .studio-hero {--hero-photo-height:clamp(320px,calc(60 * var(--motion-vh,1svh)),620px);padding-top:0;min-height:0}
@@ -350,7 +350,7 @@ body:has(.studio-hero) .header.is-scrolled :focus-visible {outline-color:var(--g
 }
 
 /* Keep white text legible even on the brightest video frames. */
-body:has(.studio-hero) .header-top,
+body .is-hero-page .header-top,
 .studio-hero-copy,.studio-media {text-shadow:0 1px 3px rgb(var(--ivy-hero-scrim-rgb) / .45)}
 .studio-hero-copy>p {max-width:28em;font-size:var(--fs-lg);font-weight:400;line-height:1.85;margin-top:28px;color:var(--white)}
 .hero-copy-line {display:block}
@@ -373,7 +373,7 @@ body:has(.studio-hero) .header-top,
  .studio-hero h1 {font-size:clamp(1.875rem,9vw,2.125rem)}
 }
 @media(max-width:360px) {
- body:has(.studio-hero) .header-book {white-space:nowrap;padding-inline:8px}
+ body .is-hero-page .header-book {white-space:nowrap;padding-inline:8px}
 }
 
 /* 首頁向上揭幕：2026-09-17，依 scroll-reveal-mockup 定案。 */
@@ -414,6 +414,18 @@ body:has(.studio-hero) .header-top,
 .day-reveal[data-motion="on"] .day-reveal-track {height:calc(var(--day-own,100svh) + var(--day-distance))}
 .day-reveal[data-motion="on"] .day-experience {position:sticky;top:var(--day-stick,0px);z-index:2}
 .day-reveal[data-motion="on"] .campus-panorama {position:relative;z-index:1;margin-top:calc(-1 * var(--reveal-height,100svh))}
+/* 首頁元件用到的註冊屬性一律放在這裡（每頁一開始就載），不要寫在元件或頁面的 <style>：其他頁的頁首校徽、
+   頁尾品牌、預約鈕是 NuxtLink，可見就預取首頁與 /visit，Vite 會把那些頁的 CSS 掛進目前頁；載入後才註冊新的
+   @property，Blink 會整頁重算樣式（2026-11-05 量到約 800 個元素、手機 4× 約 84ms，發生在載入後約 2.5 秒）。
+   - 五校分頁線稿（CampusBoard.vue）：轉場走註冊過的數值變數、主執行緒逐幀更新，不升合成層（iPhone multiply 的白底問題）；
+     --tab-draw 的 initial-value 為 1，減少動態關掉動畫時就是完整線稿。
+   - 消息紙與頁尾進度（HomeNewsTransition.vue、pages/index.vue）：只有 JS 備援會寫，名稱要全域。 */
+@property --tab-art-opacity{syntax:'<number>';inherits:false;initial-value:.75}
+@property --tab-art-brightness{syntax:'<number>';inherits:false;initial-value:.72}
+@property --tab-colour-opacity{syntax:'<number>';inherits:false;initial-value:0}
+@property --tab-draw{syntax:'<number>';inherits:true;initial-value:1}
+@property --news-paper-progress {syntax:'<number>';inherits:true;initial-value:1}
+@property --home-footer-progress {syntax:'<number>';inherits:true;initial-value:0}
 /* 水彩滲接（2026-09-29 定案）：孩子的一天→五校的擦除邊是水彩濕邊往上滲（composables/useWatercolorSeep.ts）。
    三層遮罩聯集：上方實心 ＋ 兩張濕邊帶（第二張橫向漂移、上下錯位）。帶子以 max(100%,1400px) 置中，手機只取中段。 */
 @property --day-seep-y {syntax:'<length>';inherits:false;initial-value:0px}
@@ -596,7 +608,7 @@ body:has(.studio-hero) .header-top,
    2026-10-20 調亮：墨綠毛玻璃改米白毛玻璃＋深綠字。首頁捲過首屏後多是淺色背景，米白膠囊與它們的邊界對比只有 1.0–1.4，
    形狀改靠墨綠細框與投影撐住（下方 compact 狀態的變數）。 */
 .header-pill {display:none}
-body:has(:is(.studio-hero,.is-pill-nav)) .header {
+body .header:is(.is-hero-page,.is-pill-nav) {
   --pill-top:12px;--pill-pad:8px;--pill-ctrl:40px;--pill-crest:28px;
   --pill-x:0;--pill-y:-14px;--pill-scale:.94;
   --pill-shadow:0 12px 30px -14px rgb(var(--ink) / .45),0 1px 4px -1px rgb(var(--ink) / .22);
@@ -606,20 +618,20 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header {
   --pill-border:rgb(var(--ink) / .14);--pill-line:rgb(var(--ink) / .14);--pill-hover:rgb(var(--ink) / .06);
   --pill-ease:cubic-bezier(.22,1,.36,1);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"],
-body:has(:is(.studio-hero,.is-pill-nav)) .header.is-scrolled[data-state="compact"] {
+body :is(.is-hero-page,.is-pill-nav) .header-top {--vis-delay:0s;transition:opacity .22s ease,visibility 0s linear var(--vis-delay)}
+body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"],
+body .header:is(.is-hero-page,.is-pill-nav).is-scrolled[data-state="compact"] {
   background:transparent;
   box-shadow:none;
   pointer-events:none;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-top {
+body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"] .header-top {
   --vis-delay:.22s;
   opacity:0;
   visibility:hidden;
   pointer-events:none;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
+body :is(.is-hero-page,.is-pill-nav) .header-pill {
   --vis-delay:.42s;
   position:absolute;
   top:var(--pill-top);
@@ -642,7 +654,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
   transform:translate(var(--pill-x),var(--pill-y)) scale(var(--pill-scale));
   transition:transform .42s var(--pill-ease),opacity .25s ease,border-radius .3s ease,box-shadow .3s ease,visibility 0s linear var(--vis-delay);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
+body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"] .header-pill {
   --vis-delay:0s;
   opacity:1;
   visibility:visible;
@@ -651,8 +663,8 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-p
   --pill-scale:1;
   transition-delay:.1s;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"][data-menu="open"] .header-pill {transition-delay:0s}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {
+body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"][data-menu="open"] .header-pill {transition-delay:0s}
+body :is(.is-hero-page,.is-pill-nav) .pill-brand {
   display:flex;
   align-items:center;
   gap:10px;
@@ -665,7 +677,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {
   white-space:nowrap;
   color:var(--pill-fg);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {
+body :is(.is-hero-page,.is-pill-nav) .pill-crest {
   display:grid;
   place-items:center;
   flex-shrink:0;
@@ -675,12 +687,12 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest {
   background:var(--white);
   box-shadow:0 0 0 1px var(--pill-line);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
+body :is(.is-hero-page,.is-pill-nav) .pill-crest .brand-crest {width:var(--pill-crest);height:auto;aspect-ratio:124/132}
 /* 2026-09-18：膠囊只留圓形校徽，校名與英文字收掉（校名仍在 .pill-brand 的 aria-label）。
    要退回顯示校名，把這兩行刪掉即可。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-name {display:none}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {padding-right:4px}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {
+body :is(.is-hero-page,.is-pill-nav) .pill-name {display:none}
+body :is(.is-hero-page,.is-pill-nav) .pill-brand {padding-right:4px}
+body :is(.is-hero-page,.is-pill-nav) .pill-name small {
   display:block;
   font-family:var(--font-en);
   font-size:.6875rem;
@@ -688,9 +700,9 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {
   letter-spacing:.02em;
   color:var(--pill-soft);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {display:flex;align-items:center;gap:6px}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:var(--pill-line)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {
+body :is(.is-hero-page,.is-pill-nav) .pill-actions {display:flex;align-items:center;gap:6px}
+body :is(.is-hero-page,.is-pill-nav) .pill-divider {width:1px;height:calc(var(--pill-ctrl) * .58);background:var(--pill-line)}
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle {
   display:inline-flex;
   align-items:center;
   justify-content:center;
@@ -704,26 +716,26 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {
   color:inherit;
   transition:background-color .2s ease;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle[aria-expanded="true"] {background:var(--pill-hover)}
 /* hover 只給滑鼠：觸控點過後 :hover 會黏住，關掉選單仍留著展開底色。 */
 @media(hover:hover) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle:hover {background:var(--pill-hover)}
+  body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle:hover {background:var(--pill-hover)}
 }
 /* 900px 以下站內的 .menu-toggle span 會把這個容器本身壓成 1px 高，要擋回來。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-lines span {
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-lines {display:grid;gap:5px;width:20px;height:auto;background:none;flex-shrink:0}
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-lines span {
   display:block;
   width:20px;
   height:2px;
   border-radius:1px;
   background:currentColor;
   transition:transform .3s var(--pill-ease)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:first-child {transform:translateY(4px) rotate(45deg)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:last-child {transform:translateY(-4px) rotate(-45deg)}
-/* 站內 body:has(:is(.studio-hero,.is-pill-nav)) .menu-toggle span 會把這個 span 壓成 22x2 的白條，要明確擋回來。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word small {display:block;font-family:var(--font-en);font-size:.625rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:first-child {transform:translateY(4px) rotate(45deg)}
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle[aria-expanded="true"] .menu-lines span:last-child {transform:translateY(-4px) rotate(-45deg)}
+/* 站內 body :is(.is-hero-page,.is-pill-nav) .menu-toggle span 會把這個 span 壓成 22x2 的白條，要明確擋回來。 */
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-word {width:auto;height:auto;background:none;font-size:.8125rem;font-weight:600;line-height:1.2;text-align:left;white-space:nowrap}
+body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-word small {display:block;font-family:var(--font-en);font-size:.625rem;font-weight:400;letter-spacing:.02em;color:var(--pill-soft)}
+body :is(.is-hero-page,.is-pill-nav) .pill-book {
   display:inline-flex;
   align-items:center;
   gap:8px;
@@ -739,13 +751,13 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {
 }
 @media(hover:hover) {
   /* 膠囊改米白後（2026-10-20），hover 換米白會和膠囊融在一起，改深一階的品牌金。 */
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book:hover {background:var(--gold);color:var(--deep)}
+  body :is(.is-hero-page,.is-pill-nav) .pill-book:hover {background:var(--gold);color:var(--deep)}
 }
 /* 桌機膠囊的控制只有 40px 高（手機 --pill-ctrl 已是 44px）：用透明 ::before 上下各補 2px，點擊範圍到 44px、外觀不變（2026-09-27）。 */
-body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle) {position:relative}
-body:has(:is(.studio-hero,.is-pill-nav)) :is(.pill-brand,.pill-book,.header-pill .menu-toggle)::before {content:"";position:absolute;inset:-2px 0}
+body :is(.is-hero-page,.is-pill-nav) :is(.pill-brand,.pill-book,.header-pill .menu-toggle) {position:relative}
+body :is(.is-hero-page,.is-pill-nav) :is(.pill-brand,.pill-book,.header-pill .menu-toggle)::before {content:"";position:absolute;inset:-2px 0}
 /* 2026-09-22：B 目錄沿用比例，採中性淺色毛玻璃；實色為不支援與減少透明度備援。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {
+body :is(.is-hero-page,.is-pill-nav) .menu-panel {
   --menu-solid:var(--ivy-menu-solid);--menu-glass:var(--ivy-menu-glass);
   --menu-ink:var(--ivy-menu-ink);--menu-muted:var(--ivy-menu-muted);
   --menu-heading-surface:var(--ivy-menu-heading-surface);--menu-soft:var(--ivy-menu-soft);--menu-line:var(--ivy-menu-line);
@@ -772,25 +784,25 @@ body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {
   transition:opacity .22s ease,transform .32s var(--pill-ease);
 }
 @supports ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-backdrop);backdrop-filter:var(--menu-backdrop)}
+  body :is(.is-hero-page,.is-pill-nav) .menu-panel {background:var(--menu-glass);-webkit-backdrop-filter:var(--menu-backdrop);backdrop-filter:var(--menu-backdrop)}
 }
 @media(prefers-reduced-transparency:reduce) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:var(--menu-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
+  body :is(.is-hero-page,.is-pill-nav) .menu-panel {background:var(--menu-solid);-webkit-backdrop-filter:none;backdrop-filter:none}
 }
 @media(forced-colors:active) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {background:Canvas;color:CanvasText;border-color:CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none}
+  body :is(.is-hero-page,.is-pill-nav) .menu-panel {background:Canvas;color:CanvasText;border-color:CanvasText;-webkit-backdrop-filter:none;backdrop-filter:none}
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel.is-open {opacity:1;transform:none}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading {display:flex;align-items:center;gap:22px;padding:16px var(--menu-gutter);background:var(--menu-heading-surface);color:var(--menu-light-text)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading p {margin:0;font-size:.8125rem;font-weight:500;letter-spacing:.11em;white-space:nowrap}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-heading>span {display:block;width:auto;height:1px;background:var(--menu-light-line);flex:1}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links {
+body :is(.is-hero-page,.is-pill-nav) .menu-panel.is-open {opacity:1;transform:none}
+body :is(.is-hero-page,.is-pill-nav) .menu-heading {display:flex;align-items:center;gap:22px;padding:16px var(--menu-gutter);background:var(--menu-heading-surface);color:var(--menu-light-text)}
+body :is(.is-hero-page,.is-pill-nav) .menu-heading p {margin:0;font-size:.8125rem;font-weight:500;letter-spacing:.11em;white-space:nowrap}
+body :is(.is-hero-page,.is-pill-nav) .menu-heading>span {display:block;width:auto;height:1px;background:var(--menu-light-line);flex:1}
+body :is(.is-hero-page,.is-pill-nav) .menu-links {
   display:grid;
   grid-template-columns:1fr;
   gap:0;
   padding:4px var(--menu-gutter) 0;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a {
+body :is(.is-hero-page,.is-pill-nav) .menu-links a {
   display:flex;
   align-items:center;
   gap:16px;
@@ -804,23 +816,23 @@ body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a {
   line-height:1.4;
   text-shadow:none;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-number {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--menu-muted);min-width:16px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-copy {flex:1;min-width:0}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-link-copy>span {display:block}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
+body :is(.is-hero-page,.is-pill-nav) .menu-link-number {font-family:var(--font-en);font-size:.75rem;font-weight:400;color:var(--menu-muted);min-width:16px}
+body :is(.is-hero-page,.is-pill-nav) .menu-link-copy {flex:1;min-width:0}
+body :is(.is-hero-page,.is-pill-nav) .menu-link-copy>span {display:block}
+body :is(.is-hero-page,.is-pill-nav) .menu-links a small {display:block;margin-top:3px;font-family:var(--font-en);font-size:.75rem;font-weight:400;line-height:1.4;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) .menu-links a>.icon {width:19px;height:19px;flex:0 0 19px;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) .menu-links a:hover .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:1px}
 /* 選單卡標出目前這一頁（2026-10-12）：原本只有 aria-current，看起來和其他項目一樣。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a[aria-current] .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses {
+body :is(.is-hero-page,.is-pill-nav) .menu-links a[aria-current] .menu-link-copy>span {text-decoration:underline;text-underline-offset:5px;text-decoration-thickness:2px}
+body :is(.is-hero-page,.is-pill-nav) .menu-campuses {
   margin-top:18px;
   padding:0 var(--menu-gutter);
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
+body :is(.is-hero-page,.is-pill-nav) .menu-campuses p {margin:0 0 10px;font-size:.75rem;font-weight:500;letter-spacing:.05em;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) #menu-campuses {display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:0;padding:6px 0;background:var(--menu-soft);border-radius:12px}
 /* 五校改成連結（2026-10-29）：滑過、聚焦照舊預覽下方的參觀專線與社群，點下去到首頁五校區塊的那一校
    （/?campus=<校>#campuses）。原本 09-23 是點了進分校頁，10-03 分校頁拿掉後只剩切換，標題「找到你的校園」名不副實。 */
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
+body :is(.is-hero-page,.is-pill-nav) #menu-campuses a {
   color:inherit;
   text-decoration:none;
   display:flex;
@@ -835,66 +847,66 @@ body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a {
   font-weight:500;
   line-height:1.4;
 }
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a.is-active {background:var(--menu-social-hover)}
+body :is(.is-hero-page,.is-pill-nav) #menu-campuses a small {font-size:.75rem;font-weight:400;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) #menu-campuses a.is-active {background:var(--menu-social-hover)}
 @media(hover:hover) {
-  body:has(:is(.studio-hero,.is-pill-nav)) #menu-campuses a:hover {background:var(--menu-social-hover)}
+  body :is(.is-hero-page,.is-pill-nav) #menu-campuses a:hover {background:var(--menu-social-hover)}
 }
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials a {display:flex;align-items:center;gap:8px;min-height:44px;font-size:.8125rem;font-weight:500}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials .icon {width:18px;height:18px;flex:0 0 18px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials .menu-social-external {width:14px;height:14px;flex-basis:14px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-socials a:hover>span {text-decoration:underline;text-underline-offset:4px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-foot {margin:18px var(--menu-gutter) 0;background:var(--menu-contact);color:var(--menu-ink);border-radius:14px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone {display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 16px;font-weight:400;font-variant-numeric:tabular-nums}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone>.icon:first-child {width:36px;height:36px;padding:9px;border:0;border-radius:50%;background:var(--menu-phone-badge);color:var(--menu-phone-icon);flex:0 0 36px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone small {display:block;font-size:.75rem;font-weight:400;letter-spacing:.02em;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone strong {display:block;margin-top:2px;font-family:var(--font-en);font-size:1.375rem;font-weight:400;line-height:1.35;letter-spacing:.015em}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone-arrow {margin-left:auto;width:17px;height:17px;flex:0 0 17px;color:var(--menu-muted)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone:hover strong {text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-socials {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 12px;padding:8px 0 10px;border-top:1px solid var(--menu-line)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social {display:grid;grid-template-rows:1.25rem auto minmax(1rem,auto);place-items:center;gap:1px;min-width:0;min-height:3.9375rem;padding:4px 1px;border:0;border-radius:8px;color:var(--menu-ink);font-size:.75rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-social .icon {width:20px;height:20px}
-body:has(:is(.studio-hero,.is-pill-nav)) a.menu-campus-social:hover {background:var(--menu-social-hover)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
-body:has(:is(.studio-hero,.is-pill-nav)) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0 12px;margin:0;padding:8px var(--menu-gutter) 14px}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials>p {margin:0;font-size:.75rem;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials nav {display:flex;gap:8px;flex-wrap:wrap}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials a {display:flex;align-items:center;gap:8px;min-height:44px;font-size:.8125rem;font-weight:500}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials .icon {width:18px;height:18px;flex:0 0 18px}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials .menu-social-external {width:14px;height:14px;flex-basis:14px}
+body :is(.is-hero-page,.is-pill-nav) .menu-socials a:hover>span {text-decoration:underline;text-underline-offset:4px}
+body :is(.is-hero-page,.is-pill-nav) .menu-foot {margin:18px var(--menu-gutter) 0;background:var(--menu-contact);color:var(--menu-ink);border-radius:14px}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone {display:flex;align-items:center;gap:12px;min-height:76px;padding:14px 16px;font-weight:400;font-variant-numeric:tabular-nums}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone>.icon:first-child {width:36px;height:36px;padding:9px;border:0;border-radius:50%;background:var(--menu-phone-badge);color:var(--menu-phone-icon);flex:0 0 36px}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone small {display:block;font-size:.75rem;font-weight:400;letter-spacing:.02em;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone strong {display:block;margin-top:2px;font-family:var(--font-en);font-size:1.375rem;font-weight:400;line-height:1.35;letter-spacing:.015em}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone-arrow {margin-left:auto;width:17px;height:17px;flex:0 0 17px;color:var(--menu-muted)}
+body :is(.is-hero-page,.is-pill-nav) .menu-phone:hover strong {text-decoration:underline;text-underline-offset:4px;text-decoration-thickness:1px}
+body :is(.is-hero-page,.is-pill-nav) .menu-campus-socials {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;margin:0 12px;padding:8px 0 10px;border-top:1px solid var(--menu-line)}
+body :is(.is-hero-page,.is-pill-nav) .menu-campus-social {display:grid;grid-template-rows:1.25rem auto minmax(1rem,auto);place-items:center;gap:1px;min-width:0;min-height:3.9375rem;padding:4px 1px;border:0;border-radius:8px;color:var(--menu-ink);font-size:.75rem;font-weight:500;line-height:1.35;overflow-wrap:anywhere}
+body :is(.is-hero-page,.is-pill-nav) .menu-campus-social .icon {width:20px;height:20px}
+body :is(.is-hero-page,.is-pill-nav) a.menu-campus-social:hover {background:var(--menu-social-hover)}
+body :is(.is-hero-page,.is-pill-nav) .header-top .menu-toggle span {transition:transform .3s var(--pill-ease)}
+body :is(.is-hero-page,.is-pill-nav) .header-top .menu-toggle[aria-expanded="true"] span:first-child {transform:translateY(4px) rotate(45deg)}
+body :is(.is-hero-page,.is-pill-nav) .header-top .menu-toggle[aria-expanded="true"] span:last-child {transform:translateY(-4px) rotate(-45deg)}
 /* 膠囊 2026-10-20 改成米白底，焦點框跟著改用膠囊的字色（米白框對米白底是 1:1，看不見）。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .header-pill :focus-visible {outline-color:var(--pill-fg)}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
-body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}
+body :is(.is-hero-page,.is-pill-nav) .header-pill :focus-visible {outline-color:var(--pill-fg)}
+body :is(.is-hero-page,.is-pill-nav) .menu-panel :focus-visible {outline:3px solid var(--menu-focus);outline-offset:3px}
+body :is(.is-hero-page,.is-pill-nav) .menu-panel .menu-phone:focus-visible {outline-offset:-4px;border-radius:14px}
+body :is(.is-hero-page,.is-pill-nav) .menu-panel .menu-campus-social:focus-visible {outline-offset:1px}
 
 /* 膠囊放哪：靠右，右緣貼內容欄右緣，和原本頁首的預約鈕同一條線（其他擺法的比稿在
    design/header-collapse-directions/placement.html，未採用）。900px 以下全部是滿版膠囊。 */
 /* 容器在 1100 以下改成 calc(100% - 64px)（本檔開頭的 .container 斷點），gutter 跟著走。 */
 @media(min-width:901px) and (max-width:1100px) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-gutter:32px}
+  body .header:is(.is-hero-page,.is-pill-nav) {--pill-gutter:32px}
 }
 @media(max-width:900px) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .header {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
-  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill {
+  body .header:is(.is-hero-page,.is-pill-nav) {--pill-ctrl:44px;--pill-crest:30px;--pill-x:0;--pill-scale:.96}
+  body :is(.is-hero-page,.is-pill-nav) .header-pill {
     left:16px;
     right:16px;
     justify-content:space-between;
   }
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-brand {font-size:.9375rem;padding-right:8px}
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-name small {display:none}
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-actions {display:flex;align-items:center;gap:6px}
-body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
-  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
-  body:has(:is(.studio-hero,.is-pill-nav)) .header-pill .menu-word {display:none}
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-book {padding:0 16px;font-size:.875rem}
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-panel {--menu-gutter:18px}
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-links a {min-height:64px;font-size:1.125rem;gap:14px}
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone {padding:12px;gap:10px}
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-phone strong {font-size:1.375rem}
-  body:has(:is(.studio-hero,.is-pill-nav)) .menu-campus-socials {margin-inline:8px;gap:0}
+  body :is(.is-hero-page,.is-pill-nav) .pill-brand {font-size:.9375rem;padding-right:8px}
+  body :is(.is-hero-page,.is-pill-nav) .pill-name small {display:none}
+  body :is(.is-hero-page,.is-pill-nav) .pill-actions {display:flex;align-items:center;gap:6px}
+body :is(.is-hero-page,.is-pill-nav) .pill-divider {display:none}
+  body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-toggle {flex-direction:row;width:44px;margin-left:auto;padding:0 10px}
+  body :is(.is-hero-page,.is-pill-nav) .header-pill .menu-word {display:none}
+  body :is(.is-hero-page,.is-pill-nav) .pill-book {padding:0 16px;font-size:.875rem}
+  body :is(.is-hero-page,.is-pill-nav) .menu-panel {--menu-gutter:18px}
+  body :is(.is-hero-page,.is-pill-nav) .menu-links a {min-height:64px;font-size:1.125rem;gap:14px}
+  body :is(.is-hero-page,.is-pill-nav) .menu-phone {padding:12px;gap:10px}
+  body :is(.is-hero-page,.is-pill-nav) .menu-phone strong {font-size:1.375rem}
+  body :is(.is-hero-page,.is-pill-nav) .menu-campus-socials {margin-inline:8px;gap:0}
 }
 @media(max-width:360px) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .pill-name {display:none}
+  body :is(.is-hero-page,.is-pill-nav) .pill-name {display:none}
   .pill-brand {padding-right:0}
 }
 /* 收合後頁首的白字已經不在照片上，首屏頂部那條為導覽而設的遮罩帶就收掉：照片更完整，
@@ -903,13 +915,13 @@ body:has(:is(.studio-hero,.is-pill-nav)) .pill-divider {display:none}
 .header[data-state="compact"] ~ #main .studio-hero::before {background-size:100% 0,auto,auto}
 /* 外框與陰影給重一點，讓形狀在照片和淺色區塊上都站得住（2026-10-20 米白膠囊：外框由白改墨綠細線）。
    只改變數，不直接寫 box-shadow，免得蓋掉左右分離版「膠囊本身不投影」的設定。 */
-body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
+body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"] .header-pill {
   --pill-border:rgb(var(--ink) / .16);
   --pill-shadow:0 14px 34px -14px rgb(var(--ink) / .5),0 2px 6px -2px rgb(var(--ink) / .26);
 }
 /* 手機滿版膠囊一路跟著捲，桌機那層 40px 大陰影在窄螢幕會把下方內容壓暗一整條；收成貼身的短陰影（2026-09-27）。 */
 @media(max-width:900px) {
-  body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-pill {
+  body .header:is(.is-hero-page,.is-pill-nav)[data-state="compact"] .header-pill {
     --pill-shadow:0 6px 16px -8px rgb(var(--ink) / .5),0 1px 3px -1px rgb(var(--ink) / .3);
   }
 }
@@ -917,7 +929,7 @@ body:has(:is(.studio-hero,.is-pill-nav)) .header[data-state="compact"] .header-p
   .studio-hero::before {transition:none}
 }
 @media(prefers-reduced-motion:reduce) {
-  body:has(:is(.studio-hero,.is-pill-nav)) :is(.header-top,.header-pill,.menu-panel,.menu-lines span) {
+  body :is(.is-hero-page,.is-pill-nav) :is(.header-top,.header-pill,.menu-panel,.menu-lines span) {
     transition-duration:.01ms!important;
     transition-delay:0s!important;
   }

@@ -33,7 +33,7 @@ useChapterAnchors(chapters)
 
 <template>
   <div v-if="data" ref="root" class="home-page">
-    <SiteHeader :content="data.content" />
+    <SiteHeader :content="data.content" hero />
     <main id="main" tabindex="-1">
       <HeroVideo :hero="data.content.home.hero">
         <AboutSection :about="data.content.home.about">
@@ -49,14 +49,6 @@ useChapterAnchors(chapters)
     <EntranceCurtain v-if="curtain" />
   </div>
 </template>
-
-<style>
-/* 頁尾進場進度：只有 JS 備援（data-footer-motion="fallback"）會寫這個變數；
-   原生 view timeline 時不再對整頁的 inherited 自訂屬性做動畫（每幀整頁 style recalc），
-   而是由 HomeNewsTransition.vue 直接對消息紙的陰影與底色做 --home-footer 時間軸動畫，
-   這裡只宣告 timeline-scope 與時間軸。變數用全域名稱，scoped 會加 hash。 */
-@property --home-footer-progress { syntax: '<number>'; inherits: true; initial-value: 0; }
-</style>
 
 <style scoped>
 .home-page { --home-footer-progress: 0; }

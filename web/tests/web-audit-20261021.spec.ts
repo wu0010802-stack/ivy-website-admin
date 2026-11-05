@@ -65,7 +65,7 @@ describe('30 週年開場影片的連線閘門', () => {
 describe('鍵盤焦點看得見', () => {
   it('米白膠囊裡的焦點框用膠囊字色，不是米白', () => {
     const css = read('../app/assets/css/studio.css')
-    expect(css).toContain('body:has(:is(.studio-hero,.is-pill-nav)) .header-pill :focus-visible {outline-color:var(--pill-fg)}')
+    expect(css).toContain('body :is(.is-hero-page,.is-pill-nav) .header-pill :focus-visible {outline-color:var(--pill-fg)}')
     expect(css).not.toContain('.header-pill :focus-visible {outline-color:var(--paper)}')
   })
   it('加入行事曆選單的焦點有外框，高對比模式也有', () => {

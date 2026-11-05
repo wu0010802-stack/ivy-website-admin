@@ -599,10 +599,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
    掛 is-blend 照舊 filter＋multiply。淡彩層（只在 hover 裝置顯示）仍是白底圖靠 multiply。
    直接對 opacity／filter 做 transition 時，WebKit（iPhone、Safari）會把圖移到獨立合成層，multiply 碰不到底色，轉場那
    0.2–0.35 秒露出白底長方形（每次自動輪播切換都閃）。所以轉場註冊過的數值變數，由主執行緒逐幀更新，不升合成層；
-   未支援 @property 的瀏覽器退回瞬間切換（var 的後備值即靜止狀態）。 */
-@property --tab-art-opacity{syntax:'<number>';inherits:false;initial-value:.75}
-@property --tab-art-brightness{syntax:'<number>';inherits:false;initial-value:.72}
-@property --tab-colour-opacity{syntax:'<number>';inherits:false;initial-value:0}
+   未支援 @property 的瀏覽器退回瞬間切換（var 的後備值即靜止狀態）。
+   這幾個 @property 註冊在 studio.css（每頁一開始就載），見那裡的說明。 */
 .campus-tab-art{display:block;width:100%;height:100%;object-fit:contain;pointer-events:none;user-select:none;opacity:var(--tab-art-opacity,.75);transition:--tab-art-opacity .2s,--tab-art-brightness .2s}
 .campus-tab-art.is-blend{mix-blend-mode:multiply;filter:grayscale(1) brightness(var(--tab-art-brightness,.72)) contrast(3.2)}
 .campus-tabs button[aria-selected=true] .campus-tab-art{--tab-art-opacity:1}
@@ -611,8 +609,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .campus-tab-colour{position:absolute;inset:0;display:none;width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;pointer-events:none;user-select:none;opacity:var(--tab-colour-opacity,0);transition:--tab-colour-opacity .35s ease}
 @media(hover:hover){.campus-tab-colour{display:block}.campus-tabs button:is([aria-selected=true],:hover) .campus-tab-colour{--tab-colour-opacity:1}}
 /* 換校畫線稿：遮罩的硬邊後面帶 30% 羽化，由左往右掃過；淡彩等線畫完才染上。遮罩位置同樣走註冊過的數值變數
-   （理由同上：不升合成層，multiply 才碰得到底色）。initial-value 為 1，減少動態關掉動畫時就是完整線稿。 */
-@property --tab-draw{syntax:'<number>';inherits:true;initial-value:1}
+   （理由同上：不升合成層，multiply 才碰得到底色）。--tab-draw 的 initial-value 為 1（註冊在 studio.css），減少動態關掉動畫時就是完整線稿。 */
 .campus-tabs button.is-drawing{animation:campus-tab-draw 1.4s linear both}
 .campus-tabs button.is-drawing .campus-tab-art{-webkit-mask-image:linear-gradient(90deg,#000 calc(var(--tab-draw) * 130% - 30%),transparent calc(var(--tab-draw) * 130%));mask-image:linear-gradient(90deg,#000 calc(var(--tab-draw) * 130% - 30%),transparent calc(var(--tab-draw) * 130%))}
 .campus-tabs button.is-drawing .campus-tab-colour{animation:campus-tab-wash 1.4s ease both}

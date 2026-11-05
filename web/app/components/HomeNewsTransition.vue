@@ -21,9 +21,8 @@ useNewsTransition(root, previous, paper)
 </template>
 
 <style>
-/* 進度變數要是全域名稱；只有 JS 備援（data-news-motion="fallback"）會寫它，
-   下面 scoped 區塊裡以 var() 讀的宣告就是備援路徑。 */
-@property --news-paper-progress { syntax: '<number>'; inherits: true; initial-value: 1; }
+/* 進度變數 --news-paper-progress 要是全域名稱（@property 註冊在 studio.css）；只有 JS 備援
+   （data-news-motion="fallback"）會寫它，下面 scoped 區塊裡以 var() 讀的宣告就是備援路徑。 */
 /* 原生 view timeline：不再對整段 wrapper 的 inherited 自訂屬性做動畫（那會讓底下每個
    元素每幀都 style recalc），改成直接對真正在動的元素做 transform／opacity／
    border-radius／box-shadow 動畫，時間軸與線性對應跟原本的變數版完全一樣。
