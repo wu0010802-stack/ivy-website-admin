@@ -168,6 +168,8 @@ describe('A2 貼圖改在 worker 解碼（paperGL、畫板紙紋）', () => {
     expect(bitmaps.every((b) => JSON.stringify(b.opts) === JSON.stringify(GL_BITMAP))).toBe(true)
     expect(glOf(gl.canvas).calls).toContainEqual({ op: 'pixelStorei', args: ['UNPACK_PREMULTIPLY_ALPHA_WEBGL', false] })
     expect(tex.aspect).toBe(1.5)
+    // 背景貼圖照原本 new Image() 的 Low 優先權抓，不跟首屏海報、開場影片搶頻寬（fetch 預設是 High）
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[1])).toEqual(Array(6).fill({ credentials: 'same-origin', priority: 'low' }))
   })
 
   it('不支援 createImageBitmap 時退回 <img>；有一張載不到就丟錯，已解好的點陣圖照樣釋放', async () => {
@@ -269,6 +271,110 @@ describe('A5 解析 var() 不再插探針到 DOM', () => {
 
   it('AnniversaryContent 把六支蠟筆的顏色交給畫板', () => {
     expect(read('../app/components/AnniversaryContent.vue')).toContain('colors: PAD_COLORS.map((c) => c.css)')
+  })
+})
+
+// 強制色彩（Windows 對比佈景主題）時，原本探針 span 的 computed color 會被換成系統色，蠟燭、彩帶、畫板蠟筆都是那個顏色；
+// 直接代入 token 會變回六色，所以這時要照舊走探針。這裡的探針讀回 'rgb(9, 9, 9)'（beforeEach 的 getComputedStyle）當作系統色。
+describe('A5 強制色彩：var() 顏色照原本插探針，讀到系統色', () => {
+  const SYSTEM = [9 / 255, 9 / 255, 9 / 255]
+  const SUN = [246 / 255, 204 / 255, 98 / 255]
+  let forced = true
+  let queries: string[] = []
+  const spans = (spy: { mock: { calls: unknown[][] } }) => spy.mock.calls.filter((c) => c[0] instanceof HTMLSpanElement).length
+
+  beforeEach(() => {
+    forced = true
+    queries = []
+    vi.stubGlobal('matchMedia', vi.fn((q: string) => {
+      queries.push(q)
+      return { matches: q === '(forced-colors: active)' && forced, media: q, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
+    }))
+  })
+
+  it('cssColorRGB：強制色彩時插探針到 body、讀完就移除；切回一般模式就代入 token', async () => {
+    const append = vi.spyOn(document.body, 'appendChild')
+    const { cssColorRGB } = await import('../app/utils/anniversary/paperGL')
+    expect(cssColorRGB('rgb(var(--ivy-paint-sun-rgb))')).toEqual(SYSTEM)
+    expect(queries).toContain('(forced-colors: active)')
+    expect(spans(append)).toBe(1)
+    expect(document.body.querySelector('span')).toBeNull()
+    // 不含 var() 的顏色原本就不插探針
+    expect(cssColorRGB('rgb(108 162 112)')).toEqual([108 / 255, 162 / 255, 112 / 255])
+    expect(spans(append)).toBe(1)
+    // 同一個 var() 字串在切回一般模式後不沿用強制時的結果
+    forced = false
+    expect(cssColorRGB('rgb(var(--ivy-paint-sun-rgb))')).toEqual(SUN)
+    expect(spans(append)).toBe(1)
+  })
+
+  it('蛋糕的 resolveColor：強制色彩時插探針到舞台，蠟燭的 SVG fill 都是系統色', async () => {
+    const host = document.createElement('div')
+    document.body.append(host)
+    const append = vi.spyOn(host, 'appendChild')
+    const { resolveColor } = await import('../app/utils/anniversary/cake')
+    expect(resolveColor('rgb(var(--ivy-paint-sun-rgb))', host)).toBe('rgb(9, 9, 9)')
+    expect(resolveColor('var(--green)', host)).toBe('rgb(9, 9, 9)')
+    expect(spans(append)).toBe(2)
+    expect(host.querySelector('span')).toBeNull()
+
+    const stage = document.createElement('div')
+    stage.innerHTML = '<svg class="anni-cake-art"></svg><canvas class="anni-cake-fx"></canvas>'
+    document.body.append(stage)
+    const stageAppend = vi.spyOn(stage, 'appendChild')
+    const { mountCake } = await import('../app/utils/anniversary/cake')
+    const ctl = await mountCake(stage, { reduce: true, colors: PAD, onChange: () => {}, onAllOut: () => {} })
+    // 六支蠟筆各插一次探針，跟改前一樣
+    expect(spans(stageAppend)).toBe(PAD.length)
+    const tips = [...stage.querySelectorAll<SVGPathElement>('path.anni-cake-tip')].map((p) => p.style.fill).filter((f) => f !== 'none')
+    expect(tips).toHaveLength(30)
+    expect(new Set(tips)).toEqual(new Set(['rgb(9, 9, 9)']))
+    ctl.destroy()
+  })
+
+  it('畫板：強制色彩時不查掛載時的表，每次選顏色照原本現讀；主題中途切換也跟著換', async () => {
+    const box = document.createElement('div')
+    const canvas = document.createElement('canvas')
+    canvas.setPointerCapture = () => {}
+    box.append(canvas)
+    document.body.append(box)
+    const append = vi.spyOn(document.body, 'appendChild')
+    const { mountCrayonPad } = await import('../app/utils/anniversary/crayonPad')
+    const lastColor = () => {
+      canvas.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 1, clientX: 10, clientY: 10 }))
+      canvas.dispatchEvent(new PointerEvent('pointerup', { pointerId: 1 }))
+      return glOf(canvas).calls.filter((c) => c.op === 'uniform3fv' && (c.args[0] as { name: string }).name === 'uColor').at(-1)!.args[1]
+    }
+
+    // 掛載時是強制色彩：只為起始顏色插一次探針（改前也是一次），不先把六支都探一遍
+    const pad = (await mountCrayonPad(canvas, { color: PAD[0]!, colors: PAD, guide: true }))!
+    expect(spans(append)).toBe(1)
+    pad.setColor(PAD[2]!)
+    expect(spans(append)).toBe(2)
+    expect(lastColor()).toEqual(SYSTEM)
+    // 關掉對比主題後選同一支：回到實際的 token 色，不是掛載時的系統色
+    forced = false
+    pad.setColor(PAD[2]!)
+    expect(lastColor()).toEqual(SUN)
+    expect(spans(append)).toBe(2)
+    pad.destroy()
+
+    // 掛載時是一般模式、之後才開對比主題：選顏色要讀系統色，不能查掛載時的六色表
+    const canvas2 = document.createElement('canvas')
+    canvas2.setPointerCapture = () => {}
+    const box2 = document.createElement('div')
+    box2.append(canvas2)
+    document.body.append(box2)
+    const pad2 = (await mountCrayonPad(canvas2, { color: PAD[0]!, colors: PAD, guide: true }))!
+    const before = spans(append)
+    forced = true
+    pad2.setColor(PAD[2]!)
+    expect(spans(append)).toBe(before + 1)
+    canvas2.dispatchEvent(new PointerEvent('pointerdown', { button: 0, pointerId: 2, clientX: 10, clientY: 10 }))
+    canvas2.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2 }))
+    const u2 = glOf(canvas2).calls.filter((c) => c.op === 'uniform3fv' && (c.args[0] as { name: string }).name === 'uColor').at(-1)!.args[1]
+    expect(u2).toEqual(SYSTEM)
+    pad2.destroy()
   })
 })
 

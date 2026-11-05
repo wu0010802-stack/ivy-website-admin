@@ -130,9 +130,12 @@ const rgbCache = new Map<string, readonly [number, number, number]>()
  * computed color，插入與移除都是同步的整頁樣式重算（畫板每點一次蠟筆，click 裡就一次）。
  * 代入後的 oklch(…)／rgb(r g b) 與探針讀回的是同一個顏色，canvas 讀出的 RGB 相同；tokens.css 是靜態值。
  * 代入不了的才退回探針（同樣插在 body）。
+ * 強制色彩（Windows 對比佈景主題）時含 var() 的一律走探針：探針的 `color` 會被換成系統色（CanvasText），
+ * 原本畫板六支蠟筆讀到的就是那個顏色；直接代入 token 會變回六色，跟原本的畫面不同。
+ * （時間軸蠟筆線、紙色傳進來的是 token 的值、不含 var()，原本就不經探針，強制色彩下也不變。）
  */
 export function cssColorRGB(css: string): [number, number, number] {
-  if (css.includes('var(')) css = substituteVars(css, getComputedStyle(document.body)) ?? probeColor(css)
+  if (css.includes('var(')) css = (forcedColorsActive() ? null : substituteVars(css, getComputedStyle(document.body))) ?? probeColor(css)
   let rgb = rgbCache.get(css)
   if (!rgb) {
     const c = document.createElement('canvas')
@@ -147,6 +150,15 @@ export function cssColorRGB(css: string): [number, number, number] {
   return [rgb[0], rgb[1], rgb[2]]
 }
 
+/**
+ * 現在是不是強制色彩模式。每次現查不快取：使用者可以在頁面開著時切換對比佈景主題，
+ * 原本的探針每次都讀當下的值。
+ */
+export function forcedColorsActive(): boolean {
+  return matchMedia('(forced-colors: active)').matches
+}
+
+/** 原本的寫法：插一個探針 span 到 body，讀 computed color（強制色彩時會讀到系統色） */
 function probeColor(css: string): string {
   const probe = document.createElement('span')
   probe.style.color = css

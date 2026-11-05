@@ -16,11 +16,16 @@
  * 呼叫端退回原本用 <img> 的路徑。WebGL 上傳要帶 `{ premultiplyAlpha: 'none' }`：ImageBitmap
  * 不吃 `UNPACK_PREMULTIPLY_ALPHA_WEBGL` 等 pixelStorei 設定。用完記得 `close()`，
  * 解碼後的點陣圖不跟著 GC 及時釋放（手機一張 1200×900 約 4.3 MB）。
+ *
+ * 請求優先權要明講 `priority: 'low'`：原本 canvas 用的是不在 DOM 裡的 `new Image()`，Chrome 給 Low；
+ * fetch() 預設是 High，跟 `fetchpriority=high` 的首屏海報、開場影片同級，慢速網路下會搶頻寬
+ * （30 週年時間軸貼圖在頁面載入當下就預取、五校線稿在區塊離視窗 800px 時預載，都是背景素材）。
+ * 不支援的瀏覽器會忽略這個欄位，行為同預設。
  */
 export async function decodedBitmap(src: string, options?: ImageBitmapOptions): Promise<ImageBitmap | null> {
   if (!src || typeof fetch !== 'function' || typeof createImageBitmap !== 'function') return null
   try {
-    const response = await fetch(src, { credentials: 'same-origin' })
+    const response = await fetch(src, { credentials: 'same-origin', priority: 'low' })
     if (!response.ok) return null
     return await createImageBitmap(await response.blob(), options)
   } catch {

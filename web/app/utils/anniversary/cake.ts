@@ -344,15 +344,25 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
  * 2026-11-05 起直接代入 host 上算好的 token：原本插一個探針 span 再讀 computed color，每插一次都是同步的整頁樣式重算，
  * 蛋糕掛載時連續 6 次。代入後的 oklch(…)／rgb(r g b) 與探針讀回的 rgb(r, g, b)／oklch(…) 是同一個顏色（SVG fill、canvas 結果相同）。
  * 帶預設值、巢狀或沒定義的 var() 才退回探針。
+ * 強制色彩（Windows 對比佈景主題）時一律走探針：探針的 `color` 會被換成系統色（CanvasText），原本 30 支蠟燭的 SVG fill
+ * 與蠟筆屑彩帶就是那個顏色（svg 的 fill 不會再被強制）；直接代入 token 會變回六色，跟原本的畫面不同。
+ * 這裡不從 paperGL 引用同一個判斷：蛋糕是單獨動態載入的，不要為了一行把 WebGL 那支拉進來。
  */
 export function resolveColor(cssColor: string, host: HTMLElement, style: CSSStyleDeclaration = getComputedStyle(host)): string {
-  let ok = true
-  const v = cssColor.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
-    const t = style.getPropertyValue(name).trim()
-    if (!t) ok = false
-    return t
-  })
-  if (ok && !v.includes('var(')) return v
+  if (!matchMedia('(forced-colors: active)').matches) {
+    let ok = true
+    const v = cssColor.replace(/var\((--[\w-]+)\)/g, (_, name: string) => {
+      const t = style.getPropertyValue(name).trim()
+      if (!t) ok = false
+      return t
+    })
+    if (ok && !v.includes('var(')) return v
+  }
+  return probeColor(cssColor, host)
+}
+
+/** 原本的寫法：插一個探針 span 到 host，讀 computed color（強制色彩時會讀到系統色） */
+function probeColor(cssColor: string, host: HTMLElement): string {
   const probe = document.createElement('span')
   probe.style.color = cssColor
   probe.hidden = true
