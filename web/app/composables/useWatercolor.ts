@@ -27,12 +27,20 @@ export function useWatercolor(root: Ref<HTMLElement | null>) {
 interface Job { layer: WashLayer, make: () => Point[][], polys?: Point[][], rgb: string, alpha: number, i: number, per: number, mask?: WashMask }
 /** 一團顏料自己的濃度（只有 alpha）與上色後的樣子，範圍只到這團的外框。 */
 interface WashMask { x: number, y: number, mask: CanvasRenderingContext2D, tint: CanvasRenderingContext2D }
-/** 段落的顏料層：畫面上的 canvas、畫完的顏料累積在 done，還在暈開的在 active，每幀重疊一次。 */
-interface WashLayer { ctx: CanvasRenderingContext2D, done: CanvasRenderingContext2D, active: Job[], dirty: boolean }
+/** 段落的顏料層：畫面上的 canvas、畫完的顏料累積在 done，還在暈開的在 active，每幀重疊一次；rects 是這一幀改到的團的外框（canvas 像素，x, y, 寬, 高）。 */
+interface WashLayer { ctx: CanvasRenderingContext2D, done: CanvasRenderingContext2D, active: Job[], dirty: boolean, rects: [number, number, number, number][] }
 interface Painted { width: number, height: number, mobile: boolean, layer: WashLayer }
 type IdleHandle = number | ReturnType<typeof setTimeout>
 
 const TASK_BUDGET = 8
+
+/**
+ * 照片暈開的時間曲線（curriculum.css 的 .cur-frame.has-mask 讀 --cur-bloom-ease）：定案的 2.2s cubic-bezier(.16, 1, .3, 1)
+ * 在進度 0.9（468%）處用 de Casteljau 切開的前段（2026-11-05，理由與推算寫在 CSS 那條規則）。
+ * 寫在這裡、不寫在 CSS：建置時 lightningcss 會把 CSS 裡的數字（含自訂屬性的值）捨到 6 位有效數字，
+ * 切開的曲線就和原本差一點（實測第 80ms 有一圈像素差到 9 級）；inline style 的值原樣交給瀏覽器。
+ */
+export const BLOOM_EASE = 'cubic-bezier(.26042411, .59537902, .50340498, .87172948)'
 
 function start(main: HTMLElement) {
   if (matchMedia('(forced-colors: active)').matches) return undefined
@@ -105,6 +113,7 @@ function start(main: HTMLElement) {
       const mask = `url(${edge}), url(${center})`
       frame.style.setProperty('-webkit-mask-image', mask)
       frame.style.maskImage = mask
+      frame.style.setProperty('--cur-bloom-ease', BLOOM_EASE)
       // 已經看得到的照片直接換上毛邊，不先藏起來再暈開（會像閃了一下）；還沒捲到的等進場再暈開
       if (reduce || frame.classList.contains('is-bloomed') || (revealedWithin(frame) && inView(frame))) frame.classList.add('is-bloomed')
       else if (revealedWithin(frame)) later(() => frame.classList.add('is-bloomed'), 160)
@@ -183,10 +192,17 @@ function start(main: HTMLElement) {
     tint.fillStyle = `rgb(${job.rgb})`
     tint.fillRect(0, 0, tint.canvas.width, tint.canvas.height)
   }
+  // 只重合成這一幀改到的團的外框（2026-11-05）：原本每幀把整張 done 複製回畫面再疊所有團，整張 canvas 變髒、整張重新上傳，
+  // 桌機實際改到的只有約 43%。外框外的像素就是上一幀的 done 加上沒變的團，所以結果和整張重畫逐像素相同；
+  // 外框都是整數像素（maskOf 已對齊），clip 不會反鋸齒。done 只有 settle 會改，改的範圍也在那團的外框裡。
   const composite = (layer: WashLayer) => {
     const { ctx, done } = layer
     ctx.save()
     ctx.setTransform(1, 0, 0, 1, 0, 0)
+    ctx.beginPath()
+    for (const [x, y, w, h] of layer.rects) ctx.rect(x, y, w, h)
+    ctx.clip()
+    layer.rects.length = 0
     ctx.globalCompositeOperation = 'copy'
     ctx.drawImage(done.canvas, 0, 0)
     ctx.globalCompositeOperation = 'source-over'
@@ -225,6 +241,8 @@ function start(main: HTMLElement) {
         if (job.i % 4 === 0) target.stroke()
       }
       tintMask(job)
+      // 這團的外框要在 settle 把小 canvas 歸零之前記下來
+      job.layer.rects.push([job.mask!.x, job.mask!.y, job.mask!.tint.canvas.width, job.mask!.tint.canvas.height])
       touched.add(job.layer)
       if (job.i >= polys.length) { jobs.splice(jobs.indexOf(job), 1); settle(job) }
       n++
@@ -272,7 +290,7 @@ function start(main: HTMLElement) {
     const doneCanvas = document.createElement('canvas')
     doneCanvas.width = canvas.width
     doneCanvas.height = canvas.height
-    const layer: WashLayer = { ctx, done: doneCanvas.getContext('2d')!, active: [], dirty: false }
+    const layer: WashLayer = { ctx, done: doneCanvas.getContext('2d')!, active: [], dirty: false, rects: [] }
     const previous = painted.get(section)?.layer
     for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i]!.layer === previous) jobs.splice(i, 1)
     const mobile = mobileQuery.matches
