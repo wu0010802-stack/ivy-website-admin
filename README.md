@@ -1,3 +1,10 @@
+## 2026-11-05 admin 開發依賴：glob 14、minimatch 11（`fix/deps-admin-20261105`）
+
+上一段升級推上去後，GitHub 重新掃描多出 minimatch 的新警示（GHSA-g3hv-75wg-m249，`>=7 <11.0.1`，10-30 公布）：#183 在 `admin/package-lock.json`（開發依賴、沒被自動略過），#184 在 `versions/` 舊快照。web 已經是 11.0.4（隨 glob 14 帶進來），不受影響。
+
+- admin 的 glob 13.0.6 與 minimatch 10.2.6 都來自 `@vue/test-utils` → `js-beautify` → `editorconfig`，上游都還沒升。`admin/package.json` 新增 `overrides`：`js-beautify` 的 `glob ^14.0.3`、`editorconfig` 的 `minimatch ^11.0.4`。editorconfig 只用 `Minimatch` 類別、`escape()` 與 `matchBase`／`dot` 選項，11 版都在；11 版拿掉的是 `makeRe`。順帶解掉 GitHub 已自動略過的 #1 glob。
+- 驗證：`npm audit`（含開發依賴）0 個漏洞；admin typecheck、`vite build` 通過。全套單元測試跑兩次，系統負載 15–53（Spotlight 索引）時各有 7、2 項逾時類失敗、兩次是不同檔案，五個失敗檔單獨重跑 142 項全過；正式數字以 CI 的 Frontend (admin) 為準。
+
 ## 2026-11-05 依賴升級：Dependabot 三則警示（`fix/deps-audit-20261105`）
 
 推 main 時 GitHub 提示預設分支有漏洞，使用者要「幫我升級」。當時 open 的 Dependabot 警示只有三則（`versions/` 舊快照與 admin 開發依賴的已被略過）：
