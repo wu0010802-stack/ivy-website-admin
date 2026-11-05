@@ -110,3 +110,16 @@ it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換�
   // 內建內容本身不改（後端初始化讀 fixture）
   expect(site.home.about.bodyText.startsWith('自 1997 年在高雄創立')).toBe(true)
 })
+
+// 2026-11-05 使用者要孩子的一天大標下的小字改成英文：原文兩欄都沒改過才換成只留英文。
+it('孩子的一天小標：原文只留英文，園方改過的照園方的', () => {
+  const site = fixture as unknown as SiteContent
+  const day = (eyebrow: string, eyebrowEn: string) => publicCopy({ ...site, dayExperience: { ...site.dayExperience, eyebrow, eyebrowEn } }).dayExperience
+  expect(site.dayExperience.eyebrow).toBe('孩子的一天')
+  expect(publicCopy(site).dayExperience).toMatchObject({ eyebrow: '', eyebrowEn: 'A DAY AT IVY' })
+  // 只改了中文：照園方的中文，英文原文照 10-30 拿掉
+  expect(day('園方自訂', 'A DAY AT IVY')).toMatchObject({ eyebrow: '園方自訂', eyebrowEn: '' })
+  // 只改了英文：兩欄都照園方的
+  expect(day('孩子的一天', 'OUR DAY')).toMatchObject({ eyebrow: '孩子的一天', eyebrowEn: 'OUR DAY' })
+  expect(day('孩子的一天', '')).toMatchObject({ eyebrow: '孩子的一天', eyebrowEn: '' })
+})

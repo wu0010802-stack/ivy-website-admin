@@ -93,6 +93,14 @@ const MEAL_FILLERS = new Set([
   '即便是點心，也是豐盛的正餐。'
 ])
 
+// 孩子的一天大標下的小字：10-30 拿掉的是跟中文重複的英文；2026-11-05 使用者要這行改成英文，反過來只留英文。
+// 兩欄都是原文才換；園方改過任一欄就照園方的（只改了中文的話，英文原文仍照 10-30 拿掉）。
+const DAY_EYEBROW = { zh: '孩子的一天', en: 'A DAY AT IVY' } as const
+function dayEyebrow(day: SiteContent['dayExperience']): Pick<SiteContent['dayExperience'], 'eyebrow' | 'eyebrowEn'> {
+  if (day.eyebrow === DAY_EYEBROW.zh && day.eyebrowEn === DAY_EYEBROW.en) return { eyebrow: '', eyebrowEn: DAY_EYEBROW.en }
+  return { eyebrow: day.eyebrow, eyebrowEn: swap(day.eyebrowEn, DAY_EYEBROW.en) }
+}
+
 /** 拿掉重複或沒有資訊的字（不修改傳入的物件）。 */
 export function withoutRepeatedCopy(site: SiteContent): SiteContent {
   const { home, dayExperience: day, aboutPage: about, curriculumPage: curriculum, environmentPage: environment, admission } = site
@@ -106,7 +114,7 @@ export function withoutRepeatedCopy(site: SiteContent): SiteContent {
     },
     dayExperience: day && {
       ...day,
-      eyebrowEn: swap(day.eyebrowEn, 'A DAY AT IVY'),
+      ...dayEyebrow(day),
       filmCaption: { ...day.filmCaption, en: swap(day.filmCaption.en, 'LITTLE MOMENTS, BIG GROWTH.') }
     },
     aboutPage: about && {

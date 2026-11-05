@@ -247,7 +247,7 @@ onUnmounted(() => {
         </div>
         <div class="day-stage">
           <header ref="introEl" class="day-intro">
-            <span class="eyebrow">{{ day.eyebrow }}<span v-if="day.eyebrowEn" lang="en">{{ day.eyebrowEn }}</span></span>
+            <span class="eyebrow" :class="{ 'is-en': !day.eyebrow && day.eyebrowEn }">{{ day.eyebrow }}<span v-if="day.eyebrowEn" lang="en">{{ day.eyebrowEn }}</span></span>
             <h2 class="day-title" id="day-heading">
               <span class="t-ivy">{{ day.titleParts.ivy }}</span><span class="t-day">{{ day.titleParts.day }}</span>
             </h2>
