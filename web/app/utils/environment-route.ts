@@ -77,9 +77,23 @@ const center = (el: HTMLElement, host: HTMLElement): Point => {
 
 export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { reducedMotion: boolean }): EnvironmentRoutes {
   const narrowQuery = matchMedia('(width <= 900px)')
-  interface Route { svg: SVGSVGElement; host: HTMLElement; kind: string; dots: { el: SVGCircleElement; y: number }[]; shown: number }
+  /** sig：上次撒點用的版面（窄版與否、每段的 d 與顏色）；一樣的話撒出來的圓點逐點相同 */
+  interface Route { svg: SVGSVGElement; host: HTMLElement; kind: string; dots: { el: SVGCircleElement; y: number }[]; shown: number; sig: string }
   let routes: Route[] = []
   const style = getComputedStyle(root)
+  // 量路徑長度用的 path 常駐在小路的 svg 裡（fill:none、沒有 stroke，畫不出東西），之後每段只改 d（2026-11-05）。
+  // 原本每次重建都先清空 svg、插一條新 path 量完再拿掉：文件裡插入、移除節點都要重算樣式，getTotalLength 又逼著當場算完；
+  // 改屬性的失效只到這條 path 自己。不放在文件外量：Chromium 量得到，但 Safari 對文件外 path 的 getTotalLength 這裡沒辦法驗。
+  const guides = new WeakMap<SVGSVGElement, SVGPathElement>()
+  const guideOf = (svg: SVGSVGElement) => {
+    let guide = guides.get(svg)
+    if (!guide) {
+      guide = document.createElementNS(NS, 'path')
+      guide.setAttribute('fill', 'none')
+      guides.set(svg, guide)
+    }
+    return guide
+  }
 
   const build = (r: Route): RouteSegment[] => {
     const narrow = narrowQuery.matches
@@ -96,35 +110,56 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
     return daySegments(stations, style.getPropertyValue('--renv-terra').trim(), narrow)
   }
 
-  const lay = (r: Route) => {
-    if (!r.host.offsetWidth) return
+  /**
+   * 撒點（2026-11-05 起一次處理一批路線）：先把每條路線的版面都量完（build 只讀 offset 與計算後樣式），再量路徑長度算點，
+   * 最後才寫進 DOM；兩條路線之間不再「寫完又讀」逼瀏覽器多算一次版面。圓點先在 fragment 裡建好、亮不亮也先設好
+   * （新元素本來就沒有轉場，跟插進去之後再設一樣），每條路線只換一次子節點。
+   * force=false（ResizeObserver 的通知、字型載好）時，版面跟上次一樣、而且還沒有任何圓點亮過就不重建：
+   * 重建出來的圓點跟現在逐點相同（座標、顏色、都沒亮），原本載入時就這樣白建了三次。已經有圓點亮過照舊重建，
+   * 直接連到 #spaces 這類一進來就亮的情況，維持原本「重建把剛開始逐顆亮的圓點換成直接亮好的新圓點」的樣子。
+   * collect（載入、後台即時預覽的 refresh）一律重建。
+   */
+  const relayout = (list: Route[], force: boolean) => {
     const narrow = narrowQuery.matches
+    const plans = list.filter((r) => r.host.offsetWidth).map((r) => {
+      const segs = build(r)
+      return { r, segs, sig: [narrow, ...segs.map((seg) => `${seg.d}|${seg.color}`)].join('\n') }
+    })
     const gap = narrow ? 15 : 18
-    const radius = narrow ? 3 : 4
-    const guide = document.createElementNS(NS, 'path')
-    r.svg.replaceChildren(guide)
-    const frag = document.createDocumentFragment()
-    r.dots = []
-    for (const seg of build(r)) {
-      guide.setAttribute('d', seg.d)
-      const len = guide.getTotalLength()
-      const n = dotCount(len, gap)
-      for (let i = 0; i < n; i++) {
-        const p = guide.getPointAtLength((i * len) / n)
+    const radius = String(narrow ? 3 : 4)
+    const todo = plans.filter(({ r, sig }) => force || sig !== r.sig || r.shown > 0).map(({ r, segs, sig }) => {
+      const guide = guideOf(r.svg)
+      if (guide.parentNode !== r.svg) r.svg.prepend(guide)
+      const points: { x: number; y: number; color: string }[] = []
+      for (const seg of segs) {
+        guide.setAttribute('d', seg.d)
+        const len = guide.getTotalLength()
+        const n = dotCount(len, gap)
+        for (let i = 0; i < n; i++) {
+          const p = guide.getPointAtLength((i * len) / n)
+          points.push({ x: p.x, y: p.y, color: seg.color })
+        }
+      }
+      return { r, sig, points }
+    })
+    for (const { r, sig, points } of todo) {
+      const shown = reducedMotion ? points.length : Math.min(r.shown, points.length)
+      const frag = document.createDocumentFragment()
+      r.dots = points.map((p, i) => {
         const c = document.createElementNS(NS, 'circle')
         c.setAttribute('cx', f1(p.x))
         c.setAttribute('cy', f1(p.y))
-        c.setAttribute('r', String(radius))
-        c.style.fill = seg.color
+        c.setAttribute('r', radius)
+        c.style.fill = p.color
+        if (i < shown) c.classList.add('is-on')
         frag.append(c)
-        r.dots.push({ el: c, y: p.y })
-      }
+        return { el: c, y: p.y }
+      })
+      r.svg.replaceChildren(guideOf(r.svg), frag)
+      r.shown = shown
+      r.sig = sig
     }
-    guide.remove()
-    r.svg.append(frag)
-    r.shown = reducedMotion ? r.dots.length : Math.min(r.shown, r.dots.length)
-    r.dots.forEach((dot, i) => dot.el.classList.toggle('is-on', i < r.shown))
-    tick()
+    if (plans.length) tick()
   }
 
   let raf = 0
@@ -149,16 +184,18 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
     })
   }
 
-  const ro = 'ResizeObserver' in window ? new ResizeObserver((entries) => entries.forEach((e) => routes.filter((r) => r.host === e.target).forEach(lay))) : null
+  // observe() 之後一定會先送一次初始通知；字型已就緒時 fonts.ready 也馬上回來。這兩次版面多半沒變，relayout 會略過。
+  const ro = 'ResizeObserver' in window ? new ResizeObserver((entries) => relayout(routes.filter((r) => entries.some((e) => e.target === r.host)), false)) : null
   const collect = () => {
     ro?.disconnect()
-    routes = [...root.querySelectorAll<SVGSVGElement>('svg.renv-route')].map((svg) => ({ svg, host: svg.parentElement!, kind: svg.dataset.route ?? '', dots: [], shown: 0 }))
-    routes.forEach((r) => { ro?.observe(r.host); lay(r) })
+    routes = [...root.querySelectorAll<SVGSVGElement>('svg.renv-route')].map((svg) => ({ svg, host: svg.parentElement!, kind: svg.dataset.route ?? '', dots: [], shown: 0, sig: '' }))
+    routes.forEach((r) => ro?.observe(r.host))
+    relayout(routes, true)
   }
   collect()
-  document.fonts?.ready.then(() => routes.forEach(lay))
+  document.fonts?.ready.then(() => relayout(routes, false))
   const onScroll = () => tick()
-  const onResize = () => { if (!ro) routes.forEach(lay); tick() }
+  const onResize = () => { if (!ro) relayout(routes, true); tick() }
   addEventListener('scroll', onScroll, { passive: true })
   addEventListener('resize', onResize)
 
