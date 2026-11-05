@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 前台 TA 檢視快修：給家長看的事實（main CI 部署，沒有 migration）
+
+- **內容**：`f6643bbd`（README「2026-11-04 前台 TA 檢視：不需園方資料的快修」）。分班工具對還沒到幼幼班的孩子先講滿 2 歲那天、已滿 2 歲有名額就能入學，印章不再寫「預計入學」，320 寬答案不溢出（`.ap-fields` `minmax(0,1fr)`）；入學頁常見問題轉園題排第一、預設打開並列各校電話，新增長輩接送題，`#faq-midterm` 舊錨點轉到轉園題，流程第 1 格與預約說明不寫死哪幾校能線上預約；首頁五校卡拿掉「LINE · 待園方提供」；`public-copy.ts` 的 `withTaFacts`（原文一字不差才換）改首頁關於段（第一句交代身分、分三段）、孩子的一天五則答案、頁尾標題「各校地址與電話」；頁尾每校加地址連 Google 地圖；預約選校卡義華加撥號、地址 14px、校名對齊，第二步地址連地圖；特色教學年段卡與統整課程、環境頁兩句（fixture＋後台初稿）。T01（首頁與 /news 的測試消息「讚」）是後台內容，不在這次部署，部署後仍在線上，待使用者在後台移除。
+- **提交**：worktree `ta-quick-fixes-20261104`（從 origin/main `a9b9e54a`，sparse），main 沒動、直接推。web／admin typecheck 通過，web 112 檔 1371、admin 167 檔 3216（1 skipped）全過，後端讀 fixture 的 10 支 273 項過（測試庫 `ivy_website_taqf_test`）；沒在本機跑 stack e2e。使用者用 `!` 推 main。
+- **CI**：main run 41946883562 全綠（含 E2E，01:12:23–01:25:14Z），Deploy success（01:18:49–01:23:32Z）。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `f6643bbd`、created_at `2026-11-05T01:19:20Z`；health 200。Playwright 54 項全過：桌機 1440、手機 390 的首頁關於段第一句與分段、孩子的一天五則答案（下雨天照舊）、明華社群列只剩 Facebook、畫面沒有「待園方提供」、頁尾五個地址連 Google 地圖且電話下緣點到的是電話；入學頁轉園題第一題預設打開附 5 支電話、目錄「轉園、補助、退費等 N 題」、流程第 1 格、長輩接送題、分班工具已滿／未滿 2 歲（320 寬三種生日不被卡片切掉）；特色教學、環境頁改寫；`/visit` 義華卡撥號、地址 14px、1440／1024／961 五張卡校名對齊；`/visit/yihua` 地址連地圖、連結 44px。
+- **沒驗**：iOS／Android 實機、瀏覽器字級放大；後台編輯欄位與草稿預覽仍是原文（`withTaFacts` 只換一字不差的原文），沒登入看。
+
 ## 2026-11-04 環境頁首屏彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片（main CI 部署，沒有 migration）
 
 - **內容**：`48845aab`（README「2026-11-04 環境頁首屏：彩虹疊疊樂換成赤陶拱積木，修 901–1100 目次蓋到照片」）。`EnvironmentContent.vue` 首屏五層 `.renv-rb` 換成 `.renv-arch`（赤陶拱窗＋錯開的芥末拱）；901 以上 `.renv-hero-fig` 改 `container-type: size`、拱底與目次底切齊；1180 以下目次改六欄排法、901–1180 照片欄 46%；`ENVIRONMENT_HERO_ASPECT` 4/5、sizes `(max-width: 900px) calc((100vw - 74px) * f), 480f px`；後台首屏照片裁切預覽 4:5。比稿三輪 A–H 在 Desktop 工作區 `design/environment-hero-frame-directions-20261104/`（不進版控）。
