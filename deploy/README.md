@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 依賴升級：glob 14（web 建置依賴）與 pytest 9（main CI 部署，沒有 migration）
+
+- **內容**：`a86a3382`（README「2026-11-05 依賴升級：Dependabot 三則警示」）。web `overrides` 只對 `@vercel/nft`、`archiver-utils` 指定 `glob ^14.0.3`（GHSA-3g3m-2fjr-6pw4）；backend 開發依賴 pytest 9.2.0（GHSA-6w46-j5rx-g56g），pytest-asyncio 1.4.1.post1、pytest-split 0.11.0 跟著升，補 `asyncio_default_fixture_loop_scope = "function"`。deepmerge（GHSA-gcqx-w48m-w2h4）沒有修正版、只在建置時用，未處理。
+- **提交**：worktree `deps-audit-20261105`（從 origin/main `dcf47c06`，sparse），main 沒動、直接推。web typecheck、web 112 檔 1372 全過，`nuxt build` 後啟動正式伺服器 `/`、`/visit`、`/about` 200；後端全套 4734 passed、1 skipped（測試庫 `ivy_website_deps1105_test` 已刪，`-W error::pytest.PytestDeprecationWarning` 無觸發）；沒跑 admin 與本機 stack e2e。使用者用 `!` 推 main。
+- **CI**：main run 41955506006 全綠（含 E2E，02:29:10–02:42:22Z），Deploy success（02:34:56–02:39:43Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `a86a3382`、created_at `2026-11-05T02:35:21Z`；health 200；`/`、`/visit`、`/about`、`/admission`、`/admin/` 都 200。Dependabot #181 glob、#3 pytest 於 02:31Z 自動標 fixed；#180 deepmerge 仍 open。
+- **沒驗**：登入後台實際操作（依賴只動建置與測試工具）。
+
 ## 2026-11-05 預約頁迎賓區文字與照片改 5:7（main CI 部署，沒有 migration）
 
 - **內容**：`20759ff8`（README「2026-11-05 預約頁迎賓區版面比例」）。使用者截圖 /visit 第一步迎賓區要調版面比例：`.visit-welcome-inner` 欄寬 `1.05fr:1fr` → `5fr:7fr`、欄距上限 96 → 64px，大標上限 4.25 → 4.75rem（961 以上且高 820 以下 3.5 → 4rem），色帶上下內距收小吸收照片變高；照片比例（2:1／12:5）、960 以下單欄、760 以下拿掉照片都不動；歡迎照 `sizes` 改 `(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)`。
