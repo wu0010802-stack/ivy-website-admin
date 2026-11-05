@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 頁尾退回原版（main CI 部署，沒有 migration）
+
+- **內容**：`38a57069`（README「2026-11-05 頁尾退回原版」）。使用者看了 `f6643bbd` 上線的頁尾（每校多一行地址連 Google 地圖、標題「各校地址與電話」）說「這邊太長了 幫我退回上一版」：`SiteFooter.vue` 還原成 `a9b9e54a` 版（一校一列校名、區域、電話），`withTaFacts` 拿掉頁尾標題替換，標題照舊「我們的大家庭」。同批其他改動不動。
+- **提交**：worktree `footer-revert-20261105`（從 origin/main `3e81c94a`，sparse）。web typecheck 通過、web 112 檔 1371 項全過；`SiteFooter.vue` 與 `a9b9e54a` 比對一字不差。使用者用 `!` 推 main。
+- **CI**：main run 41950058346 全綠（含 E2E，01:40:09–01:52:57Z），Deploy success（01:46:36–01:50:55Z）。
+- **線上驗證**（只發 GET）：`/release.json` base_commit `38a57069`、created_at `2026-11-05T01:47:05Z`；health 200。`/`、`/admission`、`/visit` 的 SSR 頁尾：標題「我們的大家庭」、五列、五支電話、沒有地址列與「各校地址與電話」。
+- **沒驗**：畫面截圖（元件與 11-04 部署前那版相同）。
+
 ## 2026-11-05 前台 TA 檢視快修：給家長看的事實（main CI 部署，沒有 migration）
 
 - **內容**：`f6643bbd`（README「2026-11-04 前台 TA 檢視：不需園方資料的快修」）。分班工具對還沒到幼幼班的孩子先講滿 2 歲那天、已滿 2 歲有名額就能入學，印章不再寫「預計入學」，320 寬答案不溢出（`.ap-fields` `minmax(0,1fr)`）；入學頁常見問題轉園題排第一、預設打開並列各校電話，新增長輩接送題，`#faq-midterm` 舊錨點轉到轉園題，流程第 1 格與預約說明不寫死哪幾校能線上預約；首頁五校卡拿掉「LINE · 待園方提供」；`public-copy.ts` 的 `withTaFacts`（原文一字不差才換）改首頁關於段（第一句交代身分、分三段）、孩子的一天五則答案、頁尾標題「各校地址與電話」；頁尾每校加地址連 Google 地圖；預約選校卡義華加撥號、地址 14px、校名對齊，第二步地址連地圖；特色教學年段卡與統整課程、環境頁兩句（fixture＋後台初稿）。T01（首頁與 /news 的測試消息「讚」）是後台內容，不在這次部署，部署後仍在線上，待使用者在後台移除。
