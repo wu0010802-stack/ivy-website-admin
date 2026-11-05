@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { SiteContent } from '~/types/site-content'
-import { campusMapUrl, siteLink } from '~/utils/site-links'
+import { siteLink } from '~/utils/site-links'
 import { footerPrivacyEntry } from '~/utils/privacy-policy'
 
 const props = defineProps<{ content: SiteContent }>()
@@ -35,16 +35,13 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
         >{{ link.label }}<template v-if="link.external"> ↗<span class="sr-only">（另開新視窗）</span></template></a>
       </div>
       <div>
-        <p id="footer-campuses-label" class="footer-label">{{ content.footer.campusListLabel }}</p>
-        <!-- 2026-09-27：每校補區域與參觀專線，家長最常找的聯絡方式在頁尾就拿得到。
-             2026-11-04 TA 檢視：再補一行完整地址（連 Google 地圖，同首頁五校卡），每一頁捲到底就能並排比較五校在哪；
-             分校頁拿掉後，全站原本沒有一處同時列出五校地址。 -->
-        <ul class="footer-campuses" id="footer-campuses" aria-labelledby="footer-campuses-label">
+        <p class="footer-label">{{ content.footer.campusListLabel }}</p>
+        <!-- 2026-09-27：每校補區域與參觀專線，家長最常找的聯絡方式在頁尾就拿得到。 -->
+        <ul class="footer-campuses" id="footer-campuses">
           <li v-for="c in campuses" :key="c.key">
             <span class="footer-campus-name">{{ c.name }}</span>
             <span class="footer-campus-area">{{ c.district }}</span>
-            <a v-if="c.phone" class="footer-campus-phone" :href="`tel:${c.phone}`" :aria-label="`撥打${c.name}電話 ${c.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ c.phone }}</a>
-            <span v-if="c.address" class="footer-campus-address-row"><a class="footer-campus-address" :href="campusMapUrl(c)" target="_blank" rel="noopener noreferrer" :aria-label="`${c.name} ${c.address}，在 Google 地圖開啟（另開分頁）`">{{ c.address }}</a></span>
+            <a v-if="c.phone" class="footer-campus-phone" :href="`tel:${c.phone}`" :aria-label="`撥打${c.name}電話 ${c.phone}`">{{ c.phone }}</a>
           </li>
         </ul>
       </div>
@@ -91,13 +88,7 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
 }
 .footer-campuses li { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; align-items: center; }
 .footer-campus-area { font-size: var(--fs-sm); letter-spacing: .04em; }
-.footer-campuses .footer-campus-phone { justify-self: start; gap: 6px; font-family: var(--font-date); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.footer-campus-phone .icon { flex: none; width: 1em; height: 1em; }
-/* 地址：第二行跨三欄、小一階。外層 row 佔整列（手機 flex 版靠它換行），連結本身只包住文字，點地址右邊的空白
-   不會開地圖。視覺高度 36px，::before 只往下補到 44px（往上補會蓋到上一行電話的下緣，審查實測過）。 */
-.footer-campus-address-row { grid-column: 1 / -1; display: flex; margin-bottom: 8px; }
-.footer-campuses .footer-campus-address { position: relative; min-height: 36px; align-items: flex-start; font-size: var(--fs-sm); line-height: 1.6; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
-.footer-campuses .footer-campus-address::before { content: ''; position: absolute; inset: 0 0 -8px; }
+.footer-campuses .footer-campus-phone { justify-self: start; font-family: var(--font-date); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 @media (max-width: 1000px) {
   .footer-main { grid-template-columns: 1fr 1fr; }
@@ -109,7 +100,6 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
   /* 手機改 flex 換行（2026-09-29）：字放大到一列放不下時，電話自己換到下一行，不會溢出深綠底。
      五校校名、區域都是三個字，一般字級下看起來仍是三欄對齊。 */
   .footer-campuses li { display: flex; flex-wrap: wrap; align-items: center; column-gap: 16px; }
-  .footer-campus-address-row { flex-basis: 100%; }
 }
 
 @media (forced-colors: active) {

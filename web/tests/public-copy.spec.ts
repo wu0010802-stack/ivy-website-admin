@@ -98,16 +98,15 @@ it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換�
   // 下雨天怎麼調整站上沒有資料，照舊
   expect(answers.outside).toBe(site.dayExperience.moments.find((moment) => moment.key === 'outside')!.answer)
   for (const answer of Object.values(answers).filter((a) => a !== answers.outside)) expect(answer).not.toMatch(/^(參觀時|可以詢問|可以向園所)/)
-  expect(result.footer.campusListLabel).toBe('各校地址與電話')
+  // 頁尾標題 11-05 退回原版，不換
+  expect(result.footer.campusListLabel).toBe(site.footer.campusListLabel)
   const custom = publicCopy({
     ...site,
     home: { ...site.home, about: { ...site.home.about, bodyText: 'CMS 自訂介紹。' } },
-    dayExperience: { ...site.dayExperience, moments: site.dayExperience.moments.map((moment) => ({ ...moment, answer: 'CMS 自訂答案' })) },
-    footer: { ...site.footer, campusListLabel: 'CMS 自訂標題' }
+    dayExperience: { ...site.dayExperience, moments: site.dayExperience.moments.map((moment) => ({ ...moment, answer: 'CMS 自訂答案' })) }
   })
   expect(custom.home.about.bodyText).toBe('CMS 自訂介紹。')
   expect(custom.dayExperience.moments.every((moment) => moment.answer === 'CMS 自訂答案')).toBe(true)
-  expect(custom.footer.campusListLabel).toBe('CMS 自訂標題')
   // 內建內容本身不改（後端初始化讀 fixture）
   expect(site.home.about.bodyText.startsWith('自 1997 年在高雄創立')).toBe(true)
 })
