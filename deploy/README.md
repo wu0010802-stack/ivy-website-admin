@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-05 頁尾底色改 #21543F（main CI 部署，沒有 migration）
+
+- **內容**：`5354fed0`（README「2026-11-05 頁尾底色改 #21543F」）。`tokens.css` `--ivy-footer-bg` `#094328` → `#21543F`（`oklch(40.4% .066 164)`，白字對比 8.73）；白字、白 30% 分隔線、頂端 2px 黃銅線、字級沿用 11-04，`SiteFooter.vue` 只改註解。比稿在 Desktop 工作區 `design/footer-colour-directions-20261105/`、綠色頁尾參考圖板在 `output/footer-green-refs-20261105/`（都不進版控）。
+- **提交**：worktree `footer-green-21543f-20261105`（從 origin/main `5304c0f1`，sparse）。web typecheck 通過、單元 112 檔 1372 全過；fixture dev server 用 Playwright 量七頁（`/`、`/about`、`/environment`、`/curriculum`、`/admission`、`/visit`、`/news`）桌機 1440／手機 390 的頁尾底色、字色、黃銅線，無橫向溢出。沒跑本機 stack e2e（只改一個色票，後台視覺基準不含頁尾）。
+- **CI**：main run 41963765220 全綠（含 E2E），Deploy success（03:55:21–03:58:45Z）；排在 `5304c0f1` 的 run 之後，沒有被取消。
+- **線上驗證**（只發 GET，Playwright 攔遙測）：`/release.json` base_commit `5354fed0`、created_at `2026-11-05T03:55:49Z`；`/api/website/v1/health` 200。上述七頁桌機 1440（DPR2）與手機 390（DPR3）：頁尾底色 `rgb(33, 84, 63)`、文字 `rgb(255, 255, 255)`、頂端 `2px oklch(0.78 0.075 85)`，無橫向溢出、無頁面錯誤。
+- **沒驗**：iOS 實機。
+
 ## 2026-11-05 admin 開發依賴 glob 14、minimatch 11（main CI 部署，沒有 migration）
 
 - **內容**：`5304c0f1`（README「2026-11-05 admin 開發依賴：glob 14、minimatch 11」）。上一筆升級後 GitHub 重新掃描冒出 minimatch GHSA-g3hv-75wg-m249；`admin/package.json` 新增 `overrides`：`js-beautify` 的 `glob ^14.0.3`、`editorconfig` 的 `minimatch ^11.0.4`（都是 `@vue/test-utils` 帶進來的開發依賴，正式打包內容不變）。
