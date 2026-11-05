@@ -10,6 +10,7 @@ import { bloomCanvas } from '../app/utils/watercolor'
 // 2026-11-05 前台流暢度：特色教學頁與進入特色教學頁的轉場遮罩（README 同日段落、DESIGN.md 同日章節）。
 // 每一條都是「畫面不變、少做事」：照片暈開在蓋滿處截斷、段落淡出改紙色蓋層、pump 只重合成改到的外框、
 // 轉場遮罩的網址到暈開那一步才寫到 <html>、三張遮罩跨頁快取。
+// 審查後補（同日）：快取還沒查好時第一張也只在閒置時段畫、Cache Storage 卡住時逾時照樣產生、快取名稱帶 buildId。
 const here = dirname(fileURLToPath(import.meta.url))
 const read = (path: string) => readFileSync(resolve(here, path), 'utf8')
 const stripComments = (css: string) => css.replace(/\/\*[\s\S]*?\*\//g, '')
@@ -419,6 +420,9 @@ describe('pump 只重合成改到的團的外框（cur-pump-dirty-rect）', () =
 type Guard = (to: { path: string }, from: { path: string, matched: unknown[] }) => unknown
 type PluginSetup = (app: { hook: (name: string, fn: () => void) => void }) => void
 
+const png = (text: string) => new Blob([text], { type: 'image/png' })
+/** 三張都在的快取內容，內容是 `${prefix}11` 之類 */
+const fullCache = (prefix: string) => Object.fromEntries([11, 23, 37].map((seed) => [`/__cur-enter-mask/${seed}-1024`, png(`${prefix}${seed}`)]))
 /** 只有 open／keys／delete、match／put 的 Cache Storage */
 function fakeCaches(seed: Record<string, Record<string, Blob>> = {}) {
   const stores = new Map(Object.entries(seed).map(([name, entries]) => [name, new Map(Object.entries(entries))]))
@@ -450,6 +454,7 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
   })
   afterEach(() => {
     removers.splice(0).forEach((fn) => fn())
+    vi.useRealTimers()
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
     root.removeAttribute('style')
@@ -457,12 +462,13 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     delete (document as { startViewTransition?: unknown }).startViewTransition
   })
 
-  /** 掛上 plugin：回傳閒置佇列、畫了幾張遮罩、beforeResolve 守衛，以及每張網址對應的 blob */
-  function mount(caches: unknown) {
+  /** 掛上 plugin：回傳閒置佇列、畫了幾張遮罩、beforeResolve 守衛，以及每張網址對應的 blob（buildId 預設 build-a） */
+  function mount(caches: unknown, { buildId }: { buildId?: string } = { buildId: 'build-a' }) {
     const idle: (() => void)[] = []
     vi.stubGlobal('requestIdleCallback', (fn: () => void) => idle.push(fn))
     vi.stubGlobal('caches', caches)
     vi.stubGlobal('useRouter', () => router)
+    vi.stubGlobal('useRuntimeConfig', () => ({ app: buildId === undefined ? {} : { buildId } }))
     let drawn = 0
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(() => new Proxy({}, { get: () => () => {}, set: () => true }) as never)
     vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation(function (this: HTMLCanvasElement, cb: BlobCallback) {
@@ -521,29 +527,29 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     expect(page.drawn()).toBe(2)
   })
 
-  it('F4b 沒命中：照原本流程畫三張，存進 ivy-cur-enter-v1（PNG）', async () => {
+  it('F4b 沒命中：照原本流程畫三張，存進 ivy-cur-enter-v1-<buildId>（PNG）', async () => {
     const { api, stores } = fakeCaches()
     const page = mount(api)
     await settle(page.idle)
     expect(page.drawn()).toBe(3)
-    const store = stores.get('ivy-cur-enter-v1')!
+    const store = stores.get('ivy-cur-enter-v1-build-a')!
     expect([...store.keys()]).toEqual(['/__cur-enter-mask/11-1024', '/__cur-enter-mask/23-1024', '/__cur-enter-mask/37-1024'])
     expect(await Promise.all([...store.values()].map((blob) => blob.text()))).toEqual(['drawn-1', 'drawn-2', 'drawn-3'])
     page.navigate()
     expect(page.transitions).toHaveLength(1)
   })
 
-  it('F4b 三張都命中：不畫，直接用快取的 PNG；順手刪掉其他版本的 ivy-cur-enter-*', async () => {
-    const png = (text: string) => new Blob([text], { type: 'image/png' })
+  it('F4b 三張都命中：不畫，直接用快取的 PNG；順手刪掉其他版本與其他部署的 ivy-cur-enter-*', async () => {
     const { api, stores } = fakeCaches({
-      'ivy-cur-enter-v1': { '/__cur-enter-mask/11-1024': png('m11'), '/__cur-enter-mask/23-1024': png('m23'), '/__cur-enter-mask/37-1024': png('m37') },
+      'ivy-cur-enter-v1-build-a': fullCache('m'),
+      'ivy-cur-enter-v1-build-0': fullCache('prev'),
       'ivy-cur-enter-v0': { '/__cur-enter-mask/11-1024': png('old') },
       'someone-else': {}
     })
     const page = mount(api)
     await settle(page.idle)
     expect(page.drawn()).toBe(0)
-    expect([...stores.keys()].sort()).toEqual(['ivy-cur-enter-v1', 'someone-else'])
+    expect([...stores.keys()].sort()).toEqual(['ivy-cur-enter-v1-build-a', 'someone-else'])
     page.navigate()
     const [{ vars }] = page.transitions as [typeof page.transitions[number]]
     const used = await Promise.all(vars.map((v) => page.blobs.get(v.slice(4, -1))!.text()))
@@ -551,11 +557,102 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
   })
 
   it('F4b 只命中一部分：三張重畫並覆蓋', async () => {
-    const { api, stores } = fakeCaches({ 'ivy-cur-enter-v1': { '/__cur-enter-mask/11-1024': new Blob(['m11']) } })
+    const { api, stores } = fakeCaches({ 'ivy-cur-enter-v1-build-a': { '/__cur-enter-mask/11-1024': new Blob(['m11']) } })
     const page = mount(api)
     await settle(page.idle)
     expect(page.drawn()).toBe(3)
-    expect(await stores.get('ivy-cur-enter-v1')!.get('/__cur-enter-mask/11-1024')!.text()).toBe('drawn-1')
+    expect(await stores.get('ivy-cur-enter-v1-build-a')!.get('/__cur-enter-mask/11-1024')!.text()).toBe('drawn-1')
+  })
+
+  // ---- 審查後補：快取名稱帶 buildId ----
+  it('快取名稱帶 buildId：新部署不用上一個部署（或不帶 buildId 的舊名稱）的快取，重產、存到新名稱並刪掉舊的', async () => {
+    const { api, stores } = fakeCaches({
+      'ivy-cur-enter-v1': fullCache('stale'), // 改前的名稱：遮罩演算法變了也不會換
+      'ivy-cur-enter-v1-build-a': fullCache('prev'),
+      'someone-else': {}
+    })
+    const page = mount(api, { buildId: 'build-b' })
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+    expect(api.open).toHaveBeenCalledWith('ivy-cur-enter-v1-build-b')
+    expect([...stores.keys()].sort()).toEqual(['ivy-cur-enter-v1-build-b', 'someone-else'])
+    expect(await Promise.all([...stores.get('ivy-cur-enter-v1-build-b')!.values()].map((blob) => blob.text()))).toEqual(['drawn-1', 'drawn-2', 'drawn-3'])
+    page.navigate()
+    const [{ vars }] = page.transitions as [typeof page.transitions[number]]
+    expect(await Promise.all(vars.map((v) => page.blobs.get(v.slice(4, -1))!.text()))).toEqual(['drawn-1', 'drawn-2', 'drawn-3'])
+  })
+
+  it('buildId 取不到：退回只用版本號的名稱（照樣命中、照樣刪別的）', async () => {
+    const { api, stores } = fakeCaches({ 'ivy-cur-enter-v1': fullCache('m'), 'ivy-cur-enter-v1-build-a': fullCache('prev') })
+    const page = mount(api, { buildId: undefined })
+    await settle(page.idle)
+    expect(api.open).toHaveBeenCalledWith('ivy-cur-enter-v1')
+    expect(page.drawn()).toBe(0)
+    expect([...stores.keys()]).toEqual(['ivy-cur-enter-v1'])
+  })
+
+  // ---- 審查後補：查快取比閒置晚回來、或卡住 ----
+  it('閒置先到、快取之後才查好（沒命中）：查好的當下不畫，下一次閒置才畫第一張，之後照樣一次閒置一張', async () => {
+    const { api } = fakeCaches()
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const open = api.open
+    const slow = { ...api, open: vi.fn(async (name: string) => { await gate; return open(name) }) }
+    const page = mount(slow)
+    runIdle(page.idle) // 閒置入口先跑：快取還沒查好
+    await tick()
+    expect(page.drawn()).toBe(0)
+    expect(page.idle).toHaveLength(0)
+    release()
+    await tick(); await tick()
+    expect(page.drawn()).toBe(0) // 查好的那個工作裡沒有同步畫 1024² 的 canvas
+    expect(page.idle).toHaveLength(1) // 改成排下一次閒置
+    expect(page.navigate()).toBeUndefined()
+    runIdle(page.idle)
+    expect(page.drawn()).toBe(1)
+    await tick()
+    expect(page.idle).toHaveLength(1)
+    expect(page.drawn()).toBe(1)
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
+  })
+
+  it('閒置先到、快取之後才查好（全中）：查好後的下一次閒置才算好，不畫', async () => {
+    const { api } = fakeCaches({ 'ivy-cur-enter-v1-build-a': fullCache('m') })
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const open = api.open
+    const page = mount({ ...api, open: vi.fn(async (name: string) => { await gate; return open(name) }) })
+    runIdle(page.idle)
+    release()
+    await tick(); await tick()
+    expect(page.navigate()).toBeUndefined()
+    runIdle(page.idle)
+    page.navigate()
+    expect(page.drawn()).toBe(0)
+    expect(page.transitions).toHaveLength(1)
+  })
+
+  it('Cache Storage 卡住（open 永遠不回應、也不拋錯）：1.5 秒逾時後照原本流程產生，照樣暈開', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const stuck = { open: vi.fn(() => new Promise(() => {})), keys: async () => [], delete: async () => false }
+    const page = mount(stuck)
+    runIdle(page.idle)
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(page.idle).toHaveLength(0)
+    expect(page.drawn()).toBe(0)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(page.idle).toHaveLength(1) // 逾時當沒命中，排下一次閒置
+    expect(page.drawn()).toBe(0)
+    for (let i = 0; i < 10 && page.idle.length; i++) {
+      runIdle(page.idle)
+      await vi.advanceTimersByTimeAsync(0) // toBlob 的回呼
+    }
+    expect(page.drawn()).toBe(3)
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
   })
 
   it.each([
@@ -579,9 +676,18 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     expect(page.navigate()).toBeUndefined()
   })
 
-  it('改遮罩演算法要遞增版本：快取名稱帶版本、版本常數旁寫明', () => {
+  it('快取名稱＝版本號＋buildId；dev（buildId 固定）不用快取；watercolor.ts 的 revealMaskCanvas、deform、ellipse 旁都有提醒', () => {
     const source = read('../app/plugins/curriculum-enter.client.ts')
-    expect(source).toContain("const MASK_CACHE = 'ivy-cur-enter-v1'")
-    expect(source).toMatch(/改 utils\/watercolor\.ts 的 revealMaskCanvas[^\n]*版本號加一/)
+    expect(source).toContain("const MASK_VERSION = 'v1'")
+    expect(source).toContain('useRuntimeConfig().app?.buildId')
+    expect(source).toMatch(/revealMaskCanvas[^\n]*版本號加一/)
+    expect(source).toContain("if (import.meta.dev || typeof caches === 'undefined') return {}")
+    const watercolor = read('../app/utils/watercolor.ts')
+    for (const signature of ['function ellipse(', 'export function deform(', 'export function revealMaskCanvas(']) {
+      const at = watercolor.indexOf(signature)
+      expect(at).toBeGreaterThan(0)
+      const before = watercolor.slice(0, at).split('\n').slice(-4).join('\n')
+      expect(before, signature).toContain('轉場遮罩的跨頁快取以 buildId 區分')
+    }
   })
 })

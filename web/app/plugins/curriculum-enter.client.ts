@@ -31,19 +31,28 @@ export default defineNuxtPlugin((nuxtApp) => {
   // 跨頁快取（2026-11-05）：主選單與頁尾是一般 <a>（整頁載入），原本每換一頁都重畫三張再 toBlob（手機 4 倍降速每頁 300–400ms）。
   // 同一個種子畫出同一張圖，所以第一次產生後把 PNG 存進 Cache Storage，之後的頁面三張都命中就直接用、不畫；
   // 沒命中照原本的流程產生再存；沒有 caches（非安全來源）或拋錯（部分無痕模式）就照原本的做法。
-  // 改 utils/watercolor.ts 的 revealMaskCanvas（或上面的種子、1024 的尺寸）要把版本號加一：舊版本的快取在下次開啟時刪掉。
-  const MASK_CACHE = 'ivy-cur-enter-v1'
+  // 快取名稱帶 buildId（2026-11-05 審查後補）：revealMaskCanvas 的輸出還取決於 watercolor.ts 的 deform、ellipse、tracePolygon、seededRandom，
+  // 段落顏料、照片暈開、首頁滲接也共用這幾個函式，為了別處改它們時一定想不到要動這裡的版本號，回訪者就會一直拿到舊遮罩；
+  // 每次部署 buildId 都不同，新部署第一次開頁重產一次（成本同快取之前的一頁），舊部署的快取在開頁時刪掉。
+  // buildId 取不到時退回只用版本號，所以改上面的種子、1024 的尺寸或 revealMaskCanvas 時仍把版本號加一。
+  // dev 的 buildId 固定是 'dev'（改了程式也不變），所以 dev 不用快取、每頁照原本的做法產生，改遮罩時看得到新圖。
   const MASK_CACHE_PREFIX = 'ivy-cur-enter-'
+  const MASK_VERSION = 'v1'
+  const buildId = useRuntimeConfig().app?.buildId
+  const MASK_CACHE = `${MASK_CACHE_PREFIX}${MASK_VERSION}${buildId ? `-${buildId}` : ''}`
+  // Cache Storage 卡住（設定檔或儲存異常時 open／match 不回應也不拋錯）時不能一直等：逾時就當沒命中、照原本的流程產生（不存）。
+  const LOOKUP_TIMEOUT = 1500
   const maskKey = (seed: number) => `/__cur-enter-mask/${seed}-1024`
   const skipMasks = () => matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(forced-colors: active)').matches
   const whenIdle = (fn: () => void, fallbackDelay: number) => {
     if (window.requestIdleCallback) window.requestIdleCallback(fn, { timeout: 4000 })
     else setTimeout(fn, fallbackDelay)
   }
-  const lookupMasks = async (): Promise<{ cache?: Cache, blobs?: Blob[] }> => {
+  type Lookup = { cache?: Cache, blobs?: Blob[] }
+  const lookupMasks = async (): Promise<Lookup> => {
     let cache: Cache | undefined
     try {
-      if (typeof caches === 'undefined') return {}
+      if (import.meta.dev || typeof caches === 'undefined') return {}
       cache = await caches.open(MASK_CACHE)
       void caches.keys()
         .then((names) => Promise.all(names.filter((name) => name.startsWith(MASK_CACHE_PREFIX) && name !== MASK_CACHE).map((name) => caches.delete(name))))
@@ -55,34 +64,45 @@ export default defineNuxtPlugin((nuxtApp) => {
       return { cache }
     }
   }
-  // 快取在 app 掛上時就開始查（非同步、不佔主執行緒），閒置時多半已經查好；查好了的話 then 是同一個工作裡的 microtask，
-  // 沒命中時第一張仍在那次閒置裡畫，和原本一樣。入口照舊是 whenIdle，masksReady 只會在閒置入口之後成立（極早的點擊照舊直接換頁）。
-  let lookup: Promise<{ cache?: Cache, blobs?: Blob[] }> = Promise.resolve({})
+  const lookupWithin = (ms: number): Promise<Lookup> => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const timeout = new Promise<Lookup>((resolve) => { timer = setTimeout(() => resolve({}), ms) })
+    return Promise.race([lookupMasks(), timeout]).finally(() => clearTimeout(timer))
+  }
+  // 快取在 app 掛上時就開始查（非同步、不佔主執行緒），查完記在 looked。入口照舊是 whenIdle，masksReady 只會在閒置入口之後成立
+  // （極早的點擊照舊直接換頁）。閒置時已經查好：沒命中的第一張就在這次閒置裡同步畫，和快取之前一樣；
+  // 還沒查好：不能在查好的 then 裡畫（那是 Cache Storage 回應的一般工作，1024² 同步繪製 4 倍降速 60–80ms，可能正碰上捲動或點擊），
+  // 改成查好後再排一次閒置、從頭再進來，每一張都只在閒置時段畫。
+  let looked: Lookup | undefined = {} // 沒去查（掛上時是減少動態／強制色彩）就當沒命中
+  let lookup: Promise<unknown> = Promise.resolve()
   const makeMasks = () => {
     if (masksReady || skipMasks()) return
-    void lookup.then(({ cache, blobs }) => {
-      if (blobs) {
-        maskUrls = blobs.map((blob) => URL.createObjectURL(blob))
+    if (!looked) { void lookup.then(() => whenIdle(makeMasks, 100)); return }
+    const { cache, blobs } = looked
+    if (blobs) {
+      maskUrls = blobs.map((blob) => URL.createObjectURL(blob))
+      masksReady = true
+      return
+    }
+    const urls: string[] = []
+    const step = () => {
+      const seed = MASK_SEEDS[urls.length]!
+      revealMaskCanvas(seed).toBlob((blob) => {
+        if (!blob) return
+        urls.push(URL.createObjectURL(blob))
+        void cache?.put(maskKey(seed), new Response(blob, { headers: { 'Content-Type': 'image/png' } })).catch(() => {})
+        if (urls.length < MASK_SEEDS.length) { whenIdle(step, 100); return }
+        maskUrls = urls
         masksReady = true
-        return
-      }
-      const urls: string[] = []
-      const step = () => {
-        const seed = MASK_SEEDS[urls.length]!
-        revealMaskCanvas(seed).toBlob((blob) => {
-          if (!blob) return
-          urls.push(URL.createObjectURL(blob))
-          void cache?.put(maskKey(seed), new Response(blob, { headers: { 'Content-Type': 'image/png' } })).catch(() => {})
-          if (urls.length < MASK_SEEDS.length) { whenIdle(step, 100); return }
-          maskUrls = urls
-          masksReady = true
-        })
-      }
-      step()
-    })
+      })
+    }
+    step()
   }
   nuxtApp.hook('app:mounted', () => {
-    if (!skipMasks()) lookup = lookupMasks()
+    if (!skipMasks()) {
+      looked = undefined
+      lookup = lookupWithin(LOOKUP_TIMEOUT).then((result) => { looked = result }, () => { looked = {} })
+    }
     whenIdle(makeMasks, 1500)
   })
 
