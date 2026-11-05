@@ -16,6 +16,9 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
       && CSS.supports('animation-range: entry 0% entry 100%')
       && CSS.supports('timeline-scope: --home-footer')
     const viewportRoot = root.querySelector<HTMLElement>('.home-reveal') ?? root
+    // 備援進度寫在消息紙上（HomeNewsTransition.vue 在紙上宣告衍生值）：讀者只有紙裡的陰影與 .home-news::after，
+    // 變數是繼承型 @property，寫在 .home-page 的話整頁每幀重算。
+    const target = root.querySelector<HTMLElement>('.news-transition-paper') ?? root
     let viewport: MotionViewport
     let frame = 0
     let disposed = false
@@ -26,7 +29,7 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
       if (disposed || root!.dataset.footerMotion !== 'fallback') return
       const distance = Math.min(footer!.offsetHeight, viewport.height)
       const progress = Math.max(0, Math.min(1, (viewport.height - footer!.getBoundingClientRect().top) / Math.max(1, distance)))
-      if (progress !== lastProgress) root!.style.setProperty('--home-footer-progress', String(progress))
+      if (progress !== lastProgress) target.style.setProperty('--home-footer-progress', String(progress))
       lastProgress = progress
     }
     function schedule() {
@@ -42,7 +45,7 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
       cancelAnimationFrame(frame)
       frame = 0
       root!.dataset.footerMotion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
-      root!.style.removeProperty('--home-footer-progress')
+      target.style.removeProperty('--home-footer-progress')
       lastProgress = -1
       measure()
     }

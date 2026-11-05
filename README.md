@@ -1,3 +1,85 @@
+## 2026-11-05 前台流暢度第二批：各頁捲動與載入少做重工（`claude/kind-sagan-61hcdh`）
+
+接第一批（下一段，已上線）。分區做法如下：
+- 6 個區塊各自在獨立 worktree 實作，檔案不重疊。
+- 每項都用像素雜湊、computed style、次數或元素數驗證等價；不等價的實作後撤回。
+- 合併後再做 6 路對抗式審查，找到 1 個 major bug 並修好。
+
+規則與「量過、不做」見 DESIGN.md 頂部。
+
+- **拍立得**（`paperPrints.ts`、`DayMomentCard.vue`、`DayExperience.vue`、`styles.css`）：
+  - 取色不再插拔節點：每色重算 745–771 個元素 → 1。
+  - 掛載時正面上傳 3 → 2 次、render 2 → 1 次。
+  - WebGL 接手後，藏起來的 DOM 不再跑轉場（8 → 0 個）。
+  - 大標淡出的 `--word-fade` 只寫在讀者上：每次重算 225 → 12 個元素。
+- **首頁消息紙**（`HomeNewsTransition.vue`、`useNewsTransition.ts`、`useHomeReveal.ts`、`useHomeFooterFade.ts`）：
+  - 頁尾段陰影改由 `::before` 淡出：手機 sheet Paint 31 → 2、raster tiles 417 → 26；桌機 30 → 0。
+  - `inert` 值沒變就不寫。
+  - JS 備援的每幀重算 762 → 221 個元素。
+- **五校淡彩速寫**（`campusSketch.ts`、`CampusBoard.vue`）：
+  - 線稿改在 worker 解碼。
+  - 水彩多邊形、濾鏡線稿層、淡彩層有快取，多邊形在有換校意圖時才於閒置時間預算：手動換校時，17 萬次 `Math.log` 從點擊的 task 移出。
+  - 暫存 canvas 重用；`.photo-card` 的強制版面讀取 6 → 0。
+  - 只合成有新筆觸的列。
+  - 照片暈開在遮罩蓋滿時精確截斷（1.7s → 1.1s，收尾時機不變）。
+  - 審查找到的 bug：共用點陣圖被提早 `close()`。改成計數，最後一個用完才關。
+  - 卸載時釋放快取；強制色彩下不預算。
+  - 11 個情境 × 2 種視口逐幀 `getImageData` 雜湊，與基準相同。
+- **特色教學**（`curriculum.css`、`useWatercolor.ts`、`plugins/curriculum-enter.client.ts`）：
+  - 照片暈開截斷（2.2s → 724ms），各時間點截圖與基準逐位元組相同。
+  - 段落淡出改成蓋一層紙色，canvas 不再掛 mask（最多差 3/255）。
+  - pump 只重合成改到的區塊（面積約剩 39–48%）。
+  - 轉場遮罩改成只在暈開那一步寫到 `<html>`，並跨頁快取在 Cache Storage（名稱帶 buildId），第二頁起不再每頁重畫三張 1024² PNG。
+- **30 週年**（`utils/anniversary/*`）：
+  - 貼圖在 worker 解碼，18 張讀回逐位元組相同。
+  - 蛋糕吹熄後 rAF 停止。
+  - 畫面外的卡片與隱藏的紙偶不畫（原本約 42–53% 的繪製在畫面外）。
+  - 取色不插 DOM（強制色彩照舊走探針）。
+  - `measure()` 先讀後寫；拼圖輪詢只在看得到時跑。
+- **環境頁、入學頁**：
+  - 圓點小路載入只建一次（原本 3 次，結果逐點相同）。
+  - 未亮的圓點 `visibility:hidden`。
+  - 防偽細紋在寬度沒變的 resize 不重算。
+- **共用**：`decodedBitmap` 的請求明講低優先權，註解寫明平滑品質的限制。
+- **撤回**（實測不是逐像素相同）：
+  - 拍立得照片改在 worker 解碼（high 平滑品質下最多差 12/255）。
+  - 30 週年蠟筆改 globalAlpha（差 1–3）。
+  - /about 六圈播放中關轉場（約 1 階）。
+  - 五校自動換校沿用預覽線稿（最多差 14/255）。
+  - 入學蓋章補間中的幾何字級（補間途中約 1px，待使用者決定）。
+- **量測**：雲端容器、production build（fixture）；手機 390 CPU 4×、桌機 1440 CPU 2×；基準 `9ffc09e` 對合併版（含第一批），交錯各 2 輪平均。這台沒有 GPU，WebGL 與 canvas 的時間被軟體繪製放大，以下看主執行緒數字。
+  - 捲動中 style 重算時間：
+    - 首頁：手機 2.97 → 0.62s、桌機 1.64 → 0.24s。
+    - /anniversary：手機 1.49 → 0.37s、桌機 0.86 → 0.20s。
+    - /admission 手機 0.35 → 0.22s。
+  - 長任務合計：
+    - 首頁：手機 31.7 → 23.2s、桌機 20.4 → 16.2s。
+    - /anniversary 桌機 4.0 → 2.1s。
+    - /curriculum 桌機 1.0 → 0.5s。
+    - /admission 手機 0.69 → 0.24s。
+  - p95 畫格：
+    - /admission 手機 33.3 → 16.8ms。
+    - /curriculum 手機 66.7 → 50ms、桌機 117 → 92ms。
+    - /anniversary 桌機 183 → 117ms。
+    - /environment 桌機 41.6 → 33.4ms。
+  - 整頁換頁後 3 秒內的主執行緒阻塞（手機 4×，同一個瀏覽器工作階段連續換頁）：
+    - / → /about 1691 → 912ms。
+    - /admission → /environment 1490 → 724ms。
+    - /environment → /anniversary 1872 → 1102ms。
+    - /curriculum → /admission 1528 → 1077ms。
+    - /anniversary → /news 736 → 459ms。
+    - /visit → / 補量 4 輪：2045 → 1866ms。
+    - /news → /visit 312 → 378ms，在雜訊內。
+    - 合計 11.2 → 9.0s。
+- **驗證**（Node 22）：
+  - web `typecheck` 通過；單元測試 120 檔、1616 項全過。
+  - 新增 `smoothness-20261105-{prints,curtains,campus,curriculum,anniversary,about-env-admission}.spec.ts`。每支都做過突變檢查：把原始檔換回舊寫法，新測試會失敗。
+  - 截圖比對：基準 `9ffc09e` 對合併版 `de6ed77`，八頁 × 八個捲動位置 × 桌機 1440／手機 390，先慢捲一輪讓一次性效果跑完再拍。
+    - /admission、/curriculum、/environment、/news、/visit：兩種視口每個位置 0.00%。
+    - /about 最多 0.07%、/anniversary 最多 0.28%，都與基準對基準的雜訊同級（0.12%、0.14%）。
+    - 首頁的差異只在背景影片（每次拍到的影格不同）與拍立得進場輕掀的收尾時刻；卡片內容、文字、頁首相同。基準對基準手機也有 1–2%。
+- **沒驗**：iOS／Android 實機、有 GPU 的 Chrome（WebGL 與 canvas 的實際收益要真機量）、Safari 的 Cache Storage 與 `priority` 支援。
+
 ## 2026-11-05 首頁「關於常春藤」照片對齊、換照、內文改寫（`feature/home-about-a-20261105`）
 
 使用者截圖首頁「把每個孩子 放在心上」：「幫我調整一下照片跟文字的位子，以及照片幫我換一張」，之後又給一份新的介紹文字，問要濃縮還是縮小字，看過濃縮版再要求改寫。比稿 `design/home-about-directions-20261105`（代理正式站，`?layout=a|b|c&photo=p1…p6`）選 A 對齊修正＋候選 4。規則見 DESIGN.md「關於常春藤：單張圓角照片」底下的 11-05 補充。

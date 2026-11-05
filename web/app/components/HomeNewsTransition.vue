@@ -36,10 +36,14 @@ useNewsTransition(root, previous, paper)
 @keyframes news-tint-in { 0%, 50% { opacity: 0; } 100% { opacity: 1; } }
 /* --news-footer-fade = clamp(0, p * 1.65, 1)，p = .606 時到 1 */
 @keyframes news-footer-fade-in { 0% { opacity: 0; } 60.6%, 100% { opacity: 1; } }
-@keyframes news-shadow-out {
-  0% { box-shadow: 0 -18px 70px rgb(var(--ink) / .16); }
-  60.6%, 100% { box-shadow: 0 -18px 70px rgb(var(--ink) / 0); }
-}
+/* 頁尾進場時紙的陰影跟著淡掉。box-shadow 不是合成屬性，sheet 的底色和陰影又是同一個顯示項，直接對 sheet
+   做陰影動畫的話，整張消息紙每幀都要重錄、重新點陣化。改成 rise 一結束（紙 scale(1)、圓角 0，兩道陰影
+   幾何相同）就用 step-end 換手給 .news-transition-paper::before 的同一道陰影，頁尾段只對它做 opacity
+   動畫：opacity × .16 跟原本對陰影 alpha 線性插值等價。.home-news 至少一個視窗高，頁尾段一定在 rise
+   結束之後才開始。 */
+@keyframes news-shadow-handoff { from { box-shadow: var(--news-paper-shadow); } to { box-shadow: none; } }
+@keyframes news-shadow-handon { from { visibility: hidden; } to { visibility: visible; } }
+@keyframes news-shadow-fade { 0% { opacity: 1; } 60.6%, 100% { opacity: 0; } }
 @supports (animation-timeline: view()) and (animation-range: entry 0% entry 100%) and (timeline-scope: --news-paper) {
   .news-transition[data-news-motion="native"] .news-transition-underlay {
     animation: news-underlay-shrink linear both;
@@ -57,7 +61,21 @@ useNewsTransition(root, previous, paper)
     animation-range: entry 0% entry 100%;
   }
   .home-page[data-footer-motion="native"] .news-transition[data-news-motion="native"] .news-transition-sheet {
-    animation: news-sheet-rise linear both, news-shadow-out linear both;
+    animation: news-sheet-rise linear both, news-shadow-handoff step-end both;
+    animation-timeline: --news-paper, --news-paper;
+    animation-range: entry 0% entry 100%, entry 0% entry 100%;
+  }
+  /* paper 與 sheet 的盒子相同；::before 在樹序上先畫，陰影仍在紙下，paper 沒有裁切，陰影不會被切掉。 */
+  .home-page[data-footer-motion="native"] .news-transition[data-news-motion="native"] .news-transition-paper::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    box-shadow: var(--news-paper-shadow);
+    /* 基底藏起來：時間軸有效時 news-shadow-handon（fill both）一定蓋過它；萬一時間軸沒解析成功，
+       退回只有 sheet 自己一道陰影，不會疊成兩道。 */
+    visibility: hidden;
+    animation: news-shadow-handon step-end both, news-shadow-fade linear both;
     animation-timeline: --news-paper, --home-footer;
     animation-range: entry 0% entry 100%, entry 0% entry 100%;
   }
@@ -71,6 +89,7 @@ useNewsTransition(root, previous, paper)
   .news-transition :is(.news-transition-underlay, .news-transition-sheet),
   .news-transition .home-news::before,
   .news-transition .home-news::after { animation: none !important; }
+  .news-transition .news-transition-paper::before { display: none; }
 }
 </style>
 
@@ -78,8 +97,6 @@ useNewsTransition(root, previous, paper)
 .news-transition {
   --news-paper-base: var(--ivy-news-paper);
   --news-paper-blue: var(--ivy-news-paper-blue);
-  --news-footer-fade: clamp(0, calc(var(--home-footer-progress, 0) * 1.65), 1);
-  --news-paper-shadow: 0 -18px 70px rgb(var(--ink) / calc(.16 * (1 - var(--news-footer-fade))));
   --news-paper-radius: 88px;
   --news-paper-tint: clamp(0, calc((var(--news-paper-progress) - .5) * 2), 1);
   position: relative;
@@ -92,7 +109,15 @@ useNewsTransition(root, previous, paper)
 .news-transition .news-transition-prior :deep(.campus-panorama) { margin-top: 0; }
 .news-transition-prior { position: relative; z-index: 0; }
 .news-transition-underlay { transform-origin: 50% 100%; }
-.news-transition-paper { position: relative; z-index: 1; }
+/* 頁尾進場的衍生值宣告在紙上：讀者只有紙裡的 sheet 陰影與 .home-news::after，JS 備援
+   （useHomeFooterFade）也把 --home-footer-progress 寫在紙上。這個變數是繼承型 @property，
+   寫在 .home-page 的話整頁約 880 個元素每幀重算，寫在紙上只剩紙裡約 280 個。 */
+.news-transition-paper {
+  --news-footer-fade: clamp(0, calc(var(--home-footer-progress, 0) * 1.65), 1);
+  --news-paper-shadow: 0 -18px 70px rgb(var(--ink) / calc(.16 * (1 - var(--news-footer-fade))));
+  position: relative;
+  z-index: 1;
+}
 .news-transition-sheet { background: var(--news-paper-base); transform-origin: 50% 0; }
 .news-transition :deep(.home-news) {
   min-height: var(--news-screen, 100svh);
@@ -152,6 +177,9 @@ useNewsTransition(root, previous, paper)
 }
 @media(prefers-reduced-motion: reduce), (forced-colors: active) {
   .news-transition { animation: none !important; --news-paper-tint: 0; }
+  /* 同 index.vue 的 .home-page：備援寫在紙上的 inline 進度要被蓋過。減少動態一生效就是暖白，
+     不等 useHomeFooterFade 的 change 回呼（Chromium 會先跑一輪 rAF）。 */
+  .news-transition-paper { --home-footer-progress: 1 !important; }
   .news-transition .news-transition-prior { position: relative !important; top: auto; }
   .news-transition :is(.news-transition-underlay, .news-transition-sheet) { transform: none !important; border-radius: 0 !important; box-shadow: none !important; }
   .news-transition :deep(.home-news) { min-height: 0; }

@@ -24,13 +24,18 @@ export function useNewsTransition(
     let disposed = false
     let lastProgress = -1
 
+    // 原生路徑也每個捲動幀都量：inert 要在跳過來（錨點、End 鍵）的同一幀就設好。改用 IntersectionObserver
+    // 只在紙附近才量的話，IO 回呼晚一幀，那一幀 [inert] 的 clip-path 還沒裁掉被蓋住的五校，五校自己的 IO
+    // 會當成看得到（2026-11-05 實測：直接跳到消息會多抓整組線稿、版面多 0.34px）。
     function paint() {
       frame = 0
       if (disposed) return
       const off = root!.dataset.newsMotion === 'off'
       const progress = off ? 1 : Math.max(0, Math.min(1, 1 - paper!.getBoundingClientRect().top / viewport.height))
       // The previous section must stop receiving focus once covered by the paper.
-      previous!.inert = !off && progress >= .995
+      // 同值不重寫：Chromium 對已經是 inert 的元素再設一次仍會改屬性、觸發一次樣式重算（紙蓋滿後到頁底每幀都會中）。
+      const covered = !off && progress >= .995
+      if (previous!.inert !== covered) previous!.inert = covered
       if (root!.dataset.newsMotion === 'fallback' && progress !== lastProgress) {
         root!.style.setProperty('--news-paper-progress', String(progress))
       }
