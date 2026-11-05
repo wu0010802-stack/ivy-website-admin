@@ -1,3 +1,10 @@
+## 前台流暢度：頁首狀態掛在 header 上、@property 集中註冊（2026-11-05，`claude/kind-sagan-61hcdh`）
+
+- **不要用 body／html 當 `:has()` 的錨點，再接後代選擇器**（`body:has(.x) .y`）。body 底下任何節點插入或移除，Blink 都要重新判定 body 的 `:has`；後代規則最右段只要有一條收斂不到 class（例如 `:focus-visible`、標籤），失效範圍就是整棵子樹，實測每次 630–820 個元素重算。只作用在 body／html 自己的 `:has`（`body:has(dialog[open]){overflow:hidden}` 這類）每次只重算自己，可以用。`web/tests/smoothness-20261105.spec.ts` 會擋。
+- **頁首的首頁版與膠囊版看 header 自己的 class**：`.is-hero-page`（SiteHeader 的 `hero` prop，首頁與 `/preview` 預覽首頁傳入）、`.is-pill-nav`（`PILL_PAGES` 或 900px 以下）。寫法：`body .is-hero-page X`、`body :is(.is-hero-page,.is-pill-nav) X`；目標就是 header 時寫成 `body .header.is-hero-page…`／`body .header:is(.is-hero-page,.is-pill-nav)…`。開頭的 `body` 是為了讓特異度維持原本 `body:has(…)` 的 (0,1,1)，不要拿掉。`:is()` 裡仍只放單一 class（同 2026-09-23 的規則）。新增會在別頁出現的頁首狀態，也比照掛在 header 上。
+- **`@property` 一律寫在 `studio.css`**（每頁一開始就載），不寫在元件或頁面的 `<style>`。頁首校徽、頁尾品牌、預約鈕是 NuxtLink，會預取首頁與 /visit，Vite 把那些頁的 CSS 掛進目前頁；載入後才註冊的新屬性會讓整頁重算一次，`inherits:false` 也一樣（實測 826 個元素）。
+- 量測工具與數字見 README 同日段落。這台雲端容器沒有 GPU，WebGL 與 canvas 的耗時會被軟體繪製放大；判斷時看元素數、次數、像素雜湊這類不受影響的量。
+
 ## 頁尾底色改 #21543F（2026-11-05，`feature/footer-green-21543f-20261105`）
 
 使用者問頁尾的綠可以換成什麼，表明「只考慮綠色」，看過兩輪比稿（Desktop 工作區 `design/footer-colour-directions-20261105/`：第一輪非綠色 N1–N6、第二輪更鮮與更深的綠 G1–G9）與其他網站的綠色頁尾參考（實際量 141 站、21 個綠色頁尾，圖板在 Desktop 工作區 `output/footer-green-refs-20261105/`，不進版控）後，指定 Tulane University 頁尾的 `#21543F`。

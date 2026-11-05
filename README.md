@@ -1,3 +1,16 @@
+## 2026-11-05 前台流暢度第一批：頁首 :has 改 class、@property 集中（`claude/kind-sagan-61hcdh`）
+
+使用者要「優化前台流暢度」。先在 production build（fixture）量各頁：手機 390、CPU 4×、觸控捲動，桌機 1440。量的是捲動畫格、長任務、Long Animation Frame 腳本歸因（sourcemap 對回原始碼）與靜止時的背景工作，再分 8 個區塊讀碼找原因。這一批是全站共用、已驗證的三項，使用者要求先推 main；各頁的修正（拍立得、五校、特色教學、30 週年等）另批。規則見 DESIGN.md 頂部。
+
+- **頁首 `body:has(...)` 改成 header 自己的 class**（`studio.css`、`SiteHeader.vue`、`pages/index.vue`、`pages/preview.vue`）：117 條 `body:has(.studio-hero) X`／`body:has(:is(.studio-hero,.is-pill-nav)) X` 改寫成 `body .is-hero-page X`、`body :is(.is-hero-page,.is-pill-nav) X`；目標是 header 本身時寫成 `body .header.is-hero-page…`。特異度逐條相同。SiteHeader 新增 `hero` prop，首頁與 `/preview` 的首頁預覽傳入。`--hero-line` 只有 `.header-top` 讀，定義從 body 搬到 header。原本 body 內任何節點插入或移除，Blink 都要重新判定 body 的 `:has`，整頁重算 630–820 個元素（五校換校、週年頁換年份、入學蓋章、環境頁圓點、拍立得取色、選單開合、表單互動都被放大），改後 1 個。
+- **首頁六個 `@property` 搬到 `studio.css`**（原在 `CampusBoard.vue`、`HomeNewsTransition.vue`、`pages/index.vue`）：其他頁的頁首校徽、頁尾品牌、預約鈕是 NuxtLink，會預取首頁與 /visit，Vite 把那些 CSS 掛進目前頁；載入後才註冊新屬性，整頁重算一次（/admission 載入後約 2.5 秒、826 個元素、手機 4× 約 84ms）。實測任何新 `@property` 註冊都會整頁重算，一般樣式表不會。
+- **新增 `utils/decoded-bitmap.ts`**：canvas／WebGL 用的圖改成 fetch→blob→createImageBitmap，在 worker 解碼；失敗回 null，讓呼叫端退回 `<img>`。這一批還沒有呼叫端，下一批的拍立得、五校速寫、週年頁貼圖會接上。
+- **驗證**（Node 22）：
+  - 頁首 computed style：1440／1000／390 三種寬度 × 首頁、/about、/admission、/curriculum、/anniversary、/environment、/news、/visit、404，各量頂端、捲過 600px、選單打開、鍵盤焦點四種狀態，header 內所有元素（含偽元素）的全部屬性逐一比對，共 10,690,018 個值，0 差異。
+  - 在 main 裡插入再移除一個 span 的重算元素數：首頁 783→1、/about 628→1、/admission 822→1、/environment 782→1、/anniversary 788→1、/news 214→1、/visit 218→1。
+  - web `typecheck` 通過。新增 `smoothness-20261105.spec.ts`（禁止 body／html 的 `:has` 接後代選擇器、`@property` 只准寫在 studio.css）、`decoded-bitmap.spec.ts`，連同受影響的測試都過。PR #61 的 CI（web、admin、後端三組、E2E）全綠。
+- **沒驗**：`/preview` 要後台登入，本機沒量到預覽首頁的頁首（改法同樣是傳 `hero`）。iOS 實機也沒驗。
+
 ## 2026-11-05 頁尾底色改 #21543F（`feature/footer-green-21543f-20261105`）
 
 使用者問頁尾的綠可以換成什麼，「只考慮綠色」；看過兩輪比稿與其他網站的綠色頁尾參考後，指定 `#21543F`（Tulane University 頁尾的綠）。
