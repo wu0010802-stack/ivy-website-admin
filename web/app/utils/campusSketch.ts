@@ -67,22 +67,34 @@ export const BLOOM_TRANSITION = `-webkit-mask-size 1100.4567274385ms ${BLOOM_EAS
 
 // ---------- 原圖 ----------
 type SketchImage = HTMLImageElement | ImageBitmap
-interface ImageEntry { pending: Promise<SketchImage>, value?: SketchImage }
+/** users：拿了這張圖還沒還的呼叫端數（holdImage 加、releaseImage 減） */
+interface ImageEntry { src: string, pending: Promise<SketchImage>, users: number }
+interface HeldImage { entry: ImageEntry, image: SketchImage }
 /**
  * 線稿與淡彩層的原圖：fetch → createImageBitmap，webp 在 worker 解碼（utils/decoded-bitmap.ts）；不支援或失敗才退回 <img>。
  * <img> 給 canvas 用時在主執行緒同步解整張（2026-11-05 基準：桌機 1200w 一張 72–82ms，第一次接近五校時一連四張）。
- * 原圖只拿來建一次濾鏡圖層（sketchLayer）：建好就 close() 並移出 Map。ImageBitmap 不像 <img> 的解碼結果可以被瀏覽器丟掉，
- * 一直留著桌機五校線稿＋淡彩約 27MB；之後卡片變大小或圖層被逐出，再從 HTTP 快取重取（同源、/assets 有快取標頭）。
+ * 原圖只拿來建濾鏡圖層（sketchLayer）：最後一個拿著它的呼叫端用完就 close() 並移出 Map。ImageBitmap 不像 <img> 的解碼結果
+ * 可以被瀏覽器丟掉，一直留著桌機五校線稿＋淡彩約 27MB；之後卡片變大小或圖層被逐出，再從 HTTP 快取重取（同源、/assets 有快取標頭）。
+ * 要等「最後一個」才關（2026-11-05 審查後改成計數）：原本第一個建好圖層的就關掉，同時在等同一張圖的另一個呼叫端
+ * （載入中卡片變大小、兩種尺寸一起等；不在 keepSketches 的學校連續畫兩次）拿到已關閉的點陣圖 drawImage，
+ * 丟 InvalidStateError：預覽線稿沒畫、淡彩速寫整段收掉讓照片直接跳出來。
+ * 載入失敗照舊留在 Map（同 2026-11-05 以前），之後不再重試同一個網址。
  */
 const images = new Map<string, ImageEntry>()
-function loadImage(src: string) {
+/** 拿一張原圖：計數在呼叫當下就加（等圖期間別人用完也不會關掉它）；拿到的一定要 releaseImage 還回來 */
+async function holdImage(src: string): Promise<HeldImage> {
   let entry = images.get(src)
   if (!entry) {
-    const created: ImageEntry = { pending: decodedBitmap(src).then((bitmap): SketchImage | Promise<SketchImage> => bitmap ?? imageElement(src)) }
-    created.pending.then((value) => { created.value = value }, () => {})
-    images.set(src, entry = created)
+    entry = { src, users: 0, pending: decodedBitmap(src).then((bitmap): SketchImage | Promise<SketchImage> => bitmap ?? imageElement(src)) }
+    images.set(src, entry)
   }
-  return entry.pending
+  entry.users++
+  try {
+    return { entry, image: await entry.pending }
+  } catch (error) {
+    entry.users--
+    throw error
+  }
 }
 function imageElement(src: string) {
   return new Promise<HTMLImageElement>((resolve, reject) => {
@@ -94,20 +106,11 @@ function imageElement(src: string) {
   })
 }
 const isBitmap = (image: SketchImage): image is ImageBitmap => 'close' in image
-/** 收掉建過圖層的原圖（<img> 留著，交給瀏覽器的解碼快取） */
-function releaseImage(src: string, image: SketchImage) {
-  if (!isBitmap(image)) return
-  if (images.get(src)?.value === image) images.delete(src)
+/** 還回原圖；最後一個還的把點陣圖收掉（<img> 留著，交給瀏覽器的解碼快取） */
+function releaseImage({ entry, image }: HeldImage) {
+  if (--entry.users > 0 || !isBitmap(image)) return
+  if (images.get(entry.src) === entry) images.delete(entry.src)
   image.close()
-}
-/** 拿得到能畫的原圖：同時在等同一張圖的另一個呼叫端已經建好圖層、把點陣圖收掉了（width 變 0），就重取 */
-async function drawableImage(src: string) {
-  let image = await loadImage(src)
-  for (let retry = 0; retry < 3 && isBitmap(image) && !image.width; retry++) {
-    if (images.get(src)?.value === image) images.delete(src)
-    image = await loadImage(src)
-  }
-  return image
 }
 
 /** canvas 的縮放：DPR 最多算 1.5，再乘 0.85（水彩本來就軟，放大看不出差別） */
@@ -181,25 +184,34 @@ const layers = new Map<string, CachedLayer>()
 let keep: Set<string> | null = null
 const kept = (campus: string) => !keep || keep.has(campus)
 const layerKey = (filter: string, src: string, lw: number, lh: number) => `${filter}|${src}|${lw}|${lh}`
+// releaseSketches 每呼叫一次加一：之前開始、還在等圖的工作回來時看到不同，就不再存快取、不再排閒置工作
+let generation = 0
+
+/** 畫一層濾鏡圖層（同步）；sketchLayer 與閒置時間的預建共用，同一串指令畫出同一張 */
+function buildLayer(campus: string, filter: string, src: string, lw: number, lh: number, image: SketchImage, startedAt: number) {
+  const built = layer(lw, lh)
+  built.ctx.filter = filter
+  built.ctx.drawImage(image, 0, 0, lw, lh)
+  if (kept(campus) && startedAt === generation) {
+    // 同一張圖舊尺寸的那層用不到了
+    for (const [other, entry] of layers) if (entry.src === src && entry.filter === filter) layers.delete(other)
+    layers.set(layerKey(filter, src, lw, lh), { campus, filter, src, layer: built })
+  }
+  return built
+}
 
 async function sketchLayer(campus: string, filter: string, src: string, lw: number, lh: number) {
   const key = layerKey(filter, src, lw, lh)
   const cached = layers.get(key)
   if (cached) return cached.layer
-  const image = await drawableImage(src)
-  // 等圖的時候另一個呼叫端已經建好
-  const ready = layers.get(key)
-  if (ready) return ready.layer
-  const built = layer(lw, lh)
-  built.ctx.filter = filter
-  built.ctx.drawImage(image, 0, 0, lw, lh)
-  if (kept(campus)) {
-    // 同一張圖舊尺寸的那層用不到了
-    for (const [other, entry] of layers) if (entry.src === src && entry.filter === filter) layers.delete(other)
-    layers.set(key, { campus, filter, src, layer: built })
+  const startedAt = generation
+  const held = await holdImage(src)
+  try {
+    // 等圖的時候另一個呼叫端已經建好
+    return layers.get(key)?.layer ?? buildLayer(campus, filter, src, lw, lh, held.image, startedAt)
+  } finally {
+    releaseImage(held)
   }
-  releaseImage(src, image)
-  return built
 }
 
 /** 只留這幾校的圖層與水彩多邊形（CampusBoard 換校、預載時呼叫）。 */
@@ -212,7 +224,7 @@ export function keepSketches(campuses: Iterable<string>) {
 // ---------- 水彩多邊形 ----------
 interface Stroke { start: number, polys: Float64Array[], boxes: Float64Array }
 interface WashPlan { blobs: Stroke[], skies: Stroke[] }
-interface PlanJob { campus: string, plan: WashPlan, steps: Generator<void, void>, done: boolean }
+interface PlanJob { key: string, campus: string, plan: WashPlan, steps: Generator<void, void>, done: boolean }
 /**
  * 十團顏料＋兩筆天空、共 256 個多邊形（每個 384 點），只取決於種子（校名）與線稿框，2026-11-05 前每次上色都在點擊的
  * task 裡重算（數十 ms）。改成依完整幾何快取，並在閒置時間一團一團先算（prepareSketch）；上色時還沒算完就同步補完。
@@ -266,7 +278,7 @@ function planJob(campusKey: string, g: SketchGeometry, hasSky: boolean) {
   const cached = plans.get(key)
   if (cached) return cached
   const plan: WashPlan = { blobs: [], skies: [] }
-  const job: PlanJob = { campus: campusKey, plan, steps: washSteps(plan, campusKey, g, hasSky), done: false }
+  const job: PlanJob = { key, campus: campusKey, plan, steps: washSteps(plan, campusKey, g, hasSky), done: false }
   if (kept(campusKey)) {
     // 同一校舊尺寸的那份用不到了
     for (const [other, entry] of plans) if (entry.campus === campusKey) plans.delete(other)
@@ -292,20 +304,36 @@ function traceFlat(ctx: CanvasRenderingContext2D, flat: Float64Array) {
 }
 
 // ---------- 閒置時間的準備工作：每塊不超過 8ms（同 useWatercolor） ----------
-const idleTasks: (() => boolean)[] = []
+/** run 回傳 true＝做完了，否則下次接著做；drop：還沒做就被 releaseSketches 清掉時收尾（還回手上的原圖） */
+interface IdleTask { run: () => boolean, drop?: () => void }
+const IDLE_BUDGET = 8
+const idleTasks: IdleTask[] = []
 let idleQueued = false
-function requestIdle(fn: () => void) {
+function requestIdle(fn: (deadline?: IdleDeadline) => void) {
   if (typeof requestIdleCallback === 'function') requestIdleCallback(fn, { timeout: 1000 })
-  else setTimeout(fn, 32)
+  else setTimeout(() => fn(), 32)
 }
-function runIdle() {
+/**
+ * 做一塊（2026-11-05 審查後改）：能用的時間取 8ms 與瀏覽器給的閒置時間（deadline.timeRemaining()）較少的那個。
+ * 上色動畫進行中，閒置時間只剩幀與幀之間那一點，只看 8ms 會把下一幀擠掉。下一步大概和上一步一樣久，剩下的時間不夠就留到下一塊，
+ * 不是「還沒到 8ms 就再開一步」。每塊至少做一步：timeout 逼出來的那次 timeRemaining() 是 0，一步都不做就永遠排不完。
+ * 沒有 requestIdleCallback（Safari）時照舊用 setTimeout 退路，只看 8ms。
+ */
+function runIdle(deadline?: IdleDeadline) {
   idleQueued = false
+  // releaseSketches 清空佇列後，之前排好的那次照樣會來
+  if (!idleTasks.length) return
   const t0 = performance.now()
-  while (idleTasks.length && performance.now() - t0 < 8) if (idleTasks[0]!()) idleTasks.shift()
+  const left = () => Math.min(IDLE_BUDGET - (performance.now() - t0), deadline ? deadline.timeRemaining() : Infinity)
+  let last: number
+  do {
+    const start = performance.now()
+    if (idleTasks[0]!.run()) idleTasks.shift()
+    last = performance.now() - start
+  } while (idleTasks.length && left() > last)
   if (idleTasks.length) { idleQueued = true; requestIdle(runIdle) }
 }
-/** task 回傳 true＝做完了，否則下次接著做 */
-function enqueueIdle(task: () => boolean) {
+function enqueueIdle(task: IdleTask) {
   idleTasks.push(task)
   if (!idleQueued) { idleQueued = true; requestIdle(runIdle) }
 }
@@ -323,16 +351,41 @@ export function prepareSketch(options: {
   size: CardSize
   /** 同 developSketch 的 skyRgb：讀不到就沒有天空那兩筆 */
   skyRgb: string
+  /**
+   * false：只預建圖層、不算水彩多邊形（2026-11-05 審查後）。自動輪播換進來的鄰卡只會暈開、用不到多邊形，
+   * 每輪替它算一份（約 17 萬次 Math.log）又會被 keepSketches 輪流擠掉；多邊形只在有換校意圖時才算。
+   */
+  wash?: boolean
 }) {
   const g = sketchGeometry(options.registration, options.size, options.objectPosition)
-  const job = planJob(options.campusKey, g, Boolean(options.skyRgb))
-  if (!job.done) enqueueIdle(() => advancePlan(job))
+  if (options.wash ?? true) {
+    const job = planJob(options.campusKey, g, Boolean(options.skyRgb))
+    // 已被 keepSketches 逐出（或一開始就不留）的那份算完也沒人用：上色時 planJob 會另起一份，這裡就不再往下算
+    if (!job.done) enqueueIdle({ run: () => plans.get(job.key) !== job || advancePlan(job) })
+  }
   const prebuild = (filter: string, src: string) => {
-    if (layers.has(layerKey(filter, src, g.lw, g.lh))) return
-    drawableImage(src).then(() => enqueueIdle(() => {
-      void sketchLayer(options.campusKey, filter, src, g.lw, g.lh).catch(() => undefined)
-      return true
-    }), () => undefined)
+    const key = layerKey(filter, src, g.lw, g.lh)
+    if (layers.has(key)) return
+    const startedAt = generation
+    // 下載與 worker 解碼在閒置時間外等，等到圖才排一個「同步畫完濾鏡層」的步驟，繪製算進那一塊的預算。
+    // 原本閒置步驟只是 void sketchLayer(...)，真正的 drawImage 落在預算結束後的 microtask，同一塊排了幾層就連著畫。
+    holdImage(src).then((held) => {
+      if (startedAt !== generation) { releaseImage(held); return }
+      enqueueIdle({
+        run: () => {
+          try {
+            // 等的期間已經建好，或這校已不在 keepSketches（建了也馬上丟）就不畫
+            if (!layers.has(key) && kept(options.campusKey)) buildLayer(options.campusKey, filter, src, g.lw, g.lh, held.image, startedAt)
+          } catch {
+            // 畫不了就算了：用到時 sketchLayer 會再取一次（同原本 .catch 吞掉）
+          } finally {
+            releaseImage(held)
+          }
+          return true
+        },
+        drop: () => releaseImage(held)
+      })
+    }, () => undefined)
   }
   prebuild(LINE_FILTER, options.lineSrc)
   if (options.colourSrc) prebuild(COLOUR_FILTER, options.colourSrc)
@@ -400,6 +453,24 @@ function takeScratch(W: number, H: number): Scratch {
 // 只暈開時沒有淡彩：原本是一張沒畫東西的淡彩層，透明的圖畫上去什麼都不變，用 1×1 的透明 canvas 代替
 let blank: Layer | undefined
 
+/**
+ * 放掉模組層的快取與排好的閒置工作（2026-11-05 審查後；CampusBoard 卸載時呼叫）。圖層、多邊形、暫存 canvas 都放在模組層，
+ * 不清的話換到別頁仍常駐桌機約 25–55MB 的 canvas，換頁前排好的下載、解碼、濾鏡、多邊形也照樣在新頁面跑。
+ * 還在等圖的工作回來時看到 generation 不同，就不存快取、不排工作；重新掛載後從頭準備，畫出來和第一次一樣。
+ */
+export function releaseSketches() {
+  generation++
+  for (const task of idleTasks.splice(0)) task.drop?.()
+  layers.clear()
+  plans.clear()
+  if (spareScratch) {
+    // 設成 0×0：像素記憶體馬上放掉，不必等 GC 收 canvas 元素
+    for (const { el } of [spareScratch.mask, spareScratch.sky, spareScratch.work]) { el.width = 0; el.height = 0 }
+    spareScratch = null
+  }
+  keep = null
+}
+
 /** 讓出主執行緒（2026-11-05）：點擊那一幀先畫出來，準備與第一幀放到下一個 task。有 scheduler.yield 就用，否則等下一幀畫完。 */
 function yieldToFrame() {
   const scheduler = (globalThis as { scheduler?: { yield?: () => Promise<void> } }).scheduler
@@ -464,6 +535,7 @@ export function developSketch(options: {
   let frame = 0
   let cancelled = false
   let scratch: Scratch | null = null
+  const startedAt = generation
   let finish: () => void = () => {}
   const done = new Promise<void>((resolve) => { finish = resolve })
   const timers: ReturnType<typeof setTimeout>[] = []
@@ -479,7 +551,9 @@ export function developSketch(options: {
     img.removeEventListener('transitionend', onBloomEnd)
     img.style.removeProperty('transition')
     card.classList.remove('is-sketch', 'is-develop', 'is-developed')
-    if (scratch) { spareScratch = scratch; scratch = null }
+    // releaseSketches 之後才收尾的不放回去（不然卸載後又留住三張）
+    if (scratch && startedAt === generation) spareScratch = scratch
+    scratch = null
     finish()
   }
 

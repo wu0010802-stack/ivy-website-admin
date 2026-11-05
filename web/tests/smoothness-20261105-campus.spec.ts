@@ -5,6 +5,9 @@ import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch, type App, type Component } from 'vue'
+import fixture from '../server/data/site-fixture.json'
+import type { SiteContent } from '../app/types/site-content'
 import { SKETCH_REGISTRATION, sketchLayout } from '../app/utils/campusSketch'
 import { seededRandom, washPolygons, type Point } from '../app/utils/watercolor'
 
@@ -24,7 +27,12 @@ class FakeContext {
   constructor(readonly canvas: HTMLCanvasElement) {}
   get filter() { return this.#filter }
   set filter(value: string) { this.#filter = value; this.log.push(['filter', value]) }
-  drawImage(...args: unknown[]) { this.log.push(['drawImage', this.globalCompositeOperation, ...args]) }
+  drawImage(...args: unknown[]) {
+    // 同瀏覽器：已 close() 的 ImageBitmap 不能畫
+    if ((args[0] as Partial<FakeBitmap> | undefined)?.closed) throw new DOMException('The image source is detached', 'InvalidStateError')
+    this.log.push(['drawImage', this.globalCompositeOperation, ...args])
+    if (this.#filter !== 'none') onFilterDraw()
+  }
   fillRect(...args: number[]) { this.log.push(['fillRect', this.globalCompositeOperation, this.fillStyle, ...args]) }
   clearRect(...args: number[]) { this.log.push(['clearRect', ...args]) }
   beginPath() { this.log.push(['beginPath']) }
@@ -44,18 +52,24 @@ class FakeContext {
   putImageData() {}
 }
 
-interface FakeBitmap { width: number, height: number, close: () => void }
-const bitmap = (): FakeBitmap => ({ width: 120, height: 80, close() { this.width = 0; this.height = 0 } })
+interface FakeBitmap { width: number, height: number, closed: boolean, close: () => void }
+const bitmap = (): FakeBitmap => ({ width: 120, height: 80, closed: false, close() { this.closed = true; this.width = 0; this.height = 0 } })
+// 濾鏡圖層 drawImage 時呼叫（預算測試拿來推進假時鐘）
+let onFilterDraw = () => {}
 
 let contexts: Map<HTMLCanvasElement, FakeContext>
 let rafQueue: Map<number, FrameRequestCallback>
 let created: number
 const ctxOf = (canvas: HTMLCanvasElement) => contexts.get(canvas)!
+// 最近一個 freshSketch 載入的模組（afterEach 放掉它留下的工作）
+let lastSketch: Partial<typeof import('../app/utils/campusSketch')> | null = null
 
 beforeEach(() => {
   contexts = new Map()
   rafQueue = new Map()
   created = 0
+  onFilterDraw = () => {}
+  document.body.innerHTML = ''
   vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(function (this: HTMLCanvasElement) {
     if (!contexts.has(this)) contexts.set(this, new FakeContext(this))
     return contexts.get(this) as unknown as CanvasRenderingContext2D
@@ -75,20 +89,40 @@ beforeEach(() => {
   vi.spyOn(performance, 'now').mockReturnValue(1000)
 })
 afterEach(() => {
+  // 上一個測試的模組還在等圖、排了閒置工作的話，會在下一個測試裡畫到新的假 context：先放掉（實際網頁只有一份模組）
+  lastSketch?.releaseSketches?.()
+  lastSketch = null
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.doUnmock('../app/utils/watercolor')
 })
 
-/** 每個測試一份新的模組（快取都是模組層的） */
-async function freshSketch(images: Record<string, () => FakeBitmap | null> = {}) {
+/**
+ * 每個測試一份新的模組（快取都是模組層的）。delay：fetch 晚幾 ms 回（讓兩個呼叫端確實同時在等同一張圖）；
+ * onWash：每產生一團水彩多邊形（washPolygons）時呼叫，預算測試拿來推進假時鐘、數算了幾團。
+ */
+async function freshSketch(images: Record<string, () => FakeBitmap | null> = {}, options: { delay?: number, onWash?: () => void } = {}) {
   vi.resetModules()
+  const { delay, onWash } = options
+  if (onWash) {
+    vi.doMock('../app/utils/watercolor', async (importOriginal) => {
+      const real = await importOriginal<typeof import('../app/utils/watercolor')>()
+      return { ...real, washPolygons: (...args: Parameters<typeof real.washPolygons>) => { onWash(); return real.washPolygons(...args) } }
+    })
+  }
   const fetches: string[] = []
-  vi.stubGlobal('fetch', vi.fn(async (src: string) => { fetches.push(src); return { ok: true, blob: async () => new Blob([src]) } }))
+  vi.stubGlobal('fetch', vi.fn(async (src: string) => {
+    fetches.push(src)
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
+    return { ok: true, blob: async () => new Blob([src]) }
+  }))
   vi.stubGlobal('createImageBitmap', vi.fn(async (blob: Blob) => {
     const src = await blob.text()
     return (images[src] ?? bitmap)()
   }))
   const mod = await import('../app/utils/campusSketch')
+  lastSketch = mod
   return { ...mod, fetches }
 }
 const flush = async (times = 20) => { for (let i = 0; i < times; i++) await Promise.resolve() }
@@ -105,9 +139,12 @@ function geometry() {
   const box = sketchLayout(reg, SIZE.width, SIZE.height, 'center 55%')
   return { scale, W: Math.round(SIZE.width * scale), H: Math.round(SIZE.height * scale), lx: box.x * scale, ly: box.y * scale, lw: box.width * scale, lh: box.height * scale }
 }
+/** 一張卡（每個測試開始時 body 清空；同一個測試可以建好幾張） */
 function card() {
-  document.body.innerHTML = '<div class="photo-card"><canvas class="sketch-canvas"></canvas><img alt=""></div>'
-  const el = document.querySelector<HTMLElement>('.photo-card')!
+  const el = document.createElement('div')
+  el.className = 'photo-card'
+  el.innerHTML = '<canvas class="sketch-canvas"></canvas><img alt="">'
+  document.body.append(el)
   return { card: el, img: el.querySelector('img')!, canvas: el.querySelector('canvas')! }
 }
 const still = (sketch: Awaited<ReturnType<typeof freshSketch>>, parts: ReturnType<typeof card>, extra: Record<string, unknown> = {}) => sketch.paintSketchStill({
@@ -322,8 +359,8 @@ describe('campus-develop-start-longtask：多邊形、濾鏡層、暫存 canvas 
     const runDevelop = script.slice(script.indexOf('async function runDevelop'), script.indexOf('const canAuto'))
     expect(runDevelop).not.toContain('getComputedStyle')
     expect(runDevelop).toContain('size: currentCardSize, paper: paperColour')
-    // 換校後在閒置時間先準備新的左右鄰卡
-    expect(script).toMatch(/else if \(!automatic\) void runDevelop\(selected\)\n\s+prepareNearby\(\)/)
+    // 換校後在閒置時間先準備新的左右鄰卡（自動輪播只預建線稿層，見下面 CampusBoard 的掛載測試）
+    expect(script).toMatch(/else if \(!automatic\) void runDevelop\(selected\)\n(\s+\/\/.*\n)?\s+prepareNearby\(!automatic\)/)
   })
 })
 
@@ -434,5 +471,365 @@ describe('照片暈開切短（選做）：遮罩蓋滿就停，收尾照舊在 
     expect(parts.card.classList.contains('is-sketch')).toBe(false)
     expect(parts.img.style.transition).toBe('')
     vi.useRealTimers()
+  })
+})
+
+// ---------- 2026-11-05 審查後的修正（87342e9／f6fbbd7 的後續） ----------
+
+describe('審查後：原圖點陣圖等最後一個呼叫端用完才 close（計數）', () => {
+  it('不在 keepSketches 的學校：兩張預覽線稿同時在等同一張圖，兩張都畫成功，共用一次下載，最後才 close', async () => {
+    const made: FakeBitmap[] = []
+    const sketch = await freshSketch({ '/line.webp': () => { const b = bitmap(); made.push(b); return b } }, { delay: 5 })
+    sketch.keepSketches(['minghua'])
+    const a = card(), b = card()
+    // 原本：先建好的那個就 close，後到的拿已關閉的點陣圖 drawImage 丟 InvalidStateError → [true, false]
+    await expect(Promise.all([still(sketch, a), still(sketch, b)])).resolves.toEqual([true, true])
+    expect(sketch.fetches).toEqual(['/line.webp'])
+    expect(made).toHaveLength(1)
+    expect(made[0]!.closed).toBe(true)
+    for (const parts of [a, b]) expect(ctxOf(parts.canvas).log.filter(([name]) => name === 'drawImage')).toHaveLength(1)
+    // 不在 keep：圖層沒有留，下次照舊從 HTTP 快取重取（不是拿那張已關閉的）
+    await expect(still(sketch, card())).resolves.toBe(true)
+    expect(sketch.fetches).toEqual(['/line.webp', '/line.webp'])
+  })
+  it('同一張線稿兩種尺寸同時在等（載入中卡片變大小）：預覽線稿和 developSketch 都畫成功，淡彩速寫照常播', async () => {
+    const sketch = await freshSketch({}, { delay: 5 })
+    const a = card(), b = card()
+    let size = SIZE
+    const painted = still(sketch, a, { size: () => size })
+    size = { width: 480, height: 240 }
+    const handle = develop(sketch, b, { size: () => size })
+    let finished = false
+    void handle.done.then(() => { finished = true })
+    await expect(painted).resolves.toBe(true)
+    await new Promise((resolve) => setTimeout(resolve, 30))
+    await flush()
+    // 原本：developSketch 那份拿到已關閉的點陣圖，line 變 null → cleanup，done 提早 resolve、is-sketch 被拿掉
+    expect(finished).toBe(false)
+    expect(b.card.classList.contains('is-sketch')).toBe(true)
+    expect(composites(ctxOf(b.canvas))).toBe(1)
+    expect(b.canvas.width).toBe(Math.round(480 * 0.85))
+    // 預覽線稿量到新尺寸，照新尺寸畫
+    expect(a.canvas.width).toBe(Math.round(480 * 0.85))
+    handle.cancel()
+  })
+  it('等圖失敗：計數照樣還回去，之後同一網址不再重試（同原本）', async () => {
+    const sketch = await freshSketch()
+    vi.stubGlobal('createImageBitmap', vi.fn(async () => { throw new Error('decode') }))
+    class BrokenImage { onload: (() => void) | null = null; onerror: ((error: unknown) => void) | null = null; decoding = ''; set src(_: string) { queueMicrotask(() => this.onerror?.(new Error('404'))) } }
+    vi.stubGlobal('Image', BrokenImage)
+    await expect(still(sketch, card())).resolves.toBe(false)
+    await expect(still(sketch, card())).resolves.toBe(false)
+    expect(sketch.fetches).toEqual(['/line.webp'])
+  })
+})
+
+describe('審查後：閒置時間看 deadline.timeRemaining()，濾鏡層同步畫、算進預算', () => {
+  let clock: number
+  let idle: ((deadline?: IdleDeadline) => void)[]
+  /** 從現在起還有 ms 的閒置時間（照假時鐘遞減） */
+  const deadline = (ms: number, didTimeout = false) => {
+    const start = clock
+    return { didTimeout, timeRemaining: () => Math.max(0, ms - (clock - start)) } as IdleDeadline
+  }
+  const captureIdle = () => vi.stubGlobal('requestIdleCallback', (callback: (deadline?: IdleDeadline) => void) => { idle.push(callback); return idle.length })
+  // 每團水彩多邊形假裝花 3ms
+  async function idleSketch() {
+    const sketch = await freshSketch({}, { onWash: () => { clock += 3 } })
+    captureIdle()
+    return sketch
+  }
+  const prepare = (sketch: Awaited<ReturnType<typeof freshSketch>>, extra: Record<string, unknown> = {}) => sketch.prepareSketch({
+    campusKey: 'yihua', registration: reg, lineSrc: '/line.webp', objectPosition: 'center 55%', size: SIZE, skyRgb: '134 184 222', ...extra
+  })
+  const filterDraws = () => [...contexts.values()].filter((c) => c.log.some(([name]) => name === 'filter') && c.log.some(([name]) => name === 'drawImage')).length
+  beforeEach(() => {
+    clock = 1000
+    idle = []
+    vi.mocked(performance.now).mockImplementation(() => clock)
+  })
+
+  it('timeout 逼出來的那次（timeRemaining 0）只做一步就讓出；一步一塊算完，座標照舊逐位元相同', async () => {
+    const sketch = await idleSketch()
+    prepare(sketch)
+    let blocks = 0
+    // 原本不看 deadline：一塊做到 8ms（四步）才停，4 塊就算完
+    while (idle.length) { idle.shift()!(deadline(0, true)); blocks++ }
+    // 先 40 個參數、10 團、2 筆天空，最後一步收尾
+    expect(blocks).toBe(13)
+    const parts = card()
+    const handle = develop(sketch, parts)
+    await flush()
+    step(clock + 10000)
+    const ref = referencePolys('yihua', true)
+    expect(sameDoubles(tracedPolygons(maskCtx(), 'rgb(0 0 0 / .085)'), ref.blobs.flat())).toBe(true)
+    expect(sameDoubles(tracedPolygons(skyCtx(), 'rgb(134 184 222 / .045)'), ref.skies.flat())).toBe(true)
+    handle.cancel()
+  })
+  it('閒置時間夠：一塊不超過 8ms，下一步估計和上一步一樣久、剩下的不夠就不開', async () => {
+    const sketch = await idleSketch()
+    prepare(sketch)
+    idle.shift()!(deadline(50))
+    // 原本「還沒到 8ms 就再開一步」：0、3、6ms 各開一步，做到 9ms
+    expect(clock - 1000).toBeLessThanOrEqual(8)
+    expect(idle).toHaveLength(1)
+  })
+  it('瀏覽器給的閒置時間比 8ms 少：照它給的', async () => {
+    const sketch = await idleSketch()
+    prepare(sketch)
+    idle.shift()!(deadline(4))
+    expect(clock - 1000).toBeLessThanOrEqual(4)
+  })
+  it('預建濾鏡層：等到圖才排一個同步步驟，閒置回呼裡就畫完，花的時間算進那一塊（一層超過預算，另一層留到下一塊）', async () => {
+    const sketch = await idleSketch()
+    onFilterDraw = () => { clock += 20 }
+    prepare(sketch, { colourSrc: '/colour.webp', wash: false })
+    await flush(60)
+    // 下載與解碼在閒置時間外等；wash:false 不排多邊形
+    expect(filterDraws()).toBe(0)
+    expect(idle).toHaveLength(1)
+    idle.shift()!(deadline(50))
+    // 原本閒置步驟只是 void sketchLayer(...)：回呼結束時還沒畫，之後兩層在同一個 microtask checkpoint 連著畫
+    expect(filterDraws()).toBe(1)
+    await flush(60)
+    expect(filterDraws()).toBe(1)
+    expect(idle).toHaveLength(1)
+    idle.shift()!(deadline(50))
+    expect(filterDraws()).toBe(2)
+    // 預建好的圖層上色時直接用，不再取圖、不再跑濾鏡
+    const fetches = sketch.fetches.length
+    const handle = develop(sketch, card())
+    await flush()
+    expect(sketch.fetches.length).toBe(fetches)
+    expect(filterDraws()).toBe(2)
+    handle.cancel()
+  })
+  it('wash:false 不算水彩多邊形（自動輪播換進來的鄰卡）；上色時照舊同步補完', async () => {
+    let washes = 0
+    const sketch = await freshSketch({}, { onWash: () => { washes++ } })
+    captureIdle()
+    prepare(sketch, { wash: false })
+    await flush(60)
+    while (idle.length) idle.shift()!(deadline(50))
+    expect(washes).toBe(0)
+    const handle = develop(sketch, card())
+    await flush()
+    expect(washes).toBe(12)
+    handle.cancel()
+  })
+  it('被 keepSketches 逐出的那份多邊形，閒置時間不再往下算', async () => {
+    let washes = 0
+    const sketch = await freshSketch({}, { onWash: () => { washes++ } })
+    captureIdle()
+    sketch.keepSketches(['yihua'])
+    prepare(sketch)
+    idle.shift()!(deadline(0, true))
+    idle.shift()!(deadline(0, true))
+    expect(washes).toBe(1)
+    sketch.keepSketches(['minghua'])
+    while (idle.length) idle.shift()!(deadline(50))
+    expect(washes).toBe(1)
+  })
+  it('沒有 requestIdleCallback：照舊用 setTimeout 退路（不帶 deadline，只看 8ms）', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+    let washes = 0
+    const sketch = await freshSketch({}, { onWash: () => { washes++ } })
+    vi.stubGlobal('requestIdleCallback', undefined)
+    prepare(sketch)
+    vi.advanceTimersByTime(31)
+    expect(washes).toBe(0)
+    vi.advanceTimersByTime(1)
+    expect(washes).toBe(12)
+    vi.useRealTimers()
+  })
+})
+
+describe('審查後：releaseSketches 放掉模組層的快取與閒置工作（CampusBoard 卸載時呼叫）', () => {
+  it('暫存 canvas 設成 0×0、圖層與多邊形清掉；之後上色從頭準備，畫出來一樣', async () => {
+    const sketch = await freshSketch()
+    const parts = card()
+    const first = develop(sketch, parts)
+    await flush()
+    step(1000 + 10000)
+    first.cancel()
+    const { W, H } = geometry()
+    const scratch = [...contexts.values()].map((c) => c.canvas).filter((el) => el !== parts.canvas && el.width === W && el.height === H)
+    expect(scratch).toHaveLength(3)
+    sketch.releaseSketches()
+    for (const el of scratch) expect([el.width, el.height]).toEqual([0, 0])
+    const before = { created, fetches: sketch.fetches.length }
+    const second = develop(sketch, parts)
+    await flush()
+    // 新建三張暫存 canvas 與線稿、淡彩兩層（再取一次原圖），不拿 0×0 的那幾張
+    expect(created - before.created).toBe(5)
+    expect(sketch.fetches.length - before.fetches).toBe(2)
+    step(1000 + 10000)
+    const masks = [...contexts.values()].filter((c) => c.log.some(([name, style]) => name === 'fill' && style === 'rgb(0 0 0 / .085)'))
+    expect(masks).toHaveLength(2)
+    expect(masks[1]!.canvas.width).toBe(W)
+    expect(sameDoubles(tracedPolygons(masks[1]!, 'rgb(0 0 0 / .085)'), referencePolys('yihua', true).blobs.flat())).toBe(true)
+    second.cancel()
+  })
+  it('排好的閒置工作清掉、手上的原圖還回去；還在下載的回來也不再排工作、不存快取', async () => {
+    const idle: (() => void)[] = []
+    const made: FakeBitmap[] = []
+    let washes = 0
+    const sketch = await freshSketch({
+      '/line.webp': () => { const b = bitmap(); made.push(b); return b },
+      '/colour.webp': () => { const b = bitmap(); made.push(b); return b }
+    }, { onWash: () => { washes++ } })
+    vi.stubGlobal('requestIdleCallback', (callback: () => void) => { idle.push(callback); return idle.length })
+    const options = { campusKey: 'yihua', registration: reg, lineSrc: '/line.webp', objectPosition: 'center 55%', size: SIZE, skyRgb: '134 184 222' }
+    sketch.prepareSketch(options)
+    await flush(60)
+    // 線稿已經拿到、預建步驟在佇列裡；再排一次（線稿共用同一份、淡彩剛開始下載）就卸載
+    expect(made).toHaveLength(1)
+    sketch.prepareSketch({ ...options, colourSrc: '/colour.webp' })
+    sketch.releaseSketches()
+    expect(made[0]!.closed).toBe(false)
+    while (idle.length) idle.shift()!()
+    await flush(60)
+    // 佇列裡的步驟沒做就還回原圖，還在等的回來看到已卸載也還回去：最後一個還的把點陣圖關掉
+    expect(made).toHaveLength(2)
+    expect(made.every((b) => b.closed)).toBe(true)
+    expect(idle).toHaveLength(0)
+    expect(washes).toBe(0)
+    expect([...contexts.values()].some((c) => c.log.some(([name]) => name === 'filter'))).toBe(false)
+  })
+  it('卸載前開始等圖的預覽線稿，回來時照樣畫但不存進快取', async () => {
+    const sketch = await freshSketch({}, { delay: 5 })
+    const painting = still(sketch, card())
+    sketch.releaseSketches()
+    await expect(painting).resolves.toBe(true)
+    await still(sketch, card())
+    expect(sketch.fetches).toEqual(['/line.webp', '/line.webp'])
+  })
+  it('keepSketches 回到「全部留」', async () => {
+    const sketch = await freshSketch()
+    sketch.keepSketches(['minghua'])
+    sketch.releaseSketches()
+    await still(sketch, card())
+    await still(sketch, card())
+    expect(sketch.fetches).toEqual(['/line.webp'])
+  })
+  it('releaseSketches 之後才收尾的淡彩速寫，暫存 canvas 不放回去', async () => {
+    const sketch = await freshSketch()
+    const first = develop(sketch, card())
+    await flush()
+    sketch.releaseSketches()
+    first.cancel()
+    const before = created
+    const second = develop(sketch, card())
+    await flush()
+    // 三張暫存＋兩層圖層都新建
+    expect(created - before).toBe(5)
+    second.cancel()
+  })
+})
+
+describe('審查後：CampusBoard 只在有換校意圖時算多邊形、強制色彩不預載、卸載時放掉快取', () => {
+  interface Prepared { campusKey: string, wash?: boolean, colourSrc?: string }
+  const site = fixture as unknown as SiteContent
+  let prepared: Prepared[]
+  let events: string[]
+  let advance: () => void
+  let observers: { callback: IntersectionObserverCallback, options?: IntersectionObserverInit }[]
+  let app: App | null = null
+  afterEach(() => {
+    app?.unmount()
+    app = null
+    for (const path of ['../app/utils/campusSketch', '../app/utils/carouselClock', '../app/composables/useCampusBooking']) vi.doUnmock(path)
+  })
+  /** 掛上 CampusBoard：淡彩速寫換成只記錄呼叫的假模組，輪播計時器換成手動推進（advance＝自動換下一校） */
+  async function mountBoard(forcedColors = false) {
+    vi.resetModules()
+    prepared = []
+    events = []
+    observers = []
+    advance = () => {}
+    vi.doMock('../app/utils/campusSketch', async (importOriginal) => ({
+      ...await importOriginal<typeof import('../app/utils/campusSketch')>(),
+      prepareSketch: (options: Prepared) => { prepared.push({ campusKey: options.campusKey, wash: options.wash, colourSrc: options.colourSrc }) },
+      keepSketches: () => {},
+      releaseSketches: () => { events.push('release') },
+      paintSketchStill: async () => true,
+      developSketch: () => ({ done: new Promise<void>(() => {}), cancel: () => { events.push('cancel') } })
+    }))
+    vi.doMock('../app/utils/carouselClock', () => ({
+      createCarouselClock: (options: { onAdvance: () => void }) => { advance = options.onAdvance; return { start() {}, pause() {}, reset() {}, destroy() {} } }
+    }))
+    vi.doMock('../app/composables/useCampusBooking', () => ({ loadCampusBooking: async () => { throw new Error('offline') } }))
+    // Nuxt 的自動匯入
+    for (const [name, value] of Object.entries({ computed, ref, shallowRef, watch, onMounted, onBeforeUnmount, nextTick })) vi.stubGlobal(name, value)
+    vi.stubGlobal('useRoute', () => ({ query: {} }))
+    vi.stubGlobal('useNuxtApp', () => ({ hook: () => () => {} }))
+    vi.stubGlobal('navigateTo', async () => {})
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: forcedColors && query === '(forced-colors: active)', addEventListener() {}, removeEventListener() {} }))
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) { observers.push({ callback, options }) }
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    })
+    vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
+    const { default: CampusBoard } = await import('../app/components/CampusBoard.vue')
+    const host = document.createElement('div')
+    document.body.append(host)
+    app = createApp({ render: () => h(CampusBoard as Component, { board: site.home.campusBoard, campuses: site.campuses }) })
+    app.component('NuxtLink', defineComponent({ props: { to: { type: String, required: true } }, setup: (props, { slots }) => () => h('a', { href: props.to }, slots.default?.()) }))
+    app.mount(host)
+    await flush()
+    // 區塊離視窗 800px 內：預載目前這校、畫左右預覽線稿
+    observers.find((o) => o.options?.rootMargin === '800px 0px')!.callback([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver)
+    await flush()
+    return host
+  }
+  const tab = (host: HTMLElement, key: string) => host.querySelector<HTMLButtonElement>(`#campus-tab-${key}`)!
+
+  it('抵達：目前這校連多邊形與淡彩一起準備；左右鄰卡只預建線稿層', async () => {
+    await mountBoard()
+    expect(prepared[0]).toEqual({ campusKey: 'yihua', wash: true, colourSrc: '/assets/campus-line-art-yihua-colour.webp' })
+    expect(prepared.slice(1)).toEqual(['yihua', 'minghua', 'renwu'].map((campusKey) => ({ campusKey, wash: false, colourSrc: undefined })))
+  })
+  it('自動輪播換校：新的左右鄰卡只預建線稿層（不算多邊形）', async () => {
+    await mountBoard()
+    for (let round = 0; round < 5; round++) {
+      prepared = []
+      advance()
+      await flush()
+      expect(prepared).toHaveLength(3)
+      // 原本 prepareNearby() 不分自動、手動，每輪都替新鄰卡算一份多邊形
+      expect(prepared.every((p) => p.wash === false && !p.colourSrc)).toBe(true)
+    }
+  })
+  it('手動換校：新的左右鄰卡連多邊形一起準備（淡彩層照舊不載）', async () => {
+    const host = await mountBoard()
+    prepared = []
+    host.querySelectorAll<HTMLButtonElement>('.page-dot')[2]!.click()
+    await flush()
+    expect(prepared.map((p) => p.campusKey).sort()).toEqual(['chongde', 'international', 'minghua'])
+    expect(prepared.every((p) => p.wash === true && !p.colourSrc)).toBe(true)
+  })
+  it('分頁 pointerenter／pointerdown／focus：那一校連淡彩層與多邊形一起準備', async () => {
+    const host = await mountBoard()
+    for (const type of ['pointerenter', 'pointerdown', 'focus']) {
+      prepared = []
+      tab(host, 'international').dispatchEvent(new Event(type))
+      expect(prepared, type).toEqual([{ campusKey: 'international', wash: true, colourSrc: '/assets/campus-line-art-international-colour.webp' }])
+    }
+  })
+  it('強制色彩：預載與滑到、按下、focus 分頁都不準備（畫布不顯示，準備了也白做）', async () => {
+    const host = await mountBoard(true)
+    for (const type of ['pointerenter', 'pointerdown', 'focus']) tab(host, 'international').dispatchEvent(new Event(type))
+    expect(prepared).toEqual([])
+  })
+  it('卸載：先取消上色，再 releaseSketches 放掉模組層的快取', async () => {
+    const host = await mountBoard()
+    host.querySelectorAll<HTMLButtonElement>('.page-dot')[1]!.click()
+    await flush()
+    events = []
+    app!.unmount()
+    app = null
+    expect(events).toEqual(['cancel', 'release'])
   })
 })

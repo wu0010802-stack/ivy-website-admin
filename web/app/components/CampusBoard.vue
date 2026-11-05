@@ -4,7 +4,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
-import { developSketch, keepSketches, paintSketchStill, pickLineArt, prepareSketch, sketchRegistration, sketchScale, type CardSize, type DevelopHandle } from '~/utils/campusSketch'
+import { developSketch, keepSketches, paintSketchStill, pickLineArt, prepareSketch, releaseSketches, sketchRegistration, sketchScale, type CardSize, type DevelopHandle } from '~/utils/campusSketch'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
@@ -91,7 +91,8 @@ function sketchIsCurrent(i: number) {
 function refreshLineArt() {
   if (!lineArtStarted) return
   orderedCampuses.value.forEach((campus, i) => { if (i !== index.value || initialSketch.value === campus.key) void showLineArt(i) })
-  prepareNearby()
+  // 抵達、視窗變大小、換內容都不是換校意圖：只預建線稿層（目前這校的多邊形在預載時已經排了）
+  prepareNearby(false)
 }
 // canvas 依卡片尺寸畫：卡片變大小才重畫（手機網址列伸縮只改視窗高度，卡片不變）
 function refreshLineArtOnResize() {
@@ -135,8 +136,8 @@ function nearbyCampuses() {
 function keepNearbySketches() {
   keepSketches([...nearbyCampuses(), preloadedCampus].flatMap(i => orderedCampuses.value[i]?.key ?? []))
 }
-// 閒置時間先準備一校（多邊形、線稿層；colour 時連淡彩層），換校時不必在點擊的 task 裡現算
-function prepareCampus(i: number, colour: boolean) {
+// 閒置時間先準備一校（線稿層；colour 時連淡彩層；wash 時連水彩多邊形），換校時不必在點擊的 task 裡現算
+function prepareCampus(i: number, colour: boolean, wash: boolean) {
   const campus = orderedCampuses.value[i]
   const registration = campus && sketchRegistration(campus)
   const sources = sketchSources(i)
@@ -144,21 +145,25 @@ function prepareCampus(i: number, colour: boolean) {
   if (!campus || !registration || !sources || !size) return
   prepareSketch({
     campusKey: campus.key, registration, lineSrc: sources.lineSrc, colourSrc: colour ? sources.colourSrc : undefined,
-    objectPosition: campus.panoramaPos || 'center 55%', size, skyRgb: skyRgb || readSkyRgb()
+    objectPosition: campus.panoramaPos || 'center 55%', size, skyRgb: skyRgb || readSkyRgb(), wash
   })
 }
-// 目前與左右兩校：淡彩層不在這裡載（原本就只在接近區塊時載目前這校、滑到／按下分頁才載那一校）
-function prepareNearby() {
+// 目前與左右兩校：淡彩層不在這裡載（原本就只在接近區塊時載目前這校、滑到／按下分頁才載那一校）。
+// 水彩多邊形只在手動換校後才替新的左右鄰卡算（wash）：自動輪播換進來的只暈開、用不到，
+// 每輪都算一份又會被 keepSketches 輪流擠掉（2026-11-05 審查後）。
+function prepareNearby(wash: boolean) {
   if (!lineArtStarted || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
   keepNearbySketches()
-  nearbyCampuses().forEach(i => prepareCampus(i, false))
+  nearbyCampuses().forEach(i => prepareCampus(i, false, wash))
 }
+// 換校意圖（滑到、按下、focus 分頁；區塊接近時的目前這校）：連淡彩層與多邊形一起準備。
+// 強制色彩下畫布不顯示（同 prepareNearby、showLineArt 擋掉），準備了也白做。
 function preloadCampus(i: number) {
   const campus = orderedCampuses.value[i]
-  if (reducedMotion.value || !campus || !sketchRegistration(campus)) return
+  if (reducedMotion.value || matchMedia('(forced-colors: active)').matches || !campus || !sketchRegistration(campus)) return
   preloadedCampus = i
   keepNearbySketches()
-  prepareCampus(i, true)
+  prepareCampus(i, true, true)
 }
 // from：'photo' 用於沒有預覽線稿的手動切換；'sketch' 從線稿接手。wash=false 只暈開（自動輪播）。
 async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = true) {
@@ -260,7 +265,8 @@ function select(next: number, automatic = false) {
     void showLineArt(previous)
     if (lineArt.value.has(orderedCampuses.value[selected]!.key)) void runDevelop(selected, 'sketch', !automatic)
     else if (!automatic) void runDevelop(selected)
-    prepareNearby()
+    // 自動輪播只預建新鄰卡的線稿層；手動換校才連多邊形（使用者接著多半再換）
+    prepareNearby(!automatic)
   }
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
@@ -515,7 +521,9 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', visibilityChanged)
   }
 })
-onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.cancel() })
+// 淡彩速寫的圖層、多邊形、暫存 canvas 與閒置佇列放在模組層（utils/campusSketch.ts），換頁後不放掉會一直佔著；
+// 先取消上色（暫存 canvas 收回來）再一起清
+onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.cancel(); releaseSketches() })
 </script>
 
 <template>
@@ -533,7 +541,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
           @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
-          @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)"
+          @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
             <img
