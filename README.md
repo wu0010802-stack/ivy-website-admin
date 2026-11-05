@@ -74,6 +74,10 @@
 - **驗證**（Node 22）：
   - web `typecheck` 通過；單元測試 120 檔、1616 項全過。
   - 新增 `smoothness-20261105-{prints,curtains,campus,curriculum,anniversary,about-env-admission}.spec.ts`。每支都做過突變檢查：把原始檔換回舊寫法，新測試會失敗。
+  - 截圖比對：基準 `9ffc09e` 對合併版 `de6ed77`，八頁 × 八個捲動位置 × 桌機 1440／手機 390，先慢捲一輪讓一次性效果跑完再拍。
+    - /admission、/curriculum、/environment、/news、/visit：兩種視口每個位置 0.00%。
+    - /about 最多 0.07%、/anniversary 最多 0.28%，都與基準對基準的雜訊同級（0.12%、0.14%）。
+    - 首頁的差異只在背景影片（每次拍到的影格不同）與拍立得進場輕掀的收尾時刻；卡片內容、文字、頁首相同。基準對基準手機也有 1–2%。
 - **沒驗**：iOS／Android 實機、有 GPU 的 Chrome（WebGL 與 canvas 的實際收益要真機量）、Safari 的 Cache Storage 與 `priority` 支援。
 
 ## 2026-11-05 首頁「關於常春藤」照片對齊、換照、內文改寫（`feature/home-about-a-20261105`）
