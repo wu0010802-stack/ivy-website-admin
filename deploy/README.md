@@ -21,7 +21,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 新增 `utils/decoded-bitmap.ts`，這一批沒有呼叫端。
   - 只動 web 的樣式與頁首，沒有新環境變數、後端與資料庫變動。
 - **提交前驗證**：web typecheck 通過，受影響與新增的單元測試通過。production build（fixture）上，頁首 computed style 比對三種寬度 × 九頁 × 四種狀態，共 10,690,018 個值、0 差異。PR #61 的 CI（web、admin、後端三組、E2E）全綠。
-- **CI**：main run 41995555256。web、admin、後端三組通過；E2E 的 stack 段通過；Deploy success（08:41:12–08:44:53Z）。
+- **CI**：main run 41995555256 全綠（web、admin、後端三組、E2E 的 stack 與公開站四視口），Deploy success（08:41:12–08:44:53Z）。
 - **線上驗證**（只發 GET，Playwright 攔遙測）：
   - `/release.json` 的 base_commit 是 `3c475d33`，created_at `2026-11-05T08:41:41Z`；`/api/website/v1/health` 200。
   - 量了 `/`、`/about`、`/admission`、`/curriculum`、`/anniversary`、`/environment`、`/news`、`/visit` 八頁，桌機 1440（DPR2）與手機 390（DPR3），全部 200、無頁面錯誤、無橫向溢出。
