@@ -35,6 +35,11 @@ export function useHomeReveal(refs: HomeRevealRefs) {
   let lastProgress = Number.NaN
 
   const clamp = (n: number) => Math.max(0, Math.min(1, n))
+  // 同值不重寫（同 useCurtain）：揭幕段過了門檻之後每幀都是 true 再設成 true，
+  // Chromium 每次仍會改屬性、做一次樣式重算。
+  const setInert = (el: HTMLElement, value: boolean) => {
+    if (el.inert !== value) el.inert = value
+  }
 
   function update() {
     frame = 0
@@ -47,9 +52,9 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     if (progress === lastProgress) return
     lastProgress = progress
     root.value.classList.toggle('is-revealing', animated && progress > 0.08)
-    hero.value.inert = animated && progress >= 0.995
-    actions.value.inert = animated && progress >= 0.15
-    media.value.inert = animated && progress >= 0.2
+    setInert(hero.value, animated && progress >= 0.995)
+    setInert(actions.value, animated && progress >= 0.15)
+    setInert(media.value, animated && progress >= 0.2)
 
     if (root.value.dataset.motion === 'fallback') {
       const mobile = mobileQuery?.matches ?? false
