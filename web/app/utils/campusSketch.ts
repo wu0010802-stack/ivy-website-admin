@@ -54,6 +54,16 @@ const PHOTO_MS = 1700
 const SKETCH_SKIP = WASH_START - 200
 // 只暈開（自動輪播）：卡片滑到九成再開始
 const BLOOM_ONLY_AT = 450
+/**
+ * 照片暈開的 mask-size 轉場（2026-11-05 切短，推導見 CampusBoard.vue 的 is-develop 樣式）：原本 1.7s cubic-bezier(.33,.12,.3,1)
+ * 放大到 520%，468%（第 1100.457ms）時遮罩已整張蓋滿。這裡是原曲線 [0, u] 那一段：u＝0.7913893553664177（y(u)＝0.9），
+ * 控制點 a＝u·P1、b＝2u(1−u)·P1＋u²·P2，再各除以 B(u) 的 x、y 正規化；時長 1700×x(u)。數字要完整：只留 6 位有效數字
+ * （CSS 壓縮後的樣子）時，暈開中段的暫停截圖和原本不同；用這串完整的值，0–1699ms 取樣的 20 個時間點與結束狀態
+ * 都和原本逐位元相同（桌機 1440、手機 390×3）。
+ * 寫成 inline style 才不會被 build 的 CSS 壓縮改短。
+ */
+const BLOOM_EASE = 'cubic-bezier(.4034410597806647,.1055185807155224,.4585777993124224,.7399102780514095)'
+export const BLOOM_TRANSITION = `-webkit-mask-size 1100.4567274385ms ${BLOOM_EASE},mask-size 1100.4567274385ms ${BLOOM_EASE}`
 
 // ---------- 原圖 ----------
 type SketchImage = HTMLImageElement | ImageBitmap
@@ -457,11 +467,17 @@ export function developSketch(options: {
   let finish: () => void = () => {}
   const done = new Promise<void>((resolve) => { finish = resolve })
   const timers: ReturnType<typeof setTimeout>[] = []
-  const onBloomEnd = (event: TransitionEvent) => { if (event.target === img && event.propertyName.includes('mask-size')) cleanup() }
+  // 暈開的轉場在遮罩蓋滿照片時（原曲線第 1100ms）就停（2026-11-05，CampusBoard.vue 的 is-develop 樣式）；收尾照舊
+  // 在轉場開始後 PHOTO_MS 才做：done 之後輪播才開始算四秒，提早收尾會讓自動輪播的節奏變快。
+  const onBloomEnd = (event: TransitionEvent) => {
+    if (event.target !== img || !event.propertyName.includes('mask-size')) return
+    timers.push(setTimeout(cleanup, Math.max(0, Math.ceil(PHOTO_MS - event.elapsedTime * 1000))))
+  }
   const cleanup = () => {
     cancelAnimationFrame(frame)
     timers.forEach(clearTimeout)
     img.removeEventListener('transitionend', onBloomEnd)
+    img.style.removeProperty('transition')
     card.classList.remove('is-sketch', 'is-develop', 'is-developed')
     if (scratch) { spareScratch = scratch; scratch = null }
     finish()
@@ -605,8 +621,9 @@ export function developSketch(options: {
     timers.push(setTimeout(() => {
       if (cancelled) return
       if (bloom) card.style.setProperty('--develop-mask', `url(${bloom})`)
+      img.style.transition = BLOOM_TRANSITION
       card.classList.add('is-develop')
-      // 先讓 0% 的遮罩大小生效再換成 520%，轉場才有起點（不靠 rAF：主執行緒忙時 rAF 會被拖好幾百 ms）
+      // 先讓 0% 的遮罩大小生效再換成 468%，轉場才有起點（不靠 rAF：主執行緒忙時 rAF 會被拖好幾百 ms）
       void getComputedStyle(img).getPropertyValue('mask-size')
       void getComputedStyle(img).getPropertyValue('-webkit-mask-size')
       card.classList.add('is-developed')

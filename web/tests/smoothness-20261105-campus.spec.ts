@@ -381,3 +381,58 @@ describe('campus-auto-switch-redundant-repaint：只做得到「不重配置」'
     handle.cancel()
   })
 })
+
+describe('照片暈開切短（選做）：遮罩蓋滿就停，收尾照舊在 1.7 秒', () => {
+  const bezier = (u: number, a: number, b: number) => 3 * (1 - u) ** 2 * u * a + 3 * (1 - u) * u * u * b + u ** 3
+  it('是原曲線 (.33,.12,.3,1) 到 90%（468%）那一段，控制點與時長用完整的值', async () => {
+    const { BLOOM_TRANSITION } = await freshSketch()
+    let lo = 0, hi = 1
+    for (let k = 0; k < 200; k++) { const m = (lo + hi) / 2; if (bezier(m, 0.12, 1) < 0.9) lo = m; else hi = m }
+    const u = (lo + hi) / 2, X = bezier(u, 0.33, 0.3), Y = bezier(u, 0.12, 1)
+    const expected = [u * 0.33 / X, u * 0.12 / Y, (2 * u * (1 - u) * 0.33 + u * u * 0.3) / X, (2 * u * (1 - u) * 0.12 + u * u * 1) / Y]
+    const [, ms, ease] = BLOOM_TRANSITION.match(/^-webkit-mask-size ([\d.]+)ms cubic-bezier\(([^)]+)\),mask-size \1ms cubic-bezier\(\2\)$/)!
+    expect(Number(ms)).toBeCloseTo(1700 * X, 9)
+    ease!.split(',').map(Number).forEach((value, i) => expect(value).toBeCloseTo(expected[i]!, 14))
+    // 至少 8 位小數（只留 6 位有效數字時暈開中段實測像素不同）
+    expect(ease!.split(',').every((value) => value.replace(/^0?\./, '').length >= 8)).toBe(true)
+  })
+  it('468% 時卡片四角還在 bloomCanvas 的實心核心裡，至少留 1.5 texel', () => {
+    const watercolor = read('../app/utils/watercolor.ts')
+    const bloom = watercolor.slice(watercolor.indexOf('export function bloomCanvas'), watercolor.indexOf('export function revealMaskCanvas'))
+    expect(bloom).toContain('const S = 128')
+    expect(bloom).toContain('ctx.arc(S / 2, S / 2, S * 0.17, 0, Math.PI * 2)')
+    const core = 128 * 0.17, corner = Math.SQRT2 * 64 / 4.68
+    expect(core - corner).toBeGreaterThanOrEqual(1.5)
+  })
+  it('CSS 的終點是 468%；轉場和 BLOOM_TRANSITION 同一串（CSS 那份會被 build 壓短，只是備援）', async () => {
+    const { BLOOM_TRANSITION } = await freshSketch()
+    const board = read('../app/components/CampusBoard.vue')
+    expect(board).toContain('.photo-card.is-sketch.is-developed img{--develop:468%}')
+    expect(board).toContain(`.photo-card.is-sketch.is-develop img{opacity:1;transition:${BLOOM_TRANSITION};`)
+  })
+  it('暈開時 inline 掛上完整的轉場；轉場提早結束後，收尾照舊等到 PHOTO_MS（輪播才開始算四秒）', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const sketch = await freshSketch()
+    const parts = card()
+    const handle = develop(sketch, parts, { wash: false })
+    let finished = false
+    void handle.done.then(() => { finished = true })
+    await flush()
+    vi.advanceTimersByTime(450)
+    expect(parts.card.classList.contains('is-developed')).toBe(true)
+    expect(parts.img.style.transition).toBe(sketch.BLOOM_TRANSITION)
+    const end = new Event('transitionend')
+    Object.defineProperties(end, { propertyName: { value: 'mask-size' }, elapsedTime: { value: 1.1004567274385 } })
+    parts.img.dispatchEvent(end)
+    vi.advanceTimersByTime(599)
+    await flush()
+    expect(finished).toBe(false)
+    expect(parts.card.classList.contains('is-sketch')).toBe(true)
+    vi.advanceTimersByTime(1)
+    await flush()
+    expect(finished).toBe(true)
+    expect(parts.card.classList.contains('is-sketch')).toBe(false)
+    expect(parts.img.style.transition).toBe('')
+    vi.useRealTimers()
+  })
+})

@@ -700,12 +700,20 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .photo-card.is-repositioning,.gallery-track.is-dragging .photo-card{transition:none}
 /* 淡彩速寫（utils/campusSketch.ts）：canvas 墊在照片下面；畫的時候照片淡出，最後照片以水彩團遮罩從中央暈開回來。
    卡片有 transform（自成堆疊環境），canvas 用 z-index:-1 壓在照片底下，照片本身不必定位，
-   非當前卡的淡化遮罩（::after）才不會被照片蓋掉。 */
+   非當前卡的淡化遮罩（::after）才不會被照片蓋掉。
+   暈開（2026-11-05 切短）：原本 1.7s cubic-bezier(.33,.12,.3,1) 放大到 520%。bloomCanvas 的實心核心半徑 0.17×128＝21.76 texel，
+   mask-size 是卡片寬高的百分比，卡片四角離遮罩中心 √2×64/s texel；468%（原曲線的 90%，第 1100.457ms）時是 19.34，
+   照片已整張露出（實測 444% 起暫停截圖就和 520% 逐位元相同），之後 0.6 秒畫面不變卻每幀重算樣式、重畫整張照片。
+   改成原曲線 [0, 0.7913894] 那一段（de Casteljau 切開、控制點除以終點正規化）、到 468% 就停：每個時間點的值和原本相同。
+   收尾（輪播從這裡起算四秒）照舊在 1.7 秒，見 campusSketch.ts 的 PHOTO_MS。
+   注意：build 的 CSS 壓縮（lightningcss）把數字存成 32 位浮點、只留 6 位有效數字，這裡的轉場會變成
+   1.10046s cubic-bezier(.403441,…)，暈開中段實測有像素不同；實際用的是 campusSketch.ts 的 BLOOM_TRANSITION（inline style 不經壓縮），
+   這裡的值只是同一條曲線的備援，兩邊要一起改。 */
 .photo-card .sketch-canvas{position:absolute;inset:0;z-index:-1;width:100%;height:100%;opacity:0;pointer-events:none;transition:opacity .4s}
 .photo-card.is-sketch .sketch-canvas{opacity:1;transition:none}
 .photo-card.is-sketch img{opacity:0;transition:opacity .45s ease}
-.photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1.7s cubic-bezier(.33,.12,.3,1),mask-size 1.7s cubic-bezier(.33,.12,.3,1);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
-.photo-card.is-sketch.is-developed img{--develop:520%}
+.photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1100.4567274385ms cubic-bezier(.4034410597806647,.1055185807155224,.4585777993124224,.7399102780514095),mask-size 1100.4567274385ms cubic-bezier(.4034410597806647,.1055185807155224,.4585777993124224,.7399102780514095);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
+.photo-card.is-sketch.is-developed img{--develop:468%}
 /* 左右預覽卡＝靜態線稿（data-art=line，2026-09-29 晚）：canvas 直接露出、照片淡出（離開中央的那張邊滑邊褪回線稿）；
    換到中央由 campusSketch 掛 is-sketch 接手，上色後照片暈開回來。 */
 .photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}
