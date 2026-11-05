@@ -1643,7 +1643,7 @@
 
 ## 手機內頁頁首與小字（2026-09-23 晚）
 
-- 分校頁與預約頁在 900px 以下沿用首頁膠囊：捲過 40px 收合、選單用同一張選單卡；桌機內頁維持展開頁首。膠囊規則以 `body:has(:is(.studio-hero,.is-pill-nav))` 作用，**`:is()` 裡只能放單一 class**，否則特異度改變、首頁 cascade 會跟著變。
+- 分校頁與預約頁在 900px 以下沿用首頁膠囊：捲過 40px 收合、選單用同一張選單卡；桌機內頁維持展開頁首。膠囊規則以 `body:has(:is(.studio-hero,.is-pill-nav))` 作用，**`:is()` 裡只能放單一 class**，否則特異度改變、首頁 cascade 會跟著變。（2026-11-05 起改成 header 自己的 class：`body :is(.is-hero-page,.is-pill-nav) …`，特異度同為 (0,1,1)，見最上方「前台流暢度」。）
 - 手機選單開著時鎖背景捲動（`html.menu-locked`），桌機選單卡不鎖。
 - 預約頁本身（`/visit`、`/visit/<校>`）手機不放「預約參觀」鈕；查詢／取消頁保留。
 - 要閱讀的中文內文在手機至少 14px（`--fs-sm`）；10–12px 只留給英文小標、圖說、版權列等短字。
@@ -2399,7 +2399,7 @@ Nuxt 共用頁尾不再顯示「標題字型 LINE Seed TW」及「機構原官�
 
 首頁捲過首屏（hero）後，整條頁首讓位，改由置頂靠右的墨綠毛玻璃膠囊接手：白色圓徽章的校徽、「選單 Menu」、暖黃「預約參觀」（2026-09-18 起校名與英文字不進膠囊，只留校徽；校名保留在 `.pill-brand` 的 `aria-label`）。導覽四個項目收進膠囊的選單卡。提案與三個方向的比較留在 `design/header-collapse-directions/`（A 同組收合／B 浮動膠囊／C 極簡列＋全幕選單），園方選 B。
 
-- **只作用在首頁**（`body:has(.studio-hero)`）。分校頁與預約頁的頁首、手機展開列都沒有改，因為那裡的頁首本來就是米白實底、不是壓在照片上的透明列。
+- **只作用在首頁**（`body:has(.studio-hero)`；2026-11-05 起寫成 `body .is-hero-page …`／`body .header.is-hero-page…`，由 SiteHeader 的 `hero` prop 掛上，見最上方「前台流暢度」）。分校頁與預約頁的頁首、手機展開列都沒有改，因為那裡的頁首本來就是米白實底、不是壓在照片上的透明列。
 - **觸發點：往下捲的第一步（2026-09-18 改）**。`scrollY > 40`（`COMPACT_AT`）就切換成 `data-state="compact"`，捲回最上面還原成完整頁首。原本要等整段首屏揭幕結束（約一個視窗高度）才收，園方要求一動就收。`is-scrolled` 用同一個門檻，避免先變米白頁首再收成膠囊的兩段跳動。
 - **首屏頂部遮罩跟著收**：`.studio-hero::before` 第一層是為白色導覽字設計的 190px 暗帶；收合後導覽字已經不在照片上，用 `background-size:100% 0` 把它收掉（可過渡，0.35 秒）。不收的話深綠膠囊壓在暗帶上對背景只有 1.08 的對比，等於看不見邊界；收掉後桌機 1.50–2.78、手機 2.08–4.49。膠囊在收合狀態另外把外框提到白 28%、陰影加重，只改 `--pill-border`／`--pill-shadow` 變數，不直接寫 `box-shadow`，否則會蓋掉左右分離版「膠囊本身不投影、由子元素投影」的設定。
 - **毛玻璃（2026-09-18 晚定案）**：膠囊底色 `rgb(var(--ink) / .74)`＋`backdrop-filter:blur(16px) saturate(1.3)`，邊框白 28%；74% 是壓在首頁最淺的米白上仍讓米白字 6.5、`--mint` 英文 4.7 的下限（58% 只有 3.9／2.8，英文不過 AA）。選單卡**不透明**，走 `--pill-solid`（`--green`），因為壓在照片上半透明的導覽字不好讀。園方在 explore.html 六方向裡選了毛玻璃。
@@ -2409,7 +2409,7 @@ Nuxt 共用頁尾不再顯示「標題字型 LINE Seed TW」及「機構原官�
 - **更不擋內容的探索（2026-09-18 晚，待拍板）**：`design/header-collapse-directions/explore.html` 比六個方向（現況／`?autohide=1`／`?pill=edge` 貼視窗右緣／毛玻璃（已套預設，參數移除）／`?pill=bare` 三顆散開／`?pill=dock` 右下停靠），截圖在 `explore/`。我建議 autohide、園方選毛玻璃（選單卡改實色補可讀性）；bare 失去整體感、dock 撞到孩子的一天的「暫停背景」鈕。
 - **選單就是手機的導覽**：首頁在 900px 以下，頁首的漢堡與膠囊的漢堡開的是同一張卡，不再用 `.navigation.open` 展開列；兩顆漢堡打開時都變成 ✕。其他頁面仍用展開列。
 - **無障礙**：兩顆漢堡共用 `aria-expanded`／`aria-controls="menu-panel"`；打開時焦點進第一個連結，Esc、點外面、點連結、回到首屏都會關閉並把焦點還給按鈕。隱藏的那一組（首屏的膠囊、收合後的頁首）用 `visibility:hidden`，不會被 Tab 到。收合後 `.header` 設 `pointer-events:none`，只有膠囊與選單卡接收點擊，看不見的頁首不會擋住內容。
-- **選單鈕的特異性陷阱**：站內既有 `body:has(.studio-hero) .menu-toggle span{height:2px;width:22px}`（特異性 0,2,2）會把膠囊裡的 `.menu-lines`、`.menu-word` 一起壓成 22×2 的白條；膠囊內任何 `span` 的規則都要明確寫出 `width`／`height`／`background`，光靠加前綴不夠。
+- **選單鈕的特異性陷阱**：站內既有 `body:has(.studio-hero) .menu-toggle span{height:2px;width:22px}`（特異性 0,2,2；2026-11-05 起寫成 `body .is-hero-page .menu-toggle span`，特異性不變）會把膠囊裡的 `.menu-lines`、`.menu-word` 一起壓成 22×2 的白條；膠囊內任何 `span` 的規則都要明確寫出 `width`／`height`／`background`，光靠加前綴不夠。
 - **位置：靠右（2026-09-18 定案）**。膠囊右緣貼內容欄右緣，和原本頁首的預約鈕同一條線；`--pill-gutter` 跟著 `.container` 走（1101px 以上 `max(48px,(100%-1280)/2)`、1100px 以下 32px，斷點取自 studio.css 開頭的 `.container` 斷點而非 styles.css 的 1150）。選單卡與膠囊同寬、右緣對齊。900px 以下不受影響，仍是左右各留 16 的滿版膠囊。
   先前的置中版與其他擺法留作比較，用 `html[data-pill]` 切換（`index.html?pill=center|left|split|split-mini#/home`），比較頁 `design/header-collapse-directions/placement.html`。
 - **向下捲收起、向上捲出現**：預覽參數 `index.html?autohide=1#/home`，mock-up 與對照動畫在 `design/header-collapse-directions/autohide.html`。只在收合狀態作用，方向門檻 6px，一次跳超過 240px（錨點跳轉、按 End）只更新基準不改狀態；選單開著、焦點在膠囊裡、接近頁首、捲到底、減少動態時一律維持顯示。**尚未套成預設**，站上仍是一直顯示。
