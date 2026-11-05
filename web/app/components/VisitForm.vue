@@ -637,7 +637,7 @@ async function onSubmit() {
                不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
           <picture>
             <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
-            <img v-bind="responsiveImage('about-curious', '(max-width: 760px) calc(100vw - 40px), 40vw')" alt="孩子們笑著指向前方" decoding="async">
+            <img v-bind="responsiveImage('about-curious', '(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')" alt="孩子們笑著指向前方" decoding="async">
           </picture>
         </figure>
       </div>

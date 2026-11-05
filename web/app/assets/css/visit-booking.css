@@ -56,12 +56,15 @@
 .visit-welcome {position:relative;color:var(--visit-ink)}
 /* 2026-10-02 收短（原 clamp(72px,9vw,132px)／clamp(56px,7vw,96px)、照片 3:2）：桌機 1440×900 原本整個第一屏都是迎賓區，選校步驟在折線下；
    現在第一屏看得到步驟、標題與選校卡上緣。 */
-.visit-page[data-step='1'] .visit-welcome {padding:clamp(48px,5vw,72px) 0 clamp(40px,4.5vw,64px)}
-.visit-welcome-inner {display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);column-gap:clamp(48px,6vw,96px);align-items:end}
+/* 2026-11-05 版面比例：原本文字欄 1.05fr、照片欄 1fr、欄距最大 96px，兩行標題只占文字欄四成，
+   標題與照片中間空出約 400px，照片被擠成右側一條。改成文字 5、照片 7，欄距收到 64px，標題放大；
+   照片變大多出的高度由上下內距吸收一部分（原 72／64），1440×900 第一屏仍看得到選校卡上緣。 */
+.visit-page[data-step='1'] .visit-welcome {padding:clamp(40px,4.4vw,64px) 0 clamp(36px,3.6vw,52px)}
+.visit-welcome-inner {display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);column-gap:clamp(40px,4.5vw,64px);align-items:end}
 .visit-welcome-copy>* {max-width:none}
 .visit-eyebrow {display:flex;align-items:center;gap:14px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.6;letter-spacing:.06em;font-weight:500}
 .visit-eyebrow::before {content:'';width:34px;height:1px;background:currentColor;opacity:.35}
-.visit-page[data-step='1'] .visit-welcome h1 {font:700 clamp(2.75rem,4.2vw,4.25rem)/1.32 var(--font-head);letter-spacing:.015em}
+.visit-page[data-step='1'] .visit-welcome h1 {font:700 clamp(2.75rem,4.8vw,4.75rem)/1.32 var(--font-head);letter-spacing:.015em}
 .visit-welcome-photo {margin:0;min-width:0}
 .visit-welcome-photo img {width:100%;height:auto;aspect-ratio:2/1;object-fit:cover;object-position:center 30%;border-radius:16px}
 /* 第二步起收成一行頁名，讓表單前移。 */
@@ -282,8 +285,8 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
 }
 /* 筆電矮視窗（1280×720 等）：迎賓區再收，第一屏仍看得到選校步驟。 */
 @media(min-width:961px) and (max-height:820px) {
-  .visit-page[data-step='1'] .visit-welcome {padding:32px 0}
-  .visit-page[data-step='1'] .visit-welcome h1 {font-size:clamp(2.5rem,3.6vw,3.5rem)}
+  .visit-page[data-step='1'] .visit-welcome {padding:28px 0}
+  .visit-page[data-step='1'] .visit-welcome h1 {font-size:clamp(2.5rem,4.2vw,4rem)}
   .visit-welcome-photo img {aspect-ratio:12/5}
   .visit-eyebrow {margin-bottom:14px}
   .visit-page[data-step='1'] .visit-stage {padding-top:32px}
