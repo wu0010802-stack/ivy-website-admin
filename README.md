@@ -1,3 +1,12 @@
+## 2026-11-05 依賴升級：Dependabot 三則警示（`fix/deps-audit-20261105`）
+
+推 main 時 GitHub 提示預設分支有漏洞，使用者要「幫我升級」。當時 open 的 Dependabot 警示只有三則（`versions/` 舊快照與 admin 開發依賴的已被略過）：
+
+- **#181 glob（中，web）**：`>=9 <=14.0.1`，修正版 14.0.2。`@vercel/nft` 要 `^13`、`archiver-utils` 要 `^10`，上游都還沒升，`web/package.json` 的 `overrides` 只對這兩個上游指定 `glob ^14.0.3`（不用全域覆寫，免得以後有人要 glob 7 時被強升）。glob 14 只換了 minimatch 11、path-scurry 3，API 不變；lock 少了 glob 10 那一串子依賴。用 `npx npm@11.6.2 install`（npm 10 會撞 arborist `edgesOut`，見 10-27）。
+- **#3 pytest（中，backend 開發依賴）**：`<9.0.3`。`pytest>=9.0.3,<10`（鎖 9.2.0），pytest-asyncio 0.23 不支援 pytest 9，一起升 `>=1.3,<2`（鎖 1.4.1.post1），pytest-split 0.10 也卡 `<9`，升 0.11。pytest-asyncio 1.x 要明寫 `asyncio_default_fixture_loop_scope = "function"`（與 0.23 每個測試各自一個 event loop 相同）。
+- **#180 deepmerge（低，web）**：`>=4.2.0 <=4.3.1`，**沒有修正版**（4.3.1 就是最新）。只有 `@rollup/plugin-node-resolve`（nitropack 建置時合併外掛選項）用，輸入是我們自己的設定，正式伺服器執行時不載入。沒改；`npm audit --omit=dev` 剩的 7 則 low 全是這一條往上傳遞。
+- **驗證**：web typecheck、web 單元 112 檔 1372 全過，`nuxt build` 成功且 `.output/server/index.mjs` 啟動後 `/`、`/visit`、`/about` 都 200；後端全套（獨立測試庫 `ivy_website_deps1105_test`，跑完已刪）4734 passed、1 skipped，加 `-W error::pytest.PytestDeprecationWarning` 也沒有任何一條；`--splits 3 --group 1` 收集正常。沒跑 admin 與 stack e2e（兩者都沒改）。
+
 ## 2026-11-05 孩子的一天小字改英文（`feature/day-cards-20261105`）
 
 使用者截圖首頁「常春藤的一天」：「孩子的一天幫我改成英文」，同時要「多加兩張卡片，看看插在哪」。
