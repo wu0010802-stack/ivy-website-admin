@@ -22,8 +22,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - health `status ok`；後台 `/admin/error-groups`、`/admin/push/config` 未登入回 401（路由在）；`/api/website/v1/public/client-errors` 直接打回 404（只能經 Nitro 轉送）。
   - AVIF：首頁 SSR 12 個 `<source type="image/avif">`、首屏 preload 帶 `type="image/avif"`；AVIF 檔 `content-type: image/avif`、一年 immutable。內頁 SSR 的 AVIF source 數：/about 7、/admission 3、/curriculum 22、/environment 28、/visit 6、/anniversary 13、/news 0（只有後台素材）。Chrome 1440（DPR2）與 390（DPR3）開 /、/admission、/about、/visit、/curriculum：已載入的照片除了「孩子的一天」封面都是 AVIF，沒有寬度 0、可見的 `<source>`、橫向捲動或 pageerror。封面在 800 寬以上沒有 AVIF（沒小於 WebP 的 90%，腳本沒產），AVIF srcset 在這些寬度指回同一份 WebP，只發一個請求，屬預期。
   - 後台 PWA：`manifest.webmanifest`（`application/manifest+json`、no-cache）、`sw.js`（no-cache）、三張 `pwa-*.png` 都 200；不存在的 `pwa-999.png` 回 404；`/admin/` 的 CSP 有 `worker-src 'self'`、`manifest-src 'self'`，HTML 有 manifest 與 apple-touch-icon。
-  - 存活監測：本機 `uptime_check.py` 打正式站四項全部正常；Actions 手動執行 run 42162397664 成功、四項 ok。排程（00:47Z 註冊）到 04:28Z 還沒有自動觸發過，要再觀察。
-- **還沒啟用**：手機通知要使用者自己產 VAPID 金鑰、設三個 `WEBSITE_VAPID_*` 到 Railway api（見下方「後台手機通知」）；設之前「我的帳號」顯示「尚未開放」。
+  - 存活監測：本機 `uptime_check.py` 打正式站四項全部正常；Actions 手動執行 run 42162397664 成功、四項 ok。排程（00:47Z 註冊）到 05:25Z 還沒有自動觸發過，要再觀察。
+- **手機通知啟用**（05:22Z）：使用者在自己的終端機用最新 main 的 `generate-vapid-keys` 產金鑰（主 checkout 落後 main 1084 個 commit 沒有這個指令，另開只含 `backend/` 的臨時 worktree），三個 `WEBSITE_VAPID_*` 一起設到 Railway api。變數觸發的 api redeploy `e6745c50` 05:23:54Z SUCCESS（金鑰不合 API 會拒絕啟動，所以 SUCCESS 代表啟動驗證過了），有 volume 換版中斷約 20 秒；之後 uptime 四項正常、`/admin/push/config` 未登入 401。金鑰沒有經過對話或 repo。
 - **沒驗**：登入後台看錯誤回報與手機通知畫面（正式站）、真實推播送達、iPhone 主畫面實機、Safari 實機 AVIF、排程失敗信。
 
 ## 2026-11-05 首頁「關於常春藤」照片撐滿左欄、換崇德操場照、內文改寫（main CI 部署，沒有 migration）
