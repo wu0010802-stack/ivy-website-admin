@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-06 錯誤回報、外部存活監測、照片 AVIF、後台手機通知（main CI 部署，migration `9d4e7a2c1f60`、`b5e8f1c3a7d2`）
+
+- **內容**：`90e86e11`（README「2026-11-05 錯誤回報、外部存活監測、照片 AVIF、後台手機通知」）＋CI 修正 `604af673`，分支 `feature/monitor-push-avif-20261105`（基底 main `e1bea567`），使用者要求直接推 main。兩支 migration 只建表與加一個可為空的欄位（`error_groups`、`push_subscriptions`、`error_groups.alerted_at`），不改寫既有資料，沒有先備份。新依賴 `http-ece`、`py-vapid`（pip-audit 無漏洞）。
+- **第一次 CI 紅**：`90e86e11` 的 run 42139368077 只有 Frontend (admin) 失敗、Deploy 跳過，正式站沒變。`errorReport.test.ts` 載入 `web/shared/client-error.ts` 時 Vite 往上找到 `web/tsconfig.json`，它引用的 `web/.nuxt/` CI 沒有（本機有所以沒抓到）；`admin/vitest.config.ts` 指定 `tsconfig: 'tsconfig.app.json'`。本機移開 `web/.nuxt` 重現同一錯誤，修正後 admin 全套 170 檔 3322 過、1 略過。第一次推送時網路斷線（`curl 55`），改 `http.version=HTTP/1.1` 重推成功。
+- **CI**：`604af673` 的 run 42161006975 全綠（web、admin、後端三組、E2E），Deploy success（04:18:48–04:23:14Z）。`/release.json` 的 `base_commit` 是 `604af673`。
+- **線上驗證**（只發 GET；瀏覽器擋遙測與 `/api/client-errors`）：
+  - health `status ok`；後台 `/admin/error-groups`、`/admin/push/config` 未登入回 401（路由在）；`/api/website/v1/public/client-errors` 直接打回 404（只能經 Nitro 轉送）。
+  - AVIF：首頁 SSR 12 個 `<source type="image/avif">`、首屏 preload 帶 `type="image/avif"`；AVIF 檔 `content-type: image/avif`、一年 immutable。內頁 SSR 的 AVIF source 數：/about 7、/admission 3、/curriculum 22、/environment 28、/visit 6、/anniversary 13、/news 0（只有後台素材）。Chrome 1440（DPR2）與 390（DPR3）開 /、/admission、/about、/visit、/curriculum：已載入的照片除了「孩子的一天」封面都是 AVIF，沒有寬度 0、可見的 `<source>`、橫向捲動或 pageerror。封面在 800 寬以上沒有 AVIF（沒小於 WebP 的 90%，腳本沒產），AVIF srcset 在這些寬度指回同一份 WebP，只發一個請求，屬預期。
+  - 後台 PWA：`manifest.webmanifest`（`application/manifest+json`、no-cache）、`sw.js`（no-cache）、三張 `pwa-*.png` 都 200；不存在的 `pwa-999.png` 回 404；`/admin/` 的 CSP 有 `worker-src 'self'`、`manifest-src 'self'`，HTML 有 manifest 與 apple-touch-icon。
+  - 存活監測：本機 `uptime_check.py` 打正式站四項全部正常；Actions 手動執行 run 42162397664 成功、四項 ok。排程（00:47Z 註冊）到 04:28Z 還沒有自動觸發過，要再觀察。
+- **還沒啟用**：手機通知要使用者自己產 VAPID 金鑰、設三個 `WEBSITE_VAPID_*` 到 Railway api（見下方「後台手機通知」）；設之前「我的帳號」顯示「尚未開放」。
+- **沒驗**：登入後台看錯誤回報與手機通知畫面（正式站）、真實推播送達、iPhone 主畫面實機、Safari 實機 AVIF、排程失敗信。
+
 ## 2026-11-05 首頁「關於常春藤」照片撐滿左欄、換崇德操場照、內文改寫（main CI 部署，沒有 migration）
 
 - **內容**：`98b63a60`（README「2026-11-05 首頁『關於常春藤』照片對齊、換照、內文改寫」），分支 `feature/home-about-a-20261105` rebase 到 main `f0fa90f6` 後由使用者推上。
@@ -2315,7 +2328,7 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 - **通知**：workflow 失敗時 GitHub 寄失敗通知信給**最後修改排程（cron 那一行）的人**；對方的 GitHub 帳號通知設定要開 Actions 失敗通知（Settings → Notifications → Actions）。要換人，由新的人修改一次 `uptime.yml` 的 cron 並提交。
 - **限制**：排程只在預設分支（main）執行，GitHub 負載高時可能延遲數分鐘甚至略過一次；公開 repo 連續 60 天沒有任何活動，GitHub 會自動停用排程（到 Actions 頁手動重新啟用）。這是外部的粗略監測，不取代 Railway 自己的 healthcheck。
 - **改網址**：預設打正式站網址；要改打別的網址，在 repo 的 Settings → Secrets and variables → Actions → Variables 設 `UPTIME_BASE_URL`。也可以在 Actions 頁手動 Run workflow 立刻跑一次。
-- **本機試跑**：`python3 deploy/uptime_check.py [網址]`（結束碼 0 全部正常、1 有項目失敗）。
+- **本機試跑**：`python3 deploy/uptime_check.py [網址]`（結束碼 0 全部正常、1 有項目失敗）。macOS 的 python.org 版 Python 沒裝憑證時四項都會報 `SSLCertVerificationError`（不是網站壞了），前面加 `SSL_CERT_FILE=/etc/ssl/cert.pem`；GitHub 的機器不受影響。
 
 ### 後台手機通知與加到主畫面（2026-11-05）
 
