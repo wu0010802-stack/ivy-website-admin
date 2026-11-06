@@ -6,7 +6,7 @@ import {
   type ScrollableTabs,
 } from '../composables/useScrollActiveTabIntoView'
 
-// 手動推進的 rAF：Element Plus 的分頁列要過幾幀才可捲動，這裡逐幀確認有持續呼叫。
+// 手動推進的 rAF：Element Plus 的分頁列要過幾幀才標成可捲動，這裡逐幀確認時機。
 let queue: Array<{ id: number; cb: FrameRequestCallback }> = []
 let nextId = 1
 function runFrame() {
@@ -15,16 +15,28 @@ function runFrame() {
   for (const item of current) item.cb(0)
 }
 
+/** 模擬 el-tabs：根元素裡有 .el-tabs__nav-wrap，scrollable 時加 is-scrollable（同 Element Plus）。 */
+function fakeTabs(scrollToActiveTab = vi.fn()) {
+  const root = document.createElement('div')
+  const wrap = document.createElement('div')
+  wrap.className = 'el-tabs__nav-wrap'
+  root.append(wrap)
+  return {
+    instance: { $el: root, tabNavRef: { scrollToActiveTab } } satisfies ScrollableTabs,
+    scrollToActiveTab,
+    becomeScrollable: () => wrap.classList.add('is-scrollable'),
+  }
+}
+
 let app: App | null = null
 function mountWith(tabs: ReturnType<typeof shallowRef<ScrollableTabs>>) {
-  const host = document.createElement('div')
   app = createApp(defineComponent({
     setup() {
       useScrollActiveTabIntoView(tabs)
       return () => h('div')
     },
   }))
-  app.mount(host)
+  app.mount(document.createElement('div'))
 }
 
 beforeEach(() => {
@@ -46,37 +58,49 @@ afterEach(() => {
 })
 
 describe('useScrollActiveTabIntoView', () => {
-  it('分頁列出現後連續幾幀呼叫 scrollToActiveTab，之後停止', async () => {
-    const scrollToActiveTab = vi.fn()
+  it('分頁列出現後等到可捲動才呼叫一次 scrollToActiveTab，之後不再呼叫（避免動畫中途重算捲過頭）', async () => {
     const tabs = shallowRef<ScrollableTabs>(null)
     mountWith(tabs)
     runFrame()
-    expect(scrollToActiveTab).not.toHaveBeenCalled()
 
-    // 例如招生統計：資料載入後分頁列才 v-if 出現。
-    tabs.value = { tabNavRef: { scrollToActiveTab } }
+    // 例如招生統計：資料載入後分頁列才 v-if 出現；Element Plus 過兩幀才標成可捲動。
+    const fake = fakeTabs()
+    tabs.value = fake.instance
+    await nextTick()
+    runFrame()
+    runFrame()
+    expect(fake.scrollToActiveTab).not.toHaveBeenCalled()
+
+    fake.becomeScrollable()
+    for (let i = 0; i < 5; i += 1) runFrame()
+    expect(fake.scrollToActiveTab).toHaveBeenCalledTimes(1)
+    expect(queue).toHaveLength(0)
+  })
+
+  it('一直放得下（寬螢幕）就不呼叫，等滿影格數後停止', async () => {
+    const fake = fakeTabs()
+    mountWith(shallowRef<ScrollableTabs>(fake.instance))
     await nextTick()
     for (let i = 0; i < SCROLL_ACTIVE_TAB_FRAMES + 3; i += 1) runFrame()
-    expect(scrollToActiveTab).toHaveBeenCalledTimes(SCROLL_ACTIVE_TAB_FRAMES)
+    expect(fake.scrollToActiveTab).not.toHaveBeenCalled()
     expect(queue).toHaveLength(0)
   })
 
-  it('一開始就有分頁列也會呼叫；卸載時取消還沒跑的影格', async () => {
-    const scrollToActiveTab = vi.fn()
-    mountWith(shallowRef<ScrollableTabs>({ tabNavRef: { scrollToActiveTab } }))
+  it('卸載時取消還沒跑的影格', async () => {
+    const fake = fakeTabs()
+    mountWith(shallowRef<ScrollableTabs>(fake.instance))
     await nextTick()
     runFrame()
-    expect(scrollToActiveTab).toHaveBeenCalledTimes(1)
-
     app?.unmount()
     app = null
+    fake.becomeScrollable()
     runFrame()
-    expect(scrollToActiveTab).toHaveBeenCalledTimes(1)
+    expect(fake.scrollToActiveTab).not.toHaveBeenCalled()
     expect(queue).toHaveLength(0)
   })
 
-  it('沒有 tabNavRef 時不出錯', async () => {
-    mountWith(shallowRef<ScrollableTabs>({ tabNavRef: null }))
+  it('沒有 tabNavRef 或 $el 時不出錯', async () => {
+    mountWith(shallowRef<ScrollableTabs>({ $el: null, tabNavRef: null }))
     await nextTick()
     expect(() => runFrame()).not.toThrow()
   })
