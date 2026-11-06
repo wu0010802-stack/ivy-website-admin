@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-06 招生統計分頁列捲到選中分頁（main CI 部署，沒有 migration）
+
+- 來源：同日正式站後台唯讀 QA。窄螢幕用網址直進後段子分頁（`?sub=potential` 等），Element Plus 2.14 掛載時還沒標成可捲動、不捲，選中分頁在可見範圍外。新增 `admin/src/composables/useScrollActiveTabIntoView.ts`，套在招生統計子分頁與區域分析完整表格。
+- `188dee65`（run 42176552618 全綠、部署成功）連續 6 幀呼叫，正式站實測在過場動畫中途重算、捲過頭；`69d0ff50`（run 42178819299 全綠、部署成功，release.json `base_commit` 相符）改成可捲動後只呼叫一次。
+- 驗證：本機 Playwright（假 API）390／1440 寬 11 個子分頁 22 種情況全部在可見範圍，換回 `188dee65` 版手機有 5 個不過；正式站把統計區限縮 340px 量 11 個子分頁全部在可見範圍。
+- **沒驗**：區域分析完整表格只有單元測試；iOS 實機。
+
 ## 2026-11-06 錯誤回報、外部存活監測、照片 AVIF、後台手機通知（main CI 部署，migration `9d4e7a2c1f60`、`b5e8f1c3a7d2`）
 
 - **內容**：`90e86e11`（README「2026-11-05 錯誤回報、外部存活監測、照片 AVIF、後台手機通知」）＋CI 修正 `604af673`，分支 `feature/monitor-push-avif-20261105`（基底 main `e1bea567`），使用者要求直接推 main。兩支 migration 只建表與加一個可為空的欄位（`error_groups`、`push_subscriptions`、`error_groups.alerted_at`），不改寫既有資料，沒有先備份。新依賴 `http-ece`、`py-vapid`（pip-audit 無漏洞）。
