@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useId } from 'vue'
+import { computed, useId, useTemplateRef } from 'vue'
 import StatsDimensionTable from '../StatsDimensionTable.vue'
 import type {
   AdmissionsArea, AreaDistrictRow, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, AreaVillageRow,
@@ -9,6 +9,7 @@ import type { StatsColumn } from '../../../admissions/statsFormat'
 import { areaQuery } from '../../../admissions/areaFilter'
 import { AREA_TABLE_TABS, type AreaTableTab } from '../../../admissions/areaView'
 import AreaVillageTable from './AreaVillageTable.vue'
+import { useScrollActiveTabIntoView, type ScrollableTabs } from '../../../composables/useScrollActiveTabIntoView'
 import BirthSeries from './BirthSeries.vue'
 import EnrolledPanel from './EnrolledPanel.vue'
 import PeerFeesPanel from './PeerFeesPanel.vue'
@@ -52,6 +53,8 @@ const emit = defineEmits<{
 }>()
 
 const headingId = useId()
+// 網址帶後段的表格分頁時，窄螢幕的分頁列要捲到選中那一頁（同招生統計子分頁，2026-11-06 QA）。
+useScrollActiveTabIntoView(useTemplateRef<ScrollableTabs>('tableTabs'))
 
 // ---- 頁籤與數字 ----
 
@@ -146,7 +149,7 @@ function openVillage({ district, village }: AreaVillageRow) {
 <template>
   <section class="area-full-tables" :aria-labelledby="headingId">
     <h2 :id="headingId" class="area-full-tables__title">完整表格</h2>
-    <el-tabs :model-value="tab" class="area-full-tables__tabs" @update:model-value="setTab">
+    <el-tabs ref="tableTabs" :model-value="tab" class="area-full-tables__tabs" @update:model-value="setTab">
       <el-tab-pane v-for="item in tabs" :key="item.name" :name="item.name">
         <template #label>
           <span>{{ item.label }}</span>
