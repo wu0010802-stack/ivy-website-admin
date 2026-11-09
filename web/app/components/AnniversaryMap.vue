@@ -229,7 +229,7 @@ defineExpose({ setYear })
 .anni-map-campus a::before { content: ""; position: absolute; inset: -13px -4px; }
 .anni-map-campus a span { font: 600 11px/1 var(--font); color: var(--muted); font-variant-numeric: tabular-nums; }
 .anni-map-campus a:hover { background: var(--white); color: var(--deep); }
-.anni-map-source { justify-self: end; font-size: 10px; line-height: 1.4; color: var(--muted); }
+.anni-map-source { justify-self: end; font-size: var(--fs-xs); line-height: 1.4; color: var(--muted); }
 
 /* 沒有 JS（或還沒掛上）時是畫完的樣子；掛上之後由 setYear() 接手 */
 @media (prefers-reduced-motion: reduce) {

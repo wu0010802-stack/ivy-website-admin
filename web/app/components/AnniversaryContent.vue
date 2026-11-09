@@ -329,6 +329,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
             :height="responsiveImage(artThumbs[lightboxIndex]!.image).height"
             :style="{ '--anni-ar': lightboxRatio }"
             :alt="artThumbs[lightboxIndex]!.alt"
+            loading="lazy"
           />
           <p><b>{{ artThumbs[lightboxIndex]!.label }}</b>{{ artThumbs[lightboxIndex]!.alt }}</p>
           <button class="button outline" type="submit">關閉</button>

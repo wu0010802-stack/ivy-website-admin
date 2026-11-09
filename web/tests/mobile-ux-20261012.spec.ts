@@ -209,6 +209,8 @@ describe('30 週年頁', () => {
     expect(map).toContain('.anni-map-campus a span { font: 600 11px/1 var(--font);')
     expect(map).toContain('.anni-map-campus a::before { content: ""; position: absolute; inset: -13px -4px; }')
     expect(map).not.toMatch(/\.anni-map-source \{[^}]*opacity/)
+    // 授權署名 10px → 12px（2026-11-09 稽核：全站可見文字不低於 12px）
+    expect(map).toMatch(/\.anni-map-source \{[^}]*font-size: var\(--fs-xs\)/)
     expect(map).not.toMatch(/\.anni-map-district \{[^}]*opacity/)
   })
 })

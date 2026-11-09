@@ -24,12 +24,16 @@ for (const path of paths) {
 }
 const robots = await (await fetch(base + '/robots.txt')).text()
 assert.ok(indexable ? robots.includes(`Sitemap: ${origin}/sitemap.xml`) : robots.includes('Disallow: /\n'))
+// 沒開放索引時 sitemap 回 200 的空 urlset（web/server/routes/sitemap.xml.get.ts），不是 404。
 const sitemap = await fetch(base + '/sitemap.xml')
-assert.equal(sitemap.status, indexable ? 200 : 404)
+assert.equal(sitemap.status, 200, '/sitemap.xml')
+const xml = await sitemap.text()
+assert.match(xml, /<urlset[\s>]/, '/sitemap.xml: urlset')
 if (indexable) {
-  const xml = await sitemap.text()
   for (const path of paths) assert.ok(xml.includes(`<loc>${origin}${path}</loc>`))
   assert.ok(!xml.includes('/visit') && !xml.includes('/admin'))
+} else {
+  assert.ok(!xml.includes('<url>'), '/sitemap.xml: 未開放索引時不列任何網址')
 }
 for (const path of ['/campuses/yihua', '/campuses/not-a-campus']) {
   const response = await fetch(base + path, { redirect: 'manual' })

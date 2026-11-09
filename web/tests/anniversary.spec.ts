@@ -233,6 +233,10 @@ describe('30 週年分頁：2026-10-13 精修', () => {
     expect(content).toContain(':style="{ \'--anni-ar\': lightboxRatio }"')
     expect(css).toContain('.anni-lightbox img { justify-self: center; width: min(100%, 70vh * var(--anni-ar, 1));')
   })
+  it('燈箱照片延遲載入：燈箱關著時不先下載 1200w 大圖（2026-11-09 稽核）', () => {
+    const lightboxMarkup = content.slice(content.indexOf('<dialog ref="lightbox"'), content.indexOf('</dialog>'))
+    expect(lightboxMarkup).toContain('loading="lazy"')
+  })
   it('「開聲音」和旁邊的按鈕同一款（方角 outline）', () => {
     const toggle = read('app/components/AnniversarySoundToggle.vue')
     expect(toggle).toContain('class="button outline anni-sound"')

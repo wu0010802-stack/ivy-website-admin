@@ -248,6 +248,24 @@ export function newsListSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
+const NEWS_DESCRIPTION_MAX = 110
+
+/**
+ * 消息的頁面描述：後台沒填摘要時取內文第一段（標題、清單也算），超過約兩行的分享預覽就截斷。
+ * 2026-11-09 稽核：沒填摘要的消息沒有 description，LINE／FB 分享預覽只剩標題。
+ */
+export function newsDescription(article: Pick<NewsArticle, 'description' | 'body'>): string {
+  const summary = article.description?.trim()
+  if (summary) return summary
+  const text = (article.body ?? [])
+    .map((block) => block.type === 'paragraph' || block.type === 'heading' ? block.text : block.type === 'list' ? block.items.join('、') : '')
+    .map((part) => part.replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .join(' ')
+  const chars = [...text]
+  return chars.length > NEWS_DESCRIPTION_MAX ? `${chars.slice(0, NEWS_DESCRIPTION_MAX - 1).join('').trimEnd()}…` : text
+}
+
 /**
  * 單篇消息的 SEO。示意內容（sample）照常顯示但不給搜尋引擎：不輸出 canonical 與
  * 結構化資料，頁面另加 noindex（見 usePageSeo）。分享圖用消息封面：素材庫圖用原檔，
@@ -256,7 +274,7 @@ export function newsListSeo(site: SiteContent, siteOrigin: string) {
 export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: NewsArticle, sample: boolean, imagePath: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const title = `${article.title}｜${article.campus}｜${site.siteMeta.brandName}`
-  const description = article.description
+  const description = newsDescription(article) || site.siteMeta.description
   const canonical = origin && !sample ? `${origin}${newsPath(article.id)}` : undefined
   const image = origin && imagePath ? `${origin}${imagePath}` : undefined
   const graph: Record<string, unknown>[] = canonical ? [

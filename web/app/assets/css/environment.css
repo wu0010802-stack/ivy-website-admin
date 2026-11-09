@@ -290,7 +290,7 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-care-ped{height:28px;margin-top:10px}
   .renv-care-txt{padding-top:24px}
   .renv-care-txt h3{font-size:1.04rem}
-  .renv-care-txt .renv-dot{font-size:.72rem}
+  .renv-care-txt .renv-dot{font-size:var(--fs-xs)}
   .renv-care-txt p{font-size:.9rem;line-height:1.75}
 
   .renv-feature{grid-template-columns:minmax(0,1fr)}

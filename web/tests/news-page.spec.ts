@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { NewsArticle, SiteContent } from '../app/types/site-content'
 import { articlesForCampus, findArticle, indexableArticles, NEWS_PATH, newsPath } from '../app/utils/news-content'
-import { llmsTxt, newsArticleSeo, newsListSeo, sitemapXml } from '../app/utils/seo'
+import { llmsTxt, newsArticleSeo, newsDescription, newsListSeo, sitemapXml } from '../app/utils/seo'
 
 const site = fixture as unknown as SiteContent
 const article = (over: Partial<NewsArticle>): NewsArticle => ({
