@@ -370,17 +370,40 @@ async def test_missing_medium_is_a_candidate_and_gets_regenerated(app, admin_cli
     from sqlalchemy import delete
 
     body = await _upload(admin_client, _jpeg(1200, 900), "mid.jpg", "image/jpeg")
-    assert _variants(body) == {"thumbnail": (480, 360), "medium": (960, 720)}
+    # 2026-11-09 起 1600px 以下也有同尺寸的大圖（官網不直接送原檔）。
+    assert _variants(body) == {"thumbnail": (480, 360), "medium": (960, 720), "large": (1200, 900)}
     media_id = uuid.UUID(body["id"])
-    # 模擬中圖上線前上傳的圖：只有縮圖。
+    # 模擬中圖上線前上傳的圖：只有縮圖（那時 1600px 以下也不產大圖）。
     await db_session.execute(
-        delete(MediaVariant).where(MediaVariant.media_id == media_id, MediaVariant.kind == VariantKind.MEDIUM)
+        delete(MediaVariant).where(
+            MediaVariant.media_id == media_id, MediaVariant.kind.in_([VariantKind.MEDIUM, VariantKind.LARGE])
+        )
     )
     await db_session.commit()
     reasons = {c.asset_id: c.reasons for c in await regenerate.find_candidates(db_session)}
-    assert reasons[media_id] == [regenerate.REASON_NO_MEDIUM]
+    assert reasons[media_id] == [regenerate.REASON_NO_MEDIUM, regenerate.REASON_NO_LARGE]
     storage = service.get_storage(app.state.settings)
     await regenerate.regenerate_image_variants(db_session, storage, media_id)
     await db_session.commit()
     after = (await admin_client.get(f"{MEDIA}/{media_id}")).json()
-    assert _variants(after) == {"thumbnail": (480, 360), "medium": (960, 720)}
+    assert _variants(after) == {"thumbnail": (480, 360), "medium": (960, 720), "large": (1200, 900)}
+
+
+@pytest.mark.asyncio
+async def test_small_png_without_large_is_a_candidate(app, admin_client, db_session):
+    """2026-11-09 以前上傳、長邊 481–1600 的圖片沒有大圖，官網會直接送原檔；列為「缺大圖」。"""
+    from sqlalchemy import delete
+
+    body = await _upload(admin_client, _png_with_hole(600, 400), "poster.png", "image/png")
+    assert _variants(body) == {"thumbnail": (480, 320), "large": (600, 400)}
+    media_id = uuid.UUID(body["id"])
+    await db_session.execute(
+        delete(MediaVariant).where(MediaVariant.media_id == media_id, MediaVariant.kind == VariantKind.LARGE)
+    )
+    await db_session.commit()
+    tiny = await _upload(admin_client, _png_with_hole(), "tiny.png", "image/png")
+    assert _variants(tiny) == {"thumbnail": (120, 80)}
+    reasons = {c.asset_id: c.reasons for c in await regenerate.find_candidates(db_session)}
+    assert reasons[media_id] == [regenerate.REASON_NO_LARGE]
+    # 縮圖以下的小圖本來就只有縮圖，不算缺。
+    assert uuid.UUID(tiny["id"]) not in reasons

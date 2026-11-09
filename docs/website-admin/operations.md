@@ -191,6 +191,7 @@ npm run test:e2e   # 公開站四視口 Playwright（先 npm run e2e:build；自
 - 停機：先把執行中的工作放回佇列，再中止 ffmpeg；抽 poster 的 ffmpeg／ffprobe 不可中止，最多約 30／15 秒。Railway 的 `RAILWAY_DEPLOYMENT_DRAINING_SECONDS` 若是 0，每次部署碰上轉檔都算一次嘗試（最多 3 次）。
 - 既有影片補轉檔：`python -m app.cli transcode-media-videos`（dry-run）→ `--apply`（排入背景）。排除已有 done 工作與超過 10 分鐘的影片；沒有 `--force`，之後改轉檔參數要手動清 `media_jobs` 才會重列。
 - 既有圖片補中圖：`python -m app.cli regenerate-media-variants`（dry-run）→ `--apply`。會把每張圖的縮圖／中圖／大圖全部重產，全站圖片網址換一次。
+- 既有圖片補大圖（2026-11-09 起長邊 481–1600 的圖片也要有同尺寸的 WebP 大圖，官網才不會直接送 PNG 等原檔）：同一支指令，dry-run 會列為「缺大圖」，`--apply` 補上。
 - inline 模式在呼叫端交易內等 ffmpeg，長影片可能撞 idle_in_transaction 300 秒；正式站全新匯入長影片（`import-site-assets`）要先改設 background。
 
 ## 國定假日與停班停課（2026-10-14）

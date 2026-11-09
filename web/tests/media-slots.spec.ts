@@ -95,6 +95,40 @@ describe('media-image', () => {
     expect(mediaImageAttrs(mediaImage(IMAGE, small), '50vw').srcset).toBeUndefined()
   })
 
+  it('大圖與原檔同寬時用大圖，src 也不是原檔', () => {
+    const fullSize = info(IMAGE, {
+      width: 1024,
+      height: 1536,
+      variants: [
+        { kind: 'thumbnail', width: 320, height: 480, version: 't1' },
+        { kind: 'medium', width: 640, height: 960, version: 'm1' },
+        { kind: 'large', width: 1024, height: 1536, version: 'l1' }
+      ]
+    })
+    const attrs = mediaImageAttrs(mediaImage(IMAGE, fullSize), '560px')
+    expect(attrs.srcset).toBe(
+      `/api/website/v1/public/media/${IMAGE}/variants/thumbnail?v=t1 320w, /api/website/v1/public/media/${IMAGE}/variants/medium?v=m1 640w, /api/website/v1/public/media/${IMAGE}/variants/large?v=l1 1024w`
+    )
+    expect(attrs.src).toBe(`/api/website/v1/public/media/${IMAGE}/variants/large?v=l1`)
+  })
+
+  it('PNG 原檔有衍生檔時不進 srcset；沒有可用衍生檔才用原檔', () => {
+    const png = info(IMAGE, {
+      content_type: 'image/png',
+      width: 1024,
+      height: 1536,
+      variants: [
+        { kind: 'thumbnail', width: 320, height: 480 },
+        { kind: 'medium', width: 640, height: 960 }
+      ]
+    })
+    const attrs = mediaImageAttrs(mediaImage(IMAGE, png), '560px')
+    expect(attrs.srcset).toBe(`/api/website/v1/public/media/${IMAGE}/variants/thumbnail 320w, /api/website/v1/public/media/${IMAGE}/variants/medium 640w`)
+    expect(attrs.src).toBe(`/api/website/v1/public/media/${IMAGE}/variants/medium`)
+    const stale = info(IMAGE, { content_type: 'image/png', variants: [{ kind: 'thumbnail', width: null, height: null }] })
+    expect(mediaImage(IMAGE, stale).src).toBe(`/api/website/v1/public/media/${IMAGE}/file`)
+  })
+
   it('版位焦點優先，其次素材預設焦點，都沒有就是 null', () => {
     expect(slotImage({ media_id: IMAGE, focus_x: 10, focus_y: 20 }, media)!.position).toBe('10% 20%')
     expect(slotImage({ media_id: IMAGE }, media)!.position).toBe('30% 60%')

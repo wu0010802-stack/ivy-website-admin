@@ -303,3 +303,28 @@ async def test_large_image_gets_medium_and_large_variants(admin_client, tmp_path
     assert response.status_code == 201, response.text
     sizes = {v["kind"]: (v["width"], v["height"]) for v in response.json()["variants"]}
     assert sizes == {"thumbnail": (480, 360), "medium": (960, 720), "large": (1600, 1200)}
+
+
+@pytest.mark.asyncio
+async def test_mid_size_png_gets_full_size_webp_large_variant(admin_client, tmp_path):
+    """1600px 以下的 PNG 也轉一份同尺寸的 WebP 大圖，官網 srcset 才不會直接送 PNG 原檔
+    （2026-11-09 稽核：一張 1024×1536 的 PNG 1.7 MB，首頁手機也載）。"""
+    from PIL import Image
+
+    path = tmp_path / "poster.png"
+    Image.new("RGB", (1024, 1536), (255, 215, 94)).save(path, "PNG")
+    response = await admin_client.post(
+        "/api/website/v1/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("poster.png", path.read_bytes(), "image/png")},
+    )
+    assert response.status_code == 201, response.text
+    variants = {v["kind"]: v for v in response.json()["variants"]}
+    assert {kind: (v["width"], v["height"]) for kind, v in variants.items()} == {
+        "thumbnail": (320, 480),
+        "medium": (640, 960),
+        "large": (1024, 1536),
+    }
+    large = await admin_client.get(f"/api/website/v1/admin/media/{response.json()['id']}/variants/large")
+    assert large.status_code == 200
+    assert large.headers["content-type"] == "image/webp"

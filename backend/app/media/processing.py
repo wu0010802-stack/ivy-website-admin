@@ -21,7 +21,8 @@ from PIL import Image, ImageOps
 from app.common.concurrency import ThreadSlots
 
 # 衍生檔（規格 L139：原檔保留，衍生縮圖另存）。縮圖給後台列表、選圖器與官網
-# 小版位；大圖給官網手機與一般寬度的版位，原檔只在高解析螢幕的滿版才會被選到。
+# 小版位；大圖給官網手機與一般寬度的版位，原檔只在比大圖還大、又碰上高解析螢幕的
+# 滿版時才會被選到（見 needs_large_rendition）。
 THUMBNAIL_SIZE = (480, 480)
 LARGE_SIDE = 1600
 # 中圖：手機 2 倍螢幕滿版約 780px，只有 480 與 1600 時只能拿 1600（2026-10-03）。
@@ -141,8 +142,13 @@ def needs_medium_rendition(width: int | None, height: int | None) -> bool:
 
 
 def needs_large_rendition(width: int | None, height: int | None) -> bool:
-    """原圖長邊超過 LARGE_SIDE 才另存大圖；更小的原圖本身就夠小，官網直接用原檔。"""
-    return max(width or 0, height or 0) > LARGE_SIDE
+    """原圖長邊超過縮圖就另存大圖（長邊上限 LARGE_SIDE，小圖不放大）。
+
+    2026-11-09 以前只有超過 LARGE_SIDE 才另存，1600px 以下的原圖直接給官網用；但後台
+    上傳的 PNG 海報、截圖或沒壓過的 JPEG 原檔一張就 1–2 MB（稽核時一張 1024×1536 的
+    PNG 1.7 MB，首頁手機也載）。現在一律轉一份 WebP，官網 srcset 遇到同寬度的大圖與
+    原檔時選大圖（web/app/utils/media-image.ts），原檔只在比大圖還大時才會被選到。"""
+    return max(width or 0, height or 0) > THUMBNAIL_SIZE[0]
 
 
 @dataclass(frozen=True)

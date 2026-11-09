@@ -93,6 +93,8 @@ export function slotPosition(slot: LiveMediaSlot, info?: PublicMediaInfo): strin
 }
 
 const IMAGE_VARIANTS = new Set<PublicMediaVariant['kind']>(['thumbnail', 'medium', 'large'])
+/** 無損格式的原檔一張動輒數 MB（2026-11-09 稽核：1024×1536 的 PNG 1.7 MB），有衍生檔就不送原檔。 */
+const LOSSLESS_ORIGINALS = new Set(['image/png', 'image/gif'])
 
 export function mediaImage(id: string, info?: PublicMediaInfo, position: string | null = null): MediaImage {
   const candidates: { src: string; width: number }[] = []
@@ -102,11 +104,16 @@ export function mediaImage(id: string, info?: PublicMediaInfo, position: string 
     if (!IMAGE_VARIANTS.has(variant.kind) || !variant.width) continue
     candidates.push({ src: mediaVariantUrl(id, variant.kind, variant.version), width: variant.width })
   }
-  if (info?.width) candidates.push({ src: mediaFileUrl(id), width: info.width })
+  // 原檔排在同寬度的衍生檔後面，去重時留下衍生檔（後端 2026-11-09 起長邊 1600 以下也產同尺寸的
+  // WebP 大圖）；PNG／GIF 原檔只在沒有任何可用衍生檔時才用。
+  if (info?.width && !(candidates.length && LOSSLESS_ORIGINALS.has(info.content_type))) {
+    candidates.push({ src: mediaFileUrl(id), width: info.width })
+  }
   candidates.sort((a, b) => a.width - b.width)
   const unique = candidates.filter((candidate, i) => i === 0 || candidate.width !== candidates[i - 1]!.width)
   return {
-    src: mediaFileUrl(id),
+    // 不支援 srcset 的情境（CSS 背景、只取 src 的呼叫端）用最大的候選，不是原檔。
+    src: unique.at(-1)?.src ?? mediaFileUrl(id),
     width: info?.width ?? undefined,
     height: info?.height ?? undefined,
     candidates: unique,

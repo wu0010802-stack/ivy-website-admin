@@ -10,6 +10,9 @@ migration de61f57ec77d 把這些衍生檔的寬高清成 NULL（官網就不把�
 srcset、後台點焦點改用原檔），這裡重讀原檔重新產生，寬高補回來之後才重新
 進 srcset。新的衍生檔是新的一筆記錄（新 id），官網與後台的網址帶這個 id
 當版本，瀏覽器快取過的舊縮圖不會繼續被用。
+
+2026-11-09 起長邊 481–1600px 的圖片也要有大圖（processing.needs_large_rendition），
+之前上傳的這類圖片會以「缺大圖」列出；補完之後官網才不再直接送 PNG 等原檔。
 """
 from __future__ import annotations
 
