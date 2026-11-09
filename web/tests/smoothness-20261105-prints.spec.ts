@@ -15,6 +15,7 @@ import type { DayExperienceContent } from '../app/types/site-content'
 import { mountPaper, resolveColorOn, type PaperHandle } from '../app/utils/paperPrints'
 import DayMomentCard from '../app/components/DayMomentCard.vue'
 import DayExperience from '../app/components/DayExperience.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
@@ -427,6 +428,7 @@ describe('P2 卡片接手：先收 CSS 傾斜再交給 paper，掛載後不多�
     const host = document.createElement('div')
     document.body.append(host)
     app = createApp({ render: () => h(DayMomentCard as Component, { moment: day.moments[1], index: 1, active: true }) })
+    app.component('ResponsivePicture', ResponsivePicture) // 照片 2026-11-05 起是 <ResponsivePicture>（AVIF），裸 createApp 沒有 Nuxt 的自動註冊
     app.mount(host)
     await nextTick()
     const wrap = host.querySelector<HTMLElement>('.print-wrap')!
@@ -500,6 +502,7 @@ describe('X2 --word-fade 寫在讀它的 .day-intro 與 .day-film-shade 上，�
     const host = document.createElement('div')
     document.body.append(host)
     app = createApp({ render: () => h(DayExperience as Component, { day }) })
+    app.component('ResponsivePicture', ResponsivePicture) // 照片 2026-11-05 起是 <ResponsivePicture>（AVIF），裸 createApp 沒有 Nuxt 的自動註冊
     app.component('DayMomentCard', defineComponent({ render: () => h('li', { class: 'day-print' }) }))
     app.config.warnHandler = () => {}
     app.mount(host)

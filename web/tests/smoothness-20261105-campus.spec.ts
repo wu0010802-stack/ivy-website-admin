@@ -773,10 +773,13 @@ describe('審查後：CampusBoard 只在有換校意圖時算多邊形、強制�
     })
     vi.stubGlobal('ResizeObserver', class { observe() {} unobserve() {} disconnect() {} })
     const { default: CampusBoard } = await import('../app/components/CampusBoard.vue')
+    // 照片 2026-11-05 起是 <ResponsivePicture>（AVIF）；Nuxt 的自動註冊在裸 createApp 裡沒有
+    const { default: ResponsivePicture } = await import('../app/components/ResponsivePicture.vue')
     const host = document.createElement('div')
     document.body.append(host)
     app = createApp({ render: () => h(CampusBoard as Component, { board: site.home.campusBoard, campuses: site.campuses }) })
     app.component('NuxtLink', defineComponent({ props: { to: { type: String, required: true } }, setup: (props, { slots }) => () => h('a', { href: props.to }, slots.default?.()) }))
+    app.component('ResponsivePicture', ResponsivePicture)
     app.mount(host)
     await flush()
     // 區塊離視窗 800px 內：預載目前這校、畫左右預覽線稿
