@@ -18,7 +18,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **內容**：`704bdb6f`（合併提交，含 `6250c6aa` 素材大圖、`29ca4656` 字表重切、`6108d0d7` 撥號膠囊等、`45620eb4` README；README「2026-11-09 前台技術稽核修正」），分支 `feature/web-tech-audit-20261109`，推前合進 main `cb3131d6`（前台流暢度第二批，無衝突）。推前本機：web typecheck、`npm run test:website` 126 檔 1706 項、後端全套 4964 過 1 略過、stack 169 項全過（9.4 分鐘），測試庫獨立、已刪。
 - **CI**：run 42581355390 全綠、Deploy Railway production success；`/release.json` 的 `base_commit` 是 `704bdb6f`（07:54:19Z），首頁 critical 分片雜湊 `87586e9e5522` 與 repo 相同。
 - **正式站驗證**（Playwright，只發 GET、擋 telemetry）：LINE Seed 首頁 5 片 55 KB（原 15 片 245 KB）、`/visit/yihua` 5 片 40 KB（原 9 片 152 KB），手機桌機相同；手機首頁「讚」PNG 改載 640w 中圖 97 KB（原 1.7 MB 原檔）；五校撥號膠囊 390／1440 點擊高度都 44px；週年燈箱打開前圖片未下載；地圖署名、環境頁照顧圓點 12px；`SEO_EXPECT_INDEXABLE=false node scripts/check-public-seo.mjs` PASS；`node scripts/page-font-chars.cjs --check` 回報字表與正式站一致。
-- **待回補**：正式站 3 張後台素材（兩張 1600×1600 JPEG、「讚」PNG）還沒有同尺寸大圖，桌機首頁仍載兩張 JPEG 原檔（365／353 KB）。要跑 `! railway ssh --service api --environment production -- python -m app.cli regenerate-media-variants`（dry-run）→ 加 `--apply`；這幾張的縮圖／中圖／大圖網址會換一次。
+- **素材回補（同日，使用者以 `! railway ssh … regenerate-media-variants` 執行）**：dry-run 列 3 張「缺大圖」（`1017聯合招生.png`、`day-english.jpg`、`day-create.jpg`），`--apply` 已重新產生 3、失敗 0。正式站複驗：公開 API 三張都有 `large`（1024／1600／1600，WebP 166／144／145 KB）；桌機首頁改載大圖、不再載原檔（原本兩張 JPEG 原檔 365／353 KB），手機照舊載中圖。
 - **沒驗**：iOS 實機；載入時間（本機負載高）。
 
 ## 2026-11-09 關於頁手機沿革並排、六圈 3 秒、第三章窗戶照片放大（main CI 部署，沒有 migration）
