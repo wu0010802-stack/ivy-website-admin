@@ -1,6 +1,22 @@
 import manifest from '../generated/image-manifest.json'
 
-interface ImageInfo { width: number; height: number; candidates: { src: string; width: number }[] }
+/** manifest 的一個寬度候選；照片多一個同寬的 `avif`（scripts/optimize-site-images.py，比同寬 WebP 小一成以上才有）。 */
+interface ImageCandidate { src: string; width: number; avif?: string }
+interface ImageInfo { width: number; height: number; candidates: ImageCandidate[] }
+
+/**
+ * `responsiveImage()` 的輸出：綁到 `<img>` 的 src／srcset／sizes，再加照片才有的 `avifSrcset`。
+ * `avifSrcset` 不是 `<img>` 的屬性，只能綁到 `<ResponsivePicture>`（它會拆成 `<source type="image/avif">`）；
+ * 直接 `v-bind` 到原生 `<img>` 會變成 `avifsrcset="…"`。
+ */
+export interface ResponsiveImageAttrs {
+  src: string
+  width: number | undefined
+  height: number | undefined
+  srcset: string | undefined
+  sizes: string | undefined
+  avifSrcset?: string
+}
 
 /**
  * 首頁 hero 圖：首屏明亮版（DESIGN.md 2026-09-16）在所有斷點都是滿版
@@ -73,16 +89,39 @@ export const ABOUT_HERO_IMAGE = 'about-hero'
  */
 export const ABOUT_HERO_SIZES = '(max-width: 900px) calc(100vw - 68px), 560px'
 
-export function responsiveImage(name: string, sizes = '100vw') {
+export function responsiveImage(name: string, sizes = '100vw'): ResponsiveImageAttrs {
   // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，
   // 一般物件會查到原型，接著 candidates.map 丟例外讓整頁渲染失敗。
   const found = Object.hasOwn(manifest, name) ? (manifest as Record<string, ImageInfo>)[name] : undefined
   const info = found && Array.isArray(found.candidates) ? found : undefined
-  return {
+  const attrs: ResponsiveImageAttrs = {
     src: `/assets/${name}.webp`,
     width: info?.width,
     height: info?.height,
     srcset: info?.candidates.map((candidate) => `${candidate.src} ${candidate.width}w`).join(', '),
     sizes: info ? sizes : undefined
+  }
+  // AVIF 的 srcset 要和 WebP 的寬度級距完全相同：有的寬度 AVIF 沒省到一成（沒有 avif 欄位），
+  // 就沿用那個寬度的 WebP 網址——看得懂 AVIF 的瀏覽器一定看得懂 WebP。整張圖都沒有 AVIF（線稿、去背、插畫）就不放這個鍵。
+  if (info?.candidates.some((candidate) => candidate.avif)) {
+    attrs.avifSrcset = info.candidates.map((candidate) => `${candidate.avif ?? candidate.src} ${candidate.width}w`).join(', ')
+  }
+  return attrs
+}
+
+/**
+ * 首屏照片的 `<link rel="preload" as="image">`（usePageSeo）。`<img sizes>` 與這裡的 imagesizes 用同一份。
+ * 照片有 AVIF 時預載 AVIF 那組 srcset 並標 `type="image/avif"`：不支援 AVIF 的瀏覽器會略過這個預載、
+ * 照舊由 `<img>` 載 WebP；支援的瀏覽器預載到的才會是 `<picture>` 實際選中的那一檔。
+ */
+export function heroPreloadLink(hero: { src: string; srcset?: string; sizes?: string; avifSrcset?: string }) {
+  return {
+    rel: 'preload' as const,
+    as: 'image' as const,
+    href: hero.src,
+    imagesrcset: hero.avifSrcset ?? hero.srcset,
+    imagesizes: hero.sizes,
+    ...(hero.avifSrcset ? { type: 'image/avif' } : {}),
+    fetchpriority: 'high' as const
   }
 }

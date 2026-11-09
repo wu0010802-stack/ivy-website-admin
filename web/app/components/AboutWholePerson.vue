@@ -34,6 +34,9 @@ const circles = computed(() => domains.map((domain, i) => {
 }))
 const titleOpacity = computed(() => portion(progress.value, .69, .89))
 const dimmed = (i: number) => props.focus !== null && progress.value >= 1 && props.focus !== i
+// 播放長度（2026-11-09 由 8.6 秒縮成 3 秒）：原本色帶可見 35% 後約 6.8 秒「全人」才出現，
+// 多數人邊讀邊捲已經離開，只看到六個分開的淡色圓（等於左邊清單再講一次）。各段比例不變，只是播快。
+const PLAY_MS = 3000
 let frame = 0
 let previousTime = 0
 let wantsToPlay = false
@@ -51,7 +54,7 @@ function stopFrame() {
 function tick(time: number) {
   frame = 0
   if (!playing.value) return
-  if (previousTime) progress.value = Math.min(1, progress.value + (time - previousTime) / 8600)
+  if (previousTime) progress.value = Math.min(1, progress.value + (time - previousTime) / PLAY_MS)
   previousTime = time
   if (progress.value >= 1) { wantsToPlay = false; stopFrame(); return }
   frame = requestAnimationFrame(tick)

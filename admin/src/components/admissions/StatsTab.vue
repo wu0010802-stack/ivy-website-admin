@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, ref, useTemplateRef, watch } from 'vue'
 import AreaTab from './area/AreaTab.vue'
 import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
@@ -20,6 +20,7 @@ import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/jou
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { isStatsSub, type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
+import { useScrollActiveTabIntoView, type ScrollableTabs } from '../../composables/useScrollActiveTabIntoView'
 import { csvFilename } from '../../utils/csv'
 
 // 統計分析（規格 9、10；2026-10-16 起是獨立的招生統計頁）。頁首的校區與入學學年學期由 AdmissionsStatsView 傳進來；這裡管參考月份、
@@ -54,6 +55,9 @@ const areaView = defineModel<AreaView>('areaView', { default: () => ({ ...DEFAUL
 
 // 「參觀預約」「預約全程」「招生潛力與市佔率」與「資料匯入」讀自己的 API、不用招生統計：這幾個子分頁都不等招生統計，上方的統計範圍與說明不顯示。
 const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'journey' || sub.value === 'potential' || sub.value === 'imports')
+
+// 網址直接帶後段子分頁時，窄螢幕的分頁列要捲到選中那一頁（2026-11-06 QA）。
+useScrollActiveTabIntoView(useTemplateRef<ScrollableTabs>('subtabs'))
 
 function setSubTab(name: string | number) {
   const value = String(name).replace(/^stats-/, '')
@@ -324,7 +328,7 @@ function openWithdrawRecords(row: { code: string }) {
       </div>
     </template>
 
-    <el-tabs v-if="stats || failed || ownDataSub" v-loading="loading && !ownDataSub" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
+    <el-tabs v-if="stats || failed || ownDataSub" ref="subtabs" v-loading="loading && !ownDataSub" :model-value="subTab" class="stats-subtabs" @update:model-value="setSubTab">
       <el-tab-pane label="總覽" name="stats-overview">
         <template v-if="stats">
           <StatsOverview v-if="hasData" :stats="stats" :csv-name="csvName" @navigate="navigate">

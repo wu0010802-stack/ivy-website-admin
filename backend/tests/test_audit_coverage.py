@@ -42,6 +42,11 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/admissions/imports/history/preview"): (
         "只解析瀏覽器擷取的格子表並回預覽，不改任何資料；確認匯入（apply）才寫稽核"
     ),
+    # 手機推播（2026-11-05）：個人裝置的訂閱狀態，只影響自己收不收得到通知，不改官網內容也不碰他人資料。
+    ("POST", "/api/website/v1/admin/push/subscriptions"): "個人裝置的通知訂閱",
+    ("POST", "/api/website/v1/admin/push/subscriptions/remove"): "個人裝置的通知訂閱",
+    ("DELETE", "/api/website/v1/admin/push/subscriptions/{subscription_id}"): "個人裝置的通知訂閱",
+    ("POST", "/api/website/v1/admin/push/test"): "只送一則測試通知給自己的裝置（有限流），不改任何資料",
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),

@@ -9,6 +9,7 @@ import { youtubeThumb } from '../app/utils/filmCarousel'
 import type { MediaInfoMap } from '../app/utils/media-image'
 import { pickVoices } from '../app/utils/testimonials'
 import AboutContent from '../app/components/AboutContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 家長怎麼說（關於頁第四章）：選片是純函式，後台自訂的影片經 overlay 疊上來；最後用伺服器渲染
 // 看第四章真的畫出誰、什麼順序（Nuxt 的自動匯入在單元測試裡沒有，這裡補上，同 about-render.spec.ts）。
@@ -171,6 +172,7 @@ describe('第四章渲染', () => {
   async function render(campuses: Campus[]): Promise<string> {
     const app = createSSRApp({ render: () => h(AboutContent as Component, { campuses, page: site.aboutPage }) })
     app.component('NuxtLink', NuxtLink)
+    app.component('ResponsivePicture', ResponsivePicture)
     app.component('AboutWholePerson', defineComponent({ render: () => null }))
     return renderToString(app)
   }

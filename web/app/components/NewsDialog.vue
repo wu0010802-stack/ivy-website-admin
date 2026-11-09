@@ -185,7 +185,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
           <div v-else class="hn-feed" :class="{ 'is-single': !feed.rest.length && !feed.others.length }" aria-live="polite">
             <article class="hn-story hn-feature">
               <figure :style="{ viewTransitionName: mediaName(feed.lead) }">
-                <img v-bind="imageFor(feed.lead, leadSizes)" :style="imageStyle(feed.lead)" :alt="feed.lead.alt" loading="lazy">
+                <ResponsivePicture v-bind="imageFor(feed.lead, leadSizes)" :style="imageStyle(feed.lead)" :alt="feed.lead.alt" loading="lazy" />
               </figure>
               <p class="hn-meta"><b>{{ feed.lead.campus }}</b><span>{{ feed.lead.category }}</span><span v-if="tagged(feed.lead, articlesSample)" class="hn-sample-tag">示意</span><time :datetime="feed.lead.date">{{ monthDay(feed.lead.date) }}</time></p>
               <h3><NuxtLink :to="newsPath(feed.lead.id)"><span v-for="(part, k) in titleClauses(feed.lead.title)" :key="k" class="hn-clause">{{ part }}</span></NuxtLink></h3>
@@ -196,7 +196,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
                 <li v-for="item in feed.rest" :key="item.id">
                   <article class="hn-story hn-row">
                     <figure :style="{ viewTransitionName: mediaName(item) }">
-                      <img v-bind="imageFor(item, '124px')" :style="imageStyle(item)" :alt="item.alt" loading="lazy">
+                      <ResponsivePicture v-bind="imageFor(item, '124px')" :style="imageStyle(item)" :alt="item.alt" loading="lazy" />
                     </figure>
                     <div>
                       <p class="hn-meta"><b>{{ item.campus }}</b><span>{{ item.category }}</span><span v-if="tagged(item, articlesSample)" class="hn-sample-tag">示意</span><time :datetime="item.date">{{ monthDay(item.date) }}</time></p>
@@ -211,7 +211,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
                   <li v-for="item in feed.others" :key="item.id">
                     <article class="hn-story hn-row">
                       <figure :style="{ viewTransitionName: mediaName(item) }">
-                        <img v-bind="imageFor(item, '124px')" :style="imageStyle(item)" :alt="item.alt" loading="lazy">
+                        <ResponsivePicture v-bind="imageFor(item, '124px')" :style="imageStyle(item)" :alt="item.alt" loading="lazy" />
                       </figure>
                       <div>
                         <p class="hn-meta"><b>{{ item.campus }}</b><span>{{ item.category }}</span><span v-if="tagged(item, articlesSample)" class="hn-sample-tag">示意</span><time :datetime="item.date">{{ monthDay(item.date) }}</time></p>

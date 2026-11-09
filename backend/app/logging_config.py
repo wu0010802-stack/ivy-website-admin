@@ -60,6 +60,16 @@ def _database_details(exc: BaseException) -> list[str]:
     return sorted(details, key=len, reverse=True)
 
 
+def redact_database_error_text(text: str, exc: BaseException | None) -> str:
+    """把堆疊或錯誤訊息文字裡的資料庫資料值換成固定字樣：exc 鏈上 asyncpg 例外的 DETAIL
+    整段，以及參數編碼錯誤那一行後半段。RedactDatabaseErrorDetail（平台日誌）與
+    operations/error_reports.py（寫進錯誤回報表）共用同一份邏輯，兩邊遮蔽範圍不會各走各的。"""
+    if exc is not None:
+        for detail in _database_details(exc):
+            text = text.replace(detail, _REDACTED)
+    return _ARGUMENT_ERROR.sub(rf"\1 {_REDACTED}", text)
+
+
 class RedactDatabaseErrorDetail(logging.Filter):
     """資料庫錯誤堆疊裡的資料值不進平台日誌。
 
@@ -77,9 +87,7 @@ class RedactDatabaseErrorDetail(logging.Filter):
         if not record.exc_info or record.exc_info[1] is None:
             return True
         text = record.exc_text or logging.Formatter().formatException(record.exc_info)
-        for detail in _database_details(record.exc_info[1]):
-            text = text.replace(detail, _REDACTED)
-        record.exc_text = _ARGUMENT_ERROR.sub(rf"\1 {_REDACTED}", text)
+        record.exc_text = redact_database_error_text(text, record.exc_info[1])
         return True
 
 

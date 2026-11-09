@@ -8,6 +8,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { AdmissionContent as Admission, Campus, SiteContent } from '../app/types/site-content'
 import { ADMISSION_FAQ } from '../app/utils/admission-faq'
 import AdmissionContent from '../app/components/AdmissionContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 2026-11-03 入學頁「收退費辦法」整章收進「常見問題」：補助那題預設打開、退費收成一題。
 // 用伺服器渲染（同官網 SSR）畫出 AdmissionContent；Nuxt 的自動匯入在單元測試裡沒有，這裡補上，印章換成空元件。
@@ -29,6 +30,7 @@ const NuxtLink = defineComponent({
 async function render(admission: Admission, campuses?: Campus[]): Promise<string> {
   const app = createSSRApp({ render: () => h(AdmissionContent as Component, { admission, campuses }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   app.component('PassportStamp', defineComponent({ render: () => null }))
   return renderToString(app)
 }

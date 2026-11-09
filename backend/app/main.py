@@ -36,10 +36,12 @@ from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
 from app.media.routes import router as media_router
 from app.notifications.line_routes import router as line_router
+from app.notifications.push_routes import router as push_router
 from app.notifications.routes import router as notifications_router
 from app.operations.routes import router as operations_router
 from app.config import Settings, get_settings
 from app.logging_config import configure_logging
+from app.operations import error_reports
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
 from app.workers.geo_loop import GeoSyncLoop
 from app.workers.maintenance import MaintenanceLoop
@@ -86,7 +88,9 @@ def _register_exception_handlers(app: FastAPI) -> None:
     重新拋出，讓 uvicorn 記錄完整堆疊、測試也能看到真正的錯。
 
     所有錯誤回應都帶 request_id（本文與 X-Request-ID header），並記一行
-    log：4xx 記 info（方法、路徑、狀態、錯誤碼），5xx 記完整堆疊。"""
+    log：4xx 記 info（方法、路徑、狀態、錯誤碼），5xx 記完整堆疊。5xx 的兩個 handler 另外把
+    錯誤分組寫進 error_groups（總管理者在系統狀態頁看，operations/error_reports.py）；
+    HTTPException 與 422 是呼叫端的問題，不記。"""
 
     @app.exception_handler(StarletteHTTPException)
     async def _handle_http_error(request: Request, exc: StarletteHTTPException) -> JSONResponse:
@@ -112,6 +116,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
         logger.exception(
             "資料層未預期例外：%s %s request_id=%s", request.method, request.url.path, request_id_of(request)
         )
+        await error_reports.record_server_error(request, exc)
         return _error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, _INTERNAL_ERROR)
 
     @app.exception_handler(Exception)
@@ -119,6 +124,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
         logger.exception(
             "未預期例外：%s %s request_id=%s", request.method, request.url.path, request_id_of(request)
         )
+        await error_reports.record_server_error(request, exc)
         return _error_response(request, status.HTTP_500_INTERNAL_SERVER_ERROR, _INTERNAL_ERROR)
 
 
@@ -238,6 +244,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(booking_access_router)
     app.include_router(notifications_router)
     app.include_router(line_router)
+    app.include_router(push_router)
     app.include_router(operations_router)
     app.include_router(contact_phrases_router)
     if settings.admissions_enabled:

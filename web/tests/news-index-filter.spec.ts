@@ -4,6 +4,7 @@ import { computed, createApp, defineComponent, h, type App, type Component } fro
 import fixture from '../server/data/site-fixture.json'
 import type { NewsEvent, SiteContent } from '../app/types/site-content'
 import NewsIndexContent from '../app/components/NewsIndexContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 2026-10-13：最新消息列表的校區篩選原本寫死 `{ query: { campus } }`，在後台預覽（/preview?page=news&date=…）
 // 裡一點就丟掉 page、date、viewport、embed，跳回首頁預覽、日期回到今天；近期活動也不看預覽的日期。
@@ -35,6 +36,7 @@ function mountNews(props: { today?: string } = {}, events: NewsEvent[] = site.ne
   document.body.append(host)
   app = createApp({ render: () => h(NewsIndexContent as Component, { news: { ...site.news, events }, campuses: site.campuses, ...props }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   app.config.warnHandler = () => {}
   app.mount(host)
 }

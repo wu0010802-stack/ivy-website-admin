@@ -14,6 +14,7 @@ export const LEVEL_TAG_TYPES: Record<StatusLevel, 'success' | 'danger' | 'info'>
 export const ITEM_LABELS: Record<string, string> = {
   smtp: '寄信（SMTP）',
   line_messaging: 'LINE 群組推播',
+  web_push: '手機推播',
   turnstile: '機器人驗證（Turnstile）',
   google_login: 'Google 登入',
   line_login: 'LINE 登入',
@@ -24,6 +25,7 @@ export const ITEM_LABELS: Record<string, string> = {
   maintenance: '維護排程',
   media_jobs: '影片轉檔',
   geo_sync_loop: '公開資料同步程式',
+  error_reports: '錯誤回報',
   failed_outbox: '通知寄送失敗',
   failed_publish_jobs: '排程發布失敗',
 }
@@ -138,6 +140,10 @@ export function describeItem(item: SystemStatusItem, section: StatusSection): st
       return '還沒設定寄信：家長確認信、參觀提醒、停課通知與重設密碼連結都寄不出去'
     case 'line_messaging':
       return d.configured ? '已設定，參觀通知會推到各校的 LINE 群組' : '未設定，參觀通知不會推到 LINE 群組'
+    case 'web_push':
+      return d.configured
+        ? `已設定，目前 ${count(d.devices)} 台裝置開啟通知`
+        : '未設定金鑰，新預約與網站錯誤不會推到手機'
     case 'turnstile':
       return d.configured ? '已設定，官網預約表單會做機器人驗證' : '未設定，官網預約表單沒有機器人驗證（送單次數上限照常）'
     case 'google_login':
@@ -158,6 +164,8 @@ export function describeItem(item: SystemStatusItem, section: StatusSection): st
       return describeMedia(d)
     case 'geo_sync_loop':
       return describeGeoLoop(item, d)
+    case 'error_reports':
+      return count(d.open_last_24h) ? `過去 24 小時有 ${count(d.open_last_24h)} 種錯誤` : '過去 24 小時沒有未處理的錯誤'
     case 'failed_outbox':
       return count(d.count) ? `${count(d.count)} 則通知自動重試後仍沒有送出` : '沒有寄送失敗的通知'
     case 'failed_publish_jobs':
@@ -173,10 +181,14 @@ export function itemLink(item: SystemStatusItem, section: StatusSection): { to: 
   switch (item.key) {
     case 'line_messaging':
       return { to: '/line-notifications', label: '前往 LINE 通知' }
+    case 'web_push':
+      return d.configured ? { to: '/account', label: '前往我的帳號開啟' } : null
     case 'retention_auto_run':
       return { to: '/policies', label: '前往個資與搜尋設定' }
     case 'media_jobs':
       return count(d.failed_assets) ? { to: '/media', label: '前往素材庫' } : null
+    case 'error_reports':
+      return count(d.open_last_24h) ? { to: '/system-status#errors', label: '看錯誤' } : null
     case 'failed_outbox':
       return count(d.count) ? { to: '/notifications', label: '重新寄送' } : null
     case 'failed_publish_jobs':

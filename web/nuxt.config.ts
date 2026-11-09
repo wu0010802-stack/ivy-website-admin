@@ -118,11 +118,16 @@ export default defineNuxtConfig({
     // WEBSITE_MEDIA_MAX_VIDEO_MB 較大者一致；見 shared/request-guard.ts。
     mediaMaxUploadMb: Number(process.env.NUXT_MEDIA_MAX_UPLOAD_MB ?? 150),
     websiteEnv,
+    // 前端錯誤回報（2026-11-05，server/api/client-errors.post.ts）：關閉時伺服器直接回 204。預設只有 production 開；
+    // NUXT_ERROR_REPORTS_ENABLED 在執行期也能改（Nuxt 依鍵名對應環境變數），可以不重建映像就關掉。
+    errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production'),
     public: {
       contentMode,
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',
       indexingEnabled,
-      telemetryEnabled: parseBoolean(process.env.NUXT_PUBLIC_TELEMETRY_ENABLED, websiteEnv === 'production')
+      telemetryEnabled: parseBoolean(process.env.NUXT_PUBLIC_TELEMETRY_ENABLED, websiteEnv === 'production'),
+      // 前端外掛（plugins/error-report.client.ts）讀這個；預設同上，沒開就不掛 window 的錯誤監聽。
+      errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production')
     }
   }
 

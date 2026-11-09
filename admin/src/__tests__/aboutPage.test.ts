@@ -92,7 +92,7 @@ describe('關於常春藤頁（about_page）', () => {
 
   it('照片焦點預覽的比例和官網 about.css 一致：首屏 3:2、紙房子窗戶 4:3', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
-    expect(css).toContain('.abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
+    expect(css).toContain('.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
     expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:3\/2/)
     expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}')
     const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')

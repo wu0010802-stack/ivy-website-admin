@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { responsiveTourImage } from '~/utils/tour-image'
+import { prefetchImage } from '~/utils/avif-support'
 import { eventTimeDetail, isSampleNews, newsPath, safeWebUrl, titleClauses } from '~/utils/news-content'
 import { countdownLabel, dateParts, type HomeStory } from '~/utils/news-home'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
@@ -137,7 +138,8 @@ function render(i: number) {
   announcement.value = `第 ${i + 1} 則，共 ${seq.value.length} 則：${title}`
   // 預先載入下一則的照片
   const next = seq.value[i + 1]
-  if (next?.kind === 'news') new Image().src = responsiveTourImage(next.article.image, '100vw', false, next.article.imageMedia).src ?? ''
+  // 下一則的照片之後用 <ResponsivePicture> 顯示：支援 AVIF 的瀏覽器預取 AVIF 那檔（見 utils/avif-support.ts）。
+  if (next?.kind === 'news') prefetchImage(responsiveTourImage(next.article.image, '100vw', false, next.article.imageMedia))
   else if (next?.kind === 'film') new Image().src = next.film.poster
 }
 
@@ -318,7 +320,7 @@ defineExpose({ open })
       </div>
       <div class="hsv-top">
         <span class="hsv-avatar">
-          <img v-if="storyCampus" v-bind="responsiveTourImage(storyCampus.image, '34px', false, storyCampus.imageMedia)" alt="">
+          <ResponsivePicture v-if="storyCampus" v-bind="responsiveTourImage(storyCampus.image, '34px', false, storyCampus.imageMedia)" alt="" />
           <svg v-else viewBox="30 26 124 132" aria-hidden="true" focusable="false"><image href="/assets/logo.webp" width="552" height="192" /></svg>
         </span>
         <p class="hsv-who">{{ who.name }}<small>{{ who.note }}</small></p>
@@ -359,7 +361,7 @@ defineExpose({ open })
       </template>
       <template v-else-if="story?.kind === 'news'">
         <div class="hsv-stage is-media">
-          <img v-bind="responsiveTourImage(story.article.image, '100vw', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt">
+          <ResponsivePicture v-bind="responsiveTourImage(story.article.image, '100vw', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt" />
         </div>
         <div class="hsv-caption">
           <small>{{ story.article.category }}・{{ monthDay(story.article.date) }}<template v-if="isSample(story.article)">・示意</template></small>
@@ -422,7 +424,7 @@ html:has(.hsv[open]) { overflow: hidden; }
 .hsv-icon .icon { width: 22px; height: 22px; filter: drop-shadow(0 1px 4px rgb(var(--ivy-news-backdrop-rgb) / .5)); }
 .hsv-icon:focus-visible { outline: 2px solid var(--gold); outline-offset: -2px; }
 .hsv-stage { position: absolute; inset: 0; display: grid; }
-.hsv-stage > img, .hsv-stage > video, .hsv-stage > iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
+.hsv-stage > img, .hsv-stage > :where(picture) > img, .hsv-stage > video, .hsv-stage > iframe { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border: 0; }
 .hsv-stage > iframe { top: 50%; bottom: auto; height: auto; aspect-ratio: 16 / 9; translate: 0 -50%; }
 .hsv-stage.is-media::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgb(var(--ivy-news-backdrop-rgb) / .88) 0%, rgb(var(--ivy-news-backdrop-rgb) / .5) 30%, transparent 55%), linear-gradient(to bottom, rgb(var(--ivy-news-backdrop-rgb) / .45), transparent 22%); pointer-events: none; }
 .hsv-stage:has(iframe)::after { display: none; }

@@ -9,6 +9,7 @@ import { environmentHeroAttrs, type MediaInfoMap } from '../app/utils/media-imag
 import { ENVIRONMENT_HERO_IMAGE, environmentHeroImage } from '../app/utils/responsive-image'
 import { PAGE_COUNTS } from '../app/utils/page-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 環境頁前三章的後台內容（environment_page）：後台存的 payload 經 applyContentOverlay 套到內容，
 // 形狀不符整份退回內建；再用伺服器渲染 EnvironmentContent 看照片與文字真的換了。
@@ -54,6 +55,7 @@ const NuxtLink = defineComponent({
 async function render(page: EnvironmentPageContent): Promise<string> {
   const app = createSSRApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page }) })
   app.component('NuxtLink', NuxtLink)
+  app.component('ResponsivePicture', ResponsivePicture)
   return renderToString(app)
 }
 const img = (html: string, alt: string) => html.match(new RegExp(`<img[^>]*alt="${alt}"[^>]*>`))?.[0] ?? ''

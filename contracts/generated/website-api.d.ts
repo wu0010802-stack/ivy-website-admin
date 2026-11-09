@@ -1290,6 +1290,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/error-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Error Groups
+         * @description 總管理者的錯誤回報（2026-11-05）：官網、後台與 API 的未處理錯誤，同一種錯誤一列。
+         */
+        get: operations["list_error_groups_api_website_v1_admin_error_groups_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/error-groups/resolve-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve All Error Groups */
+        post: operations["resolve_all_error_groups_api_website_v1_admin_error_groups_resolve_all_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/error-groups/{group_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resolve Error Group */
+        post: operations["resolve_error_group_api_website_v1_admin_error_groups__group_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/holiday-calendar/apply": {
         parameters: {
             query?: never;
@@ -1892,6 +1946,98 @@ export interface paths {
         get: operations["list_publish_jobs_api_website_v1_admin_publish_jobs_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/push/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Push Config */
+        get: operations["get_push_config_api_website_v1_admin_push_config_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/push/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List My Devices */
+        get: operations["list_my_devices_api_website_v1_admin_push_subscriptions_get"];
+        put?: never;
+        /** Subscribe */
+        post: operations["subscribe_api_website_v1_admin_push_subscriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/push/subscriptions/remove": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unsubscribe This Device
+         * @description 這台裝置關閉通知：刪掉自己的那一筆（別人的 endpoint 刪不到；找不到也回 204）。
+         */
+        post: operations["unsubscribe_this_device_api_website_v1_admin_push_subscriptions_remove_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/push/subscriptions/{subscription_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove Device */
+        delete: operations["remove_device_api_website_v1_admin_push_subscriptions__subscription_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/push/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send Test Push
+         * @description 送一則「測試通知」給自己所有的裝置，確認手機真的收得到。
+         */
+        post: operations["send_test_push_api_website_v1_admin_push_test_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3069,6 +3215,23 @@ export interface paths {
         get: operations["get_public_booking_config_api_website_v1_public_booking_config__campus_key__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/client-errors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Client Error */
+        post: operations["record_client_error_api_website_v1_public_client_errors_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5468,6 +5631,29 @@ export interface components {
             /** Unrecorded */
             unrecorded: number;
         };
+        /**
+         * ClientErrorIn
+         * @description 與 web/shared/client-error.ts 的 validateClientError 同一組欄位：web 端先驗過、這裡再驗一次，
+         *     因為同源代理讓任何人都能直接打到這支公開端點。長度上限只是擋掉離譜的本文，超過欄位長度的
+         *     一律截斷後入庫（error_reports.client_entry），不拒收。
+         */
+        ClientErrorIn: {
+            /** Kind */
+            kind: string;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /** Release */
+            release?: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "web" | "admin";
+            /** Stack */
+            stack?: string | null;
+        };
         /** ClosureCountedEventOut */
         ClosureCountedEventOut: {
             /** Approved Capacity */
@@ -5981,6 +6167,58 @@ export interface components {
             semester: 1 | 2;
             /** Target */
             target: number | null;
+        };
+        /** ErrorGroupListOut */
+        ErrorGroupListOut: {
+            /** Items */
+            items: components["schemas"]["ErrorGroupOut"][];
+            /** Open Count */
+            open_count: number;
+            /** Open Last 24H */
+            open_last_24h: number;
+        };
+        /** ErrorGroupOut */
+        ErrorGroupOut: {
+            /** Count */
+            count: number;
+            /**
+             * First Seen At
+             * Format: date-time
+             */
+            first_seen_at: string;
+            /** Id */
+            id: number;
+            /** Kind */
+            kind: string;
+            /**
+             * Last Seen At
+             * Format: date-time
+             */
+            last_seen_at: string;
+            /** Location */
+            location: string | null;
+            /** Message */
+            message: string;
+            /** Path */
+            path: string;
+            /** Release */
+            release: string | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Sample Stack */
+            sample_stack: string | null;
+            /** Sample User Agent */
+            sample_user_agent: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "web" | "admin" | "api";
+        };
+        /** ErrorGroupsResolvedOut */
+        ErrorGroupsResolvedOut: {
+            /** Resolved */
+            resolved: number;
         };
         /** EventTrendDayOut */
         EventTrendDayOut: {
@@ -7954,6 +8192,55 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+        };
+        /** PushConfigOut */
+        PushConfigOut: {
+            /** Enabled */
+            enabled: boolean;
+            /** Public Key */
+            public_key: string | null;
+        };
+        /** PushDeviceOut */
+        PushDeviceOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Device Label */
+            device_label: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Success At */
+            last_success_at: string | null;
+        };
+        /** PushEndpointIn */
+        PushEndpointIn: {
+            /** Endpoint */
+            endpoint: string;
+        };
+        /** PushSubscriptionIn */
+        PushSubscriptionIn: {
+            /** Endpoint */
+            endpoint: string;
+            keys: components["schemas"]["PushSubscriptionKeys"];
+        };
+        /** PushSubscriptionKeys */
+        PushSubscriptionKeys: {
+            /** Auth */
+            auth: string;
+            /** P256Dh */
+            p256dh: string;
+        };
+        /** PushTestOut */
+        PushTestOut: {
+            /** Failed */
+            failed: number;
+            /** Sent */
+            sent: number;
         };
         /**
          * ReauthRequest
@@ -12436,6 +12723,110 @@ export interface operations {
             };
         };
     };
+    list_error_groups_api_website_v1_admin_error_groups_get: {
+        parameters: {
+            query?: {
+                status?: "open" | "resolved" | "all";
+                limit?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorGroupListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_all_error_groups_api_website_v1_admin_error_groups_resolve_all_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorGroupsResolvedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_error_group_api_website_v1_admin_error_groups__group_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                group_id: number;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     apply_holiday_calendar_api_website_v1_admin_holiday_calendar_apply_post: {
         parameters: {
             query?: never;
@@ -13614,6 +14005,210 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PublishJobListOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_push_config_api_website_v1_admin_push_config_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushConfigOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_devices_api_website_v1_admin_push_subscriptions_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDeviceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    subscribe_api_website_v1_admin_push_subscriptions_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unsubscribe_this_device_api_website_v1_admin_push_subscriptions_remove_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushEndpointIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_device_api_website_v1_admin_push_subscriptions__subscription_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                subscription_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    send_test_push_api_website_v1_admin_push_test_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushTestOut"];
                 };
             };
             /** @description Validation Error */
@@ -16009,6 +16604,37 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PublicBookingConfigOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_client_error_api_website_v1_public_client_errors_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClientErrorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

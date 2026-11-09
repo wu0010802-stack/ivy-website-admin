@@ -72,7 +72,7 @@ body:has(.renv){background:var(--ivy-env-paper)}
 /* 照片積木：照片印在積木正面，側面用積木色；後面可以錯開墊一塊別色的積木 */
 .renv-ph{position:relative;isolation:isolate}
 .renv-frame{position:relative;width:100%;overflow:hidden;background:var(--s);box-shadow:0 var(--side) 0 var(--s)}
-.renv-frame>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.renv-frame>img,.renv-frame>:where(picture)>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .renv-ph-back{position:absolute;z-index:-1;left:0;top:0;width:100%;translate:var(--bx,22px) var(--by,22px)}
 
 /* 小圓積木裡的編號 */
@@ -211,7 +211,7 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-btn .icon{width:18px;height:18px}
 /* 營養餐點書斜靠在一塊赤陶拱上，旁邊一塊半圓 */
 .renv-book{--k:1;position:relative;display:block;height:calc(var(--k) * 400px)}
-.renv-book>*{position:absolute;bottom:var(--side)}
+.renv-book>*,.renv-book>:where(picture)>:where(img){position:absolute;bottom:var(--side)}
 .renv-book-arch{left:calc(var(--k) * 24px);width:calc(var(--k) * 184px);--ar:.86}
 .renv-book-cover{left:calc(var(--k) * 214px);width:calc(var(--k) * 224px);height:auto;aspect-ratio:1359/1920;border-radius:3px 8px 8px 3px;transform-origin:0 100%;rotate:-8deg;box-shadow:0 6px 0 var(--renv-cream-side)}
 .renv-book-semi{left:calc(var(--k) * 372px);width:calc(var(--k) * 96px)}

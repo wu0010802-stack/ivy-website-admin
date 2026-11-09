@@ -36,7 +36,7 @@
 
 /* 卡紙相框：品牌色紙＋照片＋底下一行字，微斜（正式站立體書的卡紙） */
 .abh-card{position:relative;margin:0;padding:8px 8px 0;border-radius:4px;background:var(--c,var(--yellow));box-shadow:var(--abh-shadow);rotate:var(--r,0deg)}
-.abh-card>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
+.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
 .abh-blank{background:color-mix(in oklab,var(--paper) 55%,transparent)}
 /* 字色 --ink：森林綠在橘、trail 這類卡紙底上不到 4.5:1（仁武橘底 3.95:1，同舊版緞帶的處理） */
 .abh-card figcaption{padding:10px 4px 11px;text-align:center;font:700 .9375rem/1.4 var(--font-head);color:rgb(var(--ink))}
@@ -52,7 +52,7 @@
 .abh-hero-art{padding:3% 2% 5% 3%}
 .abh-hero-art .abh-card{--ar:3/2;--r:-1.5deg;padding:16px 16px 0;border-radius:6px;background:linear-gradient(155deg,color-mix(in oklab,var(--yellow) 82%,var(--paper)),var(--yellow) 55%);box-shadow:var(--abh-shadow-lift)}
 .abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:16px}
-.abh-hero-art .abh-card>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
+.abh-hero-art .abh-card>img,.abh-hero-art .abh-card>:where(picture)>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
 .abh-index{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,4vw,64px)}
 .abh-index a{display:flex;align-items:center;gap:14px;min-height:56px;color:var(--ivy-forest);text-decoration:none}
 .abh-mk{flex:none;display:grid;place-items:center;width:40px;height:52px;padding-bottom:10px;background:var(--chap);clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);font:700 .9375rem/1 var(--font-date);color:rgb(var(--ink))}
@@ -131,7 +131,10 @@
 .abh-cut>svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
 .abh-cut>.abh-vine{z-index:2}
 .abh-smoke{position:absolute;left:var(--x);bottom:calc(var(--y) + 16px);width:var(--w);aspect-ratio:var(--ar);overflow:visible}
-.abh-window{position:absolute;z-index:1;left:28.5%;top:calc(150 / 340 * 100%);width:43%;padding:3.2% 3.2% 3.6%;background:var(--white);box-shadow:0 1px 2px rgb(var(--ink)/.22);rotate:-2.4deg}
+/* 窗戶照片（創辦人和孩子，頁面上唯一一張）2026-11-09 由 43% 放到 50%、往上提 10 個單位（底緣仍在門上方），
+   桌機另把畫的那欄放寬（見 .abh-hope .abh-split）：1440 寬 92→121px、390 寬 64→76px */
+.abh-hope .abh-split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.abh-window{position:absolute;z-index:1;left:25%;top:calc(140 / 340 * 100%);width:50%;padding:3.2% 3.2% 3.6%;background:var(--white);box-shadow:0 1px 2px rgb(var(--ink)/.22);rotate:-2.4deg}
 .abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}
 .abh-tape{position:absolute;width:30%;height:13%;background:rgb(var(--ivy-paint-sky-rgb)/.62);box-shadow:inset 0 0 0 1px rgb(var(--on-dark)/.2);clip-path:polygon(4% 0,96% 0,100% 18%,95% 36%,100% 56%,94% 76%,98% 100%,3% 100%,0 80%,5% 60%,0 40%,6% 20%)}
 .abh-tape.is-l{left:-10%;top:-7%;rotate:-38deg}
@@ -178,7 +181,7 @@
   .abh{--abh-sec:88px}
   .abh h1{font-size:clamp(1.875rem,10.5vw,2.75rem)}
   .abh h2{font-size:clamp(1.625rem,7vw,2.125rem)}
-  .abh-hero,.abh-split,.abh-split.is-voices{grid-template-columns:1fr}
+  .abh-hero,.abh-split,.abh-split.is-voices,.abh-hope .abh-split{grid-template-columns:1fr}
   /* 首屏：大標 → 照片 → 介紹 → 索引 */
   .abh-hero{gap:0;padding-top:32px}
   .abh-hero-text{display:contents}
@@ -206,16 +209,22 @@
   .abh-tv{order:1;margin:22px 0 4px}
   .abh-picks,.abh-link.is-yt{order:2}
 }
-/* 700 以下：沿革中軸線靠左，年份與字在上、卡紙在下（701–900 兩欄還放得下 300px 卡紙，維持左右交錯） */
+/* 700 以下：沿革中軸線靠左，年份與字在左、小卡紙在右（701–900 兩欄還放得下 300px 卡紙，維持左右交錯）。
+   2026-11-09 前卡紙滿寬疊在字下面，五站各一張 300px 校舍照，第一章在 390 寬佔 2.7 屏、字只有一句；
+   改成同一列並排後約 1.2 屏，照片仍看得出是哪所校園。 */
 @media (max-width:700px){
   .abh-tl::before{left:7px}
-  .abh-tl li,.abh-tl li:nth-child(even){grid-template-columns:1fr;gap:16px;padding:20px 0 20px 34px}
+  .abh-tl li,.abh-tl li:nth-child(even){grid-template-columns:minmax(0,1fr) minmax(0,42%);gap:0 16px;align-items:start;padding:18px 0 18px 34px}
   .abh-tl li+li{margin-top:0}
-  .abh-tl li::before{left:7px;top:34px}
+  .abh-tl li::before{left:7px;top:32px}
   /* 單數列也要寫 :nth-child(odd)：桌機的 justify-self:end 權重比 li .abh-card 高，曾讓單數列的卡紙比雙數列右移 16px */
-  .abh-tl li:nth-child(odd) .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:1;grid-row:2;justify-self:start;width:min(100%,300px)}
+  .abh-tl li:nth-child(odd) .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:2;grid-row:1;justify-self:end;width:100%;margin-top:6px;padding:5px}
   .abh-tl li .abh-tl-text,.abh-tl li:nth-child(even) .abh-tl-text{grid-column:1;grid-row:1;text-align:left}
   .abh-tl li:nth-child(even) .abh-year{justify-content:flex-start}
+  /* 字欄 360 寬只剩約 150px：年份與民國年放不下一行時換行，不擠出字欄 */
+  .abh-year{flex-wrap:wrap;row-gap:4px}
+  .abh-tl-text h3{margin-top:10px}
+  .abh-tl-text h3 span{display:inline-block}
   .abh-tl-end{justify-content:flex-start;margin-top:4px;padding-left:34px}
   /* 六大領域點開的說明並排時只剩約 170px 寬（一行 11 字、六行）：領域一欄滿寬，核心素養接在下面排兩欄 */
   .abh-lists{grid-template-columns:1fr}

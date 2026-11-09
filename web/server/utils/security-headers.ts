@@ -42,6 +42,9 @@ const PUBLIC_CSP = publicCsp()
 // __Host- cookie），要等正式網域定案。
 // frame-src 'self'：內容編輯右側嵌同源的 /preview 即時預覽（2026-10-06 方向 D）；原本靠
 // default-src 退回，改成明寫，不允許嵌其他網站。
+// worker-src／manifest-src 明寫 'self'（2026-11-05）：後台是 PWA，/admin/sw.js 是只處理手機推播的 Service worker、
+// /admin/manifest.webmanifest 是加到主畫面用的 manifest；原本靠 default-src 退回，改成明寫，
+// 不允許從其他來源載入 worker 或 manifest。
 // img-src 加 https://wmts.nlsc.gov.tw：招生「區域分析」地圖的底圖是國土測繪中心的電子地圖圖磚
 // （2026-10-08）。圖磚請求只帶視野範圍（z/x/y），不帶任何家長資料；其他外部圖片仍不放行。
 export const ADMIN_CSP = [
@@ -52,6 +55,8 @@ export const ADMIN_CSP = [
   "font-src 'self' data:",
   "connect-src 'self'",
   "frame-src 'self'",
+  "worker-src 'self'",
+  "manifest-src 'self'",
   "media-src 'self' blob:",
   "frame-ancestors 'self'",
   "base-uri 'self'",
@@ -74,6 +79,9 @@ const ADMIN_PATH = /^\/admin(?:\/|$)/
 // 後台入口 HTML（靜態 index.html）；深層路由由 routes/admin/[...path].get.ts
 // 自己設 no-store。/admin/assets/* 有內容雜湊，照常快取。
 const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/
+// Service worker 與 manifest 的檔名固定（沒有內容雜湊）：no-cache＝可以存、但每次都向伺服器確認有沒有新版，
+// 後台發版後手機上的 worker 與 manifest 才會跟著更新（瀏覽器本來就不讓 worker 腳本吃 HTTP 快取超過 24 小時）。
+const ADMIN_REVALIDATE = /^\/admin\/(?:sw\.js|manifest\.webmanifest)$/
 
 // nitro 的靜態資源處理器先 decodePath 再找檔，/%61dmin/ 一樣拿到後台入口；
 // 判斷是不是後台要用解碼後的路徑，否則會只帶公開頁的寬鬆 CSP（2026-10-22 資安稽核）。
@@ -104,6 +112,7 @@ export function securityHeadersFor(
     headers['Content-Security-Policy'] = ADMIN_CSP
     headers['X-Robots-Tag'] = 'noindex, nofollow'
     if (ADMIN_ENTRY.test(pathname) || ADMIN_ENTRY.test(decoded)) headers['Cache-Control'] = 'private, no-store'
+    else if (ADMIN_REVALIDATE.test(pathname) || ADMIN_REVALIDATE.test(decoded)) headers['Cache-Control'] = 'no-cache'
   }
   // HSTS 只在正式環境送；本機是 http，瀏覽器本來就會忽略，但測試環境
   // 用自簽 https 時送了會讓 localhost 被鎖一年。不加 includeSubDomains：

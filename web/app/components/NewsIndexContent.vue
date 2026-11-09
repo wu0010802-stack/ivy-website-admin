@@ -74,7 +74,7 @@ const eventMeta = (item: NewsEvent) => [isSample(item) ? '' : formatDate(item.da
         <NewsFollowCampuses v-if="!articles.length" class="np-empty" :campuses="followCampuses" />
         <ul v-else class="np-list">
           <li v-for="item in articles" :key="item.id" class="np-row">
-            <img v-bind="responsiveTourImage(item.image, '(max-width: 760px) 30vw, 280px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy">
+            <ResponsivePicture v-bind="responsiveTourImage(item.image, '(max-width: 760px) 30vw, 280px', false, item.imageMedia)" :style="item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined" :alt="item.alt" loading="lazy" />
             <div class="np-row-copy">
               <p class="np-meta"><span>{{ item.campus }}<span v-if="articlesSample === 'some' && isSample(item)" class="hn-sample-tag">示意</span></span><time :datetime="item.date">{{ formatDate(item.date) }}</time></p>
               <h3><NuxtLink :to="newsPath(item.id)"><span v-for="(part, i) in titleClauses(item.title)" :key="i" class="np-clause">{{ part }}</span></NuxtLink></h3>

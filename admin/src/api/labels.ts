@@ -433,6 +433,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'retention.run': '執行資料清理',
   'site_settings.update': '更新全站設定',
   'system.test_email': '寄測試信',
+  'system.error_resolve': '標記錯誤已處理',
+  'system.error_resolve_all': '全部錯誤標為已處理',
   'line.campus_target.update': '更新 LINE 通知群組',
   'line.test_push': '送出 LINE 測試訊息',
   'line.verification_code.create': '產生 LINE 群組驗證碼',
@@ -697,6 +699,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   grade_intake_target: '計畫名額',
   enrolled_roster: '在籍清冊',
   enrollment_history: '歷年註冊',
+  error_group: '錯誤回報',
 }
 
 // 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。

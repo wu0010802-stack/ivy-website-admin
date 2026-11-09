@@ -5,17 +5,18 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import ElementPlus, { ElMessage } from 'element-plus'
+import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import SystemStatusView from '../views/SystemStatusView.vue'
 import DashboardView from '../views/DashboardView.vue'
 import { ApiError, api } from '../api/client'
-import type { SystemStatusItem, SystemStatusOut, UserOut } from '../api/types'
+import type { ErrorGroupListOut, ErrorGroupOut, SystemStatusItem, SystemStatusOut, UserOut } from '../api/types'
 import { authGuard, routes } from '../router'
 import { canListNavItem, navItem, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { campusAdmin, cleanup, mountWith, reception } from './admissionsTestKit'
 import { testUser } from './fixtures'
 import { DATASET_LABELS, ITEM_LABELS, STEP_LABELS, describeItem, itemLink } from '../utils/systemStatusFormat'
+import { ERROR_SOURCE_LABELS, errorTitle, formatRelativeTime } from '../utils/errorReportFormat'
 
 const backendSources = import.meta.glob('../../../backend/app/**/*.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
 function source(path: string): string {
@@ -116,8 +117,12 @@ describe('處理連結', () => {
   })
 })
 
-async function mountPage(data: SystemStatusOut = status()) {
-  const get = vi.spyOn(api, 'get').mockResolvedValue(data as never)
+const noErrors: ErrorGroupListOut = { items: [], open_count: 0, open_last_24h: 0 }
+const statusCalls = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.filter(([path]) => path === '/admin/system-status')
+
+// 狀態與錯誤回報是兩支 API（錯誤區塊自己讀 /admin/error-groups），依路徑回不同的資料。
+async function mountPage(data: SystemStatusOut = status(), errors: ErrorGroupListOut = noErrors) {
+  const get = vi.spyOn(api, 'get').mockImplementation(async (path) => (String(path).startsWith('/admin/error-groups') ? errors : data) as never)
   const mounted = await mountWith(SystemStatusView, { path: '/system-status' })
   return { ...mounted, get }
 }
@@ -126,7 +131,7 @@ describe('頁面', () => {
   it('讀一次狀態，四區標題、每列名稱與要注意標籤、台北時間的資料時間；招生關閉時沒有公開資料區', async () => {
     const { wrapper, get } = await mountPage()
     expect(get).toHaveBeenCalledWith('/admin/system-status')
-    expect(wrapper.findAll('h2').map((h) => h.text())).toEqual(['對外服務設定', '背景工作', '公開資料', '通知與發布'])
+    expect(wrapper.findAll('h2').map((h) => h.text())).toEqual(['對外服務設定', '背景工作', '公開資料', '通知與發布', '錯誤回報'])
     const smtp = wrapper.get('li.status-row[data-key="smtp"]')
     expect(smtp.text()).toContain('寄信（SMTP）')
     expect(smtp.text()).toContain('要注意')
@@ -167,23 +172,25 @@ describe('頁面', () => {
       const { wrapper, get } = await mountPage()
       vi.advanceTimersByTime(120_000)
       await flushPromises()
-      expect(get).toHaveBeenCalledTimes(1)
+      expect(statusCalls(get)).toHaveLength(1)
       await wrapper.findAll('button').find((b) => b.text() === '重新整理')!.trigger('click')
       await flushPromises()
-      expect(get).toHaveBeenCalledTimes(2)
+      expect(statusCalls(get)).toHaveLength(2)
+      // 錯誤回報跟著重新整理，一樣不自動輪詢：掛上時讀一次、重新整理時再讀一次。
+      expect(get.mock.calls.filter(([path]) => String(path).startsWith('/admin/error-groups'))).toHaveLength(2)
     } finally {
       vi.useRealTimers()
     }
   })
 
   it('第一次讀不到時顯示錯誤與「重新載入」，重新載入後出現內容', async () => {
-    const get = vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('offline')).mockResolvedValue(status() as never)
+    const get = vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('offline')).mockImplementation(async (path) => (String(path).startsWith('/admin/error-groups') ? noErrors : status()) as never)
     const { wrapper } = await mountWith(SystemStatusView, { path: '/system-status' })
     expect(wrapper.find('li.status-row').exists()).toBe(false)
     expect(wrapper.get('.el-alert').text()).toContain('讀不到系統狀態')
     await wrapper.findAll('button').find((b) => b.text() === '重新載入')!.trigger('click')
     await flushPromises()
-    expect(get).toHaveBeenCalledTimes(2)
+    expect(statusCalls(get)).toHaveLength(2)
     expect(wrapper.find('.el-alert').exists()).toBe(false)
     expect(wrapper.find('li.status-row[data-key="smtp"]').exists()).toBe(true)
   })
@@ -247,6 +254,170 @@ describe('測試信被後端擋下', () => {
     await flushPromises()
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: '測試信寄太多次了，請 10 分鐘後再試' }))
     expect(wrapper.find('[role="status"]').exists()).toBe(false)
+  })
+})
+
+describe('錯誤回報（系統狀態那一列）', () => {
+  it('過去 24 小時有未處理的錯誤：寫幾種、連到下面的錯誤區塊；沒有就是正常', () => {
+    const loud = item('error_reports', 'attention', { open_last_24h: 3, open_total: 5 })
+    expect(ITEM_LABELS.error_reports).toBe('錯誤回報')
+    expect(describeItem(loud, 'background')).toBe('過去 24 小時有 3 種錯誤')
+    expect(itemLink(loud, 'background')).toEqual({ to: '/system-status#errors', label: '看錯誤' })
+    const quiet = item('error_reports', 'ok', { open_last_24h: 0, open_total: 2 })
+    expect(describeItem(quiet, 'background')).toBe('過去 24 小時沒有未處理的錯誤')
+    expect(itemLink(quiet, 'background')).toBeNull()
+  })
+})
+
+describe('錯誤回報區塊', () => {
+  const NOW = '2026-10-15T04:00:00Z'
+  const group = (overrides: Partial<ErrorGroupOut> = {}): ErrorGroupOut => ({
+    id: 1, source: 'web', kind: 'TypeError', message: 'x is not a function', location: '/_nuxt/a.js:1:2', path: '/campuses/yihua',
+    release: 'build-1', sample_stack: 'TypeError: x is not a function\n    at f (/_nuxt/a.js:1:2)', sample_user_agent: 'Mozilla/5.0 test',
+    count: 3, first_seen_at: '2026-10-15T01:00:00Z', last_seen_at: '2026-10-15T03:55:00Z', resolved_at: null, ...overrides,
+  })
+  const list = (items: ErrorGroupOut[], open = items.filter((i) => !i.resolved_at).length): ErrorGroupListOut => ({ items, open_count: open, open_last_24h: open })
+
+  /** handler 依 status 參數回對應清單；其餘路徑回系統狀態。 */
+  async function mountErrors(byStatus: Partial<Record<'open' | 'resolved' | 'all', ErrorGroupListOut>>) {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(NOW))
+    const get = vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      const text = String(path)
+      if (!text.startsWith('/admin/error-groups')) return status() as never
+      const key = new URL(text, 'http://x').searchParams.get('status') as 'open' | 'resolved' | 'all'
+      return (byStatus[key] ?? noErrors) as never
+    })
+    const mounted = await mountWith(SystemStatusView, { path: '/system-status' })
+    return { ...mounted, get }
+  }
+  const button = (wrapper: VueWrapper, label: string) => wrapper.findAll('button').find((b) => b.text() === label)
+  const errorCalls = (get: { mock: { calls: unknown[][] } }) => get.mock.calls.map(([path]) => String(path)).filter((path) => path.startsWith('/admin/error-groups'))
+
+  it('容器是 #errors；每列寫來源、錯誤、頁面、次數、最後發生（相對時間，hover 完整時間）、首次發生', async () => {
+    const { wrapper, get } = await mountErrors({ open: list([group(), group({ id: 2, source: 'api', kind: 'sqlalchemy.exc.IntegrityError', message: '', path: '/api/website/v1/admin/x/{id}', count: 1, last_seen_at: '2026-10-14T20:00:00Z' })]) })
+    expect(wrapper.get('section#errors h2').text()).toBe('錯誤回報')
+    expect(errorCalls(get)).toEqual(['/admin/error-groups?status=open&limit=50'])
+    const rows = wrapper.findAll('li.error-row')
+    expect(rows).toHaveLength(2)
+    const first = rows[0]!
+    expect(first.get('.el-tag').text()).toBe('官網')
+    expect(first.get('.error-row__title').text()).toBe('TypeError：x is not a function')
+    expect(first.text()).toContain('頁面 /campuses/yihua')
+    expect(first.text()).toContain('3 次')
+    const last = first.findAll('time')[0]!
+    expect(last.text()).toBe('5 分鐘前')
+    expect(last.attributes('title')).toBe('2026/10/15 11:55')
+    expect(first.findAll('time')[1]!.text()).toBe('2026/10/15 09:00')
+    expect(rows[1]!.get('.el-tag').text()).toBe('API')
+    expect(rows[1]!.get('.error-row__title').text()).toBe('sqlalchemy.exc.IntegrityError')
+    expect(rows[1]!.findAll('time')[0]!.text()).toBe('8 小時前')
+    expect(wrapper.findAll('.el-radio-button').map((b) => b.text())).toEqual(['未處理（2）', '已處理', '全部'])
+  })
+
+  it('沒有錯誤：只寫「目前沒有錯誤」，不出現全部標為已處理', async () => {
+    const { wrapper } = await mountErrors({})
+    expect(wrapper.get('section#errors').text()).toContain('目前沒有錯誤')
+    expect(wrapper.find('li.error-row').exists()).toBe(false)
+    expect(button(wrapper, '全部標為已處理')).toBeUndefined()
+  })
+
+  it('切到已處理與全部：重讀並帶 status；已處理的列寫處理時間、沒有標為已處理的按鈕', async () => {
+    const done = group({ id: 7, resolved_at: '2026-10-15T02:00:00Z' })
+    const { wrapper, get } = await mountErrors({ open: list([group()]), resolved: list([done], 1), all: list([group(), done], 1) })
+    await wrapper.findAll('.el-radio-button').find((b) => b.text() === '已處理')!.get('input').setValue(true)
+    await flushPromises()
+    expect(errorCalls(get).at(-1)).toBe('/admin/error-groups?status=resolved&limit=50')
+    const row = wrapper.get('li.error-row[data-id="7"]')
+    expect(row.text()).toContain('已於 2026/10/15 10:00 標為已處理')
+    expect(row.findAll('button').some((b) => b.text() === '標為已處理')).toBe(false)
+    await wrapper.findAll('.el-radio-button').find((b) => b.text() === '全部')!.get('input').setValue(true)
+    await flushPromises()
+    expect(errorCalls(get).at(-1)).toBe('/admin/error-groups?status=all&limit=50')
+    expect(wrapper.findAll('li.error-row')).toHaveLength(2)
+  })
+
+  it('展開堆疊：等寬字保留換行、顯示位置、版本與瀏覽器；再按一次收起', async () => {
+    const { wrapper } = await mountErrors({ open: list([group()]) })
+    expect(wrapper.find('.error-row__detail').exists()).toBe(false)
+    const toggle = button(wrapper, '展開堆疊')!
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    expect(wrapper.get('.error-row__stack').text()).toBe('TypeError: x is not a function\n    at f (/_nuxt/a.js:1:2)')
+    expect(wrapper.get('.error-row__stack').classes()).toContain('mono')
+    const detail = wrapper.get('.error-row__detail').text()
+    expect(detail).toContain('位置 /_nuxt/a.js:1:2')
+    expect(detail).toContain('版本 build-1')
+    expect(detail).toContain('瀏覽器 Mozilla/5.0 test')
+    expect(button(wrapper, '收起堆疊')!.attributes('aria-expanded')).toBe('true')
+    await button(wrapper, '收起堆疊')!.trigger('click')
+    expect(wrapper.find('.error-row__detail').exists()).toBe(false)
+  })
+
+  it('標為已處理：POST 該筆、重讀清單、連背景工作那一列的狀態一起更新', async () => {
+    const { wrapper, get } = await mountErrors({ open: list([group({ id: 4 })]) })
+    const post = vi.spyOn(api, 'post').mockResolvedValue(group({ id: 4, resolved_at: NOW }) as never)
+    const success = vi.spyOn(ElMessage, 'success').mockReturnValue(undefined as never)
+    const before = { errors: errorCalls(get).length, status: statusCalls(get).length }
+    await button(wrapper, '標為已處理')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/admin/error-groups/4/resolve')
+    expect(success).toHaveBeenCalledWith('已標為已處理')
+    expect(errorCalls(get).length).toBe(before.errors + 1)
+    expect(statusCalls(get).length).toBe(before.status + 1)
+  })
+
+  it('標記失敗：跳出後端訊息，不當作成功', async () => {
+    const { wrapper } = await mountErrors({ open: list([group({ id: 4 })]) })
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError(404, { code: 'ERROR_GROUP_NOT_FOUND', message: '找不到這筆錯誤紀錄' }))
+    const toast = vi.spyOn(ElMessage, 'error').mockReturnValue(undefined as never)
+    const success = vi.spyOn(ElMessage, 'success').mockReturnValue(undefined as never)
+    await button(wrapper, '標為已處理')!.trigger('click')
+    await flushPromises()
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ message: '找不到這筆錯誤紀錄' }))
+    expect(success).not.toHaveBeenCalled()
+  })
+
+  it('全部標為已處理要先確認：取消不送；確認才 POST resolve-all', async () => {
+    const { wrapper, get } = await mountErrors({ open: list([group(), group({ id: 2, kind: 'RangeError' })]) })
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ resolved: 2 } as never)
+    vi.spyOn(ElMessage, 'success').mockReturnValue(undefined as never)
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValueOnce('cancel' as never)
+    await button(wrapper, '全部標為已處理')!.trigger('click')
+    await flushPromises()
+    expect(post).not.toHaveBeenCalled()
+    confirm.mockResolvedValue('confirm' as never)
+    const before = errorCalls(get).length
+    await button(wrapper, '全部標為已處理')!.trigger('click')
+    await flushPromises()
+    expect(String(confirm.mock.calls[1]![0])).toContain('2 種未處理的錯誤')
+    expect(confirm.mock.calls[1]![2]).toMatchObject({ confirmButtonText: '全部標為已處理', cancelButtonText: '先不要' })
+    expect(post).toHaveBeenCalledWith('/admin/error-groups/resolve-all')
+    expect(errorCalls(get).length).toBe(before + 1)
+  })
+
+  it('讀不到錯誤清單：區塊內顯示錯誤與重新載入，不影響上面的狀態', async () => {
+    vi.spyOn(api, 'get').mockImplementation(async (path) => {
+      if (String(path).startsWith('/admin/error-groups')) throw new Error('offline')
+      return status() as never
+    })
+    const { wrapper } = await mountWith(SystemStatusView, { path: '/system-status' })
+    expect(wrapper.find('li.status-row[data-key="smtp"]').exists()).toBe(true)
+    expect(wrapper.get('section#errors .el-alert').text()).toContain('讀不到錯誤回報')
+  })
+
+  it('格式：來源中文、標題、相對時間', () => {
+    expect(ERROR_SOURCE_LABELS).toEqual({ web: '官網', admin: '後台', api: 'API' })
+    expect(errorTitle({ kind: 'TypeError', message: 'boom' })).toBe('TypeError：boom')
+    expect(errorTitle({ kind: 'TypeError', message: '' })).toBe('TypeError')
+    const now = Date.parse(NOW)
+    expect(formatRelativeTime('2026-10-15T03:59:40Z', now)).toBe('剛剛')
+    expect(formatRelativeTime('2026-10-15T04:05:00Z', now)).toBe('剛剛') // 時鐘差造成的未來時間
+    expect(formatRelativeTime('2026-10-15T03:15:00Z', now)).toBe('45 分鐘前')
+    expect(formatRelativeTime('2026-10-14T23:00:00Z', now)).toBe('5 小時前')
+    expect(formatRelativeTime('2026-10-12T04:00:00Z', now)).toBe('3 天前')
+    expect(formatRelativeTime('2026-08-01T04:00:00Z', now)).toBe('2026/08/01 12:00')
+    expect(formatRelativeTime(null, now)).toBe('—')
   })
 })
 

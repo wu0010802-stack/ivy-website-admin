@@ -8,7 +8,7 @@
  * website/v1/[...].ts 轉給 API，Range 原樣轉送），權限由 API 判斷。
  */
 import type { AboutPageContent, Campus, CurriculumPageContent, EnvironmentPageContent, HeroContent } from '../types/site-content'
-import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, ENVIRONMENT_HERO_ASPECT, HOME_HERO_SIZES, environmentHeroImage, environmentHeroSizes, responsiveImage } from './responsive-image'
+import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, ENVIRONMENT_HERO_ASPECT, HOME_HERO_SIZES, environmentHeroImage, environmentHeroSizes, responsiveImage, type ResponsiveImageAttrs } from './responsive-image'
 
 export interface PublicMediaVariant {
   kind: 'thumbnail' | 'medium' | 'large' | 'poster' | 'video_desktop' | 'video_mobile'
@@ -150,7 +150,8 @@ export function videoPosterUrl(id: string, info?: PublicMediaInfo): string {
   return poster ? mediaVariantUrl(id, 'poster', poster.version) : ''
 }
 
-export function mediaImageAttrs(image: MediaImage, sizes: string) {
+/** 後台素材沒有 AVIF 衍生檔，所以不會有 avifSrcset（型別與內建照片相同，呼叫端才能統一處理）。 */
+export function mediaImageAttrs(image: MediaImage, sizes: string): ResponsiveImageAttrs {
   const srcset = image.candidates.length > 1 ? image.candidates.map((c) => `${c.src} ${c.width}w`).join(', ') : undefined
   return { src: image.src, width: image.width, height: image.height, srcset, sizes: srcset ? sizes : undefined }
 }

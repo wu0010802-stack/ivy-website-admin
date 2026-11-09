@@ -13,6 +13,33 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-09 關於頁手機沿革並排、六圈 3 秒、第三章窗戶照片放大（main CI 部署，沒有 migration）
+
+- **內容**：`120c7953`（README「2026-11-09 關於頁 UI/UX」），分支 `feature/about-ux-20261109`（基底 main `b12e7696`），只動 web/（`about.css`、`AboutContent.vue`、`AboutWholePerson.vue`）。沿革照片的 CG 換實拍做過後使用者說先不要改，已還原、沒上線。推前本機 stack 169 項全過（6.6 分鐘，獨立測試庫，已刪）。
+- **CI**：run 42544278506 第一次只有 Backend 1/3 紅在「Audit runtime Python dependencies」，是 pip-audit 連 PyPI 被中斷（`RemoteDisconnected`），不是新漏洞；其他 job 與 E2E 全過、Deploy 跳過。整個 run 結束後 `gh run rerun --failed`，第二次 Backend 1/3 過、Deploy success。`/release.json` 的 `base_commit` 是 `120c7953`（01:28:43Z）。
+- **正式站驗證**（Playwright，擋 telemetry、只發 GET）：1440／1024／820／390／360（含減少動態）axe 0 項、無橫向捲動、沿革字與卡紙不重疊；390 寬第一章 1111px（原 2275）、整頁 6640px（原 7804）；窗戶照片 1440 寬 121×93、390 寬 76×58；沿革五張仍是原封面；六圈捲進畫面 3.6 秒後 `data-progress` 1.000。
+- **沒驗**：iOS 實機。
+
+## 2026-11-06 招生統計分頁列捲到選中分頁（main CI 部署，沒有 migration）
+
+- 來源：同日正式站後台唯讀 QA。窄螢幕用網址直進後段子分頁（`?sub=potential` 等），Element Plus 2.14 掛載時還沒標成可捲動、不捲，選中分頁在可見範圍外。新增 `admin/src/composables/useScrollActiveTabIntoView.ts`，套在招生統計子分頁與區域分析完整表格。
+- `188dee65`（run 42176552618 全綠、部署成功）連續 6 幀呼叫，正式站實測在過場動畫中途重算、捲過頭；`69d0ff50`（run 42178819299 全綠、部署成功，release.json `base_commit` 相符）改成可捲動後只呼叫一次。
+- 驗證：本機 Playwright（假 API）390／1440 寬 11 個子分頁 22 種情況全部在可見範圍，換回 `188dee65` 版手機有 5 個不過；正式站把統計區限縮 340px 量 11 個子分頁全部在可見範圍。
+- **沒驗**：區域分析完整表格只有單元測試；iOS 實機。
+
+## 2026-11-06 錯誤回報、外部存活監測、照片 AVIF、後台手機通知（main CI 部署，migration `9d4e7a2c1f60`、`b5e8f1c3a7d2`）
+
+- **內容**：`90e86e11`（README「2026-11-05 錯誤回報、外部存活監測、照片 AVIF、後台手機通知」）＋CI 修正 `604af673`，分支 `feature/monitor-push-avif-20261105`（基底 main `e1bea567`），使用者要求直接推 main。兩支 migration 只建表與加一個可為空的欄位（`error_groups`、`push_subscriptions`、`error_groups.alerted_at`），不改寫既有資料，沒有先備份。新依賴 `http-ece`、`py-vapid`（pip-audit 無漏洞）。
+- **第一次 CI 紅**：`90e86e11` 的 run 42139368077 只有 Frontend (admin) 失敗、Deploy 跳過，正式站沒變。`errorReport.test.ts` 載入 `web/shared/client-error.ts` 時 Vite 往上找到 `web/tsconfig.json`，它引用的 `web/.nuxt/` CI 沒有（本機有所以沒抓到）；`admin/vitest.config.ts` 指定 `tsconfig: 'tsconfig.app.json'`。本機移開 `web/.nuxt` 重現同一錯誤，修正後 admin 全套 170 檔 3322 過、1 略過。第一次推送時網路斷線（`curl 55`），改 `http.version=HTTP/1.1` 重推成功。
+- **CI**：`604af673` 的 run 42161006975 全綠（web、admin、後端三組、E2E），Deploy success（04:18:48–04:23:14Z）。`/release.json` 的 `base_commit` 是 `604af673`。
+- **線上驗證**（只發 GET；瀏覽器擋遙測與 `/api/client-errors`）：
+  - health `status ok`；後台 `/admin/error-groups`、`/admin/push/config` 未登入回 401（路由在）；`/api/website/v1/public/client-errors` 直接打回 404（只能經 Nitro 轉送）。
+  - AVIF：首頁 SSR 12 個 `<source type="image/avif">`、首屏 preload 帶 `type="image/avif"`；AVIF 檔 `content-type: image/avif`、一年 immutable。內頁 SSR 的 AVIF source 數：/about 7、/admission 3、/curriculum 22、/environment 28、/visit 6、/anniversary 13、/news 0（只有後台素材）。Chrome 1440（DPR2）與 390（DPR3）開 /、/admission、/about、/visit、/curriculum：已載入的照片除了「孩子的一天」封面都是 AVIF，沒有寬度 0、可見的 `<source>`、橫向捲動或 pageerror。封面在 800 寬以上沒有 AVIF（沒小於 WebP 的 90%，腳本沒產），AVIF srcset 在這些寬度指回同一份 WebP，只發一個請求，屬預期。
+  - 後台 PWA：`manifest.webmanifest`（`application/manifest+json`、no-cache）、`sw.js`（no-cache）、三張 `pwa-*.png` 都 200；不存在的 `pwa-999.png` 回 404；`/admin/` 的 CSP 有 `worker-src 'self'`、`manifest-src 'self'`，HTML 有 manifest 與 apple-touch-icon。
+  - 存活監測：本機 `uptime_check.py` 打正式站四項全部正常；Actions 手動執行 run 42162397664 成功、四項 ok。排程（00:47Z 註冊）到 05:25Z 還沒有自動觸發過，要再觀察。
+- **手機通知啟用**（05:22Z）：使用者在自己的終端機用最新 main 的 `generate-vapid-keys` 產金鑰（主 checkout 落後 main 1084 個 commit 沒有這個指令，另開只含 `backend/` 的臨時 worktree），三個 `WEBSITE_VAPID_*` 一起設到 Railway api。變數觸發的 api redeploy `e6745c50` 05:23:54Z SUCCESS（金鑰不合 API 會拒絕啟動，所以 SUCCESS 代表啟動驗證過了），有 volume 換版中斷約 20 秒；之後 uptime 四項正常、`/admin/push/config` 未登入 401。金鑰沒有經過對話或 repo。
+- **沒驗**：登入後台看錯誤回報與手機通知畫面（正式站）、真實推播送達、iPhone 主畫面實機、Safari 實機 AVIF、排程失敗信。
+
 ## 2026-11-05 首頁「關於常春藤」照片撐滿左欄、換崇德操場照、內文改寫（main CI 部署，沒有 migration）
 
 - **內容**：`98b63a60`（README「2026-11-05 首頁『關於常春藤』照片對齊、換照、內文改寫」），分支 `feature/home-about-a-20261105` rebase 到 main `f0fa90f6` 後由使用者推上。
@@ -2243,6 +2270,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
+| api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
@@ -2252,6 +2280,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
+| web | `NUXT_ERROR_REPORTS_ENABLED`（選填，預設 production 開、其他環境關；官網與後台前端錯誤回報的開關，設 `false` 即停止收錄，伺服器直接回 204，見下方「前端錯誤回報與外部存活監測」） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
@@ -2297,6 +2326,45 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 **這個 header 只有在 api 不直接對外時才可信任**（目前 api 無公開 domain，
 符合此前提）。若日後把 api 直接暴露到公網，必須先拿掉這個設定或改成解析
 可信任的 `X-Forwarded-For` 尾段，否則任何人都能偽造訪客 IP 繞過限流。
+
+### 前端錯誤回報與外部存活監測（2026-11-05）
+
+**前端錯誤回報**：官網（`web/app/plugins/error-report.client.ts`）與後台（`admin/src/utils/errorReport.ts`，只在正式建置）的未處理 JS 錯誤，以及 API 的未處理例外（`backend/app/main.py` 的兩個 handler），依 fingerprint 分組存進 `error_groups` 表（migration `9d4e7a2c1f60`，只新增一張空表）。總管理者在後台「系統狀態」頁的「錯誤回報」區塊（`/admin/system-status#errors`）看、標為已處理；同一種錯誤再發生會自動回到未處理。過去 24 小時還有未處理錯誤時，系統狀態多一列「錯誤回報」顯示「要注意」，計入營運總覽的「系統狀態有 N 項要注意」。
+
+- **路徑**：瀏覽器 → web `POST /api/client-errors`（來源檢查、本文上限 8192 bytes、白名單驗證、每來源每分鐘 20 筆／全站 300 筆）→ api `POST /api/website/v1/public/client-errors`（單一來源每分鐘 60 筆超過回 429、全站每日 5000 筆超過安靜丟棄）。瀏覽器不能直接打 api 的這支（web 代理回 404）。
+- **不存個資**：不存 IP、cookie、帳號，也不存 query string 與 hash；頁面路徑只留 pathname；訊息與堆疊先在瀏覽器遮蔽（網址 query、Email、身分證、7 位以上數字、20 字以上的連續串），api 收到後再遮一次；API 例外另外套資料庫例外的遮蔽（和平台日誌共用同一份邏輯）。**不因 DNT／GPC 停用**（回報裡沒有識別資訊），隱私權政策初稿已補一句。
+- **保存**：最後發生超過 90 天的錯誤組自動刪除（每個程序每天最多清一次）。
+- **開關**：`NUXT_ERROR_REPORTS_ENABLED`（web，選填）。production 預設開；設 `false` 後伺服器直接回 204（執行期改變數即可，不用重建映像）。
+- **回退**：舊版程式不認識 `error_groups`，表留著不影響；要停用只關開關即可。
+
+**外部存活監測**：`.github/workflows/uptime.yml` 每 10 分鐘執行 `deploy/uptime_check.py`，從 GitHub 的機器打正式站，檢查首頁、`/api/website/v1/health`（status ok、environment production）、`/api/public-site`（有已發布內容，會讀資料庫）、`/admin/`；每項最多 3 次、間隔 20 秒（撐過部署重啟）、逾時 15 秒，失敗就用 `::error::` 註記並讓 workflow 失敗。User-Agent 固定 `ivy-website-uptime/1.0`，不帶帳號或 email。
+
+- **通知**：workflow 失敗時 GitHub 寄失敗通知信給**最後修改排程（cron 那一行）的人**；對方的 GitHub 帳號通知設定要開 Actions 失敗通知（Settings → Notifications → Actions）。要換人，由新的人修改一次 `uptime.yml` 的 cron 並提交。
+- **限制**：排程只在預設分支（main）執行，GitHub 負載高時可能延遲數分鐘甚至略過一次；公開 repo 連續 60 天沒有任何活動，GitHub 會自動停用排程（到 Actions 頁手動重新啟用）。這是外部的粗略監測，不取代 Railway 自己的 healthcheck。
+- **改網址**：預設打正式站網址；要改打別的網址，在 repo 的 Settings → Secrets and variables → Actions → Variables 設 `UPTIME_BASE_URL`。也可以在 Actions 頁手動 Run workflow 立刻跑一次。
+- **本機試跑**：`python3 deploy/uptime_check.py [網址]`（結束碼 0 全部正常、1 有項目失敗）。macOS 的 python.org 版 Python 沒裝憑證時四項都會報 `SSLCertVerificationError`（不是網站壞了），前面加 `SSL_CERT_FILE=/etc/ssl/cert.pem`；GitHub 的機器不受影響。
+
+### 後台手機通知與加到主畫面（2026-11-05）
+
+後台是 PWA（`admin/public/manifest.webmanifest`、`sw.js`）：老師把後台加到手機主畫面後，在「我的帳號」→「手機通知」按「開啟通知」，之後：
+
+- 官網有人預約參觀（`visit_request_created`）時，涵蓋該校、能處理案件（`booking.handle`）的人手機會跳通知，點了開預約明細。內容只有校名與參觀時間，**不放家長姓名、電話、Email**（鎖定畫面看得到）。
+- 網站出現新的錯誤（錯誤回報第一次出現的一組，或已處理後又發生）時，啟用中的總管理者會收到通知，點了開系統狀態頁的錯誤區塊。**全站 15 分鐘節流**：任何一組在 15 分鐘內推過，就不再推別組（部署出狀況時一次冒出幾十種錯誤，手機只響一次），被擋掉的那組不補推、仍在系統狀態頁。
+- iPhone 一定要先在 Safari 按分享 →「加入主畫面」、從主畫面打開才能開啟通知（iOS 16.4 起的限制）。
+
+**啟用步驟**（需要人在終端機做，agent 不替你設）：
+
+1. 在 `backend/` 執行 `python -m app.cli generate-vapid-keys`，印出三行 `WEBSITE_VAPID_*`。
+2. 把三行設到 Railway 的 api 服務變數，重新部署。公鑰與私鑰缺一個、或不配對，API 會拒絕啟動，所以兩個要一起設。
+3. 到後台「系統狀態」看「手機推播」一列變成「正常」；再到「我的帳號」開啟通知、按「傳送測試通知」。
+
+**運作細節**：
+
+- 資料表 `push_subscriptions`（migration `b5e8f1c3a7d2`，連同 `error_groups.alerted_at` 一個可為 NULL 的欄位；新增空表與欄位，不改既有資料，上一版程式照常可用）。每台裝置一列、每人最多 10 台；回 404／410 或連續失敗 10 次的訂閱自動刪除。
+- 伺服器只對推播服務的白名單位址送請求（`fcm.googleapis.com`、`updates.push.services.mozilla.com`、`web.push.apple.com`、`*.push.apple.com`、`*.notify.windows.com`，https、預設埠），訂閱時驗一次、送出前再驗一次，不跟隨轉址。API 與 log 都不回傳 endpoint 與金鑰。
+- 推播失敗（任何原因）只記 warning，不影響站內通知、LINE、Email，也不讓整筆 outbox 重試。同一則新預約對同一人最多推一次（`notification_deliveries` 去重）。超過 24 小時的舊訊息不推。
+- 出貨檢查：`/admin/sw.js`、`/admin/manifest.webmanifest` 回 `Cache-Control: no-cache`（每次重新驗證）；建置漏檔時這兩個與 `pwa-*.png` 回 404，不回 `index.html`。
+- **回退**：拿掉 `WEBSITE_VAPID_*` 變數即停用（API 照常啟動、「手機推播」一列顯示未設定、「我的帳號」顯示「尚未開放」）；資料表與欄位留著不影響。要整批清掉訂閱：`DELETE FROM push_subscriptions`。換金鑰後，每台裝置要在「我的帳號」重新按「開啟通知」（舊訂閱綁在舊的公鑰上，畫面會自動當成還沒開啟）。
 
 ### 通知 worker 與逾期占位（2026-09-22）
 

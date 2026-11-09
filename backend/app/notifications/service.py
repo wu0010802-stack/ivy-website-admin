@@ -31,7 +31,7 @@ from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
-from app.notifications import reminders
+from app.notifications import reminders, web_push
 from app.notifications.email_adapter import EmailAdapter
 from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
@@ -75,6 +75,10 @@ _HEADER_UNSAFE_RE = re.compile(r"[\r\n]")
 # 最長間隔 15 分鐘）遠短於此，這條只會擋到積壓的舊訊息——例如定期工作第一次
 # 上線、或寄信設定修好時，不該把幾天前的通知一次寄給所有人。
 EXTERNAL_DELIVERY_STALE_AFTER = timedelta(hours=24)
+
+# 會推到員工手機的通知種類（Web Push，2026-11-05）。目前只有官網新預約；要加別的種類就加在這裡，
+# 並確認 push_visit_content 的內文不會多放個資。
+PUSH_KINDS = frozenset({"visit_request_created"})
 
 
 def _header_safe(value: str) -> str:
@@ -453,6 +457,77 @@ async def _dispatch_email_changed_notice(
     return True
 
 
+def push_slot_text(slot: VisitSlot) -> str:
+    """手機通知用的場次時間：11/8（六）10:00（台北時間；場次的日期與開始時間本來就是園所當地時間）。"""
+    day = slot.slot_date
+    return f"{day.month}/{day.day}（{_WEEKDAYS[day.weekday()]}）{slot.start_time:%H:%M}"
+
+
+async def push_visit_content(db: AsyncSession, *, kind: str, campus_key: str, payload: dict) -> dict:
+    """手機通知的內容：標題、校名與參觀時間、點開要去的後台頁。**不放家長姓名、電話、Email**
+    （鎖定畫面看得到）；案件已匿名化或讀不到場次就只寫校名。url 與 tag 一律用資料庫裡查到的案件 id
+    組，不直接信 payload 裡的字串。"""
+    campus_name = await _campus_name(db, campus_key)
+    visit_request = await _load_visit_request(db, payload.get("receipt_id"))
+    body = campus_name
+    if visit_request is not None and visit_request.anonymized_at is None and visit_request.slot is not None:
+        body = f"{campus_name}｜{push_slot_text(visit_request.slot)}"
+    if visit_request is None:
+        return {"title": notification_label(kind, payload), "body": body, "url": "/admin/visit-requests", "tag": f"{kind}-{campus_key}"}
+    return {
+        "title": notification_label(kind, payload),
+        "body": body,
+        "url": f"/admin/visit-requests/{visit_request.id}",
+        "tag": f"visit-{visit_request.id}",
+    }
+
+
+async def _dispatch_push(
+    db: AsyncSession,
+    push: web_push.PushSender,
+    *,
+    outbox_message_id: uuid.UUID,
+    campus_key: str,
+    kind: str,
+    payload: dict,
+) -> None:
+    """推到能處理這個校區案件的人的手機（有開啟通知的裝置）。**任何失敗都只記 warning、不丟例外**：
+    手機推播不能影響站內通知、LINE、Email，也不能讓整筆 outbox 重試。至少一台裝置收到才記 delivery
+    （recipient_key＝user:<id>），重試時不會再推給已經收到的人；一台都沒收到的下次重試再試。"""
+    try:
+        pending = [
+            user
+            for user in await get_notification_recipients(db, campus_key)
+            if not await _already_delivered(db, outbox_message_id, "push", f"user:{user.id}")
+        ]
+        if not pending:
+            return
+        subscriptions = await web_push.subscriptions_of(db, [user.id for user in pending])
+        if not subscriptions:
+            return
+        content = await push_visit_content(db, kind=kind, campus_key=campus_key, payload=payload)
+        results = await web_push.send_all(subscriptions, content, settings=push.settings, client=push.client)
+        delivered = web_push.delivered_user_ids(subscriptions, results)
+        # 寫庫全部放進 savepoint：訂閱狀態（失效就刪、失敗計數）與 delivery 紀錄。撞到唯一限制
+        # （兩個 worker 同時處理）或任何寫庫錯誤，只丟掉這一段，不讓整個 session 進入失敗狀態、
+        # 拖累後面的 LINE 與 Email，更不會讓整筆 outbox 重試。
+        async with db.begin_nested():
+            await web_push.apply_results(db, subscriptions, results)
+            for user in pending:
+                if user.id in delivered:
+                    _record_delivery(db, outbox_message_id, "push", f"user:{user.id}")
+            await db.flush()
+        await db.commit()
+    except Exception as exc:  # noqa: BLE001 —— 任何原因都不外溢
+        # 這裡刻意不 rollback：rollback 會讓 runner 手上的 OutboxMessage 實例過期，派送成功後
+        # lease_service.ack() 一碰屬性就 MissingGreenlet。萬一失敗發生在 commit、session 停在失敗狀態，
+        # 後面的 LINE／Email 會丟例外，由 runner 的 rollback＋refresh＋重試路徑接手（2026-11-05 審查）。
+        logger.warning(
+            "手機推播失敗，仍繼續其他管道：outbox=%s campus=%s error=%s",
+            outbox_message_id, campus_key, type(exc).__name__,
+        )
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -465,11 +540,13 @@ async def dispatch_outbox_message(
     line: line_api.LineMessagingClient | None = None,
     admin_origin: str | None = None,
     access_secret: str | None = None,
+    push: web_push.PushSender | None = None,
 ) -> bool:
-    """處理一筆 outbox 訊息：寫站內通知 → 推播校區的 LINE 群組 → 寄信。
+    """處理一筆 outbox 訊息：寫站內通知 → 推到員工手機（Web Push）→ 推播校區的 LINE 群組 → 寄信。
     任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
     處理，不會靜默丟失、也不假裝已送出。`line` 為 None 或這校沒有指定
-    群組時略過 LINE。
+    群組時略過 LINE。`push` 為 None（沒設 VAPID 金鑰）或通知種類不在 PUSH_KINDS 時略過手機推播；
+    手機推播失敗只記 warning，不算失敗、不重試整筆。
 
     `adapter` 為 None 代表部署環境沒有設定寄信：站內通知照寫、email 這個
     管道整個略過。原本「未配置」會讓整批 outbox 停著不處理，結果後台連
@@ -519,6 +596,11 @@ async def dispatch_outbox_message(
 
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return True
+
+    if push is not None and kind in PUSH_KINDS and push.settings.web_push_enabled:
+        await _dispatch_push(
+            db, push, outbox_message_id=outbox_message_id, campus_key=campus_key, kind=kind, payload=payload
+        )
 
     line_error: Exception | None = None
     if line is not None:

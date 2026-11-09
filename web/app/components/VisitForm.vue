@@ -14,6 +14,10 @@ import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
+// 預約頁首圖已經自己包了 <picture>（手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
+// AVIF 的 <source> 排在手機那個 media source 之後、<img> 之前，手機仍先命中透明圖。avifSrcset 不是 <img> 的屬性，要先拆出來。
+const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage('about-curious', '(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')
+
 const props = defineProps<{
   booking: BookingContent
   campuses: Campus[]
@@ -637,7 +641,8 @@ async function onSubmit() {
                不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
           <picture>
             <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
-            <img v-bind="responsiveImage('about-curious', '(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')" alt="孩子們笑著指向前方" decoding="async">
+            <source v-if="welcomeAvifSrcset" type="image/avif" :srcset="welcomeAvifSrcset" :sizes="welcomePhoto.sizes">
+            <img v-bind="welcomePhoto" alt="孩子們笑著指向前方" decoding="async">
           </picture>
         </figure>
       </div>
@@ -646,7 +651,7 @@ async function onSubmit() {
       <div class="visit-shell">
         <aside v-if="!isPicking && selectedCampus" ref="asideRef" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
-            <span class="visit-aside-photo"><img :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }"></span>
+            <span class="visit-aside-photo"><ResponsivePicture :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }" /></span>
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
@@ -687,7 +692,7 @@ async function onSubmit() {
                 <label v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><img v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }"></span>
+                    <span class="visit-campus-photo"><ResponsivePicture v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" /></span>
                     <!-- 來電的校區把「來電洽詢」換成撥號連結：連結在 label 裡，點它只撥號、不會選到這張卡（HTML 規定 label
                          遇到裡面的互動元素不轉送點擊）。radio 的名稱已含「來電洽詢」，連結另外唸校名與號碼。 -->
                     <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
@@ -781,7 +786,7 @@ async function onSubmit() {
           </template>
 
           <section v-else id="booking-result" ref="resultRef" class="visit-result" tabindex="-1" aria-labelledby="visit-result-title">
-            <img v-if="selectedCampus" class="visit-result-art" :class="{ 'is-blend': lineArtBlends(selectedCampus) }" v-bind="lineArtInkImage(selectedCampus, '220px')" alt="" decoding="async">
+            <ResponsivePicture v-if="selectedCampus" class="visit-result-art" :class="{ 'is-blend': lineArtBlends(selectedCampus) }" v-bind="lineArtInkImage(selectedCampus, '220px')" alt="" decoding="async" />
             <span class="visit-result-status" :data-status="resultKind === 'booked' ? 'confirmed' : 'closed'"><svg class="icon" aria-hidden="true"><use :href="resultKind === 'booked' ? '#i-check' : '#i-x'" /></svg>{{ resultCopy.eyebrow }}</span>
             <h2 id="visit-result-title">{{ resultCopy.title }}</h2>
             <p v-if="resultKind === 'booked' && submittedSlot" class="visit-result-when"><span class="visit-nowrap">{{ shortDateLabel(submittedSlot.slot_date) }}</span> <span class="visit-nowrap">{{ slotTime(submittedSlot) }}</span><span class="visit-result-where">{{ selectedCampus?.name }}・{{ selectedCampus?.address }}</span></p>

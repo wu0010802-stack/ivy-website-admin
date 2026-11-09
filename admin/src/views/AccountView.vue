@@ -9,9 +9,11 @@ import DisplayNameField from '../components/DisplayNameField.vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, apiFieldError, loginLimitedMessage } from '../api/errors'
 import { reauthRequiredMessage, startGoogleLink, startLineLink, type ReauthBody } from '../api/oauth'
-import { campusLabels, displayNameError, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel, staffLabel } from '../api/labels'
+import { campusLabels, displayNameError, formatDate, formatDateTime, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel, staffLabel } from '../api/labels'
 import type { AuthProviders, DisplayNameUpdateRequest, UserOut } from '../api/types'
 import { renameVisitStaff } from '../composables/useVisitStaff'
+import { usePermissions } from '../composables/usePermissions'
+import { PUSH_STATE_TEXT, usePushNotifications } from '../composables/usePushNotifications'
 import { useAuthStore } from '../stores/auth'
 
 type Notice = { type: 'success' | 'info' | 'warning' | 'error'; text: string }
@@ -175,6 +177,26 @@ async function saveName() {
     nameSaving.value = false
   }
 }
+
+// ---- 手機通知（Web Push）：只有會收到推播的人（具 booking.handle，含總管理者）看得到這一區 ----
+const { can } = usePermissions()
+const showPush = computed(() => can('booking.handle'))
+const {
+  state: pushState,
+  devices: pushDevices,
+  currentDeviceId: pushCurrentId,
+  busy: pushBusy,
+  testing: pushTesting,
+  load: loadPush,
+  enable: enablePush,
+  disable: disablePush,
+  sendTest: sendPushTest,
+  removeDevice: removePushDevice,
+} = usePushNotifications()
+// 不是「開著／沒開」的狀態（尚未開放、要先加到主畫面、不支援、被封鎖）直接顯示一句話。
+const pushStateText = computed(() => (Object.hasOwn(PUSH_STATE_TEXT, pushState.value) ? PUSH_STATE_TEXT[pushState.value as keyof typeof PUSH_STATE_TEXT] : ''))
+const pushToggleable = computed(() => pushState.value === 'on' || pushState.value === 'off')
+watch(showPush, (visible) => { if (visible) void loadPush() }, { immediate: true })
 
 function setLineLinked(linked: boolean) {
   if (auth.user) auth.user = { ...auth.user, line_linked: linked }
@@ -410,6 +432,45 @@ async function unlink(body?: ReauthBody) {
           <p v-if="lineEnabled || auth.user.line_linked" class="field-help">後台只記錄 LINE 提供的帳號識別碼，不讀取暱稱、大頭貼或 Email。</p>
         </div>
       </section>
+
+      <section v-if="showPush" class="panel" aria-labelledby="account-push-title" data-test="push-panel">
+        <div class="panel__head account__line-head">
+          <h2 id="account-push-title">手機通知</h2>
+          <el-tag v-if="pushState === 'on'" type="success" disable-transitions>已開啟</el-tag>
+        </div>
+        <div class="panel__body account__line">
+          <el-skeleton v-if="pushState === 'loading'" animated :rows="1" />
+          <p v-else-if="pushStateText" data-test="push-state-text">{{ pushStateText }}</p>
+          <template v-else-if="pushState === 'on'">
+            <p data-test="push-on">這台裝置已開啟</p>
+            <div class="account__push-actions">
+              <el-button type="primary" plain :loading="pushTesting" data-test="push-test" @click="sendPushTest()">傳送測試通知</el-button>
+              <el-button plain :loading="pushBusy" data-test="push-disable" @click="disablePush()">關閉</el-button>
+            </div>
+          </template>
+          <!-- 權限對話框要在點擊這顆按鈕的當下要求，不能先 await 別的事（usePushNotifications.enable）。 -->
+          <el-button v-else type="primary" :loading="pushBusy" data-test="push-enable" @click="enablePush()">開啟通知</el-button>
+          <template v-if="pushToggleable">
+            <p class="field-help">有新的參觀預約時，手機會跳通知。</p>
+            <p v-if="auth.user.role === 'super_admin'" class="field-help" data-test="push-errors-note">總管理者也會收到網站出現新錯誤的通知。</p>
+          </template>
+          <div v-if="pushDevices.length" class="account__devices" data-test="push-devices">
+            <h3>我的裝置</h3>
+            <ul>
+              <li v-for="device in pushDevices" :key="device.id" data-test="push-device">
+                <span class="account__device-name">
+                  {{ device.device_label }}
+                  <el-tag v-if="device.id === pushCurrentId" size="small" disable-transitions>這台</el-tag>
+                </span>
+                <span class="account__device-meta">
+                  開啟於 {{ formatDate(device.created_at) }}・{{ device.last_success_at ? `最後送達 ${formatDateTime(device.last_success_at)}` : '尚未送達' }}
+                </span>
+                <el-button link type="danger" data-test="push-device-remove" @click="removePushDevice(device.id)">移除</el-button>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </section>
       <ChangePasswordDialog v-model="passwordOpen" />
     </template>
 
@@ -508,6 +569,63 @@ async function unlink(body?: ReauthBody) {
 
 .account__line p {
   margin: 0;
+}
+
+.account__push-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account__devices {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.account__devices h3 {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.account__devices ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account__devices li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.account__devices li:last-child {
+  border-bottom: 0;
+}
+
+.account__device-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.account__device-meta {
+  grid-column: 1;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.account__devices li .el-button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
 }
 
 .account__reauth {

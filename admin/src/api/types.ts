@@ -20,7 +20,15 @@ export type ContactPhrasesOut = components['schemas']['ContactPhrasesOut']
 export type SystemStatusOut = components['schemas']['SystemStatusOut']
 export type SystemStatusItem = components['schemas']['SystemStatusItem']
 export type SystemEmailTestOut = components['schemas']['SystemEmailTestOut']
+// 系統狀態頁的錯誤回報（2026-11-05）：官網、後台與 API 的未處理錯誤，同一種錯誤一列。
+export type ErrorGroupOut = components['schemas']['ErrorGroupOut']
+export type ErrorGroupListOut = components['schemas']['ErrorGroupListOut']
+export type ErrorGroupsResolvedOut = components['schemas']['ErrorGroupsResolvedOut']
 export type ContactPhrasesUpdate = components['schemas']['ContactPhrasesUpdate']
+// 後台手機通知（2026-11-05，Web Push）：誰的哪幾台裝置開了通知；不含 endpoint 與金鑰。
+export type PushConfigOut = components['schemas']['PushConfigOut']
+export type PushDeviceOut = components['schemas']['PushDeviceOut']
+export type PushTestOut = components['schemas']['PushTestOut']
 
 export const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu'] as const
 

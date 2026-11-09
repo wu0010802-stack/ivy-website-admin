@@ -5,6 +5,7 @@ import { renderToString } from 'vue/server-renderer'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
+import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 環境頁文字逐字守門（2026-10-12）：前三章的文字從 EnvironmentContent.vue 搬進 fixture（environmentPage）、
 // 改由後台內容模型提供，用 fixture 渲染出來的可見文字（含 alt、aria-label）和整段 <main> 都要和搬家前一字不差。
@@ -33,14 +34,23 @@ async function renderMain(): Promise<string> {
   try {
     const app = createSSRApp({ render: () => h(EnvironmentContent as Component, { campuses: site.campuses, page: site.environmentPage }) })
     app.component('NuxtLink', NuxtLink)
+    app.component('ResponsivePicture', ResponsivePicture)
     return await renderToString(app)
   } finally {
     vi.useRealTimers()
   }
 }
 
-/** 同 scripts/page-ssr-snapshot.cjs：去掉 Vue 的註解標記與標籤間空白。 */
-const normalize = (html: string) => html.replace(/<!--[\s\S]*?-->/g, '').replace(/>\s+</g, '><')
+/**
+ * 同 scripts/page-ssr-snapshot.cjs：去掉 Vue 的註解標記與標籤間空白。
+ * 2026-11-05 起內建照片是 <ResponsivePicture>（有 AVIF 的包成 <picture><source type="image/avif">）：基準檔是包裝之前存的，
+ * 這裡把 <picture class="responsive-picture"><source …> 與 </picture> 拿掉再比，證明除了這層包裝之外 <main> 一字不差。
+ */
+const normalize = (html: string) => html
+  .replace(/<!--[\s\S]*?-->/g, '')
+  .replace(/>\s+</g, '><')
+  .replace(/<picture class="responsive-picture"><source type="image\/avif" [^>]*>/g, '')
+  .replace(/<\/picture>/g, '')
 
 /** 依出現順序列出可見文字，再加上 alt、aria-label、title 等讀得到的屬性文字。 */
 function visibleStrings(html: string): string[] {

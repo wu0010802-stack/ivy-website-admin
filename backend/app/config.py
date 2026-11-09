@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.notifications import vapid
+
 Environment = Literal["development", "test", "production"]
 
 # 既有園務系統資料庫，官網一律不得連線。
@@ -119,6 +121,11 @@ class Settings(BaseSettings):
     # 沒設定時公開送單不要求驗證，其他防線（限流、占位上限）照常。
     turnstile_site_key: str | None = None
     turnstile_secret_key: str | None = Field(default=None, repr=False)
+    # 後台手機推播（Web Push，2026-11-05）：VAPID 金鑰一對，公鑰給瀏覽器訂閱用、私鑰只在伺服器簽章。
+    # 公私鑰要一起設才啟用；`python -m app.cli generate-vapid-keys` 產生。subject 沒設就沿用 admin_origin。
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = Field(default=None, repr=False)
+    vapid_subject: str | None = None
     # 公開預約的濫用上限（全部以伺服器端計數，超過回 429）。
     booking_slot_holds_per_source_per_day: int = Field(default=5, ge=1, le=1000)
     booking_submissions_per_campus_per_hour: int = Field(default=30, ge=1, le=10_000)
@@ -198,6 +205,7 @@ class Settings(BaseSettings):
     @field_validator(
         "line_messaging_channel_secret", "line_messaging_access_token",
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
+        "vapid_public_key", "vapid_private_key", "vapid_subject",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
@@ -257,6 +265,16 @@ class Settings(BaseSettings):
     @property
     def turnstile_enabled(self) -> bool:
         return bool(self.turnstile_site_key and self.turnstile_secret_key)
+
+    @property
+    def web_push_enabled(self) -> bool:
+        return bool(self.vapid_public_key and self.vapid_private_key)
+
+    @property
+    def web_push_subject(self) -> str | None:
+        """VAPID JWT 的 sub：明確設定的優先，否則沿用後台網址（推播服務出問題時用它聯絡我們）。"""
+        subject = self.vapid_subject or self.admin_origin
+        return vapid.normalize_subject(subject) if subject else None
 
     def active_migration_database_url(self) -> str:
         """alembic 用的連線：test 環境一律用測試庫；其他環境優先用 migration 專用連線。"""
@@ -336,6 +354,13 @@ class Settings(BaseSettings):
             raise ValueError(
                 "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
             )
+        if bool(self.vapid_public_key) != bool(self.vapid_private_key):
+            raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
+        if self.vapid_subject and not vapid.valid_subject(self.vapid_subject):
+            raise ValueError("WEBSITE_VAPID_SUBJECT 必須是 https:// 網址（不含路徑）或 mailto: 信箱")
+        if self.vapid_public_key and self.vapid_private_key:
+            # 訊息不含金鑰內容；私鑰另外 repr=False、hide_input_in_errors。
+            vapid.check_configuration(self.vapid_public_key, self.vapid_private_key, self.web_push_subject)
         if self.smtp_host and not self.smtp_from:
             raise ValueError("設定 WEBSITE_SMTP_HOST 時必須一併設定 WEBSITE_SMTP_FROM")
         if self.smtp_host and self.environment == "production" and self.smtp_security == "none":

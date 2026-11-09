@@ -6,6 +6,7 @@
 - 維護排程與轉檔只回傳哪一步失敗，不回傳錯誤原文（可能夾帶 Email 或案件內容，S9）；公開資料的
   last_error 例外，內容是來源與 HTTP 錯誤、不含地址（GeoDatasetStatus 的說明）。
 - 每一列只有 key、level 與結構化的 detail；文案在後台 utils/systemStatusFormat.ts。
+- 例外：error_reports 一列讀 error_groups（官網、後台與 API 的未處理錯誤分組，只有次數與時間）。
 
 營運總覽「系統狀態有 N 項要注意」用同一個 attention_count（S4）。"""
 
@@ -30,7 +31,9 @@ from app.content.models import ContentItem, PublishJob
 from app.content.publish_jobs import unresolved_condition
 from app.media.models import MediaAsset, MediaJob, MediaStatus
 from app.notifications import outbox_admin
+from app.notifications.models import PushSubscription
 from app.notifications.email_adapter import EmailAdapter, deployment_email_adapter
+from app.operations import error_reports
 from app.operations.models import RetentionPolicy
 
 Level = Literal["ok", "attention", "info", "off"]
@@ -76,8 +79,9 @@ def geo_sync_active(settings: Settings) -> bool:
     return settings.admissions_enabled and settings.geo_auto_sync
 
 
-def service_items(settings: Settings, *, policy_auto_run: bool) -> list[SystemStatusItem]:
-    """對外服務設定。寄信沒設只在 production 算要注意；其他都是選擇，不是故障（S5）。"""
+def service_items(settings: Settings, *, policy_auto_run: bool, push_devices: int = 0) -> list[SystemStatusItem]:
+    """對外服務設定。寄信沒設只在 production 算要注意；其他都是選擇，不是故障（S5）。
+    push_devices：手機推播目前的訂閱裝置數（build_status 查好傳進來；只在推播啟用時用）。"""
     production = settings.environment == "production"
     if settings.smtp_host:
         smtp = SystemStatusItem(
@@ -105,6 +109,12 @@ def service_items(settings: Settings, *, policy_auto_run: bool) -> list[SystemSt
     return [
         smtp,
         configured("line_messaging", settings.line_messaging_enabled),
+        # 手機推播（2026-11-05）：金鑰有設就是 ok，detail 帶目前訂閱的裝置數；沒設是選擇，不是故障。
+        SystemStatusItem(
+            key="web_push",
+            level="ok" if settings.web_push_enabled else "info",
+            detail={"configured": settings.web_push_enabled, **({"devices": push_devices} if settings.web_push_enabled else {})},
+        ),
         configured("turnstile", settings.turnstile_enabled),
         configured("google_login", settings.google_oauth_enabled),
         configured("line_login", settings.line_oauth_enabled),
@@ -178,6 +188,17 @@ async def media_item(db: AsyncSession, settings: Settings, loop: Any | None) -> 
         "last_processed_at": loop.last_processed_at if loop is not None else None,
     }
     return SystemStatusItem(key="media_jobs", level="attention" if failed or not running else "ok", detail=detail)
+
+
+async def error_reports_item(db: AsyncSession, now: datetime) -> SystemStatusItem:
+    """官網、後台與 API 的未處理錯誤（2026-11-05，operations/error_reports.py）：過去 24 小時內還有發生、
+    而且沒標為已處理的錯誤有幾種。有就要注意；舊的沒處理的只列在 detail，不算。"""
+    open_total, open_last_24h = await error_reports.open_counts(db, now)
+    return SystemStatusItem(
+        key="error_reports",
+        level="attention" if open_last_24h else "ok",
+        detail={"open_last_24h": open_last_24h, "open_total": open_total},
+    )
 
 
 def geo_loop_item(settings: Settings, loop: Any | None, now: datetime) -> SystemStatusItem:
@@ -263,11 +284,19 @@ async def notification_items(db: AsyncSession) -> list[SystemStatusItem]:
 async def build_status(db: AsyncSession, state: Any, settings: Settings, now: datetime) -> SystemStatusOut:
     # 只讀：不用 retention_service.get_policy（沒有政策列時它會建一列）。
     policy = await db.get(RetentionPolicy, 1)
-    services = service_items(settings, policy_auto_run=bool(policy is not None and policy.auto_run_enabled))
+    push_devices = (
+        (await db.execute(select(func.count()).select_from(PushSubscription))).scalar_one()
+        if settings.web_push_enabled
+        else 0
+    )
+    services = service_items(
+        settings, policy_auto_run=bool(policy is not None and policy.auto_run_enabled), push_devices=push_devices
+    )
     background = [
         maintenance_item(settings, getattr(state, "maintenance", None), now),
         await media_item(db, settings, getattr(state, "media_jobs", None)),
         geo_loop_item(settings, getattr(state, "geo_sync", None), now),
+        await error_reports_item(db, now),
     ]
     datasets = (
         await dataset_items(db, now, auto_sync=geo_sync_active(settings)) if settings.admissions_enabled else None

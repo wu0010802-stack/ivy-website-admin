@@ -5,19 +5,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/about-curious-bef30fd859ff-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/about-curious-93183eb072f2-480.avif"
       },
       {
         "src": "/assets/responsive/about-curious-bef30fd859ff-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/about-curious-93183eb072f2-800.avif"
       },
       {
         "src": "/assets/responsive/about-curious-bef30fd859ff-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/about-curious-93183eb072f2-1200.avif"
       },
       {
         "src": "/assets/about-curious.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/about-curious-93183eb072f2-1600.avif"
       }
     ]
   },
@@ -183,19 +187,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/campus-ead876867cb6-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/campus-87766eea5f29-480.avif"
       },
       {
         "src": "/assets/responsive/campus-ead876867cb6-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/campus-87766eea5f29-800.avif"
       },
       {
         "src": "/assets/responsive/campus-ead876867cb6-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/campus-87766eea5f29-1200.avif"
       },
       {
         "src": "/assets/responsive/campus-ead876867cb6-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/campus-87766eea5f29-1600.avif"
       }
     ]
   },
@@ -205,23 +213,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/chongde-enhanced-v1-a14df44e93a5-480.avif"
       },
       {
         "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/chongde-enhanced-v1-a14df44e93a5-800.avif"
       },
       {
         "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/chongde-enhanced-v1-a14df44e93a5-1200.avif"
       },
       {
         "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/chongde-enhanced-v1-a14df44e93a5-1600.avif"
       },
       {
         "src": "/assets/responsive/chongde-enhanced-v1-b8937e01bc97-1736.webp",
-        "width": 1736
+        "width": 1736,
+        "avif": "/assets/responsive/chongde-enhanced-v1-a14df44e93a5-1736.avif"
       }
     ]
   },
@@ -231,15 +244,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/chongde-b0fec25e6335-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/chongde-a7202daf3979-480.avif"
       },
       {
         "src": "/assets/responsive/chongde-b0fec25e6335-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/chongde-a7202daf3979-800.avif"
       },
       {
         "src": "/assets/chongde.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/chongde-a7202daf3979-1000.avif"
       }
     ]
   },
@@ -271,19 +287,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-discover-0ed6b8aacf47-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-discover-9edb871d6235-160.avif"
       },
       {
         "src": "/assets/responsive/day-discover-0ed6b8aacf47-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-discover-9edb871d6235-480.avif"
       },
       {
         "src": "/assets/responsive/day-discover-0ed6b8aacf47-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-discover-9edb871d6235-800.avif"
       },
       {
         "src": "/assets/responsive/day-discover-0ed6b8aacf47-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-discover-9edb871d6235-1200.avif"
       },
       {
         "src": "/assets/responsive/day-discover-0ed6b8aacf47-1600.webp",
@@ -297,19 +317,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-hello-03d1cd251836-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-hello-eae2adb45865-160.avif"
       },
       {
         "src": "/assets/responsive/day-hello-03d1cd251836-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-hello-eae2adb45865-480.avif"
       },
       {
         "src": "/assets/responsive/day-hello-03d1cd251836-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-hello-eae2adb45865-800.avif"
       },
       {
         "src": "/assets/responsive/day-hello-03d1cd251836-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-hello-eae2adb45865-1200.avif"
       },
       {
         "src": "/assets/responsive/day-hello-03d1cd251836-1600.webp",
@@ -323,19 +347,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-home-98394bed692d-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-home-d9d989121057-160.avif"
       },
       {
         "src": "/assets/responsive/day-home-98394bed692d-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-home-d9d989121057-480.avif"
       },
       {
         "src": "/assets/responsive/day-home-98394bed692d-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-home-d9d989121057-800.avif"
       },
       {
         "src": "/assets/responsive/day-home-98394bed692d-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-home-d9d989121057-1200.avif"
       },
       {
         "src": "/assets/responsive/day-home-98394bed692d-1600.webp",
@@ -349,19 +377,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-lunch-eca1565bfe20-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-lunch-a3d785f11800-160.avif"
       },
       {
         "src": "/assets/responsive/day-lunch-eca1565bfe20-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-lunch-a3d785f11800-480.avif"
       },
       {
         "src": "/assets/responsive/day-lunch-eca1565bfe20-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-lunch-a3d785f11800-800.avif"
       },
       {
         "src": "/assets/responsive/day-lunch-eca1565bfe20-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-lunch-a3d785f11800-1200.avif"
       },
       {
         "src": "/assets/responsive/day-lunch-eca1565bfe20-1600.webp",
@@ -375,19 +407,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-outside-989a1908c8c7-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-outside-6c83bb85267f-160.avif"
       },
       {
         "src": "/assets/responsive/day-outside-989a1908c8c7-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-outside-6c83bb85267f-480.avif"
       },
       {
         "src": "/assets/responsive/day-outside-989a1908c8c7-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-outside-6c83bb85267f-800.avif"
       },
       {
         "src": "/assets/responsive/day-outside-989a1908c8c7-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-outside-6c83bb85267f-1200.avif"
       },
       {
         "src": "/assets/responsive/day-outside-989a1908c8c7-1600.webp",
@@ -401,7 +437,8 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-poster-2a6dbef88732-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-poster-b33048bbfab1-480.avif"
       },
       {
         "src": "/assets/responsive/day-poster-2a6dbef88732-800.webp",
@@ -423,15 +460,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/garden-42efe2cb2b79-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/garden-a87b3433ac7f-480.avif"
       },
       {
         "src": "/assets/responsive/garden-42efe2cb2b79-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/garden-a87b3433ac7f-800.avif"
       },
       {
         "src": "/assets/garden.webp",
-        "width": 960
+        "width": 960,
+        "avif": "/assets/responsive/garden-a87b3433ac7f-960.avif"
       }
     ]
   },
@@ -441,15 +481,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/graduation-6e17a5aad29d-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/graduation-dd384754cb8b-480.avif"
       },
       {
         "src": "/assets/responsive/graduation-6e17a5aad29d-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/graduation-dd384754cb8b-800.avif"
       },
       {
         "src": "/assets/graduation.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/graduation-dd384754cb8b-1000.avif"
       }
     ]
   },
@@ -459,15 +502,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-480.avif"
       },
       {
         "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-800.avif"
       },
       {
         "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-1080.webp",
-        "width": 1080
+        "width": 1080,
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-1080.avif"
       }
     ]
   },
@@ -477,15 +523,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/hero-campus-still-d1df263d128f-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/hero-campus-still-5375648d98f0-480.avif"
       },
       {
         "src": "/assets/responsive/hero-campus-still-d1df263d128f-640.webp",
-        "width": 640
+        "width": 640,
+        "avif": "/assets/responsive/hero-campus-still-5375648d98f0-640.avif"
       },
       {
         "src": "/assets/responsive/hero-campus-still-d1df263d128f-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/hero-campus-still-5375648d98f0-800.avif"
       },
       {
         "src": "/assets/hero-campus-still.webp",
@@ -499,19 +548,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/hero-82c55d626730-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/hero-8dc88834ef34-480.avif"
       },
       {
         "src": "/assets/responsive/hero-82c55d626730-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/hero-8dc88834ef34-800.avif"
       },
       {
         "src": "/assets/responsive/hero-82c55d626730-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/hero-8dc88834ef34-1200.avif"
       },
       {
         "src": "/assets/hero.webp",
-        "width": 1440
+        "width": 1440,
+        "avif": "/assets/responsive/hero-8dc88834ef34-1440.avif"
       }
     ]
   },
@@ -521,23 +574,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/international-enhanced-v1-956271baebc9-480.avif"
       },
       {
         "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/international-enhanced-v1-956271baebc9-800.avif"
       },
       {
         "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/international-enhanced-v1-956271baebc9-1200.avif"
       },
       {
         "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/international-enhanced-v1-956271baebc9-1600.avif"
       },
       {
         "src": "/assets/responsive/international-enhanced-v1-4eafe568bda4-1736.webp",
-        "width": 1736
+        "width": 1736,
+        "avif": "/assets/responsive/international-enhanced-v1-956271baebc9-1736.avif"
       }
     ]
   },
@@ -547,15 +605,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/international-6e718dc52b98-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/international-c2ef12db0d71-480.avif"
       },
       {
         "src": "/assets/responsive/international-6e718dc52b98-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/international-c2ef12db0d71-800.avif"
       },
       {
         "src": "/assets/international.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/international-c2ef12db0d71-1000.avif"
       }
     ]
   },
@@ -565,15 +626,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/learning-dfc84ab533b4-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/learning-11614da8bdf2-480.avif"
       },
       {
         "src": "/assets/responsive/learning-dfc84ab533b4-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/learning-11614da8bdf2-800.avif"
       },
       {
         "src": "/assets/responsive/learning-dfc84ab533b4-1000.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/learning-11614da8bdf2-1000.avif"
       }
     ]
   },
@@ -583,23 +647,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/minghua-enhanced-v1-020a3138d635-480.avif"
       },
       {
         "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/minghua-enhanced-v1-020a3138d635-800.avif"
       },
       {
         "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/minghua-enhanced-v1-020a3138d635-1200.avif"
       },
       {
         "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/minghua-enhanced-v1-020a3138d635-1600.avif"
       },
       {
         "src": "/assets/responsive/minghua-enhanced-v1-128d9be277d0-1737.webp",
-        "width": 1737
+        "width": 1737,
+        "avif": "/assets/responsive/minghua-enhanced-v1-020a3138d635-1737.avif"
       }
     ]
   },
@@ -609,15 +678,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/minghua-1d403ab1bd62-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/minghua-ff225a5163f5-480.avif"
       },
       {
         "src": "/assets/responsive/minghua-1d403ab1bd62-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/minghua-ff225a5163f5-800.avif"
       },
       {
         "src": "/assets/minghua.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/minghua-ff225a5163f5-1000.avif"
       }
     ]
   },
@@ -627,23 +699,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/renwu-enhanced-v1-008c2697013c-480.avif"
       },
       {
         "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/renwu-enhanced-v1-008c2697013c-800.avif"
       },
       {
         "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/renwu-enhanced-v1-008c2697013c-1200.avif"
       },
       {
         "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/renwu-enhanced-v1-008c2697013c-1600.avif"
       },
       {
         "src": "/assets/responsive/renwu-enhanced-v1-2d9696b163d3-1737.webp",
-        "width": 1737
+        "width": 1737,
+        "avif": "/assets/responsive/renwu-enhanced-v1-008c2697013c-1737.avif"
       }
     ]
   },
@@ -653,15 +730,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/renwu-ab46d9df4a7f-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/renwu-73b4db26683d-480.avif"
       },
       {
         "src": "/assets/responsive/renwu-ab46d9df4a7f-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/renwu-73b4db26683d-800.avif"
       },
       {
         "src": "/assets/renwu.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/renwu-73b4db26683d-1000.avif"
       }
     ]
   },
@@ -671,15 +751,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/water-e823d1e5d336-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/water-a5f19a8c51d8-480.avif"
       },
       {
         "src": "/assets/responsive/water-e823d1e5d336-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/water-a5f19a8c51d8-800.avif"
       },
       {
         "src": "/assets/water.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/water-a5f19a8c51d8-1000.avif"
       }
     ]
   },
@@ -689,19 +772,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/yihua-exterior-enhanced-v1-220d2dfabd57-480.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/yihua-exterior-enhanced-v1-220d2dfabd57-800.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/yihua-exterior-enhanced-v1-220d2dfabd57-1200.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-enhanced-v1-1029151c6270-1546.webp",
-        "width": 1546
+        "width": 1546,
+        "avif": "/assets/responsive/yihua-exterior-enhanced-v1-220d2dfabd57-1546.avif"
       }
     ]
   },
@@ -711,11 +798,13 @@
     "candidates": [
       {
         "src": "/assets/responsive/yihua-exterior-87edb1595b78-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/yihua-exterior-d98b2dab69f4-480.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-87edb1595b78-590.webp",
-        "width": 590
+        "width": 590,
+        "avif": "/assets/responsive/yihua-exterior-d98b2dab69f4-590.avif"
       }
     ]
   },
@@ -729,19 +818,23 @@
       },
       {
         "src": "/assets/responsive/about-together-22ab26ab9c00-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/about-together-a7ec72e8a7ea-480.avif"
       },
       {
         "src": "/assets/responsive/about-together-22ab26ab9c00-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/about-together-a7ec72e8a7ea-800.avif"
       },
       {
         "src": "/assets/responsive/about-together-22ab26ab9c00-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/about-together-a7ec72e8a7ea-1200.avif"
       },
       {
         "src": "/assets/about-together.webp",
-        "width": 1204
+        "width": 1204,
+        "avif": "/assets/responsive/about-together-a7ec72e8a7ea-1204.avif"
       }
     ]
   },
@@ -841,23 +934,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-hero-hug-bf0da78eeca3-480.avif"
       },
       {
         "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-hero-hug-bf0da78eeca3-800.avif"
       },
       {
         "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-hero-hug-bf0da78eeca3-1200.avif"
       },
       {
         "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-hero-hug-bf0da78eeca3-1600.avif"
       },
       {
         "src": "/assets/responsive/env-hero-hug-f35fd2f1855d-1960.webp",
-        "width": 1960
+        "width": 1960,
+        "avif": "/assets/responsive/env-hero-hug-bf0da78eeca3-1960.avif"
       }
     ]
   },
@@ -867,23 +965,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-teacher-30de790b2503-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-teacher-30de790b2503-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-teacher-30de790b2503-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-teacher-30de790b2503-1600.avif"
       },
       {
         "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-2640.webp",
-        "width": 2640
+        "width": 2640,
+        "avif": "/assets/responsive/env-care-teacher-30de790b2503-2640.avif"
       }
     ]
   },
@@ -893,23 +996,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-health-83b6353cb164-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-health-83b6353cb164-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-health-83b6353cb164-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-health-83b6353cb164-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1600.avif"
       },
       {
         "src": "/assets/responsive/env-care-health-83b6353cb164-1961.webp",
-        "width": 1961
+        "width": 1961,
+        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1961.avif"
       }
     ]
   },
@@ -919,19 +1027,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-meal-57c69dedfd63-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-meal-8a53a27c85b8-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-meal-57c69dedfd63-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-meal-8a53a27c85b8-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-meal-57c69dedfd63-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-meal-8a53a27c85b8-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-meal-57c69dedfd63-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-meal-8a53a27c85b8-1600.avif"
       }
     ]
   },
@@ -941,19 +1053,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-clothes-3bdc7a1952f3-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-clothes-3bdc7a1952f3-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-clothes-3bdc7a1952f3-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-clothes-8fd828c60fdf-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-clothes-3bdc7a1952f3-1600.avif"
       }
     ]
   },
@@ -963,19 +1079,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-comfort-03b343563d43-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-comfort-03d03950145a-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-comfort-03b343563d43-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-comfort-03d03950145a-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-comfort-03b343563d43-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-comfort-03d03950145a-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-comfort-03b343563d43-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-comfort-03d03950145a-1600.avif"
       }
     ]
   },
@@ -985,23 +1105,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-care-clean-5617b0628778-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-480.avif"
       },
       {
         "src": "/assets/responsive/env-care-clean-5617b0628778-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-800.avif"
       },
       {
         "src": "/assets/responsive/env-care-clean-5617b0628778-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1200.avif"
       },
       {
         "src": "/assets/responsive/env-care-clean-5617b0628778-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1600.avif"
       },
       {
         "src": "/assets/responsive/env-care-clean-5617b0628778-1961.webp",
-        "width": 1961
+        "width": 1961,
+        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1961.avif"
       }
     ]
   },
@@ -1011,19 +1136,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-playground-f1ad0279c934-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-playground-707d508e86c6-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-playground-f1ad0279c934-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-playground-707d508e86c6-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-playground-f1ad0279c934-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-playground-707d508e86c6-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-playground-f1ad0279c934-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-space-playground-707d508e86c6-1600.avif"
       }
     ]
   },
@@ -1033,19 +1162,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1213.webp",
-        "width": 1213
+        "width": 1213,
+        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-1213.avif"
       }
     ]
   },
@@ -1055,19 +1188,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-materials-3c141de42bd9-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-materials-a711c1cf14af-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-materials-3c141de42bd9-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-materials-a711c1cf14af-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-materials-3c141de42bd9-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-materials-a711c1cf14af-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-materials-3c141de42bd9-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-space-materials-a711c1cf14af-1600.avif"
       }
     ]
   },
@@ -1077,19 +1214,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-plaza-94c1e997533f-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-plaza-340e46fe13b8-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-plaza-94c1e997533f-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-plaza-340e46fe13b8-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-plaza-94c1e997533f-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-plaza-340e46fe13b8-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-plaza-94c1e997533f-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-space-plaza-340e46fe13b8-1600.avif"
       }
     ]
   },
@@ -1099,19 +1240,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-corner-3d9278140e2f-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-corner-4e00c10b7ed1-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-corner-3d9278140e2f-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-corner-4e00c10b7ed1-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-corner-3d9278140e2f-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-corner-4e00c10b7ed1-1200.avif"
       },
       {
         "src": "/assets/env-space-corner.webp",
-        "width": 1477
+        "width": 1477,
+        "avif": "/assets/responsive/env-space-corner-4e00c10b7ed1-1477.avif"
       }
     ]
   },
@@ -1121,19 +1266,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-restroom-953143c82f33-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-restroom-953143c82f33-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-restroom-953143c82f33-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-restroom-62c539d1b4fa-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-space-restroom-953143c82f33-1600.avif"
       }
     ]
   },
@@ -1143,19 +1292,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-space-animals-590f2a835605-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-space-animals-a72716994123-480.avif"
       },
       {
         "src": "/assets/responsive/env-space-animals-590f2a835605-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-space-animals-a72716994123-800.avif"
       },
       {
         "src": "/assets/responsive/env-space-animals-590f2a835605-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-space-animals-a72716994123-1200.avif"
       },
       {
         "src": "/assets/responsive/env-space-animals-590f2a835605-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/env-space-animals-a72716994123-1600.avif"
       }
     ]
   },
@@ -1165,19 +1318,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/env-meal-book-4e824e723df8-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/env-meal-book-b8d2627cefd4-480.avif"
       },
       {
         "src": "/assets/responsive/env-meal-book-4e824e723df8-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/env-meal-book-b8d2627cefd4-800.avif"
       },
       {
         "src": "/assets/responsive/env-meal-book-4e824e723df8-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/env-meal-book-b8d2627cefd4-1200.avif"
       },
       {
         "src": "/assets/responsive/env-meal-book-4e824e723df8-1359.webp",
-        "width": 1359
+        "width": 1359,
+        "avif": "/assets/responsive/env-meal-book-b8d2627cefd4-1359.avif"
       }
     ]
   },
@@ -1187,23 +1344,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-hero-720f22257e7e-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-hero-c8ab30c8281c-480.avif"
       },
       {
         "src": "/assets/responsive/cur-hero-720f22257e7e-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-hero-c8ab30c8281c-800.avif"
       },
       {
         "src": "/assets/responsive/cur-hero-720f22257e7e-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-hero-c8ab30c8281c-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-hero-720f22257e7e-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-hero-c8ab30c8281c-1600.avif"
       },
       {
         "src": "/assets/cur-hero.webp",
-        "width": 2048
+        "width": 2048,
+        "avif": "/assets/responsive/cur-hero-c8ab30c8281c-2048.avif"
       }
     ]
   },
@@ -1213,23 +1375,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-years-5797e974a671-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-years-1ae5f490f94a-480.avif"
       },
       {
         "src": "/assets/responsive/cur-years-5797e974a671-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-years-1ae5f490f94a-800.avif"
       },
       {
         "src": "/assets/responsive/cur-years-5797e974a671-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-years-1ae5f490f94a-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-years-5797e974a671-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-years-1ae5f490f94a-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-years-5797e974a671-1800.webp",
-        "width": 1800
+        "width": 1800,
+        "avif": "/assets/responsive/cur-years-1ae5f490f94a-1800.avif"
       }
     ]
   },
@@ -1239,23 +1406,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-cognitive-9b881824368a-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-cognitive-3e0fa0383951-480.avif"
       },
       {
         "src": "/assets/responsive/cur-cognitive-9b881824368a-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-cognitive-3e0fa0383951-800.avif"
       },
       {
         "src": "/assets/responsive/cur-cognitive-9b881824368a-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-cognitive-3e0fa0383951-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-cognitive-9b881824368a-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-cognitive-3e0fa0383951-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-cognitive-9b881824368a-1779.webp",
-        "width": 1779
+        "width": 1779,
+        "avif": "/assets/responsive/cur-cognitive-3e0fa0383951-1779.avif"
       }
     ]
   },
@@ -1265,19 +1437,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-integrated-a167cd043a11-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-integrated-586a6a73e834-480.avif"
       },
       {
         "src": "/assets/responsive/cur-integrated-a167cd043a11-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-integrated-586a6a73e834-800.avif"
       },
       {
         "src": "/assets/responsive/cur-integrated-a167cd043a11-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-integrated-586a6a73e834-1200.avif"
       },
       {
         "src": "/assets/cur-integrated.webp",
-        "width": 1477
+        "width": 1477,
+        "avif": "/assets/responsive/cur-integrated-586a6a73e834-1477.avif"
       }
     ]
   },
@@ -1287,19 +1463,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-multicultural-9e8420b00f60-480.avif"
       },
       {
         "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-multicultural-9e8420b00f60-800.avif"
       },
       {
         "src": "/assets/responsive/cur-multicultural-ecaabdfd389b-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-multicultural-9e8420b00f60-1200.avif"
       },
       {
         "src": "/assets/cur-multicultural.webp",
-        "width": 1477
+        "width": 1477,
+        "avif": "/assets/responsive/cur-multicultural-9e8420b00f60-1477.avif"
       }
     ]
   },
@@ -1309,23 +1489,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-autonomy-b4602e98d90c-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-autonomy-6db7e1cc7a1d-480.avif"
       },
       {
         "src": "/assets/responsive/cur-autonomy-b4602e98d90c-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-autonomy-6db7e1cc7a1d-800.avif"
       },
       {
         "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-autonomy-6db7e1cc7a1d-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-autonomy-6db7e1cc7a1d-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-autonomy-b4602e98d90c-1820.webp",
-        "width": 1820
+        "width": 1820,
+        "avif": "/assets/responsive/cur-autonomy-6db7e1cc7a1d-1820.avif"
       }
     ]
   },
@@ -1335,19 +1520,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-activities-8e1c6b91fead-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-activities-8a053074204b-480.avif"
       },
       {
         "src": "/assets/responsive/cur-activities-8e1c6b91fead-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-activities-8a053074204b-800.avif"
       },
       {
         "src": "/assets/responsive/cur-activities-8e1c6b91fead-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-activities-8a053074204b-1200.avif"
       },
       {
         "src": "/assets/cur-activities.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-activities-8a053074204b-1600.avif"
       }
     ]
   },
@@ -1357,19 +1546,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-art-65719ec56c66-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-art-b60555694e9a-480.avif"
       },
       {
         "src": "/assets/responsive/cur-art-65719ec56c66-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-art-b60555694e9a-800.avif"
       },
       {
         "src": "/assets/responsive/cur-art-65719ec56c66-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-art-b60555694e9a-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-art-65719ec56c66-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-art-b60555694e9a-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-art-65719ec56c66-1779.webp",
@@ -1383,15 +1576,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-daily-calm-17a6a9022623-480.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-daily-calm-17a6a9022623-800.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-calm-05bd51e53a20-1000.webp",
-        "width": 1000
+        "width": 1000,
+        "avif": "/assets/responsive/cur-daily-calm-17a6a9022623-1000.avif"
       }
     ]
   },
@@ -1401,23 +1597,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-daily-materials-694845b44045-480.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-daily-materials-694845b44045-800.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-daily-materials-694845b44045-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-daily-materials-694845b44045-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-materials-a522264f8a9a-2048.webp",
-        "width": 2048
+        "width": 2048,
+        "avif": "/assets/responsive/cur-daily-materials-694845b44045-2048.avif"
       }
     ]
   },
@@ -1427,19 +1628,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-daily-art-d85e02bf7558-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-480.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-art-d85e02bf7558-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-800.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-1600.avif"
       }
     ]
   },
@@ -1449,19 +1654,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-daily-reading-86594546a10f-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-daily-reading-fb34d33f6e34-480.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-reading-86594546a10f-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-daily-reading-fb34d33f6e34-800.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-reading-86594546a10f-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-daily-reading-fb34d33f6e34-1200.avif"
       },
       {
         "src": "/assets/cur-daily-reading.webp",
-        "width": 1280
+        "width": 1280,
+        "avif": "/assets/responsive/cur-daily-reading-fb34d33f6e34-1280.avif"
       }
     ]
   },
@@ -1471,19 +1680,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-daily-motor-bf07d9120129-480.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-daily-motor-bf07d9120129-800.avif"
       },
       {
         "src": "/assets/responsive/cur-daily-motor-9fd8928aebfe-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-daily-motor-bf07d9120129-1200.avif"
       },
       {
         "src": "/assets/cur-daily-motor.webp",
-        "width": 1477
+        "width": 1477,
+        "avif": "/assets/responsive/cur-daily-motor-bf07d9120129-1477.avif"
       }
     ]
   },
@@ -1493,19 +1706,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-visit-ffbd345ff793-480.avif"
       },
       {
         "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-visit-ffbd345ff793-800.avif"
       },
       {
         "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-visit-ffbd345ff793-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-visit-3ab4caf8bcfb-1204.webp",
-        "width": 1204
+        "width": 1204,
+        "avif": "/assets/responsive/cur-visit-ffbd345ff793-1204.avif"
       }
     ]
   },
@@ -1515,23 +1732,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-minghua-plaza-3bc102333a2b-480.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-minghua-plaza-3bc102333a2b-800.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-minghua-plaza-3bc102333a2b-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-plaza-8a1a4737ba49-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-minghua-plaza-3bc102333a2b-1600.avif"
       },
       {
         "src": "/assets/tour-minghua-plaza.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-minghua-plaza-3bc102333a2b-2000.avif"
       }
     ]
   },
@@ -1541,23 +1763,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-minghua-fountain-eabf8e9fcd87-480.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-minghua-fountain-eabf8e9fcd87-800.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-minghua-fountain-eabf8e9fcd87-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-minghua-fountain-eabf8e9fcd87-1600.avif"
       },
       {
         "src": "/assets/responsive/tour-minghua-fountain-39def19660a1-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-minghua-fountain-eabf8e9fcd87-2000.avif"
       }
     ]
   },
@@ -1567,23 +1794,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-chongde-field-8dabc11b4fec-480.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-chongde-field-8dabc11b4fec-800.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-chongde-field-8dabc11b4fec-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-field-e920d8d3a9a6-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-chongde-field-8dabc11b4fec-1600.avif"
       },
       {
         "src": "/assets/tour-chongde-field.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-chongde-field-8dabc11b4fec-2000.avif"
       }
     ]
   },
@@ -1593,23 +1825,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-chongde-library-19e7823c741d-480.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-chongde-library-19e7823c741d-800.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-chongde-library-19e7823c741d-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-chongde-library-19e7823c741d-1600.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-library-f3ea26745ea9-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-chongde-library-19e7823c741d-2000.avif"
       }
     ]
   },
@@ -1619,23 +1856,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-chongde-slide-2f7d9d056d15-480.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-chongde-slide-2f7d9d056d15-800.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-chongde-slide-2f7d9d056d15-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-chongde-slide-09b9ce197e6e-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-chongde-slide-2f7d9d056d15-1600.avif"
       },
       {
         "src": "/assets/tour-chongde-slide.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-chongde-slide-2f7d9d056d15-2000.avif"
       }
     ]
   },
@@ -1645,23 +1887,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-international-street-a15b05ef6e87-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-international-street-ffc4bd531af7-480.avif"
       },
       {
         "src": "/assets/responsive/tour-international-street-a15b05ef6e87-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-international-street-ffc4bd531af7-800.avif"
       },
       {
         "src": "/assets/responsive/tour-international-street-a15b05ef6e87-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-international-street-ffc4bd531af7-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-international-street-a15b05ef6e87-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-international-street-ffc4bd531af7-1600.avif"
       },
       {
         "src": "/assets/responsive/tour-international-street-a15b05ef6e87-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-international-street-ffc4bd531af7-2000.avif"
       }
     ]
   },
@@ -1671,15 +1918,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-international-gate-3425c482c253-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-international-gate-fe666f391ba0-480.avif"
       },
       {
         "src": "/assets/responsive/tour-international-gate-3425c482c253-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-international-gate-fe666f391ba0-800.avif"
       },
       {
         "src": "/assets/tour-international-gate.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-international-gate-fe666f391ba0-1200.avif"
       }
     ]
   },
@@ -1689,15 +1939,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-international-play-12a6f44bac93-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-international-play-5943bb0e1c80-480.avif"
       },
       {
         "src": "/assets/responsive/tour-international-play-12a6f44bac93-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-international-play-5943bb0e1c80-800.avif"
       },
       {
         "src": "/assets/tour-international-play.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-international-play-5943bb0e1c80-1200.avif"
       }
     ]
   },
@@ -1707,23 +1960,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-renwu-exterior-1063852396c8-480.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-renwu-exterior-1063852396c8-800.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-renwu-exterior-1063852396c8-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-exterior-f5fe711defdc-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-renwu-exterior-1063852396c8-1600.avif"
       },
       {
         "src": "/assets/tour-renwu-exterior.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-renwu-exterior-1063852396c8-2000.avif"
       }
     ]
   },
@@ -1733,23 +1991,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-renwu-classroom-5cbc4db79330-480.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-renwu-classroom-5cbc4db79330-800.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-renwu-classroom-5cbc4db79330-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-renwu-classroom-5cbc4db79330-1600.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-classroom-5854a53d924d-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-renwu-classroom-5cbc4db79330-2000.avif"
       }
     ]
   },
@@ -1759,23 +2022,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/tour-renwu-pond-cd50a7dc2e2c-480.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/tour-renwu-pond-cd50a7dc2e2c-800.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/tour-renwu-pond-cd50a7dc2e2c-1200.avif"
       },
       {
         "src": "/assets/responsive/tour-renwu-pond-f3f960b78018-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/tour-renwu-pond-cd50a7dc2e2c-1600.avif"
       },
       {
         "src": "/assets/tour-renwu-pond.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/tour-renwu-pond-cd50a7dc2e2c-2000.avif"
       }
     ]
   },
@@ -1785,23 +2053,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/about-hero-8e949646c81c-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/about-hero-296608dac8a1-480.avif"
       },
       {
         "src": "/assets/responsive/about-hero-8e949646c81c-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/about-hero-296608dac8a1-800.avif"
       },
       {
         "src": "/assets/responsive/about-hero-8e949646c81c-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/about-hero-296608dac8a1-1200.avif"
       },
       {
         "src": "/assets/responsive/about-hero-8e949646c81c-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/about-hero-296608dac8a1-1600.avif"
       },
       {
         "src": "/assets/responsive/about-hero-8e949646c81c-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/about-hero-296608dac8a1-2000.avif"
       }
     ]
   },
@@ -1811,15 +2084,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-canvas-yellow-a2472919d975-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-canvas-yellow-a2472919d975-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-canvas-yellow-a1560276879d-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-canvas-yellow-a2472919d975-1200.avif"
       }
     ]
   },
@@ -1829,11 +2105,13 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-clay-ball-ce40ebcf3f72-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-clay-ball-ce40ebcf3f72-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1200.webp",
@@ -1841,7 +2119,8 @@
       },
       {
         "src": "/assets/responsive/cur-gallery-clay-ball-d5f92d66feee-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-gallery-clay-ball-ce40ebcf3f72-1600.avif"
       }
     ]
   },
@@ -1855,11 +2134,13 @@
       },
       {
         "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-tote-79136a16d7f2-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-tote-e25236c1f78b-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-tote-79136a16d7f2-1200.avif"
       }
     ]
   },
@@ -1869,19 +2150,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-plane-pink-d9a5da64011f-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-plane-pink-d9a5da64011f-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-plane-pink-d9a5da64011f-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-pink-d21549450817-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-gallery-plane-pink-d9a5da64011f-1600.avif"
       }
     ]
   },
@@ -1913,15 +2198,18 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-canvas-blue-16ae1d00ed1d-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-canvas-blue-16ae1d00ed1d-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-canvas-blue-d16fcd6ad434-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-canvas-blue-16ae1d00ed1d-1200.avif"
       }
     ]
   },
@@ -1931,19 +2219,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-tape-9792ee8a14db-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-tape-9792ee8a14db-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-tape-9792ee8a14db-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-tape-e39c0da65cfc-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-gallery-tape-9792ee8a14db-1600.avif"
       }
     ]
   },
@@ -1953,19 +2245,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-gallery-plane-dots-3f3f3662fe69-480.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-gallery-plane-dots-3f3f3662fe69-800.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-gallery-plane-dots-3f3f3662fe69-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-gallery-plane-dots-6af9c6409e07-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-gallery-plane-dots-3f3f3662fe69-1600.avif"
       }
     ]
   },
@@ -1975,31 +2271,38 @@
     "candidates": [
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-480.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-800.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-1200.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-1600.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-2000.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2400.webp",
-        "width": 2400
+        "width": 2400,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-2400.avif"
       },
       {
         "src": "/assets/responsive/yihua-exterior-v2-f7d5ab42aceb-2820.webp",
-        "width": 2820
+        "width": 2820,
+        "avif": "/assets/responsive/yihua-exterior-v2-5cad6f390b94-2820.avif"
       }
     ]
   },
@@ -2139,19 +2442,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-160.webp",
-        "width": 160
+        "width": 160,
+        "avif": "/assets/responsive/day-rest-8df40bba52d6-160.avif"
       },
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/day-rest-8df40bba52d6-480.avif"
       },
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/day-rest-8df40bba52d6-800.avif"
       },
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/day-rest-8df40bba52d6-1200.avif"
       },
       {
         "src": "/assets/responsive/day-rest-8011418a7ecd-1600.webp",
@@ -2165,23 +2472,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-floor-painting-ecb4d149abcd-480.avif"
       },
       {
         "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-floor-painting-ecb4d149abcd-800.avif"
       },
       {
         "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-floor-painting-ecb4d149abcd-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-floor-painting-ecb4d149abcd-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-floor-painting-03ecf56c3d8c-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/cur-floor-painting-ecb4d149abcd-2000.avif"
       }
     ]
   },
@@ -2191,23 +2503,28 @@
     "candidates": [
       {
         "src": "/assets/responsive/cur-kite-533c8fb39fb9-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/cur-kite-9997820a3f47-480.avif"
       },
       {
         "src": "/assets/responsive/cur-kite-533c8fb39fb9-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/cur-kite-9997820a3f47-800.avif"
       },
       {
         "src": "/assets/responsive/cur-kite-533c8fb39fb9-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/cur-kite-9997820a3f47-1200.avif"
       },
       {
         "src": "/assets/responsive/cur-kite-533c8fb39fb9-1600.webp",
-        "width": 1600
+        "width": 1600,
+        "avif": "/assets/responsive/cur-kite-9997820a3f47-1600.avif"
       },
       {
         "src": "/assets/responsive/cur-kite-533c8fb39fb9-2000.webp",
-        "width": 2000
+        "width": 2000,
+        "avif": "/assets/responsive/cur-kite-9997820a3f47-2000.avif"
       }
     ]
   },
@@ -2267,19 +2584,23 @@
     "candidates": [
       {
         "src": "/assets/responsive/home-about-d94cfbb255e3-480.webp",
-        "width": 480
+        "width": 480,
+        "avif": "/assets/responsive/home-about-59cd2ec51bf7-480.avif"
       },
       {
         "src": "/assets/responsive/home-about-d94cfbb255e3-800.webp",
-        "width": 800
+        "width": 800,
+        "avif": "/assets/responsive/home-about-59cd2ec51bf7-800.avif"
       },
       {
         "src": "/assets/responsive/home-about-d94cfbb255e3-1200.webp",
-        "width": 1200
+        "width": 1200,
+        "avif": "/assets/responsive/home-about-59cd2ec51bf7-1200.avif"
       },
       {
         "src": "/assets/home-about.webp",
-        "width": 1477
+        "width": 1477,
+        "avif": "/assets/responsive/home-about-59cd2ec51bf7-1477.avif"
       }
     ]
   }

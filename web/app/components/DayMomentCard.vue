@@ -489,12 +489,12 @@ const titleLines = computed(() => pageTitleLines(props.moment.title))
           <div class="print-face print-front" :inert="isFlipped">
             <!-- 後台新增、還沒有照片的卡片：同尺寸的空白相紙（色調跟著卡片），不放破圖。 -->
             <figure class="print-figure" :class="{ 'is-blank': !moment.photo && !moment.photoMedia }">
-              <img
+              <ResponsivePicture
                 v-if="moment.photo || moment.photoMedia" class="print-photo"
                 v-bind="pickImage(moment.photo, moment.photoMedia, '(max-width: 760px) 100vw, 540px')"
                 :style="moment.photoMedia?.position ? { objectPosition: moment.photoMedia.position } : undefined"
                 :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async"
-              >
+              />
               <time class="print-stamp" :datetime="moment.time">{{ moment.time }}</time>
             </figure>
             <div class="print-foot">

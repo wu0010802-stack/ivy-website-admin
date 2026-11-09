@@ -14,6 +14,8 @@ import router from './router'
 import { redirectToLoginOnUnauthorized } from './router/unauthorized'
 import { setUnauthorizedHandler } from './api/client'
 import { startSessionKeepAlive } from './composables/sessionKeepAlive'
+import { installErrorReporting } from './utils/errorReport'
+import { registerPushWorker } from './utils/pushWorker'
 
 const app = createApp(App)
 
@@ -31,5 +33,12 @@ app.use(ElMessageBox)
 setUnauthorizedHandler(redirectToLoginOnUnauthorized(router))
 // 有在操作（打字、點擊）就延長閒置期限，見 composables/sessionKeepAlive.ts。
 startSessionKeepAlive()
+
+// 手機通知（2026-11-05）：註冊只處理推播的 Service worker（public/sw.js，scope /admin/）。只在正式建置註冊：
+// 開發時沒有它也能跑，不讓舊的 worker 卡住 Vite 的熱更新。註冊失敗不影響後台。
+if (import.meta.env.PROD) registerPushWorker()
+
+// 未處理的前端錯誤回報給 API（總管理者在系統狀態頁看）；開發時錯誤直接看 console，不回報。
+if (import.meta.env.PROD) installErrorReporting(app)
 
 app.mount('#app')

@@ -214,6 +214,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 時段與案件
   slot: (v) => `場次：${auditSlotLabel(v)}`,
   row_count: (v) => `匯出 ${countOf(v)} 筆`,
+  // 系統狀態頁「全部標為已處理」（system.error_resolve_all）：這次標了幾種錯誤。
+  resolved_count: (v) => `標為已處理 ${countOf(v)} 種錯誤`,
   // 聯絡片語（contact_phrases.update）：存檔後共有幾句；片語內容不進稽核。
   count: (v) => `共 ${countOf(v)} 句`,
   status: (v, action) => {
