@@ -1,3 +1,7 @@
+## 2026-11-09 舊快照的依賴清單改名，Dependabot 不再掃（`chore/snapshot-manifests-20261109`）
+
+`versions/before-seo-performance-20260921-203736/web/` 的 `package.json`、`package-lock.json` 與 `versions/before-backend-bugfix-20260922-133652/backend/` 的 `pyproject.toml`、`uv.lock` 改名加 `.snapshot`（內容不變）。這兩個快照不會建置或部署，但 GitHub 照檔名把它們當依賴清單掃，09-21 那份 lock 已產生 50 多則警示、每次都要手動 dismiss（最新 #184 minimatch）。使用者同意後改名；要用快照還原時把 `.snapshot` 拿掉即可。之後新增 `versions/` 快照不要複製依賴清單檔原名（要留就加 `.snapshot`）。同日 #180 deepmerge（`web/` 建置依賴、無修正版、`.output` 驗證沒有它）以 not_used dismiss，open 警示 0。
+
 ## 2026-11-09 關於頁 UI/UX：手機沿革並排、六圈 3 秒、窗戶照片放大（`feature/about-ux-20261109`）
 
 使用者：「/about 幫我優化這邊的 ui/ux」。對正式站（release 69d0ff50）重新量過 11-03 評析的問題，只做不用園方資料、不改文字的項目；規則見 DESIGN.md 最上方一段。
