@@ -42,7 +42,8 @@ const TILT = [-1.5, 1.2, -1, 1.6, -0.8]
 const milestones = computed(() => props.page.milestones.map((item, i) => ({
   ...item, roc: rocYear(item.year), campus: props.campuses.find((c) => c.key === item.key), color: milestoneLook(i).color, tilt: TILT[i % TILT.length]!
 })))
-const CAMPUS_SIZES = '(max-width: 900px) 80vw, 300px'
+// 700 以下卡紙是字旁邊的小圖（約四成寬，2026-11-09）；701 以上最寬 300px
+const CAMPUS_SIZES = '(max-width: 700px) 40vw, 300px'
 
 // 六大領域點開看說明（同一時間只開一項：details 同名）。滑過或打開某個領域，六圈播完後那一圈亮；
 // 滑過優先，沒滑過時看打開的那一項（手機沒有滑過，打開就亮）
