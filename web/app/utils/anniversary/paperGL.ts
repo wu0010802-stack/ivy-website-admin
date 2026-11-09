@@ -2,6 +2,7 @@
 // 共用一個離屏 WebGL2：每次畫到自己的大小，再 drawImage 到各自的 2D canvas，
 // 不必每張卡片開一個 WebGL context。卡片與校徽的時間場由 scripts/build-anniversary-media.py 產生
 // （R＝鉛筆描到的時間、G＝水彩暈到的時間、B＝模切形狀；校徽 R＝出現時間、G＝不透明度、B＝孩子）。
+import { decodedBitmap } from '~/utils/decoded-bitmap'
 
 const VS = `#version 300 es
 in vec2 aP; out vec2 vUV;
@@ -76,23 +77,96 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   })
 }
 
-/** 任何 CSS 顏色轉成 0–1 的 RGB；含 var(--token) 的先交給瀏覽器算出實際顏色 */
-export function cssColorRGB(css: string): [number, number, number] {
-  if (css.includes('var(')) {
-    const probe = document.createElement('span')
-    probe.style.color = css
-    probe.hidden = true
-    document.body.appendChild(probe)
-    css = getComputedStyle(probe).color
-    probe.remove()
+/** 要上傳成 WebGL 貼圖的圖：worker 解好的 ImageBitmap，不支援或失敗時是 <img> */
+export type TexImage = ImageBitmap | HTMLImageElement
+
+// ImageBitmap 不吃 pixelStorei：texture() 的 UNPACK_PREMULTIPLY_ALPHA_WEBGL=false 要在解碼時就講好（premultiplyAlpha:'none'），
+// 色彩空間轉換留預設，對齊 UNPACK_COLORSPACE_CONVERSION_WEBGL 的預設；沒設 flipY。2026-11-05 這頁 18 張貼圖讀回都逐位元組相同。
+const GL_BITMAP: ImageBitmapOptions = { premultiplyAlpha: 'none', colorSpaceConversion: 'default' }
+
+/**
+ * 載入貼圖用的圖（2026-11-05）：texImage2D(HTMLImageElement) 會在 onload 後的主執行緒同步解整張 webp
+ * （一張卡三張，手機 4× 每組 200–300ms，正好在捲向卡片時），改成 fetch→createImageBitmap 在 worker 解碼。
+ * 上傳後用 releaseTexImage 釋放。
+ */
+export async function loadTexImage(src: string): Promise<TexImage> {
+  return (await decodedBitmap(src, GL_BITMAP)) ?? loadImage(src)
+}
+
+/** 已經複製進貼圖的 ImageBitmap 馬上釋放，不等 GC（解碼後的點陣圖一張就有數 MB） */
+export function releaseTexImage(img: TexImage) {
+  if ('close' in img) img.close()
+}
+
+/** 一次載好幾張；有一張失敗就照原本 Promise.all 的時機丟錯，其他解好的到了再釋放 */
+async function loadTexImages<T extends string[]>(srcs: [...T]): Promise<{ [K in keyof T]: TexImage }> {
+  const loads = srcs.map(loadTexImage)
+  try {
+    return await Promise.all(loads) as { [K in keyof T]: TexImage }
+  } catch (e) {
+    for (const load of loads) load.then(releaseTexImage, () => {})
+    throw e
   }
-  const c = document.createElement('canvas')
-  c.width = c.height = 1
-  const g = c.getContext('2d', { willReadFrequently: true })!
-  g.fillStyle = css
-  g.fillRect(0, 0, 1, 1)
-  const d = g.getImageData(0, 0, 1, 1).data
-  return [d[0]! / 255, d[1]! / 255, d[2]! / 255]
+}
+
+const VAR_REF = /var\((--[\w-]+)\)/g
+
+/** 把 var(--token) 換成 style 上算好的值；帶預設值、巢狀或沒定義的 var() 回 null */
+export function substituteVars(css: string, style: CSSStyleDeclaration): string | null {
+  let ok = true
+  const out = css.replace(VAR_REF, (_, name: string) => {
+    const v = style.getPropertyValue(name).trim()
+    if (!v) ok = false
+    return v
+  })
+  return ok && !out.includes('var(') ? out : null
+}
+
+const rgbCache = new Map<string, readonly [number, number, number]>()
+
+/**
+ * 任何 CSS 顏色轉成 0–1 的 RGB；含 var(--token) 的先換成實際顏色。
+ * 2026-11-05 起直接代入 body 上算好的 token、用 1×1 canvas 讀值並依字串快取：原本插一個探針 span 到 body 再讀
+ * computed color，插入與移除都是同步的整頁樣式重算（畫板每點一次蠟筆，click 裡就一次）。
+ * 代入後的 oklch(…)／rgb(r g b) 與探針讀回的是同一個顏色，canvas 讀出的 RGB 相同；tokens.css 是靜態值。
+ * 代入不了的才退回探針（同樣插在 body）。
+ * 強制色彩（Windows 對比佈景主題）時含 var() 的一律走探針：探針的 `color` 會被換成系統色（CanvasText），
+ * 原本畫板六支蠟筆讀到的就是那個顏色；直接代入 token 會變回六色，跟原本的畫面不同。
+ * （時間軸蠟筆線、紙色傳進來的是 token 的值、不含 var()，原本就不經探針，強制色彩下也不變。）
+ */
+export function cssColorRGB(css: string): [number, number, number] {
+  if (css.includes('var(')) css = (forcedColorsActive() ? null : substituteVars(css, getComputedStyle(document.body))) ?? probeColor(css)
+  let rgb = rgbCache.get(css)
+  if (!rgb) {
+    const c = document.createElement('canvas')
+    c.width = c.height = 1
+    const g = c.getContext('2d', { willReadFrequently: true })!
+    g.fillStyle = css
+    g.fillRect(0, 0, 1, 1)
+    const d = g.getImageData(0, 0, 1, 1).data
+    rgb = [d[0]! / 255, d[1]! / 255, d[2]! / 255]
+    rgbCache.set(css, rgb)
+  }
+  return [rgb[0], rgb[1], rgb[2]]
+}
+
+/**
+ * 現在是不是強制色彩模式。每次現查不快取：使用者可以在頁面開著時切換對比佈景主題，
+ * 原本的探針每次都讀當下的值。
+ */
+export function forcedColorsActive(): boolean {
+  return matchMedia('(forced-colors: active)').matches
+}
+
+/** 原本的寫法：插一個探針 span 到 body，讀 computed color（強制色彩時會讀到系統色） */
+function probeColor(css: string): string {
+  const probe = document.createElement('span')
+  probe.style.color = css
+  probe.hidden = true
+  document.body.appendChild(probe)
+  const v = getComputedStyle(probe).color
+  probe.remove()
+  return v
 }
 
 export interface CardTextures { lines: WebGLTexture; fields: WebGLTexture; colour: WebGLTexture; aspect: number }
@@ -144,12 +218,13 @@ export class PaperGL {
     return { p, u: Object.fromEntries(names.map((n) => [n, gl.getUniformLocation(p, n)])) }
   }
 
-  private texture(src: TexImageSource, repeat = false): WebGLTexture {
+  private texture(src: TexImage, repeat = false): WebGLTexture {
     const gl = this.gl
     const t = gl.createTexture()!
     gl.bindTexture(gl.TEXTURE_2D, t)
     gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false)
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src)
+    releaseTexImage(src)
     gl.generateMipmap(gl.TEXTURE_2D)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -160,16 +235,18 @@ export class PaperGL {
   }
 
   async loadPaper(src: string) {
-    this.paper = this.texture(await loadImage(src), true)
+    this.paper = this.texture(await loadTexImage(src), true)
   }
 
   async loadCard(lines: string, colour: string, fields: string): Promise<CardTextures> {
-    const [l, c, f] = await Promise.all([loadImage(lines), loadImage(colour), loadImage(fields)])
-    return { lines: this.texture(l), colour: this.texture(c), fields: this.texture(f), aspect: l.naturalWidth / l.naturalHeight }
+    const [l, c, f] = await loadTexImages([lines, colour, fields])
+    // 比例要在上傳前讀：texture() 會 close ImageBitmap，之後寬高變 0
+    const aspect = 'naturalWidth' in l ? l.naturalWidth / l.naturalHeight : l.width / l.height
+    return { lines: this.texture(l), colour: this.texture(c), fields: this.texture(f), aspect }
   }
 
   async loadCrest(crest: string, fields: string): Promise<CrestTextures> {
-    const [c, f] = await Promise.all([loadImage(crest), loadImage(fields)])
+    const [c, f] = await loadTexImages([crest, fields])
     return { crest: this.texture(c), fields: this.texture(f) }
   }
 

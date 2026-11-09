@@ -25,6 +25,7 @@ function gauss(random: () => number) {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v)
 }
 
+// 改這裡會改到進入特色教學頁的轉場遮罩（revealMaskCanvas）：轉場遮罩的跨頁快取以 buildId 區分，部署後自動重產（plugins/curriculum-enter.client.ts）。
 function ellipse(random: () => number, cx: number, cy: number, rx: number, ry: number, n = 12): Point[] {
   return Array.from({ length: n }, (_, i) => {
     const angle = (i / n) * Math.PI * 2, k = 1 + (random() - 0.5) * 0.35
@@ -32,6 +33,7 @@ function ellipse(random: () => number, cx: number, cy: number, rx: number, ry: n
   })
 }
 
+// 改這裡會改到進入特色教學頁的轉場遮罩（revealMaskCanvas）：轉場遮罩的跨頁快取以 buildId 區分，部署後自動重產（plugins/curriculum-enter.client.ts）。
 /** 每一輪在每條邊中點插一個點，沿高斯分布推開（推的量與邊長成正比）；點數每輪翻倍。 */
 export function deform(random: () => number, points: Point[], depth: number, variance: number): Point[] {
   let pts = points
@@ -166,6 +168,7 @@ export function bloomCanvas() {
  * 換頁暈開的遮罩（進入特色教學頁，plugins/curriculum-enter.client.ts）：外圈幾十層很淡的變形多邊形是濕邊，
  * 中間一塊變形過的實心核心（半徑約 0.29，最窄約 0.25 → utils/curriculumEnter.ts 的 REVEAL_CORE）。
  * 三張不同種子的遮罩以略不同的速度長大，邊緣形狀一路在變，不像一個圓在放大。
+ * 轉場遮罩的跨頁快取以 buildId 區分（每次部署重產）；改這支或它用到的 deform、ellipse 不用手動清快取，改種子或尺寸則把 plugin 的版本號加一。
  */
 export function revealMaskCanvas(seed: number, size = 1024) {
   const { el, ctx } = canvas(size, size)

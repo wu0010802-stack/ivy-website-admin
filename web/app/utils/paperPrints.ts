@@ -178,10 +178,10 @@ function fontOf(el: Element | null, fallback: string): string {
 }
 
 // 元素不在或是透明底時，改用 CSS 那條規則引用的 token（fallback 是 CSS 色彩式，例如 'var(--muted)'，
-// 在 host 底下解析）：顏色只有 tokens.css 一份，不在這裡另抄 hex（2026-10-20）。
-function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', host: Element, fallback: string): string {
+// 在 probe 上解析）：顏色只有 tokens.css 一份，不在這裡另抄 hex（2026-10-20）。
+function colorOf(el: Element | null, prop: 'color' | 'backgroundColor', probe: HTMLElement, fallback: string): string {
   const value = el ? getComputedStyle(el)[prop] : ''
-  return value && value !== 'rgba(0, 0, 0, 0)' ? value : resolveColor(host, fallback)
+  return value && value !== 'rgba(0, 0, 0, 0)' ? value : resolveColorOn(probe, fallback)
 }
 
 function pxOf(el: Element | null, prop: 'fontSize' | 'lineHeight', fallback: number): number {
@@ -306,22 +306,25 @@ function polygonOf(el: Element, w: number, h: number): Array<[number, number]> {
   return points.length >= 3 && points.every((p) => p.every(Number.isFinite)) ? points : rect
 }
 
-// 把 CSS 自訂屬性（可能是 color-mix）解析成 canvas 認得的顏色。
 // 把 CSS 色彩式（var()、color-mix()）解析成 canvas 認得的計算值。瀏覽器的 computed color 一定有值
 // （變數未定義時退回繼承的 color），不需要再備一份 hex。
-function resolveColor(host: Element, value: string): string {
-  const probe = document.createElement('span')
-  probe.style.color = value
-  host.append(probe)
+// 探針是已經在卡片裡的元素（canvas.paper-view，.print-wrap 的子元素），只改它的 inline color、讀完在同一個同步工作內還原
+// （2026-11-05）：原本每取一色就 append 再 remove 一個 span，每張卡掛載 8 次 DOM 插拔，每次都要重判 :has() 這類結構相依的樣式
+// （頁首還用 body:has(…) 時每次整頁重算 680–770 個元素，改成 header class 後仍有 6–7 個）；改 inline style 只重算探針自己。
+// var() 的繼承鏈跟插在 .print-wrap 的 span 相同，取到的顏色字串逐字相同。
+export function resolveColorOn(probe: HTMLElement, value: string): string {
+  const prev = probe.style.getPropertyValue('color')
+  probe.style.setProperty('color', value)
   const color = getComputedStyle(probe).color
-  probe.remove()
+  if (prev) probe.style.setProperty('color', prev)
+  else probe.style.removeProperty('color')
   return color
 }
 
-// 第一個 box-shadow 的顏色。
-function shadowColorOf(el: Element, fallback: string): string {
+// 第一個 box-shadow 的顏色；讀不到才解析 fallback（多半用不到，不要先算好再傳進來）。
+function shadowColorOf(el: Element, fallback: () => string): string {
   const match = /(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-f]{3,8}\b/i.exec(getComputedStyle(el).boxShadow)
-  return match?.[0] ?? fallback
+  return match?.[0] ?? fallback()
 }
 
 // 可能在 CSS 已翻到背面後才初始化。量測紙面局部位置時先排除所有旋轉：紙張的翻轉
@@ -365,7 +368,7 @@ async function waitImage(img: HTMLImageElement): Promise<HTMLImageElement> {
 export async function mountPaper(
   wrap: HTMLElement,
   copy: PaperCopy,
-  initial: { developed?: boolean; flipped?: boolean; canMount?: () => boolean } = {}
+  initial: { developed?: boolean; flipped?: boolean; active?: boolean; canMount?: () => boolean } = {}
 ): Promise<PaperHandle | null> {
   if (initial.canMount && !initial.canMount()) return null
   if (!canUseWebGL()) return null
@@ -392,10 +395,11 @@ export async function mountPaper(
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
   const renderer = acquireRenderer(three)
 
-  // 元件狀態（由 DayMomentCard 透過 handle 餵進來）
+  // 元件狀態（由 DayMomentCard 透過 handle 餵進來）。active 也在這裡讀：原本先用「非停留」的時間戳畫好、上傳，
+  // 接手時 setActive 又整張正面重畫重傳一次（手機 DPR3 約 4.6 MB），畫面上只看得到第二次（2026-11-05）。
   let flipped = initial.flipped ?? false
   let revealed = initial.developed ?? false
-  let active = false
+  let active = initial.active ?? false
   let corner: CornerPose = CORNER_REST
   let disposed = false
 
@@ -443,35 +447,37 @@ export async function mountPaper(
       const questionEl = back!.querySelector('.print-question')
       const answerEl = back!.querySelector('.print-answer')
       const backRect = back!.getBoundingClientRect()
+      // 紙膠帶的兩色只定義在 .print-tape 上，探針（view）看不到：先在膠帶上讀出代換好 var() 的值再交給探針解析。
+      const tapeVar = (name: string) => getComputedStyle(tapeEl!).getPropertyValue(name).trim()
 
       const style = {
-        frontBg: colorOf(front, 'backgroundColor', wrap, 'var(--print-face-bg)'),
-        backBg: colorOf(back, 'backgroundColor', wrap, 'var(--print-back-bg)'),
-        figureBg: colorOf(figure, 'backgroundColor', wrap, 'var(--line)'),
+        frontBg: colorOf(front, 'backgroundColor', view, 'var(--print-face-bg)'),
+        backBg: colorOf(back, 'backgroundColor', view, 'var(--print-back-bg)'),
+        figureBg: colorOf(figure, 'backgroundColor', view, 'var(--line)'),
         photoPosition: getComputedStyle(img!).objectPosition.trim().split(/\s+/),
-        lineColor: resolveColor(wrap, 'rgb(var(--ink) / .07)'),
+        lineColor: resolveColorOn(view, 'rgb(var(--ink) / .07)'),
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
-        stampColor: colorOf(stamp, 'color', wrap, 'var(--ivy-print-spark)'),
+        stampColor: colorOf(stamp, 'color', view, 'var(--ivy-print-spark)'),
         stampSpacing: spacingOf(stamp),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
-        kickerColor: colorOf(kickerEl, 'color', wrap, 'var(--muted)'),
+        kickerColor: colorOf(kickerEl, 'color', view, 'var(--muted)'),
         kickerSpacing: spacingOf(kickerEl),
         titleFont: fontOf(titleEl, "700 22px 'LINE Seed TW', 'PingFang TC', sans-serif"),
         titleSpacing: spacingOf(titleEl),
-        titleColor: colorOf(titleEl, 'color', wrap, 'var(--green)'),
+        titleColor: colorOf(titleEl, 'color', view, 'var(--green)'),
         titleLine: pxOf(titleEl, 'lineHeight', 32),
         storyFont: fontOf(storyEl, "400 15px 'PingFang TC', sans-serif"),
-        storyColor: colorOf(storyEl, 'color', wrap, 'var(--text)'),
+        storyColor: colorOf(storyEl, 'color', view, 'var(--text)'),
         storyLine: pxOf(storyEl, 'lineHeight', 31),
         questionFont: fontOf(questionEl, "600 13px 'PingFang TC', sans-serif"),
-        questionColor: colorOf(questionEl, 'color', wrap, 'var(--green)'),
+        questionColor: colorOf(questionEl, 'color', view, 'var(--green)'),
         questionLine: pxOf(questionEl, 'lineHeight', 22),
         answerFont: fontOf(answerEl, "400 13px 'PingFang TC', sans-serif"),
-        answerColor: colorOf(answerEl, 'color', wrap, 'var(--muted)'),
+        answerColor: colorOf(answerEl, 'color', view, 'var(--muted)'),
         answerLine: pxOf(answerEl, 'lineHeight', 25),
-        tapeA: tapeEl ? resolveColor(tapeEl, 'var(--tape-a)') : '',
-        tapeB: tapeEl ? resolveColor(tapeEl, 'var(--tape-b)') : '',
-        tapeShadow: tapeEl ? shadowColorOf(tapeEl, resolveColor(tapeEl, 'rgb(var(--ink) / .15)')) : ''
+        tapeA: tapeEl ? resolveColorOn(view, tapeVar('--tape-a')) : '',
+        tapeB: tapeEl ? resolveColorOn(view, tapeVar('--tape-b')) : '',
+        tapeShadow: tapeEl ? shadowColorOf(tapeEl, () => resolveColorOn(view, 'rgb(var(--ink) / .15)')) : ''
       }
       const tapeBox = boxIn(tapeEl, frontRect, k)
       const box = {
@@ -1121,7 +1127,8 @@ export async function mountPaper(
     if (!resizeFrame && !disposed) resizeFrame = requestAnimationFrame(() => void rebuild())
   })
   resizer.observe(front)
-  scene.kick()
+  // 這裡不再 kick：buildScene 最後已經同步畫好當下的狀態，再排一幀只是畫出一模一樣的畫面（2026-11-05）。
+  // 之後任何狀態改變（翻面、顯影、停留、掀角、游標）都會自己 kick。
 
   return {
     setFlipped(next) {

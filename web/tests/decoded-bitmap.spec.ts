@@ -14,7 +14,8 @@ describe('decodedBitmap：canvas 用的圖改在 worker 解碼', () => {
     vi.stubGlobal('fetch', fetchMock)
     vi.stubGlobal('createImageBitmap', create)
     await expect(decodedBitmap('/assets/a.webp', { premultiplyAlpha: 'none' })).resolves.toBe(bitmap)
-    expect(fetchMock).toHaveBeenCalledWith('/assets/a.webp', { credentials: 'same-origin' })
+    // 背景素材：明講低優先權，不跟首屏海報、開場影片搶頻寬（原本 new Image() 在 Chrome 就是 Low，fetch 預設是 High）
+    expect(fetchMock).toHaveBeenCalledWith('/assets/a.webp', { credentials: 'same-origin', priority: 'low' })
     expect(create).toHaveBeenCalledWith(blob, { premultiplyAlpha: 'none' })
   })
 

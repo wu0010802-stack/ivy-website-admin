@@ -281,6 +281,8 @@ async function attachPaper() {
     // 手機先由 CSS 顯影，停下後接手已完成的正反面，不再重播顯影或翻面。
     get developed() { return deferPaper && isRevealed.value },
     get flipped() { return isFlipped.value },
+    // 停留段落的時間戳亮一階：建場時就照目前狀態畫，下面的 setActive 狀態相同就不再整張重畫重傳
+    get active() { return Boolean(props.active) },
     canMount: readyForPaper
   })
   paperPending = false
@@ -292,6 +294,9 @@ async function attachPaper() {
     handle.dispose()
     return
   }
+  // 先收掉 CSS 版的游標傾斜，再把 paper 指定好：反過來會走進 paper 分支呼叫 rest()，
+  // 對剛建好、本來就沒有傾斜的紙多排一幀一模一樣的畫面，CSS 的傾斜變數反而沒清（2026-11-05）。
+  onPointerLeave()
   paper = handle
   // 觸控裝置保留 nearObserver：被名額擠掉（detachPaper）後捲回來還要能重排。
   if (!deferPaper) {
@@ -299,7 +304,6 @@ async function attachPaper() {
     nearObserver = null
   }
   webglReady.value = true
-  onPointerLeave()
   isCornering.value = false
   renderCorner()
   paper.setFlipped(isFlipped.value)

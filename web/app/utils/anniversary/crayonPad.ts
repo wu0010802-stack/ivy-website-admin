@@ -4,7 +4,7 @@
 // 虛線導引是開場影片裡那個「30」的同一組幾何（3 是兩段圓弧加中間小迴轉，0 是橢圓）。
 // 每一筆都記下來（座標以畫紙寬高正規化）：可以復原上一筆、重播整張圖是怎麼畫出來的；開聲音時有蠟筆的沙沙聲。
 import { ANNI_MEDIA } from './media'
-import { cssColorRGB, loadImage } from './paperGL'
+import { cssColorRGB, forcedColorsActive, loadTexImage, releaseTexImage } from './paperGL'
 import { thirtyStrokes } from './thirty'
 import { scratch, stopScratch } from './sound'
 
@@ -79,14 +79,20 @@ export interface CrayonPad {
 /** 一筆：顏色＋線段（每段 5 個數：起點 x/W、y/H，終點 x/W、y/H，半徑 / min(W,H)） */
 interface Stroke { color: [number, number, number]; segs: number[] }
 
-export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: string; guide: boolean; onStrokes?: (n: number) => void }): Promise<CrayonPad | null> {
+export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: string; colors?: readonly string[]; guide: boolean; onStrokes?: (n: number) => void }): Promise<CrayonPad | null> {
   const gl = canvas.getContext('webgl2', { antialias: false, alpha: false, preserveDrawingBuffer: true, premultipliedAlpha: true })
   if (!gl) return null
   const box = canvas.parentElement!
   const css = getComputedStyle(box)
   const paperCol = cssColorRGB(css.getPropertyValue('--white').trim() || '#fff')
-  let color = cssColorRGB(opts.color)
-  const paperImg = await loadImage(ANNI_MEDIA.paper)
+  // 蠟筆的顏色掛載時一次解好（2026-11-05）：選顏色是 click，setColor 只查表，不在 click 裡讀 computed style。
+  // 強制色彩時不建表也不查表，每次照原本現讀（cssColorRGB 走探針、讀到系統色）：對比佈景主題可能在頁面開著時切換，
+  // 表裡存的是掛載當下的顏色，查表會跟原本 setColor 每次現讀的結果不同。
+  const palette = new Map<string, [number, number, number]>(forcedColorsActive() ? [] : (opts.colors ?? []).map((c) => [c, cssColorRGB(c)] as const))
+  const rgbOf = (c: string) => (forcedColorsActive() ? undefined : palette.get(c)) ?? cssColorRGB(c)
+  let color = rgbOf(opts.color)
+  // 紙紋在 worker 解碼（同 paperGL 的貼圖），上傳後就釋放
+  const paperImg = await loadTexImage(ANNI_MEDIA.paper)
 
   const compile = (vs: string, fs: string, attrs: string[]) => {
     const sh = (t: number, s: string) => { const x = gl.createShader(t)!; gl.shaderSource(x, s); gl.compileShader(x); if (!gl.getShaderParameter(x, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(x) ?? ''); return x }
@@ -118,6 +124,7 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
   const paperTex = gl.createTexture()!
   gl.bindTexture(gl.TEXTURE_2D, paperTex)
   gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, paperImg)
+  releaseTexImage(paperImg)
   gl.generateMipmap(gl.TEXTURE_2D)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT)
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
@@ -336,7 +343,7 @@ export async function mountCrayonPad(canvas: HTMLCanvasElement, opts: { color: s
 
   let lastUrl = ''
   return {
-    setColor(c) { up(); color = cssColorRGB(c) },
+    setColor(c) { up(); color = rgbOf(c) },
     setGuide,
     clear() {
       up()

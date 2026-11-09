@@ -24,9 +24,21 @@
 .cur-wash { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 0; pointer-events: none; }
 .cur-hero > .cur-wrap, .cur-sec > .cur-wrap { position: relative; z-index: 1; }
 /* 首屏上緣：右上角天藍顏料變形後會超出 canvas，捲動後頁首縮成膠囊時看得到一條水平切線；上緣 56px 淡出（2026-10-13） */
-.cur-hero > .cur-wash { -webkit-mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); }
 /* 段落下緣：顏料變形後外擴約半個橫向半徑，段末的橫幅照（五件事的風箏、課程方向的藝術共創）會被 canvas 切成一條水平直線；在下方留白區淡出（2026-11-03） */
-.cur-sec > .cur-wash { -webkit-mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); }
+/* 淡出的做法（2026-11-05）：不在 canvas 上掛 CSS 漸層 mask，改在 canvas 上、內容（.cur-wrap，z-index 1）底下蓋一層紙色漸層。
+   canvas 是合成層，掛 mask 會多一個 mask 層與離屏 render surface，每幀先畫進離屏再套遮罩。canvas 底下只有 .cur 的純色 --paper，
+   「canvas 乘上 m」和「canvas 照畫、上面蓋透明度 1−m 的紙色」數學上相同（只差 8 位元捨入，實測 ≤3 級）。
+   前提是段落沒有自己的背景：之後段落加了背景色或背景圖，要改回 mask。::after 的 z-index 0 在樹順序上排在 canvas 後面，所以蓋在 canvas 上。
+   範圍與高度和原本的 mask 相同：首屏上緣 56px、段落下緣 clamp(72px, 8.5vw, 124px)（與段落上下留白同值）。 */
+.cur-hero::after, .cur-sec::after { content: ''; position: absolute; left: 0; right: 0; z-index: 0; pointer-events: none; }
+.cur-hero::after { top: 0; height: 56px; background: linear-gradient(var(--paper), transparent); }
+.cur-sec::after { bottom: 0; height: clamp(72px, 8.5vw, 124px); background: linear-gradient(to top, var(--paper), transparent); }
+/* 列印預設不印背景：紙色漸層與 .cur 的紙色底都不會印出來、canvas 照印，所以列印時換回原本的 mask，畫面同改版前 */
+@media print {
+  .cur-hero::after, .cur-sec::after { display: none; }
+  .cur-hero > .cur-wash { -webkit-mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); mask-image: linear-gradient(transparent, rgb(var(--ink)) 56px); }
+  .cur-sec > .cur-wash { -webkit-mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); mask-image: linear-gradient(to top, transparent, rgb(var(--ink)) clamp(72px, 8.5vw, 124px)); }
+}
 .cur-grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; mix-blend-mode: multiply; opacity: .4; background-size: 256px 256px; }
 /* 顏料團：背景圖由 useWatercolor 依元素大小生成，畫好才淡入 */
 .cur-blot { position: absolute; background: center / 100% 100% no-repeat; pointer-events: none; transition: opacity .8s, transform 1.4s var(--cur-ease); }
@@ -39,9 +51,16 @@
   -webkit-mask-position: center; mask-position: center;
   -webkit-mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%); mask-size: 100% 100%, var(--bloom, 0%) var(--bloom, 0%);
   -webkit-mask-composite: source-in; mask-composite: intersect;
-  transition: -webkit-mask-size 2.2s var(--cur-ease), mask-size 2.2s var(--cur-ease);
+  /* 暈開定案是 2.2s、var(--cur-ease)＝cubic-bezier(.16, 1, .3, 1)、放大到 520%。暈開遮罩（bloomCanvas，128px）的實心核心半徑 0.17，
+     mask-size 到約 416% 框的四角就都在核心裡，之後畫面不再變；mask-size 不能交給合成器，原本後面 1.48 秒每幀照樣重算樣式、重繪照片（2026-11-05 量）。
+     所以把同一條曲線在進度 0.9（468%）處用 de Casteljau 切開：時長 2.2s × 0.3292114 = 724.265ms，曲線是切開後正規化的前段，
+     每個時間點的 mask-size 和原本相同。控制點至少要留 8 位小數（只留 5 位時第 80ms 有 0.4% 像素差到 8 級，已實測），
+     但建置時的 CSS 壓縮（lightningcss）會把 CSS 裡的數字一律捨到 6 位有效數字（自訂屬性的值也一樣），所以曲線（--cur-bloom-ease）
+     由 composables/useWatercolor.ts 的 BLOOM_EASE 跟遮罩圖一起寫進 inline style；.has-mask 本來就只在那裡掛上。
+     由 (.16, 1, .3, 1) 推算與核心蓋滿的檢查在 tests/smoothness-20261105-curriculum.spec.ts。 */
+  transition: -webkit-mask-size 724.265ms var(--cur-bloom-ease), mask-size 724.265ms var(--cur-bloom-ease);
 }
-.cur-frame.is-bloomed { --bloom: 520%; }
+.cur-frame.is-bloomed { --bloom: 468%; }
 /* 進場：useWatercolor 掛上後（.is-live）才藏起還沒捲到的內容，掛上時已在視窗內的直接顯示 */
 .cur.is-live [data-reveal] { transition: opacity 1s var(--cur-ease), transform 1.2s var(--cur-ease); }
 .cur.is-live [data-reveal]:not(.is-in) { opacity: 0; transform: translateY(28px); }
@@ -280,6 +299,8 @@
 }
 @media (forced-colors: active) {
   .cur-wash, .cur-grain, .cur-blot { display: none; }
+  /* 顏料層藏起來了，蓋在上面淡出用的紙色漸層也不要（強制色彩下底色換成系統色，紙色會變成一條色帶） */
+  .cur-hero::after, .cur-sec::after { display: none; }
   .cur-frame.has-mask { -webkit-mask: none; mask: none; }
   .cur-pan, .cur-thing-no { border: 1px solid CanvasText; border-radius: 50%; }
 }

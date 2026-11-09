@@ -139,16 +139,21 @@ const bands = ref<Record<string, { width: number; paths: string[] }>>({})
 const rosettes = ref<Record<string, { size: number; paths: string[] }>>({})
 function drawGuilloche() {
   if (!root.value) return
+  const bandHosts = Array.from(root.value.querySelectorAll<HTMLElement>('[data-band]'), (host) => ({ key: host.dataset.band!, width: Math.ceil(host.clientWidth) }))
+  const rosetteHosts = Array.from(root.value.querySelectorAll<HTMLElement>('[data-rosette]'), (host) => ({
+    key: host.dataset.key!,
+    kind: host.dataset.rosette as RosetteKind,
+    size: Math.round(Math.min(Math.max(host.clientWidth, 200), 760))
+  }))
+  // 細紋只看寬度與尺寸。手機捲動時網址列收合、展開也會發 resize（只有高度變），這時算出來的路徑跟現在一模一樣：
+  // 不重算（hero 玫瑰紋上萬個點），也不換 ref（換了整個元件要重新 render）（2026-11-05）。
+  const sameBands = Object.keys(bands.value).length === bandHosts.length && bandHosts.every(({ key, width }) => bands.value[key]?.width === width)
+  const sameRosettes = Object.keys(rosettes.value).length === rosetteHosts.length && rosetteHosts.every(({ key, size }) => rosettes.value[key]?.size === size)
+  if (sameBands && sameRosettes) return
   const nextBands: Record<string, { width: number; paths: string[] }> = {}
-  root.value.querySelectorAll<HTMLElement>('[data-band]').forEach((host) => {
-    const width = Math.ceil(host.clientWidth)
-    nextBands[host.dataset.band!] = { width, paths: bandPaths(width) }
-  })
+  bandHosts.forEach(({ key, width }) => { nextBands[key] = { width, paths: bandPaths(width) } })
   const nextRosettes: Record<string, { size: number; paths: string[] }> = {}
-  root.value.querySelectorAll<HTMLElement>('[data-rosette]').forEach((host) => {
-    const size = Math.round(Math.min(Math.max(host.clientWidth, 200), 760))
-    nextRosettes[host.dataset.key!] = { size, paths: rosettePaths(host.dataset.rosette as RosetteKind, size) }
-  })
+  rosetteHosts.forEach(({ key, kind, size }) => { nextRosettes[key] = { size, paths: rosettePaths(kind, size) } })
   bands.value = nextBands
   rosettes.value = nextRosettes
 }

@@ -114,6 +114,9 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-wrap.webgl-ready .print::after{display:none}
 .print-wrap.webgl-ready .print-face{opacity:0;box-shadow:none;transition:none}
 .print-wrap.webgl-ready .print-face::before{display:none}
+/* 藏起來的 DOM 照片不再跑顯影與時間戳轉場（2026-11-05）：畫面上的顯影由 WebGL 貼圖負責；filter 含 blur 不能交給合成器，
+   原本每張卡顯影時主執行緒每幀白做 style＋paint（桌機 3 秒、手機 0.9 秒）。CSS 版（無 WebGL、減少動態、手機捲動中）沒有 webgl-ready，不受影響。 */
+.print-wrap.webgl-ready .print-photo,.print-wrap.webgl-ready .print-stamp,.print-wrap.webgl-ready .print-figure::after{transition:none}
 .paper-view{position:absolute;z-index:4;display:block;pointer-events:none}
 .print-wrap.webgl-ready .print-turn{z-index:8}
 .print-face{position:relative;background:var(--print-face-bg);color:var(--text);backface-visibility:hidden;-webkit-backface-visibility:hidden}

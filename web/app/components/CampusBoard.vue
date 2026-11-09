@@ -4,7 +4,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
-import { developSketch, paintSketchStill, pickLineArt, preloadSketch, sketchRegistration, sketchScale, type DevelopHandle } from '~/utils/campusSketch'
+import { developSketch, keepSketches, paintSketchStill, pickLineArt, prepareSketch, releaseSketches, sketchRegistration, sketchScale, type CardSize, type DevelopHandle } from '~/utils/campusSketch'
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
@@ -70,42 +70,100 @@ async function showLineArt(i: number) {
   if (!card || !canvas || !sources) return false
   // 第一張開始上色前也先畫完整線稿；其他卡換到中央後 canvas 歸 runDevelop，不再重畫。
   const painted = await paintSketchStill({
-    card, canvas, registration, lineSrc: sources.lineSrc,
+    card, canvas, campusKey: campus.key, registration, lineSrc: sources.lineSrc,
     objectPosition: campus.panoramaPos || 'center 55%',
     wanted: () => !reducedMotion.value && !matchMedia('(forced-colors: active)').matches
-      && (current.value?.key !== campus.key || initialSketch.value === campus.key)
+      && (current.value?.key !== campus.key || initialSketch.value === campus.key),
+    size: currentCardSize, paper: paperColour
   })
   if (painted) setLineArt(campus.key, true)
   return painted
 }
+// 這張卡的 canvas 上已經是目前尺寸的預覽線稿：lineArt 在換內容時清空、上色時拿掉；尺寸對 canvas 本身，
+// 卡片剛變大小、重畫還沒好時不算
+function sketchIsCurrent(i: number) {
+  const campus = orderedCampuses.value[i]
+  const canvas = root.value?.querySelectorAll<HTMLElement>('.photo-card')[i]?.querySelector<HTMLCanvasElement>('canvas.sketch-canvas')
+  const size = currentCardSize()
+  return Boolean(campus && canvas && size && lineArt.value.has(campus.key)
+    && canvas.width === Math.round(size.width * sketchScale()) && canvas.height === Math.round(size.height * sketchScale()))
+}
 function refreshLineArt() {
   if (!lineArtStarted) return
   orderedCampuses.value.forEach((campus, i) => { if (i !== index.value || initialSketch.value === campus.key) void showLineArt(i) })
+  // 抵達、視窗變大小、換內容都不是換校意圖：只預建線稿層（目前這校的多邊形在預載時已經排了）
+  prepareNearby(false)
 }
 // canvas 依卡片尺寸畫：卡片變大小才重畫（手機網址列伸縮只改視窗高度，卡片不變）
 function refreshLineArtOnResize() {
   if (!lineArtStarted) return
-  const card = root.value?.querySelector<HTMLElement>('.photo-card')
-  const size = card ? `${card.clientWidth}x${card.clientHeight}` : ''
+  const card = measureCard()
+  const size = card ? `${card.width}x${card.height}` : ''
   if (size === lineArtSize) return
   lineArtSize = size
   refreshLineArt()
 }
+// 卡片尺寸（同 clientWidth／clientHeight，五張一樣大）：ResizeObserver 在版面算好時記下，換校 task 中途讀 clientWidth
+// 會強制重算剛被 Vue 改過的版面（2026-11-05）。還沒量過才當場讀；視窗變大小與預載時也當場量一次
+// （分頁在背景時 ResizeObserver 不送，不能只靠它）。
+let cardSize: CardSize | null = null
+function measureCard() {
+  const card = root.value?.querySelector<HTMLElement>('.photo-card')
+  cardSize = card ? { width: card.clientWidth, height: card.clientHeight } : null
+  return cardSize
+}
+const currentCardSize = () => cardSize ?? measureCard()
+// 紙色（卡片的 --paper）與天空色（tokens.css）掛載時讀一次：原本每次畫都 getComputedStyle，換校 task 中途會強制重算樣式。
+// 讀不到（空字串）時 campusSketch 照舊當場讀。
+let paperColour = ''
+let skyRgb = ''
+const readSkyRgb = () => getComputedStyle(document.documentElement).getPropertyValue('--ivy-paint-sky-rgb').trim()
 // 分頁鈕 2026-10-02 起是透明底墨線版，淡彩速寫要原線稿：照 manifest 的候選挑夠用的寬度。
 // 只有內建線稿會畫（後台換過線稿時 sketchRegistration 回 null）。
 function sketchSources(i: number) {
   const campus = orderedCampuses.value[i]
-  const card = root.value?.querySelector<HTMLElement>('.photo-card')
   if (!campus) return null
   const lineArt = responsiveImage(`campus-line-art-${campus.key}`)
-  const needed = (card?.clientWidth ?? 1200) * sketchScale() * 1.1
+  const needed = (currentCardSize()?.width ?? 1200) * sketchScale() * 1.1
   return { lineSrc: pickLineArt(lineArt.srcset ?? '', lineArt.src, needed), colourSrc: `/assets/campus-line-art-${campus.key}-colour.webp` }
 }
+// 圖層與水彩多邊形的快取只留目前、左右兩校，加上最近滑到／按下的分頁（2026-11-05，utils/campusSketch.ts 的 keepSketches）
+let preloadedCampus = -1
+function nearbyCampuses() {
+  const total = orderedCampuses.value.length
+  return total ? [...new Set([index.value, (index.value + 1) % total, (index.value - 1 + total) % total])] : []
+}
+function keepNearbySketches() {
+  keepSketches([...nearbyCampuses(), preloadedCampus].flatMap(i => orderedCampuses.value[i]?.key ?? []))
+}
+// 閒置時間先準備一校（線稿層；colour 時連淡彩層；wash 時連水彩多邊形），換校時不必在點擊的 task 裡現算
+function prepareCampus(i: number, colour: boolean, wash: boolean) {
+  const campus = orderedCampuses.value[i]
+  const registration = campus && sketchRegistration(campus)
+  const sources = sketchSources(i)
+  const size = currentCardSize()
+  if (!campus || !registration || !sources || !size) return
+  prepareSketch({
+    campusKey: campus.key, registration, lineSrc: sources.lineSrc, colourSrc: colour ? sources.colourSrc : undefined,
+    objectPosition: campus.panoramaPos || 'center 55%', size, skyRgb: skyRgb || readSkyRgb(), wash
+  })
+}
+// 目前與左右兩校：淡彩層不在這裡載（原本就只在接近區塊時載目前這校、滑到／按下分頁才載那一校）。
+// 水彩多邊形只在手動換校後才替新的左右鄰卡算（wash）：自動輪播換進來的只暈開、用不到，
+// 每輪都算一份又會被 keepSketches 輪流擠掉（2026-11-05 審查後）。
+function prepareNearby(wash: boolean) {
+  if (!lineArtStarted || reducedMotion.value || matchMedia('(forced-colors: active)').matches) return
+  keepNearbySketches()
+  nearbyCampuses().forEach(i => prepareCampus(i, false, wash))
+}
+// 換校意圖（滑到、按下、focus 分頁；區塊接近時的目前這校）：連淡彩層與多邊形一起準備。
+// 強制色彩下畫布不顯示（同 prepareNearby、showLineArt 擋掉），準備了也白做。
 function preloadCampus(i: number) {
   const campus = orderedCampuses.value[i]
-  if (reducedMotion.value || !campus || !sketchRegistration(campus)) return
-  const sources = sketchSources(i)
-  if (sources) void preloadSketch(sources.lineSrc, sources.colourSrc)
+  if (reducedMotion.value || matchMedia('(forced-colors: active)').matches || !campus || !sketchRegistration(campus)) return
+  preloadedCampus = i
+  keepNearbySketches()
+  prepareCampus(i, true, true)
 }
 // from：'photo' 用於沒有預覽線稿的手動切換；'sketch' 從線稿接手。wash=false 只暈開（自動輪播）。
 async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = true) {
@@ -120,7 +178,8 @@ async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = 
   }
   if (!registration || reducedMotion.value || matchMedia('(forced-colors: active)').matches) { showPhoto(); return }
   if (initialSketch.value === campus?.key) {
-    if (!await showLineArt(i)) { showPhoto(); return }
+    // 第一次抵達：預載時已經畫好、而且是目前尺寸的預覽線稿不再重畫一次（2026-11-05；developSketch 接著整張重畫）
+    if (!sketchIsCurrent(i) && !await showLineArt(i)) { showPhoto(); return }
     from = 'sketch'
   }
   await nextTick()
@@ -132,7 +191,8 @@ async function runDevelop(i: number, from: 'photo' | 'sketch' = 'photo', wash = 
   const handle = developSketch({
     card, img, canvas, campusKey: campus.key, registration, ...sources, from, wash,
     objectPosition: campus.panoramaPos || 'center 55%',
-    skyRgb: getComputedStyle(document.documentElement).getPropertyValue('--ivy-paint-sky-rgb').trim()
+    skyRgb: skyRgb || readSkyRgb(),
+    size: currentCardSize, paper: paperColour
   })
   // from 'sketch' 時 developSketch 已同步接手蓋住照片，這時拿掉預覽狀態照片不會閃出來
   setLineArt(campus.key, false)
@@ -205,6 +265,8 @@ function select(next: number, automatic = false) {
     void showLineArt(previous)
     if (lineArt.value.has(orderedCampuses.value[selected]!.key)) void runDevelop(selected, 'sketch', !automatic)
     else if (!automatic) void runDevelop(selected)
+    // 自動輪播只預建新鄰卡的線稿層；手動換校才連多邊形（使用者接著多半再換）
+    prepareNearby(!automatic)
   }
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
@@ -383,6 +445,8 @@ onMounted(() => {
     } else refreshLineArt()
   }
   const visibilityChanged = () => { hidden.value = document.hidden }
+  paperColour = root.value ? getComputedStyle(root.value).getPropertyValue('--paper').trim() : ''
+  skyRgb = readSkyRgb()
   motionChanged()
   visibilityChanged()
   // 淡彩速寫：區塊離視窗 800px 內就先載目前這一校的線稿與淡彩層（捲到時不必等下載）；沒捲到的人不下載
@@ -404,6 +468,13 @@ onMounted(() => {
     if (previous) observer.unobserve(previous)
     visible.value = false
     if (element) observer.observe(element)
+  }, { immediate: true, flush: 'post' })
+  // 卡片高度＝軌道高度、寬度跟視窗走，軌道變大小時重量一次卡片
+  const sizeObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(() => { measureCard() }) : null
+  const stopSizing = watch(galleryTrack, (element, previous) => {
+    if (previous) sizeObserver?.unobserve(previous)
+    cardSize = null
+    if (element) sizeObserver?.observe(element)
   }, { immediate: true, flush: 'post' })
   // Track the toolbar's natural position; sticky controls can enter the viewport
   // while the photo is still scrolling in, before the toolbar is actually reached.
@@ -436,6 +507,8 @@ onMounted(() => {
   document.addEventListener('visibilitychange', visibilityChanged)
   dispose = () => {
     stopObserving()
+    stopSizing()
+    sizeObserver?.disconnect()
     stopControlsObserving()
     preloadObserver.disconnect()
     observer.disconnect()
@@ -448,7 +521,9 @@ onMounted(() => {
     document.removeEventListener('visibilitychange', visibilityChanged)
   }
 })
-onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.cancel() })
+// 淡彩速寫的圖層、多邊形、暫存 canvas 與閒置佇列放在模組層（utils/campusSketch.ts），換頁後不放掉會一直佔著；
+// 先取消上色（暫存 canvas 收回來）再一起清
+onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.cancel(); releaseSketches() })
 </script>
 
 <template>
@@ -466,7 +541,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
           @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
-          @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)"
+          @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
             <ResponsivePicture
@@ -633,12 +708,20 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 .photo-card.is-repositioning,.gallery-track.is-dragging .photo-card{transition:none}
 /* 淡彩速寫（utils/campusSketch.ts）：canvas 墊在照片下面；畫的時候照片淡出，最後照片以水彩團遮罩從中央暈開回來。
    卡片有 transform（自成堆疊環境），canvas 用 z-index:-1 壓在照片底下，照片本身不必定位，
-   非當前卡的淡化遮罩（::after）才不會被照片蓋掉。 */
+   非當前卡的淡化遮罩（::after）才不會被照片蓋掉。
+   暈開（2026-11-05 切短）：原本 1.7s cubic-bezier(.33,.12,.3,1) 放大到 520%。bloomCanvas 的實心核心半徑 0.17×128＝21.76 texel，
+   mask-size 是卡片寬高的百分比，卡片四角離遮罩中心 √2×64/s texel；468%（原曲線的 90%，第 1100.457ms）時是 19.34，
+   照片已整張露出（實測 444% 起暫停截圖就和 520% 逐位元相同），之後 0.6 秒畫面不變卻每幀重算樣式、重畫整張照片。
+   改成原曲線 [0, 0.7913894] 那一段（de Casteljau 切開、控制點除以終點正規化）、到 468% 就停：每個時間點的值和原本相同。
+   收尾（輪播從這裡起算四秒）照舊在 1.7 秒，見 campusSketch.ts 的 PHOTO_MS。
+   注意：build 的 CSS 壓縮（lightningcss）把數字存成 32 位浮點、只留 6 位有效數字，這裡的轉場會變成
+   1.10046s cubic-bezier(.403441,…)，暈開中段實測有像素不同；實際用的是 campusSketch.ts 的 BLOOM_TRANSITION（inline style 不經壓縮），
+   這裡的值只是同一條曲線的備援，兩邊要一起改。 */
 .photo-card .sketch-canvas{position:absolute;inset:0;z-index:-1;width:100%;height:100%;opacity:0;pointer-events:none;transition:opacity .4s}
 .photo-card.is-sketch .sketch-canvas{opacity:1;transition:none}
 .photo-card.is-sketch img{opacity:0;transition:opacity .45s ease}
-.photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1.7s cubic-bezier(.33,.12,.3,1),mask-size 1.7s cubic-bezier(.33,.12,.3,1);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
-.photo-card.is-sketch.is-developed img{--develop:520%}
+.photo-card.is-sketch.is-develop img{opacity:1;transition:-webkit-mask-size 1100.4567274385ms cubic-bezier(.4034410597806647,.1055185807155224,.4585777993124224,.7399102780514095),mask-size 1100.4567274385ms cubic-bezier(.4034410597806647,.1055185807155224,.4585777993124224,.7399102780514095);-webkit-mask-image:var(--develop-mask);mask-image:var(--develop-mask);-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;-webkit-mask-size:var(--develop,0%) var(--develop,0%);mask-size:var(--develop,0%) var(--develop,0%)}
+.photo-card.is-sketch.is-developed img{--develop:468%}
 /* 左右預覽卡＝靜態線稿（data-art=line，2026-09-29 晚）：canvas 直接露出、照片淡出（離開中央的那張邊滑邊褪回線稿）；
    換到中央由 campusSketch 掛 is-sketch 接手，上色後照片暈開回來。 */
 .photo-card[data-art=line] .sketch-canvas{opacity:1;transition:none}

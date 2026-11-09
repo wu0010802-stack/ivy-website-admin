@@ -147,7 +147,7 @@ onMounted(async () => {
   })
   lazy(padCanvas.value, async () => {
     const { mountCrayonPad } = await import('~/utils/anniversary/crayonPad')
-    const p = await mountCrayonPad(padCanvas.value!, { color: PAD_COLORS[0].css, guide: padGuide.value, onStrokes: (n) => { padStrokes.value = n } })
+    const p = await mountCrayonPad(padCanvas.value!, { color: PAD_COLORS[0].css, colors: PAD_COLORS.map((c) => c.css), guide: padGuide.value, onStrokes: (n) => { padStrokes.value = n } })
     if (!p) return () => {}
     pad = p
     padReady.value = true

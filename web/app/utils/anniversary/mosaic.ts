@@ -28,6 +28,8 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
   const box = canvas.parentElement!
   const style = getComputedStyle(canvas)
   const font = style.getPropertyValue('--font-head').trim() || 'sans-serif'
+  // 亮格的框色掛載時取一次（2026-11-05）：原本每幀每個亮起的格子都讀一次 live computed style；tokens 是靜態值
+  const gold = style.getPropertyValue('--gold').trim() || 'currentColor'
   await document.fonts.load(`800 200px ${font}`, '30').catch(() => {})
   const imgs = await Promise.all(ANNI_ARTWORKS.map((a) => loadImage(pickSrc(a.image, 480)).catch(() => null)))
 
@@ -112,7 +114,7 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
         const iw = img.naturalWidth, ih = img.naturalHeight, side = Math.min(iw, ih) * 0.32
         g.drawImage(img, c.cx * (iw - side), c.cy * (ih - side), side, side, -s / 2, -(ch - gap) / 2, s, ch - gap)
       }
-      if (active === c.art) { g.lineWidth = 2; g.strokeStyle = style.getPropertyValue('--gold').trim() || 'currentColor'; g.strokeRect(-s / 2, -(ch - gap) / 2, s, ch - gap) }
+      if (active === c.art) { g.lineWidth = 2; g.strokeStyle = gold; g.strokeRect(-s / 2, -(ch - gap) / 2, s, ch - gap) }
       g.restore()
     }
     lastActive = active
@@ -138,15 +140,18 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
   const onLeave = () => { pp = null; kick(); if (hover !== -1) { hover = -1; opts.onHover(-1) } }
   const onClick = (e: PointerEvent) => { const c = cellAt(e); if (c) opts.onPick(c.art) }
 
+  // 外面（縮圖）換了亮起的作品也要重畫。只在看得到時輪詢（2026-11-05）：原本掛載後每 120ms 喚醒一次、離開拼圖也不停；
+  // 條件本來就先看 visible，看不到時什麼都不做，所以停掉不影響看得到時的行為。
+  let poll = 0
   layout()
   const io = new IntersectionObserver((es) => {
     visible = es.some((e) => e.isIntersecting)
     if (visible && start < 0) start = performance.now()
     if (visible) kick()
+    if (visible && !poll) poll = window.setInterval(() => { if (visible && opts.active() !== lastActive) kick() }, 120)
+    else if (!visible && poll) { clearInterval(poll); poll = 0 }
   }, { threshold: 0.25 })
   io.observe(canvas)
-  // 外面（縮圖）換了亮起的作品也要重畫
-  const poll = setInterval(() => { if (visible && opts.active() !== lastActive) kick() }, 120)
   const ro = new ResizeObserver(() => { layout(); kick() })
   ro.observe(box)
   canvas.addEventListener('pointermove', onMove)
