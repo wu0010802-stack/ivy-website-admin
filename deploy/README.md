@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-09 關於頁手機沿革並排、六圈 3 秒、第三章窗戶照片放大（main CI 部署，沒有 migration）
+
+- **內容**：`120c7953`（README「2026-11-09 關於頁 UI/UX」），分支 `feature/about-ux-20261109`（基底 main `b12e7696`），只動 web/（`about.css`、`AboutContent.vue`、`AboutWholePerson.vue`）。沿革照片的 CG 換實拍做過後使用者說先不要改，已還原、沒上線。推前本機 stack 169 項全過（6.6 分鐘，獨立測試庫，已刪）。
+- **CI**：run 42544278506 第一次只有 Backend 1/3 紅在「Audit runtime Python dependencies」，是 pip-audit 連 PyPI 被中斷（`RemoteDisconnected`），不是新漏洞；其他 job 與 E2E 全過、Deploy 跳過。整個 run 結束後 `gh run rerun --failed`，第二次 Backend 1/3 過、Deploy success。`/release.json` 的 `base_commit` 是 `120c7953`（01:28:43Z）。
+- **正式站驗證**（Playwright，擋 telemetry、只發 GET）：1440／1024／820／390／360（含減少動態）axe 0 項、無橫向捲動、沿革字與卡紙不重疊；390 寬第一章 1111px（原 2275）、整頁 6640px（原 7804）；窗戶照片 1440 寬 121×93、390 寬 76×58；沿革五張仍是原封面；六圈捲進畫面 3.6 秒後 `data-progress` 1.000。
+- **沒驗**：iOS 實機。
+
 ## 2026-11-06 招生統計分頁列捲到選中分頁（main CI 部署，沒有 migration）
 
 - 來源：同日正式站後台唯讀 QA。窄螢幕用網址直進後段子分頁（`?sub=potential` 等），Element Plus 2.14 掛載時還沒標成可捲動、不捲，選中分頁在可見範圍外。新增 `admin/src/composables/useScrollActiveTabIntoView.ts`，套在招生統計子分頁與區域分析完整表格。
