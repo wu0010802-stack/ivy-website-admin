@@ -94,6 +94,15 @@ describe('LINE Seed TW 完整字型分片', () => {
     expect(bytes).toBeLessThanOrEqual(PAGE_FONT_BUDGET)
   })
 
+  it('字表收了各校預約頁（第二步）：校區卡是按鈕不是連結，收字腳本要直接列出（2026-11-09 稽核：第二步多抓約 100 KB）', () => {
+    const visitForm = readText('../app/components/VisitForm.vue')
+    expect(visitForm).toContain('<h2>填寫參觀資料</h2>')
+    expect(visitForm).toMatch(/<h2 id="visit-contact-title">歡迎與\{\{ selectedCampus\.name \}\}聯絡<\/h2>/)
+    const step2 = pageChars['/visit/[key]']?.bold ?? ''
+    expect([...'填寫參觀資料歡迎與聯絡'].filter((ch) => !step2.includes(ch))).toEqual([])
+    expect(readText('../../scripts/page-font-chars.cjs')).toContain("CAMPUS_KEYS.map((key) => `/visit/${key}`)")
+  })
+
   it('LINE Seed TW 只由產生的兩支 CSS 宣告', () => {
     expect(allFaces.every((face) => face.family === 'LINE Seed TW')).toBe(true)
     for (const name of readdirSync(local('../app/assets/css/'))) {

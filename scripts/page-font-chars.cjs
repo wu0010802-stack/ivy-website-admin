@@ -9,17 +9,28 @@
 //   node scripts/page-font-chars.cjs [https://web-production-04caa.up.railway.app]
 // 輸出 web/app/generated/page-font-chars.json，再跑 scripts/subset-critical-fonts.py 重切。
 // 只送 GET：其餘請求（/api/telemetry 等）一律擋下，不把合成瀏覽寫進正式站統計。
+//
+// 檢查字表有沒有落後正式站（後台改了標題、消息或拍立得卡）：
+//   node scripts/page-font-chars.cjs --check [網址]
+// 不寫檔，列出各頁多出來、還沒進字表的字；有就回傳 1，表示該重收字表＋重切分片。
+// 2026-11-09 稽核：後台新增兩張拍立得卡的標題讓首頁多抓 8 片（約 110 KB），字表卻沒人發現落後。
 const fs = require('node:fs')
 const path = require('node:path')
 
 const { chromium } = require(path.resolve(__dirname, '../node_modules/playwright'))
-const base = (process.argv[2] || 'https://web-production-04caa.up.railway.app').replace(/\/$/, '')
+const args = process.argv.slice(2)
+const checkOnly = args.includes('--check')
+const base = (args.find((arg) => !arg.startsWith('--')) || 'https://web-production-04caa.up.railway.app').replace(/\/$/, '')
 const out = path.resolve(__dirname, '../web/app/generated/page-font-chars.json')
 const VIEWPORTS = [
   { name: 'mobile', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },
   { name: 'desktop', viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 }
 ]
-const STATIC_PAGES = ['/', '/about', '/curriculum', '/environment', '/admission', '/anniversary', '/news', '/visit', '/visit/manage', '/privacy', '/__missing__']
+// 各校預約頁（第二步「填寫參觀資料」）要直接列出來：/visit 的校區卡是按鈕不是連結，
+// 下面從列表頁找連結的做法找不到它們（2026-11-09 稽核：第二步因此多抓約 100 KB）。
+const CAMPUS_KEYS = require(path.resolve(__dirname, '../web/server/data/site-fixture.json')).campuses.map((campus) => campus.key)
+const STATIC_PAGES = ['/', '/about', '/curriculum', '/environment', '/admission', '/anniversary', '/news', '/visit',
+  ...CAMPUS_KEYS.map((key) => `/visit/${key}`), '/visit/manage', '/privacy', '/__missing__']
 
 async function collect(page) {
   // 從上到下慢慢捲，捲到才掛上的段落（hydrate-on-visible、IntersectionObserver）也會出現
@@ -89,6 +100,22 @@ async function collect(page) {
   const result = { generatedFrom: base, pages: {} }
   for (const [key, { bold, extraBold }] of Object.entries(pages)) {
     result.pages[key] = { bold: [...bold].sort().join(''), extraBold: [...extraBold].sort().join('') }
+  }
+  if (checkOnly) {
+    const known = JSON.parse(fs.readFileSync(out, 'utf8')).pages
+    let drift = 0
+    for (const [key, { bold, extraBold }] of Object.entries(result.pages)) {
+      const missing = (chars, have = '') => [...chars].filter((ch) => !have.includes(ch)).join('')
+      const newBold = missing(bold, known[key]?.bold)
+      const newExtraBold = missing(extraBold, known[key]?.extraBold)
+      if (!known[key]) console.log(`${key}：字表沒有這一頁`)
+      if (newBold) console.log(`${key} Bold 多了 ${[...newBold].length} 字：${newBold}`)
+      if (newExtraBold) console.log(`${key} ExtraBold 多了 ${[...newExtraBold].length} 字：${newExtraBold}`)
+      if (!known[key] || newBold || newExtraBold) drift++
+    }
+    console.log(drift ? `${drift} 頁的字表落後，重跑本腳本（不加 --check）再跑 scripts/subset-critical-fonts.py。` : '字表與正式站一致。')
+    process.exitCode = drift ? 1 : 0
+    return
   }
   fs.writeFileSync(out, JSON.stringify(result, null, 2) + '\n')
   console.log(`寫入 ${out}`)

@@ -8,15 +8,15 @@
     "/assets/fonts/subsets/lineseed-bd-critical-87586e9e5522.woff2"
   ],
   "stylesheet": {
-    "src": "/assets/fonts/subsets/lineseed-extended-51ea3d3d2c0c.css",
-    "bytes": 194965
+    "src": "/assets/fonts/subsets/lineseed-extended-53f1a7a4cede.css",
+    "bytes": 195275
   },
   "weights": {
     "700": {
       "characters": 13915,
-      "slices": 110,
-      "bytes": 3823400,
-      "largest": 45144,
+      "slices": 112,
+      "bytes": 3825560,
+      "largest": 45288,
       "critical": {
         "src": "/assets/fonts/subsets/lineseed-bd-critical-87586e9e5522.woff2",
         "bytes": 13852,
@@ -25,9 +25,9 @@
     },
     "800": {
       "characters": 13915,
-      "slices": 110,
-      "bytes": 3749928,
-      "largest": 44704,
+      "slices": 112,
+      "bytes": 3752844,
+      "largest": 44864,
       "critical": {
         "src": "/assets/fonts/subsets/lineseed-eb-critical-510344d79d58.woff2",
         "bytes": 13588,
