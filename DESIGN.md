@@ -1,3 +1,11 @@
+## 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（2026-11-09，`feature/web-tech-audit-20261109`）
+
+- **後台素材長邊超過 480 就產同尺寸的 WebP 大圖**（`backend/app/media/processing.py` 的 `needs_large_rendition`，原本只有超過 1600 才產）：1600 以下的原檔不再直接送給官網。前台 `mediaImage()` 遇到同寬的大圖與原檔選大圖；PNG／GIF 原檔只要有可用衍生檔就不進 srcset；`src`（CSS 背景、只取 src 的地方）改用最大的候選。之前上傳的素材要在正式站跑 `python -m app.cli regenerate-media-variants --apply` 回補（列為「缺大圖」）。
+- **字表（`page-font-chars.json`）一律對正式站收**，預約第二步各校頁由 `page-font-chars.cjs` 依 fixture 的校區 key 直接列出（`/visit` 的校區卡是按鈕，從連結找不到）。後台改了首頁卡片、消息等標題後，用 `node scripts/page-font-chars.cjs --check` 看字表有沒有落後（落後回傳 1、列出新字），落後就重收再重切。可編輯標題仍用 LINE Seed（11-03 字型統一的決定不變），不改成內文字型。
+- **撥號膠囊點擊範圍一律 44px 高**：只撥號的四校本來就是（`::before` 上下各 10px）；義華疊在「可線上預約」後面那顆，直卡（761 以上）兩顆上下疊、只隔 6px，改成上 6px、下 14px，不蓋到金色膠囊；手機細條卡兩顆同一列，上下各 10px。
+- **可見文字不低於 12px**：週年地圖授權署名 10px、環境頁手機「照顧」編號圓點 .72rem 都改 `var(--fs-xs)`。週年地圖年份 11px 是 10-12 的決定，沒動。
+- **沒改的（核對過）**：`paperPrints.ts` 的色碼是讀不到 computed style 時的備援，實際顏色從 DOM 的 token 讀；`entranceCurtain.ts` 是 3D 打光色盤、`anniversary/media.ts` 是動畫資料，不是 UI token 的重複。
+
 ## 關於頁 UI/UX：手機沿革並排、六圈 3 秒、窗戶放大（2026-11-09，`feature/about-ux-20261109`）
 
 - **沿革照片先不換**（使用者 11-09）：崇德、國際、仁武的封面仍是 `*-enhanced-v1` CG 示意圖；試過改用環境頁校園探索實拍（操場、校門、校舍），使用者說先不要改，不要再主動換。

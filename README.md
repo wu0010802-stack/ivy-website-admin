@@ -1,3 +1,16 @@
+## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（`feature/web-tech-audit-20261109`）
+
+使用者：「幫我看看前台有哪裡可以優化的」→ 對正式站（release 120c7953）做技術稽核 15/20，「都幫我處理」。規則見 DESIGN.md 最上方一段。
+
+- **後台素材不再直接送原檔**：`needs_large_rendition` 門檻 1600→480，長邊 481–1600 也產同尺寸 WebP 大圖；`mediaImage()` 同寬時選大圖、PNG／GIF 原檔有衍生檔就不進 srcset、`src` 用最大候選。正式站首頁的「讚」測試消息是 1024×1536 PNG 1.7 MB，手機桌機都載；本機接正式站內容實測手機首頁改載 640w 中圖（97 KB）。**部署後要跑回補**（見下）才會有 1024w 大圖、1600×1600 JPEG 也才換成 WebP。
+- **字表重收＋重切**：`page-font-chars.cjs` 直接列五校預約頁（`/visit` 校區卡是按鈕，原本找不到第二步），對正式站重收後重切 LINE Seed。以正式站目前用字計算：首頁 245 KB／15 片→55 KB／5 片（11-05 後台新增兩張拍立得卡標題沒進字表），預約第二步 152 KB／9 片→40 KB／5 片，其他頁 ±2 KB。新增 `--check`：只比對不寫檔，字表落後回傳 1 並列出新字。
+- **撥號膠囊**：只撥號的四校本來就是 44px（稽核時量外框誤報）；義華「可線上預約」後面那顆 36→44px（直卡上 6 下 14、手機上下 10）。
+- **P3**：消息沒填摘要時 description 取內文第一段（110 字截斷），連內文都沒有用全站描述；`check-public-seo.mjs` 改成和路由一致（未開放索引時 sitemap 回 200 空 urlset，對正式站跑 PASS）；週年作品燈箱圖加 `loading="lazy"`（關著不下載 1200w）；週年地圖署名 10px、環境頁手機照顧編號 .72rem 改 `var(--fs-xs)`。
+- **核對後不改**：`paperPrints.ts` 色碼只是讀不到 computed style 時的備援；`entranceCurtain.ts`、`anniversary/media.ts` 是 3D 打光與動畫資料。
+- **驗證**（Node 22，本機負載 10–20）：`npm --prefix web run typecheck` 通過；`npm run test:website` 120 檔 1589 項全過；後端全套（獨立測試庫）4964 過、1 略過。本機 dev server 接正式站內容（live）Playwright 實測：手機首頁不再載 PNG 原檔；首頁 LINE Seed 5 片 55 KB、`/visit/yihua` 5 片 40 KB（dev server 每片會請求兩次，以不重複網址與 `document.fonts` 計）；五校撥號膠囊 390／1440 點擊高度都 44px、義華那顆不蓋到金色膠囊；燈箱打開前圖片未載入、打開後載入；`/visit`、`/anniversary`、`/environment`、`/` 在 320／390／1440 皆 0 溢出、無 pageerror。`node scripts/page-font-chars.cjs --check` 對正式站跑，重收前正確回報首頁 12 個新字與 `/visit/[key]` 缺頁。
+- **部署後要做**：`! railway ssh --service api --environment production -- python -m app.cli regenerate-media-variants`（dry-run，會列「缺大圖」）→ 加 `--apply`；會重產這些圖的縮圖／中圖／大圖、網址換一次。
+- **沒做／沒驗**：T01「讚／test」測試消息與 /privacy 未發布仍待使用者／園方；載入時間（LCP／TBT）因本機負載高沒量；iOS 實機。另一個 session 的 `admission-ux-20261109`（入學頁大標）若晚於本分支併入，要重跑 `page-font-chars.cjs` 與 `subset-critical-fonts.py`。
+
 ## 2026-11-09 舊快照的依賴清單改名，Dependabot 不再掃（`chore/snapshot-manifests-20261109`）
 
 `versions/before-seo-performance-20260921-203736/web/` 的 `package.json`、`package-lock.json` 與 `versions/before-backend-bugfix-20260922-133652/backend/` 的 `pyproject.toml`、`uv.lock` 改名加 `.snapshot`（內容不變）。這兩個快照不會建置或部署，但 GitHub 照檔名把它們當依賴清單掃，09-21 那份 lock 已產生 50 多則警示、每次都要手動 dismiss（最新 #184 minimatch）。使用者同意後改名；要用快照還原時把 `.snapshot` 拿掉即可。之後新增 `versions/` 快照不要複製依賴清單檔原名（要留就加 `.snapshot`）。同日 #180 deepmerge（`web/` 建置依賴、無修正版、`.output` 驗證沒有它）以 not_used dismiss，open 警示 0。
