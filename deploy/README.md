@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 前台渲染流暢度：捲動先讀後寫、拍立得少畫幾幀、五校水彩分段（main CI 部署，沒有 migration）
+
+- **內容**：`0b0aa009`（README「2026-11-10 前台渲染流暢度」、DESIGN.md「前台流暢度第三批」），分支 `feature/render-jank-20261110`，rebase 到 `8122ee10` 後單一提交直接推 main。只改 web 前端（新增 `utils/scrollFrame.ts`；`paperPrints`、`cornerCurl`、`campusSketch`、`watercolor` 與八個捲動處理器），沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；同 commit 兩份 production build（fixture）交錯量測與 13 個捲動位置截圖逐像素相同。admin、後端沒改，沒在本機跑；stack e2e 交給 CI。
+- **CI**：run 42820257332 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（13:05→13:09Z）；`/release.json` 的 `base_commit` 是 `0b0aa009`。
+- **正式站驗證**（只發 GET、擋掉遙測）：health 200；`/`、`/about`、`/environment`、`/curriculum`、`/admission`、`/visit`、`/news`、`/anniversary` 在 1440 與 390 都 200、沒有頁面錯誤與主控台錯誤、沒有橫向溢出、沒有 4xx/5xx 請求。首頁拍立得走 WebGL（桌機 8 張、手機 3 張），翻面正常。首頁捲動（負載 5–8）：桌機掉幀 1.9／3.4%、長任務 0；手機 4 倍降速掉幀 1.8／2.1%（部署前同法量 4.9–15.1%／6.9–11.6%，當時負載 10–19，只供參考）。
+- **沒驗**：iOS／Android 實機、Safari（沒有 LoAF，WebGL 行為不同）。
+
 ## 2026-11-10 粉專影片貼文連影片一起轉成消息（main CI 部署，migration `c4e9a2b7d815`）
 
 - **內容**：`88a58ee5`（README「2026-11-10 粉專影片貼文連影片一起轉成消息」），分支 `feature/fb-video-20261110`，併入 main `dbb2953a` 後壓成單一提交。migration `c4e9a2b7d815`（parent `a7d3f8c21e60`）只在 `facebook_page_posts` 加 `video_url`、`video_media_id` 兩個可空欄位，不改既有資料，照備份閘門不需先備份。沒有新環境變數，現有權杖與權限就拿得到影片檔、不用重新授權。推前本機：後端全套 5000 過 1 略過、admin vitest 173 檔（30 條高負載逾時，放寬逾時重跑全過）、`npm run test:website` 131 檔 1760 過、web／admin typecheck、`contract:check`；拋棄式測試庫＋義華粉專真實資料實測兩輪（同步→影片貼文轉草稿→背景轉檔→發布→官網四種寬度播放）。stack e2e 沒在本機跑。
