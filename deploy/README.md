@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 首頁「把每個孩子 放在心上」照片調亮（main CI 部署，沒有 migration）
+
+- **內容**：`aa8313e7`（README「首頁『把每個孩子 放在心上』照片調亮」），分支 `feature/home-about-brighten-20261110`，從 main `82ed7767` 快轉。只換 `web/public/assets/home-about.webp`（由原檔重出：暗處補光＋中間調提亮，使用者從輕／中／強選「中」）與它的衍生檔、`image-manifest.json`；版面、文字、替代文字沒動。推前本機：web typecheck、vitest 130 檔 1750 項全過；dev server 上 1440／390 截圖看過。沒跑本機 stack e2e（只換圖檔位元組，CI 的 E2E 有跑）。
+- **CI**：run 42772478288 全綠（含 E2E）、Deploy Railway production success（07:13→07:18Z）；`/release.json` 的 `base_commit` 是 `aa8313e7`。
+- **正式站驗證**（只發 GET、擋掉遙測）：首頁 SSR 引用新雜湊（WebP `9b9f2503d00b` 3 處、AVIF `419c7c4f2a99` 4 處）、舊雜湊 0 處；新的七個衍生檔與母檔都回 200、位元組數與本機相同，舊雜湊 `d94cfbb255e3`／`59cd2ec51bf7` 回 404；Playwright 1440／390：關於段載到新 AVIF、無橫向溢出、無頁面錯誤，截圖看過。
+- **沒驗**：iOS／Android 實機。
+
 ## 2026-11-10 最新消息頁 UI/UX：最新一則放大＋照片格、粉專消息的重複段落與封面裁切（main CI 部署，沒有 migration）
 
 - **內容**：`82ed7767`（README「最新消息頁 UI/UX」），分支 `feature/news-page-ux-20261110`，從 main `391801ee` 開、推之前重接到 `aa3a4da9`（README／DESIGN.md 頂部的衝突是兩邊段落都留）。只動 web/：`NewsIndexContent.vue`、`NewsArticleContent.vue`、`NewsBody.vue`、`news-page.css`、`news-content.ts`，首頁 `NewsDialog.vue`／`HomeStoryViewer.vue` 的消息摘要套 `tidyNewsText`。推前本機：web vitest 130 檔 1750 項全過、typecheck 過（最後一次重接前）；dev server 接假 API（正式站內容＋多則消息兩種情境）在 320–1440 十二個寬度看過，沒跑 stack e2e。
