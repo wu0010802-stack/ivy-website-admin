@@ -1,5 +1,6 @@
 import type { Ref } from 'vue'
 import { readMotionViewport, type MotionViewport } from '~/utils/motionViewport'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '~/utils/scrollFrame'
 
 /** Paper enters in normal flow while the preceding campus pauses behind it. */
 export function useNewsTransition(
@@ -19,7 +20,6 @@ export function useNewsTransition(
     const forced = matchMedia('(forced-colors: active)')
     const native = CSS.supports('animation-timeline: view()') && CSS.supports('animation-range: entry 0% entry 100%') && CSS.supports('timeline-scope: --news-paper')
     let viewport: MotionViewport
-    let frame = 0
     let measureFrame = 0
     let disposed = false
     let lastProgress = -1
@@ -27,11 +27,16 @@ export function useNewsTransition(
     // 原生路徑也每個捲動幀都量：inert 要在跳過來（錨點、End 鍵）的同一幀就設好。改用 IntersectionObserver
     // 只在紙附近才量的話，IO 回呼晚一幀，那一幀 [inert] 的 clip-path 還沒裁掉被蓋住的五校，五校自己的 IO
     // 會當成看得到（2026-11-05 實測：直接跳到消息會多抓整組線稿、版面多 0.34px）。
+    // 讀寫分開排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10）：紙的位置在大家寫之前一起讀，
+    // 不在前面的簾幕寫完 clip-path 之後才讀（那樣每幀都逼整頁同步重排）。
+    let paperTop = 0
+    function measurePaper() {
+      if (!disposed && root!.dataset.newsMotion !== 'off') paperTop = paper!.getBoundingClientRect().top
+    }
     function paint() {
-      frame = 0
       if (disposed) return
       const off = root!.dataset.newsMotion === 'off'
-      const progress = off ? 1 : Math.max(0, Math.min(1, 1 - paper!.getBoundingClientRect().top / viewport.height))
+      const progress = off ? 1 : Math.max(0, Math.min(1, 1 - paperTop / viewport.height))
       // The previous section must stop receiving focus once covered by the paper.
       // 同值不重寫：Chromium 對已經是 inert 的元素再設一次仍會改屬性、觸發一次樣式重算（紙蓋滿後到頁底每幀都會中）。
       const covered = !off && progress >= .995
@@ -41,8 +46,9 @@ export function useNewsTransition(
       }
       lastProgress = progress
     }
+    const task: ScrollFrameTask = { read: measurePaper, write: paint }
     function schedule() {
-      if (!disposed && !frame) frame = requestAnimationFrame(paint)
+      if (!disposed) requestScrollFrame(task)
     }
     function measure() {
       measureFrame = 0
@@ -78,7 +84,7 @@ export function useNewsTransition(
 
     cleanup = () => {
       disposed = true
-      cancelAnimationFrame(frame)
+      cancelScrollFrame(task)
       cancelAnimationFrame(measureFrame)
       observer.disconnect()
       window.removeEventListener('scroll', schedule)

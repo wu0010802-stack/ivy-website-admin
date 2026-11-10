@@ -3,6 +3,8 @@
 // 結尾依消息的校區帶預約入口：只屬於一校就帶那一校，全校消息走一般預約。
 // 2026-11-10：直式封面（粉專 Reels 是 9:16）不再裁成橫條，桌機放在內文右邊整張看得到；
 // 沒有分類時不留「校名 ·」的尾巴；結尾接其他消息。
+// 2026-11-10：內文第一塊是影片（粉專影片貼文轉來的）時，影片放在封面的位置、內文從第二塊開始——
+// 這種消息的封面就是影片的某一格，兩個都放等於同一個畫面出現兩次。封面照舊用在列表、卡片與分享圖。
 import type { Campus, NewsArticle, NewsContent } from '~/types/site-content'
 import { isSampleNews, isTallImage, NEWS_PATH, newsPath, relatedArticles, tidyNewsText, titleClauses } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
@@ -15,7 +17,12 @@ const formatDate = (date: string) => date.replaceAll('-', '.')
 
 const imageOf = (item: NewsArticle, sizes: string) => responsiveTourImage(item.image, sizes, false, item.imageMedia)
 const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined)
-const tall = computed(() => isTallImage(imageOf(props.article, '100vw')))
+const leadVideo = computed(() => {
+  const first = props.article.body?.[0]
+  return first?.type === 'video' && first.videoSrc ? first : undefined
+})
+const blocks = computed(() => (leadVideo.value ? props.article.body!.slice(1) : props.article.body ?? []))
+const tall = computed(() => isTallImage(leadVideo.value ?? imageOf(props.article, '100vw')))
 const cover = computed(() => imageOf(props.article, tall.value ? '(max-width: 899px) 100vw, 360px' : '(max-width: 760px) 100vw, 760px'))
 const related = computed(() => relatedArticles(props.news.articles, props.article))
 const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
@@ -31,9 +38,10 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
           <h1 id="np-article-title"><span v-for="(part, i) in titleClauses(article.title)" :key="i" class="np-clause">{{ part }}</span></h1>
           <p v-if="sample" class="np-sample-note">此為閱讀互動示範，標題、日期與內容皆為範例；圖片使用既有校園素材。</p>
         </header>
-        <ResponsivePicture class="np-cover" v-bind="cover" :style="imageStyle(article)" :alt="article.alt" fetchpriority="high" />
+        <NewsBodyVideo v-if="leadVideo" class="np-cover-video" :block="leadVideo" />
+        <ResponsivePicture v-else class="np-cover" v-bind="cover" :style="imageStyle(article)" :alt="article.alt" fetchpriority="high" />
         <div class="np-article-main">
-          <NewsBody v-if="article.body?.length" :summary="article.description" :blocks="article.body" />
+          <NewsBody v-if="blocks.length" :summary="article.description" :blocks="blocks" />
           <p v-else class="np-article-copy">{{ tidyNewsText(article.description) }}</p>
         </div>
       </article>

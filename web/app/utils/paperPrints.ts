@@ -65,6 +65,10 @@ const SEGMENTS_Y = 56
 // ctx.filter（sepia/contrast/blur）重畫整張照片，手機 4x 節流下一幀就要 100 ms 以上。
 // 六格（0、.2、…、1）在 3.2 秒的淡入裡肉眼看不出與逐幀濾鏡的差別；格子用到才畫。
 const DEVELOP_STAGES = 6
+// 顯影期間正面貼圖每秒最多重畫、重傳 30 次（2026-11-10）：原本每幀整張正面重畫＋texSubImage2D（手機 DPR3 一次約 4.6 MB），
+// 桌機一張卡 3.2 秒就上傳 190 次。顯影是 3.2 秒（手機 0.9 秒）的慢速交叉淡化，30 fps 一格的差在 1%（手機 3.7%）以內，看不出分格；
+// 沒有其他動作（翻面、掀角、游標）時，中間那幀連 render 與複製畫布都省掉（見 render() 的 same）。
+const DEVELOP_FRAME_MS = 1000 / 30
 // 紙面貼圖、共用 renderer 與顯示畫布同步支援最高 3× 像素密度。
 const coarsePointer = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches
 const pixelRatio = () => Math.min(window.devicePixelRatio || 1, 3)
@@ -104,12 +108,31 @@ function loadThree(): Promise<Three | null> {
   return threePromise
 }
 
-/** 先把 three 載好（utils/paper-warm.ts 在閒置或卡片接近時呼叫）；用不到紙張（減少動態、沒有 WebGL）就不載。 */
+/**
+ * 先把 three 載好（utils/paper-warm.ts 在閒置或卡片接近時呼叫）；用不到紙張（減少動態、沒有 WebGL）就不載。
+ * 載好後再等一次真正的閒置，先建共用 renderer、編好 shader（2026-11-10）：建 WebGL context 在手機 4 倍降速約 73ms，
+ * 原本落在第一張卡掛載那一個長任務裡（捲進孩子的一天時卡 100–500ms）。預建時不算使用者，最後一張卡卸掉照舊釋放。
+ * 不給 timeout：這一步本身 4 倍降速要 75–100ms，被 timeout 逼在捲動途中跑就白搬了；一直沒閒置的話掛載時照舊自己建。
+ */
 export function warmThree(): void {
-  if (canUseWebGL()) void loadThree()
+  if (!canUseWebGL()) return
+  void loadThree().then((three) => {
+    if (!three || shared) return
+    const build = () => {
+      if (!shared) ensureRenderer(three)
+    }
+    if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(build)
+    else window.setTimeout(build, 0)
+  })
 }
 
 function acquireRenderer(three: Three) {
+  ensureRenderer(three)
+  shared!.users += 1
+  return shared!.renderer
+}
+
+function ensureRenderer(three: Three) {
   if (!shared) {
     const renderer = new three.WebGLRenderer({ alpha: true, antialias: true })
     renderer.setPixelRatio(pixelRatio())
@@ -122,8 +145,6 @@ function acquireRenderer(three: Three) {
     // dispose，program 就一直留在快取裡。燈光組合與材質參數必須跟 buildScene 一致。
     void renderer.compileAsync(shared.warm.scene, shared.warm.camera).catch(() => {})
   }
-  shared.users += 1
-  return shared.renderer
 }
 
 function buildWarmScene(three: Three) {
@@ -941,9 +962,14 @@ export async function mountPaper(
     let hoverAim = 0
     let frame = 0
     let developStart = 0
+    let developDrawn = 0
     let dirtyFront = false
     let dirtyCorner = corner.hinge > 0
     const rendererSize = new three.Vector2()
+    // 上一次真的畫出去的狀態：這一幀什麼都沒變就不 render、不複製畫布（view 畫布保留上一張）。
+    // 共用 renderer 只在 render 之後馬上複製到自己的 view，所以跳過這張卡不影響別張。
+    let shapeVersion = 0
+    const drawn = { shape: -1, rx: Number.NaN, ry: Number.NaN, z: Number.NaN, glare: Number.NaN, gx: Number.NaN, gy: Number.NaN }
 
     function render() {
       frame = 0
@@ -971,6 +997,7 @@ export async function mountPaper(
         bent = flex.value
         dirtyCorner = false
         deform(now / 1000)
+        shapeVersion++
       }
       // 游標微傾與懸停抬升：依實際經過時間平滑，高更新率螢幕不會變快
       const follow = 1 - Math.pow(0.82, dt * 60)
@@ -994,24 +1021,47 @@ export async function mountPaper(
       }
       if (developStart) {
         const d = Math.min(1, (now - developStart) / developMs())
-        develop = ease(d)
-        dirtyFront = true
+        // 最後一格一定畫；中間依 DEVELOP_FRAME_MS 降頻（第一格 developDrawn 是 0，馬上畫）
+        if (d >= 1 || now - developDrawn >= DEVELOP_FRAME_MS) {
+          develop = ease(d)
+          dirtyFront = true
+          developDrawn = now
+        }
         if (d >= 1) developStart = 0
         else busy = true
       }
+      const redrawn = dirtyFront
       if (dirtyFront) {
         drawPhoto(develop, active)
         frontTex.needsUpdate = true
         dirtyFront = false
       }
-      // 共用 renderer 切到不同尺寸的卡片時才重設 backing buffer。
-      // three 的 setSize 即使尺寸相同也會寫入 canvas.width／height。
-      renderer.getSize(rendererSize)
-      if (rendererSize.x !== VW || rendererSize.y !== VH) renderer.setSize(VW, VH, false)
-      renderer.render(sceneObj, camera)
-      viewCtx!.setTransform(1, 0, 0, 1, 0, 0)
-      viewCtx!.clearRect(0, 0, view.width, view.height)
-      viewCtx!.drawImage(renderer.domElement, 0, 0, view.width, view.height)
+      const same =
+        !redrawn &&
+        drawn.shape === shapeVersion &&
+        drawn.rx === paper.rotation.x &&
+        drawn.ry === paper.rotation.y &&
+        drawn.z === paper.position.z &&
+        drawn.glare === glare.intensity &&
+        drawn.gx === glare.position.x &&
+        drawn.gy === glare.position.y
+      if (!same) {
+        // 共用 renderer 切到不同尺寸的卡片時才重設 backing buffer。
+        // three 的 setSize 即使尺寸相同也會寫入 canvas.width／height。
+        renderer.getSize(rendererSize)
+        if (rendererSize.x !== VW || rendererSize.y !== VH) renderer.setSize(VW, VH, false)
+        renderer.render(sceneObj, camera)
+        viewCtx!.setTransform(1, 0, 0, 1, 0, 0)
+        viewCtx!.clearRect(0, 0, view.width, view.height)
+        viewCtx!.drawImage(renderer.domElement, 0, 0, view.width, view.height)
+        drawn.shape = shapeVersion
+        drawn.rx = paper.rotation.x
+        drawn.ry = paper.rotation.y
+        drawn.z = paper.position.z
+        drawn.glare = glare.intensity
+        drawn.gx = glare.position.x
+        drawn.gy = glare.position.y
+      }
       if (busy) frame = requestAnimationFrame(render)
       else lastNow = 0
     }

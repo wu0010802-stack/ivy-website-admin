@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import FacebookPostsView from '../views/FacebookPostsView.vue'
-import type { FacebookPostListOut, FacebookPostOut } from '../api/types'
+import type { FacebookImportOut, FacebookPostListOut, FacebookPostOut } from '../api/types'
 import { canListNavItem, navItem } from '../router/nav'
 import { campusAdmin, cleanup, mockGet, mockPost, mountWith } from './admissionsTestKit'
 import { testUser } from './fixtures'
@@ -17,6 +17,7 @@ function post(overrides: Partial<FacebookPostOut> = {}): FacebookPostOut {
     posted_at: '2026-10-27T02:30:00Z',
     permalink_url: 'https://www.facebook.com/1_1',
     has_picture: true,
+    has_video: false,
     status: 'new',
     article_id: null,
     handled_at: null,
@@ -31,6 +32,18 @@ function list(overrides: Partial<FacebookPostListOut> = {}): FacebookPostListOut
     sync: { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: '2026-10-28T01:00:00Z', last_error: null, last_count: 1 },
     counts: { new: 1, imported: 0, dismissed: 0 },
     posts: [post()],
+    ...overrides,
+  }
+}
+
+function imported(overrides: Partial<FacebookImportOut> = {}): FacebookImportOut {
+  return {
+    post: post({ status: 'imported' }),
+    article_id: 'fb-1-1',
+    article_title: '萬聖節變裝派對',
+    content_version: 2,
+    video_included: false,
+    video_skipped_reason: null,
     ...overrides,
   }
 }
@@ -57,14 +70,37 @@ describe('Facebook 貼文', () => {
 
   it('轉成消息草稿後提示去發布並重新載入', async () => {
     const get = mockGet({ '/admin/facebook-posts': list() })
-    const posted = mockPost({ '/admin/facebook-posts/p1/import': { post: post({ status: 'imported' }), article_id: 'fb-1-1', article_title: '萬聖節變裝派對', content_version: 2 } })
+    const posted = mockPost({ '/admin/facebook-posts/p1/import': imported() })
     const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.find('.fb-post__video').exists()).toBe(false)
     await button(wrapper, '轉成消息草稿')!.trigger('click')
     await flushPromises()
     expect(posted).toHaveBeenCalledWith('/admin/facebook-posts/p1/import')
     expect(get).toHaveBeenCalledTimes(2)
     expect(wrapper.get('.fb-imported').text()).toContain('「萬聖節變裝派對」已加到')  // 用實際存進去的標題，不是原文第一行
+    expect(wrapper.get('.fb-imported').text()).not.toContain('影片')
     expect(wrapper.get('.fb-imported a').attributes('href')).toContain('/content/campus-news?campus=yihua')
+  })
+
+  it('影片貼文標出「影片」；轉成草稿後說明影片也放進內文、要等轉檔', async () => {
+    mockGet({ '/admin/facebook-posts': list({ posts: [post({ has_video: true })] }) })
+    mockPost({ '/admin/facebook-posts/p1/import': imported({ video_included: true }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.fb-post__video').text()).toBe('影片')
+    await button(wrapper, '轉成消息草稿')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.fb-imported').text()).toContain('影片也放進內文了。轉檔要幾分鐘，轉好之後才能發布。')
+  })
+
+  it('影片沒帶進來（太大、太長）時照樣轉成草稿，並把原因講出來', async () => {
+    mockGet({ '/admin/facebook-posts': list({ posts: [post({ has_video: true })] }) })
+    mockPost({ '/admin/facebook-posts/p1/import': imported({ video_skipped_reason: '影片超過 150 MB' }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    await button(wrapper, '轉成消息草稿')!.trigger('click')
+    await flushPromises()
+    const alert = wrapper.get('.fb-imported').text()
+    expect(alert).toContain('「萬聖節變裝派對」已加到')
+    expect(alert).toContain('影片沒有帶進來（影片超過 150 MB）')
   })
 
   it('沒有照片的貼文不能轉成消息', async () => {

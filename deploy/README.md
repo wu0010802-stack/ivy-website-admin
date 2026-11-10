@@ -13,6 +13,29 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 前台渲染流暢度：捲動先讀後寫、拍立得少畫幾幀、五校水彩分段（main CI 部署，沒有 migration）
+
+- **內容**：`0b0aa009`（README「2026-11-10 前台渲染流暢度」、DESIGN.md「前台流暢度第三批」），分支 `feature/render-jank-20261110`，rebase 到 `8122ee10` 後單一提交直接推 main。只改 web 前端（新增 `utils/scrollFrame.ts`；`paperPrints`、`cornerCurl`、`campusSketch`、`watercolor` 與八個捲動處理器），沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；同 commit 兩份 production build（fixture）交錯量測與 13 個捲動位置截圖逐像素相同。admin、後端沒改，沒在本機跑；stack e2e 交給 CI。
+- **CI**：run 42820257332 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（13:05→13:09Z）；`/release.json` 的 `base_commit` 是 `0b0aa009`。
+- **正式站驗證**（只發 GET、擋掉遙測）：health 200；`/`、`/about`、`/environment`、`/curriculum`、`/admission`、`/visit`、`/news`、`/anniversary` 在 1440 與 390 都 200、沒有頁面錯誤與主控台錯誤、沒有橫向溢出、沒有 4xx/5xx 請求。首頁拍立得走 WebGL（桌機 8 張、手機 3 張），翻面正常。首頁捲動（負載 5–8）：桌機掉幀 1.9／3.4%、長任務 0；手機 4 倍降速掉幀 1.8／2.1%（部署前同法量 4.9–15.1%／6.9–11.6%，當時負載 10–19，只供參考）。
+- **沒驗**：iOS／Android 實機、Safari（沒有 LoAF，WebGL 行為不同）。
+
+## 2026-11-10 粉專影片貼文連影片一起轉成消息（main CI 部署，migration `c4e9a2b7d815`）
+
+- **內容**：`88a58ee5`（README「2026-11-10 粉專影片貼文連影片一起轉成消息」），分支 `feature/fb-video-20261110`，併入 main `dbb2953a` 後壓成單一提交。migration `c4e9a2b7d815`（parent `a7d3f8c21e60`）只在 `facebook_page_posts` 加 `video_url`、`video_media_id` 兩個可空欄位，不改既有資料，照備份閘門不需先備份。沒有新環境變數，現有權杖與權限就拿得到影片檔、不用重新授權。推前本機：後端全套 5000 過 1 略過、admin vitest 173 檔（30 條高負載逾時，放寬逾時重跑全過）、`npm run test:website` 131 檔 1760 過、web／admin typecheck、`contract:check`；拋棄式測試庫＋義華粉專真實資料實測兩輪（同步→影片貼文轉草稿→背景轉檔→發布→官網四種寬度播放）。stack e2e 沒在本機跑。
+- **CI**：run 42775969754 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（07:41→07:45Z）；`/release.json` 的 `base_commit` 是 `88a58ee5`。
+- **正式站驗證**（只發 GET、擋掉遙測；另讀 api log）：api log 有 `Running upgrade a7d3f8c21e60 -> c4e9a2b7d815` 與 `Database schema ready: c4e9a2b7d815`；部署後第一輪同步（07:44Z）兩個 Graph 請求都是 200，`published_posts` 的 `fields` 已帶 `attachments{media_type,media{source}}`，最近 400 行 log 沒有 token。health 200，`/`、`/news`、`/admin/` 200。已發布的萬聖節消息頁（`/news/yihua:fb-…`）1440／390：封面 1 張、內文 5 段、沒有橫向溢出、沒有頁面錯誤，樣式表已有 `.np-cover-video` 與 `--hn-video-ratio`。後台 `FacebookPostsView` 的 chunk 有「影片也放進內文了」「影片沒有帶進來」，消息編輯器的 chunk 有「影片下方文字」。
+- **沒驗**：登入正式後台看收件匣的「影片」標示、實際把一則影片貼文轉成草稿並發布（要本人帳號）；正式庫 `video_url` 的筆數（`railway ssh` 會被自動模式擋，只看得到同步請求 200）；iOS／Android 實機；橫式影片與超過上限的影片沒有真實資料。
+- **注意**：萬聖節那則是影片上線前就轉成消息的，不會自動補上影片（已轉成消息的貼文不能再轉一次）。Reel 配的音樂多半是 Meta 音樂庫授權，只涵蓋在 Meta 平台上播，發布前請園方確認。
+
+## 2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3（main CI 部署，沒有 migration）
+
+- **內容**：`cc06c5a1`（README「2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3」），worktree `about-ta-20261110` 快轉到 main `1a1fdac0` 後直接疊上去，沒有衝突。`about-hero` 母檔裁成 1600×1200（WebP `ecfe7c085bad`、AVIF `46d315c72e09`，舊雜湊十個衍生檔刪掉）、`.abh-hero-art .abh-card{--ar:4/3}`、`ABOUT_HERO_SIZES` 改 `calc(100vw - 40px), 700px`；後台關於頁首屏照片的說明與焦點預覽比例改 4:3。
+- **推之前**：web typecheck、單元 130 檔 1750 項全過；admin `aboutPage.test.ts` 20 項與 `vue-tsc` 過；本機 dev（fixture）六個寬度看過、axe（WCAG A／AA，桌機＋手機）頁面本身 0 項。stack e2e 沒在本機跑（交給 CI）。等前一個 run 42772478288（首頁照片調亮）跑完才推，沒有取消別人的部署。
+- **CI**：run 42774736803 全綠（含 E2E）、Deploy Railway production success（07:21→07:34Z）；`/release.json` 的 `base_commit` 是 `cc06c5a1`。
+- **正式站驗證**（只發 GET、擋掉遙測）：`/about` SSR 新雜湊 AVIF 8 處、WebP 4 處，舊雜湊 0；預載 `imagesizes` 是 `(max-width: 900px) calc(100vw - 40px), 700px`；舊的 `about-hero-5c5da0dc22b9-2000.avif` 回 404。Playwright 1440×900（DPR 2）載 1600w AVIF、照片 694×521；390×844（DPR 3）載 1200w AVIF、350×263；比例 1.333、沒有 4xx、沒有頁面錯誤、沒有橫向溢出。
+- **沒驗**：iOS／Android 實機；後台關於頁的焦點預覽沒登入正式後台看。
+
 ## 2026-11-10 首頁「把每個孩子 放在心上」照片調亮（main CI 部署，沒有 migration）
 
 - **內容**：`aa8313e7`（README「首頁『把每個孩子 放在心上』照片調亮」），分支 `feature/home-about-brighten-20261110`，從 main `82ed7767` 快轉。只換 `web/public/assets/home-about.webp`（由原檔重出：暗處補光＋中間調提亮，使用者從輕／中／強選「中」）與它的衍生檔、`image-manifest.json`；版面、文字、替代文字沒動。推前本機：web typecheck、vitest 130 檔 1750 項全過；dev server 上 1440／390 截圖看過。沒跑本機 stack e2e（只換圖檔位元組，CI 的 E2E 有跑）。
@@ -1662,7 +1685,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 各校 Facebook 粉專貼文同步
 
-後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
+後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）；影片貼文連影片一起進素材庫、放進消息內文（§8，2026-11-10，不用新變數也不用重新授權）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
 
 **Meta 那邊要先做（使用者本人登入）。** token 有兩種來源，程式都吃：
 
@@ -1691,7 +1714,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
 | `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
 
-**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
+**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫；挑一則標「影片」的，確認內文第一塊是影片、素材庫多一支「Facebook 粉專貼文」的影片，轉檔完成（約幾分鐘）後才能發布。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
 
 ## 公開地理資料同步（招生區域分析）
 

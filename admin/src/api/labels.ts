@@ -326,6 +326,8 @@ export function mediaFieldPathLabel(path: string): string {
   if (m) return `第 ${Number(m[1]) + 1} 則消息的封面`
   m = /^articles\[(\d+)\]\.body\[(\d+)\]\.image$/.exec(path)
   if (m) return `第 ${Number(m[1]) + 1} 則消息內文第 ${Number(m[2]) + 1} 段的圖片`
+  m = /^articles\[(\d+)\]\.body\[(\d+)\]\.video$/.exec(path)
+  if (m) return `第 ${Number(m[1]) + 1} 則消息內文第 ${Number(m[2]) + 1} 段的影片`
   return path
 }
 

@@ -6,6 +6,7 @@ import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
 import { readMotionViewport } from '~/utils/motionViewport'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '~/utils/scrollFrame'
 import { dayLightFor } from '~/utils/dayLight'
 
 const props = defineProps<{ day: DayExperienceContent }>()
@@ -41,7 +42,6 @@ let wantsPlayback = true
 let onScreen = false
 let reduceQuery: MediaQueryList | null = null
 let watcher: IntersectionObserver | null = null
-let fadeFrame = 0
 let printsObserver: ResizeObserver | null = null
 let printOffsets: number[] = []
 let readingHeight = 1
@@ -53,14 +53,19 @@ let hasScrolled = false
 // 影片上「只護大標那一屏」的遮罩（styles.css .day-film-shade::before）也跟著同一個值淡掉（2026-10-20 調亮）。
 // --word-fade 直接寫在兩個讀它的元素（.day-intro、.day-film-shade）上，不寫在 section（2026-11-05）：
 // 它是會繼承的自訂屬性，寫在 section 上，底下六張拍立得的 3D 結構每幀跟著重算（每次約 225 個元素，寫在讀者上只剩 12 個）。
+// 讀寫分開排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10）：列表位置在簾幕寫 clip-path、遮罩變數之前一起讀，
+// 原本排在它們後面讀 rect，手機 4 倍降速每幀逼出 12–39ms 的同步重排。
 const QUIET = 0.16
+let listTop: number | null = null
+function measureFade() {
+  listTop = onScreen && printsEl.value ? printsEl.value.getBoundingClientRect().top : null
+}
 function paintFade() {
-  fadeFrame = 0
   const intro = introEl.value
   const list = printsEl.value
   const section = sectionEl.value
-  if (!intro || !list || !section || !onScreen) return
-  const top = list.getBoundingClientRect().top
+  if (!intro || !list || !section || !onScreen || listTop === null) return
+  const top = listTop
   const from = readingHeight * 0.62
   const to = readingHeight * 0.25
   const progress = Math.min(1, Math.max(0, (from - top) / (from - to)))
@@ -87,8 +92,9 @@ function scheduleFade() {
     hasScrolled = scrolled
     applyFilm()
   }
-  if (onScreen && !fadeFrame) fadeFrame = requestAnimationFrame(paintFade)
+  if (onScreen) requestScrollFrame(fadeTask)
 }
+const fadeTask: ScrollFrameTask = { read: measureFade, write: paintFade }
 
 function measurePrints() {
   if (!sectionEl.value || !printsEl.value) return
@@ -195,7 +201,7 @@ onUnmounted(() => {
   window.removeEventListener('scroll', scheduleFade)
   window.removeEventListener('resize', measurePrints)
   printsObserver?.disconnect()
-  cancelAnimationFrame(fadeFrame)
+  cancelScrollFrame(fadeTask)
   document.removeEventListener('visibilitychange', onVisibilityChange)
   reduceQuery?.removeEventListener('change', onReduceMotionChange)
   watcher?.disconnect()

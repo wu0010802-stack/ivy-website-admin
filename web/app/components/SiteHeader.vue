@@ -3,6 +3,7 @@ import type { SiteContent } from '~/types/site-content'
 import { getCampusSocials } from '~/utils/campus-socials'
 import { isPlainLeftClick } from '~/utils/campusPhotoMorph'
 import { httpsUrl, siteLink } from '~/utils/site-links'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '~/utils/scrollFrame'
 
 // hero：這一頁有首頁全幅影片（.studio-hero，首頁與 /preview 預覽首頁時）。頁首的透明疊字版與膠囊規則掛在
 // header 自己的 class 上（studio.css 的 `.is-hero-page`／`.is-pill-nav`），不再用 `body:has(.studio-hero)`：
@@ -39,7 +40,6 @@ const pillToggleRef = ref<HTMLButtonElement | null>(null)
 let panelOpener: HTMLElement | null = null
 let panelHideTimer = 0
 let panelFocusTimer = 0
-let scrollFrame = 0
 
 const reduceMotion = computed(() =>
   import.meta.client ? window.matchMedia('(prefers-reduced-motion: reduce)').matches : false
@@ -126,19 +126,21 @@ function onPanelClick(event: MouseEvent) {
   if ((event.target as HTMLElement).closest('a')) closePanel(false)
 }
 
-function updateHeaderState() {
-  scrollFrame = 0
-  isScrolled.value = window.scrollY > COMPACT_AT
+// 捲動時排進共用的捲動幀、拿這一幀開頭讀好的 scrollY（utils/scrollFrame.ts，2026-11-10）：
+// 原本自己的 rAF 排在簾幕之後，光是讀 window.scrollY 就逼整頁同步重排（手機 4 倍降速 10–33ms）。
+function updateHeaderState(scrollY = window.scrollY) {
+  isScrolled.value = scrollY > COMPACT_AT
   if (!usePanel.value) return
-  const next = window.scrollY > COMPACT_AT ? 'compact' : 'hero'
+  const next = scrollY > COMPACT_AT ? 'compact' : 'hero'
   if (headerState.value === next) return
   headerState.value = next
   if (next === 'hero') closePanel(false)
   else if (isPanelVisible.value) positionPanel()
 }
 
+const headerTask: ScrollFrameTask = { write: updateHeaderState }
 function onScroll() {
-  if (!scrollFrame) scrollFrame = requestAnimationFrame(updateHeaderState)
+  requestScrollFrame(headerTask)
 }
 
 function onResize() {
@@ -217,6 +219,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelScrollFrame(headerTask)
   window.removeEventListener('scroll', onScroll)
   window.removeEventListener('resize', onResize)
   window.removeEventListener('keydown', onKeydown)

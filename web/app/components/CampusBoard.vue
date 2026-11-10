@@ -8,6 +8,7 @@ import { developSketch, keepSketches, paintSketchStill, pickLineArt, prepareSket
 import type { Campus, CampusBoardContent } from '~/types/site-content'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '~/utils/scrollFrame'
 
 const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
@@ -369,14 +370,13 @@ function developWhenUncovered() {
   }
   const start = () => { stopUncovered(); void runDevelop(index.value) }
   if (uncovered()) { start(); return }
-  let frame = 0
-  const onScroll = () => {
-    if (frame) return
-    frame = requestAnimationFrame(() => { frame = 0; if (uncovered()) start() })
-  }
+  // 排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10）：elementFromPoint 要最新版面，跟其他效果一起在寫之前量。
+  let shown = false
+  const task: ScrollFrameTask = { read: () => { shown = uncovered() }, write: () => { if (shown) start() } }
+  const onScroll = () => requestScrollFrame(task)
   window.addEventListener('scroll', onScroll, { passive: true })
   stopUncovered = () => {
-    cancelAnimationFrame(frame)
+    cancelScrollFrame(task)
     window.removeEventListener('scroll', onScroll)
     stopUncovered = () => {}
   }

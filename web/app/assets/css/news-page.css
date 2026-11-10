@@ -95,11 +95,17 @@
 .np-article :deep(.hn-body){margin-top:28px;font-size:var(--fs-md);line-height:2}
 /* 直式封面（寬／高 < .85）：720px 以上放內文右邊、跟著捲動停在頁首下方，整張看得到；更窄時在標題下方用 4:5。 */
 .np-article.is-tall .np-cover{aspect-ratio:4/5;max-height:none}
+/* 內文第一塊是影片時，影片站在封面的位置（NewsBodyVideo 自己依寬高比算大小、置中）；圓角跟封面一樣。 */
+.np-article .np-cover-video{margin:28px 0 0}
+.np-article .np-cover-video :deep(video){border-radius:14px}
 @media (width>=720px){
   .np-article.is-tall{display:grid;grid-template-columns:minmax(0,1fr) min(360px,36%);grid-template-rows:auto 1fr;grid-template-areas:"head cover" "main cover";column-gap:clamp(32px,5vw,72px)}
   .np-article.is-tall .np-article-head{grid-area:head}
   .np-article.is-tall .np-article-main{grid-area:main}
   .np-article.is-tall .np-cover{grid-area:cover;align-self:start;position:sticky;top:132px;margin-top:0;aspect-ratio:auto;max-height:calc(100svh - 164px)}
+  /* 直式影片同樣放右欄、跟著捲動；高度再多扣頁首，整支影片連控制列都在畫面裡。 */
+  .np-article.is-tall .np-cover-video{grid-area:cover;align-self:start;position:sticky;top:132px;margin-top:0}
+  .np-article.is-tall .np-cover-video :deep(video){width:min(100%,calc(min(100svh - 164px,640px) * var(--hn-video-ratio)))}
 }
 .np-article-foot{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:16px;margin-top:56px;padding-top:28px;border-top:1px solid var(--ivy-news-line)}
 .np-back,.np-book{display:inline-flex;align-items:center;gap:10px;min-height:48px;font-size:var(--fs-sm);font-weight:600;text-decoration:none}

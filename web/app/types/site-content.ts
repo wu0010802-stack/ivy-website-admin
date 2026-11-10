@@ -151,6 +151,12 @@ export type NewsBlock =
   | { type: 'heading'; text: string }
   | { type: 'list'; items: string[]; ordered?: boolean }
   | { type: 'image'; image: string; alt?: string; caption?: string; imageMedia?: MediaImage }
+  // 素材庫影片。videoSrc 以後的欄位是疊後台內容時補的（content-overlay 的 newsVideoBlock）；
+  // 素材還沒處理好或已刪除時沒有 videoSrc，官網不畫這一塊。
+  | {
+      type: 'video'; video: string; caption?: string
+      videoSrc?: string; videoSrcMobile?: string; poster?: string; width?: number | null; height?: number | null
+    }
   | { type: 'link'; label: string; url: string }
 
 export interface NewsArticle {

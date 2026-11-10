@@ -1415,7 +1415,7 @@ export interface paths {
         put?: never;
         /**
          * Import Facebook Post
-         * @description 照片進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。
+         * @description 照片（影片貼文再加影片）進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。
          */
         post: operations["import_facebook_post_api_website_v1_admin_facebook_posts__post_id__import_post"];
         delete?: never;
@@ -6391,6 +6391,13 @@ export interface components {
             /** Content Version */
             content_version: number;
             post: components["schemas"]["FacebookPostOut"];
+            /**
+             * Video Included
+             * @default false
+             */
+            video_included: boolean;
+            /** Video Skipped Reason */
+            video_skipped_reason?: string | null;
         };
         /** FacebookPostCounts */
         FacebookPostCounts: {
@@ -6431,6 +6438,8 @@ export interface components {
             handled_at: string | null;
             /** Has Picture */
             has_picture: boolean;
+            /** Has Video */
+            has_video: boolean;
             /**
              * Id
              * Format: uuid

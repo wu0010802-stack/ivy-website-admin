@@ -100,19 +100,22 @@ def test_campus_scope_needs_known_keys_and_is_normalised():
 # ---------------------------------------------------------------------------
 
 
-def test_body_accepts_the_five_block_types():
+def test_body_accepts_the_six_block_types():
     media_id = "0b4b7b2e-5d8e-4a44-9f4b-2f5c3c9d1e11"
+    video_id = "7c1d9f3a-2b6e-4c58-8a17-5e0f4d2b9c33"
     body = [
         {"type": "heading", "text": "活動花絮"},
         {"type": "paragraph", "text": "孩子們在菜園裡澆水。"},
         {"type": "list", "items": ["帶水壺", "", "穿雨鞋"], "ordered": True},
         {"type": "image", "image": media_id.upper(), "alt": "菜園", "caption": "九月的菜園"},
+        {"type": "video", "video": video_id.upper()},
         {"type": "link", "label": "活動相簿", "url": "https://example.com/album"},
     ]
     article = NewsArticlePayload.model_validate(_article(body=body)).model_dump()
-    assert [block["type"] for block in article["body"]] == ["heading", "paragraph", "list", "image", "link"]
+    assert [block["type"] for block in article["body"]] == ["heading", "paragraph", "list", "image", "video", "link"]
     assert article["body"][2]["items"] == ["帶水壺", "穿雨鞋"]
     assert article["body"][3]["image"] == media_id
+    assert article["body"][4] == {"type": "video", "video": video_id, "caption": ""}
 
 
 @pytest.mark.parametrize(
@@ -124,6 +127,8 @@ def test_body_accepts_the_five_block_types():
         {"type": "heading", "text": "字" * 61},
         {"type": "list", "items": ["", " "]},
         {"type": "image", "image": "garden"},
+        {"type": "video", "video": "campus-film"},
+        {"type": "video", "video": "7c1d9f3a-2b6e-4c58-8a17-5e0f4d2b9c33", "caption": "字" * 121},
         {"type": "link", "label": "報名", "url": "javascript:alert(1)"},
         {"type": "link", "label": "寫信", "url": "mailto:a@example.com"},
         {"type": "link", "label": "報名", "url": "example.com/form"},
@@ -305,3 +310,32 @@ async def test_faq_kinds_are_gone(admin_client, kind):
     ):
         assert response.status_code == 404
         assert kind in response.json()["detail"]
+
+
+@pytest.mark.asyncio
+async def test_news_body_video_must_be_a_video_and_is_protected(admin_client):
+    """內文影片區塊只能放素材庫的影片；用上之後素材不能刪。"""
+    image_id = await _upload(admin_client, "yihua")
+    with (MEDIA / "test.mp4").open("rb") as handle:
+        uploaded = await admin_client.post(
+            "/api/website/v1/admin/media",
+            data={"kind": "video", "campus_key": "yihua"},
+            files={"file": ("clip.mp4", handle, "video/mp4")},
+        )
+    assert uploaded.status_code == 201, uploaded.text
+    video_id = uploaded.json()["id"]
+
+    def save(block: dict, expected_version: int):
+        return admin_client.post(
+            f"{API}/campus_news/revisions?campus_key=yihua",
+            json={"expected_version": expected_version, "payload": {"articles": [_article(body=[block])], "events": []}},
+        )
+
+    wrong = await save({"type": "video", "video": image_id}, 0)
+    assert wrong.status_code == 422, wrong.text
+    detail = wrong.json()["detail"]
+    assert detail["code"] == "MEDIA_KIND_MISMATCH" and detail["field_path"] == "articles[0].body[0].video"
+
+    saved = await save({"type": "video", "video": video_id, "caption": "運動會"}, 0)
+    assert saved.status_code == 201, saved.text
+    assert (await admin_client.delete(f"/api/website/v1/admin/media/{video_id}")).status_code == 409

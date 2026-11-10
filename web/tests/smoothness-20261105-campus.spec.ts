@@ -100,15 +100,20 @@ afterEach(() => {
 
 /**
  * 每個測試一份新的模組（快取都是模組層的）。delay：fetch 晚幾 ms 回（讓兩個呼叫端確實同時在等同一張圖）；
- * onWash：每產生一團水彩多邊形（washPolygons）時呼叫，預算測試拿來推進假時鐘、數算了幾團。
+ * onWash：每開始一團水彩多邊形（washBase）時呼叫，數算了幾團；onLayer：每算一層（washLayer）時呼叫，預算測試拿來推進假時鐘。
+ * 2026-11-10 起一團分段算（每 6 層讓出一次），campusSketch 改呼叫 washBase／washLayer，不再經過 washPolygons。
  */
-async function freshSketch(images: Record<string, () => FakeBitmap | null> = {}, options: { delay?: number, onWash?: () => void } = {}) {
+async function freshSketch(images: Record<string, () => FakeBitmap | null> = {}, options: { delay?: number, onWash?: () => void, onLayer?: () => void } = {}) {
   vi.resetModules()
-  const { delay, onWash } = options
-  if (onWash) {
+  const { delay, onWash, onLayer } = options
+  if (onWash || onLayer) {
     vi.doMock('../app/utils/watercolor', async (importOriginal) => {
       const real = await importOriginal<typeof import('../app/utils/watercolor')>()
-      return { ...real, washPolygons: (...args: Parameters<typeof real.washPolygons>) => { onWash(); return real.washPolygons(...args) } }
+      return {
+        ...real,
+        washBase: (...args: Parameters<typeof real.washBase>) => { onWash?.(); return real.washBase(...args) },
+        washLayer: (...args: Parameters<typeof real.washLayer>) => { onLayer?.(); return real.washLayer(...args) }
+      }
     })
   }
   const fetches: string[] = []
@@ -533,9 +538,9 @@ describe('審查後：閒置時間看 deadline.timeRemaining()，濾鏡層同步
     return { didTimeout, timeRemaining: () => Math.max(0, ms - (clock - start)) } as IdleDeadline
   }
   const captureIdle = () => vi.stubGlobal('requestIdleCallback', (callback: (deadline?: IdleDeadline) => void) => { idle.push(callback); return idle.length })
-  // 每團水彩多邊形假裝花 3ms
+  // 每層水彩多邊形假裝花 0.5ms：一步（6 層）約 3ms
   async function idleSketch() {
-    const sketch = await freshSketch({}, { onWash: () => { clock += 3 } })
+    const sketch = await freshSketch({}, { onLayer: () => { clock += 0.5 } })
     captureIdle()
     return sketch
   }
@@ -549,14 +554,15 @@ describe('審查後：閒置時間看 deadline.timeRemaining()，濾鏡層同步
     vi.mocked(performance.now).mockImplementation(() => clock)
   })
 
-  it('timeout 逼出來的那次（timeRemaining 0）只做一步就讓出；一步一塊算完，座標照舊逐位元相同', async () => {
+  it('timeout 逼出來的那次（timeRemaining 0）只做一步就讓出；一步最多 6 層，座標照舊逐位元相同', async () => {
     const sketch = await idleSketch()
     prepare(sketch)
     let blocks = 0
     // 原本不看 deadline：一塊做到 8ms（四步）才停，4 塊就算完
     while (idle.length) { idle.shift()!(deadline(0, true)); blocks++ }
-    // 先 40 個參數、10 團、2 筆天空，最後一步收尾
-    expect(blocks).toBe(13)
+    // 先 40 個參數、10 團各 4 步（22 層每 6 層讓一次）、2 筆天空各 3 步（18 層），最後一步收尾
+    // （2026-11-05 版一團一步共 13 塊：手機 4 倍降速一步 40–80ms）
+    expect(blocks).toBe(1 + 10 * 4 + 2 * 3)
     const parts = card()
     const handle = develop(sketch, parts)
     await flush()

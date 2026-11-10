@@ -1,5 +1,6 @@
 import type { Ref } from 'vue'
 import { readMotionViewport, type MotionViewport } from '~/utils/motionViewport'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '~/utils/scrollFrame'
 
 /** Fade the news surface into the footer without moving either section. */
 export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: Ref<HTMLElement | null>) {
@@ -20,20 +21,24 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
     // 變數是繼承型 @property，寫在 .home-page 的話整頁每幀重算。
     const target = root.querySelector<HTMLElement>('.news-transition-paper') ?? root
     let viewport: MotionViewport
-    let frame = 0
     let disposed = false
     let lastProgress = -1
+    let progress = -1
 
-    function paint() {
-      frame = 0
+    // 讀寫分開排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10），不在別人寫完之後才量頁尾。
+    function measureFooter() {
       if (disposed || root!.dataset.footerMotion !== 'fallback') return
       const distance = Math.min(footer!.offsetHeight, viewport.height)
-      const progress = Math.max(0, Math.min(1, (viewport.height - footer!.getBoundingClientRect().top) / Math.max(1, distance)))
+      progress = Math.max(0, Math.min(1, (viewport.height - footer!.getBoundingClientRect().top) / Math.max(1, distance)))
+    }
+    function paint() {
+      if (disposed || root!.dataset.footerMotion !== 'fallback' || progress < 0) return
       if (progress !== lastProgress) target.style.setProperty('--home-footer-progress', String(progress))
       lastProgress = progress
     }
+    const task: ScrollFrameTask = { read: measureFooter, write: paint }
     function schedule() {
-      if (!disposed && !frame && root!.dataset.footerMotion === 'fallback') frame = requestAnimationFrame(paint)
+      if (!disposed && root!.dataset.footerMotion === 'fallback') requestScrollFrame(task)
     }
     function measure() {
       if (disposed) return
@@ -42,8 +47,8 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
       schedule()
     }
     function configure() {
-      cancelAnimationFrame(frame)
-      frame = 0
+      cancelScrollFrame(task)
+      progress = -1
       root!.dataset.footerMotion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
       target.style.removeProperty('--home-footer-progress')
       lastProgress = -1
@@ -62,7 +67,7 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
 
     cleanup = () => {
       disposed = true
-      cancelAnimationFrame(frame)
+      cancelScrollFrame(task)
       observer.disconnect()
       window.removeEventListener('scroll', schedule)
       window.removeEventListener('resize', measure)

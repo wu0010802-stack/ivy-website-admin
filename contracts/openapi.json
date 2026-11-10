@@ -8714,6 +8714,22 @@
           },
           "post": {
             "$ref": "#/components/schemas/FacebookPostOut"
+          },
+          "video_included": {
+            "default": false,
+            "title": "Video Included",
+            "type": "boolean"
+          },
+          "video_skipped_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Video Skipped Reason"
           }
         },
         "required": [
@@ -8820,6 +8836,10 @@
             "title": "Has Picture",
             "type": "boolean"
           },
+          "has_video": {
+            "title": "Has Video",
+            "type": "boolean"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -8869,6 +8889,7 @@
           "posted_at",
           "permalink_url",
           "has_picture",
+          "has_video",
           "status",
           "article_id",
           "handled_at"
@@ -28248,7 +28269,7 @@
     },
     "/api/website/v1/admin/facebook-posts/{post_id}/import": {
       "post": {
-        "description": "照片進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。",
+        "description": "照片（影片貼文再加影片）進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。",
         "operationId": "import_facebook_post_api_website_v1_admin_facebook_posts__post_id__import_post",
         "parameters": [
           {

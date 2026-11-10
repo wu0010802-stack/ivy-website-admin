@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import tempfile
 import uuid
 from datetime import datetime, timezone
@@ -57,6 +58,7 @@ def _post_out(post: FacebookPagePost) -> FacebookPostOut:
         posted_at=post.posted_at,
         permalink_url=post.permalink_url,
         has_picture=bool(post.picture_url),
+        has_video=bool(post.video_url),
         status=post.status,  # type: ignore[arg-type]
         article_id=post.article_id,
         handled_at=post.handled_at,
@@ -173,7 +175,7 @@ async def facebook_post_picture(
             content, content_type = await graph.download_picture(
                 client, url, request.app.state.settings.media_max_bytes("image")
             )
-        except graph.PictureError as exc:
+        except graph.DownloadError as exc:
             raise _error(status.HTTP_404_NOT_FOUND, exc.code, exc.message) from None
     return Response(
         content,
@@ -276,6 +278,65 @@ async def _store_picture(db: AsyncSession, request: Request, user: User, campus_
     return asset, keys
 
 
+# 這幾種影片下載失敗重試也不會好：不擋轉換，只是不帶影片（原因告訴使用者）。
+_VIDEO_SKIPPED = ("FACEBOOK_VIDEO_TOO_LARGE", "FACEBOOK_VIDEO_UNSUPPORTED", "FACEBOOK_VIDEO_UNTRUSTED")
+
+
+async def _fetch_video(client, url: str, max_bytes: int) -> tuple[Path | None, str | None]:
+    """影片下載到暫存檔，回 (路徑, 沒帶影片的原因)；呼叫端負責刪暫存檔。
+    檔案太大、格式不收、不在 FB CDN 上不擋轉換；連結過期與下載失敗才回錯誤請使用者再試。"""
+    fd, name = tempfile.mkstemp(prefix="facebook-video-", suffix=".mp4")
+    os.close(fd)
+    path = Path(name)
+    try:
+        await graph.download_video(client, url, max_bytes, path)
+    except graph.DownloadError as exc:
+        path.unlink(missing_ok=True)
+        if exc.code == "FACEBOOK_VIDEO_TOO_LARGE":
+            return None, f"影片超過 {max_bytes // (1024 * 1024)} MB"
+        if exc.code in _VIDEO_SKIPPED:
+            return None, exc.message
+        code = status.HTTP_409_CONFLICT if exc.code == "FACEBOOK_VIDEO_EXPIRED" else status.HTTP_422_UNPROCESSABLE_ENTITY
+        raise _error(code, exc.code, exc.message) from None
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return path, None
+
+
+async def _store_video(db: AsyncSession, request: Request, user: User, campus_key: str, path: Path):
+    """影片進該校素材庫；回 (素材, 這次新寫的檔案 key, 沒帶影片的原因)。影片本身不合素材庫的
+    規定（太長、不是標準 MP4）一樣不擋轉換。轉檔照一般上傳排背景工作，素材回來時可能還在處理中；
+    發布前的檢查會等它處理完（content.publish_jobs 的 MEDIA_NOT_READY）。"""
+    settings = request.app.state.settings
+    try:
+        # savepoint：影片這一步失敗只退掉影片，前面已經建好的封面照片素材留著。
+        async with db.begin_nested():
+            asset = await media_service.create_media_asset(
+                db,
+                media_service.get_storage(settings),
+                source_path=path,
+                declared_kind=MediaKind.VIDEO,
+                original_filename="facebook.mp4",
+                campus_key=campus_key,
+                created_by=user.id,
+                source_attribution="Facebook 粉專貼文",
+                quota_bytes=settings.media_quota_bytes_per_campus,
+                video_processing=settings.media_video_processing_mode,
+            )
+    except media_service.MediaQuotaExceeded:
+        raise _error(status.HTTP_409_CONFLICT, "MEDIA_QUOTA_EXCEEDED", "這校的素材空間已滿") from None
+    except media_service.MediaBusy:
+        raise _error(status.HTTP_409_CONFLICT, "MEDIA_BUSY", "素材庫正忙，請稍後再試") from None
+    except MediaValidationError as exc:
+        return None, [], exc.message
+    keys = [
+        asset.storage_key,
+        *(await db.scalars(select(MediaVariant.storage_key).where(MediaVariant.media_id == asset.id))),
+    ]
+    return asset, keys, None
+
+
 @router.post("/admin/facebook-posts/{post_id}/import", response_model=FacebookImportOut)
 async def import_facebook_post(
     post_id: uuid.UUID,
@@ -283,7 +344,7 @@ async def import_facebook_post(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> FacebookImportOut:
-    """照片進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。"""
+    """照片（影片貼文再加影片）進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。"""
     post = await _owned_post(db, current_user, post_id, "content.manage")
     require_scope(current_user, "media.manage", campus_keys=[post.campus_key])
     if post.status == "imported":
@@ -292,25 +353,33 @@ async def import_facebook_post(
         raise _error(
             status.HTTP_422_UNPROCESSABLE_ENTITY, "FACEBOOK_POST_NO_PICTURE", "這則貼文沒有照片，消息一定要有一張照片"
         )
-    picture_url = post.picture_url
+    picture_url, video_url = post.picture_url, post.video_url
+    settings = request.app.state.settings
+    video_path: Path | None = None
+    video_skipped: str | None = None
     # 先下載（這時還沒鎖任何列）再鎖貼文、寫入：Meta 慢的時候不卡住別人。
     async with graph.new_client(_transport(request)) as client:
         try:
-            content, content_type = await graph.download_picture(
-                client, picture_url, request.app.state.settings.media_max_bytes("image")
-            )
-        except graph.PictureError as exc:
+            content, content_type = await graph.download_picture(client, picture_url, settings.media_max_bytes("image"))
+        except graph.DownloadError as exc:
             code = status.HTTP_409_CONFLICT if exc.code == "FACEBOOK_PICTURE_EXPIRED" else status.HTTP_422_UNPROCESSABLE_ENTITY
             raise _error(code, exc.code, exc.message) from None
+        if video_url:
+            video_path, video_skipped = await _fetch_video(client, video_url, settings.media_max_bytes("video"))
 
-    post = await _owned_post(db, current_user, post_id, "content.manage", lock=True)
-    if post.status == "imported":
-        raise _error(status.HTTP_409_CONFLICT, "FACEBOOK_POST_STATUS", "這則貼文已經轉成消息了")
-    campus_key = post.campus_key
-    asset, new_keys = await _store_picture(db, request, current_user, campus_key, content, content_type)
-    storage = media_service.get_storage(request.app.state.settings)
+    storage = media_service.get_storage(settings)
+    new_keys: list[str] = []
     try:
-        article = build_article(post, str(asset.id))
+        post = await _owned_post(db, current_user, post_id, "content.manage", lock=True)
+        if post.status == "imported":
+            raise _error(status.HTTP_409_CONFLICT, "FACEBOOK_POST_STATUS", "這則貼文已經轉成消息了")
+        campus_key = post.campus_key
+        asset, new_keys = await _store_picture(db, request, current_user, campus_key, content, content_type)
+        video_asset = None
+        if video_path is not None:
+            video_asset, video_keys, video_skipped = await _store_video(db, request, current_user, campus_key, video_path)
+            new_keys = [*new_keys, *video_keys]
+        article = build_article(post, str(asset.id), str(video_asset.id) if video_asset else None)
         item = await content_service.get_or_create_content_item(db, KIND, campus_key)
         latest = None
         if item.latest_version > 0:
@@ -336,6 +405,7 @@ async def import_facebook_post(
         post.status = "imported"
         post.article_id = article["id"]
         post.media_id = asset.id
+        post.video_media_id = video_asset.id if video_asset else None
         post.handled_by = current_user.id
         post.handled_at = datetime.now(timezone.utc)
         await audit_service.log_action(
@@ -345,7 +415,12 @@ async def import_facebook_post(
             target_type="facebook_post",
             target_id=str(post.id),
             campus_key=campus_key,
-            metadata={"article_id": article["id"], "media_id": str(asset.id), "content_version": revision.version},
+            metadata={
+                "article_id": article["id"],
+                "media_id": str(asset.id),
+                "video_media_id": str(video_asset.id) if video_asset else None,
+                "content_version": revision.version,
+            },
         )
         await db.commit()
     except BaseException:
@@ -353,6 +428,14 @@ async def import_facebook_post(
         await db.rollback()
         await media_service.delete_stored_files(storage, new_keys)
         raise
+    finally:
+        if video_path is not None:
+            video_path.unlink(missing_ok=True)
     return FacebookImportOut(
-        post=_post_out(post), article_id=article["id"], article_title=article["title"], content_version=revision.version
+        post=_post_out(post),
+        article_id=article["id"],
+        article_title=article["title"],
+        content_version=revision.version,
+        video_included=video_asset is not None,
+        video_skipped_reason=video_skipped,
     )

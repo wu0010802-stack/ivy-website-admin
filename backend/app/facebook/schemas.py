@@ -16,6 +16,8 @@ class FacebookPostOut(BaseModel):
     posted_at: datetime
     permalink_url: str | None
     has_picture: bool
+    # 影片貼文（含 Reel）：轉成消息時影片會一起放進素材庫與消息內文。
+    has_video: bool
     status: PostStatus
     article_id: str | None
     handled_at: datetime | None
@@ -53,3 +55,6 @@ class FacebookImportOut(BaseModel):
     # 實際存進消息草稿的標題（去掉 emoji、【】、hashtag 後），後台提示用這個而不是原文第一行。
     article_title: str
     content_version: int
+    # 影片有沒有一起放進消息內文；沒帶進來時 video_skipped_reason 寫原因（太大、太長、格式不合）。
+    video_included: bool = False
+    video_skipped_reason: str | None = None

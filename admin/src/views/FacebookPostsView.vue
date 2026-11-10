@@ -34,7 +34,8 @@ const syncing = ref(false)
 const busyId = ref<string | null>(null)
 const expanded = ref(new Set<string>())
 const brokenPictures = ref(new Set<string>())
-const lastImported = ref<{ campus: string; title: string } | null>(null)
+// video：影片貼文的影片有沒有一起放進消息內文；沒帶進來時是後端給的原因（太大、太長、格式不合）。
+const lastImported = ref<{ campus: string; title: string; videoIncluded: boolean; videoSkipped: string | null } | null>(null)
 
 const intervalText = computed(() => {
   const seconds = data.value?.sync_seconds ?? 3600
@@ -93,7 +94,12 @@ async function importPost(post: FacebookPostOut) {
   busyId.value = post.id
   try {
     const result = await api.post<FacebookImportOut>(`/admin/facebook-posts/${post.id}/import`)
-    lastImported.value = { campus: post.campus_key, title: result.article_title }
+    lastImported.value = {
+      campus: post.campus_key,
+      title: result.article_title,
+      videoIncluded: result.video_included ?? false,
+      videoSkipped: result.video_skipped_reason ?? null,
+    }
     ElMessage.success('已加到消息草稿')
     await load()
   } catch (err) {
@@ -134,7 +140,7 @@ function markBroken(id: string) {
 
 <template>
   <div class="page page--narrow">
-    <PageHeader lead="這一校 Facebook 粉專最近的貼文。按「轉成消息草稿」會把照片收進素材庫、在這校的消息最上面加一則草稿，檢查標題與照片說明後，照平常的方式送審或發布。">
+    <PageHeader lead="這一校 Facebook 粉專最近的貼文。按「轉成消息草稿」會把照片收進素材庫（影片貼文連影片一起）、在這校的消息最上面加一則草稿，檢查標題與照片說明後，照平常的方式送審或發布。">
       <template #actions>
         <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
         <el-button
@@ -178,6 +184,8 @@ function markBroken(id: string) {
             「{{ lastImported.title }}」已加到{{ campusLabel(lastImported.campus) }}的消息草稿，官網還看不到。
             <router-link :to="{ path: '/content/campus-news', query: { campus: lastImported.campus } }">去檢查並發布</router-link>
           </template>
+          <template v-if="lastImported.videoIncluded">影片也放進內文了。轉檔要幾分鐘，轉好之後才能發布。</template>
+          <template v-else-if="lastImported.videoSkipped">影片沒有帶進來（{{ lastImported.videoSkipped }}）。要放影片的話，請到這則消息的內文自己加。</template>
         </el-alert>
 
         <el-radio-group v-model="status" class="fb-tabs" aria-label="貼文狀態">
@@ -200,6 +208,7 @@ function markBroken(id: string) {
                 @error="markBroken(post.id)"
               >
               <span v-else class="fb-post__no-picture">{{ post.has_picture ? '照片載入失敗' : '沒有照片' }}</span>
+              <el-tag v-if="post.has_video" class="fb-post__video" type="info" effect="dark" size="small">影片</el-tag>
             </div>
             <div class="fb-post__body">
               <div class="fb-post__meta">
@@ -274,6 +283,7 @@ function markBroken(id: string) {
 }
 
 .fb-post__picture {
+  position: relative;
   aspect-ratio: 4 / 3;
   border-radius: 6px;
   overflow: hidden;
@@ -286,6 +296,13 @@ function markBroken(id: string) {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* 影片貼文的照片是影片的某一格，角落標出來。 */
+.fb-post__video {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
 }
 
 .fb-post__no-picture {

@@ -1,3 +1,40 @@
+## 前台流暢度第三批：捲動先讀後寫、拍立得少畫幾幀（2026-11-10，`feature/render-jank-20261110`）
+
+使用者問「前端渲染哪裡不夠流暢」，正式站實測（LoAF、trace、CPU profile）後修。卡頓集中在首頁的孩子的一天與五校；其他頁本來就順。外觀不變：基準版與修正版同位置截圖逐像素相同（影片除外），拍立得翻面前後也相同。數字見 README 同日段落。
+
+**全站通則**
+- **捲動驅動的效果一律排進 `utils/scrollFrame.ts`**（`requestScrollFrame({ read, write })`）：同一幀所有 task 先跑完 read、再跑 write。read 只讀版面（rect、offset、`elementFromPoint`），write 只寫 DOM、ref；**不要在 rAF 裡讀 `window.scrollY`**，用傳進來的值（每幀開頭讀一次）。
+  - 原因：Chromium 讀 `scrollY` 跟讀 `offsetTop` 一樣會先更新版面（實驗：版面髒時每次約 4ms）。原本頁首、兩道簾幕、首屏揭幕、消息紙、孩子的一天淡出、環境頁圓點小路各自 scroll→rAF，排在後面的一讀就逼整頁同步重排，正式站手機 4 倍降速每次 10–48ms。
+  - 已接上：`SiteHeader`、`useCurtain`、`useHomeReveal`、`useNewsTransition`、`useHomeFooterFade`、`DayExperience` 的淡出、`environment-route` 的點亮、`CampusBoard` 的露出偵測。新增捲動效果照這個寫；`scroll-frame-20261110.spec.ts` 擋「每幀只讀一次 scrollY、讀都在第一筆寫之前」。
+  - scroll 事件處理器裡讀 `scrollY` 可以（還沒有人寫），例如 `DayExperience.scheduleFade` 判斷是否已捲動。
+  - 不適用：`useCurtain.measure` 先寫 `--own` 再讀 track 是必要的（track 高度由 `--own` 決定），只在尺寸變動時跑；30 週年 `track.ts` 自成一套迴圈，沒動。
+
+**拍立得（`utils/paperPrints.ts`）**
+- 顯影期間正面貼圖每秒最多重畫、重傳 30 次（`DEVELOP_FRAME_MS`），最後一格一定畫。顯影是 3.2 秒（手機 0.9 秒）的慢速交叉淡化，一格的差在 1%（手機 3.7%）以內。
+- **狀態沒變的幀不 render、不複製畫布**：比對變形版本、紙的旋轉與高度、反光強度與位置，都一樣就保留 view 上一張。共用 renderer 只在 render 後馬上複製到自己的 view，跳過不影響別張。新增會改變畫面的狀態（新的燈、材質參數）要一起加進 `drawn` 比對，不然那個變化畫不出來。
+- `cornerCurl.curlPoint` 每個頂點都會進來：不在裡面建閉包、不用字串鍵取欄位，sin／cos 各算一次。結果逐位元相同（`corner-curl.spec.ts`）。
+- 共用 renderer 在 three 載好後的閒置時間先建（`warmThree`）、**不給 timeout**：建 context 本身 4 倍降速 75–100ms，被逼在捲動中跑就白搬了。預建時不算使用者，最後一張卡卸掉照舊釋放。
+- `pixelRatio` 上限 3 沒動：降到 2 在手機 DPR3 少 56% 像素，但紙上的字會比旁邊的 DOM 字糊，屬畫質取捨，要業主決定。
+
+**五校淡彩速寫**
+- 水彩多邊形每 6 層讓出一次（`washBlobSteps`，原本一步算完一整團 22 層，手機 4 倍降速一步 40–80ms）。照 `washPolygons` 的順序呼叫 `watercolor.ts` 的 `washBase`、`washLayer`，random 取用順序不可改。
+
+**量過、不改**
+- 開「限時動態」：卡在 `showModal()` 的同步樣式與版面（4 倍降速 45–126ms）。拿掉 `html:has(.hsv[open]){overflow:hidden}` 量起來一樣，不是捲動鎖造成的，是 modal 讓整頁變 inert 的固有成本；要降得改掉 modal，風險大於效益。
+- 切換五校分頁：頁高改變觸發 `useCurtain.measure`（4 倍降速 58ms），一次性、且先寫後讀是必要的。
+- 手機第一張拍立得掛載仍有一個 140–230ms（4 倍降速）的長任務（量版位、畫貼圖、建場景）；要再拆得動到建場流程，之後再看。
+
+## 消息內文的影片（2026-11-10，`feature/fb-video-20261110`）
+
+使用者：「（Facebook 貼文）可以也拉影片嗎」。粉專影片貼文轉成消息時影片一起進素材庫，消息內文因此多一種「影片」區塊（`web/app/components/NewsBodyVideo.vue`）。
+
+- **點了才播**：`<video controls playsinline preload="none">`，先顯示素材庫自動抽的封面，按下播放才抓影片檔。**不自動播放、不靜音循環**（那是首屏與孩子的一天背景影片的做法，消息裡的影片有聲音、要人自己按）。
+- **大小**：直式影片（粉專 Reel 多半 9:16）不撐滿文字欄，限高 `min(72vh, 640px)`、置中；橫式跟文字欄同寬。寬高比用素材尺寸先算好（`--hn-video-ratio`），封面比影片小也不會在按下播放時跳一次大小。
+- **版本**：760px 以下用手機版轉檔（同首屏與孩子的一天的分界），其餘用桌機版；沒有轉檔版本就播原檔。
+- **影片在內文第一塊時站在封面的位置**（`NewsArticleContent.vue` 的 `leadVideo`）：粉專影片貼文的封面就是影片的某一格，封面＋影片兩個都放等於同一個畫面出現兩次。所以單篇頁改放影片、不放封面照，內文從第二塊開始；直式影片跟同一天定案的直式封面一樣，720px 以上放內文右欄（sticky，高度扣掉頁首讓控制列留在畫面裡）、更窄時在標題下方，圓角跟封面一樣 14px。封面照舊用在列表、卡片、首頁與分享圖。園方想要照片和影片都出現，就把影片區塊往下移（不在第一塊），或在內文另外加圖片。這也回應了同日最新消息那一節「Reels 的消息在封面上標示可以看影片」的待辦：單篇頁直接能播。
+- 圖說沿用內文圖片的樣式（`--fs-xs`、`--hn-muted`），置中。沒有另外做播放鈕或外框：用瀏覽器內建的控制列。
+- 素材還沒轉好或已刪除時整塊不畫，不留空框、不放「處理中」之類的狀態字。
+
 ## 最新消息列表與單篇頁（2026-11-10，`feature/news-page-ux-20261110`）
 
 使用者要「優化最新消息頁的 UI/UX」，沒先給方向；評析後直接改。**本節取代** 09-26「最新消息開放獨立網址」的列表樣式（縮圖列、五校全列的篩選）與 10-24 對 /news 空狀態的描述（多了「其他校區最近」）；網址、SEO、示意內容標法、不做滿版 hero 不變。

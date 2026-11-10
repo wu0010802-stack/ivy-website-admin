@@ -13,8 +13,8 @@ POST_STATUSES = ("new", "imported", "dismissed")
 
 class FacebookPagePost(Base):
     """各校粉專的貼文收件匣（docs/specs/2026-10-28-facebook-news-sync-design.md）。同步只寫
-    內文、照片網址、連結與抓取時間；status 以後的欄位只由後台的轉成消息／略過改。
-    picture_url 是 FB CDN 帶簽章的網址，幾天就失效，每次同步換新，不能當官網圖片用。"""
+    內文、照片與影片網址、連結與抓取時間；status 以後的欄位只由後台的轉成消息／略過改。
+    picture_url、video_url 是 FB CDN 帶簽章的網址，幾天就失效，每次同步換新，不能直接給官網用。"""
 
     __tablename__ = "facebook_page_posts"
     __table_args__ = (
@@ -30,11 +30,17 @@ class FacebookPagePost(Base):
     posted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     permalink_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     picture_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 影片貼文（含 Reel）的 mp4 網址；這種貼文的 picture_url 是影片的某一格。
+    video_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="new", server_default="new")
     # 轉成的 campus_news 消息 id；之後在消息編輯器被刪掉也不回頭清，只當紀錄。
     article_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     media_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True
+    )
+    # 轉成消息時一起放進素材庫的影片；沒有影片或影片沒帶進來就是空的。
+    video_media_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("media_assets.id", ondelete="SET NULL"), nullable=True
     )
     handled_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)

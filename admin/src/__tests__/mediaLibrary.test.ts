@@ -146,6 +146,7 @@ describe('素材引用的位置與影片長度', () => {
     expect(mediaFieldPathLabel('scenes[1].image')).toBe('第 2 個場景的照片')
     expect(mediaFieldPathLabel('articles[0].image')).toBe('第 1 則消息的封面')
     expect(mediaFieldPathLabel('articles[1].body[2].image')).toBe('第 2 則消息內文第 3 段的圖片')
+    expect(mediaFieldPathLabel('articles[0].body[0].video')).toBe('第 1 則消息內文第 1 段的影片')
     expect(mediaFieldPathLabel('unknown.path')).toBe('unknown.path')
   })
 

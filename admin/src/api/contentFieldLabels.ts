@@ -277,7 +277,7 @@ const LIST_FIELD_LABELS: Record<string, Record<string, string>> = {
   social_links: { platform: '平台', label: '顯示名稱', url: '網址' },
   // 分校資料的家長分享影片：標籤＝CampusTestimonialsEditor 每一支的表單標籤（422 定位靠標籤）。
   testimonials: { youtube_url: 'YouTube 影片網址', quote: '家長說的話', speaker: '稱呼', poster: '封面', poster_alt: '封面說明' },
-  body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', alt: '圖片說明', caption: '圖說' },
+  body: { text: '文字', url: '網址', label: '連結文字', items: '清單項目', image: '圖片', video: '影片', alt: '圖片說明', caption: '圖說' },
 }
 
 // 清單裡某一項的欄位叫法和同清單其他項不同時，依內容種類寫「清單[索引].欄位」。特色教學頁

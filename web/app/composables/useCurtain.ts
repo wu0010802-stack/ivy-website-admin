@@ -11,6 +11,7 @@
  * `--belief-own`/`--belief-stick`）。
  */
 import { readMotionViewport, type MotionViewport } from '../utils/motionViewport'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '../utils/scrollFrame'
 
 type CurtainProgress = ((progress: number | null, screen: number) => void) & { measure?: () => void }
 /** 換掉直線 clip-path 的擦除邊（day 簾幕的水彩滲接，composables/useWatercolorSeep.ts）。回傳 true 表示已自行處理這一幀（含 clip-path，useCurtain 不再寫）。 */
@@ -25,7 +26,6 @@ export function useCurtain(
   edge?: Ref<CurtainEdge | null>
 ) {
   let disposed = false
-  let frame = 0
   let measureFrame = 0
   let start = 0
   let distance = 1
@@ -39,8 +39,9 @@ export function useCurtain(
 
   const clamp = (n: number) => Math.max(0, Math.min(1, n))
 
-  function update() {
-    frame = 0
+  // 捲動時由共用排程傳入這一幀的 scrollY（utils/scrollFrame.ts）：前一道簾幕剛寫完 clip-path，
+  // 這裡再讀 window.scrollY 會逼整頁同步重排。measure 裡直接呼叫時版面剛量過，讀現值即可。
+  function update(scrollY = window.scrollY) {
     if (disposed) return
     const root = rootRef.value
     const panel = panelRef.value
@@ -54,7 +55,7 @@ export function useCurtain(
       onProgress?.(null, screen)
       return
     }
-    const progress = clamp((window.scrollY - start) / distance)
+    const progress = clamp((scrollY - start) / distance)
     if (progress === lastProgress) return
     lastProgress = progress
     // edge 接手時由它自己寫 clip-path（遮罩底下仍要裁掉，否則被遮掉的地方還會吃到點擊）
@@ -63,8 +64,9 @@ export function useCurtain(
     onProgress?.(progress, screen)
   }
 
+  const task: ScrollFrameTask = { write: update }
   function schedule() {
-    if (!disposed && !frame) frame = requestAnimationFrame(update)
+    if (!disposed) requestScrollFrame(task)
   }
 
   function measure() {
@@ -122,7 +124,7 @@ export function useCurtain(
 
   onUnmounted(() => {
     disposed = true
-    cancelAnimationFrame(frame)
+    cancelScrollFrame(task)
     cancelAnimationFrame(measureFrame)
     panelObserver?.disconnect()
     bodyObserver?.disconnect()

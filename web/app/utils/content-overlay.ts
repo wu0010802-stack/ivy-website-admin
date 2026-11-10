@@ -387,6 +387,25 @@ function legacyImage(image: string, media: MediaInfoMap): MediaImage | undefined
   return mediaImage(image, info, slotPosition({ media_id: image }, info))
 }
 
+/** 內文影片區塊：補上桌機／手機轉檔版本的網址、自動抽的封面與原始尺寸（版面先留好位置）。 */
+function newsVideoBlock(block: Extract<NewsBlock, { type: 'video' }>, media: MediaInfoMap): NewsBlock {
+  const slot = { media_id: block.video }
+  const videoSrc = slotVideoSrc(slot, media, 'desktop')
+  const info = media[block.video]
+  if (!videoSrc || !info) return { type: 'video', video: block.video, caption: block.caption }
+  const mobile = slotVideoSrc(slot, media, 'mobile')
+  return {
+    type: 'video',
+    video: block.video,
+    caption: block.caption,
+    videoSrc,
+    ...(mobile && mobile !== videoSrc ? { videoSrcMobile: mobile } : {}),
+    poster: videoPosterUrl(block.video, info),
+    width: info.width,
+    height: info.height
+  }
+}
+
 function newsArticle(a: LiveNewsArticle, where: { campus: string; campusKeys: string[] }, media: MediaInfoMap, id = a.id): NewsArticle {
   const imageMedia = legacyImage(a.image, media)
   return {
@@ -397,6 +416,7 @@ function newsArticle(a: LiveNewsArticle, where: { campus: string; campusKeys: st
     title: a.title,
     description: a.description,
     body: (a.body ?? []).map((block) => {
+      if (block.type === 'video') return newsVideoBlock(block, media)
       if (block.type !== 'image') return { ...block } as NewsBlock
       const blockMedia = legacyImage(block.image, media)
       return (blockMedia ? { ...block, imageMedia: blockMedia } : { ...block }) as NewsBlock
