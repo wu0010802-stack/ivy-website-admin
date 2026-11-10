@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 入學頁文字改白話＋章節頭與分班工具細修（main CI 部署，沒有 migration）
+
+- **內容**：`aa14bf2e`（README「入學頁文字照目標家長改成白話」「入學頁：章節頭收乾淨、流程格重排、分班工具細修」），分支 `feature/admission-ux-20261109`，推前 rebase 到 main `a621cd7d`（只有 DESIGN.md／README 兩份文件衝突，兩邊都留）。只動 web/：`public-copy.ts` 的 `ADMISSION_TA_COPY`（18 條內建文字輸出時換成白話，fixture 與後台預設不動）、`admission-faq.ts`、`AdmissionContent.vue`、`admission-passport.css`、`admission-classes.ts`。推前本機：web typecheck、vitest 127 檔 1711 項全過；dev server 上 390／1440 無溢出、無 console 錯誤。本機沒跑 stack e2e 與正式建置（交給 CI）。
+- **CI**：run 42748582382 全綠（含 E2E）、Deploy Railway production success（03:18→03:34Z）；`/release.json` 的 `base_commit` 是 `aa14bf2e`。
+- **正式站驗證**（只發 GET）：`/admission` 已出現「歡迎直接問校區」「學校會安排專人陪您走一圈」「班導師會打電話給您」「第 1 步」，「請勿」「以免」「本學年」都是 0；Playwright 390／900／1440 無橫向溢出、無頁面錯誤。
+- **沒驗**：iOS／Android 實機。
+- **待園方**：「適應期（上學前三天）」「註冊了（快樂來上學）」的時間點；園方之後在後台發布入學頁內容時，改過的句子照園方的、沒改的仍會換成白話。
+
 ## 2026-11-10 後台「使用小技巧」頁（main CI 部署，沒有 migration）
 
 - **內容**：`8c562469`（README「2026-11-10 後台「使用小技巧」頁」），分支 `feature/admin-help-20261110`（基底 main `d372b82a`），只動 admin/（新頁 `/admin/tips`、側欄最後一項）、`tests/stack`（截圖 spec、a11y 加 `/tips`）、`scripts/build-admin-tips-images.py`。截圖 32 張是拋棄式測試庫的虛構資料。推前本機：admin typecheck、vitest 全套（負載 40–58 下 4 項 5 秒逾時，單獨重跑全過）、build；stack `a11y`／`visual`／`sidebar-collapse`／`keyboard`／`roles` 52 項全過（獨立測試庫，已刪）。
