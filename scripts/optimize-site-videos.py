@@ -39,8 +39,13 @@ run_target = OUT / f'campus-run-{run_digest[:12]}.mp4'
 shutil.copyfile(run_prepared, run_target)
 manifest['campus-run'] = f'/assets/optimized/{run_target.name}'
 print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,} bytes', flush=True)
-day_graded = ROOT / 'design/day-film-color-20261025'
-day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
+# 孩子的一天的確認版：2026-11-10 起是園方校園日常片 13 鏡（design/day-film-daily-20261110），
+# 10-25 補 sRGB 標記的舞台表演版留著對照；母帶是哪一版就用那一版壓好的手機檔。
+day_versions = []
+for day_dir in ('design/day-film-daily-20261110', 'design/day-film-color-20261025'):
+    graded = ROOT / day_dir
+    variants = {item['file']: item for item in json.loads((graded / 'manifest.json').read_text())['variants']}
+    day_versions.append((graded, variants))
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片保留母檔解析度（進入視窗才載入）。
 for name, source, width, crf in [
@@ -71,9 +76,12 @@ for name, source, width, crf in [
             manifest[key] = f'/assets/optimized/{target.name}'
             print(f'{key}: 採用已確認的調色版 {target.stat().st_size:,} bytes', flush=True)
         continue
-    # 孩子的一天 2026-10-25 起是補 sRGB 標記的版本（design/day-film-color-20261025）：母帶就是它的桌機檔，
-    # 手機檔已從同一份 10-bit 中間檔壓好，直接採用，不從母帶再壓一次。
-    if name == 'day-mobile' and sha256(original.read_bytes()).hexdigest() == day_approved['day-desktop.mp4']['sha256']:
+    # 孩子的一天（2026-10-25 起）：母帶就是確認版的桌機檔，手機檔已從同一份 10-bit 中間檔壓好，
+    # 直接採用，不從母帶再壓一次。
+    day_match = next(((graded, variants) for graded, variants in day_versions
+                      if name == 'day-mobile' and sha256(original.read_bytes()).hexdigest() == variants['day-desktop.mp4']['sha256']), None)
+    if day_match:
+        day_graded, day_approved = day_match
         prepared = day_graded / 'day-mobile.mp4'
         digest = sha256(prepared.read_bytes()).hexdigest()
         if digest != day_approved[prepared.name]['sha256']:
@@ -81,7 +89,7 @@ for name, source, width, crf in [
         target = OUT / f'{name}-{digest[:12]}.mp4'
         shutil.copyfile(prepared, target)
         manifest[name] = f'/assets/optimized/{target.name}'
-        print(f'{name}: 採用已確認的標記版 {target.stat().st_size:,} bytes', flush=True)
+        print(f'{name}: 採用已確認的 {day_graded.name} 手機檔 {target.stat().st_size:,} bytes', flush=True)
         continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'
