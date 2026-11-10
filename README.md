@@ -20,6 +20,15 @@
 - **截圖 32 張**（約 0.9 MB、只在這頁載入、延遲載入）：`tests/stack/admin-tips-shots.spec.ts` 在拋棄式 e2e 測試庫建虛構家長與內容後拍，`scripts/build-admin-tips-images.py` 轉 WebP。功能畫面改了要重拍（指令在 spec 開頭）。
 - **驗證**（Node 22，本機負載 40–58）：admin `typecheck` 通過；`tips.test.ts` 13 項全過；admin 全套 172 檔 3336 過、4 項 5 秒逾時（`admissionsRecords`／`admissionsView`／`openRequestsUx`，三檔單獨重跑 88 項全過）。stack（獨立測試庫）`a11y`、`visual`、`sidebar-collapse`、`keyboard`、`roles` 52 項全過，`/admin/tips` 已加進 axe 清單；視覺基準差異在 1% 容許內沒有更新。Playwright 1440／390、總管理者與櫃台：34 條全列、32 張圖都載入、0 橫向溢出、無 console 錯誤；`#tip-notes` 直接連進來會捲到那一條；側欄搜尋「教學」第一筆是使用小技巧。
 - **沒做／沒驗**：各頁「說明」連到對應小技巧、新功能上線提示、互動式導覽；正式站畫面（截圖是測試庫，家長資料都是虛構的）；iOS 實機。
+## 2026-11-10 入學頁 UI/UX（`feature/admission-ux-20261109`，未部署）
+
+使用者要優化 `/admission`。11-09 做過一輪，使用者 11-10 說不要，已全部還原；這一段只有 11-10 留下的修改（worktree 已快轉到 main `d372b82a`）。規則見 DESIGN.md 最上方一段。
+
+- 章節頭改單欄、刪兩句空話、問答大標收成一行；流程「第 N 格」→「第 N 步」；1100px 以下流程格印章放標題右邊、說明跨欄；分班工具空狀態不寫操作說明、「今年學年度」收成一行、還沒滿 2 歲那句不再斷在「2／歲」、之後每一年附西元、出生區間標西元；學費那題列各校電話；手機叮嚀與須知 16px。
+- **驗證**（Node 22，本機 dev server fixture 模式 port 3173）：web typecheck 通過；web 單元 126 檔 1707 項全過（入學頁新增 1 項、改 1 項）；Playwright 320／360／390／430／760／768／1024／1280／1440 九個寬度沒有橫向溢出、沒有 console 錯誤；axe（WCAG 2.2 AA）桌機、平板、手機都 0 項；桌機與手機逐屏截圖看過。大標沒有新字，LINE Seed 字表不用重收。
+- **同日再做：文字照目標家長改成白話**（使用者：「根據我們的 TA 優化文字內容」）。18 條內建文字（首屏那句、流程說明、老師的叮嚀、制服、接送、註冊、津貼表小字）在官網輸出時換成口語短句（`public-copy.ts` 的 `ADMISSION_TA_COPY`，fixture 不動），問答 5 題換掉行話；只改說法、數字與事實不變。同日再照使用者調兩次語氣：先「客氣一點」（請家長做的事加「請／麻煩／建議／歡迎」），再「更正式一點」（內文對家長說話用「您」、不寫「爸爸媽媽」，共 4 處）。新增 `admission-ta-copy.spec.ts` 4 項；web 單元 127 檔 1711 項全過、typecheck 通過；390／1440 截圖看過、無溢出無 console 錯誤。
+- 未驗證：iOS／Android 實機；stack e2e 沒在本機跑；正式建置沒跑。
+- 被還原的兩份修改留著備查（gitignore）：`output/admission-ux-20261109-pre-merge.patch`（11-09 那輪）、`output/admission-r1r2-combined-20261110.patch`（兩輪疊在一起）。
 
 ## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（`feature/web-tech-audit-20261109`）
 

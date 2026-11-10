@@ -107,7 +107,8 @@ export function classPlan(birth: YMD, currentYear: number, today: YMD = taipeiYm
 
   let next: string[]
   if (status === 'enrolled') {
-    next = rows.slice(index + 1).map((row) => row === rows.at(-1) ? `${row.year} 學年度（${row.year + 1911} 年 8 月）上小一` : `${row.year} 學年度升${row.name}`)
+    // 2026-11-10：每一行都附西元（原本只有小一那行有），家長不用自己換算民國學年度。
+    next = rows.slice(index + 1).map((row) => `${row.year} 學年度（${row.year + 1911} 年 8 月）${row === rows.at(-1) ? '上小一' : `升${row.name}`}`)
   } else if (status === 'young') next = [`照生日分班，${cohort + 3} 學年度讀幼幼班，之後每年升一班`, `${cohort + 3} 學年度以前先來上學，編在哪一班，參觀時和校區確認`]
   else next = now ? [`${currentYear} 學年度讀小一`] : []
   const position = status === 'enrolled' ? index : status === 'young' ? 0 : rows.length - 1

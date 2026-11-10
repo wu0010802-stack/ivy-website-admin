@@ -9,6 +9,8 @@
 // 內容（步驟、須知、金額、退費）由後台 admission_content 管理；區塊大標、印章上的固定字寫在這裡。
 // 2026-11-03：第 5 頁「收退費辦法」收進最後一章「常見問題」（utils/admission-faq.ts）：補助那題預設打開，
 // 退費條款變成一題、預設收合；津貼表、補助券、退費條款照樣讀後台內容。
+// 2026-11-10 UI/UX：章節頭改單欄、刪兩句空話；流程「第 N 格」改「第 N 步」；分班工具空狀態不寫操作說明、
+// 還沒滿 2 歲那句不斷在「2／歲」、出生區間標西元；學費那題列各校電話。規則見 DESIGN.md 最上面一段。
 import { admissionHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, CLASS_BY_OFFSET, classPlan, classRanges, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
 import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
@@ -285,11 +287,10 @@ onBeforeUnmount(() => {
         <div class="ap-runhead"><span>{{ chapterOf('process')?.no }}・入學流程</span><span>第 {{ chapterOf('process')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="process-title">每走一步<br>就蓋一個章</h2>
-          <p>每一步都有老師陪著確認，不確定的地方，參觀時直接問我們。</p>
         </div>
         <ol class="ap-visas">
           <li v-for="(step, i) in admission.steps" :key="i" class="ap-visa">
-            <div class="ap-visa-head"><span class="ap-visa-no">第 {{ i + 1 }} 格</span><span v-if="step.when" class="ap-visa-when">{{ step.when }}</span></div>
+            <div class="ap-visa-head"><span class="ap-visa-no">第 {{ i + 1 }} 步</span><span v-if="step.when" class="ap-visa-when">{{ step.when }}</span></div>
             <h3>{{ step.title }}</h3>
             <p v-if="step.text">{{ step.text }}</p>
             <div class="ap-stamp-host ap-visa-stamp">
@@ -311,7 +312,7 @@ onBeforeUnmount(() => {
         <div class="ap-runhead"><span>{{ chapterOf('classes')?.no }}・分班對照</span><span>第 {{ chapterOf('classes')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="classes-title">寶貝何時入學？</h2>
-          <p>9 月 2 日到隔年 9 月 1 日出生為同一屆。</p>
+          <p>9 月 2 日到隔年 9 月 1 日出生的孩子，讀同一屆。</p>
         </div>
         <!-- 首屏「查寶貝讀哪一班」直接落在生日欄（2026-10-12）：落在章節開頭時，手機選完生日答案在畫面外。 -->
         <div id="birthday-tool" class="ap-datapage">
@@ -330,17 +331,17 @@ onBeforeUnmount(() => {
             </div>
             <div class="ap-answer" :class="{ empty: !plan }" aria-live="polite">
               <template v-if="plan">
-                <p class="ap-answer-lead">
+                <p class="ap-answer-lead" :class="{ long: plan.status === 'young' && !!plan.turnsTwo && !plan.turnsTwo.reached }">
                   <template v-if="plan.status === 'enrolled'">{{ currentYear }} 學年度，<span class="ap-nowrap">寶貝讀<em>{{ plan.rows[plan.position]!.name }}</em>。</span></template>
                   <template v-else-if="plan.turnsTwo?.reached">寶貝<em>已經滿 2 歲</em>，<span class="ap-nowrap">有名額就可以來上學。</span></template>
-                  <template v-else-if="plan.turnsTwo">寶貝 <em>{{ plan.turnsTwo.year }} 年 {{ plan.turnsTwo.month }} 月 {{ plan.turnsTwo.day }} 日</em>滿 2 歲，之後<span class="ap-nowrap">有名額就可以來上學。</span></template>
+                  <!-- 兩段各自不斷行（2026-11-10）：手機原本斷成「…滿 2／歲，之後／有名額就可以來上學。」；窄螢幕字級跟著欄寬縮（.ap-answer-lead.long） -->
+                  <template v-else-if="plan.turnsTwo"><span class="ap-nowrap">寶貝 <em>{{ plan.turnsTwo.year }} 年 {{ plan.turnsTwo.month }} 月 {{ plan.turnsTwo.day }} 日</em>滿 2 歲，</span><span class="ap-nowrap">之後有名額就可以來上學。</span></template>
                   <template v-else>寶貝已到國小年齡囉。</template>
                 </p>
                 <ul v-if="plan.next.length" class="ap-answer-next">
                   <li v-for="line in plan.next" :key="line">{{ line }}</li>
                 </ul>
               </template>
-              <p v-else class="ap-answer-lead">輸入生日，下面會標出寶貝每一年讀哪一班。</p>
             </div>
           </div>
           <div class="ap-stampzone" :class="{ stamped: !!resultStamp }" aria-hidden="true">
@@ -349,7 +350,6 @@ onBeforeUnmount(() => {
                 <PassportStamp v-if="stampsOn && resultStamp" :key="resultStamp.key" kind="round" :ring="resultStamp.ring" :lines="resultStamp.lines" :mode="resultStamp.mode" :tone="resultStamp.tone" :size="230" :rot="-9" data-delay="0.08" />
               </Transition>
             </div>
-            <p class="ap-stamp-hint">輸入生日後<br>在這裡蓋章</p>
           </div>
           <ol class="ap-slots" :class="{ empty: !plan }" aria-label="班別">
             <li v-for="(station, i) in stations" :key="station.offset" class="ap-slot" :data-state="slotState(i)">
@@ -373,7 +373,7 @@ onBeforeUnmount(() => {
             </div>
             <div class="ap-ranges">
               <div v-for="(range, i) in selectedStation.ranges" :key="i" class="ap-range" :class="{ mine: isMine(selectedStation.offset, years[i]!) }">
-                <span class="ap-label">{{ years[i] }} 學年度・{{ i ? '下學年' : '本學年' }}</span>
+                <span class="ap-label">{{ years[i] }} 學年度・{{ years[i]! + 1911 }} 年 8 月起</span>
                 <strong>{{ range.roc }}</strong>
                 <small>{{ range.ad }}</small>
                 <span v-if="isMine(selectedStation.offset, years[i]!)" class="ap-range-mark">
@@ -394,7 +394,7 @@ onBeforeUnmount(() => {
               <thead>
                 <tr>
                   <th scope="col">班別</th>
-                  <th v-for="(year, i) in years" :key="year" scope="col">{{ year }} 學年度<small>{{ i ? '下學年' : '本學年' }}</small></th>
+                  <th v-for="year in years" :key="year" scope="col">{{ year }} 學年度<small>{{ year + 1911 }} 年 8 月起</small></th>
                 </tr>
               </thead>
               <tbody>
@@ -418,7 +418,6 @@ onBeforeUnmount(() => {
         <div class="ap-runhead"><span>{{ chapterOf('newcomer')?.no }}・新生準備</span><span>第 {{ chapterOf('newcomer')?.page }} 頁</span></div>
         <div class="ap-head">
           <h2 id="newcomer-title">新生入學二部曲</h2>
-          <p>先適應、再註冊。</p>
         </div>
         <div v-if="admission.phases.length" class="ap-phases">
           <article v-for="(phase, p) in admission.phases" :key="p" class="ap-phase">
@@ -491,7 +490,7 @@ onBeforeUnmount(() => {
       <div class="ap-wrap">
         <div class="ap-runhead"><span>{{ chapterOf('faq')?.no }}・常見問題</span><span>第 {{ chapterOf('faq')?.page }} 頁</span></div>
         <div class="ap-head">
-          <h2 id="faq-title">入學前<br>爸媽常問的事</h2>
+          <h2 id="faq-title">爸媽常問的事</h2>
         </div>
         <div class="ap-faq">
           <section v-for="(group, g) in faqGroups" :key="group.title" class="ap-faq-group" :aria-labelledby="`ap-faq-group-${g}`">
@@ -546,7 +545,7 @@ onBeforeUnmount(() => {
                             </div>
                           </div>
                         </div>
-                        <p class="ap-faq-fine">實際金額以園方開立的退費單據為準。</p>
+                        <p class="ap-faq-fine">實際金額以學校開的退費單據為準。</p>
                       </template>
 
                       <ul v-else-if="item.slot === 'phones' && phones.length" class="ap-faq-phones">

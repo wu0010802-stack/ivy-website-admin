@@ -42,7 +42,8 @@ describe('分班對照（舊官網分班表規則）', () => {
   it('成長軌道：讀幼兒園停在今年那一站，還沒入學停幼幼班、已上小學停小一，並列出之後每一年', () => {
     expect(classPlan({ year: 2022, month: 5, day: 10 }, 115)).toMatchObject({
       cohort: 110, status: 'enrolled', position: 2,
-      next: ['116 學年度升大班', '117 學年度（2028 年 8 月）上小一']
+      // 2026-11-10：每一行都附西元
+      next: ['116 學年度（2027 年 8 月）升大班', '117 學年度（2028 年 8 月）上小一']
     })
     expect(classPlan({ year: 2024, month: 10, day: 3 }, 115)).toMatchObject({
       cohort: 113, status: 'young', position: 0, next: ['照生日分班，116 學年度讀幼幼班，之後每年升一班', '116 學年度以前先來上學，編在哪一班，參觀時和校區確認']
