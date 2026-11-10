@@ -9,6 +9,7 @@
  * media(.studio-media)/actions(.studio-actions)。
  */
 import { readMotionViewport, type MotionViewport } from '../utils/motionViewport'
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '../utils/scrollFrame'
 
 export interface HomeRevealRefs {
   root: Ref<HTMLElement | null>
@@ -22,7 +23,6 @@ export interface HomeRevealRefs {
 
 export function useHomeReveal(refs: HomeRevealRefs) {
   let disposed = false
-  let frame = 0
   let measureFrame = 0
   let start = 0
   let distance = 1
@@ -41,14 +41,14 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     if (el.inert !== value) el.inert = value
   }
 
-  function update() {
-    frame = 0
+  // scrollY 由共用排程傳入（同 useCurtain，utils/scrollFrame.ts）；measure 裡直接呼叫時讀現值。
+  function update(scrollY = window.scrollY) {
     if (disposed) return
     const { root, hero, copy, image, media, actions } = refs
     if (!root.value || !hero.value || !copy.value || !image.value || !media.value || !actions.value) return
 
     const animated = root.value.dataset.motion !== 'still'
-    const progress = animated ? clamp((window.scrollY - start) / distance) : 0
+    const progress = animated ? clamp((scrollY - start) / distance) : 0
     if (progress === lastProgress) return
     lastProgress = progress
     root.value.classList.toggle('is-revealing', animated && progress > 0.08)
@@ -69,8 +69,9 @@ export function useHomeReveal(refs: HomeRevealRefs) {
     }
   }
 
+  const task: ScrollFrameTask = { write: update }
   function schedule() {
-    if (!disposed && !frame) frame = requestAnimationFrame(update)
+    if (!disposed) requestScrollFrame(task)
   }
 
   function measure() {
@@ -129,7 +130,7 @@ export function useHomeReveal(refs: HomeRevealRefs) {
 
   onUnmounted(() => {
     disposed = true
-    cancelAnimationFrame(frame)
+    cancelScrollFrame(task)
     cancelAnimationFrame(measureFrame)
     copyObserver?.disconnect()
     window.removeEventListener('scroll', schedule)

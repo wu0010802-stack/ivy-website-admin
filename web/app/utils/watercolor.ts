@@ -49,10 +49,21 @@ export function deform(random: () => number, points: Point[], depth: number, var
   return pts
 }
 
-/** 一團顏料的所有層：基底變形 2 輪，每層各自再變形 3 輪。 */
+/** 一團顏料的基底：橢圓變形 2 輪。 */
+export function washBase(random: () => number, cx: number, cy: number, rx: number, ry: number): Point[] {
+  return deform(random, ellipse(random, cx, cy, rx, ry), 2, 0.55)
+}
+/** 一團顏料的其中一層：基底再變形 3 輪。 */
+export function washLayer(random: () => number, base: Point[]): Point[] {
+  return deform(random, base, 3, 0.32)
+}
+/**
+ * 一團顏料的所有層：基底變形 2 輪，每層各自再變形 3 輪。
+ * 要分段算（campusSketch.ts 閒置時間一次算幾層）就照同樣順序呼叫 washBase、washLayer，random 取用順序相同、結果逐位元一樣。
+ */
 export function washPolygons(random: () => number, cx: number, cy: number, rx: number, ry: number, layers: number): Point[][] {
-  const base = deform(random, ellipse(random, cx, cy, rx, ry), 2, 0.55)
-  return Array.from({ length: layers }, () => deform(random, base, 3, 0.32))
+  const base = washBase(random, cx, cy, rx, ry)
+  return Array.from({ length: layers }, () => washLayer(random, base))
 }
 
 export interface WashSpec { pigment: Pigment, fx: number, fy: number, frx: number, fry: number, alpha: number, layers: number }

@@ -129,21 +129,27 @@ export function curlPoint(p: CurlPoint, curl: Curl, time = 0): void {
   const fj = Math.min(u, 1) * CURL_SAMPLES
   const j0 = Math.min(CURL_SAMPLES - 1, Math.floor(fj))
   const jb = fj - j0
+  // 每個頂點都會進來（每張卡每次變形約 2.5k 點）：直接取三個欄位、sin／cos 各算一次。
+  // 原本每點新建一個 pick 閉包、用字串鍵取欄位，正式站桌機捲過一次孩子的一天就佔 180ms（2026-11-10 CPU profile）。
+  // 內插順序與運算跟原本逐項相同，結果逐位元一樣（tests/corner-curl.spec.ts）。
   const a = curl.tables[k0]!
   const b = curl.tables[k0 + 1]!
-  const pick = (key: keyof CurlTable) => lerp(lerp(a[key][j0]!, a[key][j0 + 1]!, jb), lerp(b[key][j0]!, b[key][j0 + 1]!, jb), kb)
-  let x = pick('x')
-  let z = pick('z')
-  const th = pick('angle')
+  const ax = a.x, az = a.z, aa = a.angle
+  const bx = b.x, bz = b.z, ba = b.angle
+  let x = lerp(lerp(ax[j0]!, ax[j0 + 1]!, jb), lerp(bx[j0]!, bx[j0 + 1]!, jb), kb)
+  let z = lerp(lerp(az[j0]!, az[j0 + 1]!, jb), lerp(bz[j0]!, bz[j0 + 1]!, jb), kb)
+  const th = lerp(lerp(aa[j0]!, aa[j0 + 1]!, jb), lerp(ba[j0]!, ba[j0 + 1]!, jb), kb)
+  const cos = Math.cos(th)
+  const sin = Math.sin(th)
   if (u > 1) {
-    x += (u - 1) * Math.cos(th)
-    z += (u - 1) * Math.sin(th)
+    x += (u - 1) * cos
+    z += (u - 1) * sin
   }
   x *= curl.reach
   z *= curl.reach
   // 前一段留下的 z 沿這一段的局部法線一起轉
-  const along = x - p.z * Math.sin(th)
+  const along = x - p.z * sin
   p.x = curl.ox - curl.ny * t + curl.nx * along
   p.y = curl.oy + curl.nx * t + curl.ny * along
-  p.z = z + p.z * Math.cos(th)
+  p.z = z + p.z * cos
 }

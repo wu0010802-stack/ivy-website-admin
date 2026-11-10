@@ -17,7 +17,7 @@
  * 自動輪播的預覽線稿（paintSketchStill 直接畫）和換到中央後的第一幀（經 scratch）也因此不同，不能拿來互相代替。
  */
 import { decodedBitmap } from './decoded-bitmap'
-import { bloomCanvas, grainCanvas, seededRandom, washPolygons, type Point } from './watercolor'
+import { bloomCanvas, grainCanvas, seededRandom, washBase, washLayer, type Point } from './watercolor'
 
 export interface SketchRegistration { image: string, photo: [number, number], left: number, top: number, width: number, height: number }
 export const SKETCH_REGISTRATION: Record<string, SketchRegistration> = {
@@ -264,14 +264,29 @@ function* washSteps(plan: WashPlan, campusKey: string, g: SketchGeometry, hasSky
   }).sort((a, b) => Math.hypot(a.x - cx, a.y - cy) - Math.hypot(b.x - cx, b.y - cy))
   for (const [i, spot] of spots.entries()) {
     yield
-    plan.blobs.push(toStroke(WASH_START + i * WASH_STAGGER, washPolygons(random, spot.x, spot.y, spot.rx, spot.ry, 22)))
+    plan.blobs.push(toStroke(WASH_START + i * WASH_STAGGER, yield* washBlobSteps(random, spot.x, spot.y, spot.rx, spot.ry, 22)))
   }
   // 天空：兩團很淡的天藍，淡彩速寫常見的「隨手刷一筆天」
   if (!hasSky) return
   for (const [i, fx] of [0.3, 0.72].entries()) {
     yield
-    plan.skies.push(toStroke(WASH_START + 400 + i * 200, washPolygons(random, lx + lw * fx, ly + lh * 0.14, lw * 0.26, lh * 0.12, 18)))
+    plan.skies.push(toStroke(WASH_START + 400 + i * 200, yield* washBlobSteps(random, lx + lw * fx, ly + lh * 0.14, lw * 0.26, lh * 0.12, 18)))
   }
+}
+/**
+ * 一團顏料分段算（2026-11-10）：每 WASH_LAYERS_PER_STEP 層讓出一次。原本一步算完一整團 22 層（約七千多次高斯亂數），
+ * 手機 4 倍降速一步就 40–80ms，閒置時間裡「至少做一步」加上 timeout 1000，會在捲向五校時擠掉好幾幀。
+ * 照 washPolygons 的順序呼叫 washBase、washLayer，random 取用順序不變，座標逐位元相同。
+ */
+const WASH_LAYERS_PER_STEP = 6
+function* washBlobSteps(random: () => number, cx: number, cy: number, rx: number, ry: number, layers: number): Generator<void, Point[][]> {
+  const base = washBase(random, cx, cy, rx, ry)
+  const polys: Point[][] = []
+  for (let k = 0; k < layers; k++) {
+    if (k && k % WASH_LAYERS_PER_STEP === 0) yield
+    polys.push(washLayer(random, base))
+  }
+  return polys
 }
 function planJob(campusKey: string, g: SketchGeometry, hasSky: boolean) {
   const key = `${campusKey}|${g.lx}|${g.ly}|${g.lw}|${g.lh}|${hasSky}`

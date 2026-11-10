@@ -3,6 +3,8 @@
 // 圓點是 <svg class="renv-route"> 裡的 circle，純裝飾（aria-hidden）；沒有 JS 時版面與文字照常，只是沒有圓點。
 // 位置用 offset 累加量：不受進場動畫的 transform 影響。捲到視窗 80% 的線才一顆顆亮起；減少動態時一次全亮。
 
+import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from './scrollFrame'
+
 type Point = [number, number]
 export interface RouteSegment { d: string; color: string }
 /** 照片框在小路宿主（<ol>）裡的水平中心與上下緣 */
@@ -162,15 +164,16 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
     if (plans.length) tick()
   }
 
-  let raf = 0
-  const tick = () => {
-    if (reducedMotion || raf) return
-    raf = requestAnimationFrame(() => {
-      raf = 0
+  // 讀寫分開排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10）：先量完每條路線的位置，再一起點亮。
+  // 原本逐條「量一條、亮一條」，第二條起每次量都要先把上一條剛加的 class 算進樣式（手機 4 倍降速一幀 48ms）。
+  let tops = new Map<Route, number>()
+  const frameTask: ScrollFrameTask = {
+    read() {
+      tops = new Map(routes.filter((r) => r.dots.length).map((r) => [r, r.host.getBoundingClientRect().top]))
+    },
+    write() {
       const line = innerHeight * 0.8
-      for (const r of routes) {
-        if (!r.dots.length) continue
-        const top = r.host.getBoundingClientRect().top
+      for (const [r, top] of tops) {
         let target = 0
         for (let i = r.dots.length - 1; i >= 0; i--) if (top + r.dots[i]!.y < line) { target = i + 1; break }
         if (target <= r.shown) continue
@@ -181,7 +184,10 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
         }
         r.shown = target
       }
-    })
+    }
+  }
+  const tick = () => {
+    if (!reducedMotion) requestScrollFrame(frameTask)
   }
 
   // observe() 之後一定會先送一次初始通知；字型已就緒時 fonts.ready 也馬上回來。這兩次版面多半沒變，relayout 會略過。
@@ -203,7 +209,7 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
     refresh: collect,
     destroy() {
       ro?.disconnect()
-      cancelAnimationFrame(raf)
+      cancelScrollFrame(frameTask)
       removeEventListener('scroll', onScroll)
       removeEventListener('resize', onResize)
     }
