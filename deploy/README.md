@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 粉專影片貼文連影片一起轉成消息（main CI 部署，migration `c4e9a2b7d815`）
+
+- **內容**：`88a58ee5`（README「2026-11-10 粉專影片貼文連影片一起轉成消息」），分支 `feature/fb-video-20261110`，併入 main `dbb2953a` 後壓成單一提交。migration `c4e9a2b7d815`（parent `a7d3f8c21e60`）只在 `facebook_page_posts` 加 `video_url`、`video_media_id` 兩個可空欄位，不改既有資料，照備份閘門不需先備份。沒有新環境變數，現有權杖與權限就拿得到影片檔、不用重新授權。推前本機：後端全套 5000 過 1 略過、admin vitest 173 檔（30 條高負載逾時，放寬逾時重跑全過）、`npm run test:website` 131 檔 1760 過、web／admin typecheck、`contract:check`；拋棄式測試庫＋義華粉專真實資料實測兩輪（同步→影片貼文轉草稿→背景轉檔→發布→官網四種寬度播放）。stack e2e 沒在本機跑。
+- **CI**：run 42775969754 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（07:41→07:45Z）；`/release.json` 的 `base_commit` 是 `88a58ee5`。
+- **正式站驗證**（只發 GET、擋掉遙測；另讀 api log）：api log 有 `Running upgrade a7d3f8c21e60 -> c4e9a2b7d815` 與 `Database schema ready: c4e9a2b7d815`；部署後第一輪同步（07:44Z）兩個 Graph 請求都是 200，`published_posts` 的 `fields` 已帶 `attachments{media_type,media{source}}`，最近 400 行 log 沒有 token。health 200，`/`、`/news`、`/admin/` 200。已發布的萬聖節消息頁（`/news/yihua:fb-…`）1440／390：封面 1 張、內文 5 段、沒有橫向溢出、沒有頁面錯誤，樣式表已有 `.np-cover-video` 與 `--hn-video-ratio`。後台 `FacebookPostsView` 的 chunk 有「影片也放進內文了」「影片沒有帶進來」，消息編輯器的 chunk 有「影片下方文字」。
+- **沒驗**：登入正式後台看收件匣的「影片」標示、實際把一則影片貼文轉成草稿並發布（要本人帳號）；正式庫 `video_url` 的筆數（`railway ssh` 會被自動模式擋，只看得到同步請求 200）；iOS／Android 實機；橫式影片與超過上限的影片沒有真實資料。
+- **注意**：萬聖節那則是影片上線前就轉成消息的，不會自動補上影片（已轉成消息的貼文不能再轉一次）。Reel 配的音樂多半是 Meta 音樂庫授權，只涵蓋在 Meta 平台上播，發布前請園方確認。
+
 ## 2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3（main CI 部署，沒有 migration）
 
 - **內容**：`cc06c5a1`（README「2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3」），worktree `about-ta-20261110` 快轉到 main `1a1fdac0` 後直接疊上去，沒有衝突。`about-hero` 母檔裁成 1600×1200（WebP `ecfe7c085bad`、AVIF `46d315c72e09`，舊雜湊十個衍生檔刪掉）、`.abh-hero-art .abh-card{--ar:4/3}`、`ABOUT_HERO_SIZES` 改 `calc(100vw - 40px), 700px`；後台關於頁首屏照片的說明與焦點預覽比例改 4:3。
