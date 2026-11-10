@@ -6,12 +6,13 @@
 |---|---|---|
 | `ivy-30th-film-1080p-master.mp4` | 1920×1080、30 fps、H.264 High CRF 16、AAC 320k、2:24.000、356 MB（約 19.8 Mb/s） | 存檔、活動現場大螢幕、YouTube 上傳原檔 |
 | `ivy-30th-film-1080p-web.mp4` | 同上，CRF 20、AAC 192k、92 MB（約 5.1 Mb/s） | Facebook、LINE、官網嵌入 |
-| `ivy-30th-film-vertical-master.mp4` | 1080×1920（9:16）、其餘同主片 | IG Reels、FB／LINE 限時動態、YouTube Shorts 原檔 |
-| `ivy-30th-film-vertical-web.mp4` | 同上，CRF 20、AAC 192k | 手機傳送 |
+| `ivy-30th-film-vertical-master.mp4` | 1080×1920（9:16）、其餘同主片，350 MB（約 19.5 Mb/s） | IG Reels、FB／LINE 限時動態、YouTube Shorts 原檔 |
+| `ivy-30th-film-vertical-web.mp4` | 同上，CRF 20、AAC 192k、95 MB（約 5.3 Mb/s） | 手機傳送 |
 | `poster-16x9.jpg`、`poster-9x16.jpg` | 1920×1080、1080×1920 | 影片封面、社群縮圖 |
 
-聲音：約 -14 LUFS（YouTube、Facebook、IG 的平台標準；實測主片 -14.3、網路版 -14.4），真峰值 ≤ -1 dBTP
-（實測 -1.4／-1.0，AAC 編碼後量）；色彩 BT.709；整片有很輕的底片顆粒與暗角。
+四個檔都是 144.000 秒、4320 格。聲音約 -14 LUFS（YouTube、Facebook、IG 的平台標準；實測主片 -14.3、網路版 -14.4），
+真峰值 ≤ -1 dBTP（實測 -1.4／-1.0（橫）、-1.4／-1.1（直），AAC 編碼後量）；色彩 BT.709；整片有很輕的底片顆粒與暗角。
+直式 9:16 不是從橫式裁的：同一條時間軸重新排版，影片鏡頭從 4K 原檔另外裁直式框並重新補幀。
 
 ## 貼文說明（可直接貼，依平台調整）
 
