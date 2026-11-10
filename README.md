@@ -1,3 +1,15 @@
+## 2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3（`feature/about-ta-20261110`）
+
+使用者截圖 /about 首屏：「這張照片的左邊有點空」。修掉背對鏡頭的小孩之後，照片左邊約三成只剩兩根木柱和一塊樹叢，人都擠在右邊。做了三種裁法套進頁面對照（A 4:3／B 維持 3:2／C 5:4，都是把木柱整段裁掉），使用者選 A。
+
+- **照片**：`web/public/assets/about-hero.webp` 由修圖母檔（2000×1333）裁 x 392–2000、y 41–1247，縮成 1600×1200（q92）；木柱整段不留，老師頭頂與前面女孩衣服上的校名都保留。`scripts/optimize-site-images.py --only about-hero` 重產 480／800／1200／1600（WebP `ecfe7c085bad`、AVIF `46d315c72e09`），舊雜湊十個衍生檔已刪。
+- **照片框**：`.abh-hero-art .abh-card` 的 `--ar` 3/2 → 4/3（桌機、手機同一個比例）。桌機 1440 寬照片 694×463 → 694×521，首屏高 57px；1288×800 的視窗章節索引會落到第一屏下緣之外（使用者看過對照後選的）。
+- **`ABOUT_HERO_SIZES` 一併更正**：`calc(100vw - 68px), 560px` → `calc(100vw - 40px), 700px`。同日改乾淨留白時拿掉卡紙框、欄寬改 5：8，照片從約 545px 變寬到 694px，sizes 沒跟著改，桌機 DPR 2 只抓到 1200w；現在抓 1600w。`page-hero.spec.ts` 加一條：桌機那一段不得小於 694px。
+- **後台**：關於頁首屏照片的說明與焦點預覽比例改成 4:3（`AboutPageView.vue`、`aboutPageDraft.ts`）。園方自己上傳的首屏照片也會照 4:3 裁。
+- **工作檔**（Desktop checkout）：對照圖 `output/about-hero-crop-20261110/`（`desktop.jpg`、`mobile.jpg`、`final-a.jpg`）；4:3 成品另存 `design/about-hero-retouch-20261110/about-hero-crop-4x3.webp`。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 130 檔 1750 項全過；admin `aboutPage.test.ts` 20 項過、`vue-tsc` 通過（依賴借 worktree `fb-video-20261110` 的，同一份 lock）；本機 dev server（fixture 模式）Playwright 1000／1288／1440／1920 與 390／768：載到新雜湊的 AVIF、比例 1.333、沒有 4xx、沒有橫向溢出，截圖看過。
+- 未驗證：iOS／Android 實機；stack e2e（axe）與正式建置沒在本機跑。
+
 ## 2026-11-10 首頁「把每個孩子 放在心上」照片調亮（`feature/home-about-brighten-20261110`）
 
 使用者截圖首頁關於段那張照片（崇德校操場、孩子跑向鏡頭）：「可以試著幫我把這張照片調亮嗎」。做了輕／中／強三個強度的對照，使用者選「中」。

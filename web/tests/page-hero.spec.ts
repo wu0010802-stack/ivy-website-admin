@@ -15,9 +15,12 @@ describe('內頁 hero 的 sizes', () => {
   it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('aboutHeroAttrs(site.value.aboutPage)')
     expect(read('../app/components/AboutContent.vue')).toContain('aboutHeroAttrs(page)')
-    // 2026-11-03 起母檔與卡紙都是 3:2，不裁，sizes 照框寬寫；母檔換比例時 sizes 要乘上裁掉的倍數
+    // 2026-11-10 起母檔與照片框都是 4:3（11-03～11-10 是 3:2），不裁，sizes 照框寬寫；母檔換比例時 sizes 要乘上裁掉的倍數
     const { width, height } = images['about-hero']!
-    expect(Math.abs(width / height - 1.5)).toBeLessThan(0.01)
+    expect(Math.abs(width / height - 4 / 3)).toBeLessThan(0.01)
+    expect(read('../app/assets/css/about.css')).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:4\/3/)
+    // 桌機照片最寬 (1200 − 72) × 8/13 ≈ 694px；寫小了 DPR 2 會抓到小一級的圖而糊
+    expect(Number(ABOUT_HERO_SIZES.match(/, (\d+)px$/)![1])).toBeGreaterThanOrEqual(694)
     expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(100vw - \d+px\), \d+px$/)
   })
 

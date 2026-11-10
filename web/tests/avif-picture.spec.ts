@@ -9,7 +9,7 @@ import manifest from '../app/generated/image-manifest.json'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 import ScopedHost from './fixtures/scoped-picture-host.vue'
 import { aboutHeroAttrs, curriculumHeroAttrs, heroImageAttrs, mediaImageAttrs, pickImage, type MediaImage } from '../app/utils/media-image'
-import { admissionHeroImage, environmentHeroImage, heroPreloadLink, responsiveImage } from '../app/utils/responsive-image'
+import { ABOUT_HERO_SIZES, admissionHeroImage, environmentHeroImage, heroPreloadLink, responsiveImage } from '../app/utils/responsive-image'
 import { responsiveTourImage } from '../app/utils/tour-image'
 import { prefetchImage } from '../app/utils/avif-support'
 
@@ -172,7 +172,7 @@ describe('<ResponsivePicture>', () => {
 
 describe('首屏預載', () => {
   it('hero 有 AVIF：預載 avifSrcset、type=image/avif，href／imagesizes／fetchpriority 照舊', () => {
-    const hero = responsiveImage('about-hero', '(max-width: 900px) calc(100vw - 68px), 560px')
+    const hero = responsiveImage('about-hero', ABOUT_HERO_SIZES)
     const link = heroPreloadLink(hero)
     expect(link).toMatchObject({ rel: 'preload', as: 'image', href: '/assets/about-hero.webp', imagesizes: hero.sizes, fetchpriority: 'high', type: 'image/avif' })
     expect(link.imagesrcset).toBe(hero.avifSrcset)

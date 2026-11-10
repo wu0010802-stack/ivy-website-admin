@@ -11,10 +11,10 @@ export const ABOUT_CHAPTER_HINTS = ['第一章', '第二章', '第三章', '第�
 // 官網內建照片的代號（web/public/assets/<代號>.webp，同 AboutContent.vue）。
 export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', hope: 'about-together' } as const
 
-// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏一張卡紙 3:2（.abh-hero-art .abh-card 用 --ar 改 3:2，
-// 2026-11-03 拿掉後排小卡），各寬度一樣。紙房子窗戶（.abh-window img）是 4:3。
+// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏一張照片 4:3（.abh-hero-art .abh-card 的 --ar；
+// 2026-11-03 拿掉後排小卡，11-10 由 3:2 改 4:3），各寬度一樣。紙房子窗戶（.abh-window img）是 4:3。
 export const ABOUT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
+  hero: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
   hope: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
 } as const
 

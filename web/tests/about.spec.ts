@@ -231,14 +231,14 @@ describe('換版：章節與首屏', () => {
     for (const id of ['story', 'whole-child', 'hope', 'voices']) expect(template).toContain(`id="${id}"`)
     expect(template).not.toContain('id="campuses"')
   })
-  it('首屏只有一張 3:2 卡紙照片（2026-11-03 拿掉後排小卡，創辦人合照只留在第三章窗戶）', () => {
+  it('首屏只有一張 4:3 照片（2026-11-03 拿掉後排小卡，創辦人合照只留在第三章窗戶；11-10 裁掉左邊木柱、3:2 改 4:3）', () => {
     // 內建照片的說明是共用常數、不開放編輯；後台換了照片才用後台的說明
     expect(shared).toContain("export const HERO_ALT = '校外教學走在步道上，兩個孩子回頭對著鏡頭笑，老師在旁邊陪著'")
     expect(template).toContain('pagePhotoAlt(HERO_ALT, page.heroPhoto, page.heroPhotoAlt)')
     const art = template.slice(template.indexOf('<div class="abh-hero-art">'), template.indexOf('<nav class="abh-index"'))
     expect(art.match(/<figure /g)).toHaveLength(1)
     expect(art).not.toContain('about-curious')
-    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:3\/2/)
+    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:4\/3/)
   })
   it('紀念章在一路走來章名旁，純裝飾；用原本的校徽面圖，不載 three；不寫「相隔十五年」', () => {
     expect(template).toContain('<span class="abh-medal" aria-hidden="true" />')

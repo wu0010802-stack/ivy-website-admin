@@ -70,7 +70,7 @@ onMounted(editor.load)
         builtin="官網內建的校外教學照片（兩個孩子和老師）"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.hero)"
         :previews="ABOUT_PHOTO_PREVIEWS.hero"
-        help="首屏右邊那張卡紙，各種螢幕都裁成 3:2；請用寬 2000 以上的橫式照片，重點放在中間，或在下面點選焦點。"
+        help="首屏右邊那張卡紙，各種螢幕都裁成 4:3；請用寬 2000 以上的橫式照片，重點放在中間，或在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

@@ -90,17 +90,17 @@ describe('關於常春藤頁（about_page）', () => {
     }
   })
 
-  it('照片焦點預覽的比例和官網 about.css 一致：首屏 3:2、紙房子窗戶 4:3', () => {
+  it('照片焦點預覽的比例和官網 about.css 一致：首屏 4:3、紙房子窗戶 4:3', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
     expect(css).toContain('.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
-    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:3\/2/)
+    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:4\/3/)
     expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}')
     const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')
     // 2026-11-03 拿掉首屏後排小卡
     expect(component).not.toContain('is-back')
     expect(component.slice(component.indexOf('<span class="abh-window">'))).toContain("pagePhotoAttrs('about-together', page.hopePhoto")
     expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['4 / 3'])
-    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['3 / 2'])
+    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 3'])
     expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'hope'])
   })
 

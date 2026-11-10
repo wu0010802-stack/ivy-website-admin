@@ -47,8 +47,8 @@
    標題很短時文字欄至少 22.5rem，段落才不會擠成窄條（手機文字欄是 display:contents，這兩條不作用） */
 .abh-hero-text{width:fit-content;min-width:min(100%,22.5rem)}
 .abh-lede{margin-top:24px;max-width:28em;font-size:var(--fs-lg);line-height:2;color:var(--muted);contain:inline-size}
-/* 首屏一張 3:2 照片（2026-11-03 拿掉後排小卡），圓角比內文的照片大一級 */
-.abh-hero-art .abh-card{--ar:3/2}
+/* 首屏一張 4:3 照片（2026-11-03 拿掉後排小卡；11-10 母檔裁掉左邊的木柱，框跟著從 3:2 改 4:3），圓角比內文的照片大一級 */
+.abh-hero-art .abh-card{--ar:4/3}
 .abh-hero-art .abh-card>img,.abh-hero-art .abh-card>:where(picture)>img{border-radius:16px}
 .abh-index{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,4vw,64px)}
 .abh-index a{display:flex;align-items:center;gap:14px;min-height:56px;color:var(--ivy-forest);text-decoration:none}
