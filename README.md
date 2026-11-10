@@ -1,3 +1,12 @@
+## 2026-11-10 拿掉首頁作息提醒、特色教學頁兩個延伸連結（`feature/home-copy-trim-20261110`）
+
+使用者要拿掉兩處：首頁「孩子的一天」卡片下面那行「各校、各班作息略有不同，以園所安排為準。」，以及特色教學頁「四個年段」左欄底下的「用生日查孩子讀哪一班 →」「課綱六大領域與核心素養 →」。
+
+- **作息提醒**：`web/app/utils/public-copy.ts` 的 `SOURCE_NOTES` 把原型原文和 10-30 換上的短句都換成空字串；`DayExperience.vue` 的 `.day-note` 改成有內容才畫，園方在後台「孩子的一天」另外寫的說明照常顯示。那行原本帶著區塊收尾的下邊距，拿掉後在 `styles.css` 用 `.day-prints:last-child` 補回（桌機 268px、手機 152px），卡片底到區塊底與正式站一樣（桌機 +118、手機 +88，正式站 +118／+89）。
+- **兩個延伸連結**：`CurriculumContent.vue` 拿掉 `.cur-links`，`curriculum.css` 的 `.cur-link`／`.cur-links` 樣式一起清掉。被連過去的 `/admission#birthday-tool`、`/about#whole-child` 錨點都還在，只是這頁不再連。
+- **驗證**（Node 22，本機 dev server fixture 模式 port 3187）：新增 `web/tests/copy-trim-20261110.spec.ts` 4 項，改 `web-ux-20261029`、`about`、`mobile-ux-20261012` 三支裡斷言舊連結與舊句子的地方；web typecheck 通過；web 單元 129 檔 1718 項全過。Playwright 1440×900 與 390×844：首頁沒有作息提醒、區塊收尾留白與正式站相同；特色教學頁沒有兩個連結、沒有頁面錯誤。
+- 未驗證：iOS／Android 實機；stack e2e 與正式建置沒在本機跑。
+
 ## 2026-11-10 關於頁大修：沿革一列、六大領域選一個看說明＋實拍、家長小圖、蠟筆屋放大（`feature/about-ta-20261110`）
 
 使用者：「/about 根據我們的 TA 優化 UI/UX，先給我 mock-up」→ mock 在 Desktop checkout `design/about-ta-mockup-20261110/`（四項）→「先做這個（沿革一列、六圈可點）然後幫我優化 ui」→「繼續幫我優化，可以直接做 uiux 大修」。規則見 DESIGN.md 最上方一段。

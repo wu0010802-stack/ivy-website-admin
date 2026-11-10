@@ -122,12 +122,15 @@ describe('選單「找到你的校園」', () => {
 })
 
 describe('原型的來源說明拿掉', () => {
-  // 10-29 先換成署名，10-30 使用者要版面乾淨，署名也拿掉，只留孩子的一天的作息提醒
+  // 10-29 先換成署名，10-30 使用者要版面乾淨，署名也拿掉；11-10 孩子的一天那句作息提醒也拿掉
   it('一字不差的原文才換；園方改過的照園方的', () => {
     const out = publicCopy(site)
-    const texts = [out.curriculumPage.heroNotice, out.curriculumPage.gallerySource, out.curriculumPage.dailySource, out.curriculumPage.beliefSource, out.environmentPage.heroNotice]
+    const texts = [out.curriculumPage.heroNotice, out.curriculumPage.gallerySource, out.curriculumPage.dailySource, out.curriculumPage.beliefSource, out.environmentPage.heroNotice, out.dayExperience.note]
     for (const text of texts) expect(text).toBe('')
-    expect(out.dayExperience.note).toBe('各校、各班作息略有不同，以園所安排為準。')
+    const shortNote = publicCopy({ ...site, dayExperience: { ...site.dayExperience, note: '各校、各班作息略有不同，以園所安排為準。' } })
+    expect(shortNote.dayExperience.note).toBe('')
+    const customNote = publicCopy({ ...site, dayExperience: { ...site.dayExperience, note: '園方自訂的作息說明。' } })
+    expect(customNote.dayExperience.note).toBe('園方自訂的作息說明。')
     const custom = publicCopy({ ...site, environmentPage: { ...site.environmentPage, heroNotice: '園方自訂的提醒，取自某處。' } })
     expect(custom.environmentPage.heroNotice).toBe('園方自訂的提醒，取自某處。')
   })

@@ -227,10 +227,9 @@ describe('換版：章節與首屏', () => {
     expect(component).toContain("no: String(i + 1).padStart(2, '0')")
     expect(template).not.toMatch(/Our story|Whole child|Our hope/)
   })
-  it('四章 id 不變（特色教學頁連 /about#whole-child），五所校園結尾拿掉', () => {
+  it('四章 id 不變，五所校園結尾拿掉', () => {
     for (const id of ['story', 'whole-child', 'hope', 'voices']) expect(template).toContain(`id="${id}"`)
     expect(template).not.toContain('id="campuses"')
-    expect(read('../app/components/CurriculumContent.vue')).toContain('/about#whole-child')
   })
   it('首屏只有一張 3:2 卡紙照片（2026-11-03 拿掉後排小卡，創辦人合照只留在第三章窗戶）', () => {
     // 內建照片的說明是共用常數、不開放編輯；後台換了照片才用後台的說明

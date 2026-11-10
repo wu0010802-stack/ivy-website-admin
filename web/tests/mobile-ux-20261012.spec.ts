@@ -126,10 +126,9 @@ describe('focusNextFieldOnEnter', () => {
 describe('入學頁生日工具', () => {
   const admission = read('../app/components/AdmissionContent.vue')
   const css = read('../app/assets/css/admission-passport.css')
-  it('首屏與特色教學頁的「查班別」直接落在生日欄', () => {
+  it('首屏的「查班別」直接落在生日欄', () => {
     expect(admission).toContain('<a class="ap-action" href="#birthday-tool">')
     expect(admission).toContain('<div id="birthday-tool" class="ap-datapage">')
-    expect(read('../app/components/CurriculumContent.vue')).toContain('to="/admission#birthday-tool"')
   })
   it('單欄時答案排在「今年學年度」前面', () => {
     const tablet = css.slice(css.indexOf('@media (max-width: 1100px)'))

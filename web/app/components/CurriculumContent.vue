@@ -141,10 +141,6 @@ useWatercolor(root)
             <h2 id="years-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.yearsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
             <p class="cur-text">{{ page.yearsText }}</p>
             <p class="cur-spiral"><span class="cur-blot" data-blot="sky" aria-hidden="true" /><b>{{ page.spiralLabel }}</b>{{ page.spiralText }}</p>
-            <div class="cur-links">
-              <NuxtLink class="cur-link" to="/admission#birthday-tool">用生日查孩子讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
-              <NuxtLink class="cur-link" to="/about#whole-child">課綱六大領域與核心素養<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
-            </div>
           </div>
           <figure class="cur-years-photo">
             <div class="cur-frame" data-wash="sky,.6,.58,.58,.56,.026,36"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs('cur-years', page.yearsPhoto, '(max-width: 900px) 100vw, 45vw'), page.yearsPhoto)" :alt="pagePhotoAlt(YEARS_ALT, page.yearsPhoto, page.yearsPhotoAlt)" loading="lazy" /></div>

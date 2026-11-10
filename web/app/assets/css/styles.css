@@ -177,6 +177,8 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .print-wrap.webgl-ready .print-tape{visibility:hidden}
 /* 底部留白用 margin、不用 padding（2026-10-13）：說明字接指標，padding 會把底部的暫停圓鈕一起蓋住、點不到。 */
 .day-note{position:relative;z-index:1;width:min(1280px,calc(100% - 96px));max-width:none;margin:0 auto 96px;color:rgb(var(--on-dark));font-size:var(--fs-xs);line-height:1.9}
+/* 沒有說明那一行時（2026-11-10 作息提醒拿掉），最後一排卡片下面補回原本的收尾留白：卡片底到區塊底桌機約 260px、手機約 180px，背景影片照舊收得住。 */
+.day-prints:last-child{padding-bottom:268px}
 /* 說明字原本 74% 白，最低只有 3.3（2026-10-13）：改全白，字後墊一條上下淡出、左右收邊的淡墨綠帶；影片 12 幀最低 4.6（1440）、手機 7.4。 */
 /* 左右只伸到頁面邊距（--note-bleed：桌機 48、≤1100 32、手機 20），再多會撐出橫向捲動。
    2026-10-20 影片調亮後，底部的常駐紗從 .6 降到 .36，這條帶從 .35 加到 .6 補回來（說明字一定落在影片底部兩百多 px 內）。 */
@@ -203,6 +205,7 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
  .print-back{position:relative;inset:auto;padding:24px 22px 56px}
  .print-story{font-size:var(--fs-sm)}
  .day-note{width:calc(100% - 40px);margin-bottom:64px;--note-bleed:20px}
+ .day-prints:last-child{padding-bottom:152px}
 }
 /* 圖說與暫停鍵的讓位規則跟布幕短版用同一個手機定義：橫拿手機（高度 ≤500）卡片比視窗高，底部控制列一定壓在卡片上，也要讓位。 */
 @media(max-width:760px),(max-height:500px){

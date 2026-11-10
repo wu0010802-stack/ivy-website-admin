@@ -260,7 +260,7 @@ onUnmounted(() => {
           <ol ref="printsEl" class="day-prints" :aria-label="`孩子的一天，${day.moments.length} 個日常片刻`">
             <DayMomentCard v-for="(moment, i) in day.moments" :key="moment.key" :moment="moment" :index="i" :active="i === activeIndex" />
           </ol>
-          <p class="day-note">{{ day.note }}</p>
+          <p v-if="day.note" class="day-note">{{ day.note }}</p>
         </div>
       </section>
     </div>

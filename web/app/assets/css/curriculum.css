@@ -73,13 +73,6 @@
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
-.cur-link { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--green); font-weight: 600; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 7px; }
-.cur-link .icon { width: 18px; height: 18px; transition: transform .3s var(--cur-ease); }
-/* 桌機滑過：底線加粗、箭頭往前一步（2026-10-13；原本滑過沒有任何回饋） */
-@media (hover: hover) {
-  .cur-link:hover { text-decoration-thickness: 2px; }
-  .cur-link:hover .icon { transform: translateX(4px); }
-}
 /* 手機橫滑清單可 Tab 聚焦：沿用全站 3px 焦點環，清單貼齊視窗左右緣，所以畫在框內（2026-10-13；原本是瀏覽器預設 1px 黑框） */
 .cur [data-reveal-group]:focus-visible { outline: 3px solid var(--leaf); outline-offset: -3px; }
 .cur-split-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; }
@@ -124,7 +117,6 @@
 .cur-spiral .cur-blot { inset: -24px -36px -24px -96px; z-index: -1; }
 .cur-spiral .cur-blot.is-painted { opacity: .55; }
 .cur-spiral b { display: block; margin-bottom: 2px; font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--green); }
-.cur-links { display: flex; flex-wrap: wrap; gap: 4px 28px; margin-top: 14px; }
 .cur-years-photo { margin: 0; }
 .cur-years-photo .cur-frame { aspect-ratio: 3 / 2; }
 .cur-years-photo figcaption, .cur-art > span { margin-top: 12px; font-size: var(--fs-sm); color: var(--muted); }
@@ -254,7 +246,6 @@
   .cur-index b { font-size: var(--fs-md); }
   .cur-index-copy span { font-size: var(--fs-xs); }
   .cur-sec { padding-block: 80px; }
-  .cur-links { flex-direction: column; gap: 0; }
 
   /* 年段：左邊顏料＋年齡，右邊文字 */
   .cur-year-list { grid-template-columns: 1fr; row-gap: 36px; }
@@ -295,7 +286,7 @@
 @media (prefers-reduced-motion: reduce) {
   .cur.is-live [data-reveal] { transition: opacity .3s linear; }
   .cur.is-live [data-reveal]:not(.is-in) { transform: none; }
-  .cur-blot, .cur-frame.has-mask, .cur-index b, .cur-link .icon { transition: none; }
+  .cur-blot, .cur-frame.has-mask, .cur-index b { transition: none; }
 }
 @media (forced-colors: active) {
   .cur-wash, .cur-grain, .cur-blot { display: none; }
