@@ -1077,55 +1077,55 @@
     "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-comfort-03b343563d43-480.webp",
+        "src": "/assets/responsive/env-care-comfort-6af7f61ad3e8-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-comfort-03d03950145a-480.avif"
+        "avif": "/assets/responsive/env-care-comfort-ad4a5b2e3dd0-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-comfort-03b343563d43-800.webp",
+        "src": "/assets/responsive/env-care-comfort-6af7f61ad3e8-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-comfort-03d03950145a-800.avif"
+        "avif": "/assets/responsive/env-care-comfort-ad4a5b2e3dd0-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-comfort-03b343563d43-1200.webp",
+        "src": "/assets/responsive/env-care-comfort-6af7f61ad3e8-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-comfort-03d03950145a-1200.avif"
+        "avif": "/assets/responsive/env-care-comfort-ad4a5b2e3dd0-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-comfort-03b343563d43-1600.webp",
+        "src": "/assets/responsive/env-care-comfort-6af7f61ad3e8-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/env-care-comfort-03d03950145a-1600.avif"
+        "avif": "/assets/responsive/env-care-comfort-ad4a5b2e3dd0-1600.avif"
       }
     ]
   },
   "env-care-clean": {
-    "width": 1961,
-    "height": 934,
+    "width": 2100,
+    "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-clean-5617b0628778-480.webp",
+        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-480.avif"
+        "avif": "/assets/responsive/env-care-clean-797bb43335ab-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-5617b0628778-800.webp",
+        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-800.avif"
+        "avif": "/assets/responsive/env-care-clean-797bb43335ab-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-5617b0628778-1200.webp",
+        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1200.avif"
+        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-5617b0628778-1600.webp",
+        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1600.avif"
+        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1600.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-5617b0628778-1961.webp",
-        "width": 1961,
-        "avif": "/assets/responsive/env-care-clean-bcd96bf40218-1961.avif"
+        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-2100.webp",
+        "width": 2100,
+        "avif": "/assets/responsive/env-care-clean-797bb43335ab-2100.avif"
       }
     ]
   },
@@ -1518,24 +1518,24 @@
     "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-activities-8e1c6b91fead-480.webp",
+        "src": "/assets/responsive/cur-activities-6cd25c60efaf-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/cur-activities-8a053074204b-480.avif"
+        "avif": "/assets/responsive/cur-activities-b0033b5efbd0-480.avif"
       },
       {
-        "src": "/assets/responsive/cur-activities-8e1c6b91fead-800.webp",
+        "src": "/assets/responsive/cur-activities-6cd25c60efaf-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/cur-activities-8a053074204b-800.avif"
+        "avif": "/assets/responsive/cur-activities-b0033b5efbd0-800.avif"
       },
       {
-        "src": "/assets/responsive/cur-activities-8e1c6b91fead-1200.webp",
+        "src": "/assets/responsive/cur-activities-6cd25c60efaf-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/cur-activities-8a053074204b-1200.avif"
+        "avif": "/assets/responsive/cur-activities-b0033b5efbd0-1200.avif"
       },
       {
-        "src": "/assets/cur-activities.webp",
+        "src": "/assets/responsive/cur-activities-6cd25c60efaf-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/cur-activities-8a053074204b-1600.avif"
+        "avif": "/assets/responsive/cur-activities-b0033b5efbd0-1600.avif"
       }
     ]
   },

@@ -12,6 +12,25 @@
 - **驗證**（Node 22）：web typecheck 通過；web 單元 132 檔 1766 項全過（新增圖說替換 1 項）；admin `vue-tsc` 通過、admin 單元 173 檔 3347 過、1 略過；fixture dev server Playwright：Chrome 1440 載入新桌機檔、Chrome 390 手機模擬載入手機檔，都淡入、沒有 console 錯誤（`design/day-film-daily-20261110/measure/verify.cjs`；WebKit 這台沒裝）。
 - 未驗證：WebKit／Safari、iOS／Android 實機（這台只有 Chromium）；VMAF（這台 ffmpeg 沒有 libvmaf，改報 SSIM／PSNR：桌機 SSIM 0.989、PSNR 45.5 dB，手機 0.984、43.3 dB，對 10-bit 母帶、逐格對齊）；正式站要等合進 `main` 部署後再看一次。
 
+## 2026-11-10 環境頁「情緒安撫」「定時消毒」換義華 NAS 照片（同分支 `feature/cur-activities-582-20261110`）
+
+使用者看過雲端與 NAS 兩輪候選後指定：消毒換 NAS #13439、安撫換 NAS #3273。
+
+- **定時消毒** `env-care-clean` ← 「2026/2026-08-04 開學日Day2／8月4日 開學第二天／5D4A0223.JPG」（6720×4480）：女孩背對鏡頭在洗手台前洗手。母檔裁 x0–6300、y1000–4000 → 2100×1000（和舊檔一樣約 2.1:1，切掉右緣粉紅衣服），半圓焦點 `36% 64%`。取代戴口罩擦門把的舊照；文案「每日定時教室消毒」沒改，照片是洗手、不是消毒。
+- **情緒安撫** `env-care-comfort` ← 「2024/2024-12-10 照片／未命名檔案夾／5D4A2780.JPG」（6720×4480）：大人抱著剛哭過的女孩替她擦臉。母檔裁 x1500–6300、y600–4200 → 1600×1200，拱形焦點 `48% 36%`。大人是老師還是家長看不出來，替代文字只寫「大人」；**上線前要請園方確認身分與肖像同意**。這張同時用在 /about「情緒」那格（`about-content.ts` 替代文字一起改）。
+- `optimize-site-images.py --only env-care-clean`、`--only env-care-comfort` 重產 WebP／AVIF，舊雜湊 18 個 `git rm`；`environment-render.spec.ts` 兩份渲染快照 `-u` 更新（只差這兩格的替代文字、雜湊與焦點）。
+- **取原檔**：NAS 直連只在園區網路通；改走 QuickConnect 中繼 DSM。第一張用頁面 `<a download>` 落到「下載項目」，第二張被 Chrome 的連續下載封鎖（無提示、檔案不落地），經使用者同意建了一筆暫時的 File Station 分享連結、curl 抓完立即刪除（分享清單查無、連結 302）。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 130 檔 1750 項全過；dev server Playwright 1440／390 環境頁兩格截圖確認、無 4xx。/about「情緒」那格的圖在互動層裡、預設不可見，沒有截到圖。
+- 未驗證：stack e2e、實機。**未 commit、未部署。**
+
+## 2026-11-10 特色教學「課程活動」換種苗校外教學照（`feature/cur-activities-582-20261110`）
+
+使用者要我替四個位置找替換照片，從園方雲端「未分類素材區／照片」761 張挑候選後，課程活動選了 #582。
+
+- **換的照片**：`cur-activities` ← 「20250317 種苗校外教學／種苗_-6676.jpg」（Canon 3526×2355、sRGB），穿園服的女孩捧著種子仰頭大笑。母檔裁 x700–3100、y0–1800 → 1600×1200 q88（左邊兩個孩子裁掉，左下角留一點辮子頭頂）；`scripts/optimize-site-images.py --only cur-activities` 重產 WebP／AVIF、更新 manifest，舊雜湊 7 個 `git rm`。
+- **焦點**：`CurriculumContent.vue` position 改 `38% 42%`。桌機 4:5 框只容得下原圖寬度的六成，她雙手張開的姿勢放不完整；38% 讓臉、拿種子的手和伸出去的手臂都在框內，最遠那隻拳頭出框。平板與手機 4:3 不裁切、整張都在。替代文字改「戶外教學到苗圃，女孩捧著種子仰頭大笑」。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 130 檔 1750 項全過；本機 dev server（fixture）Playwright 1440×900 與 390×844 截圖確認，載到新雜湊 AVIF。
+- 未驗證：stack e2e、實機。**未 commit、未部署。** 照片肖像同意與攝影授權同園方雲端其他活動照。
 ## 2026-11-10 前台渲染流暢度（`feature/render-jank-20261110`）
 
 使用者：「幫我看看我前端的渲染有哪裡不夠流暢的」，看完後「好 幫我修」。正式站實測：其他頁都順（手機 4 倍降速掉幀 0.6–3.5%、CLS 全站 ≤ 0.0011），首頁最差（桌機掉幀 5–15%、手機 4 倍降速 7–12%），集中在孩子的一天與五校。規則寫在 `DESIGN.md` 最上面。
