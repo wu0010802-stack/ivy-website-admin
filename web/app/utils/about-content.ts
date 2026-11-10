@@ -18,7 +18,7 @@ export const DOMAINS = [
   { name: '認知', color: 'var(--ivy-whole-cognition)', photo: 'cur-daily-materials', alt: '孩子們圍在木框邊，專心看綠色的光打到小鏡子上再反射出去', detail: '認知不是背知識，而是學會找答案：蒐集訊息、整理訊息，解決生活裡遇到的問題。用手指量長短、比較菜蟲和毛毛蟲，數學和科學就在裡面。' },
   { name: '語文', color: 'var(--ivy-whole-language)', photo: 'cur-daily-reading', alt: '孩子們坐在圖書室的坐墊上，各自翻開一本繪本', detail: '語文是和人溝通的方式：聽懂別人的話、看懂圖像和文字，也能把自己的想法說清楚。注音從玩聲音開始，不急著背、也不急著寫。' },
   { name: '社會', color: 'var(--ivy-whole-social)', photo: 'env-hero-hug', alt: '教室裡兩個孩子緊緊抱在一起，旁邊的同學也在互相擁抱', detail: '認識自己、關心身邊的人，也愛護環境。孩子在團體裡長出自信，學會和別人、和環境好好相處。' },
-  { name: '情緒', color: 'var(--ivy-whole-emotion)', photo: 'env-care-comfort', alt: '老師坐著把眼眶泛紅的男孩抱在懷裡', detail: '看見自己和別人的情緒，知道情緒從哪裡來，再用合適的方法調整、說出來。情緒穩了，才能專心學習、和別人合作。' },
+  { name: '情緒', color: 'var(--ivy-whole-emotion)', photo: 'env-care-comfort', alt: '大人抱著剛哭過的女孩，用手指輕輕幫她擦臉', detail: '看見自己和別人的情緒，知道情緒從哪裡來，再用合適的方法調整、說出來。情緒穩了，才能專心學習、和別人合作。' },
   { name: '美感', color: 'var(--ivy-whole-aesthetic)', photo: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', detail: '用眼睛、耳朵和雙手感受身邊的美，自在地想像和創作。美感不是才藝課，而是一次次參與裡慢慢累積的感受力。' }
 ]
 

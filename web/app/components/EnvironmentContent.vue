@@ -34,16 +34,20 @@ const CARE = [
   { image: 'env-care-health', alt: '老師幫戴著口罩的孩子確認身體狀況' },
   { image: 'env-care-meal', alt: '男孩拿著湯匙，從紅色碗裡舀飯吃' },
   { image: 'env-care-clothes', alt: '穿著淺藍色羽絨外套的女孩站在桌邊' },
-  { image: 'env-care-comfort', alt: '老師坐著把眼眶泛紅的男孩抱在懷裡' },
-  { image: 'env-care-clean', alt: '老師擦拭消毒教室門把' }
+  { image: 'env-care-comfort', alt: '大人抱著剛哭過的女孩，用手指輕輕幫她擦臉' },
+  { image: 'env-care-clean', alt: '女孩站在洗手台前，把手伸到水龍頭下洗手' }
 ]
 // 五件照顧的小事：五種形狀高低錯落排一排；第五張半圓底下墊一塊平板
+// 2026-11-10 定時消毒換成義華 NAS「2026-08-04 開學第二天／5D4A0223」（6720×4480，母檔裁 x0–6300、y1000–4000 → 2100×1000），
+// 取代戴口罩擦門把的舊照；女孩背對鏡頭洗手，半圓焦點 36% 64% 對準雙手和水流。
+// 同日情緒安撫換成義華 NAS「2024-12-10 照片／未命名檔案夾／5D4A2780」（6720×4480，母檔裁 x1500–6300、y600–4200 → 1600×1200），
+// 大人抱著剛哭過的女孩替她擦臉；大人是老師還是家長待園方確認，替代文字只寫「大人」。/about「情緒」那格也用這張。
 const CARE_LOOKS: (Look & { ped?: Block })[] = [
   { shape: 's-arch', ar: 0.78, color: 'terra', pos: '33% 50%' },
   { shape: 's-circle', color: 'mustard', pos: '58% 30%' },
   { shape: 's-qtr', ar: 0.92, color: 'sage', q: '64%', pos: '50% 16%' },
-  { shape: 's-u', ar: 0.82, color: 'mist', pos: '52% 30%' },
-  { shape: 's-semi', color: 'pink', pos: '55% 62%', ped: 'mustard' }
+  { shape: 's-u', ar: 0.82, color: 'mist', pos: '48% 36%' },
+  { shape: 's-semi', color: 'pink', pos: '36% 64%', ped: 'mustard' }
 ]
 // 六個空間：照片形狀各不相同、後面錯開墊一塊別色（多半也別種形狀）的積木。戶外廣場只能用明華校的照片（後台標「明華校」）。
 const SPACES = [
