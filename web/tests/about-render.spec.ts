@@ -87,11 +87,15 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
     expect(await render(site.aboutPage)).not.toContain('/anniversary')
   })
 
-  it('六大領域各是一個同名 details，說明文字直接在 HTML 裡（搜尋讀得到），預設全部收起', async () => {
+  it('六大領域是一組同名 radio（預設選第一項），六段說明都直接在 HTML 裡（搜尋讀得到）', async () => {
     const html = await render(site.aboutPage)
-    expect(html.match(/<details name="abh-domain"[^>]*>/g)).toHaveLength(6)
-    expect(html).not.toMatch(/<details[^>]*\bopen\b/)
-    expect(html).toMatch(/<summary[^>]*>認知<svg/)
+    const radios = html.match(/<input[^>]*type="radio"[^>]*name="abh-domain"[^>]*>/g) ?? []
+    expect(radios).toHaveLength(6)
+    expect(radios.filter((tag) => /\bchecked\b/.test(tag))).toHaveLength(1)
+    expect(radios[0]).toMatch(/\bchecked\b/)
+    expect(html.match(/<div class="abh-panel"/g)).toHaveLength(6)
+    expect(html).not.toContain('<details')
     expect(html).toContain('認知不是背知識，而是學會找答案')
+    expect(html).toContain('六大核心素養：覺知辨識、表達溝通、關懷合作、推理賞析、想像創造、自主管理')
   })
 })

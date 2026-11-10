@@ -2,7 +2,11 @@
 // 2026-10-01 定案 A2：六張透色圓片靠近、交疊，最後由外圓包容。
 // 只負責全人教育的六圈；清單、文字與排版由 AboutContent 放（2026-10-30 換版前是立體書的右頁）。
 // 2026-10-02：左頁滑過某個領域（focus＝第幾個），六圈播完後那一圈亮、其他圈與標籤淡掉；播放中不理會。
+// 2026-11-10：focus 平常就是左邊選到的那個領域（一直有一圈亮著），所以亮的那圈加深、其他圈只退一點；
+// 每個標籤上蓋一個透明的點擊範圍（圓心互相重疊，直接點圓會點到最上面那一圈），點了發 pick、滑過發 hover。
+// 圖本身對輔助科技是一張圖（role="img"），選領域的鍵盤與報讀走左邊那組 radio。
 const props = withDefaults(defineProps<{ focus?: number | null }>(), { focus: null })
+const emit = defineEmits<{ pick: [index: number], hover: [index: number | null] }>()
 const domains = [
   { name: '身體動作與健康', lines: ['身體動作', '與健康'], color: 'var(--ivy-whole-body)' },
   { name: '認知', lines: ['認知'], color: 'var(--ivy-whole-cognition)' },
@@ -33,7 +37,9 @@ const circles = computed(() => domains.map((domain, i) => {
   return { ...domain, label: polar(215, i), dot: polar(278, i), transform: `translate(${point.x} ${point.y}) scale(${(79 + 77 * join) / 100})`, alpha: .32 - .03 * join }
 }))
 const titleOpacity = computed(() => portion(progress.value, .69, .89))
-const dimmed = (i: number) => props.focus !== null && progress.value >= 1 && props.focus !== i
+const settled = computed(() => props.focus !== null && progress.value >= 1)
+const lit = (i: number) => settled.value && props.focus === i
+const dimmed = (i: number) => settled.value && props.focus !== i
 // 播放長度（2026-11-09 由 8.6 秒縮成 3 秒）：原本色帶可見 35% 後約 6.8 秒「全人」才出現，
 // 多數人邊讀邊捲已經離開，只看到六個分開的淡色圓（等於左邊清單再講一次）。各段比例不變，只是播快。
 const PLAY_MS = 3000
@@ -117,15 +123,16 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
       <desc :id="`${id}-desc`">身體動作與健康、認知、語文、社會、情緒、美感，六個透明圓相互交疊，匯聚成完整的自己。</desc>
       <g aria-hidden="true">
         <circle class="abk-whole-outline" cx="360" cy="340" r="278" pathLength="1" :opacity="portion(progress, .6, .9)" :stroke-dashoffset="1 - portion(progress, .63, 1)" />
-        <circle v-for="(domain, i) in circles" :key="domain.name" class="abk-whole-circle" :class="{ 'is-dim': dimmed(i) }" r="100" :transform="domain.transform" :fill="domain.color" :stroke="domain.color" :fill-opacity="domain.alpha" />
+        <circle v-for="(domain, i) in circles" :key="domain.name" class="abk-whole-circle" :class="{ 'is-on': lit(i), 'is-dim': dimmed(i) }" r="100" :transform="domain.transform" :fill="domain.color" :stroke="domain.color" :fill-opacity="domain.alpha" />
         <circle v-for="domain in circles" :key="`dot-${domain.name}`" :cx="domain.dot.x" :cy="domain.dot.y" r="4" :fill="domain.color" :opacity="portion(progress, .67, .96)" />
         <g :opacity="titleOpacity" :transform="`translate(360 340) scale(${.8 + .2 * titleOpacity}) translate(-360 -340)`">
           <text class="abk-whole-title" x="360" y="350">全人</text>
           <text class="abk-whole-sub" x="360" y="390" :opacity="portion(progress, .85, 1)">完整的自己</text>
         </g>
-        <text v-for="(domain, i) in circles" :key="`label-${domain.name}`" class="abk-whole-label" :class="{ 'is-dim': dimmed(i) }" :transform="`translate(${domain.label.x} ${domain.label.y})`">
+        <text v-for="(domain, i) in circles" :key="`label-${domain.name}`" class="abk-whole-label" :class="{ 'is-on': lit(i), 'is-dim': dimmed(i) }" :transform="`translate(${domain.label.x} ${domain.label.y})`">
           <tspan v-for="(line, i) in domain.lines" :key="line" x="0" :y="domain.lines.length === 2 ? (i ? 35.25 : 3.5) : 7" :dy="domain.lines.length === 2 ? (i ? '.125em' : '-.25em') : undefined">{{ line }}</tspan>
         </text>
+        <circle v-for="(domain, i) in circles" :key="`hit-${domain.name}`" class="abk-whole-hit" :cx="domain.label.x" :cy="domain.label.y" r="92" @click="emit('pick', i)" @pointerenter="emit('hover', i)" @pointerleave="emit('hover', null)" />
       </g>
     </svg>
   </div>
@@ -134,11 +141,13 @@ onBeforeUnmount(() => { cleanup(); stopFrame() })
 <style scoped>
 .abk-whole{display:grid;align-content:center;justify-items:center;height:100%;min-height:inherit;min-width:0;color:var(--ivy-forest);container-type:inline-size}
 .abk-whole-diagram{display:block;width:100%;max-width:560px;height:auto;aspect-ratio:1;overflow:visible}
-.abk-whole-outline{fill:none;stroke:var(--ivy-forest);stroke-width:1.1;stroke-opacity:.6;stroke-dasharray:1;transform:rotate(-90deg);transform-origin:360px 340px}
+.abk-whole-outline{fill:none;stroke:var(--ivy-forest);stroke-width:1.1;stroke-opacity:.3;stroke-dasharray:1;transform:rotate(-90deg);transform-origin:360px 340px}
 .abk-whole-circle{stroke-width:.9;stroke-opacity:.65;transition:fill-opacity .35s,stroke-opacity .35s}
-.abk-whole-circle.is-dim{fill-opacity:.07;stroke-opacity:.25}
+.abk-whole-circle.is-on{fill-opacity:.54;stroke-opacity:1}
+.abk-whole-circle.is-dim{fill-opacity:.15;stroke-opacity:.45}
 .abk-whole-label{transition:opacity .35s}
-.abk-whole-label.is-dim{opacity:.3}
+.abk-whole-label.is-dim{opacity:.78}
+.abk-whole-hit{fill:transparent;cursor:pointer}
 .abk-whole-title,.abk-whole-sub,.abk-whole-label{fill:var(--ivy-forest);text-anchor:middle}
 .abk-whole-title{font:800 70.4px var(--font-head);letter-spacing:-.04em}
 .abk-whole-sub{font-size:16px;letter-spacing:.18em}

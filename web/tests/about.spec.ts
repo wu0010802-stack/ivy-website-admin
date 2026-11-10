@@ -6,7 +6,7 @@ import type { SiteContent } from '../app/types/site-content'
 import { aboutSeo, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { ABOUT_HERO_IMAGE, responsiveImage } from '../app/utils/responsive-image'
 import { rocYear } from '../app/utils/page-content'
-import { DOMAINS, STORY_TITLE_ORIGINAL, aboutHeroLede, storyYearTitle, yearsSpoken } from '../app/utils/about-content'
+import { DOMAINS, SCENE, STORY_TITLE_ORIGINAL, aboutHeroLede, storyYearTitle, yearsSpoken } from '../app/utils/about-content'
 import manifest from '../app/generated/image-manifest.json'
 
 const site = fixture as unknown as SiteContent
@@ -103,16 +103,80 @@ describe('年數由今年算', () => {
   })
 })
 
-// 2026-10-31（Jason 10-29 的建議）：六大領域點開看說明
-describe('六大領域點開看說明', () => {
+// 2026-10-31（Jason 10-29 的建議）：六大領域各有一段說明；2026-11-10 起不用點開，選一個領域就換那一段
+describe('六大領域選一個看說明', () => {
   it('六項都有說明，順序與顏色同六圈', () => {
     expect(DOMAINS.map((d) => d.name)).toEqual(['身體動作與健康', '認知', '語文', '社會', '情緒', '美感'])
     for (const d of DOMAINS) expect(d.detail.length).toBeGreaterThan(30)
   })
-  it('用原生 details 同名（同一時間只開一項、鍵盤可操作、沒有 JS 也能開），打開的那項讓六圈亮', () => {
-    expect(template).toContain('<details name="abh-domain" @toggle="onDomainToggle(i, $event)">')
-    expect(component).toContain('const focusDomain = computed(() => hoverDomain.value ?? openDomain.value)')
-    expect(template).toContain('<AboutWholePerson :focus="focusDomain" />')
+  it('用原生 radio（鍵盤左右鍵換、沒有 JS 也能選），預設第一項；選到的那項讓六圈亮，點六圈也會換', () => {
+    expect(template).toContain('<input v-model="pickedDomain" class="sr-only" type="radio" name="abh-domain" :value="i">')
+    expect(component).toContain('const pickedDomain = ref(0)')
+    expect(component).toContain('const focusDomain = computed(() => hoverDomain.value ?? pickedDomain.value)')
+    expect(template).toContain('<AboutWholePerson :focus="focusDomain" @pick="pickedDomain = $event" @hover="hoverDomain = $event" />')
+    expect(code).not.toContain('<details')
+  })
+  it('沒選到的說明用 CSS 收起（六段疊在同一格，換的時候高度不跳），不靠 JS 切換', () => {
+    for (let i = 1; i <= 6; i++) expect(cssCode).toContain(`.abh-pick:has(li:nth-child(${i}) input:checked) .abh-panel:nth-child(${i})`)
+    expect(cssCode).toMatch(/\.abh-panel\{[^}]*grid-area:1\/1[^}]*visibility:hidden\}/)
+    expect(template).not.toMatch(/class="abh-panel"[^>]*(v-show|v-if|hidden)/)
+  })
+  it('六大核心素養收成出處前的一行，不再另列一份清單', () => {
+    expect(template).toContain("六大核心素養：{{ LITERACIES.join('、') }}")
+    expect(code).not.toContain('abh-literacies')
+    expect(cssCode).not.toMatch(/abh-lists|abh-domains|abh-literacies/)
+  })
+})
+
+// 2026-11-10 大修（使用者：「可以直接做 uiux 大修」）：這頁原本只有首屏一張孩子的照片，其他是校舍圖、圖表與蠟筆畫
+describe('大修：多放真的孩子與家長', () => {
+  it('六大領域各配一張站上現有的實拍（內建、有說明文字），放在說明旁邊', () => {
+    for (const d of DOMAINS) {
+      expect((manifest as Record<string, unknown>)[d.photo], d.photo).toBeDefined()
+      expect(d.alt.length, d.name).toBeGreaterThan(8)
+    }
+    expect(new Set(DOMAINS.map((d) => d.photo)).size).toBe(6)
+    expect(template).toContain('<ResponsivePicture v-bind="pagePhotoAttrs(item.photo, undefined, DOMAIN_SIZES)" :alt="item.alt" loading="lazy" />')
+  })
+  it('風格「乾淨留白」（2026-11-10）：照片沒有相框與傾斜，全人教育不鋪色帶，選項是一排文字', () => {
+    expect(cssCode).toContain('.abh-card{position:relative;margin:0}')
+    expect(cssCode).not.toMatch(/--abh-shadow|var\(--r[,)]/)
+    expect(cssCode).toMatch(/\.abh-band\{[^}]*border-block:1px solid var\(--line\)\}/)
+    expect(cssCode).not.toMatch(/\.abh-band\{[^}]*background/)
+    expect(cssCode).toContain('.abh-tabs input:checked+span{color:var(--ivy-forest);box-shadow:inset 0 -3px 0 var(--ivy-forest)}')
+    expect(cssCode).not.toMatch(/\.abh-tabs span\{[^}]*border-radius/)
+    expect(component).not.toMatch(/milestoneLook|TILT/)
+    expect(shared).not.toContain('MILESTONE_LOOKS')
+  })
+  it('家長清單每一位前面放影片封面的小圖（看得到人），仍是一顆按鈕、選到的 aria-pressed', () => {
+    expect(template).toContain('<span class="abh-pick-thumb"><ResponsivePicture v-bind="posterAttrs(item, THUMB_SIZES)" alt="" loading="lazy" decoding="async" /></span><q>{{ item.quote }}</q>')
+    expect(template).toContain(':aria-pressed="i === shownVoice"')
+    // 2026-11-10 風格方向三：選到的那位左邊一條深綠線、小圖不退色（原本是小圖外一圈卡紙色）
+    expect(cssCode).toContain('.abh-picks button[aria-pressed=true]{box-shadow:inset 3px 0 0 var(--ivy-forest)}')
+    expect(cssCode).toContain('.abh-picks button[aria-pressed=true] .abh-pick-thumb{opacity:1}')
+  })
+  it('第三章蠟筆屋放大兩成（窗戶裡的照片跟著大），煙對準新的煙囪位置，畫的高度跟著加', () => {
+    expect(SCENE.house).toEqual({ x: 130, y: 102, w: 360, h: 408 })
+    expect(SCENE.house.x + SCENE.house.w / 2).toBe(310)
+    expect(SCENE.smoke.x).toBeCloseTo(SCENE.house.x + 218 * 1.2 - 90, 5)
+    expect(cssCode).toContain('.abh-art{--v:calc(min(100cqw,560px) / 620);position:relative;height:calc(600 * var(--v) + 16px);')
+  })
+  it('桌機第一章章頭：標題與紀念章在左、介紹段落在右下，不留半邊空白', () => {
+    expect(template).toMatch(/<div class="abh-story-head">\s*<div class="abh-title-row">/)
+    expect(cssCode.slice(cssCode.indexOf('@media (min-width:1001px)'))).toMatch(/\.abh-story-head\{[^}]*grid-template-columns:auto minmax\(0,1fr\)/)
+  })
+})
+
+// 2026-11-10：桌機沿革五站排成一列（原本左右交錯直排，五站各一句話佔 1.65 屏）
+describe('沿革桌機五站一列', () => {
+  const row = cssCode.slice(cssCode.indexOf('@media (min-width:1001px)'))
+  it('1001px 以上五欄＋一條橫軸，卡紙在上、字在下；1000px 以下照舊', () => {
+    expect(row).toMatch(/\.abh-tl\{[^}]*grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/)
+    expect(row).toMatch(/\.abh-tl li:nth-child\(n\)\{[^}]*grid-template-rows:auto 48px auto[^}]*align-content:start/)
+    expect(cssCode).toContain('@media (max-width:700px)')
+  })
+  it('五張卡紙一張接一張站起來', () => {
+    for (const n of [2, 3, 4, 5]) expect(row).toContain(`.abh-tl li:nth-child(${n}) .abh-card{animation-range:`)
   })
 })
 

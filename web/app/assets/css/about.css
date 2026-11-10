@@ -2,15 +2,15 @@
    桌機與手機同一套排法（取代 09-29 起的立體書與 10-25 的手機卡紙疊）；跟其他分頁對齊：米白底、全人教育放薄荷色帶、
    首屏左大標右照片＋章節索引、章節上方只標編號、標題字級同其他頁。保留 about 自己的卡紙相框、章色書籤、紀念章、
    沿革中軸線左右交錯、六圈、蠟筆畫。動態只有捲動驅動的兩個（卡紙站起來、紀念章轉一圈）加第三章蠟筆塗上：
-   不支援 animation-timeline 的瀏覽器、減少動態、沒有 JS 時都是完成狀態。顏色一律走 token。 */
+   不支援 animation-timeline 的瀏覽器、減少動態、沒有 JS 時都是完成狀態。顏色一律走 token。
+   2026-11-10 風格改成「乾淨留白」（比稿 design/about-style-directions-20261110 方向三）：卡紙相框、微斜、陰影、薄荷色帶、
+   膠囊鈕都拿掉；照片放大、圓角直接放，章與章之間用細線和留白分開。蠟筆畫、六圈、紀念章、首屏索引的書籤保留。
+   上面寫到的「卡紙」之後指的是那張照片（class 沿用 abh-card）。 */
 
 .abh{
   --abh-gutter:clamp(20px,4vw,56px);
-  --abh-sec:clamp(96px,10vw,160px);
+  --abh-sec:clamp(112px,11vw,176px);
   --abh-ease:cubic-bezier(.22,1,.36,1);
-  --abh-shadow:0 2px 3px rgb(var(--ink)/.12),0 24px 30px -24px rgb(var(--ink)/.6);
-  /* 首屏大卡紙：貼近桌面一層、往下拉長一層，卡紙比內文的厚 */
-  --abh-shadow-lift:0 1px 2px rgb(var(--ink)/.16),0 12px 20px -10px rgb(var(--ink)/.28),0 34px 44px -32px rgb(var(--ink)/.55);
   background:var(--paper);
   color:var(--text);
   overflow-x:clip;
@@ -29,30 +29,27 @@
 .abh-wax{position:absolute;width:0;height:0;overflow:hidden}
 .abh-end{height:var(--abh-sec)}
 
-/* 章節編號：章色書籤＋兩位數（對應首屏索引） */
-.abh-no{display:flex;align-items:center;gap:10px;font:700 var(--fs-sm)/1 var(--font-date);letter-spacing:.04em;color:var(--leaf)}
-.abh-no::before{content:'';width:11px;height:22px;background:var(--chap);clip-path:polygon(0 0,100% 0,100% 100%,50% 78%,0 100%)}
-.abh-no+h2,.abh-no+.abh-title-row{margin-top:16px}
+/* 章節編號：只留兩位數（對應首屏索引；章色書籤只留在索引上） */
+.abh-no{font:700 var(--fs-sm)/1 var(--font-date);letter-spacing:.08em;color:var(--muted)}
+.abh-no+h2,.abh-no+.abh-title-row,.abh-no+.abh-story-head{margin-top:16px}
 
-/* 卡紙相框：品牌色紙＋照片＋底下一行字，微斜（正式站立體書的卡紙） */
-.abh-card{position:relative;margin:0;padding:8px 8px 0;border-radius:4px;background:var(--c,var(--yellow));box-shadow:var(--abh-shadow);rotate:var(--r,0deg)}
-.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:2px}
-.abh-blank{background:color-mix(in oklab,var(--paper) 55%,transparent)}
-/* 字色 --ink：森林綠在橘、trail 這類卡紙底上不到 4.5:1（仁武橘底 3.95:1，同舊版緞帶的處理） */
-.abh-card figcaption{padding:10px 4px 11px;text-align:center;font:700 .9375rem/1.4 var(--font-head);color:rgb(var(--ink))}
-.abh-card:not(:has(figcaption)){padding-bottom:8px}
+/* 照片：圓角直接放，沒有相框、不傾斜、沒有陰影；底下那行字是靠左的小字。
+   分校停用時那一站留一塊淡色（.abh-blank） */
+.abh-card{position:relative;margin:0}
+.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;border-radius:10px}
+.abh-blank{background:var(--ivy-forest-mist)}
+.abh-card figcaption{padding:12px 2px 0;font:500 var(--fs-sm)/1.5 var(--font);color:var(--muted)}
 
-/* ---------- 首屏：左大標、右卡紙照片，下面一排章節索引（同特色教學、環境、入學頁） ---------- */
-.abh-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,6fr);gap:clamp(32px,6vw,96px);align-items:center;padding-top:clamp(48px,6vw,96px)}
+/* ---------- 首屏：左大標、右一張大照片，下面一排章節索引 ----------
+   照片欄 8、文字欄 5（方向三 mock 是 7:4；4 那一欄在 1480px 以上放不下 6 個字的大標，會多拆一行） */
+.abh-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,8fr);gap:clamp(32px,5vw,72px);align-items:center;padding-top:clamp(48px,6vw,96px)}
 /* 介紹段落跟大標同寬：文字欄縮到大標的寬度，段落 contain:inline-size 不撐寬，後台改標題也不用重算；
    標題很短時文字欄至少 22.5rem，段落才不會擠成窄條（手機文字欄是 display:contents，這兩條不作用） */
 .abh-hero-text{width:fit-content;min-width:min(100%,22.5rem)}
 .abh-lede{margin-top:24px;max-width:28em;font-size:var(--fs-lg);line-height:2;color:var(--muted);contain:inline-size}
-/* 首屏一張 3:2 卡紙（2026-11-03 拿掉後排小卡）：框 16px、左上受光的淡漸層（不用紋理）、照片邊 1px 細線（淺色天空不會跟框糊在一起）、兩層陰影 */
-.abh-hero-art{padding:3% 2% 5% 3%}
-.abh-hero-art .abh-card{--ar:3/2;--r:-1.5deg;padding:16px 16px 0;border-radius:6px;background:linear-gradient(155deg,color-mix(in oklab,var(--yellow) 82%,var(--paper)),var(--yellow) 55%);box-shadow:var(--abh-shadow-lift)}
-.abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:16px}
-.abh-hero-art .abh-card>img,.abh-hero-art .abh-card>:where(picture)>img{border-radius:3px;outline:1px solid rgb(var(--ink)/.1);outline-offset:-1px}
+/* 首屏一張 3:2 照片（2026-11-03 拿掉後排小卡），圓角比內文的照片大一級 */
+.abh-hero-art .abh-card{--ar:3/2}
+.abh-hero-art .abh-card>img,.abh-hero-art .abh-card>:where(picture)>img{border-radius:16px}
 .abh-index{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:24px;margin-top:clamp(40px,4vw,64px)}
 .abh-index a{display:flex;align-items:center;gap:14px;min-height:56px;color:var(--ivy-forest);text-decoration:none}
 .abh-mk{flex:none;display:grid;place-items:center;width:40px;height:52px;padding-bottom:10px;background:var(--chap);clip-path:polygon(0 0,100% 0,100% 100%,50% 80%,0 100%);font:700 .9375rem/1 var(--font-date);color:rgb(var(--ink))}
@@ -65,14 +62,14 @@
 .abh-index.is-next{grid-template-columns:repeat(3,minmax(0,1fr));margin-top:28px}
 .abh-index.is-next .abh-mk .icon{width:18px;height:18px}
 
-/* ---------- 一路走來：章名旁紀念章；沿革中軸線左右交錯，一邊卡紙一邊字 ---------- */
+/* ---------- 一路走來：章名旁紀念章；沿革中軸線左右交錯，一邊照片一邊字；軸線是一條細線、圓點深綠 ---------- */
 .abh-title-row{display:flex;align-items:center;gap:clamp(20px,3vw,40px)}
-.abh-medal{flex:none;width:clamp(76px,5vw + 40px,112px);aspect-ratio:1;border-radius:50%;background:url('/assets/about-medal/front.webp') center/cover;box-shadow:0 10px 18px -10px rgb(var(--ink)/.6);rotate:6deg}
+.abh-medal{flex:none;width:clamp(76px,5vw + 40px,112px);aspect-ratio:1;border-radius:50%;background:url('/assets/about-medal/front.webp') center/cover}
 .abh-tl{position:relative;margin-top:clamp(40px,5vw,72px);padding:0;list-style:none}
-.abh-tl::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:2px;translate:-1px 0;background:color-mix(in oklab,var(--trail) 50%,transparent)}
+.abh-tl::before{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;translate:-.5px 0;background:var(--line)}
 .abh-tl li{position:relative;display:grid;grid-template-columns:1fr 1fr;column-gap:clamp(56px,8vw,120px);align-items:center;padding-block:clamp(12px,1.6vw,22px)}
 .abh-tl li+li{margin-top:-64px}
-.abh-tl li::before{content:'';position:absolute;left:50%;top:50%;width:16px;height:16px;translate:-50% -50%;border-radius:50%;background:var(--c);box-shadow:0 0 0 4px var(--paper),0 0 0 5px color-mix(in oklab,var(--c) 70%,var(--ivy-forest))}
+.abh-tl li::before{content:'';position:absolute;left:50%;top:50%;width:10px;height:10px;translate:-50% -50%;border-radius:50%;background:var(--ivy-forest);box-shadow:0 0 0 5px var(--paper)}
 .abh-tl .abh-card{width:min(100%,300px)}
 .abh-tl li:nth-child(odd) .abh-card{justify-self:end}
 .abh-tl li:nth-child(even) .abh-card{grid-column:2;grid-row:1}
@@ -87,28 +84,43 @@
 /* 沿革最後接 30 週年頁：放在中軸線尾端（700 以下中軸靠左，對齊字） */
 .abh-tl-end{display:flex;justify-content:center;max-width:none;margin-top:clamp(16px,2vw,28px)}
 
-/* ---------- 全人教育（薄荷色帶）：左邊兩份清單、右邊六圈 ---------- */
-.abh-band{margin-top:var(--abh-sec);padding-block:clamp(72px,8vw,120px);background:var(--ivy-forest-mist)}
+/* ---------- 全人教育（上下各一條細線，不鋪色帶）：左邊六個領域選一個看說明、右邊六圈 ---------- */
+.abh-band{margin-top:var(--abh-sec);padding-block:clamp(72px,8vw,120px);border-block:1px solid var(--line)}
 .abh-split{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(32px,6vw,96px);align-items:center}
-.abh-lists{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:28px}
-.abh-lists li{min-width:0}
-.abh-lists h3{font-size:.9375rem;color:var(--green)}
-.abh-lists ol{margin:10px 0 0;padding:0;list-style:none;border-top:1px solid color-mix(in oklab,var(--green) 18%,transparent)}
-.abh-lists li{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px dashed color-mix(in oklab,var(--green) 22%,transparent);font-size:.9375rem;font-weight:600}
-/* 六大領域點開看說明（2026-10-31，Jason 10-29 的建議）：整列是 summary，右邊＋打開時轉成 ×（同入學頁退費條款）；
-   同一時間只開一項（details 同名），說明縮排對齊領域名稱 */
-.abh-lists .abh-domains li{display:block;padding:0}
-.abh-domains summary{display:flex;align-items:center;gap:10px;padding:9px 0;list-style:none;cursor:pointer}
-.abh-domains summary::-webkit-details-marker{display:none}
-.abh-domains summary::before{content:'';flex:none;width:10px;height:10px;border-radius:50%;background:var(--c)}
-.abh-domains summary .icon{flex:none;width:16px;height:16px;margin-left:auto;color:var(--green);transition:transform .3s var(--abh-ease)}
-.abh-domains details[open] summary .icon{transform:rotate(45deg)}
-.abh-domains details p{padding:0 0 14px 20px;font-size:var(--fs-sm);font-weight:400;line-height:1.85;color:var(--muted)}
-@media (hover:hover){.abh-domains summary:hover{color:var(--green)}}
-.abh-literacies{counter-reset:lit}
-.abh-literacies li{counter-increment:lit}
-.abh-literacies li::before{content:counter(lit);width:1.2em;font:400 var(--fs-xs)/1 var(--font-date);color:var(--muted)}
+/* 六大領域選一個看說明（2026-11-10）：一排選項是原生 radio 的 label（radio 本身 sr-only），說明六段疊在同一格
+   （高度＝最長那段，換的時候版面不跳），選到哪個由 :has(input:checked) 決定，不靠 JS。
+   選項字重選不選都一樣：變粗會改寬度，整排跟著位移。
+   選項是一排文字（不是膠囊鈕）：整排底下一條細線，選到的那個字變深綠、底下 3px 一條線。 */
+.abh-pick{min-width:0;margin:28px 0 0;padding:0;border:0}
+.abh-tabs{display:flex;flex-wrap:wrap;gap:4px 22px;margin:0;padding:0;list-style:none;border-bottom:1px solid var(--line)}
+.abh-tabs label{display:block;cursor:pointer}
+.abh-tabs span{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 2px;font-size:.9375rem;font-weight:600;line-height:1;color:var(--muted);box-shadow:inset 0 -3px 0 transparent;transition:color .2s,box-shadow .2s}
+.abh-tabs span::before{content:'';flex:none;width:8px;height:8px;border-radius:50%;background:var(--c)}
+.abh-tabs input:checked+span{color:var(--ivy-forest);box-shadow:inset 0 -3px 0 var(--ivy-forest)}
+.abh-tabs input:focus-visible+span{outline:2px solid var(--ivy-forest);outline-offset:2px}
+@media (hover:hover){.abh-tabs label:hover span{color:var(--ivy-forest)}}
+.abh-panels{display:grid;margin-top:22px;container-type:inline-size}
+/* 說明沒有底色、沒有內距：照片和字直接放在頁面上，領域色只留在選項前那顆圓點與右邊六圈 */
+/* 說明旁一張 4:3 實拍（2026-11-10）：照片在左 168px；說明那一格窄於 480px 時（手機、901–1030 的左欄）照片改在上、裁成 16:9。
+   看的是那一格的寬度不是視窗：601–700 單欄時格子有 560px，並排比較省高度 */
+.abh-panel{grid-area:1/1;display:grid;grid-template-columns:minmax(0,168px) minmax(0,1fr);gap:24px;align-items:center;visibility:hidden}
+.abh-panel img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;border-radius:10px}
+.abh-pick:has(li:nth-child(1) input:checked) .abh-panel:nth-child(1),
+.abh-pick:has(li:nth-child(2) input:checked) .abh-panel:nth-child(2),
+.abh-pick:has(li:nth-child(3) input:checked) .abh-panel:nth-child(3),
+.abh-pick:has(li:nth-child(4) input:checked) .abh-panel:nth-child(4),
+.abh-pick:has(li:nth-child(5) input:checked) .abh-panel:nth-child(5),
+.abh-pick:has(li:nth-child(6) input:checked) .abh-panel:nth-child(6){visibility:visible}
+.abh-panel>div{min-width:0}
+@container (max-width:480px){
+  .abh-panel{grid-template-columns:minmax(0,1fr);gap:14px;align-items:start}
+  .abh-panel img{aspect-ratio:16/9}
+}
+.abh-panel h3{font-size:1.1875rem}
+.abh-panel p{margin-top:10px;font-size:var(--fs-md);line-height:1.9}
+@media (prefers-reduced-motion:reduce){.abh-tabs span,.abh-picks button{transition:none}}
 .abh-fine{margin-top:20px;font-size:var(--fs-sm);line-height:1.9;color:var(--muted)}
+.abh-lit{display:block;margin-top:6px}
 .abh-fine small{display:block;font-size:var(--fs-xs)}
 .abh-link{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin-top:6px;font-weight:700;color:var(--green);text-underline-offset:6px}
 .abh-link .icon{width:18px;height:18px}
@@ -121,7 +133,7 @@
 .abh-quote p{font-size:var(--fs-lg);line-height:2}
 .abh-quote p+p{margin-top:14px}
 .abh-art-box{container-type:inline-size}
-.abh-art{--v:calc(min(100cqw,560px) / 620);position:relative;height:calc(540 * var(--v) + 16px);max-width:560px;margin-inline:auto}
+.abh-art{--v:calc(min(100cqw,560px) / 620);position:relative;height:calc(600 * var(--v) + 16px);max-width:560px;margin-inline:auto}
 .abh-print,.abh-scene{position:absolute;inset:0;pointer-events:none}
 .abh-print{overflow:hidden}
 .abh-print>svg{position:absolute;left:0;width:100%}
@@ -140,21 +152,23 @@
 .abh-tape.is-l{left:-10%;top:-7%;rotate:-38deg}
 .abh-tape.is-r{right:-11%;top:-6%;rotate:34deg}
 
-/* ---------- 家長怎麼說：左邊一句一位家長，右邊大卡紙 ---------- */
+/* ---------- 家長怎麼說：左邊一句一位家長，右邊一支影片（圓角、沒有相框） ---------- */
 .abh-split.is-voices{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
 .abh-picks{margin:24px 0 0;padding:0;list-style:none;border-top:1px solid var(--line)}
-.abh-picks button{display:grid;grid-template-columns:14px minmax(0,1fr);gap:0 12px;width:100%;padding:14px 4px;border:0;border-bottom:1px solid var(--line);background:none;font:inherit;color:inherit;text-align:left;cursor:pointer}
-.abh-picks button::before{content:'';width:10px;height:10px;margin-top:8px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--trail)}
-.abh-picks button[aria-pressed=true]::before{background:var(--trail)}
-.abh-picks q{display:block;font-weight:600;line-height:1.7;quotes:'「' '」';transition:color .2s}
+/* 每一位前面是那支影片的封面小圖（2026-11-10；原本是一顆圓點）：看得到說話的人，也看得出這一列會換右邊的影片。
+   選到的那位左邊一條深綠線、小圖不退色；沒選到的小圖退一點 */
+.abh-picks button{display:grid;grid-template-columns:112px minmax(0,1fr);grid-template-rows:auto auto;gap:0 16px;align-content:center;width:100%;padding:14px 0 14px 14px;border:0;border-bottom:1px solid var(--line);background:none;box-shadow:inset 3px 0 0 transparent;font:inherit;color:inherit;text-align:left;cursor:pointer;transition:box-shadow .2s}
+.abh-picks button[aria-pressed=true]{box-shadow:inset 3px 0 0 var(--ivy-forest)}
+.abh-pick-thumb{grid-row:1/3;align-self:center;display:block;aspect-ratio:16/9;overflow:hidden;border-radius:8px;opacity:.7;transition:opacity .2s}
+.abh-pick-thumb img{display:block;width:100%;height:100%;object-fit:cover}
+.abh-picks button[aria-pressed=true] .abh-pick-thumb{opacity:1}
+.abh-picks q{grid-column:2;align-self:end;display:block;font-weight:600;line-height:1.6;quotes:'「' '」';transition:color .2s}
 .abh-picks button[aria-pressed=true] q{color:var(--ivy-forest)}
-.abh-picks small{grid-column:2;display:block;margin-top:2px;font-size:var(--fs-xs);color:var(--muted)}
+.abh-picks small{grid-column:2;align-self:start;display:block;margin-top:2px;font-size:var(--fs-xs);color:var(--muted)}
+@media (hover:hover){.abh-picks button:hover .abh-pick-thumb{opacity:1}}
 @media (hover:hover){.abh-picks button:hover q{text-decoration:underline;text-underline-offset:5px}}
 .abh-link.is-yt{margin-top:18px}
-/* 卡紙用 leaf：說明是米白小字，trail 底只有 3.2:1 */
-.abh-tv{--c:var(--leaf);--r:-.6deg}
-.abh-tv figcaption{color:var(--paper)}
-.abh-video{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:2px;background:var(--deep)}
+.abh-video{position:relative;aspect-ratio:16/9;overflow:hidden;border-radius:14px;background:var(--deep)}
 .abh-video img{display:block;width:100%;height:100%;object-fit:cover}
 .abh-video iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .abh-play{position:absolute;inset:0;display:block}
@@ -164,44 +178,83 @@
 /* 鍵盤焦點框往內收：.abh-video 有 overflow:hidden，全站預設往外的框會被裁掉 */
 .abh-play:focus-visible{outline-offset:-6px}
 
+/* ---------- 1001px 以上：沿革五站排成一列（2026-11-10） ----------
+   原本左右交錯直排，五站各一句話在 1440 寬佔 1485px（1.65 屏）；排成一列約 710px。照片在上、橫軸與圓點在中、字在下。
+   每個 li 自己是三列的格線（卡紙／48px 軸／字），外層格線會把 li 拉到同高，align-content:start 讓多的高度留在最下面，
+   不然字比較少的那幾站 auto 列被撐開，橫軸會比別站低。橫軸往兩邊各伸半個欄距再多疊 1px，五段接成一條；
+   顏色是不透明的 --line，重疊的地方才不會比較深。 */
+@media (min-width:1001px){
+  /* 章頭：標題與紀念章在左、介紹段落靠右下（原本段落在標題下面，右半邊整塊空著） */
+  .abh-story-head{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:end;gap:clamp(32px,5vw,80px)}
+  .abh-story-head .abh-text{justify-self:end;margin:0 0 6px;max-width:32em}
+  .abh-tl{--tl-gap:clamp(18px,2.2vw,32px);display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:var(--tl-gap);margin-top:clamp(36px,4vw,56px)}
+  .abh-tl::before{display:none}
+  .abh-tl li:nth-child(n){grid-template-columns:minmax(0,1fr);grid-template-rows:auto 48px auto;align-content:start;align-items:start;column-gap:0;margin-top:0;padding-block:0}
+  .abh-tl li:nth-child(n) .abh-card{grid-column:1;grid-row:1;justify-self:stretch;width:auto}
+  .abh-tl li:nth-child(n)::before{position:relative;z-index:1;left:auto;top:auto;grid-column:1;grid-row:2;align-self:center;justify-self:start;margin-left:5px;translate:none}
+  .abh-tl li:nth-child(n)::after{content:'';grid-column:1;grid-row:2;align-self:center;height:1px;margin-inline:calc(var(--tl-gap) / -2 - 1px);background:var(--line)}
+  .abh-tl li:first-child::after{margin-left:0}
+  .abh-tl li:last-child::after{margin-right:0}
+  .abh-tl li:nth-child(n) .abh-tl-text{grid-column:1;grid-row:3;text-align:left}
+  .abh-tl li:nth-child(n) .abh-year{justify-content:flex-start}
+  .abh-tl-text h3{margin-top:10px}
+  .abh-tl-end{justify-content:flex-end;margin-top:clamp(20px,2.4vw,32px)}
+}
+
 /* ---------- 動態：捲動驅動（不支援時就是完成狀態） ---------- */
 @supports (animation-timeline: view()){
   @media (prefers-reduced-motion:no-preference){
     /* 沿革卡紙：從平躺站起來（正式站立體書卡紙的動作，不釘住） */
     .abh-tl .abh-card{transform-origin:50% 100%;animation:abh-stand linear both;animation-timeline:view();animation-range:entry 0% entry 90%}
+    /* 桌機五站一列時同時進場：一張接一張站起來 */
+    @media (min-width:1001px){
+      .abh-tl li:nth-child(2) .abh-card{animation-range:entry 8% entry 98%}
+      .abh-tl li:nth-child(3) .abh-card{animation-range:entry 16% cover 22%}
+      .abh-tl li:nth-child(4) .abh-card{animation-range:entry 24% cover 26%}
+      .abh-tl li:nth-child(5) .abh-card{animation-range:entry 32% cover 30%}
+    }
     /* 紀念章：捲到時轉一圈 */
     .abh-medal{animation:abh-spin linear both;animation-timeline:view();animation-range:entry 10% cover 45%}
   }
+}
+/* 六大領域換說明時新的那段淡入（減少動態時直接換）。舊的那段不淡出、直接收起：兩段疊在同一格，
+   一起淡會有 0.3 秒兩段字疊在一起。 */
+@media (prefers-reduced-motion:no-preference){
+  .abh-panel{opacity:0}
+  .abh-pick:has(li:nth-child(1) input:checked) .abh-panel:nth-child(1),
+  .abh-pick:has(li:nth-child(2) input:checked) .abh-panel:nth-child(2),
+  .abh-pick:has(li:nth-child(3) input:checked) .abh-panel:nth-child(3),
+  .abh-pick:has(li:nth-child(4) input:checked) .abh-panel:nth-child(4),
+  .abh-pick:has(li:nth-child(5) input:checked) .abh-panel:nth-child(5),
+  .abh-pick:has(li:nth-child(6) input:checked) .abh-panel:nth-child(6){opacity:1;transition:opacity .3s var(--abh-ease)}
 }
 @keyframes abh-stand{from{transform:perspective(900px) rotateX(78deg)}to{transform:none}}
 @keyframes abh-spin{from{transform:perspective(600px) rotateY(-360deg)}to{transform:perspective(600px) rotateY(0)}}
 
 /* ---------- 900px 以下：單欄 ---------- */
 @media (max-width:900px){
-  .abh{--abh-sec:88px}
   .abh h1{font-size:clamp(1.875rem,10.5vw,2.75rem)}
   .abh h2{font-size:clamp(1.625rem,7vw,2.125rem)}
   .abh-hero,.abh-split,.abh-split.is-voices,.abh-hope .abh-split{grid-template-columns:1fr}
   /* 首屏：大標 → 照片 → 介紹 → 索引 */
   .abh-hero{gap:0;padding-top:32px}
   .abh-hero-text{display:contents}
-  .abh-hero-art{order:1;margin:24px 0 8px;padding:8px 4px 12px}
-  .abh-hero-art .abh-card{padding:10px 10px 0}
-  .abh-hero-art .abh-card:not(:has(figcaption)){padding-bottom:10px}
+  .abh-hero-art{order:1;margin:24px 0 8px}
   .abh-lede,.abh-index{order:2}
   .abh-index{grid-template-columns:1fr 1fr;gap:12px 16px;margin-top:32px}
   .abh-index.is-next{grid-template-columns:1fr;gap:8px;margin-top:20px}
   .abh-mk{width:34px;height:44px}
   .abh-index b{font-size:1.0625rem}
   .abh-medal{width:72px}
-  /* 全人教育：標題 → 介紹 → 六圈 → 兩份清單（並排）→ 出處 → 連結收尾（桌機是左字右圖）。
+  /* 全人教育：標題 → 介紹 → 六圈 → 選項與說明 → 出處 → 連結收尾（桌機是左字右圖）。
      文字欄 display:contents 之後每一行都是格線的一列，格線的欄距會加在每一行之間（編號到標題曾是 48px，別章 16px），
      所以欄距歸零、間距只靠各自的 margin（同家長章） */
   .abh-band .abh-split{gap:0}
   .abh-whole-text{display:contents}
-  .abh-band .abk-whole{order:1;margin-top:28px}
-  .abh-whole-text>.abh-lists,.abh-whole-text>.abh-fine,.abh-whole-text>.abh-link{order:2}
-  .abh-lists{gap:20px 16px;margin-top:24px}
+  /* 六圈在單欄時最寬 320px（2026-11-10 說明多了照片，圖讓一點高度；標籤字級跟著容器，不會變小到看不清） */
+  .abh-band .abk-whole{order:1;width:min(100%,320px);margin:28px auto 0}
+  .abh-whole-text>.abh-pick,.abh-whole-text>.abh-fine,.abh-whole-text>.abh-link{order:2}
+  .abh-pick{margin-top:4px}
   .abh-art{margin-top:24px}
   /* 家長：標題 → 影片 → 一句一位 */
   .abh-split.is-voices{gap:0}
@@ -218,7 +271,7 @@
   .abh-tl li+li{margin-top:0}
   .abh-tl li::before{left:7px;top:32px}
   /* 單數列也要寫 :nth-child(odd)：桌機的 justify-self:end 權重比 li .abh-card 高，曾讓單數列的卡紙比雙數列右移 16px */
-  .abh-tl li:nth-child(odd) .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:2;grid-row:1;justify-self:end;width:100%;margin-top:6px;padding:5px}
+  .abh-tl li:nth-child(odd) .abh-card,.abh-tl li:nth-child(even) .abh-card{grid-column:2;grid-row:1;justify-self:end;width:100%;margin-top:6px}
   .abh-tl li .abh-tl-text,.abh-tl li:nth-child(even) .abh-tl-text{grid-column:1;grid-row:1;text-align:left}
   .abh-tl li:nth-child(even) .abh-year{justify-content:flex-start}
   /* 字欄 360 寬只剩約 150px：年份與民國年放不下一行時換行，不擠出字欄 */
@@ -226,11 +279,10 @@
   .abh-tl-text h3{margin-top:10px}
   .abh-tl-text h3 span{display:inline-block}
   .abh-tl-end{justify-content:flex-start;margin-top:4px;padding-left:34px}
-  /* 六大領域點開的說明並排時只剩約 170px 寬（一行 11 字、六行）：領域一欄滿寬，核心素養接在下面排兩欄 */
-  .abh-lists{grid-template-columns:1fr}
-  .abh-literacies{display:grid;grid-template-columns:1fr 1fr;column-gap:16px}
+  .abh-picks button{grid-template-columns:96px minmax(0,1fr);gap:0 14px}
+  .abh-tabs{gap:0 18px}
 }
-/* 360 以下：索引兩欄時文字欄只剩約 70px，「我們的期許」「1997 到 2021」會拆行，改一欄（同特色教學頁；兩份清單 700 以下已是一欄） */
+/* 360 以下：索引兩欄時文字欄只剩約 70px，「我們的期許」「1997 到 2021」會拆行，改一欄（同特色教學頁） */
 @media (width < 360px){
   .abh-index{grid-template-columns:1fr}
 }

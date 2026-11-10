@@ -2052,29 +2052,29 @@
     "height": 1333,
     "candidates": [
       {
-        "src": "/assets/responsive/about-hero-8e949646c81c-480.webp",
+        "src": "/assets/responsive/about-hero-af434a1e489c-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/about-hero-296608dac8a1-480.avif"
+        "avif": "/assets/responsive/about-hero-5c5da0dc22b9-480.avif"
       },
       {
-        "src": "/assets/responsive/about-hero-8e949646c81c-800.webp",
+        "src": "/assets/responsive/about-hero-af434a1e489c-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/about-hero-296608dac8a1-800.avif"
+        "avif": "/assets/responsive/about-hero-5c5da0dc22b9-800.avif"
       },
       {
-        "src": "/assets/responsive/about-hero-8e949646c81c-1200.webp",
+        "src": "/assets/responsive/about-hero-af434a1e489c-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/about-hero-296608dac8a1-1200.avif"
+        "avif": "/assets/responsive/about-hero-5c5da0dc22b9-1200.avif"
       },
       {
-        "src": "/assets/responsive/about-hero-8e949646c81c-1600.webp",
+        "src": "/assets/responsive/about-hero-af434a1e489c-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/about-hero-296608dac8a1-1600.avif"
+        "avif": "/assets/responsive/about-hero-5c5da0dc22b9-1600.avif"
       },
       {
-        "src": "/assets/responsive/about-hero-8e949646c81c-2000.webp",
+        "src": "/assets/responsive/about-hero-af434a1e489c-2000.webp",
         "width": 2000,
-        "avif": "/assets/responsive/about-hero-296608dac8a1-2000.avif"
+        "avif": "/assets/responsive/about-hero-5c5da0dc22b9-2000.avif"
       }
     ]
   },

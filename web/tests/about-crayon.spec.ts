@@ -87,9 +87,10 @@ describe('房子與照片', () => {
     expect(hope.match(/class="abh-tape is-[lr]"/g)).toHaveLength(2)
     expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;')
   })
-  it('煙的框對準房子卡紙上的煙囪頂', () => {
-    expect(shared).toContain('smoke: { x: 180 + 218 - 90, y: 102 + 340 - 46 + 6 - 8, w: 120, h: 180 }')
-    expect(shared).toContain('house: { x: 180, y: 102, w: 300, h: 340 }')
+  it('煙的框對準房子卡紙上的煙囪頂（2026-11-10 房子放大兩成，煙囪頂跟著乘 1.2）', () => {
+    expect(shared).toContain('const HOUSE_SCALE = 1.2')
+    expect(shared).toContain('const HOUSE = { x: 310 - 300 * HOUSE_SCALE / 2, y: 102, w: 300 * HOUSE_SCALE, h: 340 * HOUSE_SCALE }')
+    expect(shared).toContain('smoke: { x: HOUSE.x + 218 * HOUSE_SCALE - 90, y: HOUSE.y + HOUSE.h - 46 * HOUSE_SCALE + 6 - 8, w: 120, h: 180 }')
   })
   it('房子與兩棵樹是剪下來的卡紙（白邊＋陰影），不再翻頁站起來', () => {
     expect(hope.match(/class="abh-cut"/g)).toHaveLength(3)
