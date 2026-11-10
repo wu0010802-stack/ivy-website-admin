@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 課程活動、情緒安撫、定時消毒換新照片（main CI 部署，沒有 migration）
+
+- **內容**：`45198055`（README「2026-11-10 特色教學『課程活動』換種苗校外教學照」與「環境頁『情緒安撫』『定時消毒』換義華 NAS 照片」），分支 `feature/cur-activities-582-20261110`，rebase 到 `23552c49`（README 頂部衝突兩段都留）後單一提交推 main。只改 web：三張母檔與響應式檔、`CurriculumContent.vue`／`EnvironmentContent.vue`／`about-content.ts` 替代文字與焦點、環境頁兩份渲染快照；沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；stack e2e（獨立測試庫 `ivy_website_e2e_photo582_test`，跑完已刪）170 過、30 略過、0 失敗。
+- **CI**：run 42833633378 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（14:35:57Z）；`/release.json` 的 `base_commit` 是 `45198055`。
+- **正式站驗證**（只發 GET）：`/curriculum` 載 `cur-activities-6cd25c60efaf`／`b0033b5efbd0`；`/environment` 載 `env-care-clean-f25e6a36a52c`／`797bb43335ab` 與 `env-care-comfort-6af7f61ad3e8`／`ad4a5b2e3dd0`；`/about` 也是新的 comfort 雜湊；三段新替代文字都在；六組舊雜湊 0；新 AVIF 200。
+- **待園方**：情緒安撫照片裡的大人是老師還是家長、肖像同意；「定時消毒」文案沒改（照片是洗手）。
+- **沒驗**：實機、/about「情緒」格的畫面截圖（圖在互動層裡）。
+
 ## 2026-11-10 前台渲染流暢度：捲動先讀後寫、拍立得少畫幾幀、五校水彩分段（main CI 部署，沒有 migration）
 
 - **內容**：`0b0aa009`（README「2026-11-10 前台渲染流暢度」、DESIGN.md「前台流暢度第三批」），分支 `feature/render-jank-20261110`，rebase 到 `8122ee10` 後單一提交直接推 main。只改 web 前端（新增 `utils/scrollFrame.ts`；`paperPrints`、`cornerCurl`、`campusSketch`、`watercolor` 與八個捲動處理器），沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；同 commit 兩份 production build（fixture）交錯量測與 13 個捲動位置截圖逐像素相同。admin、後端沒改，沒在本機跑；stack e2e 交給 CI。
