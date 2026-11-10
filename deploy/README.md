@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 後台「使用小技巧」頁（main CI 部署，沒有 migration）
+
+- **內容**：`8c562469`（README「2026-11-10 後台「使用小技巧」頁」），分支 `feature/admin-help-20261110`（基底 main `d372b82a`），只動 admin/（新頁 `/admin/tips`、側欄最後一項）、`tests/stack`（截圖 spec、a11y 加 `/tips`）、`scripts/build-admin-tips-images.py`。截圖 32 張是拋棄式測試庫的虛構資料。推前本機：admin typecheck、vitest 全套（負載 40–58 下 4 項 5 秒逾時，單獨重跑全過）、build；stack `a11y`／`visual`／`sidebar-collapse`／`keyboard`／`roles` 52 項全過（獨立測試庫，已刪）。
+- **CI**：run 42743950663 全綠（含 E2E）、Deploy Railway production success（02:36→02:46Z）；`/release.json` 的 `base_commit` 是 `8c562469`。
+- **正式站驗證**（只發 GET、不登入）：後台入口 JS 有「使用小技巧」與 `/tips` 路由；`TipsView-*.js` chunk 有小技巧內容；31 張 WebP 都回 200 `image/webp`（第 32 張小於 4 KB，Vite 內嵌在 chunk 裡）。
+- **沒驗**：登入正式後台實際看畫面（要本人帳號）；iOS 實機。
+
 ## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（main CI 部署，沒有 migration）
 
 - **內容**：`704bdb6f`（合併提交，含 `6250c6aa` 素材大圖、`29ca4656` 字表重切、`6108d0d7` 撥號膠囊等、`45620eb4` README；README「2026-11-09 前台技術稽核修正」），分支 `feature/web-tech-audit-20261109`，推前合進 main `cb3131d6`（前台流暢度第二批，無衝突）。推前本機：web typecheck、`npm run test:website` 126 檔 1706 項、後端全套 4964 過 1 略過、stack 169 項全過（9.4 分鐘），測試庫獨立、已刪。
