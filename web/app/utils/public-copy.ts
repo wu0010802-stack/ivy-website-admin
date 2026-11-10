@@ -109,8 +109,8 @@ export function withoutRepeatedCopy(site: SiteContent): SiteContent {
     home: {
       ...home,
       // 「SINCE 1997」：內文第一句就是「自 1997 年在高雄創立」
-      about: { ...home.about, sinceLabel: swap(home.about.sinceLabel, 'SINCE 1997'), caption: swap(home.about.caption, '把日常，變成值得記住的童年。') },
-      campusBoard: { ...home.campusBoard, eyebrow: swap(home.campusBoard.eyebrow, 'Campuses') }
+      about: { ...home.about, sinceLabel: swap(home.about.sinceLabel, 'SINCE 1997'), caption: swap(home.about.caption, '把日常，變成值得記住的童年。') }
+      // 分校資訊的英文 Campuses（campusBoard.eyebrow）10-30 一起拿掉過，2026-11-10 使用者要加回來：這裡不再換，照後台內容顯示。
     },
     dayExperience: day && {
       ...day,

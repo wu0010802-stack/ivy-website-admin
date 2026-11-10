@@ -1,3 +1,12 @@
+## 2026-11-10 首頁分校資訊的英文加回來（`feature/campus-english-20261110`）
+
+使用者截圖首頁五校區塊：「分校資訊這邊本來底下有英文，每校下面本來也有英文，可以幫我加回來嗎」。兩處都是 10-30 拿掉重複文字（`fc3a5dfd`）時一起拿掉的。規則見 DESIGN.md 最上方一段。
+
+- **區塊標題**：「分校資訊」上方的 Campuses 回來了。`web/app/utils/public-copy.ts` 不再把 `campusBoard.eyebrow` 的原文換成空字串；正式站後台這一欄現在的值就是 `Campuses`，上線後直接顯示。位置照 09-23 定案是英文在上、中文在下。
+- **每校校名下**：`web/app/components/CampusBoard.vue` 加回 `<span lang="en">` 與兩條樣式，五校依序是 YIHUA／MINGHUA／CHONGDE／INTERNATIONAL／RENWU CAMPUS。
+- **驗證**（Node 22，本機 dev server fixture 模式 port 3181）：新增 `web/tests/campus-english-20261110.spec.ts` 3 項（改之前 2 項紅燈）；web typecheck 通過；web 單元 128 檔 1714 項全過。Playwright 1440×900 與 390×844：Campuses 在「分校資訊」上方、Georgia 斜體；五校逐一切換英文都對，桌機 12px、手機 11px、Source Sans 3；沒有橫向溢出、沒有頁面錯誤。
+- 未驗證：iOS／Android 實機；stack e2e 與正式建置沒在本機跑。
+
 ## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿：接上義華粉專實測（`feature/fb-news-sync-20261028`）
 
 10-28 做好程式、只用假 Meta 回應測過；11-10 rebase 到最新 main（migration 改接 `b5e8f1c3a7d2`），使用者登入 FB、Claude 操作 Chrome 拿到義華粉專的長效 Page token，連真的 Graph API 從頭驗到尾。
