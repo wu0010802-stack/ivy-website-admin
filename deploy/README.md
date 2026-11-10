@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 拿掉首頁作息提醒、特色教學頁兩個延伸連結（main CI 部署，沒有 migration）
+
+- **內容**：`aa3a4da9`（README「2026-11-10 拿掉首頁作息提醒、特色教學頁兩個延伸連結」），分支 `feature/home-copy-trim-20261110`，推前 rebase 到 main `ac0fa71b`（只有 README 兩段並存的衝突）。只動 web/：`public-copy.ts` 把作息提醒原文與短句輸出成空字串、`DayExperience.vue` 的 `.day-note` 有內容才畫、`styles.css` 用 `.day-prints:last-child` 補回收尾留白；`CurriculumContent.vue` 拿掉「用生日查孩子讀哪一班」「課綱六大領域與核心素養」與 `curriculum.css` 的 `.cur-link` 樣式。推前本機：web typecheck 通過、web 單元 129 檔 1727 項全過、admin `curriculumPage.test.ts` 16 項過。
+- **CI**：自己的 run 42771166220 排隊時被隨後推上的 `82ed7767`（最新消息頁）取代而 cancelled；run 42771296698（head `82ed7767`，含 `aa3a4da9`）全綠（含 E2E）、Deploy Railway production success（07:01→07:05Z）；`/release.json` 的 `base_commit` 是 `82ed7767`。
+- **正式站驗證**（只發 GET）：首頁 `day-note`、「作息略有不同」都是 0；`/curriculum` 兩個連結文字與 `cur-link` 都是 0、`#years` 仍在。Playwright 1440×900／390×844：最後一張拍立得底到區塊底桌機 259px、手機 180px（改前 259／181），兩頁無頁面錯誤。
+- **沒驗**：iOS／Android 實機。
+
 ## 2026-11-10 首頁分校資訊的英文加回來（main CI 部署，沒有 migration）
 
 - **內容**：`a28d0d77`（README「首頁分校資訊的英文加回來」），分支 `feature/campus-english-20261110`，從 main `391801ee` 快轉。只動 web/：`public-copy.ts` 不再把 `campusBoard.eyebrow` 的原文 Campuses 換成空字串、`CampusBoard.vue` 校名下加回 `<span lang="en">`（YIHUA CAMPUS 這種）與兩條樣式。推前本機：web typecheck、vitest 128 檔 1714 項全過；stack e2e（獨立測試庫）170 過、30 略過；dev server 上 390／1440 截圖看過。
