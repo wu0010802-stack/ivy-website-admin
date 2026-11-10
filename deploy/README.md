@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3（main CI 部署，沒有 migration）
+
+- **內容**：`cc06c5a1`（README「2026-11-10 關於頁首屏照片裁掉左邊的木柱，照片框 3:2 改 4:3」），worktree `about-ta-20261110` 快轉到 main `1a1fdac0` 後直接疊上去，沒有衝突。`about-hero` 母檔裁成 1600×1200（WebP `ecfe7c085bad`、AVIF `46d315c72e09`，舊雜湊十個衍生檔刪掉）、`.abh-hero-art .abh-card{--ar:4/3}`、`ABOUT_HERO_SIZES` 改 `calc(100vw - 40px), 700px`；後台關於頁首屏照片的說明與焦點預覽比例改 4:3。
+- **推之前**：web typecheck、單元 130 檔 1750 項全過；admin `aboutPage.test.ts` 20 項與 `vue-tsc` 過；本機 dev（fixture）六個寬度看過、axe（WCAG A／AA，桌機＋手機）頁面本身 0 項。stack e2e 沒在本機跑（交給 CI）。等前一個 run 42772478288（首頁照片調亮）跑完才推，沒有取消別人的部署。
+- **CI**：run 42774736803 全綠（含 E2E）、Deploy Railway production success（07:21→07:34Z）；`/release.json` 的 `base_commit` 是 `cc06c5a1`。
+- **正式站驗證**（只發 GET、擋掉遙測）：`/about` SSR 新雜湊 AVIF 8 處、WebP 4 處，舊雜湊 0；預載 `imagesizes` 是 `(max-width: 900px) calc(100vw - 40px), 700px`；舊的 `about-hero-5c5da0dc22b9-2000.avif` 回 404。Playwright 1440×900（DPR 2）載 1600w AVIF、照片 694×521；390×844（DPR 3）載 1200w AVIF、350×263；比例 1.333、沒有 4xx、沒有頁面錯誤、沒有橫向溢出。
+- **沒驗**：iOS／Android 實機；後台關於頁的焦點預覽沒登入正式後台看。
+
 ## 2026-11-10 首頁「把每個孩子 放在心上」照片調亮（main CI 部署，沒有 migration）
 
 - **內容**：`aa8313e7`（README「首頁『把每個孩子 放在心上』照片調亮」），分支 `feature/home-about-brighten-20261110`，從 main `82ed7767` 快轉。只換 `web/public/assets/home-about.webp`（由原檔重出：暗處補光＋中間調提亮，使用者從輕／中／強選「中」）與它的衍生檔、`image-manifest.json`；版面、文字、替代文字沒動。推前本機：web typecheck、vitest 130 檔 1750 項全過；dev server 上 1440／390 截圖看過。沒跑本機 stack e2e（只換圖檔位元組，CI 的 E2E 有跑）。
