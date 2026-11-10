@@ -18,7 +18,7 @@ const LAY = VERT ? {
   sprout: { x: 540, y: 1230 },
   paper: { src: 'stills/paper-v.png', w: 1188, h: 2112 },
   foot: { w: 1296, h: 2304 },
-  cap: { size: 56, y1: 1400, y2: 1482, tsize: 64, ty1: 1300, ty2: 1394, scrim: 760 },
+  cap: { size: 56, y1: 1400, y2: 1482, tsize: 64, ty1: 300, ty2: 394, scrim: 760 },
   crest: { main: [880, 830], up: [700, 790], end: [700, 820], title: 1210, years: 1340, outro1: 1108, outro2: 1306, brand: 1138 },
 } : {
   FR: { x: 760, y: 136, w: 1080, h: 608 },
@@ -28,7 +28,7 @@ const LAY = VERT ? {
   sprout: { x: 960, y: 842 },
   paper: { src: 'stills/paper.png', w: 2112, h: 1188 },
   foot: { w: 2304, h: 1296 },
-  cap: { size: 60, y1: 812, y2: 900, tsize: 70, ty1: 760, ty2: 864, scrim: 460 },
+  cap: { size: 60, y1: 812, y2: 900, tsize: 70, ty1: 118, ty2: 222, scrim: 460 },
   crest: { main: [880, 430], up: [620, 392], end: [620, 432], title: 772, years: 902, outro1: 700, outro2: 806, brand: 716 },
 };
 const PAD = { x: (LAY.paper.w - (VERT ? 1080 : 1920)) / 2, y: (LAY.paper.h - (VERT ? 1920 : 1080)) / 2 };
@@ -619,6 +619,8 @@ async function init() {
   S.footA = el('img', S.footLayer, { position: 'absolute', left: 0, top: 0, width: px(LAY.foot.w), height: px(LAY.foot.h), transformOrigin: '0 0' });
   S.footB = el('img', S.footLayer, { position: 'absolute', left: 0, top: 0, width: px(LAY.foot.w), height: px(LAY.foot.h), transformOrigin: '0 0', display: 'none' });
   S.scrim = el('div', S.footLayer, { position: 'absolute', left: 0, right: 0, bottom: 0, height: px(LAY.cap.scrim), background: `linear-gradient(to top, rgba(${INK},0.62), rgba(${INK},0.30) 45%, rgba(${INK},0))`, opacity: 0 });
+  // 片名句放在聚光燈鏡頭上方的暗處（不壓孩子的白衣服），用自己的上方漸層
+  S.scrimTop = el('div', S.footLayer, { position: 'absolute', left: 0, right: 0, top: 0, height: px(LAY.cap.scrim), background: `linear-gradient(to bottom, rgba(${INK},0.55), rgba(${INK},0.25) 50%, rgba(${INK},0))`, opacity: 0 });
   S.flash = el('div', S.footLayer, { position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 60% 40%, rgba(255,236,200,1), rgba(255,220,170,0.6) 45%, rgba(255,210,160,0) 75%)', mixBlendMode: 'screen', opacity: 0 });
   const capStyle = { size: LAY.cap.size, weight: 700, color: '#FFFFFF', align: 'center', w: 1800, ls: 0.08, shadow: `0 2px 18px rgba(${INK},0.55), 0 1px 3px rgba(${INK},0.5)` };
   S.caps = {
@@ -907,8 +909,9 @@ async function render(f) {
     cap('heart1', 2742, 2862); cap('heart2', 2776, 2862);
     cap('title1', 3378, 3500); cap('title2', 3414, 3500);
     const scr = Math.max(prog(f, 1606, 1630) * (1 - prog(f, 1748, 1770)), prog(f, 2166, 2186) * (1 - prog(f, 2300, 2320)),
-      prog(f, 2568, 2590) * (1 - prog(f, 2700, 2718)), prog(f, 2730, 2750) * (1 - prog(f, 2862, 2880)), prog(f, 3368, 3392));
+      prog(f, 2568, 2590) * (1 - prog(f, 2700, 2718)), prog(f, 2730, 2750) * (1 - prog(f, 2862, 2880)));
     setStyle(S.scrim, 'opacity', E.inOutSine(scr).toFixed(3));
+    setStyle(S.scrimTop, 'opacity', E.inOutSine(prog(f, 3368, 3392) * (1 - prog(f, 3500, 3518))).toFixed(3));
   }
 
   /* ── 第五幕：30 ── */
