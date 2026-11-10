@@ -3,6 +3,7 @@
     python3 assemble.py            # 主片（高畫質）＋網路版
     python3 assemble.py --check    # 只檢查分段是否完整連續
     python3 assemble.py --vertical # 直式 9:16 版（segments-v → ivy-30th-film-vertical-*.mp4）
+    python3 assemble.py --remux-audio [--vertical]  # 只換聲音（影像不重編）
 
 輸入：output/anniversary-film/segments/seg-<起>-<迄>.mkv（近無損 yuv444p、BT.709）
       output/anniversary-film/music/film-audio.wav（配樂＋擬音，48 kHz；mix_final.py 產生）
@@ -90,7 +91,24 @@ def report(path):
     print('   integrated', il.group(1) if il else '?', 'LUFS, true peak', tp.group(1) if tp else '?', 'dBTP')
 
 
+def remux_audio():
+    """只換聲音：影像串流原樣複製（不重新編碼），聲音用最新的 film-audio 重新編 AAC。"""
+    names = (('ivy-30th-film-vertical-master.mp4', '320k'), ('ivy-30th-film-vertical-web.mp4', '192k')) if VERT else \
+        (('ivy-30th-film-1080p-master.mp4', '320k'), ('ivy-30th-film-1080p-web.mp4', '192k'))
+    for name, abr in names:
+        src = os.path.join(FINAL, name)
+        tmp = src + '.tmp.mp4'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-i', AUDIO, '-map', '0:v', '-map', '1:a', '-c:v', 'copy',
+                        '-c:a', 'aac', '-b:a', abr, '-ar', '48000', '-movflags', '+faststart', '-shortest',
+                        '-map_metadata', '0', tmp], check=True)
+        os.replace(tmp, src)
+        report(src)
+
+
 def main():
+    if '--remux-audio' in sys.argv:
+        remux_audio()
+        return
     chain = segments()
     print('segments ok:', len(chain))
     if '--check' in sys.argv:
