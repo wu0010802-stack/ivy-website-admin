@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 最新消息頁 UI/UX：最新一則放大＋照片格、粉專消息的重複段落與封面裁切（main CI 部署，沒有 migration）
+
+- **內容**：`82ed7767`（README「最新消息頁 UI/UX」），分支 `feature/news-page-ux-20261110`，從 main `391801ee` 開、推之前重接到 `aa3a4da9`（README／DESIGN.md 頂部的衝突是兩邊段落都留）。只動 web/：`NewsIndexContent.vue`、`NewsArticleContent.vue`、`NewsBody.vue`、`news-page.css`、`news-content.ts`，首頁 `NewsDialog.vue`／`HomeStoryViewer.vue` 的消息摘要套 `tidyNewsText`。推前本機：web vitest 130 檔 1750 項全過、typecheck 過（最後一次重接前）；dev server 接假 API（正式站內容＋多則消息兩種情境）在 320–1440 十二個寬度看過，沒跑 stack e2e。
+- **CI**：run 42771296698 全綠（含 E2E）、Deploy Railway production success（07:01→07:05Z）；`/release.json` 的 `base_commit` 是 `82ed7767`。同一次部署帶上 `aa3a4da9`（拿掉首頁作息提醒、特色教學頁兩個延伸連結）：它自己的 run 42771166220 排隊時被這次取代、顯示 cancelled，內容已包含在這次。
+- **正式站驗證**（只發 GET、擋掉遙測，Playwright 1440／390）：`/news` 最新一則放大（直式照片框，1440 是 420×525、390 是 350×350），標題分成「萬聖節變裝派對｜」「小小變裝家出動啦！」兩段，沒有校區篩選（只有義華有消息），結尾五校粉專；單篇頁 meta 只有「義華校」、沒有重複的導言、內文沒有全形標點後的空白，封面 1440 在右欄 360×640 整張、390 是 350×438；`/news?campus=minghua` 篩選是全部／義華校／明華校，粉專下面有「其他校區最近」一則；首頁消息摘要同樣沒有多餘空白。四頁都沒有橫向溢出與主控台錯誤。
+- **沒驗**：iOS／Android 實機；多則消息與近期活動的版面只在本機假資料看過（正式站目前只有一則消息、沒有活動）。
+
 ## 2026-11-10 拿掉首頁作息提醒、特色教學頁兩個延伸連結（main CI 部署，沒有 migration）
 
 - **內容**：`aa3a4da9`（README「2026-11-10 拿掉首頁作息提醒、特色教學頁兩個延伸連結」），分支 `feature/home-copy-trim-20261110`，推前 rebase 到 main `ac0fa71b`（只有 README 兩段並存的衝突）。只動 web/：`public-copy.ts` 把作息提醒原文與短句輸出成空字串、`DayExperience.vue` 的 `.day-note` 有內容才畫、`styles.css` 用 `.day-prints:last-child` 補回收尾留白；`CurriculumContent.vue` 拿掉「用生日查孩子讀哪一班」「課綱六大領域與核心素養」與 `curriculum.css` 的 `.cur-link` 樣式。推前本機：web typecheck 通過、web 單元 129 檔 1727 項全過、admin `curriculumPage.test.ts` 16 項過。
