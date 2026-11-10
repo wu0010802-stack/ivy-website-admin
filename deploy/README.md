@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 首頁分校資訊的英文加回來（main CI 部署，沒有 migration）
+
+- **內容**：`a28d0d77`（README「首頁分校資訊的英文加回來」），分支 `feature/campus-english-20261110`，從 main `391801ee` 快轉。只動 web/：`public-copy.ts` 不再把 `campusBoard.eyebrow` 的原文 Campuses 換成空字串、`CampusBoard.vue` 校名下加回 `<span lang="en">`（YIHUA CAMPUS 這種）與兩條樣式。推前本機：web typecheck、vitest 128 檔 1714 項全過；stack e2e（獨立測試庫）170 過、30 略過；dev server 上 390／1440 截圖看過。
+- **CI**：run 42768681504 全綠（含 E2E）、Deploy Railway production success（06:27→06:39Z）；`/release.json` 的 `base_commit` 是 `a28d0d77`。
+- **正式站驗證**（只發 GET、擋掉遙測）：首頁 SSR 有 `<span lang="en">Campuses</span>` 與 `YIHUA CAMPUS`；Playwright 1440／390：Campuses 在「分校資訊」上方，五校逐一切換是 YIHUA／MINGHUA／CHONGDE／INTERNATIONAL／RENWU CAMPUS，無橫向溢出、無頁面錯誤。
+- **沒驗**：iOS／Android 實機。
+- **待使用者決定**：Campuses 是 Georgia 斜體，跟下面 YIHUA CAMPUS 的 Source Sans 3 不是同一套；要不要統一、分校資訊的顏色與字距要不要跟其他大標一致，還沒改。
+
 ## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿，先接義華（main CI 部署，migration `a7d3f8c21e60`）
 
 - **內容**：`a621cd7d`（README「2026-11-10 各校 Facebook 粉專貼文 → 消息草稿」），分支 `feature/fb-news-sync-20261028`（10-28 寫好、11-10 rebase 到 main `6305ef14` 後改寫成單一提交）。migration `a7d3f8c21e60`（parent `b5e8f1c3a7d2`）只新增 `facebook_page_posts`、`facebook_page_sync` 兩張表，不改既有資料，照備份閘門不需先備份。推前本機：後端全套 4991 過 1 略過、admin vitest 173 檔 3345 過、`npm run test:website` 1706 過、web／admin typecheck、`contract:check`、stack 170 過 30 略過（6.2 分鐘），測試庫獨立。
