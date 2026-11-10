@@ -2583,24 +2583,24 @@
     "height": 1108,
     "candidates": [
       {
-        "src": "/assets/responsive/home-about-d94cfbb255e3-480.webp",
+        "src": "/assets/responsive/home-about-9b9f2503d00b-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/home-about-59cd2ec51bf7-480.avif"
+        "avif": "/assets/responsive/home-about-419c7c4f2a99-480.avif"
       },
       {
-        "src": "/assets/responsive/home-about-d94cfbb255e3-800.webp",
+        "src": "/assets/responsive/home-about-9b9f2503d00b-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/home-about-59cd2ec51bf7-800.avif"
+        "avif": "/assets/responsive/home-about-419c7c4f2a99-800.avif"
       },
       {
-        "src": "/assets/responsive/home-about-d94cfbb255e3-1200.webp",
+        "src": "/assets/responsive/home-about-9b9f2503d00b-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/home-about-59cd2ec51bf7-1200.avif"
+        "avif": "/assets/responsive/home-about-419c7c4f2a99-1200.avif"
       },
       {
         "src": "/assets/home-about.webp",
         "width": 1477,
-        "avif": "/assets/responsive/home-about-59cd2ec51bf7-1477.avif"
+        "avif": "/assets/responsive/home-about-419c7c4f2a99-1477.avif"
       }
     ]
   }
