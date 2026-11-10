@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿，先接義華（main CI 部署，migration `a7d3f8c21e60`）
+
+- **內容**：`a621cd7d`（README「2026-11-10 各校 Facebook 粉專貼文 → 消息草稿」），分支 `feature/fb-news-sync-20261028`（10-28 寫好、11-10 rebase 到 main `6305ef14` 後改寫成單一提交）。migration `a7d3f8c21e60`（parent `b5e8f1c3a7d2`）只新增 `facebook_page_posts`、`facebook_page_sync` 兩張表，不改既有資料，照備份閘門不需先備份。推前本機：後端全套 4991 過 1 略過、admin vitest 173 檔 3345 過、`npm run test:website` 1706 過、web／admin typecheck、`contract:check`、stack 170 過 30 略過（6.2 分鐘），測試庫獨立。
+- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-08**，到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
+- **變數**：api 服務 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`--stdin`、`--skip-deploys`，值從 worktree `.env` 帶、不經對話）＋ `WEBSITE_FACEBOOK_PAGES=yihua=146366255237690` 一次設好；使用者在 CI 跑完前先設，觸發的重部署 `f771022d` 用的是舊映像（設定 `extra="ignore"`，略過不認得的變數），SUCCESS、health 正常，功能等新程式部署才開。
+- **CI**：run 42747476046 全綠（含 E2E），Deploy Railway production success（03:15→03:21Z）；`/release.json` 的 `base_commit` 是 `a621cd7d`。
+- **正式站驗證**：api log `Running upgrade b5e8f1c3a7d2 -> a7d3f8c21e60`、`Database schema ready: a7d3f8c21e60`；背景同步第一輪 03:18:39Z 兩次 Graph v27.0 請求都 200，log 裡的網址不含 token（`access_token=`、`EAA…` 都是 0 筆）；`GET /api/website/v1/admin/facebook-posts` 未登入回 401（路由已掛）。
+- **沒驗**：登入正式後台看「各校 → Facebook 貼文」與實際轉成草稿（要本人帳號；本機實測已做過）；正式庫筆數（`railway ssh` 會被自動模式擋）。其他四校還沒接，後台顯示「還沒接上」。
+
 ## 2026-11-10 入學頁文字改白話＋章節頭與分班工具細修（main CI 部署，沒有 migration）
 
 - **內容**：`aa14bf2e`（README「入學頁文字照目標家長改成白話」「入學頁：章節頭收乾淨、流程格重排、分班工具細修」），分支 `feature/admission-ux-20261109`，推前 rebase 到 main `a621cd7d`（只有 DESIGN.md／README 兩份文件衝突，兩邊都留）。只動 web/：`public-copy.ts` 的 `ADMISSION_TA_COPY`（18 條內建文字輸出時換成白話，fixture 與後台預設不動）、`admission-faq.ts`、`AdmissionContent.vue`、`admission-passport.css`、`admission-classes.ts`。推前本機：web typecheck、vitest 127 檔 1711 項全過；dev server 上 390／1440 無溢出、無 console 錯誤。本機沒跑 stack e2e 與正式建置（交給 CI）。
