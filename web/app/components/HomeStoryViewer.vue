@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { responsiveTourImage } from '~/utils/tour-image'
 import { prefetchImage } from '~/utils/avif-support'
-import { eventTimeDetail, isSampleNews, newsPath, safeWebUrl, titleClauses } from '~/utils/news-content'
+import { eventTimeDetail, isSampleNews, newsPath, safeWebUrl, tidyNewsText, titleClauses } from '~/utils/news-content'
 import { countdownLabel, dateParts, type HomeStory } from '~/utils/news-home'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { youtubeEmbed } from '~/utils/filmCarousel'
@@ -366,7 +366,7 @@ defineExpose({ open })
         <div class="hsv-caption">
           <small>{{ story.article.category }}・{{ monthDay(story.article.date) }}<template v-if="isSample(story.article)">・示意</template></small>
           <h3><span v-for="(part, k) in titleClauses(story.article.title)" :key="k" class="hs-clause">{{ part }}</span></h3>
-          <p>{{ story.article.description }}</p>
+          <p>{{ tidyNewsText(story.article.description) }}</p>
           <div class="hsv-actions"><NuxtLink class="hsv-btn" :to="newsPath(story.article.id)">看完整消息</NuxtLink></div>
         </div>
       </template>

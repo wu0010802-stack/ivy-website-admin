@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { campusFilms } from '~/utils/campusFilms'
 import { responsiveTourImage } from '~/utils/tour-image'
-import { eventTimeDetail, homeArticles, isSampleNews, NEWS_PATH, newsPath, safeWebUrl, sampleCoverage, taipeiToday, titleClauses, upcomingEvents, type SampleCoverage } from '~/utils/news-content'
+import { eventTimeDetail, homeArticles, isSampleNews, NEWS_PATH, newsPath, safeWebUrl, sampleCoverage, taipeiToday, tidyNewsText, titleClauses, upcomingEvents, type SampleCoverage } from '~/utils/news-content'
 import { campusFilterOptions, countdownLabel, dateParts, homeFeed } from '~/utils/news-home'
 import type { Campus, NewsArticle, NewsContent, NewsEvent } from '~/types/site-content'
 
@@ -189,7 +189,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
               </figure>
               <p class="hn-meta"><b>{{ feed.lead.campus }}</b><span>{{ feed.lead.category }}</span><span v-if="tagged(feed.lead, articlesSample)" class="hn-sample-tag">示意</span><time :datetime="feed.lead.date">{{ monthDay(feed.lead.date) }}</time></p>
               <h3><NuxtLink :to="newsPath(feed.lead.id)"><span v-for="(part, k) in titleClauses(feed.lead.title)" :key="k" class="hn-clause">{{ part }}</span></NuxtLink></h3>
-              <p class="hn-desc">{{ feed.lead.description }}</p>
+              <p class="hn-desc">{{ tidyNewsText(feed.lead.description) }}</p>
             </article>
             <div v-if="feed.rest.length || feed.others.length" class="hn-side">
               <ol v-if="feed.rest.length" class="hn-rows">

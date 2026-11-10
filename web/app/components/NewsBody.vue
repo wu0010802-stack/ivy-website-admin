@@ -1,21 +1,23 @@
 <script setup lang="ts">
 import { responsiveTourImage } from '~/utils/tour-image'
-import { safeWebUrl } from '~/utils/news-content'
+import { safeWebUrl, summaryRepeatsBody, tidyNewsText } from '~/utils/news-content'
 import type { NewsBlock } from '~/types/site-content'
 
 // 消息的結構化內文（規格 3.4）：每一塊用固定的元素顯示，文字一律當純文字，
 // 不插入任何 HTML；連結只放行 http／https。
-defineProps<{ summary: string; blocks: NewsBlock[] }>()
+const props = defineProps<{ summary: string; blocks: NewsBlock[] }>()
+// 摘要只是內文開頭的重複時（粉專轉來的消息）不當導言再放一次（2026-11-10）。
+const lead = computed(() => (summaryRepeatsBody(props.summary, props.blocks) ? '' : tidyNewsText(props.summary)))
 </script>
 
 <template>
   <div class="hn-body">
-    <p v-if="summary" class="hn-body-lead">{{ summary }}</p>
+    <p v-if="lead" class="hn-body-lead">{{ lead }}</p>
     <template v-for="(block, index) in blocks" :key="index">
       <h3 v-if="block.type === 'heading'">{{ block.text }}</h3>
-      <p v-else-if="block.type === 'paragraph'">{{ block.text }}</p>
+      <p v-else-if="block.type === 'paragraph'">{{ tidyNewsText(block.text) }}</p>
       <component :is="block.ordered ? 'ol' : 'ul'" v-else-if="block.type === 'list'">
-        <li v-for="(item, i) in block.items" :key="i">{{ item }}</li>
+        <li v-for="(item, i) in block.items" :key="i">{{ tidyNewsText(item) }}</li>
       </component>
       <figure v-else-if="block.type === 'image'">
         <ResponsivePicture v-bind="responsiveTourImage(block.image, '(max-width: 760px) 90vw, 630px', false, block.imageMedia)" :alt="block.alt ?? ''" loading="lazy" />

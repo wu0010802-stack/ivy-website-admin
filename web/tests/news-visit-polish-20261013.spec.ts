@@ -55,7 +55,7 @@ describe('消息標題依句中標點分段', () => {
     expect(read('../app/components/NewsIndexContent.vue')).toContain('<NuxtLink :to="newsPath(item.id)"><span v-for="(part, i) in titleClauses(item.title)" :key="i" class="np-clause">')
     expect(read('../app/components/NewsArticleContent.vue')).toContain('<h1 id="np-article-title"><span v-for="(part, i) in titleClauses(article.title)" :key="i" class="np-clause">')
     expect(css).toContain('.np-clause{display:inline-block}')
-    expect(css).toMatch(/\.np-row:hover :is\(h3,\.np-clause\)\{text-decoration:underline/)
+    expect(css).toMatch(/:is\(\.np-lead,\.np-card\):hover :is\(h3,\.np-clause\)\{text-decoration:underline/)
   })
 })
 

@@ -80,14 +80,15 @@ describe('列表頁的示意活動與標題斷行（2026-09-29 手機審查）',
   it('示意活動寫「示意／日期未定」，meta 不列日期；真實活動照舊顯示日期（同首頁對話框 09-27 規則）', () => {
     expect(index).toContain('<span v-if="isSample(item)" class="np-event-date is-sample"><b>示意</b><span>日期未定</span></span>')
     expect(index).toMatch(/<time v-else class="np-event-date" :datetime="item\.date">/)
-    expect(index).toContain("[isSample(item) ? '' : formatDate(item.date), eventFacts(item)]")
+    // 2026-11-10：日期牌已經有幾月幾日，meta 改寫星期幾；示意活動照舊不露日期（星期也不寫）
+    expect(index).toContain("[isSample(item) ? '' : `星期${dateParts(item.date).weekday}`, eventFacts(item)]")
     // 中文字不用英文月份的 10px
     expect(css).toMatch(/\.np-event-date\.is-sample span\{font-size:var\(--fs-xs\)/)
   })
 
   it('列表標題與單篇 h1 沿用全域 balance，不用 pretty、不加 keep-all', () => {
-    const rules = css.match(/^\.(?:np-row h3|np-article h1)\{[^}]*\}/gm) ?? []
-    expect(rules).toHaveLength(2)
+    const rules = css.match(/^\.(?:np-lead h3|np-card h3|np-article h1)\{[^}]*\}/gm) ?? []
+    expect(rules).toHaveLength(3)
     for (const rule of rules) expect(rule).not.toMatch(/text-wrap|word-break/)
   })
 })

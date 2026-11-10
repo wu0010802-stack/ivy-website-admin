@@ -1,4 +1,4 @@
-import type { Campus, NewsArticle, NewsContent, NewsEvent } from '../types/site-content'
+import type { Campus, NewsArticle, NewsBlock, NewsContent, NewsEvent } from '../types/site-content'
 import { taipeiIsoDate } from './taipei-date'
 
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC']
@@ -108,13 +108,56 @@ export function articlesForCampus(articles: readonly NewsArticle[], campusKey: s
 }
 
 /**
- * 標題依句中的「，、；！？」切成幾段（標點留在前一段尾），畫面上每段包成 inline-block：
+ * 標題依句中的「，、；：！？｜」切成幾段（標點留在前一段尾），畫面上每段包成 inline-block：
  * 手機寬度放得下一段時就在標點後換行，不會斷成「小小園丁，把好／奇心種進生活裡。」（2026-10-13，390／320 實測）。
  * 一段比一行長時 inline-block 內部照常折行（沿用 h1–h3 的 balance）；沒有句中標點時回傳整句一段。
+ * 2026-11-10 加「｜」「：」：粉專轉來的標題慣用「活動名｜副題」，手機列表原本斷成「…派對｜小／小變裝家出動啦！」。
+ * 半形的「|」「:」不切：兩邊通常有空白，切成 inline-block 後行首行尾的空白會被吃掉。
  */
 export function titleClauses(title: string): string[] {
-  const parts = title.match(/[^，、；！？]*[，、；！？]+|[^，、；！？]+$/g)
+  const parts = title.match(/[^，、；：！？｜]*[，、；：！？｜]+|[^，、；：！？｜]+$/g)
   return parts && parts.join('') === title ? parts : [title]
+}
+
+/**
+ * 全形標點前後的空白拿掉（2026-11-10）。粉專貼文一句一行，轉成消息時段內換行變成空白，
+ * 畫面上是「……特色服裝， 一起來參加……」：全形標點本身已經帶半格空隙，再加空白就是一個大洞。
+ * 只在官網輸出時處理，後台內容不改；半形標點、英文字之間、emoji 後面的空白照留。
+ */
+export function tidyNewsText(text: string): string {
+  return text
+    .replace(/[ \t\u3000]+([，。、；：！？）」』】》〉])/g, '$1')
+    .replace(/([，。、；：！？（「『【《〈])[ \t\u3000]+/g, '$1')
+}
+
+/**
+ * 摘要是不是內文開頭的重複。粉專轉來的消息，摘要是內文前 120 字加「…」，單篇頁把摘要當導言、
+ * 下面又是同一段，等於同一段話讀兩次、第一次還斷在字中間（2026-11-10）。是重複時單篇頁不放導言。
+ * 比對時不看空白；摘要結尾的「…」或「...」不算。園方自己寫的摘要（和內文不同）照舊當導言。
+ */
+export function summaryRepeatsBody(summary: string, blocks: readonly NewsBlock[]): boolean {
+  const squash = (value: string) => value.replace(/\s+/g, '')
+  const head = squash(summary).replace(/(?:…|\.{3})$/, '')
+  if (!head) return false
+  const text = squash(blocks.flatMap((block) => (block.type === 'paragraph' ? [block.text] : [])).join(''))
+  return text.startsWith(head)
+}
+
+/**
+ * 單篇頁結尾的「其他消息」：不含自己，新到舊；同一校（或全校）的排前面，不夠再補其他校區。
+ * 用顯示的校名比對，內建示意消息（沒有 campusKeys）也適用。
+ */
+export function relatedArticles(articles: readonly NewsArticle[], current: Pick<NewsArticle, 'id' | 'campus'>, limit = 3): NewsArticle[] {
+  const names = (campus: string) => campus.split('、').map((name) => name.trim()).filter(Boolean)
+  const mine = new Set(names(current.campus))
+  const near = (item: NewsArticle) => mine.has('全校') || names(item.campus).some((name) => name === '全校' || mine.has(name))
+  const rest = sortedArticles(articles).filter((item) => item.id !== current.id)
+  return [...rest.filter(near), ...rest.filter((item) => !near(item))].slice(0, limit)
+}
+
+/** 直式照片（寬／高小於 .85）：粉專的 Reels 封面是 9:16，照片框要換成直的，不然只剩中間一條。 */
+export function isTallImage(image: { width?: number | null; height?: number | null }): boolean {
+  return Boolean(image.width && image.height && image.width / image.height < 0.85)
 }
 
 /** 只放行 http／https 的完整網址（後端已驗證，這裡再擋一次才綁進 href）。 */

@@ -49,8 +49,8 @@ describe('最新消息頁', () => {
   it('示意活動不露出具體日期（比照首頁）', () => {
     const news = read('../app/components/NewsIndexContent.vue')
     expect(news).toContain('<span v-if="isSample(item)" class="np-event-date is-sample"><b>示意</b><span>日期未定</span></span>')
-    // main 已另行修掉（eventMeta 對示意活動不列日期），合併時以 main 的寫法為準。
-    expect(news).toContain("isSample(item) ? '' : formatDate(item.date)")
+    // eventMeta 對示意活動不列日期；2026-11-10 起真實活動的 meta 改寫星期幾（日期牌已經有日期），示意活動連星期也不寫。
+    expect(news).toContain("isSample(item) ? '' : `星期${dateParts(item.date).weekday}`")
   })
 })
 
