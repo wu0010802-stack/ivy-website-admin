@@ -4,8 +4,8 @@
 
 | 檔案 | 規格 | 建議用途 |
 |---|---|---|
-| `ivy-30th-film-1080p-master.mp4` | 1920×1080、30 fps、H.264 High CRF 16、AAC 320k、2:24.000、356 MB（約 19.8 Mb/s） | 存檔、活動現場大螢幕、YouTube 上傳原檔 |
-| `ivy-30th-film-1080p-web.mp4` | 同上，CRF 20、AAC 192k、92 MB（約 5.1 Mb/s） | Facebook、LINE、官網嵌入 |
+| `ivy-30th-film-1080p-master.mp4` | 1920×1080、30 fps、H.264 High CRF 16、AAC 320k、2:24.000、357 MB（約 19.9 Mb/s） | 存檔、活動現場大螢幕、YouTube 上傳原檔 |
+| `ivy-30th-film-1080p-web.mp4` | 同上，CRF 20、AAC 192k、94 MB（約 5.2 Mb/s） | Facebook、LINE、官網嵌入 |
 | `ivy-30th-film-vertical-master.mp4` | 1080×1920（9:16）、其餘同主片，350 MB（約 19.5 Mb/s） | IG Reels、FB／LINE 限時動態、YouTube Shorts 原檔 |
 | `ivy-30th-film-vertical-web.mp4` | 同上，CRF 20、AAC 192k、95 MB（約 5.3 Mb/s） | 手機傳送 |
 | `poster-16x9.jpg`、`poster-9x16.jpg` | 1920×1080、1080×1920 | 影片封面、社群縮圖 |
