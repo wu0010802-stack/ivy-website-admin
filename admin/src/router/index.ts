@@ -75,6 +75,7 @@ export const routes: RouteRecordRaw[] = [
       { path: 'content/campus-faq', redirect: to => ({ path: '/content/campus-profile', query: to.query }) },
       { path: 'content/shared-faq', redirect: '/content/campus-profile' },
       page('content/campus-news', 'campus-news', () => import('../views/CampusNewsView.vue')),
+      page('content/facebook-posts', 'facebook-posts', () => import('../views/FacebookPostsView.vue')),
       page('content/campus-tour', 'campus-tour', () => import('../views/CampusTourView.vue')),
       page('media', 'media', () => import('../views/MediaLibraryView.vue')),
       page('releases', 'releases', () => import('../views/PublishHistoryView.vue')),

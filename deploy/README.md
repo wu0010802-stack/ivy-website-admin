@@ -1614,6 +1614,39 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **之後**：wave3（`merge/wave3-20261004`，page-cms＋media-jobs）在 `11ccc8e` 合進 main 時已含本批，查過 `content-overlay.ts`／`public-copy.ts`／`site-content.ts`／後台兩頁沒有把拿掉的欄位加回去。
 - **未做**：正式站登入後台實際操作校園探索與首屏標語；Safari／iOS 實機。
 
+## 各校 Facebook 粉專貼文同步
+
+後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
+
+**Meta 那邊要先做（使用者本人登入）。** token 有兩種來源，程式都吃：
+
+**A. 單一粉專的長效 Page token（2026-11-10 義華用這個）**：粉專不在任何 Business Manager 裡、建不了系統用戶時用。
+
+1. developers.facebook.com 用粉專管理員的個人帳號（不是切到粉專身分）建 App（現有：「常春藤義華校」，App ID 1537872071714702，開發模式即可、不用送審），使用案例「管理粉絲專頁所有內容」→ 權限加 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`。開發者帳號若顯示「需要確認帳號」，先在 Facebook 切回個人檔案再按確認（用粉專身分會出現「技術問題」）。
+2. Graph API Explorer 選這個 App、勾上面三個權限 →「Generate Access Token」→ 授權時勾要接的粉專。
+3. 存取權杖偵錯工具貼上這個（短效、約 1 小時）權杖 →「偵錯」→ 最下方「延長存取權杖」→ 拿到約 60 天的用戶權杖。
+4. 用長效用戶權杖查 `GET /{粉專ID}?fields=access_token`，回來的 Page token「到期：永不」，這個才放進 Railway。粉專 ID：Business Suite 網址的 `asset_id`，義華是 `146366255237690`。
+5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-08**；到期前重做 2–4 步換新 token。到期後同步會失敗、後台寫錯誤代碼。
+
+**B. Business Manager 系統用戶 token（五校都接時建議）**：
+
+1. Meta Business Manager → 商家設定 → 帳號 → 粉絲專頁：五校粉專都在這個商家底下（不在的要「新增」→「要求存取權限」，由粉專管理員同意）。
+2. developers.facebook.com 建 App（類型「商家」），連到同一個 Business Manager。
+3. 商家設定 → 使用者 → 系統用戶：新增一個「一般」系統用戶 → 「指派資產」把五個粉專給它（權限只要「內容」的檢視即可）→「產生新的權杖」：選上面那個 App、到期「永不」、勾 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`。系統用戶沒有 A 的 90 天資料存取期限。
+4. 查五校粉專 ID：粉專 →「關於」→「粉絲專頁資訊」最下方，或商家設定的粉專清單。
+
+**api 服務的環境變數：**
+
+| 變數 | 預設 | 作用 |
+| --- | --- | --- |
+| `WEBSITE_FACEBOOK_ACCESS_TOKEN` | 空 | A 的 Page token 或 B 的系統用戶權杖。放 Railway Variables，不要貼進對話或 repo；程式只用 `Authorization` header 送給 Graph，不放網址、不進 log |
+| `WEBSITE_FACEBOOK_PAGES` | 空 | `yihua=粉專ID,minghua=粉專ID,…`；和權杖要**同一次**設（只設一個 api 拒絕啟動，Railway 改變數會自動重部署，分兩次設會讓 api 起不來，參考 10-06 Google 變數拼錯停擺） |
+| `WEBSITE_FACEBOOK_APP_SECRET` | 空 | App 開了「Require App Secret」時要設（請求會帶 `appsecret_proof`） |
+| `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
+| `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
+
+**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
+
 ## 公開地理資料同步（招生區域分析）
 
 招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要多種公開資料（以下四種是起頭的，「里的變化」另有出生、遷入遷出、所得、新成屋，各段在下方）：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）、內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）與托嬰中心名單（2026-10-14，見下方「托嬰名單與園所異動」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。

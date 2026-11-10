@@ -1,3 +1,16 @@
+## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿：接上義華粉專實測（`feature/fb-news-sync-20261028`）
+
+10-28 做好程式、只用假 Meta 回應測過；11-10 rebase 到最新 main（migration 改接 `b5e8f1c3a7d2`），使用者登入 FB、Claude 操作 Chrome 拿到義華粉專的長效 Page token，連真的 Graph API 從頭驗到尾。
+
+園方發在粉專的活動不用再打一次：後台新增「各校 → Facebook 貼文」，每小時同步各校粉專最近 25 則，挑一則按「轉成消息草稿」就把照片收進該校素材庫、在該校消息最上面加一則草稿，之後照原本的送審與發布。規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`。
+
+- **後端**：`app/facebook/`（Graph API、同步、欄位對照、路由）、`app/workers/facebook_loop.py`、CLI `facebook-sync`；migration `a7d3f8c21e60` 新增 `facebook_page_posts`、`facebook_page_sync` 兩張表。
+- **後台**：`views/FacebookPostsView.vue`，分成未處理、已轉成消息、已略過三類；照片經 API 代理，員工瀏覽器不直接連 Meta。
+- **設定**：Railway api 一次設好 `WEBSITE_FACEBOOK_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_PAGES`（步驟在 `deploy/README.md`「各校 Facebook 粉專貼文同步」）。沒設定時功能關閉。義華粉專不在任何 Business Manager 裡，建不了系統用戶，改用 App「常春藤義華校」（開發模式）產生的長效 Page token；其他四校還沒接。
+- **11-10 實測發現並修正**：(1) token 原本放網址 `access_token=`，httpx 的 INFO 紀錄會印完整網址，等於把 token 寫進 log → 改走 `Authorization: Bearer` header，測試改抓 DEBUG 等級並要求網址不帶 token；(2) 園方貼文第一行是「🎃👻【標題】👻🎃」、結尾一整段 hashtag → 標題去 emoji 與外層【】，整行與行尾 hashtag 不進內文，句中 hashtag 只去 `#`；(3) 後台成功提示改顯示實際存進去的標題（匯入回應加 `article_title`）；(4) Graph API 預設版本改 `v27.0`（實測可用）。
+- **實測**：本機獨立庫 `ivy_website_fbnews_dev` 同步義華 25 則（含 Reel、相簿、6 則沒字的單張照片），後台把萬聖節、國慶日兩則轉成草稿，照片從 fbcdn 下載進素材庫、草稿標題正確；「立即同步」與背景迴圈都正常，已轉換的狀態不被覆蓋。Reel 的封面是影片某一格，轉成草稿後可能要「更換照片」。
+- **注意**：Page token 本身不會到期，但 Meta 標示「資料存取到期 2027-02-08」（產生 token 的帳號 90 天沒用這個 App 就要重新授權一次）；到時同步會失敗、後台顯示錯誤代碼。
+
 ## 2026-11-10 後台「使用小技巧」頁（`feature/admin-help-20261110`）
 
 使用者：「可以幫我做後台的使用者教學嗎」，選了「做使用者不容易發現的內容就好」「一份通用版」「做進後台裡」「本機假資料截圖」，其餘交給我判斷。規則見 DESIGN.md 最上方一段。

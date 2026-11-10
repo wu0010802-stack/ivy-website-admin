@@ -98,6 +98,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
       { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
+      // 粉專貼文同步進來的收件匣，挑幾則轉成各校消息草稿（2026-10-28）。
+      { name: 'facebook-posts', path: '/content/facebook-posts', title: 'Facebook 貼文', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['臉書', 'FB', '粉專', '貼文', '消息'] },
     ],
   },
   {
