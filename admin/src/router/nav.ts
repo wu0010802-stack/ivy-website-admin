@@ -138,6 +138,13 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', roles: ['super_admin'], keywords: ['範本', '片語', '聯絡', '常用語'] },
     ],
   },
+  // 使用小技巧（2026-11-10）：不容易自己發現的功能，所有人都看得到。只有一項、不屬於區段，
+  // 側欄不畫分組標題，排在最後。
+  {
+    key: 'help',
+    label: '說明',
+    items: [{ name: 'tips', path: '/tips', title: '使用小技巧', icon: 'Opportunity', keywords: ['教學', '說明', '怎麼用', '快捷鍵', '技巧', '新手', '操作'] }],
+  },
 ]
 
 /** 不在側欄、只在搜尋結果出現的入口。我的帳號平常從側欄底部的使用者區塊進去，

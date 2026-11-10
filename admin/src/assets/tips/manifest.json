@@ -1,0 +1,130 @@
+{
+  "account-entry": {
+    "height": 65,
+    "width": 260
+  },
+  "calendar-day": {
+    "height": 231,
+    "width": 1100
+  },
+  "calendar-tools": {
+    "height": 232,
+    "width": 1100
+  },
+  "custom": {
+    "height": 244,
+    "width": 550
+  },
+  "dashboard-today": {
+    "height": 294,
+    "width": 792
+  },
+  "focus": {
+    "height": 428,
+    "width": 542
+  },
+  "funnel-move": {
+    "height": 340,
+    "width": 872
+  },
+  "history": {
+    "height": 540,
+    "width": 520
+  },
+  "journey": {
+    "height": 380,
+    "width": 460
+  },
+  "live-preview": {
+    "height": 780,
+    "width": 1100
+  },
+  "media-more": {
+    "height": 460,
+    "width": 244
+  },
+  "news-dates": {
+    "height": 204,
+    "width": 362
+  },
+  "notifications": {
+    "height": 362,
+    "width": 1100
+  },
+  "picker-upload": {
+    "height": 420,
+    "width": 720
+  },
+  "records-more": {
+    "height": 234,
+    "width": 1100
+  },
+  "release-restore": {
+    "height": 280,
+    "width": 1100
+  },
+  "review": {
+    "height": 80,
+    "width": 1100
+  },
+  "schedule": {
+    "height": 98,
+    "width": 672
+  },
+  "search": {
+    "height": 246,
+    "width": 260
+  },
+  "sidebar-rail": {
+    "height": 229,
+    "width": 148
+  },
+  "slot-usage": {
+    "height": 342,
+    "width": 1100
+  },
+  "title-break": {
+    "height": 220,
+    "width": 550
+  },
+  "users-more": {
+    "height": 134,
+    "width": 1100
+  },
+  "visit-batch": {
+    "height": 420,
+    "width": 736
+  },
+  "visit-early": {
+    "height": 140,
+    "width": 1100
+  },
+  "visit-exclude": {
+    "height": 170,
+    "width": 374
+  },
+  "visit-export": {
+    "height": 92,
+    "width": 1100
+  },
+  "visit-filters": {
+    "height": 188,
+    "width": 1100
+  },
+  "visit-next": {
+    "height": 123,
+    "width": 1100
+  },
+  "visit-notes": {
+    "height": 302,
+    "width": 772
+  },
+  "visit-preview": {
+    "height": 594,
+    "width": 1100
+  },
+  "visit-slot-card": {
+    "height": 465,
+    "width": 387
+  }
+}

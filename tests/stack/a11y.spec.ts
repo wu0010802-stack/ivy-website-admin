@@ -95,6 +95,7 @@ test.describe('後台', () => {
     ['/media', '素材庫'],
     ['/releases', '發布紀錄'],
     ['/users', '使用者'],
+    ['/tips', '使用小技巧'],
   ]
   for (const [path, heading] of ADMIN_PAGES) {
     test(`/admin${path} 沒有 serious／critical 的 axe 問題`, async ({ page }) => {
