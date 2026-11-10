@@ -38,6 +38,48 @@
 - **驗證**（Node 22）：`npm --prefix web run typecheck` 通過；`npm run test:website` 126 檔 1714 項全過。fixture dev server（3172）Playwright：320／360／390／700／820／901／1000／1001／1100／1280／1440／1920 皆 0 橫向溢出、無主控台錯誤、選項高度 ≥44px、1001 以上五站文字同一列；選領域、點六圈、方向鍵、滑過離開回到選到的那圈、手機點圈、關掉 JS 仍能換說明都實測過。截圖在 Desktop checkout `output/about-ta-20261110/`。
 - **沒做／沒驗**：stack e2e（含 axe）、iOS 實機、正式建置；後台「關於常春藤頁」預覽沒登入看。
 
+## 2026-11-10 首頁分校資訊的英文加回來（`feature/campus-english-20261110`）
+
+使用者截圖首頁五校區塊：「分校資訊這邊本來底下有英文，每校下面本來也有英文，可以幫我加回來嗎」。兩處都是 10-30 拿掉重複文字（`fc3a5dfd`）時一起拿掉的。規則見 DESIGN.md 最上方一段。
+
+- **區塊標題**：「分校資訊」上方的 Campuses 回來了。`web/app/utils/public-copy.ts` 不再把 `campusBoard.eyebrow` 的原文換成空字串；正式站後台這一欄現在的值就是 `Campuses`，上線後直接顯示。位置照 09-23 定案是英文在上、中文在下。
+- **每校校名下**：`web/app/components/CampusBoard.vue` 加回 `<span lang="en">` 與兩條樣式，五校依序是 YIHUA／MINGHUA／CHONGDE／INTERNATIONAL／RENWU CAMPUS。
+- **驗證**（Node 22，本機 dev server fixture 模式 port 3181）：新增 `web/tests/campus-english-20261110.spec.ts` 3 項（改之前 2 項紅燈）；web typecheck 通過；web 單元 128 檔 1714 項全過。Playwright 1440×900 與 390×844：Campuses 在「分校資訊」上方、Georgia 斜體；五校逐一切換英文都對，桌機 12px、手機 11px、Source Sans 3；沒有橫向溢出、沒有頁面錯誤。
+- 未驗證：iOS／Android 實機；stack e2e 與正式建置沒在本機跑。
+
+## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿：接上義華粉專實測（`feature/fb-news-sync-20261028`）
+
+10-28 做好程式、只用假 Meta 回應測過；11-10 rebase 到最新 main（migration 改接 `b5e8f1c3a7d2`），使用者登入 FB、Claude 操作 Chrome 拿到義華粉專的長效 Page token，連真的 Graph API 從頭驗到尾。
+
+園方發在粉專的活動不用再打一次：後台新增「各校 → Facebook 貼文」，每小時同步各校粉專最近 25 則，挑一則按「轉成消息草稿」就把照片收進該校素材庫、在該校消息最上面加一則草稿，之後照原本的送審與發布。規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`。
+
+- **後端**：`app/facebook/`（Graph API、同步、欄位對照、路由）、`app/workers/facebook_loop.py`、CLI `facebook-sync`；migration `a7d3f8c21e60` 新增 `facebook_page_posts`、`facebook_page_sync` 兩張表。
+- **後台**：`views/FacebookPostsView.vue`，分成未處理、已轉成消息、已略過三類；照片經 API 代理，員工瀏覽器不直接連 Meta。
+- **設定**：Railway api 一次設好 `WEBSITE_FACEBOOK_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_PAGES`（步驟在 `deploy/README.md`「各校 Facebook 粉專貼文同步」）。沒設定時功能關閉。義華粉專不在任何 Business Manager 裡，建不了系統用戶，改用 App「常春藤義華校」（開發模式）產生的長效 Page token；其他四校還沒接。
+- **11-10 實測發現並修正**：(1) token 原本放網址 `access_token=`，httpx 的 INFO 紀錄會印完整網址，等於把 token 寫進 log → 改走 `Authorization: Bearer` header，測試改抓 DEBUG 等級並要求網址不帶 token；(2) 園方貼文第一行是「🎃👻【標題】👻🎃」、結尾一整段 hashtag → 標題去 emoji 與外層【】，整行與行尾 hashtag 不進內文，句中 hashtag 只去 `#`；(3) 後台成功提示改顯示實際存進去的標題（匯入回應加 `article_title`）；(4) Graph API 預設版本改 `v27.0`（實測可用）。
+- **實測**：本機獨立庫 `ivy_website_fbnews_dev` 同步義華 25 則（含 Reel、相簿、6 則沒字的單張照片），後台把萬聖節、國慶日兩則轉成草稿，照片從 fbcdn 下載進素材庫、草稿標題正確；「立即同步」與背景迴圈都正常，已轉換的狀態不被覆蓋。Reel 的封面是影片某一格，轉成草稿後可能要「更換照片」。
+- **注意**：Page token 本身不會到期，但 Meta 標示「資料存取到期 2027-02-08」（產生 token 的帳號 90 天沒用這個 App 就要重新授權一次）；到時同步會失敗、後台顯示錯誤代碼。
+
+## 2026-11-10 後台「使用小技巧」頁（`feature/admin-help-20261110`）
+
+使用者：「可以幫我做後台的使用者教學嗎」，選了「做使用者不容易發現的內容就好」「一份通用版」「做進後台裡」「本機假資料截圖」，其餘交給我判斷。規則見 DESIGN.md 最上方一段。
+
+- **新頁面 `/admin/tips`「使用小技巧」**：側欄最後一項（所有角色都看得到），側欄搜尋「教學」「說明」「怎麼用」也找得到。34 條分六類：找功能與畫面（⌘K 搜尋、側欄收窄、網址可以傳給同事）、帳號（點名字進我的帳號、重設密碼與停用在「更多」）、參觀案件（寬螢幕右側預覽與 ⌘ 點開新分頁、更多篩選與條件標籤、一次標記多組到場、列表與總覽直接按到了／沒來、家長提早到了、片語與 ⌘＋Enter、下一筆、場次卡、排除、通知已讀規則、匯出範圍）、參觀場次（先點日期、停班停課與國定假日、場次使用情況）、招生入學（看板拖曳與移到…、歷程、訪視明細的展開與更多、統計查看明細）、官網內容（三欄與即時預覽、版本紀錄、排程發布、送審核准、上下架日期、改成自訂、裁切焦點、選照片時上傳、素材更多、標題 Enter 換行、整站還原）。
+- **每條寫誰能用**，可勾「只列我能用的」（櫃台 19 條、總管理者 34 條）；招生開關關閉時招生類不列。「前往」連結只給進得去的帳號。
+- **截圖 32 張**（約 0.9 MB、只在這頁載入、延遲載入）：`tests/stack/admin-tips-shots.spec.ts` 在拋棄式 e2e 測試庫建虛構家長與內容後拍，`scripts/build-admin-tips-images.py` 轉 WebP。功能畫面改了要重拍（指令在 spec 開頭）。
+- **驗證**（Node 22，本機負載 40–58）：admin `typecheck` 通過；`tips.test.ts` 13 項全過；admin 全套 172 檔 3336 過、4 項 5 秒逾時（`admissionsRecords`／`admissionsView`／`openRequestsUx`，三檔單獨重跑 88 項全過）。stack（獨立測試庫）`a11y`、`visual`、`sidebar-collapse`、`keyboard`、`roles` 52 項全過，`/admin/tips` 已加進 axe 清單；視覺基準差異在 1% 容許內沒有更新。Playwright 1440／390、總管理者與櫃台：34 條全列、32 張圖都載入、0 橫向溢出、無 console 錯誤；`#tip-notes` 直接連進來會捲到那一條；側欄搜尋「教學」第一筆是使用小技巧。
+- **沒做／沒驗**：各頁「說明」連到對應小技巧、新功能上線提示、互動式導覽；正式站畫面（截圖是測試庫，家長資料都是虛構的）；iOS 實機。
+## 2026-11-10 入學頁 UI/UX（`feature/admission-ux-20261109`，未部署）
+
+使用者要優化 `/admission`。11-09 做過一輪，使用者 11-10 說不要，已全部還原；這一段只有 11-10 留下的修改（worktree 已快轉到 main `d372b82a`）。規則見 DESIGN.md 最上方一段。
+
+- 章節頭改單欄、刪兩句空話、問答大標收成一行；流程「第 N 格」→「第 N 步」；1100px 以下流程格印章放標題右邊、說明跨欄；分班工具空狀態不寫操作說明、「今年學年度」收成一行、還沒滿 2 歲那句不再斷在「2／歲」、之後每一年附西元、出生區間標西元；學費那題列各校電話；手機叮嚀與須知 16px。
+- **驗證**（Node 22，本機 dev server fixture 模式 port 3173）：web typecheck 通過；web 單元 126 檔 1707 項全過（入學頁新增 1 項、改 1 項）；Playwright 320／360／390／430／760／768／1024／1280／1440 九個寬度沒有橫向溢出、沒有 console 錯誤；axe（WCAG 2.2 AA）桌機、平板、手機都 0 項；桌機與手機逐屏截圖看過。大標沒有新字，LINE Seed 字表不用重收。
+- **同日再做：文字照目標家長改成白話**（使用者：「根據我們的 TA 優化文字內容」）。18 條內建文字（首屏那句、流程說明、老師的叮嚀、制服、接送、註冊、津貼表小字）在官網輸出時換成口語短句（`public-copy.ts` 的 `ADMISSION_TA_COPY`，fixture 不動），問答 5 題換掉行話；只改說法、數字與事實不變。同日再照使用者調兩次語氣：先「客氣一點」（請家長做的事加「請／麻煩／建議／歡迎」），再「更正式一點」（內文對家長說話用「您」、不寫「爸爸媽媽」，共 4 處）。新增 `admission-ta-copy.spec.ts` 4 項；web 單元 127 檔 1711 項全過、typecheck 通過；390／1440 截圖看過、無溢出無 console 錯誤。
+- 未驗證：iOS／Android 實機；stack e2e 沒在本機跑；正式建置沒跑。
+- 被還原的兩份修改留著備查（gitignore）：`output/admission-ux-20261109-pre-merge.patch`（11-09 那輪）、`output/admission-r1r2-combined-20261110.patch`（兩輪疊在一起）。
+
+
 ## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（`feature/web-tech-audit-20261109`）
 
 使用者：「幫我看看前台有哪裡可以優化的」→ 對正式站（release 120c7953）做技術稽核 15/20，「都幫我處理」。規則見 DESIGN.md 最上方一段。

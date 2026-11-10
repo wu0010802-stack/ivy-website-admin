@@ -115,6 +115,10 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'restored_from_release_id',
   'content_type',
   'verification_code_id',
+  // Facebook 貼文轉成消息（facebook_post.import）：消息 id、素材 id、草稿版本號。
+  'article_id',
+  'media_id',
+  'content_version',
   // 舊的 /admin/site-settings（官網從來不讀，2026-10-08 已刪除）留在舊操作紀錄裡的欄位。
   'privacy_policy_version',
 ])
@@ -218,6 +222,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   resolved_count: (v) => `標為已處理 ${countOf(v)} 種錯誤`,
   // 聯絡片語（contact_phrases.update）：存檔後共有幾句；片語內容不進稽核。
   count: (v) => `共 ${countOf(v)} 句`,
+  // 立即同步 Facebook 貼文（facebook_posts.sync）。
+  synced_posts: (v) => `讀到 ${countOf(v)} 則貼文`,
+  sync_failed: (v) => (v ? '同步失敗' : null),
   status: (v, action) => {
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
     if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`

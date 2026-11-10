@@ -123,6 +123,36 @@ describe('入學頁常見問題（AdmissionContent.vue）', () => {
     expect(html).not.toContain('href="#newcomer"')
   })
 
+  it('UI/UX（2026-11-10）：不寫操作說明、流程叫「步」、學費那題列電話、出生區間標西元', async () => {
+    const html = await render(site.admission, site.campuses)
+    // 分班工具空狀態與章框不放操作說明；答案區留著給 aria-live
+    expect(html).not.toContain('輸入生日，下面會標出')
+    expect(html).not.toContain('在這裡蓋章')
+    expect(html).toMatch(/<div class="empty ap-answer" aria-live="polite">(?:<!--.*?-->)*<\/div>/)
+    // 每格「第 N 步」（跟印章外圈一致），不再叫「格」
+    expect(html).toContain('<span class="ap-visa-no">第 1 步</span>')
+    expect(html).not.toMatch(/第 \d 格/)
+    // 章節頭不放空話；問答大標一行
+    expect(html).not.toContain('每一步都有老師陪著確認')
+    expect(html).not.toContain('先適應、再註冊')
+    expect(html).toContain('<h2 id="faq-title">爸媽常問的事</h2>')
+    // 學費那題直接列各校電話
+    const tuition = html.slice(html.indexOf('id="faq-tuition"'), html.indexOf('id="faq-refund"'))
+    expect((tuition.match(/href="tel:/g) ?? []).length).toBe(site.campuses.filter((campus) => campus.phone).length)
+    // 出生區間的學年度附西元，不寫「本學年／下學年」
+    expect(html).not.toMatch(/本學年|下學年/)
+    expect(html).toMatch(/學年度・\d{4} 年 8 月起/)
+    // 還沒滿 2 歲那句：兩段各自不斷行，字級跟著欄寬縮
+    const source = read('../app/components/AdmissionContent.vue')
+    expect(source).toContain('日</em>滿 2 歲，</span><span class="ap-nowrap">之後有名額就可以來上學。</span>')
+    const css = read('../app/assets/css/admission-passport.css')
+    expect(css).toContain('.ap-answer-lead.long { font-size: min(var(--fs-3xl), 5.9cqi); }')
+    // 1100 以下流程格：印章在標題右邊、說明跨兩欄
+    const tablet = css.slice(css.indexOf('@media (max-width: 1100px)'), css.indexOf('@media (max-width: 760px)'))
+    expect(tablet).toContain('.ap-visa p { grid-column: 1 / -1; }')
+    expect(tablet).toContain('.ap-visa-stamp { grid-row: 2; min-height: 96px; }')
+  })
+
   it('手機還沒輸入生日不留空白章框', () => {
     const css = read('../app/assets/css/admission-passport.css')
     const mobile = css.slice(css.indexOf('@media (max-width: 760px)'))

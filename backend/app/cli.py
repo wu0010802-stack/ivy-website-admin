@@ -1044,6 +1044,26 @@ def generate_vapid_keys_command() -> None:
     )
 
 
+async def facebook_sync_command(campus_keys: list[str]) -> None:
+    """立即同步各校 Facebook 粉專貼文（docs/specs/2026-10-28-facebook-news-sync-design.md）；
+    不給校區＝WEBSITE_FACEBOOK_PAGES 裡全部。有一校失敗就 exit 1。"""
+    from app.facebook.sync import sync_pages
+
+    settings = get_settings()
+    if not settings.facebook_enabled:
+        print("沒有設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES", file=sys.stderr)
+        raise SystemExit(1)
+    unknown = [key for key in campus_keys if key not in settings.facebook_page_ids]
+    if unknown:
+        print(f"WEBSITE_FACEBOOK_PAGES 裡沒有：{'、'.join(unknown)}", file=sys.stderr)
+        raise SystemExit(1)
+    results = await sync_pages(await _session_factory(), settings, campus_keys=campus_keys or None)
+    for result in results:
+        print(f"{result.campus_key}：{result.error or f'{result.count} 則'}")
+    if any(result.error for result in results):
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -1064,7 +1084,7 @@ def main() -> None:
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>|"
             "enrollment-history-extract --file <xls> --campus <key> --out <JSON>|"
             "enrollment-history-extract --headers-only --file <xls>|enrollment-history-import --file <JSON>|"
-            "generate-vapid-keys>",
+            "generate-vapid-keys|facebook-sync [<校區> ...]>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -1131,6 +1151,8 @@ def main() -> None:
         if args - {"--apply", "--dry-run"} or {"--apply", "--dry-run"} <= args:
             raise SystemExit("用法：python -m app.cli transcode-media-videos [--apply]")
         asyncio.run(transcode_media_videos(apply="--apply" in args))
+    elif command == "facebook-sync":
+        asyncio.run(facebook_sync_command(sys.argv[2:]))
     elif command == "geo-sync":
         asyncio.run(geo_sync_command(**geo_sync_options(sys.argv[2:])))
     elif command == "enrolled-match":

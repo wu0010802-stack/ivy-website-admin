@@ -8698,6 +8698,255 @@
         "title": "EventTrendOut",
         "type": "object"
       },
+      "FacebookImportOut": {
+        "properties": {
+          "article_id": {
+            "title": "Article Id",
+            "type": "string"
+          },
+          "article_title": {
+            "title": "Article Title",
+            "type": "string"
+          },
+          "content_version": {
+            "title": "Content Version",
+            "type": "integer"
+          },
+          "post": {
+            "$ref": "#/components/schemas/FacebookPostOut"
+          }
+        },
+        "required": [
+          "post",
+          "article_id",
+          "article_title",
+          "content_version"
+        ],
+        "title": "FacebookImportOut",
+        "type": "object"
+      },
+      "FacebookPostCounts": {
+        "properties": {
+          "dismissed": {
+            "default": 0,
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "imported": {
+            "default": 0,
+            "title": "Imported",
+            "type": "integer"
+          },
+          "new": {
+            "default": 0,
+            "title": "New",
+            "type": "integer"
+          }
+        },
+        "title": "FacebookPostCounts",
+        "type": "object"
+      },
+      "FacebookPostListOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/FacebookPostCounts"
+          },
+          "posts": {
+            "items": {
+              "$ref": "#/components/schemas/FacebookPostOut"
+            },
+            "title": "Posts",
+            "type": "array"
+          },
+          "sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FacebookSyncStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sync_seconds": {
+            "title": "Sync Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "sync_seconds",
+          "sync",
+          "counts",
+          "posts"
+        ],
+        "title": "FacebookPostListOut",
+        "type": "object"
+      },
+      "FacebookPostOut": {
+        "properties": {
+          "article_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Article Id"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "handled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handled At"
+          },
+          "has_picture": {
+            "title": "Has Picture",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "permalink_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Permalink Url"
+          },
+          "posted_at": {
+            "format": "date-time",
+            "title": "Posted At",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "imported",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "message",
+          "posted_at",
+          "permalink_url",
+          "has_picture",
+          "status",
+          "article_id",
+          "handled_at"
+        ],
+        "title": "FacebookPostOut",
+        "type": "object"
+      },
+      "FacebookSyncIn": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key"
+        ],
+        "title": "FacebookSyncIn",
+        "type": "object"
+      },
+      "FacebookSyncStatusOut": {
+        "properties": {
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Count"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "last_attempt_at",
+          "last_success_at",
+          "last_error",
+          "last_count"
+        ],
+        "title": "FacebookSyncStatusOut",
+        "type": "object"
+      },
       "FeatureFlags": {
         "description": "後台依部署設定決定要不要顯示或啟用的功能。",
         "properties": {
@@ -27750,6 +27999,475 @@
         "summary": "Resolve Error Group",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts": {
+      "get": {
+        "description": "這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。",
+        "operationId": "list_facebook_posts_api_website_v1_admin_facebook_posts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "new",
+              "enum": [
+                "new",
+                "imported",
+                "dismissed"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacebookPostListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Facebook Posts",
+        "tags": [
+          "facebook-posts"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts/sync": {
+      "post": {
+        "description": "立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。",
+        "operationId": "sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FacebookSyncIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacebookPostListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Facebook Posts",
+        "tags": [
+          "facebook-posts"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts/{post_id}/dismiss": {
+      "post": {
+        "description": "不轉成消息，收到「略過」；隨時可以放回。",
+        "operationId": "dismiss_facebook_post_api_website_v1_admin_facebook_posts__post_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacebookPostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Facebook Post",
+        "tags": [
+          "facebook-posts"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts/{post_id}/import": {
+      "post": {
+        "description": "照片進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。",
+        "operationId": "import_facebook_post_api_website_v1_admin_facebook_posts__post_id__import_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacebookImportOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Import Facebook Post",
+        "tags": [
+          "facebook-posts"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts/{post_id}/picture": {
+      "get": {
+        "description": "貼文照片經 API 轉給後台：員工瀏覽器不直接連 Meta，後台 CSP 也不用開 fbcdn。",
+        "operationId": "facebook_post_picture_api_website_v1_admin_facebook_posts__post_id__picture_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Facebook Post Picture",
+        "tags": [
+          "facebook-posts"
+        ]
+      }
+    },
+    "/api/website/v1/admin/facebook-posts/{post_id}/restore": {
+      "post": {
+        "operationId": "restore_facebook_post_api_website_v1_admin_facebook_posts__post_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "post_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Post Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FacebookPostOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Facebook Post",
+        "tags": [
+          "facebook-posts"
         ]
       }
     },

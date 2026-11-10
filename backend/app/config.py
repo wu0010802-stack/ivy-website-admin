@@ -80,6 +80,14 @@ class Settings(BaseSettings):
     geo_elementary_url_template: str = "https://stats.moe.gov.tw/files/detail/{year}/{year}_basec.csv"
     # 背景迴圈多久醒來檢查一次（秒）；真的下載與否由「超過 30 天沒確認過」決定。
     geo_sync_check_seconds: int = Field(default=86400, ge=300, le=7 * 86400)
+    # 各校 Facebook 粉專貼文 → 後台收件匣（docs/specs/2026-10-28-facebook-news-sync-design.md）。
+    # token 是 Business Manager 系統使用者的 token（pages_show_list、pages_read_engagement），
+    # pages 是「校區=粉專ID」逗號分隔；兩個都設才啟用，只設一個拒絕啟動。
+    facebook_access_token: str | None = Field(default=None, repr=False)
+    facebook_app_secret: str | None = Field(default=None, repr=False)
+    facebook_pages: str | None = None
+    facebook_graph_version: str = Field(default="v27.0", pattern=r"^v\d{1,2}\.\d$")
+    facebook_sync_seconds: int = Field(default=3600, ge=600, le=86400)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -206,12 +214,33 @@ class Settings(BaseSettings):
         "line_messaging_channel_secret", "line_messaging_access_token",
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
+        "facebook_access_token", "facebook_app_secret",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip() or None
+
+    @field_validator("facebook_pages")
+    @classmethod
+    def _parse_facebook_pages(cls, value: str | None) -> str | None:
+        """正規化成「key=id,key=id」；校區代號小寫英文、粉專 ID 全數字，同一校不能出現兩次。"""
+        if value is None or not value.strip():
+            return None
+        pairs: dict[str, str] = {}
+        for raw in value.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            match = re.fullmatch(r"([a-z][a-z0-9_-]{0,31})\s*=\s*(\d{5,32})", raw)
+            if match is None:
+                raise ValueError("WEBSITE_FACEBOOK_PAGES 格式是「校區=粉專ID」逗號分隔，例 yihua=1234567890")
+            key, page_id = match.groups()
+            if key in pairs:
+                raise ValueError(f"WEBSITE_FACEBOOK_PAGES 的 {key} 出現兩次")
+            pairs[key] = page_id
+        return ",".join(f"{k}={v}" for k, v in pairs.items()) or None
 
     @field_validator("s3_bucket", "s3_endpoint_url", "s3_region", "s3_access_key_id", "s3_secret_access_key")
     @classmethod
@@ -261,6 +290,17 @@ class Settings(BaseSettings):
         if self.media_video_processing is not None:
             return self.media_video_processing
         return "background" if self.environment == "production" else "inline"
+
+    @property
+    def facebook_enabled(self) -> bool:
+        return bool(self.facebook_access_token and self.facebook_pages)
+
+    @property
+    def facebook_page_ids(self) -> dict[str, str]:
+        """校區 → 粉專 ID（格式已在 _parse_facebook_pages 驗過）。"""
+        if not self.facebook_pages:
+            return {}
+        return dict(pair.split("=", 1) for pair in self.facebook_pages.split(","))
 
     @property
     def turnstile_enabled(self) -> bool:
@@ -348,6 +388,8 @@ class Settings(BaseSettings):
                 "WEBSITE_GEO_AUTO_SYNC 開啟時，連線池要能多借一條給同步用："
                 "WEBSITE_DB_POOL_SIZE 至少 2，或 WEBSITE_DB_MAX_OVERFLOW 至少 1"
             )
+        if bool(self.facebook_access_token) != bool(self.facebook_pages):
+            raise ValueError("Facebook 粉專同步必須同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES")
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
             raise ValueError("Turnstile 必須同時設定 WEBSITE_TURNSTILE_SITE_KEY 與 WEBSITE_TURNSTILE_SECRET_KEY")
         if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):

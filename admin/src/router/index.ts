@@ -75,6 +75,7 @@ export const routes: RouteRecordRaw[] = [
       { path: 'content/campus-faq', redirect: to => ({ path: '/content/campus-profile', query: to.query }) },
       { path: 'content/shared-faq', redirect: '/content/campus-profile' },
       page('content/campus-news', 'campus-news', () => import('../views/CampusNewsView.vue')),
+      page('content/facebook-posts', 'facebook-posts', () => import('../views/FacebookPostsView.vue')),
       page('content/campus-tour', 'campus-tour', () => import('../views/CampusTourView.vue')),
       page('media', 'media', () => import('../views/MediaLibraryView.vue')),
       page('releases', 'releases', () => import('../views/PublishHistoryView.vue')),
@@ -97,6 +98,7 @@ export const routes: RouteRecordRaw[] = [
       page('policies', 'policies', () => import('../views/PoliciesView.vue')),
       page('line-notifications', 'line-notifications', () => import('../views/LineNotificationsView.vue')),
       page('contact-phrases', 'contact-phrases', () => import('../views/ContactPhrasesView.vue')),
+      page('tips', 'tips', () => import('../views/TipsView.vue')),
       // 每個登入者都能進，不放側欄選單；入口是側欄底部的使用者區塊（搜尋也找得到）。
       { path: 'account', name: 'account', component: () => import('../views/AccountView.vue'), meta: { title: '我的帳號' } },
       // 舊書籤、打錯字或改過名的網址。原本沒有這條，對不到路由時整頁空白、連側欄

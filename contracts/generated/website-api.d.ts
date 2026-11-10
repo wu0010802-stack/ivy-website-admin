@@ -1344,6 +1344,123 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/facebook-posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Facebook Posts
+         * @description 這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。
+         */
+        get: operations["list_facebook_posts_api_website_v1_admin_facebook_posts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/facebook-posts/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Facebook Posts
+         * @description 立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。
+         */
+        post: operations["sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/facebook-posts/{post_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Facebook Post
+         * @description 不轉成消息，收到「略過」；隨時可以放回。
+         */
+        post: operations["dismiss_facebook_post_api_website_v1_admin_facebook_posts__post_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/facebook-posts/{post_id}/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import Facebook Post
+         * @description 照片進該校素材庫，在該校消息草稿最上面加一則；之後照原本的送審與發布。
+         */
+        post: operations["import_facebook_post_api_website_v1_admin_facebook_posts__post_id__import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/facebook-posts/{post_id}/picture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Facebook Post Picture
+         * @description 貼文照片經 API 轉給後台：員工瀏覽器不直接連 Meta，後台 CSP 也不用開 fbcdn。
+         */
+        get: operations["facebook_post_picture_api_website_v1_admin_facebook_posts__post_id__picture_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/facebook-posts/{post_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Facebook Post */
+        post: operations["restore_facebook_post_api_website_v1_admin_facebook_posts__post_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/holiday-calendar/apply": {
         parameters: {
             query?: never;
@@ -6264,6 +6381,91 @@ export interface components {
              * @constant
              */
             unit: "event";
+        };
+        /** FacebookImportOut */
+        FacebookImportOut: {
+            /** Article Id */
+            article_id: string;
+            /** Article Title */
+            article_title: string;
+            /** Content Version */
+            content_version: number;
+            post: components["schemas"]["FacebookPostOut"];
+        };
+        /** FacebookPostCounts */
+        FacebookPostCounts: {
+            /**
+             * Dismissed
+             * @default 0
+             */
+            dismissed: number;
+            /**
+             * Imported
+             * @default 0
+             */
+            imported: number;
+            /**
+             * New
+             * @default 0
+             */
+            new: number;
+        };
+        /** FacebookPostListOut */
+        FacebookPostListOut: {
+            /** Configured */
+            configured: boolean;
+            counts: components["schemas"]["FacebookPostCounts"];
+            /** Posts */
+            posts: components["schemas"]["FacebookPostOut"][];
+            sync: components["schemas"]["FacebookSyncStatusOut"] | null;
+            /** Sync Seconds */
+            sync_seconds: number;
+        };
+        /** FacebookPostOut */
+        FacebookPostOut: {
+            /** Article Id */
+            article_id: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Handled At */
+            handled_at: string | null;
+            /** Has Picture */
+            has_picture: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Message */
+            message: string | null;
+            /** Permalink Url */
+            permalink_url: string | null;
+            /**
+             * Posted At
+             * Format: date-time
+             */
+            posted_at: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "imported" | "dismissed";
+        };
+        /** FacebookSyncIn */
+        FacebookSyncIn: {
+            /** Campus Key */
+            campus_key: string;
+        };
+        /** FacebookSyncStatusOut */
+        FacebookSyncStatusOut: {
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Count */
+            last_count: number | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
         };
         /**
          * FeatureFlags
@@ -12814,6 +13016,219 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ErrorGroupOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_facebook_posts_api_website_v1_admin_facebook_posts_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                status?: "new" | "imported" | "dismissed";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacebookPostListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FacebookSyncIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacebookPostListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_facebook_post_api_website_v1_admin_facebook_posts__post_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacebookPostOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    import_facebook_post_api_website_v1_admin_facebook_posts__post_id__import_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacebookImportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    facebook_post_picture_api_website_v1_admin_facebook_posts__post_id__picture_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_facebook_post_api_website_v1_admin_facebook_posts__post_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                post_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacebookPostOut"];
                 };
             };
             /** @description Validation Error */

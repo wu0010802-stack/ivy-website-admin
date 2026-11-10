@@ -13,6 +13,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿，先接義華（main CI 部署，migration `a7d3f8c21e60`）
+
+- **內容**：`a621cd7d`（README「2026-11-10 各校 Facebook 粉專貼文 → 消息草稿」），分支 `feature/fb-news-sync-20261028`（10-28 寫好、11-10 rebase 到 main `6305ef14` 後改寫成單一提交）。migration `a7d3f8c21e60`（parent `b5e8f1c3a7d2`）只新增 `facebook_page_posts`、`facebook_page_sync` 兩張表，不改既有資料，照備份閘門不需先備份。推前本機：後端全套 4991 過 1 略過、admin vitest 173 檔 3345 過、`npm run test:website` 1706 過、web／admin typecheck、`contract:check`、stack 170 過 30 略過（6.2 分鐘），測試庫獨立。
+- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-08**，到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
+- **變數**：api 服務 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`--stdin`、`--skip-deploys`，值從 worktree `.env` 帶、不經對話）＋ `WEBSITE_FACEBOOK_PAGES=yihua=146366255237690` 一次設好；使用者在 CI 跑完前先設，觸發的重部署 `f771022d` 用的是舊映像（設定 `extra="ignore"`，略過不認得的變數），SUCCESS、health 正常，功能等新程式部署才開。
+- **CI**：run 42747476046 全綠（含 E2E），Deploy Railway production success（03:15→03:21Z）；`/release.json` 的 `base_commit` 是 `a621cd7d`。
+- **正式站驗證**：api log `Running upgrade b5e8f1c3a7d2 -> a7d3f8c21e60`、`Database schema ready: a7d3f8c21e60`；背景同步第一輪 03:18:39Z 兩次 Graph v27.0 請求都 200，log 裡的網址不含 token（`access_token=`、`EAA…` 都是 0 筆）；`GET /api/website/v1/admin/facebook-posts` 未登入回 401（路由已掛）。
+- **沒驗**：登入正式後台看「各校 → Facebook 貼文」與實際轉成草稿（要本人帳號；本機實測已做過）；正式庫筆數（`railway ssh` 會被自動模式擋）。其他四校還沒接，後台顯示「還沒接上」。
+
+## 2026-11-10 入學頁文字改白話＋章節頭與分班工具細修（main CI 部署，沒有 migration）
+
+- **內容**：`aa14bf2e`（README「入學頁文字照目標家長改成白話」「入學頁：章節頭收乾淨、流程格重排、分班工具細修」），分支 `feature/admission-ux-20261109`，推前 rebase 到 main `a621cd7d`（只有 DESIGN.md／README 兩份文件衝突，兩邊都留）。只動 web/：`public-copy.ts` 的 `ADMISSION_TA_COPY`（18 條內建文字輸出時換成白話，fixture 與後台預設不動）、`admission-faq.ts`、`AdmissionContent.vue`、`admission-passport.css`、`admission-classes.ts`。推前本機：web typecheck、vitest 127 檔 1711 項全過；dev server 上 390／1440 無溢出、無 console 錯誤。本機沒跑 stack e2e 與正式建置（交給 CI）。
+- **CI**：run 42748582382 全綠（含 E2E）、Deploy Railway production success（03:18→03:34Z）；`/release.json` 的 `base_commit` 是 `aa14bf2e`。
+- **正式站驗證**（只發 GET）：`/admission` 已出現「歡迎直接問校區」「學校會安排專人陪您走一圈」「班導師會打電話給您」「第 1 步」，「請勿」「以免」「本學年」都是 0；Playwright 390／900／1440 無橫向溢出、無頁面錯誤。
+- **沒驗**：iOS／Android 實機。
+- **待園方**：「適應期（上學前三天）」「註冊了（快樂來上學）」的時間點；園方之後在後台發布入學頁內容時，改過的句子照園方的、沒改的仍會換成白話。
+
+## 2026-11-10 後台「使用小技巧」頁（main CI 部署，沒有 migration）
+
+- **內容**：`8c562469`（README「2026-11-10 後台「使用小技巧」頁」），分支 `feature/admin-help-20261110`（基底 main `d372b82a`），只動 admin/（新頁 `/admin/tips`、側欄最後一項）、`tests/stack`（截圖 spec、a11y 加 `/tips`）、`scripts/build-admin-tips-images.py`。截圖 32 張是拋棄式測試庫的虛構資料。推前本機：admin typecheck、vitest 全套（負載 40–58 下 4 項 5 秒逾時，單獨重跑全過）、build；stack `a11y`／`visual`／`sidebar-collapse`／`keyboard`／`roles` 52 項全過（獨立測試庫，已刪）。
+- **CI**：run 42743950663 全綠（含 E2E）、Deploy Railway production success（02:36→02:46Z）；`/release.json` 的 `base_commit` 是 `8c562469`。
+- **正式站驗證**（只發 GET、不登入）：後台入口 JS 有「使用小技巧」與 `/tips` 路由；`TipsView-*.js` chunk 有小技巧內容；31 張 WebP 都回 200 `image/webp`（第 32 張小於 4 KB，Vite 內嵌在 chunk 裡）。
+- **沒驗**：登入正式後台實際看畫面（要本人帳號）；iOS 實機。
+
 ## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（main CI 部署，沒有 migration）
 
 - **內容**：`704bdb6f`（合併提交，含 `6250c6aa` 素材大圖、`29ca4656` 字表重切、`6108d0d7` 撥號膠囊等、`45620eb4` README；README「2026-11-09 前台技術稽核修正」），分支 `feature/web-tech-audit-20261109`，推前合進 main `cb3131d6`（前台流暢度第二批，無衝突）。推前本機：web typecheck、`npm run test:website` 126 檔 1706 項、後端全套 4964 過 1 略過、stack 169 項全過（9.4 分鐘），測試庫獨立、已刪。
@@ -1606,6 +1630,39 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上唯讀檢查**（未登入）：後台 `assets/CampusTourView-*.js`、`HomeHeroView-*.js`、`MediaLibraryView-*.js`（含素材替換對話框）都沒有「熱點」「待複核」「標語上方的小標」，CampusTourView 有新的「原比例」說明。官網 `/`、`/environment`、`/visit`、`/about`、`/curriculum`、`/admission` 200，HTML 沒有 `faq`、`fbNote`、`heroPhotoPos`、原型的「僅示範流程」「我了解這是操作示範」；`/environment` 校園場景照常渲染。剩下的 `consentText` 字樣來自 fixture 的 `booking.fields`（舊原型表單欄位清單，官網沒有讀，不在本次範圍），`/admission` 的 `spots` 是 SVG 濾鏡名稱。
 - **之後**：wave3（`merge/wave3-20261004`，page-cms＋media-jobs）在 `11ccc8e` 合進 main 時已含本批，查過 `content-overlay.ts`／`public-copy.ts`／`site-content.ts`／後台兩頁沒有把拿掉的欄位加回去。
 - **未做**：正式站登入後台實際操作校園探索與首屏標語；Safari／iOS 實機。
+
+## 各校 Facebook 粉專貼文同步
+
+後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
+
+**Meta 那邊要先做（使用者本人登入）。** token 有兩種來源，程式都吃：
+
+**A. 單一粉專的長效 Page token（2026-11-10 義華用這個）**：粉專不在任何 Business Manager 裡、建不了系統用戶時用。
+
+1. developers.facebook.com 用粉專管理員的個人帳號（不是切到粉專身分）建 App（現有：「常春藤義華校」，App ID 1537872071714702，開發模式即可、不用送審），使用案例「管理粉絲專頁所有內容」→ 權限加 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`。開發者帳號若顯示「需要確認帳號」，先在 Facebook 切回個人檔案再按確認（用粉專身分會出現「技術問題」）。
+2. Graph API Explorer 選這個 App、勾上面三個權限 →「Generate Access Token」→ 授權時勾要接的粉專。
+3. 存取權杖偵錯工具貼上這個（短效、約 1 小時）權杖 →「偵錯」→ 最下方「延長存取權杖」→ 拿到約 60 天的用戶權杖。
+4. 用長效用戶權杖查 `GET /{粉專ID}?fields=access_token`，回來的 Page token「到期：永不」，這個才放進 Railway。粉專 ID：Business Suite 網址的 `asset_id`，義華是 `146366255237690`。
+5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-08**；到期前重做 2–4 步換新 token。到期後同步會失敗、後台寫錯誤代碼。
+
+**B. Business Manager 系統用戶 token（五校都接時建議）**：
+
+1. Meta Business Manager → 商家設定 → 帳號 → 粉絲專頁：五校粉專都在這個商家底下（不在的要「新增」→「要求存取權限」，由粉專管理員同意）。
+2. developers.facebook.com 建 App（類型「商家」），連到同一個 Business Manager。
+3. 商家設定 → 使用者 → 系統用戶：新增一個「一般」系統用戶 → 「指派資產」把五個粉專給它（權限只要「內容」的檢視即可）→「產生新的權杖」：選上面那個 App、到期「永不」、勾 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`。系統用戶沒有 A 的 90 天資料存取期限。
+4. 查五校粉專 ID：粉專 →「關於」→「粉絲專頁資訊」最下方，或商家設定的粉專清單。
+
+**api 服務的環境變數：**
+
+| 變數 | 預設 | 作用 |
+| --- | --- | --- |
+| `WEBSITE_FACEBOOK_ACCESS_TOKEN` | 空 | A 的 Page token 或 B 的系統用戶權杖。放 Railway Variables，不要貼進對話或 repo；程式只用 `Authorization` header 送給 Graph，不放網址、不進 log |
+| `WEBSITE_FACEBOOK_PAGES` | 空 | `yihua=粉專ID,minghua=粉專ID,…`；和權杖要**同一次**設（只設一個 api 拒絕啟動，Railway 改變數會自動重部署，分兩次設會讓 api 起不來，參考 10-06 Google 變數拼錯停擺） |
+| `WEBSITE_FACEBOOK_APP_SECRET` | 空 | App 開了「Require App Secret」時要設（請求會帶 `appsecret_proof`） |
+| `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
+| `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
+
+**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
 
 ## 公開地理資料同步（招生區域分析）
 

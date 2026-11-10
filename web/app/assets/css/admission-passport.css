@@ -95,7 +95,9 @@
 .ap-tint-page { background: var(--ap-page); }
 .ap-tint-alt { background: var(--ap-page-alt); }
 .ap-section .ap-runhead { margin-top: 40px; }
-.ap-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px 64px; align-items: end; margin-bottom: 56px; }
+/* 2026-11-10：原本兩欄（大標在左、一句灰字從容器中線開始），灰字對不到下面任何東西、問答章右半整塊空白；
+   改單欄，說明直接接在大標下面。四章裡只剩分班那一章有說明（出生區間的規則）。 */
+.ap-head { display: grid; gap: 10px; margin-bottom: 44px; }
 .ap-head h2 { font-size: clamp(2.125rem, 3.2vw, 3rem); line-height: 1.45; color: var(--deep); }
 .ap-head p { max-width: 32em; font-size: var(--fs-md); color: var(--muted); }
 
@@ -125,14 +127,18 @@
 .ap-answer { grid-column: 1 / -1; min-height: 5.5em; padding-top: 16px; border-top: 1px dashed var(--ap-rule); }
 .ap-answer-lead { font: 700 var(--fs-3xl)/1.45 var(--font-head); color: var(--deep); }
 .ap-answer-lead em { font-style: normal; color: var(--ap-red); }
-.ap-answer.empty .ap-answer-lead { font: 400 var(--fs-md)/1.8 var(--font); color: var(--muted); }
+/* 還沒滿 2 歲那一句最長（「寶貝 2026 年 12 月 31 日滿 2 歲，」實測 16.4 字寬）：390 寬原本拆成「滿 2／歲，之後」，
+   761–1100 兩欄時第一段比答案欄還寬。兩段各自不斷行，字級跟著答案欄寬縮（390 寬約 19px、320 寬約 15px）（2026-11-10）。 */
+.ap-answer { container-type: inline-size; }
+.ap-answer-lead.long { font-size: min(var(--fs-3xl), 5.9cqi); }
+/* 還沒輸入生日：不寫操作說明（2026-11-10），答案區收起來（元素留著，aria-live 才報得出答案）。 */
+.ap-answer.empty { min-height: 0; padding-top: 0; border-top: 0; }
 .ap .ap-answer-next { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
 .ap-answer-next li { display: flex; align-items: center; gap: 8px; }
 .ap-answer-next li::before { content: ''; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
 .ap-stampzone { grid-area: stamp; display: grid; place-items: center; min-height: 260px; }
 .ap-stampzone::before { content: ''; grid-area: 1 / 1; width: 236px; height: 236px; border: 1.5px dashed var(--ap-rule); border-radius: 50%; transition: opacity .3s var(--ap-ease); }
-.ap-stamp-hint { grid-area: 1 / 1; text-align: center; font: 600 var(--fs-sm)/1.7 var(--font); letter-spacing: .12em; color: var(--muted); transition: opacity .3s var(--ap-ease); }
-.ap-stampzone.stamped::before, .ap-stampzone.stamped .ap-stamp-hint { opacity: 0; }
+.ap-stampzone.stamped::before { opacity: 0; }
 .ap-result { grid-area: 1 / 1; z-index: 1; width: 230px; height: 230px; }
 .ap-result .ap-stamp { position: absolute; inset: 0; }
 /* 五格學年度欄位＝成長軌道 */
@@ -318,12 +324,24 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-page { padding: 24px 28px 36px; }
   .ap-toc ol { grid-template-columns: 1fr 1fr; }
   .ap-visas { grid-template-columns: 1fr 1fr; }
+  /* 2026-11-10：兩欄以下印章欄把說明擠成一行十來個字（768 寬只剩 176px、手機約 220px，「校／區」「熟／悉」被拆開）。
+     印章改放在標題右邊，說明跨兩欄。 */
+  .ap-visa { grid-template-columns: minmax(0, 1fr) 96px; }
+  .ap-visa h3 { align-self: center; }
+  .ap-visa p { grid-column: 1 / -1; }
+  .ap-visa-stamp { grid-row: 2; min-height: 96px; }
+  .ap-visa-stamp .ap-stamp svg { width: 92px; height: 92px; }
   .ap-datapage { grid-template-columns: minmax(0, 1fr) 260px; column-gap: 28px; padding: 28px; }
   /* minmax(0,…)：答案句裡的 ap-nowrap 比欄寬時不撐寬整欄（2026-11-04，320 寬生日框與答案被卡片切掉）。 */
   .ap-fields { grid-template-columns: minmax(0, 1fr); }
   /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
   .ap-answer { order: 1; }
   .ap-field-static { order: 2; }
+  /* 單欄時「今年學年度」排在答案後面，原本三行大字（約 90px）夾在答案與大章中間、又重複答案裡的學年度：
+     收成一行小字的註記（2026-11-10）。 */
+  .ap-field-static { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; }
+  .ap-field-static .ap-label { margin-bottom: 0; }
+  .ap-field-static strong { font: 700 var(--fs-sm)/1.6 var(--font); }
   .ap-coupon { min-height: 150px; }
   .ap-faq-group { grid-template-columns: minmax(0, 160px) minmax(0, 1fr); column-gap: 32px; }
   .ap-week { grid-template-columns: 1fr; }
@@ -351,12 +369,15 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-head { grid-template-columns: 1fr; margin-bottom: 32px; }
   .ap-head h2 { font-size: var(--fs-4xl); }
   .ap-visas { grid-template-columns: 1fr; }
-  .ap-visa { grid-template-columns: minmax(0, 1fr) 88px; min-height: 0; padding: 16px 14px 18px 16px; }
-  .ap-visa-stamp { min-height: 96px; }
-  .ap-visa-stamp .ap-stamp svg { width: 84px; height: 84px; }
+  /* 2026-11-10：手機印章 72px（原本 84px 佔一整欄），說明字級 14→16px。 */
+  .ap-visa { grid-template-columns: minmax(0, 1fr) 72px; min-height: 0; padding: 16px 14px 18px 16px; }
+  .ap-visa p { font-size: var(--fs-md); line-height: 1.75; }
+  .ap-visa-stamp { min-height: 72px; }
+  .ap-visa-stamp .ap-stamp svg { width: 72px; height: 72px; }
   .ap-datapage { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'fields' 'stamp' 'slots' 'detail'; padding: 20px 16px 24px; }
   .ap-datapage > .ap-rosette-host { right: -120px; top: 250px; width: 360px; }
   .ap-answer-lead { font-size: var(--fs-2xl); }
+  .ap-answer-lead.long { font-size: min(var(--fs-2xl), 5.9cqi); }
   .ap-stampzone { min-height: 200px; margin-top: 8px; }
   /* 還沒輸入生日不留空白章框（2026-11-03）：虛線圓占掉約 200px，生日欄跟班別格中間空一大塊；蓋章時才出現。 */
   .ap-stampzone:not(.stamped) { display: none; }
@@ -385,7 +406,9 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-phase-head { grid-template-columns: 96px minmax(0, 1fr); gap: 14px; }
   .ap-phase-head img { width: 96px; }
   .ap-days li { padding: 4px 0; }
-  .ap-day { font-size: var(--fs-xs); letter-spacing: 0; }
+  .ap-day { letter-spacing: 0; }
+  /* 叮嚀與須知是這一章的主要內文，手機 14px 偏小（問答答案是 16px）（2026-11-10） */
+  .ap-tips li, .ap-clauses li { font-size: var(--fs-md); line-height: 1.75; }
   .ap-wear .ap-stamp svg { width: 62px; height: 30px; }
   .ap-notices { gap: 28px; margin-top: 40px; }
   .ap-clauses li { grid-template-columns: 52px minmax(0, 1fr); }
@@ -406,9 +429,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
    360 以下印章縮到 64px 放在標題右邊，內文跨兩欄。 */
 @media (max-width: 360px) {
   .ap-visa { grid-template-columns: minmax(0, 1fr) 64px; }
-  .ap-visa h3 { align-self: center; }
-  .ap-visa p { grid-column: 1 / -1; }
-  .ap-visa-stamp { grid-row: 2; min-height: 64px; }
+  .ap-visa-stamp { min-height: 64px; }
   .ap-visa-stamp .ap-stamp svg { width: 62px; height: 62px; }
 }
 @media (max-width: 360px) {
@@ -416,7 +437,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-wear .ap-stamp svg { width: min(62px, 100%); height: auto; margin-inline: auto; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .ap-action, .ap-stampzone::before, .ap-stamp-hint, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-faq summary .icon { transition: none; }
+  .ap-action, .ap-stampzone::before, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-faq summary .icon { transition: none; }
 }
 @media (forced-colors: active) {
   .ap-rosette, .ap-band { display: none; }

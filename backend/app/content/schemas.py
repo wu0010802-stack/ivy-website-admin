@@ -1042,6 +1042,9 @@ class CampusNewsEventPayload(_NewsEventFields):
     pass
 
 
+CAMPUS_NEWS_MAX_ARTICLES = 12
+
+
 class CampusNewsPayload(_ContentPayload):
     """各校消息與活動（campus_news），分校管理者與內容編輯只能編自己校。
     官網把它和全站消息（home_news）合併顯示。"""
@@ -1052,8 +1055,8 @@ class CampusNewsPayload(_ContentPayload):
     @field_validator("articles")
     @classmethod
     def _articles_bounded(cls, value: list[CampusNewsArticlePayload]) -> list[CampusNewsArticlePayload]:
-        if len(value) > 12:
-            raise ValueError("每校消息最多 12 則")
+        if len(value) > CAMPUS_NEWS_MAX_ARTICLES:
+            raise ValueError(f"每校消息最多 {CAMPUS_NEWS_MAX_ARTICLES} 則")
         _unique_ids(value, "消息")
         return value
 

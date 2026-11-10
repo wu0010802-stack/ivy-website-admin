@@ -31,6 +31,7 @@ from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
 from app.contact_phrases.routes import router as contact_phrases_router
+from app.facebook.routes import router as facebook_router
 from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -43,6 +44,7 @@ from app.config import Settings, get_settings
 from app.logging_config import configure_logging
 from app.operations import error_reports
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
+from app.workers.facebook_loop import FacebookSyncLoop
 from app.workers.geo_loop import GeoSyncLoop
 from app.workers.maintenance import MaintenanceLoop
 from app.workers.media_loop import MediaJobLoop
@@ -161,12 +163,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, check_seconds=settings.geo_sync_check_seconds
             )
             app.state.geo_sync.start()
+        # 各校 Facebook 粉專貼文（app/workers/facebook_loop.py）；token 與粉專清單都設了才跑。
+        if settings.facebook_enabled:
+            app.state.facebook_sync = FacebookSyncLoop(
+                app.state.session_factory, settings, interval_seconds=settings.facebook_sync_seconds
+            )
+            app.state.facebook_sync.start()
         try:
             yield
         finally:
             # 公開資料同步與轉檔迴圈各自最多等 10 秒，並行停，不疊加成 20 秒。先停轉檔迴圈：做到一半
             # 的影片放回佇列，下一個程序馬上接手（不算一次嘗試）；兩者都停了才停 maintenance。
-            stops = [loop.stop() for loop in (app.state.geo_sync, app.state.media_jobs) if loop is not None]
+            stops = [loop.stop() for loop in (app.state.geo_sync, app.state.facebook_sync, app.state.media_jobs) if loop is not None]
             for outcome in await asyncio.gather(*stops, return_exceptions=True):
                 if isinstance(outcome, BaseException):
                     logger.error("背景迴圈停止時出錯", exc_info=outcome)
@@ -190,6 +198,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.maintenance = None
     app.state.media_jobs = None
     app.state.geo_sync = None
+    app.state.facebook_sync = None
+    app.state.facebook_transport = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
@@ -247,6 +257,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(push_router)
     app.include_router(operations_router)
     app.include_router(contact_phrases_router)
+    app.include_router(facebook_router)
     if settings.admissions_enabled:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)

@@ -98,6 +98,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
       { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
+      // 粉專貼文同步進來的收件匣，挑幾則轉成各校消息草稿（2026-10-28）。
+      { name: 'facebook-posts', path: '/content/facebook-posts', title: 'Facebook 貼文', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['臉書', 'FB', '粉專', '貼文', '消息'] },
     ],
   },
   {
@@ -137,6 +139,13 @@ export const NAV_GROUPS: NavGroup[] = [
       // 全站一份、總管理者維護（contact_phrases.manage）；接待與招生只在聯絡紀錄輸入框上方用，不開頁面。
       { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', roles: ['super_admin'], keywords: ['範本', '片語', '聯絡', '常用語'] },
     ],
+  },
+  // 使用小技巧（2026-11-10）：不容易自己發現的功能，所有人都看得到。只有一項、不屬於區段，
+  // 側欄不畫分組標題，排在最後。
+  {
+    key: 'help',
+    label: '說明',
+    items: [{ name: 'tips', path: '/tips', title: '使用小技巧', icon: 'Opportunity', keywords: ['教學', '說明', '怎麼用', '快捷鍵', '技巧', '新手', '操作'] }],
   },
 ]
 
