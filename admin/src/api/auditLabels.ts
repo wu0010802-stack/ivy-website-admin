@@ -118,6 +118,7 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   // Facebook 貼文轉成消息（facebook_post.import）：消息 id、素材 id、草稿版本號。
   'article_id',
   'media_id',
+  'video_media_id',
   'content_version',
   // 舊的 /admin/site-settings（官網從來不讀，2026-10-08 已刪除）留在舊操作紀錄裡的欄位。
   'privacy_policy_version',

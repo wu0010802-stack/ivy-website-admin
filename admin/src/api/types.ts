@@ -285,6 +285,7 @@ export type NewsBodyBlock =
   | { type: 'heading'; text: string }
   | { type: 'list'; items: string[]; ordered: boolean }
   | { type: 'image'; image: string; alt: string; caption: string }
+  | { type: 'video'; video: string; caption: string }
   | { type: 'link'; label: string; url: string }
 
 /** 全站消息與活動的適用範圍：global＝全校；campus＝指定校區（至少一校） */

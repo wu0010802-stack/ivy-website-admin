@@ -23,6 +23,7 @@ const lead = computed(() => (summaryRepeatsBody(props.summary, props.blocks) ? '
         <ResponsivePicture v-bind="responsiveTourImage(block.image, '(max-width: 760px) 90vw, 630px', false, block.imageMedia)" :alt="block.alt ?? ''" loading="lazy" />
         <figcaption v-if="block.caption">{{ block.caption }}</figcaption>
       </figure>
+      <NewsBodyVideo v-else-if="block.type === 'video'" :block="block" />
       <p v-else-if="block.type === 'link' && safeWebUrl(block.url)">
         <a :href="safeWebUrl(block.url)" target="_blank" rel="noopener noreferrer">{{ block.label }}<span aria-hidden="true"> ↗</span><span class="sr-only">（另開分頁）</span></a>
       </p>

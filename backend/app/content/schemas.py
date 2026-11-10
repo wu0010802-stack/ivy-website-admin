@@ -692,7 +692,7 @@ def is_scheduled_visible(entry: dict, today: str) -> bool:
 # [0-9] 而不是 \d：\d 會比對全形數字（「1８:3０」），官網只認 ASCII；配 fullmatch，結尾的換行也不放行（2026-10-13）。
 _TIME_RE = re.compile(r"([01][0-9]|2[0-3]):[0-5][0-9]")
 
-# 規格 3.4：消息內文只支援段落、小標、清單、圖片與驗證後連結，存成結構化
+# 規格 3.4：消息內文只支援段落、小標、清單、圖片、影片與驗證後連結，存成結構化
 # 資料，官網逐塊用固定的元素顯示，不插入任何使用者 HTML。
 NEWS_BODY_MAX_BLOCKS = 40
 
@@ -771,6 +771,29 @@ class NewsImageBlock(_ContentPayload):
         return _reject_unsafe_scheme(value)
 
 
+class NewsVideoBlock(_ContentPayload):
+    """素材庫的影片（2026-11-10 新增，粉專影片貼文轉成消息時用）。官網點了才載入，
+    封面是影片自動抽的畫面。"""
+
+    type: Literal["video"]
+    # 素材庫媒體 UUID；存檔時檢查是影片（registry 的 _extract_news_media_refs）。
+    video: str
+    caption: str = Field(default="", max_length=120)
+
+    @field_validator("video")
+    @classmethod
+    def _video(cls, value: str) -> str:
+        try:
+            return str(uuid.UUID(value))
+        except ValueError as exc:
+            raise ValueError("內文影片請從素材庫選擇") from exc
+
+    @field_validator("caption")
+    @classmethod
+    def _no_script_scheme(cls, value: str) -> str:
+        return _reject_unsafe_scheme(value)
+
+
 class NewsLinkBlock(_ContentPayload):
     type: Literal["link"]
     label: str = Field(max_length=40)
@@ -791,7 +814,7 @@ class NewsLinkBlock(_ContentPayload):
 
 
 NewsBodyBlock = Annotated[
-    Union[NewsParagraphBlock, NewsHeadingBlock, NewsListBlock, NewsImageBlock, NewsLinkBlock],
+    Union[NewsParagraphBlock, NewsHeadingBlock, NewsListBlock, NewsImageBlock, NewsVideoBlock, NewsLinkBlock],
     Field(discriminator="type"),
 ]
 

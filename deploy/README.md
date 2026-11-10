@@ -1662,7 +1662,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 各校 Facebook 粉專貼文同步
 
-後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
+後台「各校 → Facebook 貼文」把各校粉專最近 25 則貼文列出來，按一下就轉成該校的消息草稿（規格 `docs/specs/2026-10-28-facebook-news-sync-design.md`）；影片貼文連影片一起進素材庫、放進消息內文（§8，2026-11-10，不用新變數也不用重新授權）。api 程序內每小時同步一次（`app/workers/facebook_loop.py`），也可以在後台按「立即同步」或跑 `python -m app.cli facebook-sync [校區 ...]`。沒設定時功能關閉、後台頁面顯示「還沒接上」，其他功能不受影響。
 
 **Meta 那邊要先做（使用者本人登入）。** token 有兩種來源，程式都吃：
 
@@ -1691,7 +1691,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
 | `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
 
-**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
+**驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫；挑一則標「影片」的，確認內文第一塊是影片、素材庫多一支「Facebook 粉專貼文」的影片，轉檔完成（約幾分鐘）後才能發布。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
 
 ## 公開地理資料同步（招生區域分析）
 

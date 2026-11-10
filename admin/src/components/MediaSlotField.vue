@@ -30,9 +30,11 @@ const props = withDefaults(
     /** 照片版位才有焦點；影片版位預設不顯示 */
     focus?: boolean
     focusPreviews?: { label: string; ratio: string }[]
+    /** 沒有官網內建素材可以改回去的版位（消息內文的影片）設 false：不顯示「改回官網內建」，要拿掉就移除整個區塊 */
+    clearable?: boolean
     disabled?: boolean
   }>(),
-  { kind: 'image', campusKey: undefined, builtinSrc: '', focus: undefined, focusPreviews: () => [], disabled: false },
+  { kind: 'image', campusKey: undefined, builtinSrc: '', focus: undefined, focusPreviews: () => [], clearable: true, disabled: false },
 )
 
 const emit = defineEmits<{
@@ -137,6 +139,7 @@ function setFocus(point: FocusPointPayload | null) {
       :meta="cardMeta"
       :builtin-text="builtin"
       :status="asset?.status ?? null"
+      :clearable="clearable"
       :disabled="disabled"
       @pick="pickerVisible = true"
       @clear="clearSlot"

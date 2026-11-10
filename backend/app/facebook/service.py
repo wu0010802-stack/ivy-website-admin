@@ -13,7 +13,7 @@ DESCRIPTION_MAX = 120
 PARAGRAPH_MAX = 2000
 FALLBACK_TITLE = "粉專貼文"
 LINK_LABEL = "在 Facebook 看原文"
-# 內文留一格給最後的原文連結。
+# 內文留一格給最後的原文連結（有影片時開頭再留一格，見 build_article）。
 _MAX_PARAGRAPHS = NEWS_BODY_MAX_BLOCKS - 1
 
 _HASH_SIGNS = "#＃"
@@ -83,14 +83,17 @@ def _split(message: str | None) -> tuple[str, str, list[str]]:
     return title, title_line, paragraphs
 
 
-def build_article(post: FacebookPagePost, media_id: str) -> dict:
+def build_article(post: FacebookPagePost, media_id: str, video_id: str | None = None) -> dict:
+    """media_id 是封面照片；video_id 有給（影片貼文）就在內文最前面放一個影片區塊。"""
     title_text, title_line, paragraphs = _split(post.message)
     title = _clip(title_text, TITLE_MAX) if title_text else FALLBACK_TITLE
     # 標題被截斷時，完整的那一行放回內文開頭，不丟字。
     if title_text and title != title_text:
         paragraphs = [title_line, *paragraphs]
-    body: list[dict] = [
-        {"type": "paragraph", "text": _clip(text, PARAGRAPH_MAX)} for text in paragraphs[:_MAX_PARAGRAPHS]
+    body: list[dict] = [{"type": "video", "video": video_id, "caption": ""}] if video_id else []
+    body += [
+        {"type": "paragraph", "text": _clip(text, PARAGRAPH_MAX)}
+        for text in paragraphs[: _MAX_PARAGRAPHS - len(body)]
     ]
     if post.permalink_url:
         body.append({"type": "link", "label": LINK_LABEL, "url": post.permalink_url})

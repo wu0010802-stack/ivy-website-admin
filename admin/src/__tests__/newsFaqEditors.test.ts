@@ -143,15 +143,19 @@ describe('全站消息編輯頁', () => {
     expect(wrapper.text()).toContain('目前推薦 1 則')
   })
 
-  it('內文可以加段落、小標、清單、圖片與連結', async () => {
+  it('內文可以加段落、小標、清單、圖片、影片與連結', async () => {
     const payload = { sample_note: '', articles: [normalizeArticle({ id: 'a1', date: '2026-10-01', title: 't', description: 'd', image: 'garden', alt: '', category: '' })], events: [], home_display_count: null }
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', payload) as never)
     const wrapper = await mountAs(HomeNewsView, superAdmin(), '/content/home-news')
-    for (const label of ['段落', '小標', '清單', '圖片', '連結']) {
+    for (const label of ['段落', '小標', '清單', '圖片', '影片', '連結']) {
       await wrapper.findAll('.news-body__add button').find((button) => button.text() === label)!.trigger('click')
     }
-    expect(wrapper.findAll('.news-body__block').map((block) => block.get('.news-body__type').text())).toEqual(['段落', '小標', '清單', '圖片', '連結'])
+    expect(wrapper.findAll('.news-body__block').map((block) => block.get('.news-body__type').text())).toEqual(['段落', '小標', '清單', '圖片', '影片', '連結'])
     expect(wrapper.text()).toContain('請從素材庫選一張圖片')
+    // 影片區塊：還沒選時請使用者選一支，存的是素材 id 字串（空的＝還沒選）。
+    const video = wrapper.findAll('.news-body__block')[4]!
+    expect(video.text()).toContain('（請選一支影片）')
+    expect(video.text()).toContain('影片下方文字（選填）')
   })
 })
 

@@ -7,6 +7,8 @@ import logging
 import uuid
 from datetime import datetime, timezone
 
+from pathlib import Path
+
 import httpx
 import pytest
 from PIL import Image
@@ -17,7 +19,7 @@ from app.config import Settings
 from app.facebook.models import FacebookPagePost, FacebookPageSync
 from app.facebook.service import article_id, build_article
 from app.facebook.sync import sync_pages
-from app.media.models import MediaAsset
+from app.media.models import MediaAsset, MediaKind
 from app.operations.models import AuditLogEntry
 
 API = "/api/website/v1/admin/facebook-posts"
@@ -27,12 +29,22 @@ PAGE_TOKEN = "PAGE-TOKEN-should-never-leak"
 YIHUA_PAGE = "1111111111"
 MINGHUA_PAGE = "2222222222"
 PICTURE = "https://scontent.xx.fbcdn.net/v/t39/photo.jpg?oe=ABC&_nc_sid=1"
+VIDEO = "https://video.xx.fbcdn.net/o1/v/t2/reel.mp4?oe=ABC&_nc_sid=1"
+MP4 = Path("/tmp/media-fixtures/test.mp4")  # conftest 的 _ensure_media_fixtures 產生
 
 
 def _jpeg(color=(200, 120, 40)) -> bytes:
     buffer = io.BytesIO()
     Image.new("RGB", (120, 90), color).save(buffer, "JPEG")
     return buffer.getvalue()
+
+
+def _video_attachment(source: str | None = VIDEO) -> dict:
+    """影片貼文（含 Reel）在 Graph 的樣子（2026-11-10 義華粉專實測）。"""
+    media = {"image": {"height": 720, "src": PICTURE, "width": 405}}
+    if source is not None:
+        media["source"] = source
+    return {"attachments": {"data": [{"media_type": "video", "media": media}]}}
 
 
 def _post(post_id: str, message: str | None = "第一行標題\n\n第二段內文", picture: str | None = PICTURE, **extra) -> dict:
@@ -56,6 +68,8 @@ class FakeMeta:
         self.posts: dict[str, list[dict]] = {YIHUA_PAGE: [_post(f"{YIHUA_PAGE}_1")], MINGHUA_PAGE: []}
         self.picture_status = 200
         self.picture = _jpeg()
+        self.video_status = 200
+        self.video = MP4.read_bytes() if MP4.exists() else b""
         self.fail_posts_with: int | None = None
         self.requests: list[httpx.Request] = []
 
@@ -81,6 +95,10 @@ class FakeMeta:
                 return httpx.Response(200, json={"data": self.posts.get(parts[1], [])})
         if host.endswith("fbcdn.net"):
             assert "access_token" not in request.url.params and "authorization" not in request.headers
+            if path.endswith(".mp4"):
+                if self.video_status != 200:
+                    return httpx.Response(self.video_status)
+                return httpx.Response(200, content=self.video, headers={"content-type": "video/mp4"})
             if self.picture_status != 200:
                 return httpx.Response(self.picture_status)
             return httpx.Response(200, content=self.picture, headers={"content-type": "image/jpeg"})
@@ -169,6 +187,21 @@ def test_build_article_maps_fields():
     assert article["image"] == "m-1"
 
 
+def test_build_article_with_video_puts_video_block_first():
+    article = build_article(_model("運動會\n\n孩子們跑得好快。"), "m-1", "v-1")
+    assert article["image"] == "m-1"
+    assert article["body"] == [
+        {"type": "video", "video": "v-1", "caption": ""},
+        {"type": "paragraph", "text": "孩子們跑得好快。"},
+        {"type": "link", "label": "在 Facebook 看原文", "url": "https://www.facebook.com/p/1"},
+    ]
+    # 段落很多時，影片、段落、原文連結加起來不超過內文上限。
+    long_post = _model("標題\n\n" + "\n\n".join(f"第 {i} 段" for i in range(60)))
+    with_video, without_video = build_article(long_post, "m", "v")["body"], build_article(long_post, "m")["body"]
+    assert len(with_video) == len(without_video) == 40
+    assert with_video[0]["type"] == "video" and with_video[-1]["type"] == without_video[-1]["type"] == "link"
+
+
 def test_build_article_long_title_keeps_full_line_in_body():
     line = "一" * 60
     article = build_article(_model(line, permalink=None), "m")
@@ -236,6 +269,27 @@ async def test_sync_skips_empty_posts(app, meta, db_session):
     assert [(r.post_id, r.picture_url) for r in rows] == [(f"{YIHUA_PAGE}_2", None), (f"{YIHUA_PAGE}_3", None)]
 
 
+async def test_sync_reads_video_source(app, meta, db_session):
+    album = {"attachments": {"data": [{"media_type": "album", "media": {"image": {"src": PICTURE}}}]}}
+    meta.posts[YIHUA_PAGE] = [
+        _post(f"{YIHUA_PAGE}_1", **_video_attachment()),
+        _post(f"{YIHUA_PAGE}_2", **album),
+        _post(f"{YIHUA_PAGE}_3", **_video_attachment("http://insecure.example/reel.mp4")),
+        _post(f"{YIHUA_PAGE}_4", **_video_attachment(None)),
+    ]
+    await _sync(app, meta, ["yihua"])
+    rows = (await db_session.scalars(select(FacebookPagePost).order_by(FacebookPagePost.post_id))).all()
+    assert [r.video_url for r in rows] == [VIDEO, None, None, None]
+    posts_request = next(r for r in meta.requests if r.url.path.endswith("/published_posts"))
+    assert "attachments{media_type,media{source}}" in posts_request.url.params["fields"]
+
+    # 影片網址跟照片一樣每次同步換新；處理狀態不動。
+    meta.posts[YIHUA_PAGE] = [_post(f"{YIHUA_PAGE}_1", **_video_attachment(VIDEO + "&v=2"))]
+    await _sync(app, meta, ["yihua"])
+    db_session.expire_all()
+    assert (await db_session.scalars(select(FacebookPagePost.video_url).where(FacebookPagePost.post_id == f"{YIHUA_PAGE}_1"))).one() == VIDEO + "&v=2"
+
+
 async def test_sync_error_records_code_without_token(app, meta, db_session, caplog):
     # 連 DEBUG／INFO 都要看：httpx 在 INFO 會印出完整請求網址。
     caplog.set_level(logging.DEBUG)
@@ -277,6 +331,7 @@ async def test_sync_now_and_list(admin_client, meta):
     assert body["sync"]["last_count"] == 1 and body["sync"]["last_error"] is None
     post = body["posts"][0]
     assert post["has_picture"] is True and "picture_url" not in post
+    assert post["has_video"] is False and "video_url" not in post
     assert SYSTEM_TOKEN not in response.text and PAGE_TOKEN not in response.text
 
 
@@ -303,6 +358,7 @@ async def test_import_creates_media_and_draft(admin_client, meta, app, db_sessio
     body = response.json()
     assert body["article_id"] == f"fb-{YIHUA_PAGE}-1" and body["post"]["status"] == "imported"
     assert body["article_title"] == "第一行標題"
+    assert body["video_included"] is False and body["video_skipped_reason"] is None
 
     item = (await admin_client.get(f"{CONTENT}/campus_news", params={"campus_key": "yihua"})).json()
     article = item["latest_revision"]["payload"]["articles"][0]
@@ -338,6 +394,126 @@ async def test_import_expired_picture(admin_client, meta, app, db_session):
     assert response.status_code == 409 and response.json()["detail"]["code"] == "FACEBOOK_PICTURE_EXPIRED"
     db_session.expire_all()
     assert (await _only_post(db_session)).status == "new"
+
+
+# ── 影片貼文 ──────────────────────────────────────────
+
+
+async def _video_post(app, meta, db_session) -> FacebookPagePost:
+    meta.posts[YIHUA_PAGE] = [_post(f"{YIHUA_PAGE}_1", **_video_attachment())]
+    await _sync(app, meta, ["yihua"])
+    return await _only_post(db_session)
+
+
+async def _draft_article(admin_client) -> dict:
+    item = (await admin_client.get(f"{CONTENT}/campus_news", params={"campus_key": "yihua"})).json()
+    return item["latest_revision"]["payload"]["articles"][0]
+
+
+async def _media_kinds(db_session) -> list[str]:
+    return sorted(kind.value for kind in await db_session.scalars(select(MediaAsset.kind)))
+
+
+@pytest.mark.skipif(not MP4.exists(), reason="需要 ffmpeg 產生測試影片")
+async def test_import_video_post_puts_video_in_media_and_body(admin_client, meta, app, db_session):
+    post = await _video_post(app, meta, db_session)
+    listed = (await admin_client.get(API, params={"campus_key": "yihua"})).json()
+    assert listed["posts"][0]["has_video"] is True and VIDEO not in str(listed)
+
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["video_included"] is True and body["video_skipped_reason"] is None
+
+    article = await _draft_article(admin_client)
+    assert [block["type"] for block in article["body"]] == ["video", "paragraph", "link"]
+    video = await db_session.get(MediaAsset, uuid.UUID(article["body"][0]["video"]))
+    assert (video.kind, video.campus_key, video.source_attribution) == (MediaKind.VIDEO, "yihua", "Facebook 粉專貼文")
+    assert video.duration_seconds and video.original_filename == "facebook.mp4"
+    cover = await db_session.get(MediaAsset, uuid.UUID(article["image"]))
+    assert cover.kind == MediaKind.IMAGE
+    cover_id, video_id = cover.id, video.id
+    db_session.expire_all()
+    post = await _only_post(db_session)
+    assert (post.media_id, post.video_media_id) == (cover_id, video_id)
+    # 影片檔只從 FB CDN 拿，不帶 token（FakeMeta.handler 會擋）；素材用上之後不能刪。
+    assert any(r.url.path.endswith(".mp4") for r in meta.requests)
+    assert (await admin_client.delete(f"/api/website/v1/admin/media/{video_id}")).status_code == 409
+
+
+async def test_import_video_too_large_still_imports_without_video(admin_client, meta, app, db_session):
+    app.state.settings = _settings(app.state.settings, media_max_video_mb=1)
+    meta.video = b"0" * (1024 * 1024 + 1)
+    post = await _video_post(app, meta, db_session)
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["video_included"] is False and body["video_skipped_reason"] == "影片超過 1 MB"
+    article = await _draft_article(admin_client)
+    assert [block["type"] for block in article["body"]] == ["paragraph", "link"]
+    assert await _media_kinds(db_session) == ["image"]
+
+
+async def test_import_broken_video_still_imports_without_video(admin_client, meta, app, db_session):
+    meta.video = b"this is not an mp4 at all\n" * 20
+    post = await _video_post(app, meta, db_session)
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["video_included"] is False and body["video_skipped_reason"]
+    # 影片退掉了，封面照片素材與草稿照樣存下來。
+    article = await _draft_article(admin_client)
+    assert [block["type"] for block in article["body"]] == ["paragraph", "link"]
+    assert await _media_kinds(db_session) == ["image"]
+    db_session.expire_all()
+    post = await _only_post(db_session)
+    assert post.status == "imported" and post.video_media_id is None
+
+
+async def test_import_video_from_unexpected_host_or_format_skips_video(admin_client, meta, app, db_session):
+    post = await _video_post(app, meta, db_session)
+    post.video_url = "https://evil.example/reel.mp4"
+    await db_session.commit()
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 200, response.text
+    assert response.json()["video_included"] is False
+    assert response.json()["video_skipped_reason"] == "影片網址不是 Facebook 的影片主機"
+    assert not any(r.url.host == "evil.example" for r in meta.requests)
+
+    # 回來的不是 mp4（FakeMeta 對非 .mp4 的網址回 JPEG）。
+    meta.posts[YIHUA_PAGE] = [_post(f"{YIHUA_PAGE}_2", **_video_attachment("https://video.xx.fbcdn.net/v/reel.webm?oe=1"))]
+    await _sync(app, meta, ["yihua"])
+    second = (await db_session.scalars(select(FacebookPagePost).where(FacebookPagePost.post_id == f"{YIHUA_PAGE}_2"))).one()
+    response = await admin_client.post(f"{API}/{second.id}/import")
+    assert response.status_code == 200, response.text
+    assert response.json()["video_skipped_reason"] == "影片格式不支援"
+    assert await _media_kinds(db_session) == ["image"]
+
+
+async def test_import_expired_video_asks_for_sync_and_keeps_nothing(admin_client, meta, app, db_session):
+    post = await _video_post(app, meta, db_session)
+    meta.video_status = 403
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "FACEBOOK_VIDEO_EXPIRED"
+    assert await _media_kinds(db_session) == []
+    db_session.expire_all()
+    assert (await _only_post(db_session)).status == "new"
+
+
+@pytest.mark.skipif(not MP4.exists(), reason="需要 ffmpeg 產生測試影片")
+async def test_import_video_when_news_full_leaves_no_media(admin_client, meta, app, db_session, monkeypatch, tmp_path):
+    import app.facebook.routes as routes
+
+    monkeypatch.setattr(routes, "CAMPUS_NEWS_MAX_ARTICLES", 0)
+    post = await _video_post(app, meta, db_session)
+    media_root = Path(app.state.settings.media_root)
+    before = {path for path in media_root.rglob("*") if path.is_file()} if media_root.exists() else set()
+    response = await admin_client.post(f"{API}/{post.id}/import")
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "FACEBOOK_NEWS_FULL"
+    assert await _media_kinds(db_session) == []
+    # 已經寫進儲存空間的照片與影片檔也要清掉，不留孤兒檔。
+    after = {path for path in media_root.rglob("*") if path.is_file()} if media_root.exists() else set()
+    assert after == before
 
 
 async def test_import_without_picture(admin_client, meta, app, db_session):

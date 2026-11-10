@@ -98,6 +98,8 @@ export function normalizeBlock(block: NewsBodyBlock): NewsBodyBlock {
       return { type: 'list', items: [...(block.items ?? [])], ordered: Boolean(block.ordered) }
     case 'image':
       return { type: 'image', image: block.image ?? '', alt: block.alt ?? '', caption: block.caption ?? '' }
+    case 'video':
+      return { type: 'video', video: block.video ?? '', caption: block.caption ?? '' }
     default:
       return { ...block }
   }
@@ -128,6 +130,8 @@ export function newBlock(type: NewsBodyBlock['type']): NewsBodyBlock {
       return { type, items: [''], ordered: false }
     case 'image':
       return { type, image: '', alt: '', caption: '' }
+    case 'video':
+      return { type, video: '', caption: '' }
     case 'link':
       return { type, label: '', url: '' }
     default:
@@ -140,6 +144,7 @@ export const BLOCK_LABELS: Record<NewsBodyBlock['type'], string> = {
   heading: '小標',
   list: '清單',
   image: '圖片',
+  video: '影片',
   link: '連結',
 }
 

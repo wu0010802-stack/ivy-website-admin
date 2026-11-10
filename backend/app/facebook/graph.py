@@ -1,4 +1,4 @@
-"""Meta Graph API 的最小用法：換 Page token、讀粉專貼文、下載貼文照片。
+"""Meta Graph API 的最小用法：換 Page token、讀粉專貼文、下載貼文照片與影片。
 
 token 只放在 Authorization header 送給 graph.facebook.com，不放網址（httpx 的 INFO 紀錄會印完整
 網址，2026-11-10 本機實測曾因此把 token 寫進 log），也不寫進任何例外訊息：
@@ -6,10 +6,13 @@ GraphError 只帶 HTTP 狀態與 Meta 的錯誤代碼（docs/specs/2026-10-28-fa
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import httpx
@@ -19,7 +22,8 @@ from app.config import Settings
 GRAPH_HOST = "graph.facebook.com"
 # 不帶任何帳號或信箱（外部請求不帶使用者身分）。
 USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-facebook-sync/1.0)"
-POST_FIELDS = "id,message,created_time,permalink_url,full_picture"
+# attachments 只為了影片貼文（含 Reel）的影片檔網址；這種貼文的 full_picture 是影片的某一格。
+POST_FIELDS = "id,message,created_time,permalink_url,full_picture,attachments{media_type,media{source}}"
 POST_LIMIT = 25
 # Graph 回應很小；超過就當異常，不整包讀進記憶體。
 _MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -42,7 +46,11 @@ class GraphError(Exception):
         super().__init__(f"{step}（{'、'.join(details)}）" if details else step)
 
 
-class PictureError(Exception):
+class DownloadError(Exception):
+    """下載貼文照片或影片失敗；code 是 FACEBOOK_PICTURE_* 或 FACEBOOK_VIDEO_*，結尾是
+    UNTRUSTED（不是 FB CDN）、EXPIRED（連結過期，重新同步就好）、UNSUPPORTED（格式不收）、
+    TOO_LARGE（超過上限）或 FAILED（其他，可重試）。"""
+
     def __init__(self, code: str, message: str):
         self.code = code
         self.message = message
@@ -56,6 +64,7 @@ class GraphPost:
     posted_at: datetime
     permalink_url: str | None
     picture_url: str | None
+    video_url: str | None = None
 
 
 async def _require_https(request: httpx.Request) -> None:
@@ -140,6 +149,17 @@ def _https_or_none(value: object, limit: int) -> str | None:
     return value if parts.scheme == "https" and parts.hostname else None
 
 
+def _video_source(row: dict) -> str | None:
+    """影片貼文第一個影片附件的檔案網址。相簿裡夾的影片（subattachments）不取。"""
+    attachments = row.get("attachments")
+    items = attachments.get("data") if isinstance(attachments, dict) else None
+    for item in items if isinstance(items, list) else []:
+        if isinstance(item, dict) and item.get("media_type") == "video":
+            media = item.get("media")
+            return _https_or_none(media.get("source"), 4000) if isinstance(media, dict) else None
+    return None
+
+
 async def page_posts(client: httpx.AsyncClient, settings: Settings, page_id: str, token: str) -> list[GraphPost]:
     data = await _get_json(
         client, "讀取貼文", _graph_url(settings, f"{page_id}/published_posts"),
@@ -167,6 +187,7 @@ async def page_posts(client: httpx.AsyncClient, settings: Settings, page_id: str
             posted_at=posted_at,
             permalink_url=_https_or_none(row.get("permalink_url"), 500),
             picture_url=picture,
+            video_url=_video_source(row),
         ))
     return posts
 
@@ -177,30 +198,61 @@ def is_facebook_cdn(url: str) -> bool:
     return parts.scheme == "https" and parts.username is None and (host == "fbcdn.net" or host.endswith(".fbcdn.net"))
 
 
-_PICTURE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+@dataclass(frozen=True)
+class _DownloadKind:
+    code: str
+    noun: str
+    host_noun: str
+    types: frozenset[str]
 
 
-async def download_picture(client: httpx.AsyncClient, url: str, max_bytes: int) -> tuple[bytes, str]:
-    """下載貼文照片，回 (內容, content-type)。只收 FB CDN、不跟轉址、超過上限中止。
-    網址過期時 FB CDN 回 403／404／410，對應 PictureError("FACEBOOK_PICTURE_EXPIRED")。"""
+_PICTURE = _DownloadKind("FACEBOOK_PICTURE", "照片", "圖片", frozenset({"image/jpeg", "image/png", "image/webp"}))
+_VIDEO = _DownloadKind("FACEBOOK_VIDEO", "影片", "影片", frozenset({"video/mp4"}))
+
+
+async def _download(
+    client: httpx.AsyncClient, url: str, max_bytes: int, kind: _DownloadKind, write: Callable[[bytes], Awaitable[object]]
+) -> str:
+    """把檔案逐塊交給 write，回 content-type。只收 FB CDN、不跟轉址、超過上限中止。
+    網址過期時 FB CDN 回 403／404／410，對應 <code>_EXPIRED。"""
     if not is_facebook_cdn(url):
-        raise PictureError("FACEBOOK_PICTURE_UNTRUSTED", "照片網址不是 Facebook 的圖片主機")
+        raise DownloadError(f"{kind.code}_UNTRUSTED", f"{kind.noun}網址不是 Facebook 的{kind.host_noun}主機")
     try:
         async with client.stream("GET", url) as response:
             if response.status_code in (403, 404, 410):
-                raise PictureError("FACEBOOK_PICTURE_EXPIRED", "照片連結已過期，請先按「立即同步」再試一次")
+                raise DownloadError(f"{kind.code}_EXPIRED", f"{kind.noun}連結已過期，請先按「立即同步」再試一次")
             if response.status_code != 200:
-                raise PictureError("FACEBOOK_PICTURE_FAILED", f"下載照片失敗（HTTP {response.status_code}）")
+                raise DownloadError(f"{kind.code}_FAILED", f"下載{kind.noun}失敗（HTTP {response.status_code}）")
             content_type = response.headers.get("content-type", "").split(";")[0].strip().lower()
-            if content_type not in _PICTURE_TYPES:
-                raise PictureError("FACEBOOK_PICTURE_FAILED", "照片格式不支援")
-            chunks: list[bytes] = []
+            if content_type not in kind.types:
+                raise DownloadError(f"{kind.code}_UNSUPPORTED", f"{kind.noun}格式不支援")
             size = 0
             async for chunk in response.aiter_bytes():
                 size += len(chunk)
                 if size > max_bytes:
-                    raise PictureError("FACEBOOK_PICTURE_TOO_LARGE", "照片超過上傳上限")
-                chunks.append(chunk)
+                    raise DownloadError(f"{kind.code}_TOO_LARGE", f"{kind.noun}超過上傳上限")
+                await write(chunk)
     except httpx.HTTPError as exc:
-        raise PictureError("FACEBOOK_PICTURE_FAILED", f"下載照片失敗（{type(exc).__name__}）") from None
+        raise DownloadError(f"{kind.code}_FAILED", f"下載{kind.noun}失敗（{type(exc).__name__}）") from None
+    return content_type
+
+
+async def download_picture(client: httpx.AsyncClient, url: str, max_bytes: int) -> tuple[bytes, str]:
+    """下載貼文照片，回 (內容, content-type)。"""
+    chunks: list[bytes] = []
+
+    async def keep(chunk: bytes) -> None:
+        chunks.append(chunk)
+
+    content_type = await _download(client, url, max_bytes, _PICTURE, keep)
     return b"".join(chunks), content_type
+
+
+async def download_video(client: httpx.AsyncClient, url: str, max_bytes: int, target: Path) -> None:
+    """下載貼文影片（mp4）寫進 target，不整份進記憶體；失敗時 target 的內容不能用，呼叫端負責刪檔。"""
+    with target.open("wb") as out:
+
+        async def write(chunk: bytes) -> None:
+            await asyncio.to_thread(out.write, chunk)
+
+        await _download(client, url, max_bytes, _VIDEO, write)

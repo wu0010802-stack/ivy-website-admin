@@ -3,10 +3,11 @@ import { useId, useTemplateRef } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import type { NewsBodyBlock } from '../api/types'
 import MediaRefField from './MediaRefField.vue'
+import MediaSlotField from './MediaSlotField.vue'
 import { altAfterPick } from '../composables/mediaThumbs'
 import { BLOCK_LABELS, NEWS_LIMITS, moveItem, newBlock, revealListItem, webUrlError } from '../composables/newsContent'
 
-// 消息內文（規格 3.4）：只有段落、小標、清單、圖片與連結五種區塊，存成結構化
+// 消息內文（規格 3.4）：只有段落、小標、清單、圖片、影片與連結六種區塊，存成結構化
 // 資料，不收任何 HTML；官網逐塊用固定的樣式顯示。
 const props = defineProps<{
   blocks: NewsBodyBlock[]
@@ -20,7 +21,7 @@ const root = useTemplateRef<HTMLElement>('root')
 // 連結網址錯誤訊息的 id（同一頁可能有好幾個內文編輯器）。
 const uid = useId()
 
-// 新的區塊加在最後，加完捲過去並聚焦（圖片區塊聚焦「選擇圖片」）。
+// 新的區塊加在最後，加完捲過去並聚焦（圖片、影片區塊聚焦選素材的按鈕）。
 function add(type: NewsBodyBlock['type']) {
   props.blocks.push(newBlock(type))
   void revealListItem(root.value, `[data-list-item="${props.blocks.length - 1}"]`, 'textarea, input:not([type=checkbox]), .media-field__actions button')
@@ -89,6 +90,24 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
             <el-input v-model="block.caption" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" />
           </label>
         </div>
+      </div>
+      <!-- 影片區塊存的是素材 id 字串；MediaSlotField 才看得到影片封面、長度與轉檔狀態，這裡轉成它要的版位格式。 -->
+      <div v-else-if="block.type === 'video'" class="news-body__video">
+        <MediaSlotField
+          :model-value="block.video ? { media_id: block.video, focus_x: null, focus_y: null } : null"
+          kind="video"
+          :campus-key="campusKey"
+          builtin="（請選一支影片）"
+          :focus="false"
+          :clearable="false"
+          :disabled="readOnly"
+          @update:model-value="block.video = $event?.media_id ?? ''"
+        />
+        <label class="news-body__field">
+          <span>影片下方文字（選填）</span>
+          <el-input v-model="block.caption" type="textarea" :autosize="{ minRows: 1, maxRows: 4 }" maxlength="120" />
+        </label>
+        <span class="field-help">官網先顯示影片的封面畫面，家長點了才播放。影片放在內文第一塊時，消息頁會把影片放在封面照片的位置（封面照舊用在列表與分享）。</span>
       </div>
       <div v-else-if="block.type === 'link'" class="field-row">
         <label class="news-body__field">
@@ -164,7 +183,8 @@ function setListText(block: Extract<NewsBodyBlock, { type: 'list' }>, value: str
   align-items: start;
 }
 
-.news-body__image-fields {
+.news-body__image-fields,
+.news-body__video {
   display: grid;
   gap: 6px;
   min-width: 0;

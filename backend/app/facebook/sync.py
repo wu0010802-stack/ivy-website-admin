@@ -48,6 +48,7 @@ async def _write_posts(db: AsyncSession, campus_key: str, posts: list[graph.Grap
             "message": post.message,
             "permalink_url": post.permalink_url,
             "picture_url": post.picture_url,
+            "video_url": post.video_url,
             "fetched_at": now,
         }
         await db.execute(

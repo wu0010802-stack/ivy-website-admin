@@ -70,7 +70,8 @@ def _extract_campus_tour_media_refs(payload: dict) -> list[MediaRef]:
 
 
 def _extract_news_media_refs(payload: dict) -> list[MediaRef]:
-    """消息封面，加上結構化內文裡的圖片區塊（home_news、campus_news 共用）。"""
+    """消息封面，加上結構化內文裡的圖片與影片區塊（home_news、campus_news 共用）。
+    影片區塊只能放影片（kind=video）；圖片區塊沿用舊規則不檢查種類。"""
     refs: list[MediaRef | None] = []
     for i, article in enumerate(payload.get("articles", []) or []):
         if not isinstance(article, dict):
@@ -78,8 +79,13 @@ def _extract_news_media_refs(payload: dict) -> list[MediaRef]:
         title = article.get("title")
         refs.append(_media_ref(article.get("image", ""), f"articles[{i}].image", title))
         for j, block in enumerate(article.get("body", []) or []):
-            if isinstance(block, dict) and block.get("type") == "image":
+            if not isinstance(block, dict):
+                continue
+            if block.get("type") == "image":
                 refs.append(_media_ref(block.get("image", ""), f"articles[{i}].body[{j}].image", title))
+            elif block.get("type") == "video":
+                ref = _media_ref(block.get("video", ""), f"articles[{i}].body[{j}].video", title)
+                refs.append(replace(ref, kind="video") if ref else None)
     return _refs(refs)
 
 
