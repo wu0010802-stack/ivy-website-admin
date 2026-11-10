@@ -9,23 +9,13 @@
 const VERT = new URLSearchParams(location.search).get('fmt') === 'v'; // 直式 9:16 版
 const W = VERT ? 1080 : 1920, H = VERT ? 1920 : 1080, FPS = 30, BEAT = 20, BAR = 80, TOTAL = 4320;
 const CX = W / 2;
-/* 版面：橫式 16:9 與直式 9:16 各一份，時間軸（格數）完全相同 */
+/* 版面：橫式 16:9 與直式 9:16 各一份，時間軸（格數）完全相同（第一、二幕的版面在 sky.js） */
 const LAY = VERT ? {
-  FR: { x: 60, y: 820, w: 960, h: 540 },
-  TL: { x0: 40, y: 1610, x1997: 92, per: 29 },
-  odo: { x: 58, y: 262, size: 180 }, odoOpen: { y: 660, big: 1.3 }, rule: { x: 70, y: 480 },
-  name: { x: 64, y: 512, size: 72 }, hist: { x: 66, y: 624, size: 40 },
-  sprout: { x: 540, y: 1230 },
   paper: { src: 'stills/paper-v.png', w: 1188, h: 2112 },
   foot: { w: 1296, h: 2304 },
   cap: { size: 56, y1: 1400, y2: 1482, tsize: 64, ty1: 300, ty2: 394, scrim: 760 },
   crest: { main: [880, 830], up: [700, 790], end: [700, 820], title: 1210, years: 1340, outro1: 1108, outro2: 1306, brand: 1138 },
 } : {
-  FR: { x: 760, y: 136, w: 1080, h: 608 },
-  TL: { x0: 70, y: 905, x1997: 170, per: 54 },
-  odo: { x: 112, y: 200, size: 196 }, odoOpen: { y: 318, big: 1.34 }, rule: { x: 124, y: 430 },
-  name: { x: 120, y: 470, size: 76 }, hist: { x: 122, y: 590, size: 42 },
-  sprout: { x: 960, y: 842 },
   paper: { src: 'stills/paper.png', w: 2112, h: 1188 },
   foot: { w: 2304, h: 1296 },
   cap: { size: 60, y1: 812, y2: 900, tsize: 70, ty1: 118, ty2: 222, scrim: 460 },
@@ -155,374 +145,6 @@ class KText {
   }
 }
 
-/* ───────────── 年份滾輪 ───────────── */
-class Odometer {
-  constructor(parent, o) {
-    this.o = Object.assign({ x: 0, y: 0, size: 200, color: C.green, weight: 800 }, o);
-    const s = this.o;
-    const m = document.createElement('canvas').getContext('2d');
-    m.font = `${s.weight} ${s.size}px 'LINE Seed TW'`;
-    let mw = 0;
-    for (let d = 0; d < 10; d++) mw = Math.max(mw, m.measureText(String(d)).width);
-    this.cw = Math.round(mw * 0.94);
-    this.lh = Math.round(s.size * 1.08);
-    this.root = el('div', parent, { position: 'absolute', left: px(s.x), top: px(s.y), height: px(this.lh), display: 'flex' });
-    this.cols = [];
-    for (let k = 0; k < 4; k++) {
-      const col = el('div', this.root, {
-        position: 'relative', width: px(this.cw), height: px(this.lh), overflow: 'hidden',
-        maskImage: 'linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%)',
-        webkitMaskImage: 'linear-gradient(to bottom, transparent 0%, #000 16%, #000 84%, transparent 100%)',
-      });
-      const strip = el('div', col, { position: 'absolute', left: 0, top: 0, width: '100%' });
-      for (let d = 0; d <= 10; d++) {
-        const dd = el('div', strip, {
-          height: px(this.lh), lineHeight: px(this.lh), textAlign: 'center', fontFamily: "'LINE Seed TW'",
-          fontWeight: s.weight, fontSize: px(s.size), color: s.color,
-        });
-        dd.textContent = String(d % 10);
-      }
-      this.cols.push({ col, strip });
-    }
-  }
-  /* v：年份（可帶小數，進位像里程表）；reveal：每一位數的出現進度 0~1 */
-  set(v, reveal = [1, 1, 1, 1], alpha = 1) {
-    setStyle(this.root, 'opacity', alpha.toFixed(3));
-    for (let i = 0; i < 4; i++) {
-      const k = 3 - i; // 第 i 欄是 10^k 位
-      const p10 = Math.pow(10, k);
-      const d = Math.floor(v / p10) % 10;
-      const rem = v - Math.floor(v / p10) * p10; // 0 ~ p10
-      const frac = k === 0 ? v - Math.floor(v) : clamp(rem - (p10 - 1));
-      const pos = d + frac;
-      const r = reveal[i];
-      const { col, strip } = this.cols[i];
-      setStyle(strip, 'transform', `translate3d(0,${(-pos * this.lh).toFixed(2)}px,0)`);
-      setStyle(col, 'opacity', E.out(r).toFixed(3));
-      setStyle(col, 'transform', `translate3d(0,${((1 - E.outQuint(r)) * this.lh * 0.35).toFixed(2)}px,0)`);
-      setStyle(col, 'filter', r < 1 ? `blur(${((1 - r) * 12).toFixed(2)}px)` : 'none');
-    }
-  }
-}
-
-/* ───────────── 常春藤葉與藤蔓 ───────────── */
-/* 五裂的常春藤葉，葉柄接點在 (0,0)，葉尖朝 -y；size＝葉長 */
-function leafPath(ctx, size) {
-  const s = size;
-  const cy = -0.52 * s;
-  const P = (deg, r) => { const a = (deg * Math.PI) / 180; return [Math.sin(a) * r * s, cy - Math.cos(a) * r * s]; };
-  const pts = [
-    P(0, 0.56), P(30, 0.27), P(62, 0.46), P(92, 0.24), P(128, 0.42), P(168, 0.13),
-    [0, -0.02 * s],
-    P(-168, 0.13), P(-128, 0.42), P(-92, 0.24), P(-62, 0.46), P(-30, 0.27),
-  ];
-  // 葉裂尖端（偶數）當控制點、凹處（奇數）當線上點 → 圓潤但有尖
-  ctx.beginPath();
-  const start = pts[1];
-  ctx.moveTo(start[0], start[1]);
-  const order = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 0, 1];
-  for (let i = 0; i < order.length; i += 2) {
-    const c = pts[order[i]], e = pts[order[i + 1]];
-    ctx.quadraticCurveTo(c[0], c[1], e[0], e[1]);
-  }
-  ctx.closePath();
-}
-function drawLeaf(ctx, x, y, angle, size, color, grow, alpha = 1) {
-  if (grow <= 0.001) return;
-  const g = Math.max(0, grow);
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle);
-  ctx.globalAlpha = alpha;
-  // 葉柄
-  const pet = size * 0.32 * clamp(g * 1.6);
-  ctx.strokeStyle = C.leaf;
-  ctx.lineWidth = Math.max(1, size * 0.05);
-  ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -pet); ctx.stroke();
-  ctx.translate(0, -pet);
-  ctx.scale(g, g);
-  leafPath(ctx, size);
-  ctx.fillStyle = color;
-  ctx.fill();
-  // 葉脈
-  ctx.strokeStyle = 'rgba(206, 220, 208, 0.55)';
-  ctx.lineWidth = Math.max(0.6, size * 0.028);
-  const cy = -0.52 * size;
-  ctx.beginPath();
-  for (const deg of [0, 62, -62, 128, -128]) {
-    const a = (deg * Math.PI) / 180, r = (deg === 0 ? 0.48 : 0.36) * size;
-    ctx.moveTo(0, -0.04 * size);
-    ctx.quadraticCurveTo(Math.sin(a) * r * 0.4, cy * 0.7, Math.sin(a) * r, cy - Math.cos(a) * r);
-  }
-  ctx.stroke();
-  ctx.restore();
-}
-
-/* 時間軸上的藤蔓：年份 → x；藤蔓頭的位置隨 frame 走（HEAD 表），葉子在藤蔓頭經過後長出來 */
-const TL = { x0: LAY.TL.x0, y: LAY.TL.y, xOf: (yr) => LAY.TL.x1997 + (yr - 1997) * LAY.TL.per };
-function vineY(x) { return TL.y + 7 * Math.sin((x - TL.x0) / 140) + 4 * Math.sin((x - TL.x0) / 53 + 1.3); }
-const HEAD_KEYS = [
-  // [frame, x]
-  [0, TL.x0], [196, TL.x0], [262, TL.xOf(1997) + 16],
-  [606, TL.xOf(1997) + 16], [646, TL.xOf(2001) + 16],
-  [766, TL.xOf(2001) + 16], [806, TL.xOf(2005) + 16],
-  [956, TL.xOf(2005) + 16], [1096, TL.xOf(2019) + 16],
-  [1100, TL.xOf(2019) + 16], [1126, TL.xOf(2020) + 16],
-  [1266, TL.xOf(2020) + 16], [1292, TL.xOf(2021) + 16],
-  [1452, TL.xOf(2021) + 16], [1560, TL.xOf(2027) + 26],
-];
-function headX(f) {
-  for (let i = 1; i < HEAD_KEYS.length; i++) {
-    const [f0, x0] = HEAD_KEYS[i - 1], [f1, x1] = HEAD_KEYS[i];
-    if (f <= f1) {
-      const t = f1 === f0 ? 1 : prog(f, f0, f1);
-      // 年份滾動段（2005→2019）等速，其餘緩進緩出
-      const e = f0 === 956 ? t : E.inOut(t);
-      return lerp(x0, x1, e);
-    }
-  }
-  return HEAD_KEYS[HEAD_KEYS.length - 1][1];
-}
-class Vine {
-  constructor() {
-    this.cv = canvas(W, H, null);
-    this.ctx = this.cv.getContext('2d');
-    const r = mulberry32(2027);
-    const cols = [C.green, C.leaf, '#4D7C5D', C.green, C.leaf];
-    this.leaves = [];
-    let side = 1;
-    for (let x = TL.x0 + 30; x < TL.xOf(2027) + 20; x += 36 + r() * 16) {
-      side = -side;
-      this.leaves.push({ x, side, size: 22 + r() * 12, ang: (0.5 + r() * 0.55) * side, color: cols[Math.floor(r() * cols.length)] });
-    }
-    // 成立年份多長兩片大葉
-    for (const yr of [1997, 2001, 2005, 2020, 2021]) {
-      const x = TL.xOf(yr);
-      this.leaves.push({ x: x - 8, side: -1, size: 42, ang: -0.3, color: C.green, big: true });
-      this.leaves.push({ x: x + 6, side: 1, size: 34, ang: 0.8, color: C.leaf, big: true });
-    }
-    // 每片葉子的出生格：藤蔓頭第一次越過它的那一格
-    for (const lf of this.leaves) {
-      lf.birth = Infinity;
-      for (let f = 0; f < TOTAL; f++) if (headX(f) >= lf.x + 8) { lf.birth = f; break; }
-    }
-  }
-  draw(f, alpha = 1) {
-    const ctx = this.ctx;
-    ctx.clearRect(0, 0, W, H);
-    if (alpha <= 0) return;
-    const hx = headX(f);
-    if (hx <= TL.x0 + 1) return;
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    // 莖：沿線取點，舊的部分較粗、尖端收細
-    const L = [], R = [];
-    const step = 4;
-    for (let x = TL.x0; x <= hx; x += step) L.push(x);
-    if (L[L.length - 1] < hx) L.push(hx);
-    const left = [], right = [];
-    for (let i = 0; i < L.length; i++) {
-      const x = L[i], y = vineY(x);
-      const x2 = L[Math.min(i + 1, L.length - 1)], x1 = L[Math.max(i - 1, 0)];
-      const dx = x2 - x1 || 1, dy = vineY(x2) - vineY(x1);
-      const len = Math.hypot(dx, dy);
-      const nx = -dy / len, ny = dx / len;
-      const age = hx - x;
-      const w = Math.min(1.6 + 3.6 * clamp(age / 420), 0.8 + age * 0.14) * (x < TL.x0 + 20 ? lerp(0.6, 1, (x - TL.x0) / 20) : 1);
-      left.push([x + nx * w, y + ny * w]);
-      right.push([x - nx * w, y - ny * w]);
-    }
-    ctx.beginPath();
-    ctx.moveTo(left[0][0], left[0][1]);
-    for (const p of left) ctx.lineTo(p[0], p[1]);
-    for (let i = right.length - 1; i >= 0; i--) ctx.lineTo(right[i][0], right[i][1]);
-    ctx.closePath();
-    ctx.fillStyle = C.leaf;
-    ctx.fill();
-    // 捲鬚：藤蔓頭前端一小圈
-    const tip = Math.min(1, (hx - TL.x0) / 60);
-    ctx.strokeStyle = C.leaf;
-    ctx.lineWidth = 1.8;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    const ty = vineY(hx);
-    ctx.moveTo(hx, ty);
-    ctx.bezierCurveTo(hx + 14 * tip, ty - 2, hx + 20 * tip, ty - 17 * tip, hx + 9 * tip, ty - 19 * tip);
-    ctx.stroke();
-    // 葉子
-    for (const lf of this.leaves) {
-      if (f < lf.birth) continue;
-      const g = E.outBack(prog(f, lf.birth, lf.birth + (lf.big ? 20 : 14)), 1.4);
-      const y = vineY(lf.x);
-      const dy = vineY(lf.x + 2) - vineY(lf.x - 2);
-      const base = Math.atan2(dy, 4);
-      const ang = base + (lf.side > 0 ? Math.PI / 2 : -Math.PI / 2) * 0 + lf.ang + (lf.side > 0 ? 0.25 : -0.25);
-      drawLeaf(ctx, lf.x, y, ang, lf.size, lf.color, g);
-    }
-    ctx.restore();
-  }
-}
-
-/* 開場的嫩芽（畫在自己的 canvas，之後縮小移到時間軸起點） */
-function drawSprout(ctx, f, cx, cy) {
-  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-  const g = E.out(prog(f, 18, 96));
-  if (g <= 0) return;
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.scale(1.45, 1.45);
-  const hgt = 120 * g;
-  ctx.strokeStyle = C.leaf;
-  ctx.lineCap = 'round';
-  ctx.lineWidth = 4.5;
-  ctx.beginPath();
-  ctx.moveTo(0, 0);
-  ctx.bezierCurveTo(4, -hgt * 0.35, -10, -hgt * 0.7, 2, -hgt);
-  ctx.stroke();
-  const l1 = E.outBack(prog(f, 52, 76), 1.6), l2 = E.outBack(prog(f, 70, 94), 1.6), l3 = E.outBack(prog(f, 86, 110), 1.6);
-  drawLeaf(ctx, 1, -hgt * 0.42, -1.05, 30, C.leaf, l1);
-  drawLeaf(ctx, -3, -hgt * 0.66, 0.95, 34, C.green, l2);
-  drawLeaf(ctx, 2, -hgt, 0.08, 26, '#4D7C5D', l3);
-  ctx.restore();
-}
-
-/* ───────────── 校園站：線稿 → 水彩 → 實景照 ───────────── */
-const FR = LAY.FR; // 主畫框
-const CAMPUS = {
-  yihua: { name: '義華校', year: 1997, hist: ['第一間常春藤，', '在三民區義華路成立。'], view: [0, 60, 2820] },
-  minghua: { name: '明華校', year: 2001, hist: ['走進左營區，', '有了第二所校園。'], view: [40, 0, 1611] },
-  chongde: { name: '崇德校', year: 2005, hist: ['左營區的', '第二所校園。'], view: [60, 0, 1611] },
-  international: { name: '國際校', year: 2020, hist: ['在鳥松區', '球場路成立。'], view: [60, 0, 1611] },
-  renwu: { name: '仁武校', year: 2021, hist: ['第五所校園，', '在仁武區成立。'], view: [62, 0, 1611] },
-};
-const ORDER = ['yihua', 'minghua', 'chongde', 'international', 'renwu'];
-/* 各站時間（全片格數） */
-const ST = {
-  yihua: { ink: [214, 330], col: [318, 400], photo: [392, 470], push: [214, 610], fly: [606, 640], name: [236, 600], hist: [262, 600] },
-  minghua: { ink: [640, 690], col: [676, 712], photo: [700, 742], push: [640, 770], fly: [766, 800], name: [648, 762], hist: [662, 762] },
-  chongde: { ink: [800, 850], col: [836, 872], photo: [860, 902], push: [800, 930], fly: [926, 960], name: [808, 922], hist: [822, 922] },
-  international: { ink: [1120, 1170], col: [1156, 1192], photo: [1180, 1222], push: [1120, 1250], fly: [1246, 1280], name: [1128, 1242], hist: [1142, 1242] },
-  renwu: { ink: [1280, 1330], col: [1316, 1352], photo: [1340, 1382], push: [1280, 1410], fly: [1406, 1440], name: [1288, 1402], hist: [1302, 1402] },
-};
-/* 時間軸上的小相片：上下交錯 */
-const THUMB = { w: 128, h: 72 };
-const thumbRect = (k) => {
-  const i = ORDER.indexOf(k), x = TL.xOf(CAMPUS[k].year) - THUMB.w / 2;
-  const up = i % 2 === 0;
-  return { x: Math.max(40, x), y: up ? TL.y - 40 - THUMB.h - 36 : TL.y + 50, up };
-};
-
-/* 五校五聯屏：橫式是五格直幅並排，直式是五條橫幅上下疊 */
-function panelRect(i) {
-  if (VERT) return { x: 60, y: 470 + i * 254, w: 960, h: 232 };
-  const PW = 318, PH = 560, GAP = 24, X0 = (W - (PW * 5 + GAP * 4)) / 2;
-  return { x: X0 + i * (PW + GAP), y: 264, w: PW, h: PH };
-}
-
-class Station {
-  constructor(key, assets) {
-    this.key = key;
-    this.c = CAMPUS[key];
-    this.t = ST[key];
-    const { photo, ink, colour } = assets;
-    this.photo = photo; this.ink = ink; this.colour = colour;
-    const [vx, vy, vw] = this.c.view;
-    this.view = { x: vx, y: vy, w: vw, h: (vw * 9) / 16 };
-    // 揭露圖（在畫框座標）：鉛筆由左而右帶一點雜訊；水彩由建築中心往外暈；實景由下往上、雲狀
-    const nz = makeNoise(ORDER.indexOf(key) * 97 + 11);
-    const w = FR.w, h = FR.h;
-    this.mInk = new Float32Array(w * h);
-    this.mCol = new Float32Array(w * h);
-    this.mPho = new Float32Array(w * h);
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        const n1 = nz(x / 90, y / 90, 4), n2 = nz(x / 220 + 13, y / 220 + 7, 4);
-        this.mInk[i] = clamp(0.78 * (x / w * 0.86 + y / h * 0.14) + 0.22 * n1);
-        const d = Math.hypot((x - w * 0.55) / w, (y - h * 0.5) / h * 0.8);
-        this.mCol[i] = clamp(0.55 * d / 0.65 + 0.45 * n2);
-        this.mPho[i] = clamp(0.4 * (1 - y / h) + 0.6 * n2);
-      }
-    }
-    this.layer = document.createElement('canvas');
-    this.layer.width = w; this.layer.height = h;
-    this.lctx = this.layer.getContext('2d');
-    this.mask = document.createElement('canvas');
-    this.mask.width = w; this.mask.height = h;
-    this.mctx = this.mask.getContext('2d');
-    this.mdata = this.mctx.createImageData(w, h);
-  }
-  /* 依揭露圖與進度 p 產生遮罩（soft＝邊緣寬） */
-  buildMask(map, p, soft) {
-    const d = this.mdata.data, n = map.length;
-    const pp = p * (1 + soft);
-    for (let i = 0, j = 3; i < n; i++, j += 4) {
-      const a = (pp - map[i]) / soft;
-      d[j] = a <= 0 ? 0 : a >= 1 ? 255 : (a * a * (3 - 2 * a)) * 255;
-    }
-    this.mctx.putImageData(this.mdata, 0, 0);
-  }
-  drawLayer(img, zoom, mapArr, p, soft, mode, ctx, alpha = 1) {
-    if (p <= 0) return;
-    const l = this.lctx;
-    l.globalCompositeOperation = 'source-over';
-    l.clearRect(0, 0, FR.w, FR.h);
-    const v = this.view, s = (FR.w / v.w) * zoom;
-    const cx = v.x + v.w / 2, cy = v.y + v.h / 2;
-    l.setTransform(s, 0, 0, s, FR.w / 2 - cx * s, FR.h / 2 - cy * s);
-    l.imageSmoothingQuality = 'high';
-    l.drawImage(img, 0, 0);
-    l.setTransform(1, 0, 0, 1, 0, 0);
-    if (p < 1) {
-      this.buildMask(mapArr, p, soft);
-      l.globalCompositeOperation = 'destination-in';
-      l.drawImage(this.mask, 0, 0);
-      l.globalCompositeOperation = 'source-over';
-    }
-    ctx.save();
-    ctx.globalAlpha = alpha;
-    ctx.globalCompositeOperation = mode;
-    ctx.drawImage(this.layer, 0, 0);
-    ctx.restore();
-  }
-  /* 把這一站在 frame f 的樣子畫進 ctx（畫框大小，含紙底） */
-  render(ctx, f, paperImg) {
-    const t = this.t;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.drawImage(paperImg, FR.x + PAD.x, FR.y + PAD.y, FR.w, FR.h, 0, 0, FR.w, FR.h);
-    const zoom = lerp(1.0, 1.055, E.inOutSine(prog(f, t.push[0], t.push[1] + 40)));
-    const pInk = E.inOutSine(prog(f, t.ink[0], t.ink[1]));
-    const pCol = E.inOutSine(prog(f, t.col[0], t.col[1]));
-    const pPho = E.inOutSine(prog(f, t.photo[0], t.photo[1]));
-    // 實景完全出現後，線稿與水彩不必再畫
-    if (pPho < 1) {
-      this.drawLayer(this.colour, zoom, this.mCol, pCol, 0.35, 'multiply', ctx, 0.92);
-      this.drawLayer(this.ink, zoom, this.mInk, pInk, 0.07, 'source-over', ctx, lerp(0.9, 0.55, pCol));
-    }
-    this.drawLayer(this.photo, zoom, this.mPho, pPho, 0.32, 'source-over', ctx, 1);
-    return pPho;
-  }
-}
-
-/* ───────────── 時間軸刻度 ───────────── */
-function drawTicks(ctx, f, alpha) {
-  ctx.clearRect(0, 0, W, H);
-  if (alpha <= 0) return;
-  ctx.save();
-  ctx.globalAlpha = alpha;
-  const hx = headX(f);
-  for (let yr = 1997; yr <= 2027; yr++) {
-    const x = TL.xOf(yr);
-    const on = hx >= x - 2;
-    const ms = [1997, 2001, 2005, 2020, 2021, 2027].includes(yr);
-    ctx.fillStyle = on ? (ms ? C.leaf : 'rgba(56,106,75,0.55)') : 'rgba(56,106,75,0.2)';
-    const hh = ms ? 14 : 8;
-    ctx.fillRect(Math.round(x) - 1, TL.y + 26, 2, hh);
-  }
-  ctx.restore();
-}
-
 /* ───────────── 主程式 ───────────── */
 const S = {}; // 場景物件
 let READY = null;
@@ -537,82 +159,14 @@ async function init() {
 
   const paper = await loadImg(OUT + LAY.paper.src);
   S.paper = paper;
-  const assets = {};
-  await Promise.all(ORDER.map(async (k) => {
-    const [photo, ink, colour] = await Promise.all(['photo', 'ink', 'colour'].map((n) => loadImg(`${OUT}stills/${k}-${n}.png`)));
-    assets[k] = { photo, ink, colour };
-  }));
-
-  /* 背景：紙（整片跟著鏡頭微動） */
-  S.cam = el('div', stage, { position: 'absolute', inset: 0, transformOrigin: '50% 60%' });
-  S.paperEl = el('img', S.cam, { position: 'absolute', left: px(-PAD.x), top: px(-PAD.y), width: px(LAY.paper.w), height: px(LAY.paper.h) });
-  S.paperEl.src = paper.src;
-
-  /* 第一、二幕：校園站 */
-  S.stationLayer = el('div', S.cam, { position: 'absolute', inset: 0 });
-  S.ticks = canvas(W, H, S.stationLayer);
-  S.ticksCtx = S.ticks.getContext('2d');
-  S.vine = new Vine();
-  S.stationLayer.appendChild(S.vine.cv);
-  S.sprout = canvas(400, 400, S.stationLayer);  // 嫩芽畫在 (200,330) 往上長
-  S.sproutCtx = S.sprout.getContext('2d');
-  S.labels = {};
-  S.thumbs = {};
-  for (const k of ORDER) {
-    const tr = thumbRect(k);
-    const th = canvas(THUMB.w * 2, THUMB.h * 2, S.stationLayer, {
-      left: px(tr.x), top: px(tr.y), width: px(THUMB.w), height: px(THUMB.h), borderRadius: '3px',
-      boxShadow: `0 4px 14px rgba(${INK},0.18), 0 1px 3px rgba(${INK},0.2)`, display: 'none',
-    });
-    S.thumbs[k] = th;
-    const lab = el('div', S.stationLayer, {
-      position: 'absolute', left: px(tr.x), top: px(tr.up ? tr.y - 30 : tr.y + THUMB.h + 6), width: px(THUMB.w + 60),
-      fontFamily: "'LINE Seed TW'", fontWeight: 700, fontSize: '19px', color: C.green, whiteSpace: 'nowrap', display: 'none',
-    });
-    lab.innerHTML = `<span style="font-family:'Source Sans 3';font-weight:600;color:${C.muted};letter-spacing:.04em;margin-right:8px">${CAMPUS[k].year}</span>${CAMPUS[k].name.replace('校', '')}`;
-    S.labels[k] = lab;
-  }
-  S.stations = {};
-  for (const k of ORDER) S.stations[k] = new Station(k, assets[k]);
-  S.print = canvas(FR.w, FR.h, S.stationLayer, { left: px(FR.x), top: px(FR.y), transformOrigin: '0 0', borderRadius: '4px' });
-  S.printCtx = S.print.getContext('2d');
-  // 年份與文字（左欄）
-  S.odo = new Odometer(S.stationLayer, { x: LAY.odo.x, y: LAY.odo.y, size: LAY.odo.size });
-  S.rule = el('div', S.stationLayer, { position: 'absolute', left: px(LAY.rule.x), top: px(LAY.rule.y), width: '72px', height: '5px', background: C.gold, borderRadius: '3px', transformOrigin: '0 50%' });
-  S.names = {}; S.hists = {};
-  for (const k of ORDER) {
-    S.names[k] = new KText(S.stationLayer, [CAMPUS[k].name], { x: LAY.name.x, y: LAY.name.y, size: LAY.name.size, weight: 800, color: C.green, ls: 0.06 });
-    S.hists[k] = new KText(S.stationLayer, CAMPUS[k].hist, { x: LAY.hist.x, y: LAY.hist.y, size: LAY.hist.size, weight: 700, color: C.text, ls: 0.05, lh: 1.5 });
-  }
-  S.years = new KText(S.stationLayer, ['一年，', '又一年。'], { x: LAY.name.x, y: LAY.name.y, size: LAY.name.size, weight: 800, color: C.green, ls: 0.06, lh: 1.3 });
-  // 開場置中的 1997（之後滑到左欄）由 Odometer 自己移動
-
-  /* 年份滾動段：日常照片翻頁 */
-  const FLIP = ['cur-hero', 'day-hello', 'cur-kite', 'env-hero-hug', 'day-lunch', 'cur-floor-painting', 'about-curious',
-    'day-outside', 'cur-activities', 'env-care-meal', 'cur-integrated', 'home-about', 'cur-daily-reading', 'cur-years'];
-  S.flip = await Promise.all(FLIP.map((n) => loadImg(`${WEB}${n}.webp`)));
-
-  /* 五校五聯屏 */
-  S.panelLayer = el('div', stage, { position: 'absolute', inset: 0, display: 'none' });
-  S.panelTitle = new KText(S.panelLayer, VERT ? ['從一間幼兒園，', '長成五所校園。'] : ['從一間幼兒園，長成五所校園。'], { x: CX, y: VERT ? 200 : 128, size: VERT ? 70 : 66, weight: 800, color: C.green, align: 'center', w: 1800, ls: 0.06, lh: 1.35 });
-  S.panels = ORDER.map((k, i) => {
-    const p = el('div', S.panelLayer, {
-      position: 'absolute', overflow: 'hidden', borderRadius: '6px',
-      backgroundImage: `url(${OUT}stills/${k}-photo.png)`, backgroundSize: 'cover',
-      boxShadow: `0 18px 40px rgba(${INK},0.16), 0 2px 6px rgba(${INK},0.18)`,
-    });
-    const cap = el('div', S.panelLayer, VERT ? {
-      position: 'absolute', fontFamily: "'LINE Seed TW'", fontWeight: 800, fontSize: '44px', color: '#fff', zIndex: 3,
-      letterSpacing: '.08em', whiteSpace: 'nowrap', textShadow: `0 2px 14px rgba(${INK},0.6), 0 1px 2px rgba(${INK},0.5)`,
-    } : {
-      position: 'absolute', fontFamily: "'LINE Seed TW'", fontWeight: 800, fontSize: '40px', color: C.green,
-      textAlign: 'center', width: '318px', letterSpacing: '.08em', whiteSpace: 'nowrap',
-    });
-    cap.innerHTML = VERT
-      ? `${CAMPUS[k].name.replace('校', '')}<span style="font-family:'Source Sans 3';font-weight:600;font-size:26px;letter-spacing:.14em;margin-left:16px">${CAMPUS[k].year}</span>`
-      : `${CAMPUS[k].name.replace('校', '')}<span style="display:block;font-family:'Source Sans 3';font-weight:600;font-size:22px;letter-spacing:.14em;color:${C.muted};margin-top:2px">${CAMPUS[k].year}</span>`;
-    return { k, p, cap };
-  });
+  /* 第一、二幕〈星圖〉 */
+  const [far, near] = await Promise.all([loadImg(OUT + 'stills/sky-far.png'), loadImg(OUT + 'stills/sky-near.png')]);
+  const photos = {};
+  await Promise.all(SKY_ORDER.map(async (k) => { photos[k] = await loadImg(`${OUT}stills/${k}-photo.png`); }));
+  const daily = await Promise.all(SKY_DAILY.map((n) => loadImg(`${WEB}${n}.webp`)));
+  await document.fonts.load("100 200px 'LINE Seed TW'", '0123456789');
+  await document.fonts.load("400 36px 'LINE Seed TW'", '第一間常春藤在三民區義華路成立');
+  S.sky = new Sky(stage, { far, near, photos, daily });
 
   /* 第三、四幕：影片 */
   S.footLayer = el('div', stage, { position: 'absolute', inset: 0, display: 'none', background: '#000', overflow: 'hidden' });
@@ -665,21 +219,13 @@ async function init() {
      <div id="brandTc" style="font-family:'Ivy Brand TC';font-weight:600;font-size:66px;line-height:1.1;color:${C.logoGreen};letter-spacing:.05em;white-space:nowrap">常春藤教育機構</div>
      <div id="brandEn" style="font-family:'Ivy Brand EN';font-weight:400;font-size:40px;line-height:1.45;color:${C.logoBlue};white-space:nowrap;text-align:left"><span id="brandEnText">Ivy Educational Institution</span></div></div>`;
 
+  /* 衝進明華那顆星的白光（蓋在夜空與影片上） */
+  S.white = el('div', stage, { position: 'absolute', inset: 0, background: 'radial-gradient(circle at 50% 50%, #FFFDF8, #FFF3DE 60%, #F9E3B8)', opacity: 0, display: 'none' });
+
   /* 全片：黑場 */
   S.black = el('div', stage, { position: 'absolute', inset: 0, background: '#000', opacity: 0 });
 
   await document.fonts.ready;
-
-  // 時間軸小相片：直接用每一站起飛那一格的樣子先畫好（平行算圖時每個 worker 從不同格開始）
-  const tmp = document.createElement('canvas');
-  tmp.width = FR.w; tmp.height = FR.h;
-  const tctx = tmp.getContext('2d');
-  for (const k of ORDER) {
-    S.stations[k].render(tctx, ST[k].fly[0], S.paper);
-    const th = S.thumbs[k], c2 = th.getContext('2d');
-    c2.imageSmoothingQuality = 'high';
-    c2.drawImage(tmp, 0, 0, th.width, th.height);
-  }
   return true;
 }
 
@@ -721,173 +267,20 @@ async function setFootage(img, c, k, f) {
 /* 一格 */
 async function render(f) {
   pending.length = 0;
-  const actI_II = f < 1612;
-  const footage = f >= 1585 && f < 3540;
+  const footage = f >= 1600 && f < 3540;
   const crest = f >= 3510;
 
-  /* ── 第一、二幕 ── */
-  show(S.cam, actI_II);
-  if (actI_II) {
-    const camS = 1 + 0.018 * E.inOutSine(prog(f, 0, 1600));
-    setStyle(S.cam, 'transform', `scale(${camS.toFixed(5)})`);
-    const panelPhase = f >= 1440;
-    // 開場嫩芽：先在畫面中央，再縮小移到時間軸起點，交給藤蔓
-    if (f < 270) {
-      show(S.sprout, true);
-      drawSprout(S.sproutCtx, f, 200, 330);
-      const m = E.inOutQuint(prog(f, 176, 250));
-      const sx = lerp(LAY.sprout.x - 200, TL.x0 - 200 + 4, m), sy = lerp(LAY.sprout.y - 330, TL.y - 330, m), sc = lerp(1, 0.42, m);
-      setStyle(S.sprout, 'transform', `translate3d(${sx}px,${sy}px,0) scale(${sc})`);
-      setStyle(S.sprout, 'transformOrigin', '200px 330px');
-      setStyle(S.sprout, 'opacity', (1 - prog(f, 236, 262)).toFixed(3));
-    } else show(S.sprout, false);
-
-    // 藤蔓與刻度
-    const tlAlpha = prog(f, 176, 230) * (1 - E.inOut(prog(f, 1446, 1480)));
-    S.vine.draw(f, tlAlpha);
-    drawTicks(S.ticksCtx, f, tlAlpha);
-
-    // 年份：開場在中央 → 滑到左欄；之後依站滾動
-    let yr = 1997;
-    const rollTo = (f0, f1, a, b) => lerp(a, b, E.inOutQuint(prog(f, f0, f1)));
-    if (f >= 606) yr = rollTo(606, 640, 1997, 2001);
-    if (f >= 766) yr = rollTo(766, 800, 2001, 2005);
-    if (f >= 950) {
-      // 2005 → 2019：每個八分音符跳一年（第 12 小節起）
-      const k = Math.floor((f - 960) / 10) + 1; // 第 k 次跳
-      const within = ((f - 960) % 10 + 10) % 10;
-      const base = 2005 + clamp(k - 1, 0, 14);
-      yr = f < 960 ? 2005 : Math.min(2019, base + (k <= 14 ? E.outQuint(clamp(within / 6)) : 0));
-    }
-    if (f >= 1100) yr = rollTo(1100, 1120, 2019, 2020);
-    if (f >= 1262) yr = rollTo(1262, 1280, 2020, 2021);
-    const rv = [0, 1, 2, 3].map((i) => prog(f, 84 + i * 7, 84 + i * 7 + 26));
-    const odoIn = f < 176;
-    const mv = E.inOutQuint(prog(f, 170, 236));
-    const big = LAY.odoOpen.big;
-    const ox = lerp(CX - (S.odo.cw * 4 * big) / 2, LAY.odo.x, mv), oy = lerp(LAY.odoOpen.y, LAY.odo.y, mv), osc = lerp(big, 1, mv);
-    setStyle(S.odo.root, 'transform', `translate3d(${(ox - LAY.odo.x).toFixed(2)}px,${(oy - LAY.odo.y).toFixed(2)}px,0) scale(${osc.toFixed(4)})`);
-    setStyle(S.odo.root, 'transformOrigin', '0 0');
-    const odoOut = E.inOut(prog(f, 1440, 1466));
-    S.odo.set(yr, odoIn ? rv : [1, 1, 1, 1], 1 - odoOut);
-    const ruleP = E.outQuint(prog(f, 226, 262)) * (1 - odoOut);
-    setStyle(S.rule, 'transform', `scaleX(${ruleP.toFixed(3)})`);
-
-    // 校名、沿革
-    for (const k of ORDER) {
-      const t = ST[k];
-      S.names[k].update(f, t.name[0], t.name[1]);
-      S.hists[k].update(f, t.hist[0], t.hist[1], { stagger: 1.1 });
-    }
-    S.years.update(f, 966, 1112, { stagger: 2.2 });
-
-    // 主畫框
-    let shown = null;
-    for (const k of ORDER) { const t = ST[k]; if (f >= t.ink[0] && f < t.fly[1]) shown = k; }
-    const flipOn = f >= 960 && f < 1124;
-    if (shown || flipOn) {
-      show(S.print, true);
-      const ctx = S.printCtx;
-      ctx.setTransform(1, 0, 0, 1, 0, 0);
-      let shadowA = 0;
-      if (shown) {
-        const st = S.stations[shown];
-        const pPho = st.render(ctx, f, S.paper);
-        shadowA = pPho;
-        // 飛向時間軸上的小相片
-        const t = ST[shown];
-        const fl = E.inOutQuint(prog(f, t.fly[0], t.fly[1]));
-        const tr = thumbRect(shown);
-        const sc = lerp(1, THUMB.w / FR.w, fl);
-        const tx = lerp(FR.x, tr.x, fl) - FR.x, ty = lerp(FR.y, tr.y, fl) - FR.y;
-        const rot = Math.sin(fl * Math.PI) * -3;
-        setStyle(S.print, 'transform', `translate3d(${tx.toFixed(2)}px,${ty.toFixed(2)}px,0) rotate(${rot.toFixed(3)}deg) scale(${sc.toFixed(5)})`);
-      } else {
-        // 翻頁：每個八分音符一張日常照片疊上來
-        ctx.drawImage(S.paper, FR.x + PAD.x, FR.y + PAD.y, FR.w, FR.h, 0, 0, FR.w, FR.h);
-        const n = clamp(Math.floor((f - 960) / 10) + 1, 0, S.flip.length);
-        for (let i = Math.max(0, n - 3); i < n; i++) {
-          const im = S.flip[i];
-          const t0 = 960 + i * 10;
-          const p = E.outQuint(prog(f, t0, t0 + 8));
-          const s = Math.max(FR.w / im.width, FR.h / im.height) * lerp(1.12, 1.0, p);
-          const dx = lerp(70, 0, p), rot = lerp(2.2, 0, p) * (i % 2 ? -1 : 1);
-          ctx.save();
-          ctx.globalAlpha = clamp(p * 1.6);
-          ctx.translate(FR.w / 2 + dx, FR.h / 2);
-          ctx.rotate((rot * Math.PI) / 180);
-          ctx.drawImage(im, -im.width * s / 2, -im.height * s / 2, im.width * s, im.height * s);
-          ctx.restore();
-        }
-        const fade = E.inOut(prog(f, 1100, 1122));
-        if (fade > 0) {
-          ctx.globalAlpha = fade;
-          ctx.drawImage(S.paper, FR.x + PAD.x, FR.y + PAD.y, FR.w, FR.h, 0, 0, FR.w, FR.h);
-          ctx.globalAlpha = 1;
-        }
-        shadowA = n > 0 ? 1 - fade : 0;
-        setStyle(S.print, 'transform', 'none');
-      }
-      setStyle(S.print, 'boxShadow', `0 ${Math.round(26 * shadowA)}px ${Math.round(60 * shadowA)}px rgba(${INK},${(0.20 * shadowA).toFixed(3)}), 0 2px 6px rgba(${INK},${(0.16 * shadowA).toFixed(3)})`);
-    } else show(S.print, false);
-
-    // 時間軸上的小相片與標籤
-    for (const k of ORDER) {
-      const t = ST[k];
-      const on = f >= t.fly[1] - 1 && !panelPhase;
-      show(S.thumbs[k], on);
-      show(S.labels[k], f >= t.fly[1] - 4 && !panelPhase);
-      setStyle(S.labels[k], 'opacity', prog(f, t.fly[1] - 4, t.fly[1] + 10).toFixed(3));
-    }
-  }
-
-  /* ── 五校五聯屏（第 18–19 小節）── */
-  const panelsOn = f >= 1440 && f < 1612;
-  show(S.panelLayer, panelsOn);
-  if (panelsOn) {
-    S.panelTitle.update(f, 1466, 1560, { stagger: 1.4 });
-    const exp = E.inOutQuint(prog(f, 1584, 1608));
-    S.panels.forEach(({ k, p, cap }, i) => {
-      const tr = thumbRect(k);
-      const R = panelRect(i);
-      const m = E.inOutQuint(prog(f, 1440 + i * 5, 1478 + i * 5));
-      let x = lerp(tr.x, R.x, m), y = lerp(tr.y, R.y, m), w = lerp(THUMB.w, R.w, m), h = lerp(THUMB.h, R.h, m);
-      let op = 1;
-      if (k === 'minghua') {
-        // 明華這一格放大成全畫面，接進明華的影片
-        x = lerp(x, 0, exp); y = lerp(y, 0, exp); w = lerp(w, W, exp); h = lerp(h, H, exp);
-        op = 1 - E.inOut(prog(f, 1598, 1606));
-      } else {
-        // 其他四格留到明華那一格放大蓋過去才淡掉，畫面不會空
-        const out = E.inOut(prog(f, 1594, 1608));
-        op = 1 - out;
-      }
-      const foc = { yihua: 62, minghua: 42, chongde: 70, international: 40, renwu: 50 }[k];
-      Object.assign(p.style, { left: px(x), top: px(y), width: px(w), height: px(h), opacity: op.toFixed(3), backgroundPosition: VERT ? '50% 62%' : `${foc}% 50%`, borderRadius: px(lerp(6, 0, exp)) });
-      p.style.zIndex = k === 'minghua' ? 2 : 1;
-      const cIn = E.out(prog(f, 1486 + i * 4, 1510 + i * 4)) * (1 - E.inOut(prog(f, 1556, 1580)));
-      if (VERT) Object.assign(cap.style, { left: px(R.x + 28 + (1 - cIn) * 14), top: px(R.y + R.h - 72), opacity: cIn.toFixed(3) });
-      else Object.assign(cap.style, { left: px(R.x), top: px(R.y + R.h + 22 + (1 - cIn) * 14), opacity: cIn.toFixed(3) });
-    });
-  }
+  /* ── 第一、二幕〈星圖〉── */
+  show(S.sky.root, f < 1600);
+  if (f < 1600) S.sky.render(f);
+  const wh = Math.max(E.in(prog(f, 1584, 1600)) * (f < 1600 ? 1 : 0), f >= 1600 ? 1 - E.out(prog(f, 1600, 1616)) : 0);
+  show(S.white, wh > 0.001);
+  setStyle(S.white, 'opacity', wh.toFixed(3));
 
   /* ── 第三、四幕：影片 ── */
   show(S.footLayer, footage);
   if (footage) {
-    // 從明華那一格長出來：影片先被裁在那一格裡
-    const exp = E.inOutQuint(prog(f, 1584, 1608));
-    if (f < 1612) {
-      const R = panelRect(1);
-      const x = lerp(R.x, 0, exp), y = lerp(R.y, 0, exp), w = lerp(R.w, W, exp), h = lerp(R.h, H, exp);
-      setStyle(S.footLayer, 'clipPath', `inset(${y.toFixed(1)}px ${(W - x - w).toFixed(1)}px ${(H - y - h).toFixed(1)}px ${x.toFixed(1)}px round ${lerp(6, 0, exp).toFixed(1)}px)`);
-      setStyle(S.footLayer, 'zIndex', '3');
-      setStyle(S.footLayer, 'opacity', E.inOutSine(prog(f, 1585, 1598)).toFixed(3)); // 明華校舍照 → 明華的影片
-    } else {
-      setStyle(S.footLayer, 'clipPath', 'none');
-      setStyle(S.footLayer, 'zIndex', '');
-      setStyle(S.footLayer, 'opacity', '1');
-    }
-    // 1585–1600 先用第一個鏡頭的第一格；3520 之後（淡入紙色的那幾格）停在最後一個鏡頭的最後一格。
+    // 3520 之後（淡入紙色的那幾格）停在最後一個鏡頭的最後一格。
     // 一律由 frame 算出要哪一格，平行算圖時從任何一格開始都一樣。
     const ff = clamp(f, 1600, 3519);
     const c = clipAt(ff);

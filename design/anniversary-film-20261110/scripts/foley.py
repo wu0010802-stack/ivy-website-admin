@@ -1,12 +1,14 @@
-"""擬音：跟著畫面格數合成的紙筆聲，混在配樂底下（很小聲，只補質感）。
+"""音效：跟著第一、二幕〈星圖〉的畫面格數合成的光與空氣的聲音，混在配樂底下（只補質感）。
 
-- 鉛筆描線：每一站線稿揭露的那段時間，一筆一筆的沙沙聲（帶通雜訊＋紙纖維的細碎起伏），聲像偏向畫框那一側。
-- 紙張飛過：相片飛到時間軸小相片的那 34 格，低通掃頻的「咻」，聲像跟著往左移。
-- 翻頁：2006–2019 每張日常照片疊上來時一聲很短的紙片聲。
-- 五校五聯屏：五張小相片升起時各一聲輕輕的紙聲。
+- 聚光：開場光往義華聚，一層很輕、慢慢升高的高頻氣聲，夾著零星的細小閃光聲。
+- 點亮：每顆星點亮的那一格（320／640／800／1120／1280），鐘聲般的非諧波泛音＋一道亮的氣流，聲像在星的位置。
+- 光窗：張開時往上掃的空氣聲，收回時往下掃。
+- 移動：鏡頭在星與星之間移動時，低通掃頻的「咻」，聲像跟著移動方向。
+- 星軌：2006–2019 一層繞著左右轉的氣流，每顆記憶光球一聲很短的閃光。
+- 第 18 小節：五顆星一起亮時，一陣散在左右的細碎閃光。
+- 衝進明華那顆星：往上推的風聲接進白光。
 
-時間全部來自 film/film.js 的 ST（各站）與固定格數；輸出 output/anniversary-film/music/foley.wav，
-再由 mix_final.py 和 score-master.wav 混成最後的聲音。
+時間與 film/sky.js 一致。輸出 output/anniversary-film/music/foley(.wav|-v.wav)，再由 mix_final.py 與配樂相加。
 
     python3 foley.py [--vertical]
 """
@@ -23,16 +25,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.abspath(os.path.join(HERE, '..', '..', '..', 'output', 'anniversary-film', 'music'))
 SR, FPS, DUR = 48000, 30, 144.0
 VERT = '--vertical' in sys.argv
-rng = np.random.default_rng(30)
+rng = np.random.default_rng(1997)
 
-# 與 film.js 的 ST 一致（格數）
-ST = {
-    'yihua': dict(ink=(214, 330), fly=(606, 640)),
-    'minghua': dict(ink=(640, 690), fly=(766, 800)),
-    'chongde': dict(ink=(800, 850), fly=(926, 960)),
-    'international': dict(ink=(1120, 1170), fly=(1246, 1280)),
-    'renwu': dict(ink=(1280, 1330), fly=(1406, 1440)),
-}
+# 與 sky.js 一致（格數）
+IGN = {'yihua': 320, 'minghua': 640, 'chongde': 800, 'international': 1120, 'renwu': 1280}
+CLOSE = {'yihua': (558, 586), 'minghua': (738, 764), 'chongde': (904, 932), 'international': (1226, 1254), 'renwu': (1386, 1414)}
+TRAVEL = [(588, 640), (762, 800), (930, 962), (1092, 1122), (1252, 1282), (1412, 1446)]
+STAR_PAN = 0.0 if VERT else 0.37  # 星在畫面上的水平位置（橫式偏右）
+
 N = int(DUR * SR)
 L = np.zeros(N)
 R = np.zeros(N)
@@ -46,13 +46,17 @@ def db(x):
     return 10 ** (x / 20)
 
 
+def norm(x):
+    return x / (np.sqrt(np.mean(x ** 2)) + 1e-12)
+
+
 def bandnoise(n, lo, hi, order=4):
     sos = signal.butter(order, [lo, hi], btype='band', fs=SR, output='sos')
-    return signal.sosfilt(sos, rng.standard_normal(n + 2000))[2000:]
+    return signal.sosfilt(sos, rng.standard_normal(n + 4000))[4000:]
 
 
 def place(sig, start, pan):
-    """pan -1（左）~ +1（右），等功率"""
+    pan = float(np.clip(pan, -1, 1))
     a = (pan + 1) * np.pi / 4
     s0 = max(0, start)
     e = min(N, start + len(sig))
@@ -63,69 +67,112 @@ def place(sig, start, pan):
     R[s0:e] += seg * np.sin(a)
 
 
-def pencil(f0, f1, pan):
-    """一段鉛筆描線：多個長短不一的筆畫，彼此略有空隙。"""
-    t = t2s(f0)
-    end = t2s(f1)
-    while t < end:
-        dur = int(SR * rng.uniform(0.07, 0.26))
-        x = bandnoise(dur, 1800, 7000)
-        # 紙纖維：40–90 Hz 的隨機起伏
-        grain = 1 + 0.6 * signal.sosfilt(signal.butter(2, [30, 90], btype='band', fs=SR, output='sos'), rng.standard_normal(dur)) * 3
-        env = np.sin(np.linspace(0, np.pi, dur)) ** 0.7
-        stroke = x * grain * env
-        stroke /= np.sqrt(np.mean(stroke ** 2)) + 1e-9
-        place(stroke * db(-38 + rng.uniform(-3, 2)), t, pan + rng.uniform(-0.12, 0.12))
-        t += dur + int(SR * rng.uniform(0.02, 0.09))
+def place_moving(sig, start, pan0, pan1):
+    blk = 1024
+    n = len(sig)
+    for i in range(0, n, blk):
+        place(sig[i:i + blk], start + i, pan0 + (pan1 - pan0) * (i / n))
 
 
-def whoosh(f0, f1, pan0, pan1, level=-33):
-    n = t2s(f1) - t2s(f0)
-    x = rng.standard_normal(n + 4000)
-    # 時變低通：6 kHz → 700 Hz（分段處理）
+def sweep_noise(n, f0, f1, kind='low', q_order=2):
+    """時變濾波的雜訊：截止頻率由 f0 指數掃到 f1"""
+    x = rng.standard_normal(n + 2048)
     out = np.zeros(n)
     blk = 512
     zi = None
     for i in range(0, n, blk):
-        p = i / n
-        fc = 6000 * (1 - p) + 700 * p
-        sos = signal.butter(2, fc, btype='low', fs=SR, output='sos')
+        p = i / max(1, n - 1)
+        fc = f0 * (f1 / f0) ** p
+        sos = signal.butter(q_order, min(fc, SR / 2 - 200), btype=kind, fs=SR, output='sos')
         if zi is None:
-            zi = signal.sosfilt_zi(sos) * 0
+            zi = np.zeros((sos.shape[0], 2))
         y, zi = signal.sosfilt(sos, x[i:i + blk], zi=zi)
         out[i:i + len(y)] = y[:min(blk, n - i)]
-    env = np.sin(np.linspace(0, np.pi, n)) ** 1.6
-    out = out * env
-    out /= np.sqrt(np.mean(out ** 2)) + 1e-9
-    a0 = t2s(f0)
-    for i in range(0, n, blk):  # 聲像跟著移動
-        pan = pan0 + (pan1 - pan0) * (i / n)
-        place(out[i:i + blk] * db(level), a0 + i, pan)
+    return out
 
 
-def flick(frame, pan, level=-37):
-    n = int(SR * 0.05)
-    x = bandnoise(n, 2500, 9000, 2)
-    env = np.exp(-np.linspace(0, 9, n))
-    s = x * env
-    s /= np.sqrt(np.mean(s ** 2)) + 1e-9
-    place(s * db(level), t2s(frame), pan)
+def bell(freq, dur, detune=0.003):
+    """非諧波泛音的鐘聲（像玻璃或鋼片琴，但更散）"""
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    out = np.zeros(n)
+    for ratio, amp, dec in ((1.0, 1.0, 1.6), (2.76, 0.55, 1.0), (5.40, 0.32, 0.6), (8.93, 0.18, 0.35), (13.34, 0.08, 0.2)):
+        f = freq * ratio * (1 + rng.uniform(-detune, detune))
+        out += amp * np.sin(2 * np.pi * f * t + rng.uniform(0, 6.28)) * np.exp(-t / dec)
+    att = np.minimum(1, t / 0.004)
+    return out * att
+
+
+def glint(freq, dur=0.09):
+    n = int(dur * SR)
+    t = np.arange(n) / SR
+    return np.sin(2 * np.pi * freq * t) * np.exp(-t / (dur / 4)) * np.minimum(1, t / 0.002)
+
+
+def env_sine(n, power=1.5):
+    return np.sin(np.linspace(0, np.pi, n)) ** power
 
 
 def main():
-    frame_pan = 0.0 if VERT else 0.35  # 畫框在右半邊（直式在中間）
-    for k, t in ST.items():
-        pencil(*t['ink'], frame_pan)
-        whoosh(*t['fly'], frame_pan, -0.2 if VERT else -0.55)
+    # 聚光（f40–318）
+    a, b = t2s(40), t2s(318)
+    n = b - a
+    air = norm(bandnoise(n, 3000, 9000, 2)) * np.linspace(0, 1, n) ** 2.2
+    place(air * db(-44), a, STAR_PAN)
+    for _ in range(26):
+        f = rng.uniform(60, 316)
+        place(norm(glint(rng.uniform(3800, 7200))) * db(-46 + 6 * (f / 316)), t2s(f), STAR_PAN + rng.uniform(-0.4, 0.3))
+
+    for k, g in IGN.items():
+        # 點亮：鐘聲＋亮的氣流＋很輕的低頻
+        base = {'yihua': 1568.0, 'minghua': 1760.0, 'chongde': 1661.2, 'international': 1975.5, 'renwu': 2093.0}[k]
+        bl = bell(base, 3.2)
+        place(norm(bl) * db(-37), t2s(g), STAR_PAN)
+        hiss = norm(bandnoise(int(0.9 * SR), 4000, 14000, 2)) * np.exp(-np.arange(int(0.9 * SR)) / (0.18 * SR))
+        place(hiss * db(-39), t2s(g), STAR_PAN)
+        t = np.arange(int(0.6 * SR)) / SR
+        thump = np.sin(2 * np.pi * 72 * t) * np.exp(-t / 0.16) * np.minimum(1, t / 0.01)
+        place(norm(thump) * db(-44), t2s(g), 0.0)
+        # 光窗張開（上掃）與收回（下掃）
+        o0, o1 = t2s(g + 6), t2s(g + 40)
+        place(norm(sweep_noise(o1 - o0, 900, 7000, 'low')) * env_sine(o1 - o0) * db(-41), o0, STAR_PAN)
+        c0, c1 = t2s(CLOSE[k][0]), t2s(CLOSE[k][1])
+        place(norm(sweep_noise(c1 - c0, 6000, 700, 'low')) * env_sine(c1 - c0) * db(-40), c0, STAR_PAN)
+
+    # 鏡頭移動
+    for f0, f1 in TRAVEL:
+        a, b = t2s(f0), t2s(f1)
+        sig = norm(sweep_noise(b - a, 5200, 600, 'low')) * env_sine(b - a, 1.4)
+        place_moving(sig * db(-35), a, -0.5 if not VERT else -0.2, 0.5 if not VERT else 0.2)
+
+    # 星軌（962–1092）：繞著左右轉的氣流
+    a, b = t2s(962), t2s(1092)
+    n = b - a
+    swirl = norm(bandnoise(n, 500, 4000, 2)) * env_sine(n, 1.0)
+    lfo = np.sin(2 * np.pi * 0.55 * np.arange(n) / SR)
+    blk = 1024
+    for i in range(0, n, blk):
+        place(swirl[i:i + blk] * db(-40), a + i, 0.7 * lfo[i])
     for i in range(14):
-        flick(960 + i * 10 + 1, frame_pan + rng.uniform(-0.1, 0.1))
-    for i in range(5):
-        whoosh(1440 + i * 5, 1478 + i * 5, -0.6 + i * 0.3, -0.6 + i * 0.3, level=-38)
-    # 收尾的柔和衰減，避免任何殘留
+        place(norm(glint(rng.uniform(4200, 6400), 0.12)) * db(-42), t2s(960 + i * 10 + 1), rng.uniform(-0.6, 0.6))
+
+    # 第 18 小節：五顆星一起亮
+    for _ in range(40):
+        f = 1440 + rng.uniform(0, 18)
+        place(norm(glint(rng.uniform(3000, 8000), 0.1)) * db(-43), t2s(f), rng.uniform(-0.9, 0.9))
+    place(norm(bell(1046.5, 3.5)) * db(-40), t2s(1440), 0.0)
+
+    # 衝進明華那顆星（1556–1600）
+    a, b = t2s(1556), t2s(1601)
+    n = b - a
+    rise = norm(sweep_noise(n, 400, 9000, 'low')) * np.linspace(0, 1, n) ** 2.5
+    place(rise * db(-31), a, 0.0)
+    t = np.arange(n) / SR
+    fr = 260 * (3200 / 260) ** (t / t[-1])
+    whine = np.sin(2 * np.pi * np.cumsum(fr) / SR) * np.linspace(0, 1, n) ** 3
+    place(norm(whine) * db(-46), a, 0.0)
+
     st = np.stack([L, R], 1)
-    # 3 kHz 附近略收，讓擬音更像在紙上而不是嘶聲
-    sos = signal.butter(2, 9000, btype='low', fs=SR, output='sos')
-    st = signal.sosfilt(sos, st, axis=0)
     os.makedirs(OUT, exist_ok=True)
     path = os.path.join(OUT, 'foley-v.wav' if VERT else 'foley.wav')
     sf.write(path, st.astype(np.float32), SR, subtype='FLOAT')
