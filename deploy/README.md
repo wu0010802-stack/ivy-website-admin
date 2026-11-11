@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 拍立得 WebGL context 遺失修正上線（main CI 部署，沒有 migration）
+
+- **內容**：`4cfaaec8`（README「2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影」），分支 `fix/paper-context-lost-20261111`，rebase 到 `e3090816` 後快轉 main（只有 README 頂部衝突）。使用者回報真手機上「常春藤的一天」的卡片出現上一個畫面的殘影；共用的 WebGL context 被系統收走後，拍立得改成退回 CSS 版、再用新的 context 重掛，同一頁第二次遺失就停用 WebGL。只動 web（`paperPrints.ts`、`DayMomentCard.vue`、`paper-budget.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前（本機，rebase 後）**：web typecheck 過、全套 140 檔 1864 過。admin、後端、stack e2e 本機沒跑，以 CI 為準。
+- **CI**：main run 43041527974 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `4cfaaec8`（14:52:32Z）。
+- **部署後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：`/`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200。390×844 手機模擬，用 `WEBGL_lose_context` 讓共用 context 連續遺失兩次，Chromium 與 WebKit 結果相同：第一次遺失 0.35 秒內畫面上的卡都卸回 CSS 版、4 秒內用新的 context 重掛；翻面正常；第二次遺失後維持 CSS 版，點卡片照樣翻面，沒有再建第三個 context，沒有 JS 錯誤。Chromium 截圖逐張看過，每張卡都是自己的照片與文字。
+- **沒驗**：iOS／Android 實機（原始回報來自真手機，真機上 context 被收走的觸發點是推論）；WebKit 的 CSS 版畫面只看了 DOM 狀態（Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面，截圖不可信）。**請使用者用原本那支手機開首頁、切到別的 App 再回來幾次確認。**
+- **回退**：切回上一版映像即可，沒有資料變更。
 ## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
 
 - **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
