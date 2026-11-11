@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PIGMENTS, parseWash, seededRandom, washEllipse, washPolygons } from '../app/utils/watercolor'
+import { PIGMENTS, type Point, blotPolygons, BLOT_MAX_FOLD, fitInside, foldRatio, selfIntersects, washBase, parseWash, seededRandom, washEllipse, washPolygons } from '../app/utils/watercolor'
 
 // 特色教學頁的水彩（2026-09-28）：演算法是純函式，canvas 只負責把多邊形畫出來。
 describe('seededRandom', () => {
@@ -31,6 +31,59 @@ describe('washPolygons', () => {
     const cy = points.reduce((sum, [, y]) => sum + y, 0) / points.length
     expect(Math.abs(cx - 300)).toBeLessThan(25)
     expect(Math.abs(cy - 200)).toBeLessThan(25)
+  })
+})
+
+describe('blotPolygons（顏料團背景圖不被 canvas 切直線，2026-11-11）', () => {
+  // 年段「一年一年學」的顏料團（正式站 1512 寬實測）：元素 552×138、第 6 團（種子 60＋5×7），blotCanvas 長邊縮到 384 → 384×96
+  const W = 384, H = 96
+  const reach = (polys: Point[][]) => polys.flat().reduce(([dx, dy], [x, y]) => [Math.max(dx, Math.abs(x - W / 2)), Math.max(dy, Math.abs(y - H / 2))], [0, 0])
+  it('原本的做法：扁長框直接變形，上下推出框外（切線的來源）', () => {
+    expect(reach(washPolygons(seededRandom(95), W / 2, H / 2, W * 0.34, H * 0.31, 26))[1]).toBeGreaterThan(H / 2)
+  })
+  it('每個點都落在框內，且寬度還保有原本的大半（不是被壓成一條線）', () => {
+    const [dx, dy] = reach(blotPolygons(seededRandom(95), W, H))
+    expect(dx).toBeLessThan(W / 2)
+    expect(dy).toBeLessThan(H / 2)
+    expect(dx).toBeGreaterThan(W * 0.34)
+    expect(dy).toBeGreaterThan(H * 0.31)
+  })
+  it('理念清單那種更扁的框（手機 353×76）也一樣', () => {
+    const w = 384, h = Math.round(76 * 384 / 353)
+    const polys = blotPolygons(seededRandom(81), w, h)
+    expect(polys.flat().every(([x, y]) => x > 0 && x < w && y > 0 && y < h)).toBe(true)
+  })
+  it('比例在範圍內的團（年齡、章節編號）和原本逐點相同', () => {
+    expect(blotPolygons(seededRandom(7), 120, 100)).toEqual(washPolygons(seededRandom(7), 60, 50, 120 * 0.34, 100 * 0.31, 26))
+  })
+})
+
+describe('顏料團基底反折就重抽（2026-11-11）', () => {
+  it('selfIntersects：正方形不算、蝴蝶結算', () => {
+    expect(selfIntersects([[0, 0], [10, 0], [10, 10], [0, 10]])).toBe(false)
+    expect(selfIntersects([[0, 0], [10, 10], [10, 0], [0, 10]])).toBe(true)
+  })
+  it('foldRatio：沒交叉是 0；蝴蝶結兩半方向相反，各佔一半', () => {
+    expect(foldRatio([[0, 0], [10, 0], [10, 10], [0, 10]])).toBe(0)
+    expect(foldRatio([[0, 0], [10, 10], [10, 0], [0, 10]])).toBeCloseTo(0.5, 1)
+  })
+  it('年段「4 歲」（種子 116、323×323）原本的基底反折超過門檻，blotPolygons 換成不反折的基底', () => {
+    expect(foldRatio(washBase(seededRandom(116), 161.5, 161.5, 323 * 0.34, 323 * 0.31))).toBeGreaterThan(BLOT_MAX_FOLD)
+    expect(blotPolygons(seededRandom(116), 323, 323)).not.toEqual(washPolygons(seededRandom(116), 161.5, 161.5, 323 * 0.34, 323 * 0.31, 26))
+  })
+})
+
+describe('fitInside', () => {
+  it('各層共用基底的點：回傳新的點，不改到原本的多邊形', () => {
+    const polys = washPolygons(seededRandom(3), 100, 50, 80, 20, 6)
+    const before = JSON.stringify(polys)
+    const fitted = fitInside(polys, 100, 50, 30, 10)
+    expect(JSON.stringify(polys)).toBe(before)
+    expect(fitted.flat().every(([x, y]) => Math.abs(x - 100) <= 30 + 1e-9 && Math.abs(y - 50) <= 10 + 1e-9)).toBe(true)
+  })
+  it('本來就在框內就原樣回傳', () => {
+    const polys = washPolygons(seededRandom(7), 100, 100, 20, 20, 10)
+    expect(fitInside(polys, 100, 100, 99, 99)).toBe(polys)
   })
 })
 
