@@ -149,7 +149,7 @@ describe('SEO 與 sitemap', () => {
   it('標題、描述固定，canonical 指向 /privacy', () => {
     const withPolicy = { ...site, privacyPolicy: { title: '隱私權政策', updatedOn: '2026-10-03', sections: [] } } as SiteContent
     const seo = privacySeo(withPolicy, 'https://ivy.example')
-    expect(seo.title).toBe(`隱私權政策｜${site.siteMeta.brandName}`)
+    expect(seo.title).toBe('隱私權政策｜常春藤幼兒園')
     expect(seo.description).toBe('常春藤幼兒園官網如何蒐集、使用與保護您的個人資料，以及 Cookie 的使用方式。')
     expect(seo.canonical).toBe('https://ivy.example/privacy')
   })

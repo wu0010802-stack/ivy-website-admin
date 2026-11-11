@@ -142,7 +142,7 @@ describe('預約頁 SEO', () => {
 
   it('/visit：站名結尾、有描述與 canonical，描述不寫「線上預約」', () => {
     const seo = visitSeo(site, origin)
-    expect(seo.title).toBe(`預約校園參觀｜${site.siteMeta.brandName}`)
+    expect(seo.title).toBe('預約校園參觀｜常春藤幼兒園')
     expect(seo.canonical).toBe(`${origin}/visit`)
     expect(seo.description).toContain('義華、明華')
     expect(seo.description).not.toContain('線上預約')
@@ -151,13 +151,30 @@ describe('預約頁 SEO', () => {
 
   it('/visit/<校>：標題帶校名，描述有地址與電話，canonical 不帶網址參數', () => {
     const seo = visitSeo(site, origin, yihua)
-    expect(seo.title).toBe(`預約參觀義華校｜${site.siteMeta.brandName}`)
+    expect(seo.title).toBe('預約參觀義華校｜常春藤幼兒園')
     expect(seo.description).toContain(yihua.address)
     expect(seo.description).toContain(yihua.phone)
     expect(seo.canonical).toBe(`${origin}/visit/yihua`)
   })
 
-  it('預約頁照舊 noindex，不經過收錄開關', () => {
-    expect(read('../app/pages/visit/[[key]].vue')).toContain("robots: 'noindex, nofollow'")
+  // 2026-11-11 使用者裁定開放收錄（取代 10-12 的 noindex）：照全站收錄開關，不再寫死 noindex。
+  it('預約頁照全站收錄開關，不寫死 noindex', () => {
+    const page = read('../app/pages/visit/[[key]].vue')
+    expect(page).not.toContain("robots: 'noindex, nofollow'")
+    expect(page).toContain('crawlerIndexable(config.public.indexingEnabled')
+    expect(page).toContain("indexable.value ? 'index, follow, max-image-preview:large' : 'noindex, nofollow'")
+  })
+
+  it('預約頁的結構化資料：頁面與麵包屑；/visit/<校> 另帶那一校的 Preschool，和首頁同一個 @id', () => {
+    const index = visitSeo(site, origin)
+    expect(index.graph.map((node) => node['@type'])).toEqual(['WebPage', 'BreadcrumbList', 'EducationalOrganization', 'WebSite'])
+    const campus = visitSeo(site, origin, yihua)
+    expect(campus.graph.map((node) => node['@type'])).toEqual(['WebPage', 'BreadcrumbList', 'Preschool', 'EducationalOrganization', 'WebSite'])
+    const school = campus.graph.find((node) => node['@type'] === 'Preschool')!
+    expect(school['@id']).toBe(`${origin}/#campus-yihua`)
+    expect(school.url).toBe(campus.canonical)
+    expect(campus.graph[0]).toMatchObject({ about: { '@id': `${origin}/#campus-yihua` } })
+    expect((campus.graph[1] as { itemListElement: { name: string }[] }).itemListElement.map((item) => item.name)).toEqual(['首頁', '預約參觀', '義華校'])
+    expect(visitSeo(site, '', yihua).graph).toEqual([])
   })
 })

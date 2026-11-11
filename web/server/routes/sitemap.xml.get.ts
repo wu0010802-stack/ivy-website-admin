@@ -12,6 +12,7 @@ export default defineEventHandler(async (event) => {
   if (!crawlerIndexable(true, origin, published.content.siteMeta)) return EMPTY_SITEMAP
   return sitemapXml(origin, published.content.news, {
     privacy: Boolean(published.content.privacyPolicy),
-    anniversary: anniversaryEnabled(published.content.siteMeta)
+    anniversary: anniversaryEnabled(published.content.siteMeta),
+    campuses: published.content.campuses.map((campus) => campus.key)
   })
 })
