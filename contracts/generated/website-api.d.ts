@@ -848,6 +848,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/analytics/engagement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Engagement */
+        get: operations["get_engagement_api_website_v1_admin_analytics_engagement_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/event-trend": {
         parameters: {
             query?: never;
@@ -3349,6 +3366,23 @@ export interface paths {
         put?: never;
         /** Record Client Error */
         post: operations["record_client_error_api_website_v1_public_client_errors_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/engagement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Engagement */
+        post: operations["record_engagement_api_website_v1_public_engagement_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6027,6 +6061,193 @@ export interface components {
         DisplayNameUpdateRequest: {
             /** Display Name */
             display_name: string | null;
+        };
+        /** EngagementActionOut */
+        EngagementActionOut: {
+            /** Key */
+            key: string;
+            /** Page */
+            page: string;
+            /** Total */
+            total: number;
+            /** Visits */
+            visits: number;
+        };
+        /** EngagementConversionOut */
+        EngagementConversionOut: {
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Key */
+            key: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "page" | "section";
+            /** Page */
+            page: string;
+            /** Sessions */
+            sessions: number;
+        };
+        /**
+         * EngagementIn
+         * @description 與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。
+         *     一筆是一次頁面瀏覽到目前為止的累計：停留毫秒數、捲動深度、各區塊停留與互動次數。
+         *     只收代碼與數字，不收網址、來源網址或任何家長資料。
+         */
+        EngagementIn: {
+            /** Actions */
+            actions: {
+                [key: string]: number;
+            };
+            /** Active Ms */
+            active_ms: number;
+            /** Campus */
+            campus: ("yihua" | "minghua" | "chongde" | "international" | "renwu") | null;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "mobile" | "desktop";
+            /**
+             * Event
+             * @constant
+             */
+            event: "engagement";
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Item */
+            item?: string | null;
+            /**
+             * Page
+             * @enum {string}
+             */
+            page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
+            /** Scroll */
+            scroll: number;
+            /** Sections */
+            sections: {
+                [key: string]: number;
+            };
+            /**
+             * Session
+             * Format: uuid
+             */
+            session: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "direct" | "search" | "facebook" | "instagram" | "line" | "youtube" | "ads" | "other";
+        };
+        /** EngagementNewsOut */
+        EngagementNewsOut: {
+            /** Id */
+            id: string;
+            /** Median Active Ms */
+            median_active_ms: number;
+            /** Read Rate */
+            read_rate: number | null;
+            /** Title */
+            title: string | null;
+            /** Visits */
+            visits: number;
+        };
+        /** EngagementPageOut */
+        EngagementPageOut: {
+            /** Bounce Rate */
+            bounce_rate: number | null;
+            /** Campus Key */
+            campus_key: string | null;
+            /** Median Active Ms */
+            median_active_ms: number;
+            /** Median Scroll Pct */
+            median_scroll_pct: number;
+            /** Page */
+            page: string;
+            /** Visits */
+            visits: number;
+        };
+        /** EngagementSectionOut */
+        EngagementSectionOut: {
+            /** Key */
+            key: string;
+            /** Median Ms */
+            median_ms: number;
+            /** Page */
+            page: string;
+            /** Reach Rate */
+            reach_rate: number | null;
+            /** Reached */
+            reached: number;
+            /** Visits */
+            visits: number;
+        };
+        /** EngagementSourceOut */
+        EngagementSourceOut: {
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Sessions */
+            sessions: number;
+            /** Source */
+            source: string;
+        };
+        /** EngagementSummaryOut */
+        EngagementSummaryOut: {
+            /** Actions */
+            actions: components["schemas"]["EngagementActionOut"][];
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Conversion */
+            conversion: components["schemas"]["EngagementConversionOut"][];
+            /** Days */
+            days: number;
+            /** News */
+            news: components["schemas"]["EngagementNewsOut"][];
+            /** Pages */
+            pages: components["schemas"]["EngagementPageOut"][];
+            /** Sections */
+            sections: components["schemas"]["EngagementSectionOut"][];
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /** Sources */
+            sources: components["schemas"]["EngagementSourceOut"][];
+            totals: components["schemas"]["EngagementTotalsOut"];
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
+        };
+        /** EngagementTotalsOut */
+        EngagementTotalsOut: {
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Median Active Ms */
+            median_active_ms: number;
+            /** Median Session Ms */
+            median_session_ms: number;
+            /** Pages Per Session */
+            pages_per_session: number | null;
+            /** Sessions */
+            sessions: number;
+            /** Visits */
+            visits: number;
         };
         /** EnrolledApplyOut */
         EnrolledApplyOut: {
@@ -11906,6 +12127,41 @@ export interface operations {
             };
         };
     };
+    get_engagement_api_website_v1_admin_analytics_engagement_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EngagementSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_event_trend_api_website_v1_admin_analytics_event_trend_get: {
         parameters: {
             query: {
@@ -17050,6 +17306,37 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["ClientErrorIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_engagement_api_website_v1_public_engagement_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EngagementIn"];
             };
         };
         responses: {

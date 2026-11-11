@@ -93,7 +93,7 @@ function markSeen(id: string) {
       <li v-for="story in stories" :key="story.id">
         <button
           v-if="story.kind === 'event'" type="button" class="hs-card is-event" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" :style="{ '--tint': TINTS[story.tint] }" @click="openFromCard(story, $event)"
+          :data-story="story.id" data-track-action="story_open" :style="{ '--tint': TINTS[story.tint] }" @click="openFromCard(story, $event)"
         >
           <span class="hs-card-top"><span class="hs-pill">{{ story.event.campus }}</span></span>
           <span v-if="isSample(story.event)" class="hs-event-date is-sample"><b>示意</b><span>日期未定</span></span>
@@ -102,7 +102,7 @@ function markSeen(id: string) {
         </button>
         <button
           v-else-if="story.kind === 'news'" type="button" class="hs-card" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" @click="openFromCard(story, $event)"
+          :data-story="story.id" data-track-action="story_open" @click="openFromCard(story, $event)"
         >
           <ResponsivePicture v-bind="responsiveTourImage(story.article.image, '(max-width: 640px) 60vw, 240px', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt" loading="lazy" />
           <span class="hs-card-top"><span class="hs-pill">{{ story.article.campus }}</span><span v-if="isSample(story.article)" class="hs-pill">示意</span></span>
@@ -110,7 +110,7 @@ function markSeen(id: string) {
         </button>
         <button
           v-else type="button" class="hs-card" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" @click="openFromCard(story, $event)"
+          :data-story="story.id" data-track-action="story_open" @click="openFromCard(story, $event)"
         >
           <img :src="story.film.poster" alt="" loading="lazy" draggable="false">
           <span class="hs-card-top"><span class="hs-pill">影片</span><span class="hs-play" aria-hidden="true"><svg class="icon"><use href="#i-play" /></svg></span></span>

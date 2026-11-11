@@ -41,7 +41,7 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
 <template>
   <div ref="rootEl" class="belief-reveal">
     <div ref="trackEl" class="belief-reveal-track">
-      <section ref="panelEl" class="section studio-about home-belief" :id="about.anchorId" aria-labelledby="about-title">
+      <section ref="panelEl" class="section studio-about home-belief" data-track-section="about" :id="about.anchorId" aria-labelledby="about-title">
         <div class="belief-backdrop" aria-hidden="true">
           <div class="container belief-backdrop-inner">
             <div class="belief-watermark">
