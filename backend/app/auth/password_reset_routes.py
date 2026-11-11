@@ -140,9 +140,7 @@ def _invalid(reason: str) -> HTTPException:
 
 def _check_origin(request: Request) -> None:
     """不用登入的端點沒有 CSRF token 可比；Origin 一樣要對（比照 deps.check_csrf_and_origin）。"""
-    admin_origin = request.app.state.settings.admin_origin
-    origin = request.headers.get("origin")
-    if admin_origin and origin is not None and origin != admin_origin:
+    if not request.app.state.settings.origin_allowed(request.headers.get("origin")):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Origin 不符")
 
 

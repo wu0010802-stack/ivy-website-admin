@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     session_secret: str
     enable_fixture: bool = False
     admin_origin: str | None = None
+    # 網域移轉過渡期（2026-11-11，docs/website-admin/migration-checklist.md）：除了 admin_origin，
+    # 這些 origin 送來的寫入也接受 Origin 檢查（逗號分隔，例如正式網域接通後把 Railway 暫用網址放這裡）。
+    # 信件、LINE、重設密碼連結與 OAuth 同源檢查仍只用 admin_origin。
+    admin_extra_origins: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = Field(default=None, repr=False)
     google_redirect_uri: str | None = None
@@ -163,6 +167,25 @@ class Settings(BaseSettings):
             return None
         return value.strip().rstrip("/") or None
 
+    @field_validator("admin_extra_origins")
+    @classmethod
+    def _normalize_admin_extra_origins(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        origins = []
+        for raw in re.split(r"[\s,]+", value.strip()):
+            if not raw:
+                continue
+            parts = urlsplit(raw)
+            if (
+                parts.scheme not in ("http", "https") or not parts.hostname
+                or parts.username or parts.password
+                or parts.path not in ("", "/") or parts.query or parts.fragment
+            ):
+                raise ValueError("WEBSITE_ADMIN_EXTRA_ORIGINS 每一項都必須是不含路徑的網址（例如 https://舊網域）")
+            origins.append(raw.rstrip("/"))
+        return ",".join(origins) or None
+
     @field_validator("geo_doorplate_url")
     @classmethod
     def _geo_doorplate_url(cls, value: str | None) -> str | None:
@@ -268,6 +291,18 @@ class Settings(BaseSettings):
     def media_upload_body_limit(self) -> int:
         """素材上傳請求本文上限：最大單檔再加 multipart 欄位與邊界的餘裕。"""
         return max(self.media_max_bytes("image"), self.media_max_bytes("video")) + 5 * 1024 * 1024
+
+    @property
+    def allowed_origins(self) -> frozenset[str]:
+        """後台與家長頁寫入時接受的 Origin：admin_origin 加上過渡期的 admin_extra_origins。"""
+        extras = (self.admin_extra_origins or "").split(",")
+        return frozenset(o for o in (self.admin_origin, *extras) if o)
+
+    def origin_allowed(self, origin: str | None) -> bool:
+        """沒設 admin_origin（開發、測試）或請求沒帶 Origin 時不擋，與原本逐字比對 admin_origin 的語意相同。"""
+        if not self.admin_origin or origin is None:
+            return True
+        return origin in self.allowed_origins
 
     @property
     def s3_configured(self) -> bool:
@@ -426,6 +461,8 @@ class Settings(BaseSettings):
             raise ValueError(
                 "production 必須設定 WEBSITE_ADMIN_ORIGIN，且是不含路徑的 HTTPS 網址（例如 https://後台網域）"
             )
+        if any(not o.startswith("https://") for o in (self.admin_extra_origins or "").split(",") if o):
+            raise ValueError("production 的 WEBSITE_ADMIN_EXTRA_ORIGINS 必須都是 HTTPS 網址")
         lowered = self.session_secret.lower()
         if any(marker in lowered for marker in _PLACEHOLDER_SECRET_MARKERS):
             raise ValueError("production 的 WEBSITE_SESSION_SECRET 不能使用範例或佔位值，請改成隨機產生的秘密")

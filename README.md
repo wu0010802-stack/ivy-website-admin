@@ -11,6 +11,23 @@
 - **對比**（開場那一屏、兩層墨綠紗、不計文字陰影，`design/day-film-daily-20261110/measure/`；新舊同方法）：大標 1440 寬 2.43／2.28 → 2.24／2.26、1280 寬 2.45／2.29 → 2.25／2.26、1024 寬 2.30／2.34 → 2.25／2.33、390 寬 2.28／2.33 → 2.49／2.55（舊片最低 2.28，新片最低 2.21，手機高一截）；圖說 4.89–5.08 → 5.41–6.00，每個寬度都高於舊片；英文小字（金色，沒算暗暈）1.45–1.80 → 1.68–1.92。全片亮部軟收就是為了這個：只收開場兩鏡時水桌、小提琴教室、全班跑那幾鏡大標仍 2.02–2.06。
 - **驗證**（Node 22）：web typecheck 通過；web 單元 132 檔 1766 項全過（新增圖說替換 1 項）；admin `vue-tsc` 通過、admin 單元 173 檔 3347 過、1 略過；fixture dev server Playwright：Chrome 1440 載入新桌機檔、Chrome 390 手機模擬載入手機檔，都淡入、沒有 console 錯誤（`design/day-film-daily-20261110/measure/verify.cjs`；WebKit 這台沒裝）。
 - 未驗證：WebKit／Safari、iOS／Android 實機（這台只有 Chromium）；VMAF（這台 ffmpeg 沒有 libvmaf，改報 SSIM／PSNR：桌機 SSIM 0.989、PSNR 45.5 dB，手機 0.984、43.3 dB，對 10-bit 母帶、逐格對齊）；正式站要等合進 `main` 部署後再看一次。
+## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
+
+使用者要把 `www.ivykidschool.com` 從 Wix 移到 Cloudflare（Registrar＋DNS）、網站接 Railway，本輪只準備、不切換。完整步驟、DNS 紀錄表、對照表與待提供資料在 `docs/website-admin/migration-checklist.md`。
+
+- **舊 Wix 網址 301**：`web/server/utils/site-redirects.ts` 的對照表（舊站 sitemap 30 個網址，22 個有對應、8 個待確認照常 404），`web/server/middleware/00.site-redirects.ts` 只轉 GET／HEAD、保留查詢字串。
+- **主網域轉址**：web 新變數 `NUXT_REDIRECT_HOSTS`，預設空白不轉；設了以後列入的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 例外（CI 驗證、LINE webhook 照常）。
+- **robots.txt**：開放收錄後只有正式網址那台主機放行，其他主機 `Disallow: /`。
+- **過渡期雙網域寫入**：api 新變數 `WEBSITE_ADMIN_EXTRA_ORIGINS`；原本後台寫入、家長修改頁、重設密碼只認一個 Origin，換網域時另一邊會 403。
+- 未 commit、未部署；正式環境變數與 DNS 都沒動。
+## 2026-11-11 特色教學扁長顏料團不再被切成直線（`fix/curriculum-blot-edge-20261111`）
+
+使用者指出 /curriculum「一年一年學」的天藍水彩下緣被切開，接著指出年段「4 歲」也有。
+
+- 兩種原因，都在 `data-blot` 顏料團（不是段落 canvas）：(1) 約 4:1 的扁長框變形外擴超出框高，背景圖被切（一年一年學、理念最長兩條）；(2) 基底多邊形反折，團內疊出直邊與分離小塊（4 歲、五件事 03）。
+- `web/app/utils/watercolor.ts` 新增 `blotPolygons`／`fitInside`／`foldRatio`／`selfIntersects`：超出框才改走「2:1 變形再拉伸」，反折面積超過 0.5% 才重抽基底。頁面 21 塊只換有問題的 5 塊，其他逐點相同。細節與否決做法見 DESIGN.md 同日章節。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 132 檔全過（`watercolor.spec.ts` 新增 9 項，未修正版紅燈已確認）；dev server（fixture）Playwright 在 1512／1100／390 讀每個顏料團背景圖四邊的 alpha：正式站三種寬度各 3 塊被切，修正後 0 塊；21 塊總表與 4 歲、03、一年一年學、理念清單前後截圖確認形狀自然。
+- 11-11 已部署 main（`b6c112d1`，連同 node-forge 1.4.3 與 VAPID 偶發測試修正，最後 `801f80b1`）；CI 全綠含 stack e2e。未驗證：實機。
 
 ## 2026-11-10 環境頁「情緒安撫」「定時消毒」換義華 NAS 照片（同分支 `feature/cur-activities-582-20261110`）
 

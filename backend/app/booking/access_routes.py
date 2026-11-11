@@ -49,9 +49,8 @@ PARENT_EDIT_PER_CASE = ratelimit.Limit(
 async def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
     # 非 simple request header：跨來源網頁無法以表單偽造，也不能在沒有
     # CORS 授權下通過 preflight。此 API 不開放跨來源 CORS。
-    origin = request.headers.get("origin")
-    allowed_origin = request.app.state.settings.admin_origin
-    if parent_header != "1" or request.headers.get("sec-fetch-site") == "cross-site" or (allowed_origin and origin and origin != allowed_origin):
+    origin_ok = request.app.state.settings.origin_allowed(request.headers.get("origin") or None)
+    if parent_header != "1" or request.headers.get("sec-fetch-site") == "cross-site" or not origin_ok:
         raise HTTPException(status_code=403, detail={"code": "PARENT_REQUEST_FORBIDDEN", "message": "請從官網管理頁操作"})
     try:
         await ratelimit.limiter(request).check(PARENT_REQUEST_LIMIT, ratelimit.client_key(request))

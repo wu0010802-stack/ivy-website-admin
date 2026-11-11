@@ -13,6 +13,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 網域移轉前置：舊 Wix 網址 301、主網域轉址開關、過渡期雙網域寫入（main CI 部署，沒有 migration）
+
+- **內容**：`690ce04e`（README「2026-11-11 網域移轉前置」），分支 `feature/domain-migration-20261111`，rebase 到 main `801f80b1`（只有 README 頂部段落衝突，兩段都留）。web：舊站 30 個網址的對照表與 301 middleware、`NUXT_REDIRECT_HOSTS` 開關、robots.txt 只在正式網址主機放行；api：`WEBSITE_ADMIN_EXTRA_ORIGINS`。沒有 migration；**兩個新變數都沒設**，Railway 網址行為不變。切換步驟在 `docs/website-admin/migration-checklist.md`。
+- **推前本機**：web typecheck、`npm run test:website` 133 檔 1789 過；後端全套（rebase 前）5010 過 1 略過、rebase 後相關 8 檔 279 過；正式建置帶 Host 驗轉址開關兩種狀態；Playwright 1440／390 八頁。stack e2e 交給 CI。
+- **CI**：run 42941306008 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（01:57:23Z）；`/release.json` 的 `base_commit` 是 `690ce04e`。等前一個 run 42939707049（801f80b1）部署完才推。
+- **正式站驗證**（只發 GET）：`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/news`、`/visit`、`/anniversary`、`/admin/`、health 都 200（Railway 主機沒被轉址）；`/分班表` 301 `/admission#classes`；`/仁武校介紹?lang=zh` 301 `/?campus=renwu&lang=zh#campuses`；待確認的 `/作品照片分享` 404；robots.txt 仍 `Disallow: /`。
+- **沒驗**：正式網域相關（還沒接）；後台登入寫入（行為不變，沒用本人帳號測）。
+## 2026-11-11 特色教學顏料團不再被切成直線（main CI 部署，沒有 migration）
+
+- `b6c112d1` 顏料團修正（扁長框超框改拉伸、基底反折重抽，21 塊只換 5 塊）；同批另有兩個擋部署的修正（`801f80b1` 前兩個 commit）：node-forge 1.4.3（三則 moderate 公告，只改 web lockfile 一段）、後端 VAPID 壞公鑰測試約 1/4 偶發失敗。
+- 第一次 run 42937966508 被上述兩項擋下（未部署）；第二次 run 42939707049 全綠、Deploy Railway production 成功（main `801f80b1`）。
+- 部署後在正式站以 Playwright 量 1512／1100／390 每個顏料團背景圖四邊：全部乾淨；「4 歲」截圖確認已是新形狀。
+
 ## 2026-11-10 課程活動、情緒安撫、定時消毒換新照片（main CI 部署，沒有 migration）
 
 - **內容**：`45198055`（README「2026-11-10 特色教學『課程活動』換種苗校外教學照」與「環境頁『情緒安撫』『定時消毒』換義華 NAS 照片」），分支 `feature/cur-activities-582-20261110`，rebase 到 `23552c49`（README 頂部衝突兩段都留）後單一提交推 main。只改 web：三張母檔與響應式檔、`CurriculumContent.vue`／`EnvironmentContent.vue`／`about-content.ts` 替代文字與焦點、環境頁兩份渲染快照；沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；stack e2e（獨立測試庫 `ivy_website_e2e_photo582_test`，跑完已刪）170 過、30 略過、0 失敗。
@@ -2386,9 +2399,11 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | web | `PORT=3000`、`NUXT_WEBSITE_ENV=production`、`NUXT_PUBLIC_CONTENT_MODE=live` |
 | web | `NUXT_WEBSITE_API_INTERNAL_BASE=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
 | web | `NUXT_PUBLIC_SITE_ORIGIN=https://web-production-04caa.up.railway.app`、`NUXT_PUBLIC_INDEXING_ENABLED=false` |
+| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。目前不設＝不轉；切換步驟見 `docs/website-admin/migration-checklist.md`） |
 | api | `PORT=8000`、`WEBSITE_ENVIRONMENT=production`、`WEBSITE_ENABLE_FIXTURE=false`、`WEBSITE_INDEXING_ENABLED=false` |
 | api | `WEBSITE_SESSION_SECRET`（隨機產生的秘密）與 `WEBSITE_DATABASE_URL`（Postgres 參照） |
 | api | `WEBSITE_ADMIN_ORIGIN=https://web-production-04caa.up.railway.app` |
+| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。目前不設；正式網域接通後放 Railway 網址，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |

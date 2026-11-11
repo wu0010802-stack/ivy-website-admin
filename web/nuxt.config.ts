@@ -121,6 +121,10 @@ export default defineNuxtConfig({
     // 前端錯誤回報（2026-11-05，server/api/client-errors.post.ts）：關閉時伺服器直接回 204。預設只有 production 開；
     // NUXT_ERROR_REPORTS_ENABLED 在執行期也能改（Nuxt 依鍵名對應環境變數），可以不重建映像就關掉。
     errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production'),
+    // 主網域轉址（2026-11-11，server/middleware/00.site-redirects.ts）：列在這裡的主機 301 到
+    // NUXT_PUBLIC_SITE_ORIGIN，例如 "ivykidschool.com,web-production-04caa.up.railway.app"。
+    // 預設空白＝不轉；正式網域接通、驗證過才設（執行期變數，改了重啟即可，不用重建映像）。
+    redirectHosts: process.env.NUXT_REDIRECT_HOSTS ?? '',
     public: {
       contentMode,
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',
