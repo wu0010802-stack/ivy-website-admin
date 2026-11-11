@@ -40,6 +40,23 @@ export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
   '/活動分享': '/news'
 }
 
+/**
+ * 請求的是不是舊站的入學網址（對照表裡目的地是 /admission 的那幾條）。
+ * 2026-11-11：後台可以先隱藏入學資訊分頁（/admission 回 404），這幾條在隱藏期間改去首頁，
+ * 見 admissionHiddenLocation 與 server/middleware/00.site-redirects.ts。
+ */
+export function isLegacyAdmissionPath(url: string): boolean {
+  const queryAt = url.indexOf('?')
+  const key = normalizeLegacyPath(queryAt === -1 ? url : url.slice(0, queryAt))
+  const target = key ? LEGACY_REDIRECTS[key] : undefined
+  return Boolean(target && /^\/admission(?:[?#]|$)/.test(target))
+}
+
+/** 入學資訊分頁隱藏時的去處：把算好的 Location 的 /admission 換成首頁，錨點拿掉，主機與查詢字串照留。 */
+export function admissionHiddenLocation(location: string): string {
+  return location.replace(/#.*$/, '').replace(/\/admission(?=\?|$)/, '/')
+}
+
 /** 解碼、NFC、小寫、去掉結尾斜線；解不開的百分比編碼回 null（不轉）。 */
 export function normalizeLegacyPath(pathname: string): string | null {
   let decoded: string

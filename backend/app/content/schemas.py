@@ -363,6 +363,14 @@ class SiteMetaPayload(_ContentPayload):
     # 30 週年（2026-10-24）：關閉時官網首頁不播進站布幕、/anniversary 回 404，
     # 主選單、頁尾、sitemap、llms.txt 都拿掉 30 週年。預設開，舊版本照常顯示。
     anniversary_enabled: bool = True
+    # 最新消息（2026-11-11）：關閉時官網首頁不放最新消息那一章、/news 與單篇消息導回首頁，
+    # 主選單、頁尾、sitemap、llms.txt 都拿掉最新消息。後台照常可以編輯與發布消息，
+    # 只是官網不顯示。預設開，舊版本照常顯示。
+    news_enabled: bool = True
+    # 入學資訊分頁（2026-11-11）：關閉時官網 /admission 回 404，主選單、頁尾、
+    # sitemap、llms.txt 與其他頁的連結都拿掉入學資訊。預設開，舊版本照常顯示。
+    # 入學資訊頁的內容（admission_content）照常能編輯與預覽。
+    admission_enabled: bool = True
 
     @model_validator(mode="before")
     @classmethod

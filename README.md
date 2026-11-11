@@ -12,8 +12,43 @@
 - **CSV 公式注入防護不擋全形 ＝＋－＠**：前後端 `safe_cell`／`safeCell` 都先 NFKC 再比對。
 - **案件頁 `mailto:` 沒編碼家長填的 Email**：可夾帶 `?cc=…&body=…`；`VisitCaseFacts.vue` 改成編碼（保留 `@`）。
 - **不含連字號的素材 UUID 躲過引用追蹤**：舊的 `image` 欄位收 32 碼寫法，只被歷史版本這樣引用的素材會被當成沒人用而刪掉；`media/references.py` 兩種寫法都找。
-- 驗證：每項都有新測試（`test_error_reports`、`test_error_alerts`、`test_push_routes`、`test_operations`、`test_csv_export`、`test_media_library`、admin `csvUtil.test.ts`）；後端受影響的 10 個測試檔（含新測試）全過，全套本機還在跑、以 CI 為準；`npm --prefix admin run typecheck` 過、admin 全套 173 檔 3354 過；`npm run contract:check` 過。stack e2e 本機沒跑。
+- 驗證：每項都有新測試（`test_error_reports`、`test_error_alerts`、`test_push_routes`、`test_operations`、`test_csv_export`、`test_media_library`、admin `csvUtil.test.ts`）；後端全套 5022 過（本機真 PostgreSQL）；`npm --prefix admin run typecheck` 過、admin 全套 173 檔 3354 過；`npm run contract:check` 過。stack e2e 本機沒跑。
 - 沒修、待確認：正式站 API 是否確實沒有公開網域、Railway 邊緣的 `X-Forwarded-For` 行為（限流與稽核 IP 的可信度靠這兩點，repo 驗不到）；招生開關在正式站是開的但隱私權政策還沒發布（見 `deploy/README.md`）；Turnstile 失敗時放行、帳號鎖可被外人觸發 15 分鐘都是既有的刻意取捨。
+## 2026-11-11 後台可以先隱藏入學資訊分頁（`feature/hide-admission-20261111`）
+
+使用者要求在後台加一個開關，先把官網 `/admission` 藏起來。做法比照 10-24 的 30 週年開關：`site_meta` 多一個欄位 `admission_enabled`（預設開），沒有 migration、沒有新 API 與權限，走既有的存檔與發布流程。
+
+- **後台**：「網站標題與電話」（`admin/src/views/SiteMetaView.vue`）多一段「入學資訊分頁」，開關「在官網顯示入學資訊分頁」，**發布後生效**；段落目錄顯示目前是顯示或隱藏，側欄搜尋「隱藏入學資訊」「隱藏分頁」找得到。「入學資訊頁」的內容照常能編輯與預覽，再打開並發布就回來。權限同這一頁其他欄位（總管理者，或被授予共用內容的帳號）。
+- **官網隱藏時**：`/admission` 回 404；主選單與頁尾拿掉連到入學資訊的連結（內建與後台自訂的都算，`content-overlay.ts`，和 30 週年共用同一段過濾）；關於頁、環境頁結尾「還可以看看這幾頁」從三張變兩張；`sitemap.xml` 不列 `/admission`；`llms.txt` 不列「入學資訊」，也不列每題都連到入學頁錨點的「常見問題」。FAQPage 結構化資料只掛在入學頁自己身上，頁面 404 後就沒有。
+- **舊站入學網址**：`/常春藤入學-admission`、`/寶貝入學流程`、`/分班表`、`/新生入園須知`、`/收退費辦法` 平常 301 到 `/admission` 各章節；隱藏期間改成 302 到首頁、不給快取（`web/server/middleware/00.site-redirects.ts`），免得剛切網域、還留在搜尋結果裡的舊連結落到 404。只有這五條會讀已發布內容，其他請求照舊同步回應；讀不到內容時照原本的 301。瀏覽器若在隱藏前就快取了那五條 301（一小時），這段時間仍會到 404 頁。
+- **沒有動**：後台「各頁搜尋與分享」的入學資訊頁籤、成效統計的入學頁項目、`/preview?page=admission` 草稿預覽。舊的已發布版本沒有這個欄位＝顯示，開著時官網輸出和加開關之前逐欄相同（`overlay-baseline-20260925.json` 不用動）。
+- 驗證：`web/tests/admission-toggle.spec.ts`、`admin/src/__tests__/siteMetaSeo.test.ts`（入學資訊分頁開關）、`backend/tests/test_content_rules.py`（存得進去、發布後公開內容帶 false）、`tests/stack/admission-toggle.spec.ts`（後台點開關並發布 → 官網 404、連結拿掉、舊網址 302 → 打開後回來）。
+## 2026-11-11 後台最新消息開關：官網先不顯示最新消息（`feature/hide-home-news-20261111`）
+
+使用者要先把前台的「最新消息」收起來（首頁那一章、列表頁、單篇頁、選單與頁尾連結都不對外），之後要能自己打開。做法比照 10-24 的 30 週年開關。
+
+- **開關放在後台「網站標題與電話」（`/admin/content/site-meta`）的「最新消息」段落**，**發布後生效**；側欄搜尋「隱藏最新消息」「關閉最新消息」「消息開關」找得到。欄位是 `site_meta.news_enabled`，**預設開**，舊版本沒有這個欄位＝開，不需要 migration、OpenAPI 契約沒變。**部署後官網不會自己變**，要到後台把開關關掉並發布才會收起來。
+- **關閉時官網**：
+  - 首頁不放最新消息那一章：`pages/index.vue` 不渲染 `HomeNewsTransition`（五校→消息的換頁紙），五校區塊後面直接接頁尾；`#campuses` 錨點不再當成釘住的章節。`performance.css` 補一條量測前的預先疊位（`.day-reveal:not([data-motion]) > .campus-panorama`），沒有換頁層時量測前後位置一樣、不位移。
+  - `/news` 與 `/news/<id>` 一律 **302 導回首頁**（暫時性轉址：打開後網址照舊；單篇頁不論有沒有那一則都導回，不露出 404）。
+  - 主選單與頁尾拿掉連到最新消息的連結（`/news`、`/news?…`、`/news/<id>`、`/#latest-news`，內建或後台設定的都算，`content-overlay.ts` 的 `isNewsHref`）；後台選單只剩最新消息時退回內建選單。
+  - sitemap 不列 `/news` 與任何一則消息、llms.txt 不列最新消息。
+  - 開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.newsEnabled=false`）。
+- **後台照常可以編輯**：消息內容、粉專轉消息、發布都不受影響，只是官網不顯示。關著時「最新消息與活動」「各校消息與活動」兩個編輯頁最上面出現「官網目前沒有顯示最新消息」的提醒（`usePublishedNewsHidden` 讀官網發布中的 `site_meta`；讀不到就不提醒、不擋編輯）。後台的草稿預覽（`/preview`）不跟著開關，關著時照樣看得到消息，方便先準備內容。
+- 測試：`web/tests/news-toggle-20261111.spec.ts`（7 條）、`backend/tests/test_content_rules.py`、`admin/src/__tests__/newsFaqEditors.test.ts`、`siteMetaSeo.test.ts`；端到端 `tests/stack/news-toggle.spec.ts`（後台按開關發布 → 官網消息頁 302、首頁沒有那一章、沒連結、編輯頁有提醒 → 打開再發布回來，結束時一定打開）。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 135 檔 1814 過；dev server（fixture 暫時設 `newsEnabled:false`，驗完還原）用 Playwright 看 1440×900 與 390×844：首頁沒有 `.home-news`／`.news-transition`、五校區塊後面直接接頁尾、沒有 JS 錯誤，`/news` 與 `/news/abc` 回 302 到 `/`；量測前後五校區塊位置相同（margin-top 都是 -900px、頁面總高相同）。admin `vue-tsc` 過，`newsFaqEditors`＋`siteMetaSeo` 57 過；後端 `tests/test_content_rules.py` 14 過（獨立測試庫 `ivy_website_test_hide_news`）。
+- 沒驗證：本機負載 50–85（其他 session 同時在跑），admin 全套 173 檔那次有 48 檔失敗；放寬逾時重跑和這次改動有關的 34 檔，32 過、2 檔各 1 條 120 秒逾時（`admissionsView` 與這次無關；`editorSectionFields` 單獨重跑 32 過）——**admin 全套、後端全套、stack e2e 的乾淨結果以 CI 為準**。開著時的首頁畫面沒有另外截圖（程式路徑沒變）；iOS 實機、WebKit 沒驗。
+
+## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（`fix/launch-cleanup-20261111`）
+
+正式網域 `www.ivykidschool.com` 切換並開放收錄後，把正式站 16 個網址爬過一遍（只發 GET）：站內連結 18 條、資源 161 個、外部連結 20 條、舊 Wix 網址 20 條都正常。找到一處該修的：每一頁原始碼的頁面資料（`__NUXT_DATA__`）帶著原型時期寫給維護者看的字句。畫面與版面都沒動。
+
+- **原型備註不進公開資料**：`web/app/utils/public-copy.ts` 的 `withoutRetiredFields` 多拿掉三處，整份的 `_source`（「示範內容，非正式資料」）、消息區的 `note`（「文案、日期與活動均為原型示意」）、拍立得的 `caption`（2026-09-23 起不顯示；正式站後台存的還是「午休照片待補」「入園情境示意」）。fixture 與後台存的值不動，`NewsContent.note`、`DayMoment.caption` 型別改選填。首頁關於段的 `caption` 是另一個欄位，不受影響。
+- **維運預設網址改正式網域**：`deploy/uptime_check.py` 的預設網址與 `uptime.yml` 的備援值（repo 變數 `UPTIME_BASE_URL` 沒設時才用到）、`scripts/audit-public-site.mjs`、`scripts/page-font-chars.cjs`、`backend/.env.example` 的範例。`deploy/railway_ci.py` 的部署後 smoke 刻意留在 Railway 網址（不經正式網域的 DNS，網域出狀況不擋部署），加了註解。
+- **文件**：`deploy/README.md` 開頭的官網／後台網址與環境變數表改成切換後的實際值。
+- 驗證：`web/tests/public-copy.spec.ts` 新增一條，未修正版先紅（`_source` 還在）後綠；`npm --prefix web run typecheck` 過；`npm run test:website` 134 檔 1808 條，機器負載 66 時有 4 條逾時（`smoothness-20261105-anniversary`、`smoothness-20261105-prints`、`taipei-date`，和這次改動無關），三個檔單獨重跑 30 條全過；後端 `tests/test_uptime_check.py` 20 過（拋棄式測試庫）。
+- 沒驗到：後端、admin 全套與 stack e2e 沒在本機跑（交給 CI）；部署後要再抓正式站原始碼確認這些字句是 0 次。
+
 ## 2026-11-11 前台 QA：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（`fix/qa-fixes-20261111`）
 
 對正式站做唯讀 QA（只發 GET、telemetry 與寫入全擋，預約沒有真的送出）：16 個路由 × 桌機 1440／手機 390，主要路由另跑 320／768／900／1024／1100／1920 六種寬度與 WebKit（桌機＋iPhone 14），加上導覽、首頁、入學生日查班、預約到送出前、管理預約、週年頁、404 的互動流程。沒有 JS 錯誤、破圖、水平溢出，站內連結全部 200；QA 途中正式站換了三版（`690ce04e`→`76839d66`→`39328c8d`），新版重跑巡檢結果相同。修兩處：

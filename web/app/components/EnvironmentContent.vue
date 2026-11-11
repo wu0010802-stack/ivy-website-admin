@@ -17,7 +17,8 @@ import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
 import type { EnvironmentRoutes } from '~/utils/environment-route'
 
-const props = defineProps<{ campuses: Campus[]; page: EnvironmentPageContent }>()
+// admission：後台「全站設定」的入學資訊分頁開關（隱藏時 /admission 回 404，結尾「還可以看看這幾頁」不放入學資訊）
+const props = withDefaults(defineProps<{ campuses: Campus[]; page: EnvironmentPageContent; admission?: boolean }>(), { admission: true })
 
 // 積木色：c-<名> 在 environment.css 對到正面色與側面色
 type Block = 'terra' | 'mustard' | 'sage' | 'mist' | 'pink'
@@ -98,6 +99,7 @@ const NEXT = [
   { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向', look: ['s-circle', 'mustard'] },
   { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照', look: ['s-sq', 'mist'] }
 ]
+const nextPages = computed(() => NEXT.filter((item) => props.admission || item.href !== '/admission'))
 
 const meal = mealBookLink()
 
@@ -413,7 +415,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
       <div class="renv-wrap">
         <h2 id="next-title" class="renv-next-title">還可以看看這幾頁</h2>
         <ul class="renv-next-list">
-          <li v-for="(item, i) in NEXT" :key="item.href" data-drop :style="{ '--i': i }">
+          <li v-for="(item, i) in nextPages" :key="item.href" data-drop :style="{ '--i': i }">
             <NuxtLink class="renv-next-link" :class="[item.look[0], `c-${item.look[1]}`]" :to="item.href"><b>{{ item.title }}</b><small>{{ item.hint }}</small></NuxtLink>
           </li>
         </ul>

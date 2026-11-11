@@ -143,6 +143,44 @@ describe('全站消息編輯頁', () => {
     expect(wrapper.text()).toContain('目前推薦 1 則')
   })
 
+  // 2026-11-11：「網站標題與電話」可以把官網的最新消息關掉；關著時兩個消息編輯頁都提醒，照常可以編輯。
+  it('官網關掉最新消息時，全站與各校消息編輯頁都提醒官網目前不顯示；開著、讀不到時不提醒', async () => {
+    const home = { sample_note: '', articles: [], events: [], home_display_count: null, films: null }
+    const stub = (site: unknown) => vi.spyOn(api, 'get').mockImplementation(async (url: string) => {
+      if (url === '/public/site') {
+        if (site instanceof Error) throw site
+        return site as never
+      }
+      return (url.includes('campus_news') ? contentItem('campus_news', { articles: [], events: [] }, 'yihua') : contentItem('home_news', home)) as never
+    })
+    const notice = '官網目前沒有顯示最新消息'
+
+    let get = stub({ content: { site_meta: { news_enabled: false } } })
+    const hidden = await mountAs(HomeNewsView, superAdmin(), '/content/home-news')
+    expect(get).toHaveBeenCalledWith('/public/site')
+    expect(hidden.get('.news-hidden-alert').text()).toContain(notice)
+    expect(hidden.get('.news-hidden-alert').text()).toContain('全站與素材 → 網站標題與電話')
+    expect(NAV_GROUPS.find((group) => group.label === '全站與素材')!.items.some((item) => item.title === '網站標題與電話')).toBe(true)
+    // 只是提醒：照常可以編輯
+    expect(hidden.text()).toContain('首頁最多放幾則消息')
+    const campus = await mountAs(CampusNewsView, testUser('campus_admin', { id: 'c', email: 'c@example.invalid', campus_keys: ['yihua'] } as never), '/content/campus-news?campus=yihua')
+    expect(campus.get('.news-hidden-alert').text()).toContain(notice)
+    expect(campus.get('.news-hidden-alert').text()).not.toContain('網站標題與電話')
+
+    get.mockRestore()
+    // 開著（含舊版本沒有這個欄位）
+    for (const site of [{ content: { site_meta: { news_enabled: true } } }, { content: { site_meta: {} } }, { content: {} }]) {
+      get = stub(site)
+      expect((await mountAs(HomeNewsView, superAdmin(), '/content/home-news')).find('.news-hidden-alert').exists()).toBe(false)
+      get.mockRestore()
+    }
+    // 讀不到官網內容（還沒發布過、連線失敗）：不提醒、不擋編輯
+    get = stub(new Error('503'))
+    const failed = await mountAs(HomeNewsView, superAdmin(), '/content/home-news')
+    expect(failed.find('.news-hidden-alert').exists()).toBe(false)
+    expect(failed.text()).toContain('首頁最多放幾則消息')
+  })
+
   it('內文可以加段落、小標、清單、圖片、影片與連結', async () => {
     const payload = { sample_note: '', articles: [normalizeArticle({ id: 'a1', date: '2026-10-01', title: 't', description: 'd', image: 'garden', alt: '', category: '' })], events: [], home_display_count: null }
     vi.spyOn(api, 'get').mockResolvedValue(contentItem('home_news', payload) as never)

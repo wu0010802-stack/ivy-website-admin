@@ -129,6 +129,10 @@ export interface SiteMetaPayload {
   allow_indexing: boolean
   /** 30 週年開關：false＝官網首頁不播進站布幕、/anniversary 回 404、選單與頁尾拿掉 30 週年；舊版本沒有＝開 */
   anniversary_enabled?: boolean
+  /** 最新消息開關（2026-11-11）：false＝官網首頁不放最新消息那一章、/news 與單篇消息導回首頁、選單與頁尾拿掉最新消息；舊版本沒有＝開 */
+  news_enabled?: boolean
+  /** 入學資訊分頁開關：false＝官網 /admission 回 404，選單、頁尾與其他頁的連結拿掉入學資訊；舊版本沒有＝開 */
+  admission_enabled?: boolean
   /** null＝還沒設定過，官網沿用內建主選單 */
   primary_nav?: NavLinkPayload[] | null
   /**

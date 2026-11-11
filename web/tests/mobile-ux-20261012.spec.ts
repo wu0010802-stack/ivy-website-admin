@@ -236,7 +236,8 @@ describe('404 與全站', () => {
 
 describe('首頁', () => {
   it('#campuses 包在最新消息簾幕的 sticky 裡：章節設 after＋pinned，簾幕在動時直接捲到孩子的一天擦完的位置', () => {
-    expect(read('../app/pages/index.vue')).toContain("{ id: 'campuses', after: '.day-reveal-track', pinned: true },")
+    // 2026-11-11：後台關掉最新消息時沒有那道簾幕，五校區塊不釘住（pinned 跟著 showNews）
+    expect(read('../app/pages/index.vue')).toContain("{ id: 'campuses', after: '.day-reveal-track', pinned: showNews.value },")
     const anchors = read('../app/composables/useChapterAnchors.ts')
     expect(anchors).toContain(`if (chapter.pinned && track.closest('[data-motion="on"]')) {`)
     // 從別頁連過來要等版面穩定（路由自己的錨點捲動晚到）；重新整理、上一頁／下一頁不搶回章節

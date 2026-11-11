@@ -40,6 +40,8 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     social_links: '機構社群',
     allow_indexing: '搜尋引擎收錄',
     anniversary_enabled: '30 週年',
+    news_enabled: '最新消息',
+    admission_enabled: '入學資訊分頁',
   },
   booking_content: {
     cta_label: '預約按鈕（中文）',
