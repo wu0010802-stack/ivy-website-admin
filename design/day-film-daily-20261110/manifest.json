@@ -1,0 +1,270 @@
+{
+  "sources": {
+    "minghua": {
+      "filename": "明華寶貝的快樂城堡.mp4",
+      "drive_id": "1thDNYT50SR212NMUjd_tUIW3PQCDdUA5",
+      "matrix": "bt601",
+      "sha256": "9e3d1c9dd2b11813e04a60f9d86cc321b86ad32b473bdd80a41064e68cc49a22"
+    },
+    "ad": {
+      "filename": "常春藤廣告+配音.mp4",
+      "drive_id": "1IzRwbfF04IqKw8NGHEsfDklA_HmzkSoz",
+      "matrix": "bt601",
+      "sha256": "99c51061ff6c5198685ff46ba568a22c16b03af0e710f5a5b3db4e682fee787b"
+    },
+    "f115": {
+      "filename": "115影片.MP4",
+      "drive_id": "1ia44JtaLiGi1qkn3WOTwChtEexkGH6Qd",
+      "matrix": "bt709",
+      "sha256": "589cd2bc1b745518781b0f9e57e5ad39c2692037df5ab9f6c55947bd52e68baf"
+    }
+  },
+  "f115_upscaled": {
+    "segments": [
+      [
+        25.9,
+        27.65
+      ],
+      [
+        34.85,
+        36.0
+      ],
+      [
+        43.9,
+        46.15
+      ]
+    ],
+    "sha256": "ea1d411f42cbf6ee549b46b46c36840a5a4926a8fa614ead86d572d2b8f6c13b",
+    "tool": "ByteDance 影片放大 2K（Higgsfield）"
+  },
+  "grade": "不調色：screen-17.cube 燒原片在瀏覽器裡的螢幕樣貌；各鏡 adjust 只做小幅對齊",
+  "screen_cube": "design/day-film-color-20261025/screen-17.cube",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "frame": {
+    "width": 1440,
+    "height": 810,
+    "fps": 30,
+    "dissolve": 0.5
+  },
+  "shots": [
+    {
+      "shot": 1,
+      "src": "ad",
+      "start": 0.0,
+      "end": 1.05,
+      "speed": 0.5,
+      "crop": [
+        0,
+        172,
+        1080
+      ],
+      "adjust": "",
+      "note": "入園：三個孩子朝鏡頭跑來（開場＝封面）",
+      "seconds": 2.133
+    },
+    {
+      "shot": 2,
+      "src": "minghua",
+      "start": 0.0,
+      "end": 1.45,
+      "speed": 0.5,
+      "crop": [
+        0,
+        720,
+        2160
+      ],
+      "adjust": "",
+      "note": "入園：制服女孩在操場跑",
+      "seconds": 2.933
+    },
+    {
+      "shot": 3,
+      "src": "minghua",
+      "start": 7.0,
+      "end": 7.95,
+      "speed": 0.5,
+      "crop": [
+        0,
+        600,
+        2160
+      ],
+      "adjust": "",
+      "note": "探索：兩個孩子看手上的葉子",
+      "seconds": 1.933
+    },
+    {
+      "shot": 4,
+      "src": "minghua",
+      "start": 15.6,
+      "end": 17.95,
+      "speed": 1.0,
+      "crop": [
+        0,
+        520,
+        2160
+      ],
+      "adjust": "",
+      "note": "探索：黃衣男孩倒水（框往下放到手與水杯，頭頂切一點）",
+      "seconds": 2.4
+    },
+    {
+      "shot": 5,
+      "src": "minghua",
+      "start": 18.0,
+      "end": 19.6,
+      "speed": 1.0,
+      "crop": [
+        0,
+        560,
+        2160
+      ],
+      "adjust": "",
+      "note": "探索：水裡的玩具魚與小手（特寫，換個景別）",
+      "seconds": 1.6
+    },
+    {
+      "shot": 6,
+      "src": "minghua",
+      "start": 20.3,
+      "end": 22.5,
+      "speed": 1.0,
+      "crop": [
+        0,
+        560,
+        2160
+      ],
+      "adjust": "",
+      "note": "探索：一群孩子圍著水桌",
+      "seconds": 2.2
+    },
+    {
+      "shot": 7,
+      "src": "ad",
+      "start": 16.45,
+      "end": 17.4,
+      "speed": 0.5,
+      "crop": [
+        0,
+        172,
+        1080
+      ],
+      "adjust": "colorbalance=rm=-0.06:gm=0.03",
+      "note": "用餐：女孩拿湯匙（「我自己來」）；原片偏洋紅，中間調往綠拉一點",
+      "seconds": 1.933
+    },
+    {
+      "shot": 8,
+      "src": "f115",
+      "start": 26.0,
+      "end": 27.55,
+      "speed": 0.65,
+      "crop": [
+        0,
+        500,
+        720
+      ],
+      "adjust": "",
+      "note": "安靜：小提琴課全景（陽光教室）",
+      "seconds": 2.4
+    },
+    {
+      "shot": 9,
+      "src": "f115",
+      "start": 35.0,
+      "end": 35.95,
+      "speed": 0.5,
+      "crop": [
+        0,
+        240,
+        720
+      ],
+      "adjust": "",
+      "note": "安靜：女孩拉小提琴特寫（35.0 起字幕已淡掉）",
+      "seconds": 1.933
+    },
+    {
+      "shot": 10,
+      "src": "ad",
+      "start": 36.5,
+      "end": 37.8,
+      "speed": 0.8,
+      "crop": [
+        0,
+        172,
+        1080
+      ],
+      "adjust": "",
+      "note": "安靜：老師與孩子額頭相碰",
+      "seconds": 1.633
+    },
+    {
+      "shot": 11,
+      "src": "minghua",
+      "start": 30.3,
+      "end": 31.8,
+      "speed": 0.65,
+      "crop": [
+        0,
+        560,
+        2160
+      ],
+      "adjust": "eq=brightness=-0.03:gamma=0.93",
+      "note": "午後：紙雪花滿天飛（白牆白紙，中位 L* 86，壓一點免得圖說沒對比）",
+      "seconds": 2.333
+    },
+    {
+      "shot": 12,
+      "src": "minghua",
+      "start": 42.95,
+      "end": 44.45,
+      "speed": 0.5,
+      "crop": [
+        0,
+        260,
+        1700
+      ],
+      "adjust": "",
+      "note": "午後：男孩領頭衝向鏡頭（縮寬躲校徽、頭頂留空）",
+      "seconds": 3.0
+    },
+    {
+      "shot": 13,
+      "src": "f115",
+      "start": 44.25,
+      "end": 46.1,
+      "speed": 0.7,
+      "crop": [
+        0,
+        560,
+        720
+      ],
+      "adjust": "",
+      "note": "回家：全班朝鏡頭跑來（44.2 前字幕還在淡、46.2 起有校徽）；收尾溶回第一鏡，兩鏡都是朝鏡頭跑，接縫像換了一天",
+      "seconds": 2.667
+    }
+  ],
+  "variants": [
+    {
+      "file": "day-desktop.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "30/1",
+      "frames": "678",
+      "duration": "22.600000",
+      "bytes": 12132216,
+      "crf": 20,
+      "sha256": "528a64153de03a7b1c152b5ad76b7ee5cd47790dde04e7f93ab123be1df72135"
+    },
+    {
+      "file": "day-mobile.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "30/1",
+      "frames": "678",
+      "duration": "22.600000",
+      "bytes": 6755799,
+      "crf": 25,
+      "sha256": "6257f0430b3ee16e2e18e48e567d705a72caec2b512bfe172965a5cf641d365a"
+    }
+  ]
+}

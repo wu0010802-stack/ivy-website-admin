@@ -33,7 +33,9 @@ describe('影音流量與響應式圖片', () => {
     expect(backgroundVideoSrc('assets/day-film.mp4', true)).toContain('day-mobile')
     expect(backgroundVideoSrc('assets/day-film.mp4', false)).toContain('day-desktop')
     expect(backgroundVideoSrc('assets/hero-campus.mp4', false)).toContain('hero-desktop')
-    expect(backgroundVideoSrc('assets/day-film-mobile.mp4', true)).toContain('day-mobile')
+    // 760px 以下用的手機素材是直式檔，不是橫式手機編碼
+    expect(backgroundVideoSrc('assets/day-film-mobile.mp4', true)).toContain('day-portrait')
+    expect(backgroundVideoSrc('assets/day-film-mobile.mp4', false)).toContain('day-portrait')
   })
   it('消息「一起跑向前」用自己的舊首屏片，不跟著首屏換成混剪', () => {
     expect(backgroundVideoSrc('assets/campus-film-run.mp4', true)).toMatch(/campus-run-[0-9a-f]{12}\.mp4$/)

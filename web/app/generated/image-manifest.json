@@ -436,21 +436,24 @@
     "height": 810,
     "candidates": [
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-480.webp",
+        "src": "/assets/responsive/day-poster-bab1c175251b-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/day-poster-b33048bbfab1-480.avif"
+        "avif": "/assets/responsive/day-poster-f0e966852b55-480.avif"
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-800.webp",
-        "width": 800
+        "src": "/assets/responsive/day-poster-bab1c175251b-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/day-poster-f0e966852b55-800.avif"
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-1200.webp",
-        "width": 1200
+        "src": "/assets/responsive/day-poster-bab1c175251b-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/day-poster-f0e966852b55-1200.avif"
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-1440.webp",
-        "width": 1440
+        "src": "/assets/responsive/day-poster-bab1c175251b-1440.webp",
+        "width": 1440,
+        "avif": "/assets/responsive/day-poster-f0e966852b55-1440.avif"
       }
     ]
   },

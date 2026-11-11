@@ -59,6 +59,7 @@ export function withoutRetiredFields(site: SiteContent): SiteContent {
 // 2026-11-10 使用者要首頁孩子的一天那句作息提醒也拿掉：原文與當時換上的短句都換成空字串；園方在後台寫別的照畫。
 const SOURCE_NOTES: Readonly<Record<string, string>> = {
   '日常情境提案，以義華校素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景取自義華遊藝表演紀錄，與相片非同一天拍攝。': '',
+  '日常情境提案，以園方既有素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景是繪本動畫，情境示意，不是實景。': '',
   '各校、各班作息略有不同，以園所安排為準。': '',
   '照片取自各校日常，實際課程安排以各校說明為準。': '',
   '作品照片取自機構網站「常春藤兒童美術館」。': '',
@@ -68,12 +69,23 @@ const SOURCE_NOTES: Readonly<Record<string, string>> = {
 }
 const sourceNote = (text: string): string => SOURCE_NOTES[text] ?? text
 
-/** 孩子的一天、特色教學、環境頁的原型來源說明換成署名（不修改傳入的物件）。 */
+// 孩子的一天背景影片 2026-11-11 從義華遊藝表演換成繪本淡彩動畫（design/day-film-animation-20261111）。
+// 後台存的影片左下角說明還是舊內建影片的「義華校 · 遊藝表演」：只有仍用官網內建影片（沒上傳自己的桌機影片）
+// 而且說明一字不差是舊內建文字時才換成新內建文字；園方上傳過影片或改過說明的照園方的。
+// 新文字要讓家長知道這是插畫示意、不是實景（PRODUCT.md「沒有資料不虛構」）。
+const DAY_FILM_BUILTIN_SRC = 'assets/day-film.mp4'
+const DAY_FILM_CAPTIONS: Readonly<Record<string, string>> = { '義華校 · 遊藝表演': '繪本動畫 · 情境示意' }
+function dayFilmCaption(day: SiteContent['dayExperience']): SiteContent['dayExperience']['filmCaption'] {
+  if (day.filmSrc !== DAY_FILM_BUILTIN_SRC) return day.filmCaption
+  return { ...day.filmCaption, zh: DAY_FILM_CAPTIONS[day.filmCaption.zh] ?? day.filmCaption.zh }
+}
+
+/** 孩子的一天、特色教學、環境頁的原型來源說明換成署名；舊內建影片的說明換成新內建影片的（不修改傳入的物件）。 */
 export function withSourceNotes(site: SiteContent): SiteContent {
   const { dayExperience: day, curriculumPage: curriculum, environmentPage: environment } = site
   return {
     ...site,
-    dayExperience: day && { ...day, note: sourceNote(day.note) },
+    dayExperience: day && { ...day, note: sourceNote(day.note), filmCaption: dayFilmCaption(day) },
     curriculumPage: curriculum && { ...curriculum, heroNotice: sourceNote(curriculum.heroNotice), gallerySource: sourceNote(curriculum.gallerySource), dailySource: sourceNote(curriculum.dailySource), beliefSource: sourceNote(curriculum.beliefSource) },
     environmentPage: environment && { ...environment, heroNotice: sourceNote(environment.heroNotice) }
   }

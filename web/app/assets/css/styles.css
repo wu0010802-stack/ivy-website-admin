@@ -42,10 +42,11 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 .section.day-experience{scroll-margin-top:-112px;display:grid;position:relative;isolation:isolate;padding:0;background:var(--deep);color:var(--paper)}
 .day-film{grid-area:1/1;position:sticky;top:0;align-self:start;height:var(--reveal-height,100svh);overflow:clip;background:var(--deep)}
 .day-film-poster,.day-film-video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 48%}
-/* 背景片左上角燒進了 IVY KIDS 台標（1440×810 原檔 x 32–138、y 8–132），置中裁切在 16:10（1440×900、1280×800）正好切成「Y KIDS」（2026-10-13）。
-   寬高比 ≥7/5 改貼左上：16:10、16:9 與更寬的視窗台標整個留在畫面內；更窄（4:3、直拿平板、手機）置中本來就整個裁掉，不動。
+/* 2026-11-11 背景換成繪本動畫，沒有台標了：10-13 為了躲舞台片左上角台標、寬高比 ≥7/5 貼左上的規則拿掉，一律置中。
+   760px 以下影片是另一支直式檔（鏡頭另外排過，第一格的中心在橫式畫面寬度的 58%）；封面只有橫式一張，
+   往右對到同一個位置，影片淡入時人物不會橫移（390×844 算出來是 61%，744×1133 是 63%，取 61%）。
    後台設定的位置（inline style）照樣優先。 */
-@media(min-aspect-ratio:7/5){.day-film-poster,.day-film-video{object-position:4% 0}}
+@media(max-width:760px){.day-film-poster{object-position:61% 48%}}
 .day-film-video{opacity:0;transition:opacity .8s}
 .day-film-video.is-ready{opacity:1}
 /* 2026-10-20 調亮：原本整段都蓋 .6／.34／.6 的墨綠紗，拍立得那四屏舞台影片被壓成灰濛濛一片。
