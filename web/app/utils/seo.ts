@@ -187,6 +187,16 @@ export function isNewsHref(href: string, sectionId = 'latest-news'): boolean {
   return /^\/news(?:\/[^?#]*)?(?:[?#]|$)/.test(value) || (Boolean(sectionId) && value.replace(/^\/(?=#)/, '') === `#${sectionId}`)
 }
 
+/** 後台「全站設定」的入學資訊分頁開關（2026-11-11）；沒有這個欄位（舊版本、內建內容）＝顯示。 */
+export function admissionEnabled(siteMeta: Pick<SiteMetaContent, 'admissionEnabled'> | undefined): boolean {
+  return siteMeta?.admissionEnabled !== false
+}
+
+/** 站內連到入學資訊頁的連結（/admission、/admission/、帶 # 或 ? 的都算）。 */
+export function isAdmissionHref(href: string): boolean {
+  return /^\/admission\/?(?:[?#]|$)/.test(href.trim())
+}
+
 /** 入學資訊頁的 SEO：標題、描述、分享圖預設用內建（分享圖沿用首頁），後台「各頁搜尋與分享」可覆寫，麵包屑兩層。 */
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
@@ -469,12 +479,12 @@ export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xm
 
 /**
  * news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。
- * anniversary：false＝後台關掉 30 週年，不列 /anniversary。campuses：各校 key，列 /visit/<校>（2026-11-11 預約頁開放收錄）。
+ * anniversary：false＝後台關掉 30 週年，不列 /anniversary。admission：false＝後台隱藏入學資訊分頁，不列 /admission。campuses：各校 key，列 /visit/<校>（2026-11-11 預約頁開放收錄）。
  * newsPages：false＝後台關掉最新消息，/news 與每一則消息都不列（網址會導回首頁）。
  */
-export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean; anniversary?: boolean; campuses?: string[]; newsPages?: boolean } = {}): string {
+export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean; anniversary?: boolean; admission?: boolean; campuses?: string[]; newsPages?: boolean } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...(options.anniversary === false ? [] : [ANNIVERSARY_PATH]), ...(options.newsPages === false ? [] : [NEWS_PATH]), ...(options.privacy ? [PRIVACY_PATH] : []),
+  const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ...(options.admission === false ? [] : [ADMISSION_PATH]), ENVIRONMENT_PATH, ...(options.anniversary === false ? [] : [ANNIVERSARY_PATH]), ...(options.newsPages === false ? [] : [NEWS_PATH]), ...(options.privacy ? [PRIVACY_PATH] : []),
     VISIT_PATH, ...(options.campuses ?? []).map((key) => `${VISIT_PATH}/${encodeURIComponent(key)}`),
     ...(news && options.newsPages !== false ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
@@ -504,14 +514,16 @@ export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'> & Pa
       `- [${SCHOOL_NAME}${line(campus.name)}](${origin}${VISIT_PATH}/${encodeURIComponent(campus.key)})：${line(campus.address)}${campus.phone ? `，電話 ${line(campus.phone)}` : ''}。`), '')
   }
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
-  out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、依生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等問答。`, '')
+  // 後台隱藏入學資訊分頁時（/admission 回 404）：不列這一頁，下面的常見問題也不列（每題都連到這一頁的錨點）。
+  const admission = admissionEnabled(site.siteMeta)
+  if (admission) out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、依生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等問答。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   if (anniversaryEnabled(site.siteMeta)) out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')
   if (newsEnabled(site.siteMeta)) out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
   // 只有開放線上場次的校區能線上選時段，其他校區要來電（同 visitSeo 與入學頁「怎麼預約參觀」），不寫成全部都能線上預約。
   out.push('## 預約參觀', '', `- [預約參觀](${origin}${VISIT_PATH})：選校區看參觀方式；開放線上場次的校區可以直接選日期與場次，其他校區請打電話約時間。`, '')
-  const faq = site.admission ? admissionFaqEntries(site.admission, campuses) : []
+  const faq = admission && site.admission ? admissionFaqEntries(site.admission, campuses) : []
   if (faq.length) out.push('## 常見問題', '', ...faq.map((entry) => `- [${line(entry.q)}](${origin}${ADMISSION_PATH}#${entry.id})：${line(entry.a)}`), '')
   return out.join('\n')
 }

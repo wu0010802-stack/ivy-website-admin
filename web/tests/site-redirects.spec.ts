@@ -114,7 +114,8 @@ async function serve(config: { siteOrigin: string, redirectHosts: string }) {
   vi.stubGlobal('getRequestHeader', getRequestHeader)
   vi.stubGlobal('setResponseHeader', setResponseHeader)
   vi.stubGlobal('sendRedirect', sendRedirect)
-  vi.stubGlobal('useRuntimeConfig', () => ({ redirectHosts: config.redirectHosts, public: { siteOrigin: config.siteOrigin } }))
+  // contentMode: 'fixture'：舊站入學網址會先讀已發布內容看入學資訊分頁有沒有被隱藏（tests/admission-toggle.spec.ts），這裡用內建內容＝顯示。
+  vi.stubGlobal('useRuntimeConfig', () => ({ redirectHosts: config.redirectHosts, websiteEnv: 'test', websiteApiInternalBase: '', public: { siteOrigin: config.siteOrigin, contentMode: 'fixture' } }))
   const { default: middleware } = await import('../server/middleware/00.site-redirects')
   const app = createApp()
   app.use(middleware as (event: H3Event) => void)

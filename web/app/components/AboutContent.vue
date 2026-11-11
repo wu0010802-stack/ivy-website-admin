@@ -34,7 +34,8 @@ import {
 } from '~/utils/about-content'
 
 // anniversary：後台「全站設定」的 30 週年開關（關掉時 /anniversary 回 404，這頁也不連過去）
-const props = withDefaults(defineProps<{ campuses: Campus[]; page: AboutPageContent; anniversary?: boolean }>(), { anniversary: false })
+// admission：同一頁的入學資訊分頁開關（隱藏時 /admission 回 404，結尾「還可以看看這幾頁」不放入學資訊）
+const props = withDefaults(defineProps<{ campuses: Campus[]; page: AboutPageContent; anniversary?: boolean; admission?: boolean }>(), { anniversary: false, admission: true })
 
 // 年數由今年（台北）算：SSR 與瀏覽器各算一次，只有跨年那一刻才可能不同
 const thisYear = Number.parseInt(taipeiIsoDate(), 10)
@@ -120,6 +121,7 @@ const NEXT = [
   { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向', color: 'var(--yellow)' },
   { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照', color: 'var(--studio-blue)' }
 ]
+const nextPages = computed(() => NEXT.filter((item) => props.admission || item.href !== '/admission'))
 
 // 動態：沿革卡紙站起來、紀念章轉一圈都是 about.css 的捲動驅動動畫（不支援的瀏覽器直接是完成狀態）。
 // 這裡只管兩件事：六圈（AboutWholePerson 等章節發 abk-open 才開始播，自己看得見才真的播），
@@ -304,7 +306,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <section class="abh-wrap abh-sec abh-next" aria-labelledby="next-title">
       <h2 id="next-title">還可以看看這幾頁</h2>
       <nav class="abh-index is-next" aria-label="其他頁面">
-        <NuxtLink v-for="item in NEXT" :key="item.href" :to="item.href" :style="{ '--chap': item.color }">
+        <NuxtLink v-for="item in nextPages" :key="item.href" :to="item.href" :style="{ '--chap': item.color }">
           <span class="abh-mk" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-arrow-right" /></svg></span>
           <span><b>{{ item.title }}</b><small>{{ item.hint }}</small></span>
         </NuxtLink>

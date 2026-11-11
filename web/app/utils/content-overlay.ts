@@ -2,7 +2,7 @@ import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, 
 import { newsMonth, safeWebUrl } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
-import { anniversaryEnabled, isAnniversaryHref, isNewsHref, newsEnabled, PAGE_SEO_KEYS } from './seo'
+import { admissionEnabled, anniversaryEnabled, isAdmissionHref, isAnniversaryHref, isNewsHref, newsEnabled, PAGE_SEO_KEYS } from './seo'
 import { httpsUrl, siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
 import {
@@ -64,6 +64,8 @@ export interface LiveSiteMeta {
   anniversary_enabled?: boolean
   /** 2026-11-11 新增；沒有＝開（舊版本照常有最新消息） */
   news_enabled?: boolean
+  /** 2026-11-11 新增；沒有＝顯示（舊版本照常有入學資訊分頁） */
+  admission_enabled?: boolean
   /** 2026-09-25 新增；沒有（或 null）＝沿用內建主選單 */
   primary_nav?: LiveNavLink[] | null
   /** 2026-10-12 新增；沒有（或 null）＝七頁全部沿用內建標題、描述與全站分享圖 */
@@ -784,6 +786,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       // 只在關閉時寫：開著（含舊版本沒有這個欄位）的輸出跟加開關之前逐欄相同。
       if (overlay.site_meta.anniversary_enabled === false) next.siteMeta.anniversaryEnabled = false
       if (overlay.site_meta.news_enabled === false) next.siteMeta.newsEnabled = false
+      if (overlay.site_meta.admission_enabled === false) next.siteMeta.admissionEnabled = false
       // 機構社群：後台設定過就整組取代內建（過濾後可能是空的＝不顯示）；null／沒有這個鍵＝沿用內建。
       if (Array.isArray(overlay.site_meta.social_links)) next.siteMeta.socialLinks = liveSocialLinks(overlay.site_meta.social_links)
       const nav = (overlay.site_meta.primary_nav ?? [])
@@ -1013,24 +1016,20 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     }
   })
 
-  // 30 週年關閉時，主選單與頁尾不留連到 /anniversary 的連結（頁面本身回 404）。
+  // 30 週年關閉、入學資訊分頁隱藏、最新消息關閉時，主選單與頁尾不留連到那一頁的連結
+  // （30 週年、入學資訊回 404；最新消息的 /news、單篇與首頁那一章的錨點會導回首頁，首頁也沒有那一章）。
   // 放在所有 guard 之後：頁尾連結可能是內建的，也可能是後台設定的。
-  if (!anniversaryEnabled(next.siteMeta)) {
-    const withoutAnniversary = (nav: SiteContent['siteMeta']['primaryNav']) => nav.filter((item) => !isAnniversaryHref(item.href))
-    // 後台選單只有 30 週年時，拿掉後是空的：跟「選單至少要有一項」一樣退回內建選單（也拿掉 30 週年）。
-    const nav = withoutAnniversary(next.siteMeta.primaryNav)
-    next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : withoutAnniversary(content.siteMeta.primaryNav) }
-    next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isAnniversaryHref(link.href)) }
-  }
-
-  // 最新消息關閉時（2026-11-11），主選單與頁尾不留連到最新消息的連結（/news、單篇、首頁那一章的錨點）：
-  // 頁面會導回首頁、首頁也沒有那一章。做法同上面的 30 週年。
-  if (!newsEnabled(next.siteMeta)) {
-    const sectionId = next.news.sectionId
-    const withoutNews = (nav: SiteContent['siteMeta']['primaryNav']) => nav.filter((item) => !isNewsHref(item.href, sectionId))
-    const nav = withoutNews(next.siteMeta.primaryNav)
-    next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : withoutNews(content.siteMeta.primaryNav).filter((item) => anniversaryEnabled(next.siteMeta) || !isAnniversaryHref(item.href)) }
-    next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isNewsHref(link.href, sectionId)) }
+  const hiddenHrefs = [
+    ...(anniversaryEnabled(next.siteMeta) ? [] : [isAnniversaryHref]),
+    ...(admissionEnabled(next.siteMeta) ? [] : [isAdmissionHref]),
+    ...(newsEnabled(next.siteMeta) ? [] : [(href: string) => isNewsHref(href, next.news.sectionId)])
+  ]
+  if (hiddenHrefs.length) {
+    const visible = <T extends { href: string }>(links: T[]) => links.filter((link) => !hiddenHrefs.some((isHidden) => isHidden(link.href)))
+    // 後台選單只剩被隱藏的頁時，拿掉後是空的：跟「選單至少要有一項」一樣退回內建選單（同樣拿掉被隱藏的頁）。
+    const nav = visible(next.siteMeta.primaryNav)
+    next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : visible(content.siteMeta.primaryNav) }
+    next.footer = { ...next.footer, links: visible(next.footer.links) }
   }
 
   return next

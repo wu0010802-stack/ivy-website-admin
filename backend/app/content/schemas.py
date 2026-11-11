@@ -367,6 +367,10 @@ class SiteMetaPayload(_ContentPayload):
     # 主選單、頁尾、sitemap、llms.txt 都拿掉最新消息。後台照常可以編輯與發布消息，
     # 只是官網不顯示。預設開，舊版本照常顯示。
     news_enabled: bool = True
+    # 入學資訊分頁（2026-11-11）：關閉時官網 /admission 回 404，主選單、頁尾、
+    # sitemap、llms.txt 與其他頁的連結都拿掉入學資訊。預設開，舊版本照常顯示。
+    # 入學資訊頁的內容（admission_content）照常能編輯與預覽。
+    admission_enabled: bool = True
 
     @model_validator(mode="before")
     @classmethod

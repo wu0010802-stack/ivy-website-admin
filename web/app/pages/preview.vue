@@ -14,7 +14,7 @@ import {
 } from '~/utils/draft-preview'
 import { createLiveReceiver, type HighlightHit, type LiveDraft, type LiveOverride, type LiveReceiver } from '~/utils/preview-live'
 import { activatePreviewBlock, highlightPreview } from '~/utils/preview-highlight'
-import { anniversaryEnabled } from '~/utils/seo'
+import { admissionEnabled, anniversaryEnabled } from '~/utils/seo'
 
 // 私有草稿預覽殼：整頁 client-only，SSR 完全不輸出任何內容或管理端
 // 資料，避免管理 session cookie／草稿內容混進公開快取或搜尋引擎快照。
@@ -222,8 +222,8 @@ onBeforeUnmount(() => {
         <SiteHeader :content="draft" :hero="page === 'home'" />
         <AdmissionContent v-if="page === 'admission'" :admission="draft.admission" :campuses="draft.campuses" />
         <CurriculumContent v-else-if="page === 'curriculum'" :page="draft.curriculumPage" />
-        <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" :anniversary="anniversaryEnabled(draft.siteMeta)" />
-        <EnvironmentContent v-else-if="page === 'environment'" :campuses="draft.campuses" :page="draft.environmentPage" />
+        <AboutContent v-else-if="page === 'about'" :campuses="draft.campuses" :page="draft.aboutPage" :anniversary="anniversaryEnabled(draft.siteMeta)" :admission="admissionEnabled(draft.siteMeta)" />
+        <EnvironmentContent v-else-if="page === 'environment'" :campuses="draft.campuses" :page="draft.environmentPage" :admission="admissionEnabled(draft.siteMeta)" />
         <NewsIndexContent v-else-if="page === 'news'" :news="draft.news" :campuses="draft.campuses" :today="date" />
         <PrivacyPolicyContent v-else-if="page === 'privacy' && draft.privacyPolicy" :policy="draft.privacyPolicy" />
         <main v-else-if="page === 'privacy'" id="main" tabindex="-1">
