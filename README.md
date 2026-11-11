@@ -39,7 +39,7 @@
 - **首頁手機版較重（three.js 538 KB、週年投影圖 462 KB）不改**：只有每個工作階段第一次進首頁才載（布幕開場），減少動態、省流量、慢速連線都略過，動態載入且逾時就放棄（`web/app/utils/entrance-policy.ts`）；正式站有 brotli。屬於已做過取捨的設計。
 - **正式站唯讀檢查（未登入）**：`/privacy` 404、公開內容沒有 `privacyPolicy`；義華預約模式是 `slots`、`privacy_notice` 空白，所以預約表單目前沒有任何個資告知入口。要園方在後台「全站與素材 → 隱私權政策」發布（擬稿在 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A）；本輪沒有改任何正式站設定或內容。
 - **驗證**（Node 22，雲端容器，`LANG=C.UTF-8`）：`npm run test:e2e:stack` 170 passed、30 skipped、0 failed（改之前同環境 2 failed）；`npm run test:e2e` 34 passed、6 skipped；web `typecheck` 通過、`test:unit` 133 檔 1789 passed。只用 Chrome，沒有測 Safari／Firefox。
-- 提交在 `claude/dazzling-albattani-ogf1as`（draft PR），未併入 main、未部署。
+- 由 PR #65 併入 main（使用者要求）；只動測試輔助與文件，正式站行為不變。
 
 ## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
 
