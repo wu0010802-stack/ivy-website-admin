@@ -7,6 +7,8 @@
 // 各校不同或沒有資料的（作息時間、交通車、課後延托、學費金額、生病規定）不寫，請家長直接問校區。
 // 這頁不放預約參觀入口（2026-09-28 裁定）：「怎麼預約參觀」只寫頁首按鈕在哪、列各校電話，不連到 /visit。
 
+import type { AdmissionContent, Campus } from '../types/site-content'
+
 export type AdmissionFaqSlot = 'allowance' | 'refunds' | 'phones'
 
 export interface AdmissionFaqItem {
@@ -118,3 +120,56 @@ export const ADMISSION_FAQ: AdmissionFaqGroup[] = [
     ]
   }
 ]
+
+/** 這題要不要出現：讀後台內容的題目，內容清空就整題拿掉（頁面、結構化資料、llms.txt 共用）。 */
+export function admissionFaqVisible(item: AdmissionFaqItem, admission: Pick<AdmissionContent, 'allowance' | 'subsidies' | 'refunds'>): boolean {
+  if (item.slot === 'allowance') return admission.allowance.length > 0 || admission.subsidies.length > 0
+  if (item.slot === 'refunds') return admission.refunds.length > 0
+  return true
+}
+
+const sentence = (text: string) => {
+  const value = text.replace(/\s+/g, ' ').trim()
+  return !value || /[。！？；：]$/.test(value) ? value : `${value}。`
+}
+
+/** 插在答案後面的後台內容，攤平成和頁面上同一份資訊的句子。 */
+function slotText(item: AdmissionFaqItem, admission: AdmissionContent, campuses: Pick<Campus, 'name' | 'phone'>[]): string[] {
+  if (item.slot === 'phones') {
+    const phones = campuses.filter((campus) => campus.phone).map((campus) => `${campus.name} ${campus.phone}`)
+    return phones.length ? [`各校電話：${phones.join('、')}。`] : []
+  }
+  if (item.slot === 'allowance') {
+    const out = admission.subsidies.map((subsidy) => sentence(`${subsidy.by}${subsidy.amount}${subsidy.unit}（${subsidy.who}）`))
+    if (admission.allowance.length) {
+      out.push(sentence(`${admission.allowanceTitle}：${admission.allowance.map((row) => `${row.order}每月 ${row.amount} 元`).join('、')}`))
+      if (admission.allowanceNote) out.push(sentence(admission.allowanceNote))
+    }
+    return out
+  }
+  if (item.slot === 'refunds') {
+    const out = admission.feeIntro ? [sentence(admission.feeIntro)] : []
+    for (const refund of admission.refunds) {
+      const groups = refund.groups.map((group) => `${group.label ? `${group.label}：` : ''}${group.lines.join('；')}`).join('。')
+      out.push(sentence(`${refund.title}——${groups}`))
+      if (refund.note) out.push(sentence(refund.note))
+    }
+    out.push('實際金額以學校開的退費單據為準。')
+    return out
+  }
+  return []
+}
+
+export interface AdmissionFaqEntry { id: string; q: string; a: string }
+
+/**
+ * 常見問題的純文字版（2026-11-11，/admission 的 FAQPage 結構化資料與 llms.txt 用）：題目、順序、
+ * 顯示條件都和頁面上的 `<details>` 同一份，後台內容的區塊（津貼表、退費條款、各校電話）攤平成句子，
+ * 不另寫頁面上沒有的答案。沒有答案文字的題目不列。
+ */
+export function admissionFaqEntries(admission: AdmissionContent, campuses: Pick<Campus, 'name' | 'phone'>[]): AdmissionFaqEntry[] {
+  return ADMISSION_FAQ.flatMap((group) => group.items)
+    .filter((item) => admissionFaqVisible(item, admission))
+    .map((item) => ({ id: item.id, q: item.q, a: [...item.a.map(sentence), ...slotText(item, admission, campuses)].filter(Boolean).join('') }))
+    .filter((entry) => entry.a)
+}

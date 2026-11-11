@@ -1,3 +1,71 @@
+## 2026-11-11 後台 QA：粉專頁校區下拉縮成箭頭、手機編輯頁「放棄修改」超出畫面（`fix/admin-qa-20261111`）
+
+用總管理者帳號唯讀巡檢正式站後台：側欄 35 頁＋招生統計 11 分頁（桌機），再用 390px 同源 iframe 跑 36 頁手機寬度。沒有 JS 錯誤、沒有 4xx/5xx。修三處：
+
+- **Facebook 貼文頁（桌機）**：選到還沒接粉專的分校時沒有「立即同步」鈕，頁首動作區只剩校區下拉，沒寬度縮成 44px、看不到校名。`FacebookPostsView.vue` 給下拉固定 160px（720px 以下 100%），比照參觀場次頁。
+- **內容編輯頁（手機）**：`ContentEditor.vue` 底部操作列直排時還留著桌機的 `flex-wrap: wrap`，摘要那一列寬度變成文字全長，「放棄修改」超出畫面、整頁可橫向捲 8px（從沒發布過的頁面一改就會遇到，例如隱私權政策）。直排改 `nowrap`，摘要照原設計省略。
+- Facebook 貼文頁同步說明「，」後面多一個空白。
+- 驗證：新增 3 個測試先紅後綠；引用到這兩個元件的 19 個測試檔 476 過；`npm --prefix admin run build` 過；兩條都在正式站畫面注入同樣的 CSS 量過；admin 全套 173 檔 3350 過。stack e2e 本機沒跑。
+- 沒修、待決定：SMTP 未設、門牌逾 35 天、評鑑同步 ConnectTimeout（都和 11-06 相同）；隱私權政策初稿沒動也會跳「離開前要儲存嗎？」；粉專轉進素材庫的檔名一律 `facebook.jpg`／`facebook.mp4`；側欄搜「臉書」第一筆是五校介紹；正式站測試案件 4 筆還沒標記到場。
+## 2026-11-11 搜尋與 AI 助理（SEO／GEO）補強（`feature/seo-geo-20261111`）
+
+使用者要求優化 SEO 與 GEO。盤點正式站（`web-production-04caa.up.railway.app`，目前全站 noindex）各頁實際輸出後，最大的缺口是：10-03 拿掉分校頁以後，五校的地址只剩 noindex 而且被 robots.txt 擋掉的 `/visit` 讀得到，首頁 HTML 只有輪播當下那一校；開放收錄後搜尋引擎與 AI 助理都拿不到四校的地址。頁面上的字與版面都沒動，改的是 `<title>`、分享標記、結構化資料、robots、sitemap、llms.txt。
+
+**使用者裁定兩項（同日）**
+
+- **預約頁開放收錄**（取代 10-12 的 noindex）：`/visit`、`/visit/<校>` 照全站收錄開關，進 sitemap；`/visit/<校>` 是各校的搜尋入口，也給 Google 商家檔案連。`/visit/manage` 照舊不收。仍不進後台「各頁搜尋與分享」，標題描述用內建。
+- **搜尋標題結尾改成「常春藤幼兒園」**：內頁與預約頁的標題結尾從品牌名「常春藤教育機構」改成「常春藤幼兒園」（`seo.ts` 的 `TITLE_BRAND`，後台提示字 `pageSeoDefaults.ts` 同步）。原本選了加「高雄」，使用者看過後說**標題不要加「高雄」**；首頁標題維持「常春藤幼兒園｜每一天都有新發現」不動。
+
+**其餘改動**
+
+- **首頁結構化資料加回五校**（`web/app/utils/seo.ts` `campusNode`）：`Preschool` ×5，校名、地址（拆縣市與行政區）、電話（國際寫法）、地圖連結、各校自己的社群、沿革年份，網址是各校預約頁。機構節點加別名「常春藤幼兒園」、服務範圍（高雄市）、`subOrganization`。不輸出經緯度、營業時間、收費、評分。
+- **每一頁都帶機構與網站節點**：內頁原本的 `isPartOf`／`publisher` 指到只有首頁才定義的 `@id`。預約頁新增結構化資料（頁面、麵包屑；`/visit/<校>` 另帶那一校的 `Preschool`，和首頁同一個 `@id`）。
+- **入學頁常見問題的結構化資料**（`FAQPage`，11 題）：和頁面上同一份問答（`web/app/utils/admission-faq.ts` `admissionFaqEntries`），津貼表、退費條款、各校電話攤平成句子；後台清空的題目一起拿掉。頁面的顯示條件改用同一個函式（`admissionFaqVisible`）。
+- **llms.txt**：補一句話介紹、五校地址電話、常見問題 11 題；「預約參觀」那行原本寫成每一校都能線上選場次，改成和預約頁一致的說法。
+- **robots.txt**：`Disallow: /visit` 改成只擋 `/visit/manage`。`web/server/middleware/preview-headers.ts`：`/visit` 的 `X-Robots-Tag` 改成部署沒開索引才送（同首頁）。
+- **分享標記**：全站加 `og:site_name`；單篇消息 `og:type=article`＋`article:published_time`，封面沒有說明時用標題。
+- **檢查腳本** `scripts/check-public-seo.mjs`：從只查首頁擴到七個固定頁，加查五校節點、常見問題錨點、`og:site_name`、robots、llms.txt、預約頁標頭與 sitemap；本機用 `*.localhost` 當正式主機名可驗開放收錄的樣子（用法在檔頭）。
+- **外部項目**（Search Console、Bing Webmaster、各校 Google 商家檔案）見 `docs/website-admin/seo-performance.md`。
+
+**驗證**（Node 22.23.2）：web typecheck 通過；`npm run test:website` 133 檔 1802 項全過（`seo.spec.ts`、`web-ux-20261029.spec.ts`、`preview-headers.spec.ts` 共新增 13 項）；admin 讀到這次改動檔案的 6 個測試檔 189 項通過（機器負載高，放寬逾時、單一 worker 跑；預設 5 秒逾時下有一批逾時失敗，放寬後全過）。dev server（fixture，`https://ivy.localhost`）開放收錄與未開放兩種模式 `check-public-seo.mjs` 都 PASS；逐頁看過標題、robots、canonical、結構化資料，`/sitemap.xml` 列出 `/visit` 與五個 `/visit/<校>`，`/visit/manage` 兩種模式都 noindex。**未跑**：admin 全套、stack／e2e、後端測試（沒動後端與 fixture；`tests/e2e/public-site.spec.ts` 只改了測試名稱）。未 commit、未部署；正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，開放收錄前只有標題與分享標記的改動看得到。
+
+## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
+
+使用者要把 `www.ivykidschool.com` 從 Wix 移到 Cloudflare（Registrar＋DNS）、網站接 Railway，本輪只準備、不切換。完整步驟、DNS 紀錄表、對照表與待提供資料在 `docs/website-admin/migration-checklist.md`。
+
+- **舊 Wix 網址 301**：`web/server/utils/site-redirects.ts` 的對照表（舊站 sitemap 30 個網址，22 個有對應、8 個待確認照常 404），`web/server/middleware/00.site-redirects.ts` 只轉 GET／HEAD、保留查詢字串。
+- **主網域轉址**：web 新變數 `NUXT_REDIRECT_HOSTS`，預設空白不轉；設了以後列入的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 例外（CI 驗證、LINE webhook 照常）。
+- **robots.txt**：開放收錄後只有正式網址那台主機放行，其他主機 `Disallow: /`。
+- **過渡期雙網域寫入**：api 新變數 `WEBSITE_ADMIN_EXTRA_ORIGINS`；原本後台寫入、家長修改頁、重設密碼只認一個 Origin，換網域時另一邊會 403。
+- 未 commit、未部署；正式環境變數與 DNS 都沒動。
+## 2026-11-11 特色教學扁長顏料團不再被切成直線（`fix/curriculum-blot-edge-20261111`）
+
+使用者指出 /curriculum「一年一年學」的天藍水彩下緣被切開，接著指出年段「4 歲」也有。
+
+- 兩種原因，都在 `data-blot` 顏料團（不是段落 canvas）：(1) 約 4:1 的扁長框變形外擴超出框高，背景圖被切（一年一年學、理念最長兩條）；(2) 基底多邊形反折，團內疊出直邊與分離小塊（4 歲、五件事 03）。
+- `web/app/utils/watercolor.ts` 新增 `blotPolygons`／`fitInside`／`foldRatio`／`selfIntersects`：超出框才改走「2:1 變形再拉伸」，反折面積超過 0.5% 才重抽基底。頁面 21 塊只換有問題的 5 塊，其他逐點相同。細節與否決做法見 DESIGN.md 同日章節。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 132 檔全過（`watercolor.spec.ts` 新增 9 項，未修正版紅燈已確認）；dev server（fixture）Playwright 在 1512／1100／390 讀每個顏料團背景圖四邊的 alpha：正式站三種寬度各 3 塊被切，修正後 0 塊；21 塊總表與 4 歲、03、一年一年學、理念清單前後截圖確認形狀自然。
+- 11-11 已部署 main（`b6c112d1`，連同 node-forge 1.4.3 與 VAPID 偶發測試修正，最後 `801f80b1`）；CI 全綠含 stack e2e。未驗證：實機。
+
+## 2026-11-10 環境頁「情緒安撫」「定時消毒」換義華 NAS 照片（同分支 `feature/cur-activities-582-20261110`）
+
+使用者看過雲端與 NAS 兩輪候選後指定：消毒換 NAS #13439、安撫換 NAS #3273。
+
+- **定時消毒** `env-care-clean` ← 「2026/2026-08-04 開學日Day2／8月4日 開學第二天／5D4A0223.JPG」（6720×4480）：女孩背對鏡頭在洗手台前洗手。母檔裁 x0–6300、y1000–4000 → 2100×1000（和舊檔一樣約 2.1:1，切掉右緣粉紅衣服），半圓焦點 `36% 64%`。取代戴口罩擦門把的舊照；文案「每日定時教室消毒」沒改，照片是洗手、不是消毒。
+- **情緒安撫** `env-care-comfort` ← 「2024/2024-12-10 照片／未命名檔案夾／5D4A2780.JPG」（6720×4480）：大人抱著剛哭過的女孩替她擦臉。母檔裁 x1500–6300、y600–4200 → 1600×1200，拱形焦點 `48% 36%`。大人是老師還是家長看不出來，替代文字只寫「大人」；**上線前要請園方確認身分與肖像同意**。這張同時用在 /about「情緒」那格（`about-content.ts` 替代文字一起改）。
+- `optimize-site-images.py --only env-care-clean`、`--only env-care-comfort` 重產 WebP／AVIF，舊雜湊 18 個 `git rm`；`environment-render.spec.ts` 兩份渲染快照 `-u` 更新（只差這兩格的替代文字、雜湊與焦點）。
+- **取原檔**：NAS 直連只在園區網路通；改走 QuickConnect 中繼 DSM。第一張用頁面 `<a download>` 落到「下載項目」，第二張被 Chrome 的連續下載封鎖（無提示、檔案不落地），經使用者同意建了一筆暫時的 File Station 分享連結、curl 抓完立即刪除（分享清單查無、連結 302）。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 130 檔 1750 項全過；dev server Playwright 1440／390 環境頁兩格截圖確認、無 4xx。/about「情緒」那格的圖在互動層裡、預設不可見，沒有截到圖。
+- 未驗證：stack e2e、實機。**未 commit、未部署。**
+
+## 2026-11-10 特色教學「課程活動」換種苗校外教學照（`feature/cur-activities-582-20261110`）
+
+使用者要我替四個位置找替換照片，從園方雲端「未分類素材區／照片」761 張挑候選後，課程活動選了 #582。
+
+- **換的照片**：`cur-activities` ← 「20250317 種苗校外教學／種苗_-6676.jpg」（Canon 3526×2355、sRGB），穿園服的女孩捧著種子仰頭大笑。母檔裁 x700–3100、y0–1800 → 1600×1200 q88（左邊兩個孩子裁掉，左下角留一點辮子頭頂）；`scripts/optimize-site-images.py --only cur-activities` 重產 WebP／AVIF、更新 manifest，舊雜湊 7 個 `git rm`。
+- **焦點**：`CurriculumContent.vue` position 改 `38% 42%`。桌機 4:5 框只容得下原圖寬度的六成，她雙手張開的姿勢放不完整；38% 讓臉、拿種子的手和伸出去的手臂都在框內，最遠那隻拳頭出框。平板與手機 4:3 不裁切、整張都在。替代文字改「戶外教學到苗圃，女孩捧著種子仰頭大笑」。
+- **驗證**（Node 22）：web typecheck 通過；web 單元 130 檔 1750 項全過；本機 dev server（fixture）Playwright 1440×900 與 390×844 截圖確認，載到新雜湊 AVIF。
+- 未驗證：stack e2e、實機。**未 commit、未部署。** 照片肖像同意與攝影授權同園方雲端其他活動照。
 ## 2026-11-10 30 週年紀念影片《長成自己喜歡的樣子》（`design/anniversary-film-20261110/`）
 
 使用者要「做一隻常春藤 30 週年的影片，不計時間與成本，用一切可以運用的技術，媲美專業工作者的成品」。自訂主題：片名取自頁尾「陪伴每一個孩子，長成自己喜歡的樣子。」；開場兩幕是原創的〈星圖〉——五所校園是深綠夜空裡依序點亮的五顆星，連成的星座就是五校在高雄的真實位置。企劃與分鏡在 `TREATMENT.md`，做法與重建步驟在該資料夾 `README.md`。

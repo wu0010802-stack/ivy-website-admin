@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   indexingEnabled: true,
   siteOrigin: 'https://ivy.example',
   allowIndexing: undefined as boolean | undefined,
+  host: 'ivy.example',
   loads: 0
 }))
 
@@ -32,9 +33,11 @@ beforeEach(() => {
   state.indexingEnabled = true
   state.siteOrigin = 'https://ivy.example'
   state.allowIndexing = undefined
+  state.host = 'ivy.example'
   state.loads = 0
   vi.stubGlobal('defineEventHandler', (handler: unknown) => handler)
   vi.stubGlobal('createError', createError)
+  vi.stubGlobal('getRequestHeader', (_event: unknown, name: string) => (name.toLowerCase() === 'host' ? state.host : undefined))
   vi.stubGlobal('setResponseHeader', (_event: unknown, name: string, value: string) => { headers[name] = value })
   vi.stubGlobal('useRuntimeConfig', () => ({
     websiteEnv: 'test',
@@ -58,6 +61,8 @@ describe('搜尋引擎收錄的閘門', () => {
     expect(crawlerIndexable(true, '', { allowIndexing: true })).toBe(false)
     expect(robotsTxt('https://ivy.example', false)).toBe('User-agent: *\nDisallow: /\n')
     expect(robotsTxt('https://ivy.example', true)).toContain('Sitemap: https://ivy.example/sitemap.xml')
+    // 預約頁開放收錄（2026-11-11），只擋帶個人連結的修改預約頁
+    expect(robotsTxt('https://ivy.example', true).split('\n')).toEqual(['User-agent: *', 'Disallow: /admin', 'Disallow: /preview', 'Disallow: /visit/manage', 'Disallow: /api/', 'Sitemap: https://ivy.example/sitemap.xml', ''])
     expect(EMPTY_SITEMAP).not.toContain('<url>')
   })
 
@@ -76,6 +81,15 @@ describe('搜尋引擎收錄的閘門', () => {
     expect(headers['Content-Type']).toBe('text/plain; charset=utf-8')
     expect(await (await route('sitemap.xml'))({})).toBe(EMPTY_SITEMAP)
     await expect((await route('llms.txt'))({})).rejects.toMatchObject({ statusCode: 404 })
+  })
+
+  it('網域移轉：正式網址以外的主機（Railway 暫用網址、apex）robots.txt 全擋，不讀內容', async () => {
+    state.allowIndexing = true
+    state.host = 'web-production-04caa.up.railway.app'
+    expect(await (await route('robots.txt'))({})).toBe('User-agent: *\nDisallow: /\n')
+    state.host = 'IVY.EXAMPLE:443'
+    expect(await (await route('robots.txt'))({})).toContain('Disallow: /admin')
+    expect(state.loads).toBe(1)
   })
 
   it('部署沒開正式索引：不讀內容就全擋，後台允許也一樣', async () => {

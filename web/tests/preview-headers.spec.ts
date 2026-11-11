@@ -48,13 +48,22 @@ describe('預覽與家長修改頁的快取與索引標頭', () => {
     }
   })
 
-  it('其他 /visit 頁只是不索引，維持可進 back/forward cache', async () => {
+  // 2026-11-11 預約頁開放收錄：和首頁一樣，部署沒開索引才送 noindex。
+  it('其他 /visit 頁維持可進 back/forward cache；開放索引時不送 noindex', async () => {
     const base = await serve()
-    for (const path of ['/visit', '/Visit', '/visit/done']) {
+    for (const path of ['/visit', '/Visit', '/visit/yihua']) {
       const response = await fetch(`${base}${path}`)
       expect(response.headers.get('cache-control'), path).toBe('no-cache, max-age=0')
-      expect(response.headers.get('x-robots-tag'), path).toBe('noindex, nofollow')
+      expect(response.headers.get('x-robots-tag'), path).toBeNull()
       expect(response.headers.get('referrer-policy'), path).toBeNull()
+    }
+  })
+
+  it('部署沒開索引時 /visit 頁送 noindex；/visit/manage 不管開關都 noindex', async () => {
+    const base = await serve(false)
+    for (const path of ['/visit', '/visit/yihua', '/visit/manage']) {
+      const response = await fetch(`${base}${path}`)
+      expect(response.headers.get('x-robots-tag'), path).toBe('noindex, nofollow')
     }
   })
 

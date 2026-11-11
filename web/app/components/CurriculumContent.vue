@@ -30,7 +30,8 @@ const YEARS = [
 // 照片取自機構站的課程照（圓形裁切，這裡裁內接 4:3）；校別不明，不標。品德培養沒有照片，改成印在一片橙色顏料上的引言。
 // layout 對應 curriculum.css 的錯落排法；wash 是照片背後那團顏料（格式見 utils/watercolor.ts 的 parseWash）。
 // alt 是內建照片的說明；後台換了照片就用後台的說明。
-// 2026-10-30 課程活動改用園方雲端的活動照（濕地戶外教學），4:5 位置 48% 是一排指著樹林的孩子；平板與手機 4:3 不裁切。
+// 2026-11-10 課程活動換成園方雲端「20250317 種苗校外教學」種苗_-6676（3526×2355，母檔裁 x700–3100、y0–1800 → 1600×1200），
+// 捧著種子大笑的女孩；4:5 位置 38% 讓兩隻手和臉都在框內，平板與手機 4:3 不裁切。10-30 那張濕地指樹林的照片不用了。
 // 2026-11-03 統整課程、多元文化、自主學習改用園方雲端「115招生照片」（推測崇德校、待園方確認，校別不標；原檔被 LINE 壓到 1477×1108，
 // 母檔照原尺寸不放大）：統整 4:5 置中是拉吊環、爬繩梯、盪鞦韆的孩子；多元文化 25% 讓外師和圍坐的孩子都在框內。
 // 同日自主學習再換成明華校 FB 粉專的外師科學課（2024-09-28 貼文，原圖 2048×1365，母檔置中裁 4:3）。
@@ -41,7 +42,7 @@ const DIRECTIONS = [
   { key: 'multicultural', image: 'cur-multicultural', alt: '外籍老師坐在教室地板上，拿著動物模型和動物圖卡，孩子們圍坐著笑', wash: 'sky,.56,.58,.66,.56', position: '25% 50%' },
   { key: 'quote' },
   { key: 'autonomy', image: 'cur-autonomy', alt: '男孩握著滴管，把顏色一滴滴加進桌上的水杯，老師在身後扶著他', wash: 'sun,.46,.6,.62,.6' },
-  { key: 'activities', image: 'cur-activities', alt: '戶外教學走到濕地步道，孩子們一起指著樹林裡的發現', wash: 'mint,.56,.6,.66,.56', position: '48% 50%' },
+  { key: 'activities', image: 'cur-activities', alt: '戶外教學到苗圃，女孩捧著種子仰頭大笑', wash: 'mint,.56,.6,.66,.56', position: '38% 42%' },
   { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 760px) 80vw, (max-width: 1100px) 100vw, 800px' }
 ] satisfies { key: string, image?: string, alt?: string, wash?: string, position?: string, sizes?: string }[]
 

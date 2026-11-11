@@ -113,6 +113,94 @@ function canvas(width: number, height: number) {
   return { el, ctx: el.getContext('2d')! }
 }
 
+/** 把多邊形各軸分開往 (cx, cy) 壓，讓所有點落在半寬 hx、半高 hy 的框內；本來就在框內就原樣回傳。
+ *  回傳新的點：washPolygons 的各層共用基底的點物件（deform 直接沿用上一輪的點），就地改會讓同一點被縮放好幾次。 */
+export function fitInside(polys: Point[][], cx: number, cy: number, hx: number, hy: number): Point[][] {
+  let dx = 0, dy = 0
+  for (const poly of polys) for (const [x, y] of poly) { dx = Math.max(dx, Math.abs(x - cx)); dy = Math.max(dy, Math.abs(y - cy)) }
+  return scalePolygons(polys, cx, cy, dx > hx ? hx / dx : 1, dy > hy ? hy / dy : 1)
+}
+
+function scalePolygons(polys: Point[][], cx: number, cy: number, sx: number, sy: number): Point[][] {
+  if (sx === 1 && sy === 1) return polys
+  return polys.map((poly) => poly.map(([x, y]): Point => [cx + (x - cx) * sx, cy + (y - cy) * sy]))
+}
+
+/** 扁長的顏料團最多先用幾比一的橢圓變形，剩下的比例再拉伸（見 blotPolygons）。 */
+export const BLOT_MAX_ASPECT = 2
+
+/**
+ * 顏料團背景圖的多邊形，畫在 W×H 的 canvas 正中央。
+ * 半徑留在框內 ~1/3：變形後的邊最多推出去 1.5 倍，再大就會被 canvas 切成直線。
+ * 2026-11-11：「推出去 1.5 倍」只對接近方形的框成立。變形推的量和邊長成正比，扁長的框（年段的「一年一年學」、
+ * 理念清單，約 4:1）上下兩條長邊會被推出超過框高，背景圖在框的下緣切成一條水平直線。
+ * 所以照原本畫會超出框時，先用比例收斂到 BLOT_MAX_ASPECT 的橢圓變形、再沿長軸拉回原本的寬度：
+ * 上下推出去的量跟著高度走，形狀還是軟的。（直接把超出的那一軸壓回框內試過：整團被壓扁、變形的尖刺變成一條條直紋。）
+ * 最後 fitInside 只當保險：拉伸後仍超出的極少數點收回框內。沒超出框、基底沒反折的團（年齡、章節編號、首屏大標等）照舊，圖逐像素相同。
+ */
+export function blotPolygons(random: () => number, W: number, H: number): Point[][] {
+  const cx = W / 2, cy = H / 2, rx = W * 0.34, ry = H * 0.31
+  // 基底反折就重抽（2026-11-11，年段「4 歲」）：基底變形 2 輪時偶爾有一個點被推過頭，邊繞回去和自己交叉，
+  // 每一層都沿著同一個結走，反折處疊出一段一段的直邊和分離的小三角，看起來像被切開。
+  // 小交叉很常見（約六成的基底都有）而且看不出來，只換反折面積超過 BLOT_MAX_FOLD 的；其他團第一次就過，圖不變。
+  const paint = (ex: number, ey: number) => {
+    let base = washBase(random, cx, cy, ex, ey)
+    for (let retry = 0; retry < 8 && foldRatio(base) > BLOT_MAX_FOLD; retry++) base = washBase(random, cx, cy, ex, ey)
+    return Array.from({ length: 26 }, () => washLayer(random, base))
+  }
+  const polys = paint(rx, ry)
+  // 照原本畫沒超出框就用它；只有真的會被切的團才改走拉伸，沒被切的扁長團（首屏大標、短的理念）形狀不變
+  if (!polys.some((poly) => poly.some(([x, y]) => x < 1 || x > W - 1 || y < 1 || y > H - 1))) return polys
+  const ex = Math.min(rx, ry * BLOT_MAX_ASPECT), ey = Math.min(ry, rx * BLOT_MAX_ASPECT)
+  const stretched = ex === rx && ey === ry ? polys : scalePolygons(paint(ex, ey), cx, cy, rx / ex, ry / ey)
+  // 留 3px：描邊線寬 1、反鋸齒會再往外吃一點，只留 1px 時邊上那一列還有淡淡的顏料
+  return fitInside(stretched, cx, cy, cx - 3, cy - 3)
+}
+
+/**
+ * 反折面積佔多邊形面積的比例：在外框裡取 64×64 個點算環繞數，主要方向（+1 或 −1）以外的非零點都算反折。
+ * 正式站特色教學頁 21 塊：「4 歲」1.1%（分離小塊＋直邊）、五件事編號 0.7%（小缺口），其餘 ≤0.5% 看不出來（2026-11-11 總表）。
+ */
+export const BLOT_MAX_FOLD = 0.005
+export function foldRatio(points: Point[]): number {
+  if (!selfIntersects(points)) return 0
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+  for (const [x, y] of points) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y) }
+  const N = 64, counts = new Map<number, number>()
+  for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) {
+    const w = winding(points, x0 + (i + 0.5) * (x1 - x0) / N, y0 + (j + 0.5) * (y1 - y0) / N)
+    if (w) counts.set(w, (counts.get(w) ?? 0) + 1)
+  }
+  let inside = 0
+  for (const n of counts.values()) inside += n
+  return inside ? (inside - Math.max(counts.get(1) ?? 0, counts.get(-1) ?? 0)) / inside : 0
+}
+
+function winding(points: Point[], x: number, y: number) {
+  let w = 0
+  for (let i = 0; i < points.length; i++) {
+    const [ax, ay] = points[i]!, [bx, by] = points[(i + 1) % points.length]!
+    const side = (bx - ax) * (y - ay) - (x - ax) * (by - ay)
+    if (ay <= y) { if (by > y && side > 0) w++ } else if (by <= y && side < 0) w--
+  }
+  return w
+}
+
+/** 封閉多邊形有沒有兩條不相鄰的邊互相交叉。 */
+export function selfIntersects(points: Point[]): boolean {
+  const n = points.length
+  const cross = (o: Point, a: Point, b: Point) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
+  for (let i = 0; i < n; i++) {
+    const a = points[i]!, b = points[(i + 1) % n]!
+    for (let j = i + 2; j < n; j++) {
+      if (i === 0 && j === n - 1) continue
+      const c = points[j]!, d = points[(j + 1) % n]!
+      if (cross(a, b, c) * cross(a, b, d) < 0 && cross(c, d, a) * cross(c, d, b) < 0) return true
+    }
+  }
+  return false
+}
+
 /** 顏料團當背景圖（年齡、章節編號、引言底下那一團）；rgb 是 tokens.css 的三元組「r g b」。
  *  顏料邊緣本來就是軟的，長邊最多畫 384px（高 DPR 也一樣），放大看不出差別。 */
 export function blotCanvas(seed: number, rgb: string, width: number, height: number, dpr = 1) {
@@ -121,8 +209,7 @@ export function blotCanvas(seed: number, rgb: string, width: number, height: num
   const W = el.width, H = el.height, random = seededRandom(seed)
   ctx.fillStyle = `rgb(${rgb} / .085)`
   ctx.strokeStyle = `rgb(${rgb} / .14)`
-  // 半徑留在框內 ~1/3：變形後的邊最多推出去 1.5 倍，再大就會被 canvas 切成直線
-  washPolygons(random, W / 2, H / 2, W * 0.34, H * 0.31, 26).forEach((poly, i) => {
+  blotPolygons(random, W, H).forEach((poly, i) => {
     tracePolygon(ctx, poly)
     ctx.fill()
     if (i % 5 === 0) ctx.stroke()

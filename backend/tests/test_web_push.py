@@ -400,7 +400,10 @@ async def test_private_key_must_parse_and_pair_with_the_public_key():
     for bad_private in ("not-base64!!", "AAAA", PUBLIC_KEY, other_private[:-4]):
         with pytest.raises(ValidationError, match="VAPID_PRIVATE_KEY"):
             _settings(vapid_public_key=PUBLIC_KEY, vapid_private_key=bad_private, vapid_subject=SUBJECT)
-    for bad_public in ("AAAA", PRIVATE_KEY, "B" + PUBLIC_KEY[1:-1] + "A"):
+    # 公鑰每次隨機產生；65 位元組的最後一個字元只會是 A／Q／g／w，寫死換成 "A" 時約四分之一會和原本相同（2026-11-11 CI 因此紅過），
+    # 所以換成一定不同的字元：y 座標低位改掉，點就不在曲線上
+    tampered = PUBLIC_KEY[:-1] + ("Q" if PUBLIC_KEY[-1] == "A" else "A")
+    for bad_public in ("AAAA", PRIVATE_KEY, tampered):
         with pytest.raises(ValidationError, match="VAPID_PUBLIC_KEY"):
             _settings(vapid_public_key=bad_public, vapid_private_key=PRIVATE_KEY, vapid_subject=SUBJECT)
 

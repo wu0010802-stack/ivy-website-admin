@@ -142,7 +142,7 @@ function markBroken(id: string) {
   <div class="page page--narrow">
     <PageHeader lead="這一校 Facebook 粉專最近的貼文。按「轉成消息草稿」會把照片收進素材庫（影片貼文連影片一起）、在這校的消息最上面加一則草稿，檢查標題與照片說明後，照平常的方式送審或發布。">
       <template #actions>
-        <CampusSelect v-model="campus" :keys="visibleCampusKeys" />
+        <CampusSelect v-model="campus" class="fb-campus" :keys="visibleCampusKeys" />
         <el-button
           v-if="canManage && data?.configured"
           :loading="syncing"
@@ -166,11 +166,8 @@ function markBroken(id: string) {
         :description="`${campusLabel(campus)}還沒接上 Facebook 粉專。要先在 Meta Business Manager 把粉專授權給官網，再請技術人員在部署平台加上設定。`"
       />
       <template v-else>
-        <p class="fb-sync hint" role="status">
-          <template v-if="data.sync?.last_success_at">上次同步 {{ formatDateTime(data.sync.last_success_at) }}，</template>
-          <template v-else>還沒同步過，</template>
-          之後{{ intervalText }}自動同步一次。
-        </p>
+        <!-- 寫成一行：分行的話逗號和「之後」中間會多一個空白。 -->
+        <p class="fb-sync hint" role="status">{{ data.sync?.last_success_at ? `上次同步 ${formatDateTime(data.sync.last_success_at)}，` : '還沒同步過，' }}之後{{ intervalText }}自動同步一次。</p>
         <el-alert
           v-if="data.sync?.last_error"
           type="warning"
@@ -253,6 +250,10 @@ function markBroken(id: string) {
 </template>
 
 <style scoped>
+/* 頁首動作區的寬度跟著內容走：沒接粉專的分校沒有「立即同步」鈕，下拉不給寬度會縮到只剩箭頭。
+   寬度比照參觀場次頁的校區下拉。 */
+.fb-campus.el-select { width: 160px; }
+
 .fb-sync {
   margin: 0 0 12px;
 }
@@ -351,5 +352,10 @@ function markBroken(id: string) {
     aspect-ratio: auto;
     padding: 12px;
   }
+}
+
+/* 頁首在 720px 以下改直排（PageHeader），下拉跟「立即同步」一樣佔滿一行。 */
+@media (max-width: 720px) {
+  .fb-campus.el-select { width: 100%; }
 }
 </style>

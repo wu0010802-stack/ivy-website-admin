@@ -2,6 +2,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import FacebookPostsView from '../views/FacebookPostsView.vue'
+import viewSource from '../views/FacebookPostsView.vue?raw'
 import type { FacebookImportOut, FacebookPostListOut, FacebookPostOut } from '../api/types'
 import { canListNavItem, navItem } from '../router/nav'
 import { campusAdmin, cleanup, mockGet, mockPost, mountWith } from './admissionsTestKit'
@@ -66,6 +67,23 @@ describe('Facebook 貼文', () => {
     const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
     expect(wrapper.text()).toContain('還沒接上 Facebook 粉專')
     expect(button(wrapper, '立即同步')).toBeUndefined()
+  })
+
+  // 2026-11-11 QA：沒接粉專的分校沒有「立即同步」鈕，頁首動作區只剩下拉，
+  // 沒有固定寬度時縮成 44px、看不到校名。寬度比照參觀場次頁的校區下拉。
+  it('校區下拉有固定寬度，不靠旁邊的同步鈕撐開', async () => {
+    mockGet({ '/admin/facebook-posts': list({ configured: false, sync: null, posts: [] }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.page-header__actions .el-select').classes()).toContain('fb-campus')
+    expect(viewSource).toMatch(/\.fb-campus\.el-select \{ width: 160px; \}/)
+    const mobile = viewSource.slice(viewSource.lastIndexOf('@media (max-width: 720px)'))
+    expect(mobile).toMatch(/\.fb-campus\.el-select \{ width: 100%; \}/)
+  })
+
+  it('同步說明的逗號後面沒有多一個空白', async () => {
+    mockGet({ '/admin/facebook-posts': list() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.fb-sync').text()).toMatch(/^上次同步 [^，]+，之後每 1 小時自動同步一次。$/)
   })
 
   it('轉成消息草稿後提示去發布並重新載入', async () => {
