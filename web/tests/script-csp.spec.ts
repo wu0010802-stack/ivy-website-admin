@@ -4,7 +4,7 @@ import { join, relative } from 'node:path'
 import { createHooks } from 'hookable'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { entranceBootstrap } from '../app/utils/entrance-policy'
-import { ANNI_INTRO_GATE_SCRIPT, MOTION_LAYOUT_SCRIPT } from '../app/utils/inline-scripts'
+import { MOTION_LAYOUT_SCRIPT } from '../app/utils/inline-scripts'
 import { TURNSTILE_SCRIPT_SRC } from '../app/utils/turnstile'
 import { CLIENT_INLINE_SCRIPTS, inlineScriptHashes, publicScriptSources, scriptHashSource, TURNSTILE_ORIGIN } from '../server/utils/script-csp'
 import { ADMIN_CSP, publicCsp } from '../server/utils/security-headers'
@@ -42,7 +42,7 @@ describe('公開頁 script-src 的雜湊（2026-11-04 資安強化）', () => {
   })
 
   it('用戶端換頁會插入的 inline script，雜湊事先放進每一頁的 CSP', () => {
-    expect(CLIENT_INLINE_SCRIPTS).toEqual([MOTION_LAYOUT_SCRIPT, entranceBootstrap, ANNI_INTRO_GATE_SCRIPT])
+    expect(CLIENT_INLINE_SCRIPTS).toEqual([MOTION_LAYOUT_SCRIPT, entranceBootstrap])
     for (const body of CLIENT_INLINE_SCRIPTS) expect(publicCsp()).toContain(scriptHashSource(body))
     // 這一頁的雜湊加在後面，與事先登記的重複時不重列。
     const page = scriptHashSource('window.__NUXT__={}')
@@ -52,7 +52,7 @@ describe('公開頁 script-src 的雜湊（2026-11-04 資安強化）', () => {
 
   it('app 與 nuxt.config 的 inline script 一律取自登記過的常數（新增的沒登記，換頁插入時會被 CSP 擋）', () => {
     // useHead／app.head 的 script 本文只能是這幾個常數；JSON-LD 是資料區塊（不執行），style 不受 script-src 管。
-    const allowed = new Set(['MOTION_LAYOUT_SCRIPT', 'entranceBootstrap', 'ANNI_INTRO_GATE_SCRIPT', 'entranceCoverStyles', 'serializeJsonLd'])
+    const allowed = new Set(['MOTION_LAYOUT_SCRIPT', 'entranceBootstrap', 'entranceCoverStyles', 'serializeJsonLd'])
     const files: string[] = [join(webRoot, 'nuxt.config.ts')]
     const walk = (dir: string) => {
       for (const name of readdirSync(dir)) {

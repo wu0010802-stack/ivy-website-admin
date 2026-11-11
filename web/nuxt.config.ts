@@ -71,6 +71,8 @@ export default defineNuxtConfig({
     // 換內容就換網址，可以 immutable。只有授權說明 *-OFL.txt 沒有雜湊，逐檔退回字型目錄的一個月。
     // 新增沒有雜湊的檔案到這些目錄時，要在這裡補一條例外。
     '/assets/anniversary/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
+    // 2026-11-11：30 週年紀念影片的影片、預告、封面、縮圖（build-anniversary-film.py 產生，檔名都帶雜湊）
+    '/assets/anniversary-film/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/assets/fonts/subsets/**': { headers: { 'cache-control': 'public, max-age=31536000, immutable' } },
     '/favicon.ico': { headers: { 'cache-control': 'public, max-age=86400, stale-while-revalidate=604800' } }
   },

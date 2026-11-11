@@ -35,7 +35,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (page === 'curriculum') return curriculumHeroAttrs(site.value.curriculumPage)
     if (page === 'about') return aboutHeroAttrs(site.value.aboutPage)
     // 消息頁沒有滿版 hero，不預載。
-    // 30 週年首屏先播開場影片，海報圖已設 fetchpriority=high，不另外預載。
+    // 30 週年首屏是紀念影片的封面，圖已設 fetchpriority=high，不另外預載。
     if (page === 'news' || page === 'privacy' || page === 'anniversary') return undefined
     return heroImageAttrs(site.value.home.hero)
   })

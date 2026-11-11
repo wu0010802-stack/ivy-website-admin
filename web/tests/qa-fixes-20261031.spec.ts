@@ -6,42 +6,8 @@ import { describe, expect, it } from 'vitest'
 // 實際行為（Tab 轉圈、略過後靜音並停止、焦點不被黏底列蓋住、150% 字級不裁切）用 Playwright 在 320／390／1440 實測，數字見 README 同日段落。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, import.meta.url)), 'utf8')
 
-describe('30 週年開場：鍵盤焦點只在開場裡轉圈（C05）', () => {
-  const intro = read('app/components/AnniversaryIntro.vue')
-  it('根節點有 ref，Tab 與 Shift+Tab 在開場自己的按鈕首尾轉圈', () => {
-    expect(intro).toContain('ref="root"')
-    expect(intro).toContain('function trapTab(e: KeyboardEvent)')
-    expect(intro).toContain("if (e.shiftKey && (!inside || active === first)) { e.preventDefault(); last.focus({ preventScroll: true }) }")
-    expect(intro).toContain("else if (!e.shiftKey && (!inside || active === last)) { e.preventDefault(); first.focus({ preventScroll: true }) }")
-  })
-  it('開場期間（不只播放中）才攔 Tab，Esc 仍只在播放中略過', () => {
-    expect(intro).toMatch(/function onKey\(e: KeyboardEvent\) \{\s+if \(state\.value === 'off'\) return\s+if \(e\.key === 'Tab'\) trapTab\(e\)/)
-    expect(intro).toContain("else if (e.key === 'Escape' && state.value === 'play') { e.preventDefault(); leave(true) }")
-  })
-})
-
-describe('30 週年開場：略過就停聲音（C06）', () => {
-  const intro = read('app/components/AnniversaryIntro.vue')
-  it('按略過或 Esc 當下靜音，飛向相框那一秒多也不再出聲', () => {
-    expect(intro).toContain('if (skipped && v) { v.muted = true; muted.value = true }')
-  })
-  it('只有自然播完且開著聲音才等配樂尾巴', () => {
-    expect(intro).toContain('if (!skipped && v && !v.muted && !v.ended) {')
-  })
-  it('finish() 一律暫停影片，dialog 隱藏後不會有聲音留在背景', () => {
-    const finish = intro.slice(intro.indexOf('function finish() {'), intro.indexOf('function leave('))
-    expect(finish).toContain('video.value?.pause()')
-  })
-  it('離場與展開期間（按鈕看不見）鍵盤按「開聲音」或大播放鈕不會把聲音叫回來', () => {
-    expect(intro).toMatch(/function toggleSound\(\) \{\s+const v = video\.value\s+[^\n]*\n\s+if \(!v \|\| state\.value !== 'play'\) return/)
-    expect(intro).toMatch(/function playBlocked\(\) \{\s+const v = video\.value\s+if \(!v \|\| state\.value !== 'play'\) return/)
-  })
-  it('略過時 play() 被 pause() 中斷（AbortError）不算被瀏覽器擋下；重看時清掉 blocked', () => {
-    expect(intro).toContain("if (e?.name !== 'AbortError') blocked.value = true")
-    const replay = intro.slice(intro.indexOf('function replay() {'), intro.indexOf('function toggleSound('))
-    expect(replay).toContain('blocked.value = false')
-  })
-})
+// 2026-11-11：C05（開場的鍵盤焦點轉圈）與 C06（略過就停聲音）隨 30 秒開場動畫（AnniversaryIntro.vue）一起拿掉。
+// 新的紀念影片不是蓋住整頁的對話框：按了才播、用瀏覽器原生的控制列，暫停或捲走就停（tests/anniversary.spec.ts）。
 
 describe('預約第一步：手機黏底列不蓋住鍵盤聚焦的校區卡與撥號連結（C09）', () => {
   const css = read('app/assets/css/visit-booking.css')

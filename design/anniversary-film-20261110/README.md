@@ -52,6 +52,8 @@ python3 assemble.py
 # 直式 9:16：prepare_footage.py build --vertical、render.mjs ... --fmt=v、foley.py --vertical、mix_final.py --vertical、assemble.py --vertical
 ```
 
+放上官網（2026-11-11）：`python3 scripts/build-anniversary-film.py`（repo 根目錄的 scripts/）從這裡的分段與聲音重壓網頁版，連同無聲預告、封面、縮圖輸出到 `web/public/assets/anniversary-film/`；頁面是 `web/app/components/AnniversaryFilm.vue`。
+
 需要：ffmpeg、Python（numpy、scipy、Pillow、opencv-python-headless、torch CPU）、Node 22＋Playwright、
 LINE Seed TW（官方 zip）與 Source Sans 3 字型檔放在 `output/anniversary-film/fonts/`。
 園方影片要先下載到 `output/anniversary-film/src/minghua.mp4`、`graduation.mp4`。
