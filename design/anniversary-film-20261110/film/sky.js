@@ -1,9 +1,12 @@
 /* 第一、二幕〈星圖〉（第 0–1600 格）。
  *
- * 1997 年，深綠夜空裡一點光聚起來，在第 4 小節點亮成第一顆星（義華）；星光往水平拉成一道光，
- * 再上下張開成一扇寬銀幕光窗，裡面是義華校的實景。之後每一顆星在成立那一年的重拍點亮，
- * 金色星座線從上一顆星牽過來；2006–2019 是長曝光的星軌，日常照片像記憶一樣在星空裡亮一下；
- * 第 18 小節五顆星連成星座——星星的相對位置就是五校在高雄的真實位置（取自門牌座標）。
+ * 兩層：
+ * - 地方：五所校園是五顆星，相對位置就是五校在高雄的真實位置（取自門牌座標）。每顆在成立那一年的重拍點亮，
+ *   星光往水平拉成一道光、再上下張開成寬銀幕光窗，裡面是那所校園的實景；金色星座線從上一顆星牽過來。
+ * - 時間（2026-11-11 加的「三十年的星環」）：三十顆年份星排成一圈圍著星座，1997 在正上方、順時針一年一顆。
+ *   開場整圈都還沒亮；之後一年亮一顆（2006–2019 一個八分音符一顆，星空同時拉出星軌），第 18 小節前一拍
+ *   2022–2026 連續亮起，第 18 小節整圈合起來＝滿 30 年，左邊打出「30 週年　1997 — 2027」。
+ *   年份上方另有一行「第 N 年」。星環只在拉遠的鏡頭看得到（開場、星軌、星座），特寫時收掉。
  * 最後鏡頭衝進明華那顆星，白光接進明華的影片。
  *
  * 全部由 frame 決定。共用 film.js 的 clamp／lerp／prog／E／mulberry32／el／KText 等工具（film.js 載入後才會呼叫）。
@@ -23,11 +26,25 @@ for (const k of SKY_ORDER) {
   const c = SKY_CAMPUS[k];
   c.p = [(c.map[0] - 488) * 2.2, (c.map[1] - 470) * 2.2]; // 星空平面座標（北在上，與地圖相同）
 }
-const SKY_CENTROID = (() => {
-  let x = 0, y = 0;
-  for (const k of SKY_ORDER) { x += SKY_CAMPUS[k].p[0]; y += SKY_CAMPUS[k].p[1]; }
-  return [x / 5, y / 5];
+/* 三十年的星環：圓心是五校範圍的正中央（星空座標原點）。1997 是第 1 年、2026 是第 30 年，2027 滿 30 年＝整圈合起來。 */
+const SKY_RING_N = 30;
+const SKY_YEAR0 = 1997;
+const SKY_RING_CLOSE = 1440;
+/* 每一顆年份星點亮的格數：校園成立那年跟著校園星一起亮；中間的年份在鏡頭往下一顆星移動時亮；
+   2006–2019 一個八分音符一顆；2022–2026 在第 18 小節前一拍每個十六分音符一顆 */
+const SKY_RING_LIT = (() => {
+  const t = new Array(SKY_RING_N).fill(0);
+  const set = (year, f) => { t[year - SKY_YEAR0] = f; };
+  set(1997, 320); set(1998, 600); set(1999, 614); set(2000, 628); set(2001, 640);
+  set(2002, 772); set(2003, 782); set(2004, 792); set(2005, 800);
+  for (let i = 0; i < 14; i++) set(2006 + i, 958 + i * 10);
+  set(2020, 1120); set(2021, 1280);
+  for (let i = 0; i < 5; i++) set(2022 + i, 1416 + i * 5);
+  return t;
 })();
+const SKY_RING_CAMPUS = new Set(SKY_ORDER.map((k) => SKY_CAMPUS[k].year - SKY_YEAR0));
+const skyRingPoint = (i, R) => { const a = -Math.PI / 2 + (i / SKY_RING_N) * 2 * Math.PI; return [Math.cos(a) * R, Math.sin(a) * R]; };
+const skyLitCount = (f) => SKY_RING_LIT.reduce((n, t) => n + (f >= t ? 1 : 0), 0);
 const SKY_DAILY = ['cur-hero', 'day-hello', 'cur-kite', 'env-hero-hug', 'day-lunch', 'cur-floor-painting', 'about-curious',
   'day-outside', 'cur-activities', 'env-care-meal', 'cur-integrated', 'home-about', 'cur-daily-reading', 'cur-years'];
 
@@ -39,14 +56,20 @@ const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
 
 function skyLayout() {
   const V = typeof VERT !== 'undefined' && VERT;
+  // A／Zs：特寫時星的位置與縮放。Aw／Zw：拉遠時星環圓心的位置與縮放（星環半徑 ringR 是星空座標，
+  // 乘上 Zw×1.06 就是第 18 小節停住時畫面上的半徑：橫式 490px、直式 480px，剛好放進畫面，五校的標籤也都在圈內）。
   return V ? {
-    A: [540, 1190], Zs: 1.32, Zt: 0.84, Zc: 0.58, Ac: [540, 1180], Acc: [577, 1060], win: [940, 395],
-    year: { x: 78, y: 300, size: 196 }, name: { x: 84, y: 560, size: 58 }, hist: { x: 86, y: 652, size: 34 },
-    title: { x: 540, y: 250, size: 66, align: 'center' }, orbR: 360, orbD: 146, labelSize: 36,
+    A: [540, 1190], Zs: 1.32, Zw: 0.4922, Aw: [540, 1210], ringR: 920, win: [940, 395], meteor: [0.4, 1.1, 0.36, 0.62],
+    year: { x: 78, y: 300, size: 196 }, tag: { x: 88, y: 246, size: 32 }, name: { x: 84, y: 560, size: 58 }, hist: { x: 86, y: 652, size: 34 },
+    open: { x: 540, y: 520, size: 60, align: 'center' },
+    lock: { x: 540, y: 150, size: 250, unit: 58, range: { y: 418, size: 42 }, align: 'center' },
+    title: { x: 540, y: 500, size: 62, align: 'center' }, orbR: 290, orbD: 136, labelSize: 30,
   } : {
-    A: [1316, 540], Zs: 1.45, Zt: 0.8, Zc: 0.64, Ac: [1260, 556], Acc: [1260, 556], win: [1060, 446],
-    year: { x: 138, y: 250, size: 236 }, name: { x: 146, y: 548, size: 62 }, hist: { x: 148, y: 648, size: 38 },
-    title: { x: 146, y: 404, size: 66, align: 'left' }, orbR: 400, orbD: 150, labelSize: 36,
+    A: [1316, 540], Zs: 1.45, Zw: 0.5025, Aw: [1300, 540], ringR: 920, win: [1060, 446], meteor: [0.66, 1.08, -0.05, 0.34],
+    year: { x: 138, y: 250, size: 236 }, tag: { x: 150, y: 192, size: 34 }, name: { x: 146, y: 548, size: 62 }, hist: { x: 148, y: 648, size: 38 },
+    open: { x: 146, y: 452, size: 62, align: 'left' },
+    lock: { x: 132, y: 150, size: 300, unit: 64, range: { y: 468, size: 46 }, align: 'left' },
+    title: { x: 146, y: 560, size: 66, align: 'left' }, orbR: 290, orbD: 136, labelSize: 31,
   };
 }
 
@@ -54,7 +77,8 @@ function skyLayout() {
 function skyCamera(f) {
   const L = skyLayout();
   const st = (k, z) => ({ T: SKY_CAMPUS[k].p, A: L.A, Z: z, R: 0 });
-  const whole = (z, R = 0, A = L.Ac) => ({ T: SKY_CENTROID, A, Z: z, R }); // Ac：星軌全景；Acc：第 18 小節星座（直式要留兩側標籤的寬度）
+  // 拉遠：對準星環圓心（星空座標原點），整圈星環在畫面裡
+  const whole = (z, R = 0) => ({ T: [0, 0], A: L.Aw, Z: z, R });
   const mix = (a, b, t, dip = 0.3) => {
     const e = E.inOut(t);
     return {
@@ -63,25 +87,28 @@ function skyCamera(f) {
     };
   };
   const push = (k, f0, f1, z0, z1) => st(k, lerp(z0, z1, E.inOutSine(prog(f, f0, f1))));
-  const Zs = L.Zs;
+  const Zs = L.Zs, Zw = L.Zw;
   const tlR = (ff) => 0.75 * E.inOutSine(prog(ff, 962, 1092)); // 星軌時天空轉 43°
-  if (f < 588) return push('yihua', 0, 600, Zs * 0.86, Zs * 1.06);
-  if (f < 640) return mix(push('yihua', 0, 600, Zs * 0.86, Zs * 1.06), st('minghua', Zs), prog(f, 588, 640));
+  // 開場：先看整圈還沒亮的星環，再推進到義華的位置
+  if (f < 150) return whole(Zw * lerp(0.9, 1, E.inOutSine(prog(f, 0, 150))));
+  if (f < 300) return mix(whole(Zw), st('yihua', Zs * 0.9), prog(f, 150, 300), 0);
+  if (f < 588) return push('yihua', 300, 600, Zs * 0.9, Zs * 1.06);
+  if (f < 640) return mix(push('yihua', 300, 600, Zs * 0.9, Zs * 1.06), st('minghua', Zs), prog(f, 588, 640));
   if (f < 762) return push('minghua', 640, 780, Zs, Zs * 1.05);
   if (f < 800) return mix(push('minghua', 640, 780, Zs, Zs * 1.05), st('chongde', Zs), prog(f, 762, 800));
   if (f < 930) return push('chongde', 800, 950, Zs, Zs * 1.05);
-  if (f < 962) return mix(push('chongde', 800, 950, Zs, Zs * 1.05), whole(L.Zt), prog(f, 930, 962), 0.1);
-  if (f < 1092) return whole(L.Zt * lerp(1, 1.04, prog(f, 962, 1092)), tlR(f));
-  if (f < 1122) return mix(whole(L.Zt * 1.04, tlR(1092)), st('international', Zs), prog(f, 1092, 1122));
+  if (f < 962) return mix(push('chongde', 800, 950, Zs, Zs * 1.05), whole(Zw), prog(f, 930, 962), 0.06);
+  if (f < 1092) return whole(Zw * lerp(1, 1.04, prog(f, 962, 1092)), tlR(f));
+  if (f < 1122) return mix(whole(Zw * 1.04, tlR(1092)), st('international', Zs), prog(f, 1092, 1122), 0);
   if (f < 1252) return push('international', 1122, 1270, Zs, Zs * 1.05);
   if (f < 1282) return mix(push('international', 1122, 1270, Zs, Zs * 1.05), st('renwu', Zs), prog(f, 1252, 1282));
   if (f < 1412) return push('renwu', 1282, 1430, Zs, Zs * 1.05);
-  if (f < 1446) return mix(push('renwu', 1282, 1430, Zs, Zs * 1.05), whole(L.Zc, 0, L.Acc), prog(f, 1412, 1446), 0.05);
-  if (f < 1556) return whole(L.Zc * lerp(1, 1.06, E.inOutSine(prog(f, 1446, 1556))), 0, L.Acc);
+  if (f < 1446) return mix(push('renwu', 1282, 1430, Zs, Zs * 1.05), whole(Zw), prog(f, 1412, 1446), 0.04);
+  if (f < 1556) return whole(Zw * lerp(1, 1.06, E.inOutSine(prog(f, 1446, 1556))));
   // 衝進明華那顆星
   const t = prog(f, 1556, 1601);
   const e = E.in(t);
-  const from = whole(L.Zc * 1.06, 0, L.Acc);
+  const from = whole(Zw * 1.06);
   const mp = SKY_CAMPUS.minghua.p;
   return {
     T: [lerp(from.T[0], mp[0], E.out(t)), lerp(from.T[1], mp[1], E.out(t))],
@@ -144,6 +171,15 @@ class Sky {
     // 開場往中心聚的光點
     const rg = mulberry32(30);
     this.gather = Array.from({ length: 120 }, () => ({ a: rg() * 6.283, d: 160 + rg() * 520, t0: 20 + rg() * 220, dur: 70 + rg() * 90, s: 0.5 + rg() * 1.2 }));
+    // 星環：每顆年份星點亮時的幾點火花；第 18 小節的流星（往左下劃過）
+    const rr2 = mulberry32(2027);
+    this.ringSparks = Array.from({ length: SKY_RING_N }, () => Array.from({ length: 7 }, () => ({ a: rr2() * 6.283, v: 1.4 + rr2() * 3.2, life: 12 + rr2() * 16 })));
+    // 起點限制在不會劃過左邊（直式是上面）那幾行字的範圍
+    const mz = this.L.meteor;
+    this.meteors = Array.from({ length: 7 }, (_, i) => ({
+      t0: 1450 + i * 14 + Math.floor(rr2() * 8), x: W * lerp(mz[0], mz[1], rr2()), y: H * lerp(mz[2], mz[3], rr2()),
+      len: 200 + rr2() * 200, v: 34 + rr2() * 14, life: 12 + Math.floor(rr2() * 4), ang: Math.PI * (0.79 + rr2() * 0.07), w: 1.2 + rr2() * 1.4,
+    }));
     // 光窗的離屏畫布
     this.win = document.createElement('canvas');
     this.win.width = this.L.win[0] + 4; this.win.height = this.L.win[1] + 4;
@@ -159,6 +195,12 @@ class Sky {
       fontSize: px(L.year.size), lineHeight: '1', letterSpacing: '.05em', color: SKY_COL.cream, whiteSpace: 'nowrap',
       textShadow: '0 0 28px rgba(239,188,75,0.38), 0 0 2px rgba(255,240,210,0.5)', opacity: 0,
     }));
+    // 年份上方的小字「第 N 年」（跟著年份一起換）
+    this.tagEls = [0, 1].map(() => el('div', this.root, {
+      position: 'absolute', left: px(L.tag.x), top: px(L.tag.y), fontFamily: "'LINE Seed TW'", fontWeight: 700,
+      fontSize: px(L.tag.size), lineHeight: '1', letterSpacing: '.2em', color: '#F0DDA8', whiteSpace: 'nowrap',
+      textShadow: '0 0 16px rgba(239,188,75,0.3)', opacity: 0,
+    }));
     const nameStyle = { size: L.name.size, weight: 700, color: '#FFF6E2', ls: 0.08, x: L.name.x, y: L.name.y, shadow: '0 0 22px rgba(239,188,75,0.25)' };
     const histStyle = { size: L.hist.size, weight: 400, color: '#CFE3D6', ls: 0.06, lh: 1.55, x: L.hist.x, y: L.hist.y };
     this.names = {}; this.hists = {};
@@ -171,6 +213,18 @@ class Sky {
       size: L.title.size, weight: 700, color: '#FFF6E2', ls: 0.08, lh: 1.4, x: L.title.x, y: L.title.y, align: L.title.align, w: 1000,
       shadow: '0 0 26px rgba(239,188,75,0.25)',
     });
+    // 開場的片頭字（整圈星環還沒亮的那幾秒）
+    const centered = L.open.align === 'center';
+    this.openA = new KText(this.root, ['常春藤 30 週年'], { size: L.open.size, weight: 700, color: '#FFF6E2', ls: 0.16, x: L.open.x, y: L.open.y, align: L.open.align, w: 1000, shadow: '0 0 26px rgba(239,188,75,0.28)' });
+    this.openB = new KText(this.root, ['1997 — 2027'], { size: Math.round(L.open.size * 0.62), weight: 400, color: '#F0DDA8', ls: 0.16, x: L.open.x + (centered ? 0 : 4), y: L.open.y + L.open.size * 1.62, align: L.open.align, w: 1000 });
+    // 第 18 小節：星環合起來的「30 週年」（數字用和年份同一款細體）與底下的「1997 — 2027」
+    this.lock = el('div', this.root, {
+      position: 'absolute', left: centered ? '0' : px(L.lock.x), top: px(L.lock.y), width: centered ? px(W) : 'auto', textAlign: L.lock.align,
+      fontFamily: "'LINE Seed TW'", lineHeight: '1', color: SKY_COL.cream, whiteSpace: 'nowrap', opacity: 0, transformOrigin: centered ? '50% 60%' : '0 60%',
+    });
+    this.lock.innerHTML = `<span style="font-weight:100;font-size:${L.lock.size}px;letter-spacing:.03em;text-shadow:0 0 34px rgba(239,188,75,0.45),0 0 2px rgba(255,240,210,0.5)">30</span>`
+      + `<span style="font-weight:700;font-size:${L.lock.unit}px;letter-spacing:.14em;margin-left:${Math.round(L.lock.unit * 0.4)}px;color:#FFF6E2;text-shadow:0 0 22px rgba(239,188,75,0.3)">週年</span>`;
+    this.lockRange = new KText(this.root, ['1997 — 2027'], { size: L.lock.range.size, weight: 400, color: '#F0DDA8', ls: 0.2, x: L.lock.x + (centered ? 0 : 14), y: L.lock.range.y, align: L.lock.align, w: 1000 });
     this.labels = {};
     for (const k of SKY_ORDER) {
       const d = el('div', this.root, {
@@ -182,22 +236,24 @@ class Sky {
     }
   }
 
-  /* 年份排程：[淡入, 淡出, 年份, 快?] */
+  /* 年份排程：[淡入, 淡出, 年份, 快?, 淡出也要快?]。2022–2026 在第 18 小節前一拍每個十六分音符跳一年，接到「30」 */
   yearPlan() {
-    const p = [[90, 590, 1997], [622, 762, 2001], [782, 932, 2005]];
+    const p = [[196, 590, 1997], [622, 762, 2001], [782, 932, 2005]];
     for (let i = 0; i < 14; i++) p.push([958 + i * 10, 958 + (i + 1) * 10, 2006 + i, true]);
     p[p.length - 1][1] = 1094;
-    p.push([1104, 1252, 2020], [1264, 1410, 2021]);
+    p.push([1104, 1252, 2020], [1264, 1414, 2021, false, true]);
+    for (let i = 0; i < 5; i++) p.push([1416 + i * 5, 1416 + (i + 1) * 5, 2022 + i, true]);
     return p;
   }
 
   drawYears(f) {
-    const act = this.yearPlan().filter(([a, b, , fast]) => f >= a - 1 && f < b + (fast ? 4 : 18));
+    const act = this.yearPlan().filter(([a, b, , fast, quick]) => f >= a - 1 && f < b + (fast || quick ? 4 : 18));
     this.yearEls.forEach((e, i) => {
+      const tag = this.tagEls[i];
       const it = act[i];
-      if (!it) { setStyle(e, 'opacity', '0'); return; }
-      const [a, b, yr, fast] = it;
-      const inD = fast ? 4 : 26, outD = fast ? 4 : 18;
+      if (!it) { setStyle(e, 'opacity', '0'); setStyle(tag, 'opacity', '0'); return; }
+      const [a, b, yr, fast, quick] = it;
+      const inD = fast ? 4 : 26, outD = fast || quick ? 4 : 18;
       const pin = E.outQuint(prog(f, a, a + inD)), pout = E.inOut(prog(f, b, b + outD));
       const o = pin * (1 - pout);
       if (e.textContent !== String(yr)) e.textContent = String(yr);
@@ -206,6 +262,12 @@ class Sky {
       setStyle(e, 'filter', bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : 'none');
       setStyle(e, 'transform', `translate3d(0,${((1 - pin) * 14 - pout * 18).toFixed(2)}px,0) scale(${(1 + (1 - pin) * 0.04).toFixed(4)})`);
       setStyle(e, 'letterSpacing', `${(0.05 + (1 - pin) * 0.06).toFixed(3)}em`);
+      // 第 N 年：1997 是第 1 年。慢的年份晚幾格出來，快跳的跟著年份一起換
+      const label = `第 ${yr - SKY_YEAR0 + 1} 年`;
+      if (tag.textContent !== label) tag.textContent = label;
+      const tin = fast ? pin : E.outQuint(prog(f, a + 12, a + 12 + inD));
+      setStyle(tag, 'opacity', (tin * (1 - pout)).toFixed(3));
+      setStyle(tag, 'transform', `translate3d(0,${((1 - tin) * 8 - pout * 10).toFixed(2)}px,0)`);
     });
   }
 
@@ -276,12 +338,12 @@ class Sky {
     }
     // 近景塵埃
     this.drawLayer(this.near, cam, 0.32, 1.25, 0.85, 'lighter');
-    // 星座中心一團很淡的暖光，讓深綠夜空帶一點溫度
+    // 星環中心一團暖光：亮過的年份越多越暖（夜空一年一年被點亮），第 18 小節整圈合起來時再亮一下
     {
-      const pc = skyProject(SKY_CENTROID, cam, 0.5);
+      const pc = skyProject([0, 0], cam, 0.5);
       const sz = 2600 * Math.pow(cam.Z, 0.3);
       ctx.globalCompositeOperation = 'lighter';
-      ctx.globalAlpha = 0.10 + 0.08 * E.inOutSine(prog(f, 1440, 1480)) * (1 - prog(f, 1540, 1600));
+      ctx.globalAlpha = 0.05 + 0.08 * (skyLitCount(f) / SKY_RING_N) + 0.06 * E.inOutSine(prog(f, 1440, 1480)) * (1 - prog(f, 1540, 1600));
       ctx.drawImage(this.glow, pc[0] - sz / 2, pc[1] - sz / 2, sz, sz);
       ctx.globalAlpha = 1;
     }
@@ -303,6 +365,8 @@ class Sky {
       this.drawStarCore(pY[0], pY[1], 3 + pre * 22, 0.25 + pre * 0.75, pre * 0.6);
     }
 
+    // 三十年的星環（只在拉遠時看得到）
+    this.drawRing(f, cam);
     // 星座線
     this.drawLines(f, cam);
     // 校園星與點亮特效
@@ -311,7 +375,8 @@ class Sky {
     for (const k of SKY_ORDER) this.drawWindow(f, k, cam);
     // 星軌時的記憶光球
     if (f >= 958 && f < 1150) this.drawOrbs(f, cam);
-    // 第 18 小節：全部星星一起亮一下
+    // 第 18 小節：星環合起來之後幾道流星
+    if (f >= 1440) this.drawMeteors(f);
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1;
 
@@ -323,23 +388,134 @@ class Sky {
       this.hists[k].update(f, c.ign + 26, c.close[0] - 6, { stagger: 1.0, dur: 24, rise: 0.25, blur: 10, outDur: 16 });
     }
     this.years.update(f, 968, 1088, { stagger: 2.2, dur: 26, rise: 0.25, blur: 14, outDur: 14 });
-    this.title.update(f, 1456, 1546, { stagger: 1.8, dur: 28, rise: 0.25, blur: 14, outDur: 16 });
+    // 開場的片頭字
+    this.openA.update(f, 30, 150, { stagger: 2.6, dur: 32, rise: 0.25, blur: 14, outDur: 22 });
+    this.openB.update(f, 54, 150, { stagger: 1.6, dur: 28, rise: 0.25, blur: 10, outDur: 22 });
+    // 第 18 小節：年份跳到 2026（第 30 年）之後換成「30 週年」，底下「1997 — 2027」與標題
+    {
+      const pin = E.outQuint(prog(f, 1440, 1468)), pout = E.inOut(prog(f, 1544, 1562));
+      const o = pin * (1 - pout);
+      setStyle(this.lock, 'opacity', o.toFixed(3));
+      if (o > 0) {
+        const bl = (1 - pin) * 18 + pout * 8;
+        setStyle(this.lock, 'filter', bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : 'none');
+        setStyle(this.lock, 'transform', `translate3d(0,${((1 - pin) * 16 - pout * 16).toFixed(2)}px,0) scale(${(1 + (1 - pin) * 0.06).toFixed(4)})`);
+      }
+    }
+    this.lockRange.update(f, 1452, 1546, { stagger: 1.2, dur: 24, rise: 0.25, blur: 10, outDur: 16 });
+    this.title.update(f, 1462, 1546, { stagger: 1.6, dur: 28, rise: 0.25, blur: 14, outDur: 16 });
+    // 五校標籤都排在星環裡面：義華在星的左下、明華與仁武在左、崇德在正上方、國際在右
     for (const [i, k] of SKY_ORDER.entries()) {
       const lab = this.labels[k];
       const a = E.out(prog(f, 1450 + i * 6, 1476 + i * 6)) * (1 - E.inOut(prog(f, 1544, 1562)));
       if (a <= 0) { setStyle(lab, 'opacity', '0'); continue; }
       const p = skyProject(SKY_CAMPUS[k].p, cam, 1);
-      const left = { minghua: true, chongde: true }[k];
-      const w = lab.getBoundingClientRect().width;
-      const x = left ? p[0] - 30 - w : p[0] + 30;
-      setStyle(lab, 'transform', `translate3d(${x.toFixed(1)}px,${(p[1] - L.labelSize * 0.62).toFixed(1)}px,0)`);
+      const w = lab.getBoundingClientRect().width, S = L.labelSize;
+      const at = {
+        yihua: [p[0] - 24 - w, p[1] + S * 0.42], minghua: [p[0] - 22 - w, p[1] - S * 0.62], chongde: [p[0] - w / 2, p[1] - S * 2.0],
+        international: [p[0] + 28, p[1] - S * 0.62], renwu: [p[0] - 28 - w, p[1] - S * 0.62],
+      }[k];
+      setStyle(lab, 'transform', `translate3d(${at[0].toFixed(1)}px,${at[1].toFixed(1)}px,0)`);
       setStyle(lab, 'opacity', a.toFixed(3));
     }
   }
 
+  /* 三十年的星環：一圈細線＋三十顆年份星。還沒到的年份是小空心圓；到了那一年亮成金色的星（校園成立的那五年大一點）。
+     亮過的那一段弧線比較亮；第 18 小節整圈合起來：一道光順時針跑一圈、往外推出一圈光環。 */
+  drawRing(f, cam) {
+    const vis = (1 - smooth(0.74, 1.02, cam.Z)) * E.inOutSine(prog(f, 6, 64));
+    if (vis <= 0.004) return;
+    const ctx = this.ctx, L = this.L;
+    const c = skyProject([0, 0], cam, 1);
+    const rad = L.ringR * cam.Z;
+    const closeAge = f - SKY_RING_CLOSE, closed = closeAge >= 0;
+    const pulse = closed ? Math.exp(-closeAge / 26) : 0;
+    const lit = skyLitCount(f);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = `rgba(240,221,168,${((0.17 + 0.2 * (closed ? 1 : 0) + 0.5 * pulse) * vis).toFixed(3)})`;
+    ctx.lineWidth = 1 + pulse * 1.2;
+    ctx.beginPath(); ctx.arc(c[0], c[1], rad, 0, 6.283); ctx.stroke();
+    if (lit > 1 && !closed) {
+      const a0 = -Math.PI / 2 + cam.R, a1 = a0 + ((lit - 1) / SKY_RING_N) * 6.283;
+      ctx.strokeStyle = `rgba(239,188,75,${(0.1 * vis).toFixed(3)})`;
+      ctx.lineWidth = 6;
+      ctx.beginPath(); ctx.arc(c[0], c[1], rad, a0, a1); ctx.stroke();
+      ctx.strokeStyle = `rgba(255,226,160,${(0.46 * vis).toFixed(3)})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(c[0], c[1], rad, a0, a1); ctx.stroke();
+    }
+    if (closed && closeAge < 44) {
+      const t = closeAge / 44;
+      ctx.strokeStyle = `rgba(255,226,160,${(0.6 * (1 - t) * vis).toFixed(3)})`;
+      ctx.lineWidth = 2.4 * (1 - t) + 0.4;
+      ctx.beginPath(); ctx.arc(c[0], c[1], rad * (1 + 0.16 * E.outQuint(t)), 0, 6.283); ctx.stroke();
+    }
+    for (let i = 0; i < SKY_RING_N; i++) {
+      const p = skyProject(skyRingPoint(i, L.ringR), cam, 1);
+      if (p[0] < -80 || p[0] > W + 80 || p[1] < -80 || p[1] > H + 80) continue;
+      const t0 = SKY_RING_LIT[i], big = SKY_RING_CAMPUS.has(i);
+      if (f < t0) {
+        ctx.strokeStyle = `rgba(255,246,226,${(0.55 * vis).toFixed(3)})`;
+        ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.arc(p[0], p[1], big ? 4.8 : 3.5, 0, 6.283); ctx.stroke();
+        continue;
+      }
+      const age = f - t0;
+      const fl = Math.min(1, age / 2) * Math.exp(-age / 8);
+      const run = closeAge - i;                                   // 合起來時一格跑一顆
+      const chase = run >= 0 ? Math.min(1, run / 1.5) * Math.exp(-run / 6) : 0;
+      const tw = 0.86 + 0.14 * Math.sin(f * 0.09 + i * 1.7);
+      const r = ((big ? 6.4 : 4.3) + fl * 9 + chase * 7 + pulse * 1.4) * tw;
+      this.drawStarCore(p[0], p[1], r, Math.min(1, 0.85 + fl) * vis, (big ? 0.55 : 0.24) + fl * 0.9 + chase * 0.8);
+      if (age < 30) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (const sp of this.ringSparks[i]) {
+          if (age > sp.life) continue;
+          const d = sp.v * 7 * (1 - Math.exp(-age / 7));
+          const sz = 7 * (1 - age / sp.life) + 2;
+          ctx.globalAlpha = Math.pow(1 - age / sp.life, 1.4) * vis;
+          ctx.drawImage(this.glow, p[0] + Math.cos(sp.a) * d - sz, p[1] + Math.sin(sp.a) * d - sz, sz * 2, sz * 2);
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
+  /* 第 18 小節的流星：細細一道金白色的光往左下劃過，頭亮尾淡 */
+  drawMeteors(f) {
+    const ctx = this.ctx;
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    for (const m of this.meteors) {
+      const age = f - m.t0;
+      if (age < 0 || age > m.life) continue;
+      const a = Math.sin(Math.PI * Math.min(1, (age + 0.5) / m.life));
+      const cx = Math.cos(m.ang), cy = Math.sin(m.ang);
+      const hx = m.x + cx * m.v * age, hy = m.y + cy * m.v * age;
+      const len = m.len * Math.min(1, (age + 1) / 4);
+      const tx = hx - cx * len, ty = hy - cy * len;
+      const gr = ctx.createLinearGradient(tx, ty, hx, hy);
+      gr.addColorStop(0, 'rgba(239,188,75,0)');
+      gr.addColorStop(0.72, `rgba(255,226,160,${(0.3 * a).toFixed(3)})`);
+      gr.addColorStop(1, `rgba(255,250,236,${(0.95 * a).toFixed(3)})`);
+      ctx.strokeStyle = gr;
+      ctx.lineWidth = m.w;
+      ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+      const s = 30 * a;
+      ctx.globalAlpha = a;
+      ctx.drawImage(this.glow, hx - s / 2, hy - s / 2, s, s);
+      ctx.globalAlpha = 1;
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  }
+
   drawLayer(img, cam, k, base, alpha, mode) {
     const ctx = this.ctx;
-    const z = Math.pow(cam.Z, k) * base;
+    // 底圖是正方形、以 A 為中心轉：內切圓要蓋到離 A 最遠的畫面角落，不然拉遠或星空旋轉時邊角會露出底色
+    const cover = Math.hypot(Math.max(cam.A[0], W - cam.A[0]), Math.max(cam.A[1], H - cam.A[1])) / (img.width / 2) * 1.03;
+    const z = Math.max(Math.pow(cam.Z, k) * base, cover);
     ctx.save();
     ctx.globalCompositeOperation = mode;
     ctx.globalAlpha = alpha;
@@ -554,10 +730,10 @@ class Sky {
       // 鏡頭在 1092 開始移動，最後幾顆提早收
       const out = E.inOut(prog(f, Math.min(t0 + 34, 1066), Math.min(t0 + 54, 1090)));
       if (a <= 0 || out >= 1) continue;
-      // 黃金角散佈：相鄰兩年的光球出現在漩渦的不同位置
-      const ang = -2.2 + i * 2.39996 + cam.R * 0.6;
-      const R = this.L.orbR * (0.72 + 0.28 * ((i * 0.618) % 1));
-      const x = cam.A[0] + Math.cos(ang) * R, y = cam.A[1] + Math.sin(ang) * R * 0.92;
+      // 都在星環裡面，散在右半邊與中間（左邊是已經亮的明華、崇德）；黃金比例跳著放，相鄰兩年不會擠在一起
+      const ang = (-80 + ((i * 0.61803) % 1) * 220) * Math.PI / 180 + cam.R * 0.6;
+      const R = this.L.orbR * (0.52 + 0.5 * ((i * 0.38197 + 0.2) % 1));
+      const x = cam.A[0] + Math.cos(ang) * R, y = cam.A[1] + Math.sin(ang) * R;
       const d = D * a * (1 - out * 0.3);
       const img = this.daily[i];
       const s = Math.max(D / img.width, D / img.height);

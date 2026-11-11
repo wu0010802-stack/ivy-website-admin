@@ -1,5 +1,9 @@
 """音效：跟著第一、二幕〈星圖〉的畫面格數合成的光與空氣的聲音，混在配樂底下（只補質感）。
 
+2026-11-11 加上「三十年的星環」之後多了：開場從整圈星環推進到義華的那一段空氣聲、2022–2026 五顆年份星連續亮起的
+上行鐘聲（D 大調五聲音階，接第 18 小節的 Gadd9）、星環合起來時繞一圈的細碎閃光、流星的短促氣聲。
+點亮的鐘聲音高也改成都在調上（原本崇德、仁武與第 18 小節各有一個調外音）。
+
 - 聚光：開場光往義華聚，一層很輕、慢慢升高的高頻氣聲，夾著零星的細小閃光聲。
 - 點亮：每顆星點亮的那一格（320／640／800／1120／1280），鐘聲般的非諧波泛音＋一道亮的氣流，聲像在星的位置。
 - 光窗：張開時往上掃的空氣聲，收回時往下掃。
@@ -31,6 +35,9 @@ rng = np.random.default_rng(1997)
 IGN = {'yihua': 320, 'minghua': 640, 'chongde': 800, 'international': 1120, 'renwu': 1280}
 CLOSE = {'yihua': (558, 586), 'minghua': (738, 764), 'chongde': (904, 932), 'international': (1226, 1254), 'renwu': (1386, 1414)}
 TRAVEL = [(588, 640), (762, 800), (930, 962), (1092, 1122), (1252, 1282), (1412, 1446)]
+RING_RUN = [1416, 1421, 1426, 1431, 1436]  # 2022–2026 的年份星（sky.js 的 SKY_RING_LIT）
+RING_CLOSE = 1440
+METEORS = [1456, 1466, 1481, 1495, 1507, 1522, 1537]  # 流星起點（和 sky.js 同一顆亂數種子算出來的）
 STAR_PAN = 0.0 if VERT else 0.37  # 星在畫面上的水平位置（橫式偏右）
 
 N = int(DUR * SR)
@@ -114,6 +121,11 @@ def env_sine(n, power=1.5):
 
 
 def main():
+    # 開場：從整圈星環推進到義華的位置（f150–300），一道很慢、往上開的空氣聲
+    a, b = t2s(150), t2s(300)
+    n = b - a
+    place_moving(norm(sweep_noise(n, 500, 4200, 'low')) * env_sine(n, 1.6) * db(-41), a, -0.3 if not VERT else 0.0, STAR_PAN)
+
     # 聚光（f40–318）
     a, b = t2s(40), t2s(318)
     n = b - a
@@ -125,7 +137,7 @@ def main():
 
     for k, g in IGN.items():
         # 點亮：鐘聲＋亮的氣流＋很輕的低頻
-        base = {'yihua': 1568.0, 'minghua': 1760.0, 'chongde': 1661.2, 'international': 1975.5, 'renwu': 2093.0}[k]
+        base = {'yihua': 1568.0, 'minghua': 1760.0, 'chongde': 1479.98, 'international': 1975.53, 'renwu': 2349.32}[k]  # G6 A6 F♯6 B6 D7
         bl = bell(base, 3.2)
         place(norm(bl) * db(-37), t2s(g), STAR_PAN)
         hiss = norm(bandnoise(int(0.9 * SR), 4000, 14000, 2)) * np.exp(-np.arange(int(0.9 * SR)) / (0.18 * SR))
@@ -156,11 +168,25 @@ def main():
     for i in range(14):
         place(norm(glint(rng.uniform(4200, 6400), 0.12)) * db(-42), t2s(960 + i * 10 + 1), rng.uniform(-0.6, 0.6))
 
-    # 第 18 小節：五顆星一起亮
+    # 第 18 小節前一拍：2022–2026 五顆年份星連續亮起，一個十六分音符一聲、一路往上（D E G A B）
+    for i, (f, hz) in enumerate(zip(RING_RUN, (1174.66, 1318.51, 1567.98, 1760.0, 1975.53))):
+        place(norm(bell(hz, 1.4)) * db(-41 + i), t2s(f), -0.5 + 0.25 * i if not VERT else 0.0)
+        place(norm(glint(hz * 2, 0.08)) * db(-45), t2s(f), -0.5 + 0.25 * i if not VERT else 0.0)
+
+    # 第 18 小節：星環合起來、五顆星一起亮
     for _ in range(40):
-        f = 1440 + rng.uniform(0, 18)
+        f = RING_CLOSE + rng.uniform(0, 18)
         place(norm(glint(rng.uniform(3000, 8000), 0.1)) * db(-43), t2s(f), rng.uniform(-0.9, 0.9))
-    place(norm(bell(1046.5, 3.5)) * db(-40), t2s(1440), 0.0)
+    place(norm(bell(1174.66, 3.5)) * db(-39), t2s(RING_CLOSE), 0.0)   # D6（Gadd9 的五音）
+    place(norm(bell(2349.32, 2.4)) * db(-43), t2s(RING_CLOSE), 0.0)   # D7
+    # 一道光順時針跑一圈（30 格）：一格一顆很小的閃光，音高慢慢往上，聲像繞一圈
+    for i in range(30):
+        ang = 2 * np.pi * i / 30
+        place(norm(glint(3200 + 110 * i + rng.uniform(-80, 80), 0.07)) * db(-46), t2s(RING_CLOSE + i), (0.7 if not VERT else 0.4) * np.sin(ang))
+    # 流星：很短的往下掃的氣聲
+    for f in METEORS:
+        n = int(0.42 * SR)
+        place(norm(sweep_noise(n, 7000, 1500, 'low')) * env_sine(n, 2.0) * db(-45), t2s(f), rng.uniform(0.1, 0.8) if not VERT else rng.uniform(-0.5, 0.5))
 
     # 衝進明華那顆星（1556–1600）
     a, b = t2s(1556), t2s(1601)
