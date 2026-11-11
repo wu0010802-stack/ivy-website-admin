@@ -25,6 +25,17 @@
 - **頁面資料不帶維護備註**（2026-11-11 正式網域開放收錄後補）：公開資料會整份進每一頁原始碼的 `__NUXT_DATA__`，畫面沒畫的欄位搜尋引擎與 AI 助理照樣讀得到。只給維護者看、官網不讀的欄位（`_todo`、整份的 `_source`、消息區 `note`、拍立得 `caption`）一律在 `utils/public-copy.ts` 的 `withoutRetiredFields` 拿掉；fixture 與後台存的值不動。之後替 fixture 或內容加備註欄位，要一起加進那份清單與 `public-copy.spec.ts`。
 - **不做**：sitemap `lastmod`（沒有可靠的修改時間，維持 10-02 的規則）；個別列出 AI 爬蟲（`User-agent: *` 已放行）；為了關鍵字加頁面上看不到的隱藏文字。
 
+## 拍立得：WebGL context 遺失就退回 CSS 版（2026-11-11，`fix/paper-context-lost-20261111`）
+
+真手機上卡片出現別張卡的殘影。原因與重現見 README 同日段落。
+
+- **共用畫布複製到卡片之前，一定先確認這一幀真的畫了**（`paperPrints.ts` 的 `render()`）：context 遺失時 three 的 render 直接回來，共用畫布留著最後一張成功畫出的卡。每次要畫之前問 `gl.isContextLost()`，遺失就走 `handleContextLost`，不複製、不記 `drawn`。`webglcontextlost` 事件晚一拍才到，不能只靠事件。
+- **遺失的 renderer 不再用**：`shared` 換成 null，下一次掛載另建 context；還拿著舊 renderer 的紙（含建場途中的）各自釋放，最後一張卸掉才 dispose。所以共用狀態是「一個 renderer 一份」（`SharedRenderer`），`releaseRenderer` 要帶是哪一個，不能再假設全頁只有一個。
+- **卡片端**（`DayMomentCard.vue` 的 `onPaperLost`）：馬上卸回 CSS 3D 版，套 `is-snapping` 兩幀（已翻到背面的卡不要在讀者眼前再翻一次），`REMOUNT_AFTER_LOSS_MS`（1.2 秒）後照平常的路重掛。`mountPaper` 的 `initial.onLost` 只在交出 handle 之後才會呼叫；建場途中遺失是回 null。
+- **同一頁遺失第二次就整頁停用 WebGL**（`MAX_CONTEXT_LOSSES`）：多半是記憶體不夠，再建只會再被收走，卡片在 CSS 版與紙之間來回閃。建不出 context 也一樣停用。
+- 新增其他共用 context 再複製到 2D 畫布的做法時照這四條寫。`paper-context-lost-20261111.spec.ts` 擋「遺失後不複製」「沒在畫的卡也通知到」「另建 renderer」「第二次停用」。
+- Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面（最小翻面卡也是）：CSS 版拍立得在 WebKit 截圖裡正面會蓋著鏡像的背面，那是截圖工具的假象，不要當成站上的問題查。
+
 ## 前台流暢度第三批：捲動先讀後寫、拍立得少畫幾幀（2026-11-10，`feature/render-jank-20261110`）
 
 使用者問「前端渲染哪裡不夠流暢」，正式站實測（LoAF、trace、CPU profile）後修。卡頓集中在首頁的孩子的一天與五校；其他頁本來就順。外觀不變：基準版與修正版同位置截圖逐像素相同（影片除外），拍立得翻面前後也相同。數字見 README 同日段落。

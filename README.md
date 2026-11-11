@@ -1,3 +1,13 @@
+## 2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影（`fix/paper-context-lost-20261111`）
+
+使用者回報：真手機開正式站，「常春藤的一天」的卡片上會出現上一個畫面的殘影。部署紀錄見 `deploy/README.md` 同日段落。
+
+- **原因**：整頁的拍立得共用一個 WebGL context（`utils/paperPrints.ts`），每張卡 render 完再把共用畫布 `drawImage` 到自己的 2D 畫布。手機切到背景、記憶體吃緊時系統會把 context 收走，three 的 render 之後什麼都不畫，共用畫布留著最後一張成功畫出的卡，程式卻照樣複製。WebKit（iPhone 上所有瀏覽器）之後要畫的每一張卡都變成那一張、點了不翻面、context 還原後也不重畫；Chromium 複製到空白，卡片整張不見（DOM 正反面在 `.webgl-ready` 底下是透明的）。
+- **重現**：Playwright 手機模擬對正式站，用 `WEBGL_lose_context` 讓共用 context 遺失。WebKit 滑到第 4、5 張，畫面上都是第 3 張「美語時光」；Chromium 同一步驟卡片消失。兩邊還原 context 後都不會自己好。真機上遺失的觸發點（切 App、記憶體）是推論，沒有實機紀錄。
+- **修法**：紙每次要畫之前先問 context 還在不在（`isContextLost()`；`webglcontextlost` 事件晚一拍才到，也一起聽）。遺失的那個 renderer 不再用，掛著的紙通知卡片卸回 CSS 3D 版（DOM 的內容永遠是對的），1.2 秒後照平常的路用新的 context 重掛（手機照舊等捲動停下）。同一頁遺失第二次就停用 WebGL、維持 CSS 版，不來回閃。建不出 context（`new WebGLRenderer` 丟錯）也回 null，不再留下卡住的掛載。
+- 改動：`web/app/utils/paperPrints.ts`（共用 renderer 改成一個 renderer 一份狀態、`handleContextLost`、`render()` 的檢查、`initial.onLost`）、`web/app/components/DayMomentCard.vue`（`onPaperLost`）、`web/app/utils/paper-budget.ts`（`REMOUNT_AFTER_LOSS_MS`）。規則在 DESIGN.md 同日章節。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 140 檔 1864 過（新增 `web/tests/paper-context-lost-20261111.spec.ts` 9 項，修正前 8 項紅）。修正版 dev server（fixture 模式）手機模擬連續遺失兩次：Chromium、WebKit 第一次都馬上露出 DOM 卡片、4 秒內用新 context 重掛且畫的是自己；第二次之後維持 CSS 版，點卡片照樣翻面，沒有第三個 context。**沒在真機驗**；Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面（最小翻面卡也一樣），CSS 版在 WebKit 的畫面只能看 DOM 狀態，不能看截圖。
+- 沒做：減少 context 被收走的機率（`pixelRatio` 3 → 2，11-10 起待業主決定）；30 週年布幕、關於頁立體書的 WebGL 沒查。
 ## 2026-11-11 內容興趣第二輪：趨勢、預約表單流失、試算班別、瀏覽順序、時段、各校、活動代碼（`claude/busy-johnson-er03ju`）
 
 使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填）。
