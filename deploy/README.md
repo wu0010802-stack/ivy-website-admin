@@ -14,6 +14,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 內容興趣第二輪上線（main CI 部署，migration `e7a1c93b5d20` 加三個欄位）
+
+- **內容**：`e3090816`（PR #70 squash，README「2026-11-11 內容興趣第二輪」），分支 `claude/busy-johnson-er03ju`。預約表單卡在哪一步、入學試算班別、每日造訪與上一期比較、首頁消息分篇、進站頁／離開頁／瀏覽順序、只看手機或電腦、瀏覽時段、各校興趣對照實際預約、活動代碼；並修掉 PR #69 審查指出的兩件事（各校消息代號沒分篇、晚到的舊回報蓋掉新資料）。使用者要求併入 main。
+- **Migration**：`e7a1c93b5d20` 在 `engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填；本機在全新資料庫升、降、再升都過。
+- **推前（本機）**：後端 `test_engagement.py` 30 過（真 PostgreSQL；全套本機沒跑完，以 CI 為準）、web 139 檔 1855 過、admin typecheck 過（全套 174 檔中 173 檔過，`engagement.test.ts` 在改到一半時跑到而失敗，改完單獨重跑 12 項過）、契約檢查過；本機 dev server＋真 API 用無頭 Chromium 走過帶活動代碼的整段預約流程，資料正確入庫。
+- **CI**：合併前 PR head `1340e6c` 的 web、admin、後端 3 組全綠，E2E 還在跑（不擋部署）。main run 43038908050 全綠（含 E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `e3090816`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200、首頁 200、`/api/website/v1/admin/analytics/engagement?device=mobile` 未登入回 401。沒有登入正式站後台看面板，也沒有確認正式資料庫的新欄位已經有值。
+- **PR #70 的自動審查在合併後才回來**，指出一件事：入學試算同一頁查兩個同班別的孩子只算一次，和面板說明不符。下一個 PR 修（試算改成查一次算一次）。
+- **回退**：切回上一版映像即可；多出來的三個欄位都可為 NULL，上一版（#69）照常寫入。再往前（#69 之前）的版本不讀不寫這張表。
+
 ## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
 
 - **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
