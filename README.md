@@ -29,6 +29,18 @@
 
 **驗證**（Node 22.23.2）：web typecheck 通過；`npm run test:website` 133 檔 1802 項全過（`seo.spec.ts`、`web-ux-20261029.spec.ts`、`preview-headers.spec.ts` 共新增 13 項）；admin 讀到這次改動檔案的 6 個測試檔 189 項通過（機器負載高，放寬逾時、單一 worker 跑；預設 5 秒逾時下有一批逾時失敗，放寬後全過）。dev server（fixture，`https://ivy.localhost`）開放收錄與未開放兩種模式 `check-public-seo.mjs` 都 PASS；逐頁看過標題、robots、canonical、結構化資料，`/sitemap.xml` 列出 `/visit` 與五個 `/visit/<校>`，`/visit/manage` 兩種模式都 noindex。**未跑**：admin 全套、stack／e2e、後端測試（沒動後端與 fixture；`tests/e2e/public-site.spec.ts` 只改了測試名稱）。未 commit、未部署；正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，開放收錄前只有標題與分享標記的改動看得到。
 
+## 2026-11-11 前台 QA 後續：stack 溢出檢查改成重量到穩定、CLAUDE.md 更正關於頁現況
+
+使用者要求做前台 QA，再要求處理 QA 列出的四件事。前台本身沒有發現要修的缺陷；這輪只動測試輔助與文件，沒有動 `web/`、`admin/`、`backend/` 的程式。
+
+- **`tests/stack/pages.ts` 的 `expectNoHorizontalOverflow` 改用 `expect.poll`（最多 2 秒）**：`admissions-withdraw.spec.ts` 在雲端容器穩定失敗（頁面寬 400／390）。實測是 `setViewportSize` 後的那一格，篩選列的 `el-select.records-filters__wide`（220px 寬、帶 transition）還停在舊版面，50ms 後再量就是 390。不是使用者看得到的溢出；真的溢出不會自己消失，等滿 2 秒照樣失敗。
+- **匯出檔名變成 `download` 是容器 locale 造成的**：容器預設 POSIX，Chrome 把中文下載檔名換成 `download`；`LANG=C.UTF-8` 下 `exports.spec.ts` 全過。程式沒問題，做法記進 CLAUDE.md「驗證工具的本機繞法」。
+- **CLAUDE.md**：`/about` 那條還寫「900px 以下是上翻畫冊（`AboutFlipBook.vue`）」，實際 10-30 起桌機手機同一份 DOM（`AboutContent.vue`），已更正。
+- **首頁手機版較重（three.js 538 KB、週年投影圖 462 KB）不改**：只有每個工作階段第一次進首頁才載（布幕開場），減少動態、省流量、慢速連線都略過，動態載入且逾時就放棄（`web/app/utils/entrance-policy.ts`）；正式站有 brotli。屬於已做過取捨的設計。
+- **正式站唯讀檢查（未登入）**：`/privacy` 404、公開內容沒有 `privacyPolicy`；義華預約模式是 `slots`、`privacy_notice` 空白，所以預約表單目前沒有任何個資告知入口。要園方在後台「全站與素材 → 隱私權政策」發布（擬稿在 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A）；本輪沒有改任何正式站設定或內容。
+- **驗證**（Node 22，雲端容器，`LANG=C.UTF-8`）：`npm run test:e2e:stack` 170 passed、30 skipped、0 failed（改之前同環境 2 failed）；`npm run test:e2e` 34 passed、6 skipped；web `typecheck` 通過、`test:unit` 133 檔 1789 passed。只用 Chrome，沒有測 Safari／Firefox。
+- 提交在 `claude/dazzling-albattani-ogf1as`（draft PR），未併入 main、未部署。
+
 ## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
 
 使用者要把 `www.ivykidschool.com` 從 Wix 移到 Cloudflare（Registrar＋DNS）、網站接 Railway，本輪只準備、不切換。完整步驟、DNS 紀錄表、對照表與待提供資料在 `docs/website-admin/migration-checklist.md`。
