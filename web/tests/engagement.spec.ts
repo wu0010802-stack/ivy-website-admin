@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ENGAGEMENT_KEY, ENGAGEMENT_SOURCES, newsItemOf, validateEngagement } from '../shared/engagement'
-import { BOOKED_ACTION, CLASS_ACTIONS, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
+import { BOOKED_ACTION, CLASS_ACTIONS, countEngagementAction, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const ORIGIN = 'https://ivy.example'
@@ -91,7 +91,14 @@ describe('內容興趣統計（2026-11-11）', () => {
   it('第二輪：預約表單、入學試算、首頁消息都接上統計', () => {
     const form = read('../app/components/VisitForm.vue')
     for (const key of ['date', 'slot', 'contact', 'noSlots', 'submit', 'invalid']) expect(form).toContain(`trackEngagementAction(FORM_ACTIONS.${key})`)
-    expect(read('../app/components/AdmissionContent.vue')).toContain('classActionKey(value.status, value.position)')
+    const admission = read('../app/components/AdmissionContent.vue')
+    expect(admission).toContain('classActionKey(value.status, value.position)')
+    // 試算查一次算一次：同一頁查了兩個同班別的孩子要算兩次（PR #70 審查）。
+    expect(admission).toContain('countEngagementAction(key)')
+    const visit = startVisit('/admission', SESSION, 'mobile', VISIT_ID)!
+    setCurrentVisit(visit)
+    countEngagementAction('class_small'); countEngagementAction('class_small'); trackEngagementAction('form_date'); trackEngagementAction('form_date')
+    expect(visit.takePayload()?.actions).toEqual({ class_small: 2, form_date: 1 })
     const stories = read('../app/components/HomeStories.vue')
     expect(stories).toContain("trackEngagementAction(storyActionKey(id) ?? 'story_open')")
     // 分篇之後卡片上不再另外標 story_open，免得同一下點擊算兩次。

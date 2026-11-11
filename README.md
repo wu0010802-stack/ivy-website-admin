@@ -8,6 +8,14 @@
 - 改動：`web/app/utils/paperPrints.ts`（共用 renderer 改成一個 renderer 一份狀態、`handleContextLost`、`render()` 的檢查、`initial.onLost`）、`web/app/components/DayMomentCard.vue`（`onPaperLost`）、`web/app/utils/paper-budget.ts`（`REMOUNT_AFTER_LOSS_MS`）。規則在 DESIGN.md 同日章節。
 - 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 140 檔 1864 過（新增 `web/tests/paper-context-lost-20261111.spec.ts` 9 項，修正前 8 項紅）。修正版 dev server（fixture 模式）手機模擬連續遺失兩次：Chromium、WebKit 第一次都馬上露出 DOM 卡片、4 秒內用新 context 重掛且畫的是自己；第二次之後維持 CSS 版，點卡片照樣翻面，沒有第三個 context。**沒在真機驗**；Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面（最小翻面卡也一樣），CSS 版在 WebKit 的畫面只能看 DOM 狀態，不能看截圖。
 - 沒做：減少 context 被收走的機率（`pixelRatio` 3 → 2，11-10 起待業主決定）；30 週年布幕、關於頁立體書的 WebGL 沒查。
+## 2026-11-11 入學試算的班別改成查一次算一次（`claude/busy-johnson-er03ju`）
+
+PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫「同一次瀏覽查了兩個孩子會各算一次」，但同一頁查兩個**同班別**的孩子只算一次（官網每個班別只記「做過」，後端也只數瀏覽數）。
+
+- 官網改成查一次算一次（`countEngagementAction`，`AdmissionContent.vue`）；後端班別改加總次數（`engagement_service.py`）。其他互動（表單進度、讀到文末、預約成功）照舊是「做過就記 1」。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL）、`web/tests/engagement.spec.ts` 與入學資訊相關共 7 檔 92 項過、`npm --prefix web run typecheck` 過。沒有 migration，沒有改 API 契約。
+- 同一個 PR 補上第二輪的部署紀錄（`deploy/README.md`）。
+
 ## 2026-11-11 內容興趣第二輪：趨勢、預約表單流失、試算班別、瀏覽順序、時段、各校、活動代碼（`claude/busy-johnson-er03ju`）
 
 使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填）。
