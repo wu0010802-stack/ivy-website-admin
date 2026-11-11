@@ -11,8 +11,9 @@ const { data } = usePublishedSite()
 const content = computed(() => data.value?.content)
 const campuses = computed(() => content.value?.campuses ?? [])
 
+// 標題結尾跟著全站（seo.ts 的 TITLE_BRAND）：2026-11-11 全站改成「常春藤幼兒園」時這裡寫死品牌名、漏改。
 useHead({
-  title: computed(() => `${notFound.value ? '找不到這一頁' : '網站暫時無法顯示'}｜常春藤教育機構`),
+  title: computed(() => `${notFound.value ? '找不到這一頁' : '網站暫時無法顯示'}｜${TITLE_BRAND}`),
   meta: [{ name: 'robots', content: 'noindex' }]
 })
 
