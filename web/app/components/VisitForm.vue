@@ -10,6 +10,7 @@ import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { BOOKED_ACTION, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -554,6 +555,8 @@ async function onSubmit() {
     linkCopyFailed.value = false
     submitted.value = true
     clearDraft()
+    // 內容興趣統計：這次造訪送出了預約（匿名，只用來看「看過什麼內容的造訪比較會預約」）。
+    trackEngagementAction(BOOKED_ACTION)
     idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。

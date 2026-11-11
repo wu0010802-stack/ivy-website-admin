@@ -523,6 +523,7 @@ const titleLines = computed(() => pageTitleLines(props.moment.title))
         <button
           class="print-turn"
           type="button"
+          :data-track-action="`polaroid_${moment.key}`"
           :aria-label="`${moment.label}：${isFlipped ? '再點一下，回到照片' : '點照片，看看背面'}`"
           :aria-expanded="isFlipped"
           :aria-controls="`day-story-${moment.key}`"

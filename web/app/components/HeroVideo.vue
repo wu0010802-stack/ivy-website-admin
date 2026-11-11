@@ -230,7 +230,7 @@ onUnmounted(() => {
 <template>
   <div ref="rootEl" class="home-reveal">
     <div ref="trackEl" class="home-reveal-track">
-      <section ref="sectionEl" class="studio-hero" aria-labelledby="home-title">
+      <section ref="sectionEl" class="studio-hero" data-track-section="hero" aria-labelledby="home-title">
         <div class="container studio-hero-grid">
           <!-- 2026-09-30 首屏改版（design/hero-brush-mockup-20260930）：拿掉小標與「找校區」，
                重點詞的黃色底線換成金色乾刷色塊（字與色塊一起歪 -2°）。 -->
@@ -295,7 +295,7 @@ onUnmounted(() => {
         </div>
         <div ref="mediaEl" class="container studio-media">
           <div id="video-controls" :hidden="!showVideo">
-            <button type="button" id="video-play" aria-controls="hero-video" @click="togglePlay">
+            <button type="button" id="video-play" data-track-action="hero_video" aria-controls="hero-video" @click="togglePlay">
               <svg class="icon" aria-hidden="true"><use :href="isPlaying ? '#i-pause' : '#i-play'" /></svg>
               <span class="sr-only">{{ isPlaying ? '暫停影片' : '播放影片' }}</span>
             </button>

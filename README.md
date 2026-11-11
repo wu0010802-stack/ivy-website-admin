@@ -1,3 +1,16 @@
+## 2026-11-11 後台「內容興趣」統計：停留、區塊、互動、單篇消息、來源與預約關聯（`claude/busy-johnson-er03ju`）
+
+使用者想知道 TA 對官網哪些內容有興趣。原本後台「數據」頁只有各頁瀏覽次數、預約鈕點擊與網頁速度，沒有停留、捲動或單篇內容的資料。這一輪加上匿名的內容興趣統計，後台在「數據」頁「官網瀏覽與速度」下面多一段「內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `d2f6b8a13c47`（只新增 `engagement_visits` 一張表）。
+
+- **量什麼**（`web/app/plugins/engagement.client.ts`、`web/app/utils/engagement.ts`）：每一頁實際在看的時間（分頁在前景、一分鐘內有操作才算）、捲動深度、畫面中央停在哪個區塊多久、點開了什麼（拍立得、常見問題、首頁五校切換與地址、首頁影片、首頁消息、班別對照表；只算打開）、消息內文有沒有讀到文末、這次造訪從哪一類管道來（搜尋／Facebook／Instagram／LINE／YouTube／付費廣告／其他／直接進站，只留類別不留網址），以及這次造訪有沒有送出預約。
+- **怎麼送**：切到背景、換頁、關分頁時把這次瀏覽的累計值送到既有的 `/api/telemetry`（請求上限 2048 → 4096 bytes），轉進 API 新的 `POST /public/engagement`，以瀏覽代碼 upsert（數字只會變大、別的造訪蓋不掉）。和瀏覽統計共用限流與全站上限；部署關閉統計或瀏覽器開 DNT／GPC 就不送。
+- **隱私**：不用 cookie、不記 IP、不和預約案件連結。為了把同一次造訪的頁面串起來，在 sessionStorage 放一組分頁內的隨機代碼（關掉分頁就消失）。紀錄保留 90 天。隱私權政策草稿（`admin/src/composables/privacyPolicyDraft.ts` 與規格附錄 A）第 4、5、7 節已補上這幾項；**政策發布前要請使用者看過這幾句**。
+- **後台**（`GET /admin/analytics/engagement`、`admin/src/components/ContentInterestPanel.vue`）：造訪概況、各頁停留與 10 秒內離開比例、各區塊有多少人看到與停留、點開了什麼、單篇消息的瀏覽與讀完率、從哪裡來、看過哪些內容的造訪比較會預約；每段都能匯出 CSV，樣本不到 20 寫「樣本太少」。登入的後台帳號都能看（同瀏覽統計，全站匿名彙總）。
+- **新增區塊或互動時**：在官網元件標 `data-track-section="代碼"`／`data-track-action="代碼"`，並到 `admin/src/api/engagement.ts` 補中文名稱；沒有名稱的代碼後台不顯示（公開端點任何人都能送，亂送的代碼不會出現在畫面上）。測試會擋官網標了但後台沒名稱的區塊。
+- **已知限制**：手機直接滑掉分頁時最後一段停留可能送不出來（手機數字偏低）；DNT 的訪客不計入；「送出預約的造訪」由瀏覽器回報，只用來比較內容，正式預約數仍看預約漏斗；隔天才回來預約的不會串起來；首頁直接點開的消息不分篇；LINE／Facebook App 常不帶來源，認不出來的算「直接進站」（貼連結加 `?utm_source=line` 可以分準）。
+- **沒做**：GA4、Meta Pixel、Google Ads、LINE Tag 與跨次造訪的 cookie 歸因（2026-10-03 決定的第 2、3 部分）。需要使用者提供各平台的 ID，且要先改寫隱私權政策的 Cookie 段，另開一輪。
+- 驗證：後端真 PostgreSQL 全套 5042 項過（新增 `tests/test_engagement.py` 18 項）；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1852 過（新增 `web/tests/engagement.spec.ts`；`environment-main-20261012.html` 基準檔只多了五個 `data-track-section`）；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔 3367 過（新增 `engagement.test.ts`）；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 390×844 與 1440×900 各走首頁 → 入學資訊 → 消息內文：首頁五個區塊、拍立得、常見問題（收起來不算）、讀到文末、來源都正確入庫；後台面板桌機與手機無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
+
 ## 2026-11-11 手機選單與特色教學橫滑清單（`claude/vigilant-babbage-i2cuuv`）
 
 使用者要求優化前台手機版體驗。先把八頁在 390×844、360×640 量過一遍（水平溢出、40px 以下的點擊目標、12px 以下的字、16px 以下的輸入欄），再逐段看截圖：各頁都沒有水平溢出，輸入欄都是 16px 以上（iOS 不會自動放大）。修上一輪（同日預約頁）留下的兩項；30 週年頁使用者指示先不動。

@@ -190,7 +190,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
 <template>
   <main id="main" ref="root" tabindex="-1" class="renv" data-cta-entry="environment">
     <!-- 首屏：大標、赤陶拱積木裡的照片、四塊積木目次 -->
-    <section class="renv-hero" aria-labelledby="environment-title">
+    <section class="renv-hero" data-track-section="hero" aria-labelledby="environment-title">
       <div class="renv-wrap renv-hero-grid">
         <div class="renv-hero-txt">
           <h1 id="environment-title"><span v-for="(line, i) in heroLines" :key="i">{{ line.before }}<mark v-if="line.mark" class="renv-mark">{{ line.mark }}</mark>{{ line.after }}</span></h1>
@@ -219,7 +219,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
     </section>
 
     <!-- 01 幼兒保育：幾何愛心、主照片、五件照顧的小事 -->
-    <section id="care" class="renv-section renv-care" aria-labelledby="care-title">
+    <section id="care" data-track-section="care" class="renv-section renv-care" aria-labelledby="care-title">
       <div class="renv-wrap">
         <div class="renv-care-head">
           <div>
@@ -265,7 +265,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
     </section>
 
     <!-- 02 校園環境：遊樂區主打，六個空間左右交錯、圓點小路從一張照片接到下一張 -->
-    <section id="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
+    <section id="spaces" data-track-section="spaces" class="renv-section renv-spaces" aria-labelledby="spaces-title">
       <div class="renv-wrap">
         <p class="renv-kicker"><span class="renv-dot c-sage" lang="en">{{ chapterNo('spaces') }}</span>{{ page.chapterNames[1] }}</p>
         <h2 id="spaces-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.spacesTitle)" :key="i">{{ line }}</span></h2>
@@ -308,7 +308,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
     </section>
 
     <!-- 03 幼兒餐點：營養餐點書、一天五餐的時間軸 -->
-    <section id="meals" class="renv-section renv-meals" aria-labelledby="meals-title">
+    <section id="meals" data-track-section="meals" class="renv-section renv-meals" aria-labelledby="meals-title">
       <div class="renv-wrap renv-meals-top">
         <div>
           <p class="renv-kicker"><span class="renv-dot c-mustard" lang="en">{{ chapterNo('meals') }}</span>{{ page.chapterNames[2] }}</p>
@@ -340,7 +340,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
     </section>
 
     <!-- 04 五所校園：各校校園探索的實景（後台 campus_tour 發布的內容） -->
-    <section v-if="tours.length" id="campuses" class="renv-section renv-tour" aria-labelledby="tour-title">
+    <section v-if="tours.length" id="campuses" data-track-section="tour" class="renv-section renv-tour" aria-labelledby="tour-title">
       <div class="renv-wrap">
         <div class="renv-tour-head">
           <div>

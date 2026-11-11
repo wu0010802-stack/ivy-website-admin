@@ -352,7 +352,7 @@ describe('2026-10-13 搬移：參觀預約到招生統計，成效統計只留�
     await router.push('/analytics?tab=booking')
     await router.isReady()
     const get = vi.spyOn(api, 'get').mockResolvedValue(funnel as never)
-    const wrapper = mount(AnalyticsView, { global: { plugins: [pinia, router, ElementPlus], stubs: { SiteTrafficPanel: true } } })
+    const wrapper = mount(AnalyticsView, { global: { plugins: [pinia, router, ElementPlus], stubs: { SiteTrafficPanel: true, ContentInterestPanel: true } } })
     wrappers.push(wrapper)
     await flushPromises()
     expect(wrapper.findComponent({ name: 'SiteTrafficPanel' }).exists()).toBe(true)

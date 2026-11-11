@@ -124,7 +124,7 @@ useWatercolor(root)
   <main id="main" ref="root" tabindex="-1" class="cur" data-cta-entry="curriculum">
     <div class="cur-grain" aria-hidden="true" />
 
-    <section class="cur-hero" aria-labelledby="curriculum-title">
+    <section class="cur-hero" data-track-section="hero" aria-labelledby="curriculum-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-hero-grid">
         <!-- 橙色小顏料 2026-10-13 從左下移到右上：原本墊在首屏提醒底下，提醒字對比只剩 3.2–4.3:1、金色圓點看不見 -->
@@ -147,7 +147,7 @@ useWatercolor(root)
     </section>
 
     <!-- 01 四個年段：四團顏料一歲比一歲大 -->
-    <section id="years" class="cur-sec cur-years" aria-labelledby="years-title">
+    <section id="years" data-track-section="years" class="cur-sec cur-years" aria-labelledby="years-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-years-head" data-reveal>
@@ -175,7 +175,7 @@ useWatercolor(root)
     </section>
 
     <!-- 02 課程方向：大小錯落，品德培養印在一片顏料上 -->
-    <section id="directions" class="cur-sec cur-directions" aria-labelledby="directions-title">
+    <section id="directions" data-track-section="directions" class="cur-sec cur-directions" aria-labelledby="directions-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-dir-head" data-reveal>
@@ -201,7 +201,7 @@ useWatercolor(root)
     </section>
 
     <!-- 03 兒童美術館：作品保留原本比例，沙龍式掛成一面牆 -->
-    <section id="gallery" class="cur-sec cur-gallery" aria-labelledby="gallery-title">
+    <section id="gallery" data-track-section="gallery" class="cur-sec cur-gallery" aria-labelledby="gallery-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
@@ -225,7 +225,7 @@ useWatercolor(root)
     </section>
 
     <!-- 04 五件事：紙上的五幅畫，各配一種顏料 -->
-    <section id="daily" class="cur-sec cur-daily" aria-labelledby="daily-title">
+    <section id="daily" data-track-section="daily" class="cur-sec cur-daily" aria-labelledby="daily-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
@@ -251,7 +251,7 @@ useWatercolor(root)
     </section>
 
     <!-- 結尾：教學理念（2026-09-28 取代原本的結尾卡片，使用者要求） -->
-    <section id="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
+    <section id="belief" data-track-section="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-belief-body" data-reveal data-wash="sun,.5,.34,.42,.4,.016,44|mint,.14,.66,.18,.3,.02,34|sky,.86,.24,.16,.26,.02,34">
         <h2 id="belief-title" class="cur-belief-title"><template v-for="(line, i) in pageTitleLines(page.beliefTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>

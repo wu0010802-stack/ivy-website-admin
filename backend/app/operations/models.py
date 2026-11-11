@@ -5,6 +5,7 @@ import uuid
 from datetime import date, datetime
 
 from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -277,3 +278,47 @@ class RetentionRun(Base):
     total: Mapped[int] = mapped_column(Integer, nullable=False)
     # 當時超過天數但還沒結案、沒有清理的件數。
     open_overdue_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+# 內容興趣統計的來源分類：瀏覽器只回報這幾種代碼，不回報來源網址。要和
+# web/shared/engagement.ts 的 ENGAGEMENT_SOURCES 一致（web 測試會比對），後台
+# admin/src/api/engagement.ts 的 SOURCE_LABELS 也要有中文。
+ENGAGEMENT_SOURCES = ("direct", "search", "facebook", "instagram", "line", "youtube", "ads", "other")
+# 單次瀏覽的停留上限（30 分鐘）；分頁開著不動不會一直累計，瀏覽器端也只算有操作的時間。
+ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
+ENGAGEMENT_MAX_KEYS = 24
+ENGAGEMENT_RETENTION_DAYS = 90
+# 家長送出預約成功時，預約頁那一筆瀏覽會帶這個互動代碼（瀏覽器自己回報，只用來看
+# 「看過什麼內容的造訪比較會預約」，不是正式的預約數；正式數字看預約漏斗）。
+ENGAGEMENT_BOOKED_ACTION = "booking_done"
+ENGAGEMENT_READ_ACTION = "read_end"
+
+
+class EngagementVisit(Base):
+    """官網單次頁面瀏覽的停留與互動（2026-11-11）。`id` 是瀏覽器為這次瀏覽產生的
+    隨機 UUID，同一次瀏覽離開前會回報多次（切到背景、換頁），以 id upsert 成最新值。
+    `session_id` 是分頁內的暫時代碼（sessionStorage，關掉分頁就消失），只用來把同一次
+    造訪看過的頁面串起來；不存 IP、cookie、來源網址，也不指回預約案件。
+    `sections`：區塊代碼 → 在畫面中央停留的毫秒數；`actions`：互動代碼 → 次數。
+    保留 90 天。"""
+
+    __tablename__ = "engagement_visits"
+    __table_args__ = (
+        Index("ix_engagement_visits_day_page", "day", "page"),
+        Index("ix_engagement_visits_session", "session_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    session_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    day: Mapped[date] = mapped_column(Date, nullable=False)
+    page: Mapped[str] = mapped_column(String(16), nullable=False)
+    campus_key: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    # 最新消息內文頁的消息代號；其他頁是空字串。
+    item: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    device: Mapped[str] = mapped_column(String(16), nullable=False)
+    source: Mapped[str] = mapped_column(String(16), nullable=False)
+    active_ms: Mapped[int] = mapped_column(Integer, nullable=False)
+    scroll_pct: Mapped[int] = mapped_column(Integer, nullable=False)
+    sections: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
+    actions: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -4,10 +4,10 @@ import asyncio
 import logging
 import uuid
 from datetime import date, datetime, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +36,7 @@ from app.operations import (
     audit_service,
     booking_outcomes_service,
     dashboard_service,
+    engagement_service,
     error_reports,
     public_caps,
     retention_service,
@@ -44,6 +45,9 @@ from app.operations import (
 )
 from app.operations.models import (
     CTA_ENTRIES,
+    ENGAGEMENT_MAX_ACTIVE_MS,
+    ENGAGEMENT_MAX_KEYS,
+    ENGAGEMENT_SOURCES,
     RETENTION_MAX_DAYS,
     RETENTION_MIN_DAYS,
     RetentionPolicy,
@@ -186,6 +190,70 @@ async def record_telemetry(
             db, sample_id=payload.id, metric=payload.event, page=payload.page,
             campus_key=payload.campus, device=payload.device, value=payload.value,
         )
+    await db.commit()
+
+
+EngagementSource = Literal[ENGAGEMENT_SOURCES]  # type: ignore[valid-type]
+# 區塊與互動代碼：小寫英數、底線、連字號，最長 32 字。
+EngagementKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")]
+
+
+class EngagementIn(BaseModel):
+    """與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。
+    一筆是一次頁面瀏覽到目前為止的累計：停留毫秒數、捲動深度、各區塊停留與互動次數。
+    只收代碼與數字，不收網址、來源網址或任何家長資料。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["engagement"]
+    id: uuid.UUID
+    session: uuid.UUID
+    page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news", "anniversary"]
+    campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
+    device: Literal["mobile", "desktop"]
+    # 最新消息內文頁的消息代號；其他頁不帶。
+    item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")] | None = None
+    source: EngagementSource
+    active_ms: int = Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)
+    scroll: int = Field(ge=0, le=100)
+    sections: dict[EngagementKey, Annotated[int, Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "EngagementIn":
+        if (self.page not in ("campus", "visit") and self.campus is not None) or (self.page == "campus" and self.campus is None):
+            raise ValueError("page 與 campus 不一致")
+        if self.item is not None and self.page != "news":
+            raise ValueError("只有最新消息內文頁帶 item")
+        return self
+
+
+@router.post("/public/engagement", status_code=status.HTTP_204_NO_CONTENT)
+async def record_engagement(
+    payload: EngagementIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    # 和瀏覽量、效能樣本共用同一組上限：單一來源每分鐘（被擋回 429）、全站每分鐘、
+    # 每來源每日與全站每日（被擋安靜丟棄、仍回 204）。
+    try:
+        admitted = await public_caps.admit(
+            ratelimit.limiter(request),
+            public_caps.telemetry_limits(request.app.state.settings, _trusted_source(request)),
+            gate=(TELEMETRY_LIMIT, ratelimit.client_key(request)),
+        )
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    if not admitted:
+        return
+    await engagement_service.record_visit(
+        db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
+        item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
+        scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
+    )
     await db.commit()
 
 
@@ -348,6 +416,91 @@ async def get_traffic(
 ) -> dict:
     # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
     summary = await traffic_service.get_traffic_summary(db, days)
+    summary["as_of"] = now_utc()
+    return summary
+
+
+class EngagementTotalsOut(BaseModel):
+    visits: int
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+    median_active_ms: int
+    median_session_ms: int
+    pages_per_session: float | None
+
+
+class EngagementPageOut(BaseModel):
+    page: str
+    campus_key: str | None
+    visits: int
+    median_active_ms: int
+    bounce_rate: float | None
+    median_scroll_pct: int
+
+
+class EngagementSectionOut(BaseModel):
+    page: str
+    key: str
+    reached: int
+    visits: int
+    reach_rate: float | None
+    median_ms: int
+
+
+class EngagementActionOut(BaseModel):
+    page: str
+    key: str
+    visits: int
+    total: int
+
+
+class EngagementNewsOut(BaseModel):
+    id: str
+    title: str | None
+    visits: int
+    median_active_ms: int
+    read_rate: float | None
+
+
+class EngagementSourceOut(BaseModel):
+    source: str
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementConversionOut(BaseModel):
+    kind: Literal["page", "section"]
+    page: str
+    key: str | None
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementSummaryOut(BaseModel):
+    days: int
+    since: date
+    until: date
+    as_of: datetime
+    totals: EngagementTotalsOut
+    pages: list[EngagementPageOut]
+    sections: list[EngagementSectionOut]
+    actions: list[EngagementActionOut]
+    news: list[EngagementNewsOut]
+    sources: list[EngagementSourceOut]
+    conversion: list[EngagementConversionOut]
+
+
+@router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
+async def get_engagement(
+    days: int = Query(28, ge=7, le=90),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    # 和瀏覽量一樣是全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
+    summary = await engagement_service.get_engagement_summary(db, days)
     summary["as_of"] = now_utc()
     return summary
 

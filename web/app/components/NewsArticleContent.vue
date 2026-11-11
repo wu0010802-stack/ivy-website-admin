@@ -32,7 +32,7 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
   <main id="main" tabindex="-1" class="np np-article-page" data-cta-entry="news">
     <div class="np-wrap" :class="{ 'np-narrow': !tall }">
       <nav class="np-crumb" aria-label="麵包屑"><NuxtLink to="/">首頁</NuxtLink><span aria-hidden="true">/</span><NuxtLink :to="NEWS_PATH">最新消息</NuxtLink></nav>
-      <article class="np-article" :class="{ 'is-tall': tall }" aria-labelledby="np-article-title">
+      <article class="np-article" :class="{ 'is-tall': tall }" data-track-section="article" aria-labelledby="np-article-title">
         <header class="np-article-head">
           <p class="np-meta"><span>{{ article.campus }}<template v-if="article.category"> · {{ article.category }}</template><span v-if="sample" class="hn-sample-tag">示意</span></span><time :datetime="article.date">{{ formatDate(article.date) }}</time></p>
           <h1 id="np-article-title"><span v-for="(part, i) in titleClauses(article.title)" :key="i" class="np-clause">{{ part }}</span></h1>
@@ -40,7 +40,7 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
         </header>
         <NewsBodyVideo v-if="leadVideo" class="np-cover-video" :block="leadVideo" />
         <ResponsivePicture v-else class="np-cover" v-bind="cover" :style="imageStyle(article)" :alt="article.alt" fetchpriority="high" />
-        <div class="np-article-main">
+        <div class="np-article-main" data-track-read>
           <NewsBody v-if="blocks.length" :summary="article.description" :blocks="blocks" />
           <p v-else class="np-article-copy">{{ tidyNewsText(article.description) }}</p>
         </div>
@@ -49,7 +49,7 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
         <NuxtLink class="np-back" :to="listLink"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>{{ campus ? `回${campus.name}的消息` : '回消息列表' }}</NuxtLink>
         <NuxtLink class="np-book" :to="campus ? `/visit/${campus.key}` : '/visit'">預約{{ campus ? campus.name : '校園' }}參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
       </div>
-      <section v-if="related.length" class="np-related" aria-labelledby="np-related-title">
+      <section v-if="related.length" class="np-related" data-track-section="related" aria-labelledby="np-related-title">
         <h2 id="np-related-title">其他消息</h2>
         <ul class="np-grid">
           <li v-for="item in related" :key="item.id" class="np-card">
