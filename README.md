@@ -14,7 +14,7 @@
 - 兩種原因，都在 `data-blot` 顏料團（不是段落 canvas）：(1) 約 4:1 的扁長框變形外擴超出框高，背景圖被切（一年一年學、理念最長兩條）；(2) 基底多邊形反折，團內疊出直邊與分離小塊（4 歲、五件事 03）。
 - `web/app/utils/watercolor.ts` 新增 `blotPolygons`／`fitInside`／`foldRatio`／`selfIntersects`：超出框才改走「2:1 變形再拉伸」，反折面積超過 0.5% 才重抽基底。頁面 21 塊只換有問題的 5 塊，其他逐點相同。細節與否決做法見 DESIGN.md 同日章節。
 - **驗證**（Node 22）：web typecheck 通過；web 單元 132 檔全過（`watercolor.spec.ts` 新增 9 項，未修正版紅燈已確認）；dev server（fixture）Playwright 在 1512／1100／390 讀每個顏料團背景圖四邊的 alpha：正式站三種寬度各 3 塊被切，修正後 0 塊；21 塊總表與 4 歲、03、一年一年學、理念清單前後截圖確認形狀自然。
-- 未驗證：stack e2e、實機。**未 commit、未部署。**
+- 11-11 已部署 main（`b6c112d1`，連同 node-forge 1.4.3 與 VAPID 偶發測試修正，最後 `801f80b1`）；CI 全綠含 stack e2e。未驗證：實機。
 
 ## 2026-11-10 環境頁「情緒安撫」「定時消毒」換義華 NAS 照片（同分支 `feature/cur-activities-582-20261110`）
 

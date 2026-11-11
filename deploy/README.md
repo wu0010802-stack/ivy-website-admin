@@ -13,6 +13,12 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 特色教學顏料團不再被切成直線（main CI 部署，沒有 migration）
+
+- `b6c112d1` 顏料團修正（扁長框超框改拉伸、基底反折重抽，21 塊只換 5 塊）；同批另有兩個擋部署的修正（`801f80b1` 前兩個 commit）：node-forge 1.4.3（三則 moderate 公告，只改 web lockfile 一段）、後端 VAPID 壞公鑰測試約 1/4 偶發失敗。
+- 第一次 run 42937966508 被上述兩項擋下（未部署）；第二次 run 42939707049 全綠、Deploy Railway production 成功（main `801f80b1`）。
+- 部署後在正式站以 Playwright 量 1512／1100／390 每個顏料團背景圖四邊：全部乾淨；「4 歲」截圖確認已是新形狀。
+
 ## 2026-11-10 課程活動、情緒安撫、定時消毒換新照片（main CI 部署，沒有 migration）
 
 - **內容**：`45198055`（README「2026-11-10 特色教學『課程活動』換種苗校外教學照」與「環境頁『情緒安撫』『定時消毒』換義華 NAS 照片」），分支 `feature/cur-activities-582-20261110`，rebase 到 `23552c49`（README 頂部衝突兩段都留）後單一提交推 main。只改 web：三張母檔與響應式檔、`CurriculumContent.vue`／`EnvironmentContent.vue`／`about-content.ts` 替代文字與焦點、環境頁兩份渲染快照；沒有 migration、沒有新環境變數。推前本機：web typecheck、`npm run test:website` 132 檔 1765 過；stack e2e（獨立測試庫 `ivy_website_e2e_photo582_test`，跑完已刪）170 過、30 略過、0 失敗。
