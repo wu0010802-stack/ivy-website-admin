@@ -13,6 +13,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 正式網域切換：www.ivykidschool.com 上線、開放收錄（只改後台設定，沒有程式部署）
+
+- **DNS**：使用者在 Wix 把 nameserver 改成 Cloudflare（05:55Z 註冊局生效）；Cloudflare zone（使用者帳號、Free）照 Wix 匯入後改成：`www` CNAME Railway（DNS only）、Railway 驗證 TXT、apex A `192.0.2.1` Proxied＋Redirect Rule 301 到 www、MX 與 google-site-verification 照搬。註冊商仍在 Wix。
+- **Railway**：web 加自訂網域 `www.ivykidschool.com`（port 3000），憑證 VALID；變數 api `WEBSITE_ADMIN_ORIGIN`／`WEBSITE_ADMIN_EXTRA_ORIGINS`／Google、LINE `REDIRECT_URI`，web `NUXT_PUBLIC_SITE_ORIGIN`、`NUXT_PUBLIC_INDEXING_ENABLED=true`，觸發兩次重新部署都 SUCCESS。
+- **其他**：Google OAuth 與 LINE Login 回呼新舊並列；Search Console 網域資源驗證、提交 sitemap、首頁要求建立索引；GitHub 變數 `UPTIME_BASE_URL` 改 www；`website.yml` 部署環境連結改 www（本提交）。
+- **驗證**（只發 GET，另有一個無效權杖的重設密碼 verify 用來測 Origin）：www 各頁 200、`/release.json` 有版本、舊網址 `/分班表` 301 到 `/admission#classes`；apex `https`／`http` 都 301 到 www 同路徑並保留查詢字串；canonical、og:url、JSON-LD 都是 www；robots 開放並指向 www sitemap（16 個網址），Railway 網址 robots 仍全擋；Origin：www 與 Railway 網址通過（410 無效權杖）、其他網域 403；Google／LINE 登入起點帶 www 回呼；公開 DNS 的 MX 正確。
+- **沒驗**：本人實際登入後台寫入、Google／LINE 實際登入往返、Workspace 收信（請園方寄一封測試）；各地 DNS 快取（本機曾短暫解析到舊 Wix）。
+- 切換後待辦見 `docs/website-admin/migration-checklist.md`「切換結果」。
+
 ## 2026-11-11 前台 QA 修正：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（main CI 部署，沒有 migration）
 
 - **內容**：`e10bc80e`（README「2026-11-11 前台 QA」），分支 `fix/qa-fixes-20261111`，直接快轉 main（推之前 main 沒有新提交）。只動 web：`error.vue` 的 `<title>` 改用 `TITLE_BRAND`；`visit-booking.css` 在 338–760px 與橫拿手機把義華的撥號膠囊用 `order:-1` 換到「可線上預約」前面。沒有 migration、沒有新變數。
