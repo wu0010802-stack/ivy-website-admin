@@ -85,7 +85,7 @@ const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu']
 /** 互動代碼 → 名稱；認不得的代碼回 null（不顯示）。 */
 export function actionLabel(key: string): string | null {
   if (key === 'hero_video') return '首頁影片：播放／暫停'
-  if (key === 'story_open') return '首頁最新消息：點開一則'
+  if (key === 'story_open') return '首頁最新消息：點開一則（未分篇）'
   if (key === 'class_table') return '入學資訊：看完整班別對照表'
   const [, prefix, rest] = /^([a-z]+)_(.+)$/.exec(key) ?? []
   if (!prefix || !rest) return null
@@ -146,4 +146,84 @@ export function conversionLabel(row: Pick<EngagementConversion, 'kind' | 'page' 
   if (row.kind === 'page') return engagementPageLabel(row.page)
   const label = row.key ? sectionLabel(row.page, row.key) : null
   return label ? `${engagementPageLabel(row.page)}：${label}` : null
+}
+
+// ---- 第二輪（2026-11-11）：預約表單、試算班別、首頁消息、瀏覽順序、時段、各校、活動代碼 ----
+
+// 預約表單的步驟，順序同後端 booking_form.steps。
+export const FORM_STEP_LABELS: Record<string, string> = {
+  visit: '進到預約頁',
+  campus: '選好校區',
+  form_date: '選了日期',
+  form_slot: '選了場次',
+  form_contact: '開始填資料',
+  form_submit: '按了「確認預約」',
+  booking_done: '預約成功',
+}
+
+// 入學試算查到的班別，要和後端 operations/models.py 的 ENGAGEMENT_CLASS_ACTIONS 一致（測試會比對）。
+export const CLASS_LABELS: Record<string, string> = {
+  class_young: '還沒到幼幼班的年齡',
+  class_toddler: '幼幼班',
+  class_small: '小班',
+  class_middle: '中班',
+  class_big: '大班',
+  class_school: '已到國小年齡',
+}
+
+export const STORY_KIND_LABELS: Record<string, string> = { news: '消息', event: '活動', film: '影片' }
+
+/** 和上一期比：上一期沒有資料可比回空字串；上一期是 0 寫「上一期沒有」。 */
+export function formatDelta(current: number, previous: number | null | undefined): string {
+  if (previous === null || previous === undefined) return ''
+  if (previous === 0) return current > 0 ? '上一期沒有' : '持平'
+  const change = Math.round(((current - previous) / previous) * 100)
+  return change === 0 ? '持平' : `${change > 0 ? '+' : '−'}${Math.abs(change)}%`
+}
+
+/** 進站頁、離開頁與瀏覽順序只分到頁面類型：預約的選校頁與各校表單頁都算「預約頁」。 */
+export function journeyPageLabel(page: string): string {
+  return page === 'visit' ? '預約頁' : engagementPageLabel(page)
+}
+
+/** 瀏覽順序：連續停在同一種頁面（選校頁 → 表單頁、連看兩則消息）只寫一次。 */
+export function pathLabel(pages: readonly string[]): string {
+  return pages.map(journeyPageLabel).filter((label, index, labels) => label !== labels[index - 1]).join(' → ')
+}
+
+// 瀏覽時段：一天分成七段（整點起、不含結束那一點），星期一到星期日。
+export const HOUR_BANDS = [
+  { label: '凌晨', range: '0–6', from: 0, to: 6 },
+  { label: '早上', range: '6–9', from: 6, to: 9 },
+  { label: '上午', range: '9–12', from: 9, to: 12 },
+  { label: '中午', range: '12–14', from: 12, to: 14 },
+  { label: '下午', range: '14–18', from: 14, to: 18 },
+  { label: '晚上', range: '18–21', from: 18, to: 21 },
+  { label: '深夜', range: '21–24', from: 21, to: 24 },
+] as const
+export const WEEKDAY_LABELS = ['星期一', '星期二', '星期三', '星期四', '星期五', '星期六', '星期日'] as const
+
+export interface HourGrid {
+  /** rows[星期 0–6][時段 0–6] 的瀏覽次數 */
+  rows: number[][]
+  max: number
+  total: number
+  /** 最多人看的前三個時段 */
+  peaks: { weekday: string; band: string; visits: number }[]
+}
+
+export function hourGrid(hours: readonly EngagementSummary['hours'][number][]): HourGrid {
+  const rows = WEEKDAY_LABELS.map(() => HOUR_BANDS.map(() => 0))
+  for (const item of hours) {
+    const band = HOUR_BANDS.findIndex((range) => item.hour >= range.from && item.hour < range.to)
+    const row = rows[item.weekday - 1]
+    if (row && band >= 0) row[band]! += item.visits
+  }
+  const cells = rows.flatMap((row, day) => row.map((visits, band) => ({ weekday: WEEKDAY_LABELS[day]!, band: `${HOUR_BANDS[band]!.label}（${HOUR_BANDS[band]!.range} 點）`, visits })))
+  return {
+    rows,
+    max: Math.max(0, ...cells.map((cell) => cell.visits)),
+    total: cells.reduce((sum, cell) => sum + cell.visits, 0),
+    peaks: cells.filter((cell) => cell.visits > 0).sort((a, b) => b.visits - a.visits).slice(0, 3),
+  }
 }

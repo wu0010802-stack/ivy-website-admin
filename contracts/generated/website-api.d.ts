@@ -6073,6 +6073,39 @@ export interface components {
             /** Visits */
             visits: number;
         };
+        /** EngagementCampaignOut */
+        EngagementCampaignOut: {
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Campaign */
+            campaign: string;
+            /** Sessions */
+            sessions: number;
+            /** Source */
+            source: string;
+        };
+        /** EngagementCampusOut */
+        EngagementCampusOut: {
+            /** Bookings */
+            bookings: number | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Map Visits */
+            map_visits: number;
+            /** Tab Visits */
+            tab_visits: number;
+            /** Visit Sessions */
+            visit_sessions: number;
+        };
+        /** EngagementClassOut */
+        EngagementClassOut: {
+            /** Key */
+            key: string;
+            /** Visits */
+            visits: number;
+        };
         /** EngagementConversionOut */
         EngagementConversionOut: {
             /** Booked Rate */
@@ -6091,6 +6124,50 @@ export interface components {
             /** Sessions */
             sessions: number;
         };
+        /** EngagementDailyOut */
+        EngagementDailyOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Sessions */
+            sessions: number;
+            /** Visits */
+            visits: number;
+        };
+        /**
+         * EngagementFormOut
+         * @description 進過預約頁的造訪裡各走到哪一步（以造訪為單位）。
+         */
+        EngagementFormOut: {
+            /** Invalid Sessions */
+            invalid_sessions: number;
+            /** No Slots Sessions */
+            no_slots_sessions: number;
+            /** Sessions */
+            sessions: number;
+            /** Steps */
+            steps: components["schemas"]["EngagementFormStepOut"][];
+        };
+        /** EngagementFormStepOut */
+        EngagementFormStepOut: {
+            /** Key */
+            key: string;
+            /** Rate */
+            rate: number | null;
+            /** Sessions */
+            sessions: number;
+        };
+        /** EngagementHourOut */
+        EngagementHourOut: {
+            /** Hour */
+            hour: number;
+            /** Visits */
+            visits: number;
+            /** Weekday */
+            weekday: number;
+        };
         /**
          * EngagementIn
          * @description 與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。
@@ -6104,6 +6181,8 @@ export interface components {
             };
             /** Active Ms */
             active_ms: number;
+            /** Campaign */
+            campaign?: string | null;
             /** Campus */
             campus: ("yihua" | "minghua" | "chongde" | "international" | "renwu") | null;
             /**
@@ -6128,12 +6207,16 @@ export interface components {
              * @enum {string}
              */
             page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
+            /** Rev */
+            rev?: number | null;
             /** Scroll */
             scroll: number;
             /** Sections */
             sections: {
                 [key: string]: number;
             };
+            /** Seq */
+            seq?: number | null;
             /**
              * Session
              * Format: uuid
@@ -6145,12 +6228,34 @@ export interface components {
              */
             source: "direct" | "search" | "facebook" | "instagram" | "line" | "youtube" | "ads" | "other";
         };
+        /** EngagementJourneyOut */
+        EngagementJourneyOut: {
+            /** Entries */
+            entries: components["schemas"]["EngagementJourneyPageOut"][];
+            /** Exits */
+            exits: components["schemas"]["EngagementJourneyPageOut"][];
+            /** Paths */
+            paths: components["schemas"]["EngagementPathOut"][];
+            /** Sessions */
+            sessions: number;
+        };
+        /** EngagementJourneyPageOut */
+        EngagementJourneyPageOut: {
+            /** Page */
+            page: string;
+            /** Rate */
+            rate: number | null;
+            /** Sessions */
+            sessions: number;
+        };
         /** EngagementNewsOut */
         EngagementNewsOut: {
             /** Id */
             id: string;
             /** Median Active Ms */
             median_active_ms: number;
+            /** Previous Visits */
+            previous_visits: number | null;
             /** Read Rate */
             read_rate: number | null;
             /** Title */
@@ -6170,6 +6275,32 @@ export interface components {
             median_scroll_pct: number;
             /** Page */
             page: string;
+            /** Previous Visits */
+            previous_visits: number | null;
+            /** Visits */
+            visits: number;
+        };
+        /** EngagementPathOut */
+        EngagementPathOut: {
+            /** Pages */
+            pages: string[];
+            /** Rate */
+            rate: number | null;
+            /** Sessions */
+            sessions: number;
+        };
+        /** EngagementPeriodOut */
+        EngagementPeriodOut: {
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Median Session Ms */
+            median_session_ms: number;
+            /** Pages Per Session */
+            pages_per_session: number | null;
+            /** Sessions */
+            sessions: number;
             /** Visits */
             visits: number;
         };
@@ -6199,6 +6330,20 @@ export interface components {
             /** Source */
             source: string;
         };
+        /** EngagementStoryOut */
+        EngagementStoryOut: {
+            /** Id */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "news" | "event" | "film";
+            /** Title */
+            title: string | null;
+            /** Visits */
+            visits: number;
+        };
         /** EngagementSummaryOut */
         EngagementSummaryOut: {
             /** Actions */
@@ -6208,14 +6353,29 @@ export interface components {
              * Format: date-time
              */
             as_of: string;
+            booking_form: components["schemas"]["EngagementFormOut"];
+            /** Campaigns */
+            campaigns: components["schemas"]["EngagementCampaignOut"][];
+            /** Campuses */
+            campuses: components["schemas"]["EngagementCampusOut"][];
+            /** Classes */
+            classes: components["schemas"]["EngagementClassOut"][];
             /** Conversion */
             conversion: components["schemas"]["EngagementConversionOut"][];
+            /** Daily */
+            daily: components["schemas"]["EngagementDailyOut"][];
             /** Days */
             days: number;
+            /** Device */
+            device: ("mobile" | "desktop") | null;
+            /** Hours */
+            hours: components["schemas"]["EngagementHourOut"][];
+            journey: components["schemas"]["EngagementJourneyOut"];
             /** News */
             news: components["schemas"]["EngagementNewsOut"][];
             /** Pages */
             pages: components["schemas"]["EngagementPageOut"][];
+            previous: components["schemas"]["EngagementPeriodOut"] | null;
             /** Sections */
             sections: components["schemas"]["EngagementSectionOut"][];
             /**
@@ -6225,6 +6385,8 @@ export interface components {
             since: string;
             /** Sources */
             sources: components["schemas"]["EngagementSourceOut"][];
+            /** Stories */
+            stories: components["schemas"]["EngagementStoryOut"][];
             totals: components["schemas"]["EngagementTotalsOut"];
             /**
              * Until
@@ -6242,6 +6404,8 @@ export interface components {
             median_active_ms: number;
             /** Median Session Ms */
             median_session_ms: number;
+            /** Mobile Sessions */
+            mobile_sessions: number;
             /** Pages Per Session */
             pages_per_session: number | null;
             /** Sessions */
@@ -12131,6 +12295,8 @@ export interface operations {
         parameters: {
             query?: {
                 days?: number;
+                /** @description 只看手機或電腦；省略＝全部 */
+                device?: ("mobile" | "desktop") | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;

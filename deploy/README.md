@@ -14,6 +14,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
+
+- **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
+- **Migration**：`d2f6b8a13c47` 只新增 `engagement_visits`，不動既有資料，API 啟動時自動套用。
+- **推前（本機）**：後端全套 5042 過（真 PostgreSQL）、web 139 檔 1852 過、admin 174 檔 3367 過、兩邊 typecheck 與契約檢查過；本機 dev server＋真 API 用無頭 Chromium 在 390×844 與 1440×900 走過一遍，資料正確入庫。合併當下 PR 的 E2E 還在跑（不擋部署）。
+- **CI**：main run 43034669679 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `08833a3b`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200；`/api/website/v1/admin/analytics/engagement` 未登入回 401（路由已掛上）；首頁 HTML 有 `data-track-section`（hero、about、day、campuses；最新消息在正式站是關閉的，所以沒有 news）。沒有登入正式站後台看面板，也沒有確認正式資料庫已經收到第一筆紀錄。
+- **上線後要知道**：面板從部署這一刻開始累積，之前沒有資料。最新消息在正式站關閉期間，「單篇消息」不會有資料。隱私權政策草稿已補上對應說明，政策本身還沒發布。
+- **PR #69 的自動審查在合併後才回來**，指出兩件事：各校消息的代號帶冒號（`yihua:open-day`）沒被分篇統計、晚到的舊回報會蓋掉新的區塊與互動。兩項都在下一輪（PR #70）修，這一版先帶著上線；最新消息目前關閉，第一項暫時沒有影響。
+- **回退**：切回上一版映像即可；`engagement_visits` 留著不影響舊版（舊版不讀不寫）。
+
 ## 2026-11-11 後台入學資訊分頁開關上線（main CI 部署，沒有 migration）
 
 - **內容**：`964b03bb`（README「2026-11-11 後台可以先隱藏入學資訊分頁」），分支 `feature/hide-admission-20261111`，rebase 到 `849289d8` 後快轉 main。後台「網站標題與電話」新增「入學資訊分頁」開關（`site_meta.admission_enabled`，預設開、發布後生效）；關閉時 `/admission` 回 404，主選單、頁尾、關於頁與環境頁結尾拿掉入學資訊連結，sitemap 與 llms.txt（含常見問題段）不列，舊站五條入學網址改 302 到首頁。沒有 migration、沒有新變數、OpenAPI 契約沒變。
