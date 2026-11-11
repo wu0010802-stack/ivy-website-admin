@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 網域移轉前置：舊 Wix 網址 301、主網域轉址開關、過渡期雙網域寫入（main CI 部署，沒有 migration）
+
+- **內容**：`690ce04e`（README「2026-11-11 網域移轉前置」），分支 `feature/domain-migration-20261111`，rebase 到 main `801f80b1`（只有 README 頂部段落衝突，兩段都留）。web：舊站 30 個網址的對照表與 301 middleware、`NUXT_REDIRECT_HOSTS` 開關、robots.txt 只在正式網址主機放行；api：`WEBSITE_ADMIN_EXTRA_ORIGINS`。沒有 migration；**兩個新變數都沒設**，Railway 網址行為不變。切換步驟在 `docs/website-admin/migration-checklist.md`。
+- **推前本機**：web typecheck、`npm run test:website` 133 檔 1789 過；後端全套（rebase 前）5010 過 1 略過、rebase 後相關 8 檔 279 過；正式建置帶 Host 驗轉址開關兩種狀態；Playwright 1440／390 八頁。stack e2e 交給 CI。
+- **CI**：run 42941306008 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（01:57:23Z）；`/release.json` 的 `base_commit` 是 `690ce04e`。等前一個 run 42939707049（801f80b1）部署完才推。
+- **正式站驗證**（只發 GET）：`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/news`、`/visit`、`/anniversary`、`/admin/`、health 都 200（Railway 主機沒被轉址）；`/分班表` 301 `/admission#classes`；`/仁武校介紹?lang=zh` 301 `/?campus=renwu&lang=zh#campuses`；待確認的 `/作品照片分享` 404；robots.txt 仍 `Disallow: /`。
+- **沒驗**：正式網域相關（還沒接）；後台登入寫入（行為不變，沒用本人帳號測）。
 ## 2026-11-11 特色教學顏料團不再被切成直線（main CI 部署，沒有 migration）
 
 - `b6c112d1` 顏料團修正（扁長框超框改拉伸、基底反折重抽，21 塊只換 5 塊）；同批另有兩個擋部署的修正（`801f80b1` 前兩個 commit）：node-forge 1.4.3（三則 moderate 公告，只改 web lockfile 一段）、後端 VAPID 壞公鑰測試約 1/4 偶發失敗。
