@@ -1,14 +1,21 @@
 <script setup lang="ts">
 // 最新消息列表（/news，2026-09-26 開放獨立網址）。主體在 components/NewsIndexContent.vue；
 // 資料是後台的全站消息與各校消息（沒發布過時沿用內建示意消息）。
+// 2026-11-11 起後台「全站設定」可關掉最新消息，關閉時這頁導回首頁（暫時性轉址：打開後網址照舊）。
+import { newsEnabled } from '~/utils/seo'
+
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
+const hidden = !newsEnabled(data.value?.content.siteMeta)
+if (hidden) {
+  await navigateTo('/', { redirectCode: 302, replace: true })
+}
 
 usePageSeo(computed(() => data.value?.content), 'news')
 </script>
 
 <template>
-  <div v-if="data">
+  <div v-if="data && !hidden">
     <SiteHeader :content="data.content" />
     <NewsIndexContent :news="data.content.news" :campuses="data.content.campuses" />
     <SiteFooter :content="data.content" />

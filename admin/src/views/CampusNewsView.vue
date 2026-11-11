@@ -9,6 +9,7 @@ import CampusSelect from '../components/CampusSelect.vue'
 import NewsEntriesEditor from '../components/NewsEntriesEditor.vue'
 import type { EditorSection } from '../composables/editorSections'
 import { NEWS_LIMITS, NEWS_SECTION_IDS, normalizeCampusArticle, normalizeCampusEvent } from '../composables/newsContent'
+import { usePublishedNewsHidden } from '../composables/usePublishedNewsHidden'
 
 // 各校自己的消息與活動（campus_news）：分校管理者與內容編輯只能編自己校，
 // 官網和全站消息合併顯示。跨校與首頁推薦由總部在「最新消息與活動」決定。
@@ -19,6 +20,8 @@ function normalize(payload: CampusNewsPayload): CampusNewsPayload {
   }
 }
 
+// 總部把最新消息關掉時提醒：這裡照常可以編輯，但官網不顯示。
+const newsHidden = usePublishedNewsHidden()
 const campus = ref('')
 const editor = useContentItem<CampusNewsPayload>('campus_news', { articles: [], events: [] }, campus, { normalize })
 const shell = useTemplateRef<InstanceType<typeof ContentEditor>>('shell')
@@ -45,6 +48,17 @@ const navSections = computed<EditorSection[]>(() => [
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+      <el-alert
+        v-if="newsHidden"
+        class="news-hidden-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="官網目前沒有顯示最新消息"
+        style="margin-bottom: 16px"
+      >
+        這裡的消息與活動照常可以新增、修改、發布，內容都會留著。總部把官網的「最新消息」打開之後，才會出現在官網。
+      </el-alert>
       <NewsEntriesEditor
         :articles="editor.form.value.articles"
         :events="editor.form.value.events"

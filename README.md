@@ -1,3 +1,19 @@
+## 2026-11-11 後台最新消息開關：官網先不顯示最新消息（`feature/hide-home-news-20261111`）
+
+使用者要先把前台的「最新消息」收起來（首頁那一章、列表頁、單篇頁、選單與頁尾連結都不對外），之後要能自己打開。做法比照 10-24 的 30 週年開關。
+
+- **開關放在後台「網站標題與電話」（`/admin/content/site-meta`）的「最新消息」段落**，**發布後生效**；側欄搜尋「隱藏最新消息」「關閉最新消息」「消息開關」找得到。欄位是 `site_meta.news_enabled`，**預設開**，舊版本沒有這個欄位＝開，不需要 migration、OpenAPI 契約沒變。**部署後官網不會自己變**，要到後台把開關關掉並發布才會收起來。
+- **關閉時官網**：
+  - 首頁不放最新消息那一章：`pages/index.vue` 不渲染 `HomeNewsTransition`（五校→消息的換頁紙），五校區塊後面直接接頁尾；`#campuses` 錨點不再當成釘住的章節。`performance.css` 補一條量測前的預先疊位（`.day-reveal:not([data-motion]) > .campus-panorama`），沒有換頁層時量測前後位置一樣、不位移。
+  - `/news` 與 `/news/<id>` 一律 **302 導回首頁**（暫時性轉址：打開後網址照舊；單篇頁不論有沒有那一則都導回，不露出 404）。
+  - 主選單與頁尾拿掉連到最新消息的連結（`/news`、`/news?…`、`/news/<id>`、`/#latest-news`，內建或後台設定的都算，`content-overlay.ts` 的 `isNewsHref`）；後台選單只剩最新消息時退回內建選單。
+  - sitemap 不列 `/news` 與任何一則消息、llms.txt 不列最新消息。
+  - 開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.newsEnabled=false`）。
+- **後台照常可以編輯**：消息內容、粉專轉消息、發布都不受影響，只是官網不顯示。關著時「最新消息與活動」「各校消息與活動」兩個編輯頁最上面出現「官網目前沒有顯示最新消息」的提醒（`usePublishedNewsHidden` 讀官網發布中的 `site_meta`；讀不到就不提醒、不擋編輯）。後台的草稿預覽（`/preview`）不跟著開關，關著時照樣看得到消息，方便先準備內容。
+- 測試：`web/tests/news-toggle-20261111.spec.ts`（7 條）、`backend/tests/test_content_rules.py`、`admin/src/__tests__/newsFaqEditors.test.ts`、`siteMetaSeo.test.ts`；端到端 `tests/stack/news-toggle.spec.ts`（後台按開關發布 → 官網消息頁 302、首頁沒有那一章、沒連結、編輯頁有提醒 → 打開再發布回來，結束時一定打開）。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 135 檔 1814 過；dev server（fixture 暫時設 `newsEnabled:false`，驗完還原）用 Playwright 看 1440×900 與 390×844：首頁沒有 `.home-news`／`.news-transition`、五校區塊後面直接接頁尾、沒有 JS 錯誤，`/news` 與 `/news/abc` 回 302 到 `/`；量測前後五校區塊位置相同（margin-top 都是 -900px、頁面總高相同）。admin `vue-tsc` 過，`newsFaqEditors`＋`siteMetaSeo` 57 過；後端 `tests/test_content_rules.py` 14 過（獨立測試庫 `ivy_website_test_hide_news`）。
+- 沒驗證：本機負載 50–85（其他 session 同時在跑），admin 全套 173 檔那次有 48 檔失敗；放寬逾時重跑和這次改動有關的 34 檔，32 過、2 檔各 1 條 120 秒逾時（`admissionsView` 與這次無關；`editorSectionFields` 單獨重跑 32 過）——**admin 全套、後端全套、stack e2e 的乾淨結果以 CI 為準**。開著時的首頁畫面沒有另外截圖（程式路徑沒變）；iOS 實機、WebKit 沒驗。
+
 ## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（`fix/launch-cleanup-20261111`）
 
 正式網域 `www.ivykidschool.com` 切換並開放收錄後，把正式站 16 個網址爬過一遍（只發 GET）：站內連結 18 條、資源 161 個、外部連結 20 條、舊 Wix 網址 20 條都正常。找到一處該修的：每一頁原始碼的頁面資料（`__NUXT_DATA__`）帶著原型時期寫給維護者看的字句。畫面與版面都沒動。

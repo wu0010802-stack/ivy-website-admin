@@ -278,6 +278,9 @@ export interface SiteMetaContent {
   /** 後台「全站設定」的 30 週年開關（2026-10-24）：false 時首頁不播進站布幕、/anniversary 回 404，
    *  主選單與頁尾的 30 週年連結在 content-overlay 拿掉。沒有這個欄位＝開。 */
   anniversaryEnabled?: boolean
+  /** 後台「全站設定」的最新消息開關（2026-11-11）：false 時首頁不放最新消息那一章、/news 與單篇消息導回首頁，
+   *  主選單與頁尾連到最新消息的連結在 content-overlay 拿掉。沒有這個欄位＝開。 */
+  newsEnabled?: boolean
 }
 
 export interface AdmissionStep { when: string; title: string; text: string }

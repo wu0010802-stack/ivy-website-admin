@@ -9,6 +9,7 @@ import HomeFilmsEditor from '../components/HomeFilmsEditor.vue'
 import type { EditorSection } from '../composables/editorSections'
 import { NEWS_LIMITS, NEWS_SECTION_IDS, normalizeArticle, normalizeEvent } from '../composables/newsContent'
 import { normalizeHomeFilm } from '../composables/homeFilms'
+import { usePublishedNewsHidden } from '../composables/usePublishedNewsHidden'
 
 // 舊版消息沒有適用範圍、內文、推薦與活動時間：載入時換算成新欄位
 // （跟後端讀舊版本的規則相同），再拍快照，才不會一打開就顯示有修改。
@@ -29,6 +30,8 @@ const editor = useContentItem<HomeNewsPayload>(
   { normalize },
 )
 
+// 「網站標題與電話」把最新消息關掉時提醒：這裡照常可以編輯，但官網不顯示。
+const newsHidden = usePublishedNewsHidden()
 const isSample = computed(() => editor.form.value.sample_note.trim() !== '')
 const navSections = computed<EditorSection[]>(() => [
   { id: NEWS_SECTION_IDS.articles, label: '最新消息', note: `${editor.form.value.articles.length} 則`, fields: ['sample_note', 'home_display_count', 'articles'] },
@@ -53,6 +56,17 @@ onMounted(editor.load)
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
+      <el-alert
+        v-if="newsHidden"
+        class="news-hidden-alert"
+        type="warning"
+        :closable="false"
+        show-icon
+        title="官網目前沒有顯示最新消息"
+        style="margin-bottom: 16px"
+      >
+        這裡的消息與活動照常可以新增、修改、發布，內容都會留著。要讓官網顯示，請到「全站與素材 → 網站標題與電話」把「最新消息」打開並發布。
+      </el-alert>
       <el-alert
         v-if="isSample"
         type="warning"

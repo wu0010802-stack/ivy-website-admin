@@ -47,6 +47,13 @@
   [data-ivy-motion] .day-reveal:not([data-motion]) .news-transition {
     margin-top: calc(-1 * var(--reveal-height, 100svh));
   }
+  /* 後台關掉最新消息時（2026-11-11）沒有換頁層，下一段就是五校區塊本身（studio.css 的
+     `.day-reveal[data-motion="on"] .campus-panorama`）：一樣在量測前先疊到同一位置。 */
+  [data-ivy-motion] .day-reveal:not([data-motion]) > .campus-panorama {
+    position: relative;
+    z-index: 1;
+    margin-top: calc(-1 * var(--reveal-height, 100svh));
+  }
   /* ?seam=2 接力版（現行預設）：日常區塊多往上拉一個簾幕距離、卡片相對延後，
      對應 studio.css 的 [data-seam="2"] .belief-reveal[data-motion="on"] 規則
      （視窗高度與那裡一樣走 --motion-vh，由 reveal-screen.ts 寫入）。 */

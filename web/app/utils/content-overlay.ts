@@ -2,7 +2,7 @@ import type { AboutPageContent, AdmissionRefund, AdmissionStep, AdmissionPhase, 
 import { newsMonth, safeWebUrl } from './news-content'
 import { assertCounts, assertItems, assertStrings, PAGE_COUNTS } from './page-content'
 import { privacyNotice } from './privacy-notice'
-import { anniversaryEnabled, isAnniversaryHref, PAGE_SEO_KEYS } from './seo'
+import { anniversaryEnabled, isAnniversaryHref, isNewsHref, newsEnabled, PAGE_SEO_KEYS } from './seo'
 import { httpsUrl, siteLink } from './site-links'
 import { youtubeId, youtubeThumb } from './filmCarousel'
 import {
@@ -62,6 +62,8 @@ export interface LiveSiteMeta {
   allow_indexing?: boolean
   /** 2026-10-24 新增；沒有＝開（舊版本照常有 30 週年） */
   anniversary_enabled?: boolean
+  /** 2026-11-11 新增；沒有＝開（舊版本照常有最新消息） */
+  news_enabled?: boolean
   /** 2026-09-25 新增；沒有（或 null）＝沿用內建主選單 */
   primary_nav?: LiveNavLink[] | null
   /** 2026-10-12 新增；沒有（或 null）＝七頁全部沿用內建標題、描述與全站分享圖 */
@@ -781,6 +783,7 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       }
       // 只在關閉時寫：開著（含舊版本沒有這個欄位）的輸出跟加開關之前逐欄相同。
       if (overlay.site_meta.anniversary_enabled === false) next.siteMeta.anniversaryEnabled = false
+      if (overlay.site_meta.news_enabled === false) next.siteMeta.newsEnabled = false
       // 機構社群：後台設定過就整組取代內建（過濾後可能是空的＝不顯示）；null／沒有這個鍵＝沿用內建。
       if (Array.isArray(overlay.site_meta.social_links)) next.siteMeta.socialLinks = liveSocialLinks(overlay.site_meta.social_links)
       const nav = (overlay.site_meta.primary_nav ?? [])
@@ -1018,6 +1021,16 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
     const nav = withoutAnniversary(next.siteMeta.primaryNav)
     next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : withoutAnniversary(content.siteMeta.primaryNav) }
     next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isAnniversaryHref(link.href)) }
+  }
+
+  // 最新消息關閉時（2026-11-11），主選單與頁尾不留連到最新消息的連結（/news、單篇、首頁那一章的錨點）：
+  // 頁面會導回首頁、首頁也沒有那一章。做法同上面的 30 週年。
+  if (!newsEnabled(next.siteMeta)) {
+    const sectionId = next.news.sectionId
+    const withoutNews = (nav: SiteContent['siteMeta']['primaryNav']) => nav.filter((item) => !isNewsHref(item.href, sectionId))
+    const nav = withoutNews(next.siteMeta.primaryNav)
+    next.siteMeta = { ...next.siteMeta, primaryNav: nav.length ? nav : withoutNews(content.siteMeta.primaryNav).filter((item) => anniversaryEnabled(next.siteMeta) || !isAnniversaryHref(item.href)) }
+    next.footer = { ...next.footer, links: next.footer.links.filter((link) => !isNewsHref(link.href, sectionId)) }
   }
 
   return next
