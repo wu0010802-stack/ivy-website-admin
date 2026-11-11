@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 後台 QA 修正：粉專頁校區下拉、手機編輯頁操作列（main CI 部署，沒有 migration）
+
+- **內容**：`39328c8d`（README「2026-11-11 後台 QA」），分支 `fix/admin-qa-20261111`，rebase 到 main `76839d66`（只有 README 頂部段落衝突，兩段都留）。只動 admin：`FacebookPostsView.vue` 校區下拉固定 160px（720px 以下 100%）、同步說明逗號後的空白；`ContentEditor.vue` 手機直排操作列改不換行。沒有 migration、沒有新變數。
+- **推前本機**：admin 全套 173 檔 3350 過 1 略過（rebase 前）；rebase 後 `siteMetaSeo`＋兩個改到的測試檔 74 過、admin typecheck 過、`npm --prefix admin run build` 過（rebase 前）。stack e2e 交給 CI。
+- **CI**：run 42953422863 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（03:51:29Z）；`/release.json` 的 `base_commit` 是 `39328c8d`。排在 run 42952863472（76839d66）後面。
+- **正式站驗證**（只發 GET）：`/admin/`、`/`、`/news`、`/visit`、health 都 200；線上 `FacebookPostsView-*.css` 有 `.fb-campus.el-select{width:160px}` 與 720px 以下 `width:100%`，`readonlyValues-*.css` 的手機操作列是 `flex-flow:column`，`FacebookPostsView-*.js` 的同步說明已是一行字串。
+- **沒驗**：沒有登入正式後台看修好後的實際畫面（部署前用注入同樣 CSS 的方式在正式站量過：下拉 44px → 160px、操作列回到 386px 寬的畫面內）。
 ## 2026-11-11 搜尋與 AI 助理資料補強：五校結構化資料、常見問題、預約頁開放收錄（main CI 部署，沒有 migration）
 
 - **內容**：`76839d66`（README「2026-11-11 搜尋與 AI 助理（SEO／GEO）補強」），分支 `feature/seo-geo-20261111`，直接快轉 main（推之前 main 沒有新提交）。只動 web 與後台一個提示字常數，沒有 migration、沒有新變數。首頁結構化資料加回五校、每頁帶機構與網站節點、入學頁 `FAQPage`、llms.txt 補事實、預約頁照全站收錄開關並進 sitemap、robots.txt 只擋 `/visit/manage`、標題結尾改「常春藤幼兒園」（使用者裁定不加「高雄」）、`og:site_name`。
