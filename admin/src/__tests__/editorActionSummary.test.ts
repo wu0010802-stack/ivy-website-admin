@@ -109,6 +109,13 @@ describe('動作列', () => {
     expect(editorSource).toMatch(/\.editor__actions-text \{[^}]*text-overflow: ellipsis;/)
   })
 
+  // 2026-11-11 QA：直排時還留著桌機的 flex-wrap: wrap，那一列的寬度會變成文字全長，
+  // 「放棄修改」被推出畫面（手機寬度整頁可橫向捲）。直排要明寫不換行，省略號才生效。
+  it('手機直排不換行：長摘要不會把「放棄修改」推出畫面', () => {
+    const mobile = editorSource.slice(editorSource.indexOf('@media (max-width: 720px)'))
+    expect(mobile).toMatch(/\.editor__actions \{[^}]*flex-direction: column;[^}]*flex-wrap: nowrap;/)
+  })
+
   it('摘要欄的 flex-basis 是 0%：用 auto 的話長文字會把按鈕擠到第二列、省略號不生效', () => {
     expect(editorSource).toMatch(/\.editor__actions-state \{[^}]*flex: 1 1 0%;/)
     expect(editorSource).not.toMatch(/\.editor__actions-state \{[^}]*flex: 1 1 auto;/)

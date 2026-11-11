@@ -778,8 +778,11 @@ defineExpose({ confirmLeave })
     background: var(--surface);
     font-size: var(--text-base);
   }
+  /* 直排要明寫不換行：留著桌機的 wrap，這一欄的寬度會變成最長那列的文字全長，
+     「放棄修改」被推出畫面、摘要的省略號也不會生效。 */
   .editor__actions {
     flex-direction: column;
+    flex-wrap: nowrap;
     align-items: stretch;
     gap: 8px;
     padding: 12px 0 max(12px, env(safe-area-inset-bottom));
