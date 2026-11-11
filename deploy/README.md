@@ -13,6 +13,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 搜尋與 AI 助理資料補強：五校結構化資料、常見問題、預約頁開放收錄（main CI 部署，沒有 migration）
+
+- **內容**：`76839d66`（README「2026-11-11 搜尋與 AI 助理（SEO／GEO）補強」），分支 `feature/seo-geo-20261111`，直接快轉 main（推之前 main 沒有新提交）。只動 web 與後台一個提示字常數，沒有 migration、沒有新變數。首頁結構化資料加回五校、每頁帶機構與網站節點、入學頁 `FAQPage`、llms.txt 補事實、預約頁照全站收錄開關並進 sitemap、robots.txt 只擋 `/visit/manage`、標題結尾改「常春藤幼兒園」（使用者裁定不加「高雄」）、`og:site_name`。
+- **推前本機**：web typecheck、`npm run test:website` 133 檔 1802 過；admin 相關 6 檔 189 過（放寬逾時、單一 worker）；dev server（fixture，`https://ivy.localhost`）開放收錄與未開放兩種模式 `check-public-seo.mjs` PASS。admin 全套、stack e2e、後端交給 CI。
+- **CI**：run 42952863472 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（03:40:02Z）；`/release.json` 的 `base_commit` 是 `76839d66`。
+- **正式站驗證**（只發 GET）：`SEO_EXPECT_INDEXABLE=false node scripts/check-public-seo.mjs https://web-production-04caa.up.railway.app` PASS（七頁）；`/`、`/about`、`/curriculum`、`/admission`、`/environment`、`/anniversary`、`/news`、`/visit`、`/visit/yihua`、`/visit/renwu`、`/admin/`、health 都 200；內頁與預約頁標題結尾是「常春藤幼兒園」、首頁標題不變；首頁有五個 `Preschool`、入學頁 `FAQPage` 11 題、各校預約頁各帶自己的 `Preschool`；`og:site_name` 每頁都有。
+- **現在還看不到的**：正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，全站仍 noindex、robots.txt 仍 `Disallow: /`、sitemap 是空的、`/llms.txt` 404。開放收錄後才會生效，屆時用同一支腳本不帶 `SEO_EXPECT_INDEXABLE=false` 再驗一次（會查 robots、sitemap 的預約頁與 llms.txt）。
+- **沒驗**：後台登入後看「各頁搜尋與分享」的提示字（只改一個常數，單元測試逐字比對過）。
 ## 2026-11-11 網域移轉前置：舊 Wix 網址 301、主網域轉址開關、過渡期雙網域寫入（main CI 部署，沒有 migration）
 
 - **內容**：`690ce04e`（README「2026-11-11 網域移轉前置」），分支 `feature/domain-migration-20261111`，rebase 到 main `801f80b1`（只有 README 頂部段落衝突，兩段都留）。web：舊站 30 個網址的對照表與 301 middleware、`NUXT_REDIRECT_HOSTS` 開關、robots.txt 只在正式網址主機放行；api：`WEBSITE_ADMIN_EXTRA_ORIGINS`。沒有 migration；**兩個新變數都沒設**，Railway 網址行為不變。切換步驟在 `docs/website-admin/migration-checklist.md`。
