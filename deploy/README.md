@@ -14,6 +14,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 後台最新消息開關上線，並已在正式站關閉最新消息（main CI 部署，沒有 migration）
+
+- **內容**：`cb5569ca`（README「2026-11-11 後台最新消息開關」），分支 `feature/hide-home-news-20261111`，rebase 到 `9f008bab` 後快轉 main（只有 README 頂部衝突）。後台「網站標題與電話」新增「最新消息」開關（`site_meta.news_enabled`，預設開、發布後生效）；關閉時首頁不放最新消息那一章、`/news` 與 `/news/<id>` 302 回首頁、主選單與頁尾拿掉最新消息連結、sitemap 與 llms.txt 不列。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前**：先推 feature 分支跑一輪 CI（run 42996445652，`b48b8752`）全綠：web 135 檔 1814 過、admin 173 檔 3351 過、後端 3 組、E2E stack 171 過（含 `tests/stack/news-toggle.spec.ts`）＋公開站 34 過。本機 web typecheck 與全套過（rebase 後 1815 過）；本機 admin 全套因機器負載 50–85 有逾時，以 CI 為準。
+- **CI**：main run 42998776156 全綠，Deploy Railway production success（10:02:43Z）；`/release.json` 的 `base_commit` 是 `cb5569ca`。
+- **部署後、關開關前**（只發 GET）：`/`、`/news`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200，首頁仍有最新消息那一章（開關預設開，畫面不變）。
+- **關閉最新消息**（使用者指示，10:05Z 前後）：用總管理者帳號在正式站後台「網站標題與電話」把「在官網顯示最新消息」關掉，「儲存並發布」（確認框顯示只更新 1 個欄位：最新消息）。
+- **關閉後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：公開內容 API `site_meta.news_enabled=false`；`/news`、`/news/no-such`、`/news?campus=yihua` 都 302 到 `/`；首頁 HTML 沒有 `id="latest-news"`、`.home-news`、`.news-transition`，`#campuses` 還在；`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/visit` 都 200 且沒有連到最新消息的連結；sitemap 11 個網址、沒有 `/news`；llms.txt 沒有最新消息。1440×900 與 390×844 捲到底：五校區塊後面直接接頁尾，頁尾沒有「最新消息」，沒有 JS 錯誤（唯一的 console 錯誤是被擋掉的非 GET 請求）。
+- **沒驗**：iOS／Android 實機、WebKit；後台消息編輯頁的「官網目前沒有顯示最新消息」提醒在正式站的畫面（CI 的 stack e2e 驗過）；搜尋引擎已收錄的 `/news` 網址之後的變化。
+- **要再打開**：後台同一個開關打開並發布即可，消息內容都還在。
+- **回退**：切回上一版映像即可；`site_meta` 已存的 `news_enabled` 欄位舊版會忽略（舊版官網會照常顯示最新消息）。
 ## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（main CI 部署，沒有 migration）
 
 - **內容**：`9f008bab`（README「2026-11-11 正式網域上線後收尾」），分支 `fix/launch-cleanup-20261111`，使用者自己推、快轉 main（`b604ecc5..9f008bab`）。web：`public-copy.ts` 公開輸出前多拿掉整份的 `_source`、消息區 `note`、拍立得 `caption`；維運：`uptime_check.py` 預設網址與 `uptime.yml` 備援值、`scripts/` 兩支工具、`.env.example` 改正式網域，`railway_ci.py` 的 smoke 留在 Railway 網址並加註解。沒有 migration、沒有新變數。
