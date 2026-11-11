@@ -11,7 +11,7 @@
 - **控制列用瀏覽器原生的**：開始播之後才加 `controls`。全螢幕、AirPlay、子母畫面、鍵盤操作各平台都不一樣，不自己重做。焦點在原生控制列裡面時，Esc 不會傳到頁面（瀏覽器吃掉），那時用控制列自己的暫停鈕。
 - **沒有 JS**：封面是連到影片檔的連結，瀏覽器自己的播放器接手；六句照樣讀得到。
 - **授權**：鋼琴取樣 Salamander Grand Piano V3 是 CC BY 3.0，出處固定寫在影片下面，不能拿掉。
-- **素材**：`scripts/build-anniversary-film.py` 從影片製作資料夾的近無損分段重壓（兩階段平均位元率，桌機 2400k＝44 MB、手機 1400k＝27 MB，AAC 160k、faststart），連同預告、封面、六張縮圖輸出到 `web/public/assets/anniversary-film/`（檔名帶雜湊、immutable）並改寫 `utils/anniversary/film-media.ts`。**單檔壓在 50 MB 以下**（GitHub 超過會警告、100 MB 擋下）。和 `build-anniversary-media.py`（時間軸的素材場，輸出到 `assets/anniversary/`）分開兩個資料夾，互不清對方的檔案。
+- **素材**：`scripts/build-anniversary-film.py` 從影片製作資料夾的近無損分段重壓（兩階段平均位元率，桌機 2400k＝44.7 MB、手機 1400k＝27.5 MB，AAC 192k、faststart；聲音不用 160k：橫式編碼後真峰值會到 -0.9 dBTP，192k 是 -1.3／-1.2），連同預告、封面、六張縮圖輸出到 `web/public/assets/anniversary-film/`（檔名帶雜湊、immutable）並改寫 `utils/anniversary/film-media.ts`。**單檔壓在 50 MB 以下**（GitHub 超過會警告、100 MB 擋下）。和 `build-anniversary-media.py`（時間軸的素材場，輸出到 `assets/anniversary/`）分開兩個資料夾，互不清對方的檔案。
 - **新寫的字**（待使用者確認）：「紀念影片」「影片裡的話」「分享影片」「連結已複製」、索引的「三十年／吹蠟燭／孩子的作品／換你畫」與底下的小字、影片的無障礙說明。片名與六句都是已上線的文字。
 - **沒做**：播放次數統計（要加後端事件列舉）；影片放進後台讓園方自己換（目前寫在程式裡，換片要重跑腳本）。
 

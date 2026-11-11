@@ -7,13 +7,16 @@ design/anniversary-film-20261110/README.md）：近無損分段（segments、seg
 
     python3 scripts/build-anniversary-film.py            # 全部重做
     python3 scripts/build-anniversary-film.py --keep-film  # 只重做預告、封面、縮圖（沿用現有的兩支影片）
+    python3 scripts/build-anniversary-film.py --remux-audio  # 只換兩支影片的聲音（影像不重壓），其餘照樣重做
 
 輸出到 web/public/assets/anniversary-film/（檔名帶內容雜湊，/assets 是長快取），並改寫
 web/app/utils/anniversary/film-media.ts。和 scripts/build-anniversary-media.py（時間軸的素材場，
 輸出到 assets/anniversary/）分開兩個資料夾，互不清對方的檔案。需要 ffmpeg、numpy、Pillow。
 
 - 影片：桌機 1920×1080、手機直式 720×1280（直式不是裁的，是同一條時間軸重新排版的那一版）。
-  兩階段平均位元率（桌機 2400k、手機 1400k）＋AAC 160k、faststart；單檔壓在 50 MB 以下。
+  兩階段平均位元率（桌機 2400k、手機 1400k）＋AAC 192k、faststart；單檔壓在 50 MB 以下。
+  聲音用 192k 不用 160k：混音的真峰值是 -1.5 dBTP，AAC 編碼後會往上跑，160k 時橫式量到 -0.9（超過 -1），
+  192k 是 -1.3（橫）／-1.2（直）。
   顆粒比交付檔輕（noise 2）：網頁位元率留不住顆粒，只留一點當暗部的抖色。
 - 預告：七個沒有字卡的鏡頭接成約 10 秒的無聲循環（頭尾相接），封面就是它的第一格。
 - 縮圖：「影片裡的話」六句各一張。
@@ -37,13 +40,16 @@ URL = '/assets/anniversary-film'
 FPS = 30
 POST = 'noise=c0s=2:c0f=t+u,vignette=angle=0.2:mode=forward:eval=init,format=yuv420p'
 COLOR = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'bt709', '-color_range', 'tv']
+AUDIO = ['-c:a', 'aac', '-b:a', '192k', '-ar', '48000']
 
 # 預告的鏡頭（依序）：每個取 54 格、相鄰交疊 10 格，最後一個疊回第一個
 TEASER = ['mh-purple-hands', 'mh-run-camera', 'mh-hug-smile', 'gr-gowns', 'mh-look-up', 'mh-boy-laugh', 'gr-arms-raised']
 TEASER_LEN, TEASER_FADE, TEASER_FROM = 54, 10, 8
 
-# 「影片裡的話」六句的縮圖：鏡頭 id＋第幾格；第一句用成片第 1446 格（五顆星剛連成星座、校名還沒出來）
-CUE_THUMBS: list[tuple[str, int]] = [('film', 1446), ('mh-yard-hug', 40), ('mh-basketball', 30), ('mh-look-up', 40), ('gr-hands', 60), ('gr-spotlight', 90)]
+# 「影片裡的話」六句的縮圖：鏡頭 id＋第幾格；第一句用成片第 1448 格（三十年的星環剛合起來、五顆星一起亮，校名還沒出來），
+# 只取星環中間那一塊（橫式畫面上星環的圓心在 1300, 540；左邊的字不取）
+FILM_RING_BOX = (750, 196, 1850, 884)
+CUE_THUMBS: list[tuple[str, int]] = [('film', 1448), ('mh-yard-hug', 40), ('mh-basketball', 30), ('mh-look-up', 40), ('gr-hands', 60), ('gr-spotlight', 90)]
 
 
 def run(*args: str) -> None:
@@ -80,7 +86,13 @@ def encode_film(src: Path, vertical: bool, dst: Path, kbps: int, tmp: Path) -> N
     base = ['-f', 'concat', '-safe', '0', '-i', str(lst)]
     run(*base, '-vf', vf, *video, '-pass', '1', '-passlogfile', log, '-an', '-f', 'mp4', '/dev/null')
     run(*base, '-i', str(audio), '-map', '0:v', '-map', '1:a', '-vf', vf, *video, '-pass', '2', '-passlogfile', log,
-        '-c:a', 'aac', '-b:a', '160k', '-ar', '48000', '-movflags', '+faststart', '-shortest', str(dst))
+        *AUDIO, '-movflags', '+faststart', '-shortest', str(dst))
+
+
+def remux_audio(src: Path, vertical: bool, old: Path, dst: Path) -> None:
+    """只換聲音：影像原封不動（-c:v copy），聲音從混好的 wav 重新編碼。重混音效或改聲音位元率時用，不必再壓十幾分鐘的影像。"""
+    audio = src / 'music' / ('film-audio-v.wav' if vertical else 'film-audio.wav')
+    run('-i', str(old), '-i', str(audio), '-map', '0:v', '-map', '1:a', '-c:v', 'copy', *AUDIO, '-movflags', '+faststart', '-shortest', str(dst))
 
 
 def shot_frames(src: Path, vertical: bool, shot: str) -> list[Path]:
@@ -146,25 +158,33 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument('--src', type=Path, default=ROOT / 'output/anniversary-film')
     ap.add_argument('--keep-film', action='store_true', help='沿用 film-media.ts 裡現有的兩支影片，只重做預告、封面、縮圖')
+    ap.add_argument('--remux-audio', action='store_true', help='沿用現有兩支影片的影像，只重新編碼聲音')
     a = ap.parse_args()
+    assert not (a.keep_film and a.remux_audio), '--keep-film 與 --remux-audio 只能擇一'
     src = a.src.expanduser().resolve()
     OUT.mkdir(parents=True, exist_ok=True)
     keep: dict[str, str] = {}
-    if a.keep_film:
-        old = json.loads(TS.read_text().split('export const ANNI_FILM = ', 1)[1].rsplit(' as const', 1)[0])
-        keep = old['film']
-        assert all((ROOT / 'web/public' / v.lstrip('/')).exists() for v in keep.values()), keep
-    for f in OUT.glob('*'):
-        if f'{URL}/{f.name}' not in keep.values():
-            f.unlink()
+    current: dict[str, str] = {}
+    if a.keep_film or a.remux_audio:
+        current = json.loads(TS.read_text().split('export const ANNI_FILM = ', 1)[1].rsplit(' as const', 1)[0])['film']
+        assert all((ROOT / 'web/public' / v.lstrip('/')).exists() for v in current.values()), current
+        if a.keep_film:
+            keep = current
     media: dict = {}
     with tempfile.TemporaryDirectory() as d:
         tmp = Path(d)
+        if a.remux_audio:  # 要在清資料夾之前做：影像來源就是資料夾裡現有的那兩支
+            for key, vertical in (('desktop', False), ('mobile', True)):
+                remux_audio(src, vertical, ROOT / 'web/public' / current[key].lstrip('/'), tmp / f'film-{key}.mp4')
+        for f in OUT.glob('*'):
+            if f'{URL}/{f.name}' not in keep.values():
+                f.unlink()
         if keep:
             media['film'] = keep
         else:
-            encode_film(src, False, tmp / 'film-desktop.mp4', 2400, tmp)
-            encode_film(src, True, tmp / 'film-mobile.mp4', 1400, tmp)
+            if not a.remux_audio:
+                encode_film(src, False, tmp / 'film-desktop.mp4', 2400, tmp)
+                encode_film(src, True, tmp / 'film-mobile.mp4', 1400, tmp)
             media['film'] = {'desktop': publish(tmp / 'film-desktop.mp4', 'film-desktop'), 'mobile': publish(tmp / 'film-mobile.mp4', 'film-mobile')}
         first_h = teaser(src, False, tmp / 'teaser-desktop.mp4', (1600, 900))
         first_v = teaser(src, True, tmp / 'teaser-mobile.mp4', (720, 1280))
@@ -184,8 +204,8 @@ def main() -> None:
         cues = []
         for i, (shot, n) in enumerate(CUE_THUMBS):
             im = film_frame(src, n, tmp) if shot == 'film' else Image.open(shot_frames(src, False, shot)[n]).convert('RGB')
-            # 星座那一格只取右邊有星的那一塊；鏡頭影格置中偏上（臉通常在上半）
-            thumb = cover(im, 480, 300, 0.66, 0.5) if shot == 'film' else cover(im, 480, 300, 0.5, 0.42)
+            # 星環那一格只取圈裡的星座；鏡頭影格置中偏上（臉通常在上半）
+            thumb = cover(im.crop(FILM_RING_BOX), 480, 300) if shot == 'film' else cover(im, 480, 300, 0.5, 0.42)
             thumb.save(tmp / f'cue-{i}.webp', 'WEBP', quality=80, method=6)
             cues.append(publish(tmp / f'cue-{i}.webp', f'cue-{i}'))
         media['cues'] = cues
