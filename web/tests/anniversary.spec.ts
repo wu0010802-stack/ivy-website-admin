@@ -110,7 +110,7 @@ describe('30 週年分頁：開場影片與素材', () => {
     expect(page).toContain("usePageSeo(computed(() => data.value?.content), 'anniversary')")
     expect(page).not.toContain('noindex')
     const seo = anniversarySeo(site, 'https://ivy.example')
-    expect(seo.title).toBe(`常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`)
+    expect(seo.title).toBe('常春藤 30 週年｜1997—2027｜常春藤幼兒園')
     expect(seo.canonical).toBe('https://ivy.example/anniversary')
     expect(sitemapXml('https://ivy.example')).toContain('<loc>https://ivy.example/anniversary</loc>')
     expect(llmsTxt('https://ivy.example', site)).toContain('[常春藤 30 週年](https://ivy.example/anniversary)')

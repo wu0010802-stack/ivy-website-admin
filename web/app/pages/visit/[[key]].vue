@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { visitSeo } from '~/utils/seo'
+import { crawlerIndexable, normalizeSiteOrigin, serializeJsonLd, visitSeo } from '~/utils/seo'
 
 // 預約頁：/visit 選校、/visit/<校> 參觀方式與表單（2026-10-29 合成一個頁面元件，原本是 index.vue＋[key].vue）。
 // 換步驟只換網址、VisitForm 不重掛：上一頁回到選校、重新整理留在同一步，已選的校與填到一半的資料都還在。
@@ -24,6 +24,7 @@ watch(campusKey, (key) => { if (key && !campus.value) showError(NOT_FOUND) })
 
 const config = useRuntimeConfig()
 const seo = computed(() => data.value ? visitSeo(data.value.content, config.public.siteOrigin, campus.value) : undefined)
+const indexable = computed(() => crawlerIndexable(config.public.indexingEnabled, normalizeSiteOrigin(config.public.siteOrigin), data.value?.content.siteMeta))
 useSeoMeta({
   title: () => seo.value?.title,
   description: () => seo.value?.description,
@@ -33,14 +34,18 @@ useSeoMeta({
   ogImage: () => seo.value?.image,
   ogImageAlt: () => seo.value?.imageAlt,
   ogType: 'website', ogLocale: 'zh_TW',
+  ogSiteName: () => data.value?.content.siteMeta.brandName,
   twitterCard: 'summary_large_image',
   twitterTitle: () => seo.value?.title,
   twitterDescription: () => seo.value?.description,
   twitterImage: () => seo.value?.image,
-  // 預約頁不收錄（10-12 裁定，伺服器另送 X-Robots-Tag）。
-  robots: 'noindex, nofollow'
+  // 2026-11-11 開放收錄（取代 10-12 的 noindex）：照全站收錄開關，同 usePageSeo。
+  robots: () => (indexable.value ? 'index, follow, max-image-preview:large' : 'noindex, nofollow')
 })
-useHead(() => ({ link: seo.value?.canonical ? [{ rel: 'canonical', href: seo.value.canonical }] : [] }))
+useHead(() => ({
+  link: seo.value?.canonical ? [{ rel: 'canonical', href: seo.value.canonical }] : [],
+  script: seo.value?.graph.length ? [{ key: 'public-structured-data', type: 'application/ld+json', innerHTML: serializeJsonLd({ '@context': 'https://schema.org', '@graph': seo.value.graph }) }] : []
+}))
 </script>
 
 <template>

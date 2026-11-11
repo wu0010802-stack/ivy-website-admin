@@ -39,6 +39,8 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (page === 'news' || page === 'privacy' || page === 'anniversary') return undefined
     return heroImageAttrs(site.value.home.hero)
   })
+  // 只有單篇消息（newsArticleSeo）會回 ogType／publishedTime。
+  const articleMeta = computed(() => seo.value as { ogType?: 'article'; publishedTime?: string } | undefined)
   useSeoMeta({
     title: () => seo.value?.title,
     description: () => seo.value?.description,
@@ -47,7 +49,11 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     ogUrl: () => seo.value?.canonical,
     ogImage: () => seo.value?.image,
     ogImageAlt: () => seo.value?.imageAlt,
-    ogType: 'website', ogLocale: 'zh_TW',
+    // 單篇消息標成文章並帶發布日期，其他頁是 website；站名給分享預覽與搜尋結果的網站名稱用。
+    ogType: () => articleMeta.value?.ogType ?? 'website',
+    articlePublishedTime: () => articleMeta.value?.publishedTime,
+    ogSiteName: () => site.value?.siteMeta.brandName,
+    ogLocale: 'zh_TW',
     twitterCard: 'summary_large_image',
     twitterTitle: () => seo.value?.title,
     twitterDescription: () => seo.value?.description,

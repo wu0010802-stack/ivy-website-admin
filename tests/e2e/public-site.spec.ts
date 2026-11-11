@@ -27,7 +27,8 @@ test.describe('SEO：canonical／OG／robots meta', () => {
     }
   })
 
-  test('/visit 頁一律 noindex，跟索引開關無關', async ({ page }) => {
+  // 2026-11-11 預約頁開放收錄，照全站收錄開關；e2e 環境沒開索引，所以仍是 noindex。
+  test('索引未啟用時 /visit 頁 noindex', async ({ page }) => {
     await page.goto('/visit')
     await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
       'content',

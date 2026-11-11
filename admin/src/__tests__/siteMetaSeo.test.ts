@@ -42,8 +42,10 @@ const webSeoSource = readFileSync(resolve(ROOT, 'web/app/utils/seo.ts'), 'utf8')
 /** 官網 seo.ts 裡每個 pageOverride(site, '頁', { title, description }) 的內建文字（樣板字串的插值換成實際值）。 */
 function webBuiltinSeo(): Record<string, { title: string; description: string }> {
   const file = ts.createSourceFile('seo.ts', webSeoSource, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS)
-  // 插值：品牌名稱讀 fixture；year 是 foundingYear 的內建 1997、policyTitle 是政策標題的內建「隱私權政策」（下面另外驗證原始碼）。
-  const values: Record<string, string> = { 'site.siteMeta.brandName': fixture.siteMeta.brandName, year: '1997', policyTitle: '隱私權政策' }
+  // 插值：標題結尾讀官網的 TITLE_BRAND；year 是 foundingYear 的內建 1997、policyTitle 是政策標題的內建「隱私權政策」（下面另外驗證原始碼）。
+  const titleBrand = /export const TITLE_BRAND = '([^']+)'/.exec(webSeoSource)?.[1]
+  if (!titleBrand) throw new Error('seo.ts 找不到 TITLE_BRAND')
+  const values: Record<string, string> = { TITLE_BRAND: titleBrand, year: '1997', policyTitle: '隱私權政策' }
   const text = (node: ts.Expression): string => {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) return node.text
     if (ts.isTemplateExpression(node)) {

@@ -1,6 +1,7 @@
 import { indexableArticles, NEWS_PATH, newsPath } from './news-content'
 import { mediaFileUrl, isMediaId } from './media-image'
-import { httpsUrl } from './site-links'
+import { campusMapUrl, httpsUrl } from './site-links'
+import { admissionFaqEntries } from './admission-faq'
 import type { Campus, NewsArticle, NewsContent, PageSeoKey, SiteContent, SiteMetaContent } from '../types/site-content'
 
 /** 固定部署 origin；不從不可信 Host 或 CMS 文字組 canonical。 */
@@ -15,6 +16,101 @@ export function normalizeSiteOrigin(value: string): string {
 
 export function serializeJsonLd(value: unknown): string {
   return JSON.stringify(value).replace(/</g, '\\u003c').replace(/>/g, '\\u003e').replace(/&/g, '\\u0026')
+}
+
+/**
+ * 家長搜尋與口語上的園名。品牌名（siteMeta.brandName）是「常春藤教育機構」，內建描述一直寫「常春藤幼兒園」；
+ * 結構化資料與 llms.txt 兩個名字都給，搜尋引擎與 AI 助理才對得上同一個機構。
+ */
+export const SCHOOL_NAME = '常春藤幼兒園'
+/**
+ * 搜尋結果標題結尾用的名字（2026-11-11 使用者選定，取代原本的品牌名「常春藤教育機構」）：家長搜的是
+ * 「常春藤幼兒園」。使用者同日裁定標題不加「高雄」，不要再加。只用在 <title> 與分享標題，頁面上的品牌字不動。
+ * 後台「各頁搜尋與分享」的提示字逐字跟著這裡（admin/src/composables/pageSeoDefaults.ts）。
+ */
+export const TITLE_BRAND = '常春藤幼兒園'
+
+const organizationId = (origin: string) => `${origin}/#organization`
+const websiteId = (origin: string) => `${origin}/#website`
+/** 各校節點的 @id：首頁（五校都列）與各校預約頁（只列自己）共用同一個，搜尋引擎才認得是同一所學校。 */
+export const campusNodeId = (origin: string, key: string) => `${origin}/#campus-${encodeURIComponent(key)}`
+
+/** 07-392-8366 → +886-7-392-8366（結構化資料用國際寫法）；不是 0 開頭的寫法原樣輸出。 */
+export function internationalPhone(phone: string): string {
+  const value = phone.trim()
+  return /^0\d[\d\- ]+$/.test(value) ? `+886-${value.slice(1)}` : value
+}
+
+/** 機構本身的社群（全站設定的 socialLinks），EducationalOrganization 的 sameAs。 */
+function organizationSameAs(site: SiteContent): string[] {
+  return (site.siteMeta.socialLinks ?? []).map((link) => httpsUrl(link.url)).filter((url): url is string => Boolean(url))
+}
+
+/** 分校自己的社群帳號。和機構社群同一個網址的不算該校的帳號，不列；不拿別校的代填。 */
+function campusSameAs(site: SiteContent, campus: Campus): string[] {
+  const shared = new Set(organizationSameAs(site))
+  return [...new Set([campus.facebook, campus.line, campus.instagram, campus.youtube]
+    .map(httpsUrl).filter((url): url is string => Boolean(url) && !shared.has(url!)))]
+}
+
+/** 地址拆出縣市與行政區給在地搜尋用；只從已發布的地址與區名取，對不上就不輸出。 */
+function postalAddress(campus: Pick<Campus, 'address' | 'district'>) {
+  const region = campus.address.match(/^(\S{2}[市縣])/)?.[1]
+  const locality = campus.district && campus.address.includes(campus.district) ? campus.district : undefined
+  return { '@type': 'PostalAddress', streetAddress: campus.address, ...(locality ? { addressLocality: locality } : {}), ...(region ? { addressRegion: region } : {}), addressCountry: 'TW' }
+}
+
+/** 五校所在的縣市（都在同一個才有值），機構節點的服務範圍與 llms.txt 的一句話介紹用。 */
+function campusRegion(campuses: Pick<Campus, 'address' | 'district'>[]): string | undefined {
+  const regions = new Set(campuses.map((campus) => postalAddress(campus).addressRegion))
+  const [only] = [...regions]
+  return regions.size === 1 ? only : undefined
+}
+
+/**
+ * 每一頁都帶的機構與網站節點（2026-11-11）。原本只有首頁有，內頁的 isPartOf／publisher 指到別頁才定義的 @id，
+ * 讀單頁的搜尋引擎與 AI 爬蟲解析不到。內頁只帶名稱、別名與 logo；創立年份、社群、服務範圍、五校留在首頁（full）。
+ */
+function siteNodes(site: SiteContent, origin: string, full = false): Record<string, unknown>[] {
+  const organization = organizationId(origin)
+  const alternateName = [SCHOOL_NAME, site.siteMeta.brandNameEn].filter((name): name is string => Boolean(name) && name !== site.siteMeta.brandName)
+  const orgSameAs = organizationSameAs(site)
+  const region = campusRegion(site.campuses)
+  return [
+    { '@type': 'EducationalOrganization', '@id': organization, name: site.siteMeta.brandName, url: `${origin}/`,
+      ...(alternateName.length ? { alternateName } : {}),
+      ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}),
+      // 創立年份同關於常春藤頁（aboutSeo）：沿革第一站的年份。
+      ...(full ? {
+        foundingDate: String(foundingYear(site)),
+        ...(region ? { areaServed: { '@type': 'AdministrativeArea', name: region } } : {}),
+        ...(orgSameAs.length ? { sameAs: orgSameAs } : {}),
+        ...(site.campuses.length ? { subOrganization: site.campuses.map((campus) => ({ '@id': campusNodeId(origin, campus.key) })) } : {})
+      } : {}) },
+    { '@type': 'WebSite', '@id': websiteId(origin), name: site.siteMeta.brandName, alternateName: SCHOOL_NAME, url: `${origin}/`, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } }
+  ]
+}
+
+/**
+ * 首頁的各校節點（2026-11-11 加回）。10-03 拿掉分校頁時連結構化資料一起拿掉，之後五校的地址只剩 noindex 的
+ * 預約頁讀得到；首頁五校區塊本來就列各校地址、電話、社群（切分頁可見），這裡照同一份已發布資料輸出。
+ * 網址是各校的預約頁 /visit/<校>（同日開放收錄，是各校唯一有自己網址的頁；該頁也輸出同一個 @id 的節點）。
+ * 不輸出經緯度、營業時間、收費、評分：沒有已發布資料。創立年份取關於頁沿革同一校那一站。
+ */
+function campusNode(site: SiteContent, origin: string, campus: Campus): Record<string, unknown> {
+  const sameAs = campusSameAs(site, campus)
+  const founded = site.aboutPage?.milestones?.find((milestone) => milestone.key === campus.key)?.year
+  return {
+    '@type': 'Preschool', '@id': campusNodeId(origin, campus.key),
+    name: `${SCHOOL_NAME}${campus.name}`, alternateName: `${site.siteMeta.brandName} ${campus.name}`,
+    url: `${origin}${VISIT_PATH}/${encodeURIComponent(campus.key)}`,
+    image: `${origin}${campusShareImagePath(campus)}`,
+    ...(campus.phone ? { telephone: internationalPhone(campus.phone) } : {}),
+    address: postalAddress(campus), hasMap: campusMapUrl(campus),
+    ...(founded ? { foundingDate: String(founded) } : {}),
+    ...(sameAs.length ? { sameAs } : {}),
+    parentOrganization: { '@id': organizationId(origin) }
+  }
 }
 
 /** 社群分享圖（1200×630 JPG）路徑，檔案由 scripts/optimize-site-images.py 依 OG_IMAGES 產生。 */
@@ -84,18 +180,22 @@ export function isAnniversaryHref(href: string): boolean {
 export function admissionSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'admission', {
-    title: `入學資訊｜入學流程、新生須知、收退費與分班｜${site.siteMeta.brandName}`,
+    title: `入學資訊｜入學流程、新生須知、收退費與分班｜${TITLE_BRAND}`,
     description: '常春藤幼兒園入學流程、依寶貝生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等常見問題。'
   })
   const canonical = origin ? `${origin}${ADMISSION_PATH}` : undefined
   const imagePath = share.path
   const image = origin ? `${origin}${imagePath}` : undefined
+  // 常見問題：和頁面上「爸媽常問的事」同一份問答（utils/admission-faq.ts），每題的網址是頁內錨點。
+  const faq = admissionFaqEntries(site.admission, site.campuses)
   const graph: Record<string, unknown>[] = origin ? [
-    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': faq.length ? ['WebPage', 'FAQPage'] : 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` },
+      ...(faq.length ? { mainEntity: faq.map((entry) => ({ '@type': 'Question', '@id': `${canonical}#${entry.id}`, url: `${canonical}#${entry.id}`, name: entry.q, acceptedAnswer: { '@type': 'Answer', text: entry.a } })) } : {}) },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '入學資訊', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
 }
@@ -105,7 +205,7 @@ export function privacySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const policyTitle = site.privacyPolicy?.title || '隱私權政策'
   const { title, description, share } = pageOverride(site, 'privacy', {
-    title: `${policyTitle}｜${site.siteMeta.brandName}`,
+    title: `${policyTitle}｜${TITLE_BRAND}`,
     description: '常春藤幼兒園官網如何蒐集、使用與保護您的個人資料，以及 Cookie 的使用方式。'
   })
   const canonical = origin ? `${origin}${PRIVACY_PATH}` : undefined
@@ -115,7 +215,8 @@ export function privacySeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: policyTitle, item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -124,7 +225,7 @@ export function privacySeo(site: SiteContent, siteOrigin: string) {
 export function environmentSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'environment', {
-    title: `常春藤環境｜幼兒保育、校園環境與幼兒餐點｜${site.siteMeta.brandName}`,
+    title: `常春藤環境｜幼兒保育、校園環境與幼兒餐點｜${TITLE_BRAND}`,
     description: '常春藤幼兒園的保育照顧、校園空間與每日餐點：五顆心照顧孩子，教室、教具、衛廁到戶外廣場都以安全與探索為出發點，每月菜單收在營養餐點書。'
   })
   const canonical = origin ? `${origin}${ENVIRONMENT_PATH}` : undefined
@@ -134,7 +235,8 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '常春藤環境', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -143,7 +245,7 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
 export function anniversarySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'anniversary', {
-    title: `常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`,
+    title: `常春藤 30 週年｜1997—2027｜${TITLE_BRAND}`,
     description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。'
   })
   const canonical = origin ? `${origin}${ANNIVERSARY_PATH}` : undefined
@@ -153,7 +255,8 @@ export function anniversarySeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '常春藤 30 週年', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -162,7 +265,7 @@ export function anniversarySeo(site: SiteContent, siteOrigin: string) {
 export function curriculumSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'curriculum', {
-    title: `特色教學｜四個年段、七個課程方向與每天的五件事｜${site.siteMeta.brandName}`,
+    title: `特色教學｜四個年段、七個課程方向與每天的五件事｜${TITLE_BRAND}`,
     description: '常春藤幼兒園的特色教學：幼幼班到大班四個年段，認知、統整、多元文化、品德、自主學習、課程活動與藝術共創七個課程方向，孩子作品的兒童美術館，以及靜心、教具操作、美術創作、閱讀與大肌肉時間。'
   })
   const canonical = origin ? `${origin}${CURRICULUM_PATH}` : undefined
@@ -172,7 +275,8 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '特色教學', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -180,15 +284,16 @@ export function curriculumSeo(site: SiteContent, siteOrigin: string) {
 export const VISIT_PATH = '/visit'
 
 /**
- * 預約參觀頁（/visit 選校、/visit/<校> 參觀方式與表單，2026-10-29）：照 10-12 裁定維持 noindex、不進後台
- * 「各頁搜尋與分享」，只補描述、分享圖與 canonical——LINE／Facebook 分享預覽要有描述與圖，廣告網址帶的
- * utm 參數靠 canonical 收回同一頁。標題尾巴改用站名（原本寫死「常春藤幼兒園」，和其他頁不一致）。
+ * 預約參觀頁（/visit 選校、/visit/<校> 參觀方式與表單，2026-10-29）。2026-11-11 使用者裁定開放收錄（取代 10-12 的
+ * noindex）：拿掉分校頁以後，這裡是唯一列出五校地址、各校有自己網址的頁，/visit/<校> 當各校的搜尋入口，
+ * 也給 Google 商家檔案連。收錄照全站開關（crawlerIndexable）；/visit/manage 照舊不收。不進後台「各頁搜尋與分享」，
+ * 標題描述用內建。廣告網址帶的 utm 參數靠 canonical 收回同一頁。
  * 描述不寫「線上預約」：只有開放場次的校區能線上選時段，其他校要來電。
+ * 結構化資料：頁面與麵包屑；/visit/<校> 另帶那一校的 Preschool（和首頁同一個 @id）。
  */
 export function visitSeo(site: SiteContent, siteOrigin: string, campus?: Campus) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const brand = site.siteMeta.brandName
-  const title = campus ? `預約參觀${campus.name}｜${brand}` : `預約校園參觀｜${brand}`
+  const title = campus ? `預約參觀${campus.name}｜${TITLE_BRAND}` : `預約校園參觀｜${TITLE_BRAND}`
   const names = site.campuses.map((c) => c.name.replace(/校$/, '')).join('、')
   const description = campus
     ? `預約參觀常春藤${campus.name}：${campus.address}${campus.phone ? `，電話 ${campus.phone}` : ''}。看參觀方式，帶孩子來校園走走。`
@@ -198,7 +303,18 @@ export function visitSeo(site: SiteContent, siteOrigin: string, campus?: Campus)
     ? { path: campusShareImagePath(campus), alt: campus.imageMedia?.alt || `常春藤${campus.name}校舍` }
     : siteShareImage(site)
   const image = origin ? `${origin}${share.path}` : undefined
-  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt }
+  const graph: Record<string, unknown>[] = origin ? [
+    { '@type': 'WebPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` },
+      ...(campus ? { about: { '@id': campusNodeId(origin, campus.key) } } : {}) },
+    { '@type': 'BreadcrumbList', itemListElement: [
+      { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
+      { '@type': 'ListItem', position: 2, name: '預約參觀', item: `${origin}${VISIT_PATH}` },
+      ...(campus ? [{ '@type': 'ListItem', position: 3, name: campus.name, item: canonical }] : [])
+    ] },
+    ...(campus ? [campusNode(site, origin, campus)] : []),
+    ...siteNodes(site, origin)
+  ] : []
+  return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
 /**
@@ -214,17 +330,18 @@ export function aboutSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const year = foundingYear(site)
   const { title, description, share } = pageOverride(site, 'about', {
-    title: `關於常春藤｜${year} 年創立、五所校園與全人教育｜${site.siteMeta.brandName}`,
+    title: `關於常春藤｜${year} 年創立、五所校園與全人教育｜${TITLE_BRAND}`,
     description: `常春藤幼兒園 ${year} 年在高雄三民區義華路創立，陸續成立明華、崇德、國際、仁武校。秉持全人教育，以課綱六大領域培養孩子六大核心素養。`
   })
   const canonical = origin ? `${origin}${ABOUT_PATH}` : undefined
   const image = origin ? `${origin}${share.path}` : undefined
   const graph: Record<string, unknown>[] = origin ? [
-    { '@type': 'AboutPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'AboutPage', '@id': `${canonical}#page`, url: canonical, name: title, description, inLanguage: 'zh-Hant-TW', isPartOf: { '@id': `${origin}/#website` }, about: { '@id': organizationId(origin) } },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '關於常春藤', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -233,7 +350,7 @@ export function aboutSeo(site: SiteContent, siteOrigin: string) {
 export function newsListSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'news', {
-    title: `最新消息｜校園活動與各校公告｜${site.siteMeta.brandName}`,
+    title: `最新消息｜校園活動與各校公告｜${TITLE_BRAND}`,
     description: '常春藤幼兒園義華、明華、崇德、國際、仁武五校的最新消息與近期活動。'
   })
   const canonical = origin ? `${origin}${NEWS_PATH}` : undefined
@@ -243,7 +360,8 @@ export function newsListSeo(site: SiteContent, siteOrigin: string) {
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '最新消息', item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
@@ -273,26 +391,23 @@ export function newsDescription(article: Pick<NewsArticle, 'description' | 'body
  */
 export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: NewsArticle, sample: boolean, imagePath: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = `${article.title}｜${article.campus}｜${site.siteMeta.brandName}`
+  const title = `${article.title}｜${article.campus}｜${TITLE_BRAND}`
   const description = newsDescription(article) || site.siteMeta.description
   const canonical = origin && !sample ? `${origin}${newsPath(article.id)}` : undefined
   const image = origin && imagePath ? `${origin}${imagePath}` : undefined
   const graph: Record<string, unknown>[] = canonical ? [
-    { '@type': 'NewsArticle', '@id': `${canonical}#article`, url: canonical, headline: article.title, description, datePublished: article.date, inLanguage: 'zh-Hant-TW',
-      ...(image ? { image: [image] } : {}), author: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/` },
-      publisher: { '@type': 'EducationalOrganization', name: site.siteMeta.brandName, url: `${origin}/`, ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}) }, isPartOf: { '@id': `${origin}/#website` } },
+    { '@type': 'NewsArticle', '@id': `${canonical}#article`, url: canonical, mainEntityOfPage: canonical, headline: article.title, description, datePublished: article.date, inLanguage: 'zh-Hant-TW',
+      ...(image ? { image: [image] } : {}), author: { '@type': 'EducationalOrganization', '@id': organizationId(origin), name: site.siteMeta.brandName, url: `${origin}/` },
+      publisher: { '@type': 'EducationalOrganization', '@id': organizationId(origin), name: site.siteMeta.brandName, url: `${origin}/`, ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}) }, isPartOf: { '@id': `${origin}/#website` } },
     { '@type': 'BreadcrumbList', itemListElement: [
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '最新消息', item: `${origin}${NEWS_PATH}` },
       { '@type': 'ListItem', position: 3, name: article.title, item: canonical }
-    ] }
+    ] },
+    ...siteNodes(site, origin)
   ] : []
-  return { title, description, canonical, image, imagePath, imageAlt: article.alt, graph }
-}
-
-/** 機構本身的社群（全站設定的 socialLinks），首頁 EducationalOrganization 的 sameAs。 */
-function organizationSameAs(site: SiteContent): string[] {
-  return (site.siteMeta.socialLinks ?? []).map((link) => httpsUrl(link.url)).filter((url): url is string => Boolean(url))
+  // 分享預覽標成文章並帶發布日期；封面沒填說明（粉專轉來的消息）就用標題當圖片說明。
+  return { title, description, canonical, image, imagePath, imageAlt: article.alt || article.title, graph, ogType: 'article' as const, publishedTime: article.date }
 }
 
 export function pageSeo(site: SiteContent, siteOrigin: string) {
@@ -305,17 +420,10 @@ export function pageSeo(site: SiteContent, siteOrigin: string) {
   const share = siteShareImage(site)
   const imagePath = share.path
   const image = origin ? `${origin}${imagePath}` : undefined
-  const graph: Record<string, unknown>[] = []
-  if (origin) {
-    const organization = `${origin}/#organization`
-    const orgSameAs = organizationSameAs(site)
-    // 創立年份同關於常春藤頁（aboutSeo）：沿革第一站的年份。
-    graph.push({ '@type': 'EducationalOrganization', '@id': organization, name: site.siteMeta.brandName, url: `${origin}/`,
-      ...(site.siteMeta.brandNameEn ? { alternateName: site.siteMeta.brandNameEn } : {}),
-      ...(site.siteMeta.logo ? { logo: `${origin}/${site.siteMeta.logo.replace(/^\/+/, '')}` } : {}),
-      foundingDate: String(foundingYear(site)), ...(orgSameAs.length ? { sameAs: orgSameAs } : {}) })
-    graph.push({ '@type': 'WebSite', '@id': `${origin}/#website`, name: site.siteMeta.brandName, url: canonical, inLanguage: 'zh-Hant-TW', publisher: { '@id': organization } })
-  }
+  // 機構（完整）、網站、五校。各校節點的理由見 campusNode。
+  const graph: Record<string, unknown>[] = origin
+    ? [...siteNodes(site, origin, true), ...site.campuses.map((campus) => campusNode(site, origin, campus))]
+    : []
   return { title, description, canonical, image, imagePath, imageAlt: share.alt, graph }
 }
 
@@ -336,7 +444,9 @@ export function robotsTxt(origin: string, indexable: boolean): string {
     'User-agent: *',
     'Disallow: /admin',
     'Disallow: /preview',
-    'Disallow: /visit',
+    // 預約頁（/visit、/visit/<校>）2026-11-11 起開放收錄，不再整個擋掉：搜尋引擎與 AI 助理要讀得到
+    // 這頁的五校地址電話與參觀方式。修改預約頁帶個人連結，照舊不給爬（頁面另有 noindex 標頭）。
+    'Disallow: /visit/manage',
     'Disallow: /api/',
     `Sitemap: ${origin}/sitemap.xml`,
     ''
@@ -346,32 +456,50 @@ export function robotsTxt(origin: string, indexable: boolean): string {
 /** 不能收錄時回的 sitemap：合法但沒有任何網址。 */
 export const EMPTY_SITEMAP = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"></urlset>\n'
 
-/** news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。anniversary：false＝後台關掉 30 週年，不列 /anniversary。 */
-export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean; anniversary?: boolean } = {}): string {
+/**
+ * news：已發布的消息（示意內容由 indexableArticles 排除）；沒傳就只列固定頁。privacy：政策已發布才列 /privacy。
+ * anniversary：false＝後台關掉 30 週年，不列 /anniversary。campuses：各校 key，列 /visit/<校>（2026-11-11 預約頁開放收錄）。
+ */
+export function sitemapXml(origin: string, news?: Pick<NewsContent, 'articles' | 'sampleNote'>, options: { privacy?: boolean; anniversary?: boolean; campuses?: string[] } = {}): string {
   const escape = (value: string) => value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
   const urls = ['/', ABOUT_PATH, CURRICULUM_PATH, ADMISSION_PATH, ENVIRONMENT_PATH, ...(options.anniversary === false ? [] : [ANNIVERSARY_PATH]), NEWS_PATH, ...(options.privacy ? [PRIVACY_PATH] : []),
+    VISIT_PATH, ...(options.campuses ?? []).map((key) => `${VISIT_PATH}/${encodeURIComponent(key)}`),
     ...(news ? indexableArticles(news.articles, news.sampleNote).map((a) => newsPath(a.id)) : [])]
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((path) => `<url><loc>${escape(`${origin}${path}`)}</loc></url>`).join('')}</urlset>\n`
 }
 
 /**
- * /llms.txt（https://llmstxt.org/）：給 AI 助理讀的網站摘要。只用已發布內容
- * 的名稱、描述、地址與電話，不另寫宣傳文案；未開放索引時不提供（見路由）。
+ * /llms.txt（https://llmstxt.org/）：給 AI 助理讀的網站摘要。只用已發布內容的名稱、描述、地址、電話與
+ * 入學頁的常見問題（和頁面同一份），不另寫宣傳文案；未開放索引時不提供（見路由）。
+ * 2026-11-11：補一句話介紹、五校地址電話、常見問題——AI 助理最常被問的是「在哪、電話幾號、幾歲能讀、
+ * 有沒有補助」，原本只有各頁連結、沒有任何可直接引用的事實。沒傳 campuses／admission（舊呼叫）就不列那兩段。
  */
-export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'>): string {
+export function llmsTxt(origin: string, site: Pick<SiteContent, 'siteMeta'> & Partial<Pick<SiteContent, 'campuses' | 'admission'>>): string {
   const line = (value: string) => value.replace(/\s+/g, ' ').trim()
+  const campuses = site.campuses ?? []
+  const brand = line(site.siteMeta.brandName)
   const out = [
-    `# ${line(site.siteMeta.brandName)}`,
+    `# ${brand}`,
     '',
     `> ${line(site.siteMeta.description)}`,
     ''
   ]
+  if (campuses.length) {
+    const names = [brand, site.siteMeta.brandNameEn ? line(site.siteMeta.brandNameEn) : ''].filter((name) => name && name !== SCHOOL_NAME).join('，')
+    const region = campusRegion(campuses)
+    out.push(`${SCHOOL_NAME}${names ? `（${names}）` : ''}${region ? `在${region}` : ''}有 ${campuses.length} 所校園：${campuses.map((campus) => `${campus.name}（${campus.district}）`).join('、')}。`, '')
+    out.push('## 各校地址與電話', '', ...campuses.map((campus) =>
+      `- [${SCHOOL_NAME}${line(campus.name)}](${origin}${VISIT_PATH}/${encodeURIComponent(campus.key)})：${line(campus.address)}${campus.phone ? `，電話 ${line(campus.phone)}` : ''}。`), '')
+  }
   out.push('## 關於常春藤', '', `- [關於常春藤](${origin}${ABOUT_PATH})：1997 年創立以來的五校沿革、全人教育的六大領域與六大核心素養。`, '')
   out.push('## 入學資訊', '', `- [入學資訊](${origin}${ADMISSION_PATH})：入學流程、依生日查詢就讀班級、新生入園須知，以及補助、退費、學期中入學等問答。`, '')
   out.push('## 特色教學', '', `- [特色教學](${origin}${CURRICULUM_PATH})：幼幼班到大班四個年段、七個課程方向、兒童美術館，與靜心、教具操作、美術創作、閱讀、大肌肉時間五件事，以及教學理念。`, '')
   out.push('## 常春藤環境', '', `- [常春藤環境](${origin}${ENVIRONMENT_PATH})：幼兒保育的五件事、七個校園空間，與每月菜單（營養餐點書）。`, '')
   if (anniversaryEnabled(site.siteMeta)) out.push('## 常春藤 30 週年', '', `- [常春藤 30 週年](${origin}${ANNIVERSARY_PATH})：1997 到 2027，五所校園成立的年份與沿革、地址與電話，孩子的作品，以及用蠟筆畫一個 30 的畫板。`, '')
   out.push('## 最新消息', '', `- [最新消息](${origin}${NEWS_PATH})：五校的最新消息與近期活動。`, '')
-  out.push('## 預約參觀', '', `- [預約參觀](${origin}/visit)：線上選擇日期與場次，送出後即預約成功，可從連結改場次、修改資料或取消。`, '')
+  // 只有開放線上場次的校區能線上選時段，其他校區要來電（同 visitSeo 與入學頁「怎麼預約參觀」），不寫成全部都能線上預約。
+  out.push('## 預約參觀', '', `- [預約參觀](${origin}${VISIT_PATH})：選校區看參觀方式；開放線上場次的校區可以直接選日期與場次，其他校區請打電話約時間。`, '')
+  const faq = site.admission ? admissionFaqEntries(site.admission, campuses) : []
+  if (faq.length) out.push('## 常見問題', '', ...faq.map((entry) => `- [${line(entry.q)}](${origin}${ADMISSION_PATH}#${entry.id})：${line(entry.a)}`), '')
   return out.join('\n')
 }

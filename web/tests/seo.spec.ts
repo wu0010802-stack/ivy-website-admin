@@ -2,9 +2,11 @@ import { existsSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
-import { aboutSeo, admissionSeo, anniversarySeo, curriculumSeo, environmentSeo, llmsTxt, newsArticleSeo, newsListSeo, normalizeSiteOrigin, ogImagePath, pageSeo, privacySeo, serializeJsonLd, siteShareImage, sitemapXml } from '../app/utils/seo'
+import { TITLE_BRAND, aboutSeo, admissionSeo, anniversarySeo, campusNodeId, curriculumSeo, environmentSeo, internationalPhone, llmsTxt, newsArticleSeo, newsListSeo, normalizeSiteOrigin, ogImagePath, pageSeo, privacySeo, serializeJsonLd, siteShareImage, sitemapXml } from '../app/utils/seo'
 import { httpsUrl } from '../app/utils/site-links'
 import { publishedContent } from '../app/utils/published-content'
+import { publicCopy } from '../app/utils/public-copy'
+import { ADMISSION_FAQ, admissionFaqEntries } from '../app/utils/admission-faq'
 
 const site = fixture as unknown as SiteContent
 describe('公開搜尋資料', () => {
@@ -14,11 +16,11 @@ describe('公開搜尋資料', () => {
       expect(normalizeSiteOrigin(value)).toBe('')
     }
   })
-  it('首頁結構化資料只有機構與網站，不列各校 Preschool／FAQPage／麵包屑；分享圖為 1200×630 JPG 且檔案存在', () => {
+  it('首頁結構化資料是機構、網站與五校，不指向已拿掉的分校頁、不杜撰營業時間／評分／座標；分享圖為 1200×630 JPG 且檔案存在', () => {
     const result = pageSeo(site, 'https://ivy.example')
     expect(result.canonical).toBe('https://ivy.example/')
-    expect(result.graph.map((item) => item['@type'])).toEqual(['EducationalOrganization', 'WebSite'])
-    expect(JSON.stringify(result.graph)).not.toMatch(/campuses\/|Preschool|FAQPage|openingHours|aggregateRating/)
+    expect(result.graph.map((item) => item['@type'])).toEqual(['EducationalOrganization', 'WebSite', ...site.campuses.map(() => 'Preschool')])
+    expect(JSON.stringify(result.graph)).not.toMatch(/campuses\/|FAQPage|openingHours|aggregateRating|priceRange|GeoCoordinates/)
     expect(result.image).toMatch(/\/assets\/og\/[\w-]+\.jpg$/)
     expect(existsSync(new URL(`../public${ogImagePath(site.home.hero.heroImage)}`, import.meta.url))).toBe(true)
   })
@@ -26,9 +28,55 @@ describe('公開搜尋資料', () => {
     const org = pageSeo(site, 'https://ivy.example').graph.find((item) => item['@type'] === 'EducationalOrganization')!
     expect(org.logo).toBe('https://ivy.example/assets/logo.png')
     expect(existsSync(new URL('../public/assets/logo.png', import.meta.url))).toBe(true)
-    expect(org.alternateName).toBe(site.siteMeta.brandNameEn)
+    // 家長搜尋用的園名與英文名都列成別名；品牌名（常春藤教育機構）是 name。
+    expect(org.alternateName).toEqual(['常春藤幼兒園', site.siteMeta.brandNameEn])
     expect(org.foundingDate).toBe('1997')
     expect(org.sameAs).toEqual(site.siteMeta.socialLinks!.map((link) => link.url))
+    expect(org.areaServed).toEqual({ '@type': 'AdministrativeArea', name: '高雄市' })
+    expect(org.subOrganization).toEqual(site.campuses.map((c) => ({ '@id': campusNodeId('https://ivy.example', c.key) })))
+  })
+  it('各校節點只用已發布的校名、地址、電話、社群與沿革年份，網址是各校的預約頁', () => {
+    const graph = pageSeo(site, 'https://ivy.example').graph
+    const schools = graph.filter((item) => item['@type'] === 'Preschool')
+    expect(schools).toHaveLength(site.campuses.length)
+    for (const c of site.campuses) {
+      const node = schools.find((item) => item['@id'] === `https://ivy.example/#campus-${c.key}`)!
+      expect(node.name).toBe(`常春藤幼兒園${c.name}`)
+      expect(node.url).toBe(`https://ivy.example/visit/${c.key}`)
+      expect(node.telephone).toBe(internationalPhone(c.phone))
+      expect(node.address).toEqual({ '@type': 'PostalAddress', streetAddress: c.address, addressLocality: c.district, addressRegion: '高雄市', addressCountry: 'TW' })
+      expect(node.hasMap).toMatch(/^https:\/\//)
+      expect(node.foundingDate).toBe(String(site.aboutPage.milestones.find((m) => m.key === c.key)!.year))
+      expect(node.parentOrganization).toEqual({ '@id': 'https://ivy.example/#organization' })
+      // 分享圖檔要在：內建校舍照的 1200×630 JPG
+      expect(existsSync(new URL(`../public${ogImagePath(c.image)}`, import.meta.url))).toBe(true)
+      // 只列這一校自己的社群，不拿別校或機構的代填
+      const own = [c.facebook, c.line, c.instagram, c.youtube].filter((url): url is string => Boolean(url))
+      const shared = new Set(site.siteMeta.socialLinks!.map((link) => link.url))
+      expect(node.sameAs ?? []).toEqual([...new Set(own)].filter((url) => !shared.has(url)))
+    }
+  })
+  it('電話轉國際寫法：0 開頭的市話與手機加 +886，其他寫法原樣', () => {
+    expect(internationalPhone('07-392-8366')).toBe('+886-7-392-8366')
+    expect(internationalPhone(' 0912-345-678 ')).toBe('+886-912-345-678')
+    expect(internationalPhone('+886-7-392-8366')).toBe('+886-7-392-8366')
+    expect(internationalPhone('分機請洽櫃台')).toBe('分機請洽櫃台')
+  })
+  it('地址和區名對不上就不拆行政區；五校不在同一縣市就不寫服務範圍', () => {
+    const moved = { ...site, campuses: site.campuses.map((c, i) => (i ? c : { ...c, address: '台南市東區某路1號' })) }
+    const graph = pageSeo(moved, 'https://ivy.example').graph
+    expect(graph.find((item) => item['@type'] === 'Preschool')!.address).toEqual({ '@type': 'PostalAddress', streetAddress: '台南市東區某路1號', addressRegion: '台南市', addressCountry: 'TW' })
+    expect(graph.find((item) => item['@type'] === 'EducationalOrganization')).not.toHaveProperty('areaServed')
+  })
+  it('內頁也帶機構與網站節點（精簡版），isPartOf 指得到同一頁的網站節點', () => {
+    for (const result of [aboutSeo(site, 'https://ivy.example'), admissionSeo(site, 'https://ivy.example'), newsListSeo(site, 'https://ivy.example')]) {
+      const org = result.graph.find((item) => item['@type'] === 'EducationalOrganization')!
+      expect(org).toMatchObject({ '@id': 'https://ivy.example/#organization', name: site.siteMeta.brandName })
+      expect(org).not.toHaveProperty('subOrganization')
+      expect(org).not.toHaveProperty('foundingDate')
+      expect(result.graph.find((item) => item['@type'] === 'WebSite')).toMatchObject({ '@id': 'https://ivy.example/#website', alternateName: '常春藤幼兒園' })
+      expect(result.graph.filter((item) => item['@type'] === 'Preschool')).toEqual([])
+    }
   })
   it('創立年份跟著關於常春藤頁沿革第一站（後台改成 1998 就是 1998）', () => {
     const edited = { ...site, aboutPage: { ...site.aboutPage, milestones: site.aboutPage.milestones.map((m, i) => (i ? m : { ...m, year: 1998 })) } }
@@ -45,16 +93,51 @@ describe('公開搜尋資料', () => {
     expect(pageSeo(site, '').canonical).toBeUndefined()
     expect(pageSeo(site, '').graph).toEqual([])
   })
-  it('llms.txt 不列各校網址與常見問答', () => {
+  it('llms.txt：只有站名與描述時不列各校與問答；不指向已拿掉的分校頁', () => {
     const text = llmsTxt('https://ivy.example', { siteMeta: site.siteMeta })
     expect(text.startsWith(`# ${site.siteMeta.brandName}\n`)).toBe(true)
-    expect(text).not.toMatch(/campuses\/|常見問題|## 校區/)
+    expect(text).not.toMatch(/campuses\/|常見問題|## 各校/)
   })
-  it('sitemap 不含分校頁、不虛構 lastmod', () => {
-    const xml = sitemapXml('https://ivy.example')
+  it('llms.txt：有已發布內容時列一句話介紹、五校地址電話與入學頁同一份常見問題', () => {
+    const text = llmsTxt('https://ivy.example', site)
+    expect(text).toContain('常春藤幼兒園（常春藤教育機構，Ivy Educational Institution）在高雄市有 5 所校園：')
+    for (const c of site.campuses) {
+      expect(text).toContain(`- [常春藤幼兒園${c.name}](https://ivy.example/visit/${c.key})：${c.address}，電話 ${c.phone}。`)
+    }
+    const faq = admissionFaqEntries(site.admission, site.campuses)
+    expect(faq.length).toBeGreaterThan(5)
+    for (const entry of faq) expect(text).toContain(`- [${entry.q}](https://ivy.example/admission#${entry.id})：`)
+    expect(text).not.toContain('/campuses/')
+    // 不把只有部分校區有的線上預約寫成全部都有
+    expect(text).not.toContain('送出後即預約成功')
+    // 一則一行：內容裡的換行不會把清單拆壞
+    expect(text.split('\n').filter((row) => row.startsWith('- [')).every((row) => /^- \[[^\]]+\]\(https:\/\/ivy\.example\/[^)]*\)：\S/.test(row))).toBe(true)
+  })
+  it('sitemap 不含分校頁、不虛構 lastmod；列預約頁與各校預約頁，不列修改預約頁', () => {
+    const xml = sitemapXml('https://ivy.example', undefined, { campuses: site.campuses.map((c) => c.key) })
     expect(xml).toContain('<loc>https://ivy.example/</loc>')
     expect(xml).not.toContain('/campuses/')
     expect(xml).not.toContain('lastmod')
+    expect(xml).toContain('<loc>https://ivy.example/visit</loc>')
+    for (const c of site.campuses) expect(xml).toContain(`<loc>https://ivy.example/visit/${c.key}</loc>`)
+    expect(xml).not.toContain('/visit/manage')
+    // 沒傳校區（舊呼叫）只列選校頁
+    expect(sitemapXml('https://ivy.example')).not.toContain('/visit/')
+  })
+  // 使用者 2026-11-11 裁定：結尾用「常春藤幼兒園」，不加「高雄」。
+  it('標題結尾是「常春藤幼兒園」，不加地名；品牌名留在結構化資料', () => {
+    expect(TITLE_BRAND).toBe('常春藤幼兒園')
+    for (const result of [aboutSeo(site, 'https://ivy.example'), admissionSeo(site, 'https://ivy.example'), curriculumSeo(site, 'https://ivy.example'), environmentSeo(site, 'https://ivy.example'), newsListSeo(site, 'https://ivy.example')]) {
+      expect(result.title.endsWith('｜常春藤幼兒園')).toBe(true)
+      expect(result.title).not.toContain('高雄')
+      expect(result.title).not.toContain(site.siteMeta.brandName)
+    }
+    const article = site.news.articles[0]!
+    expect(newsArticleSeo(site, 'https://ivy.example', article, false, '').title).toBe(`${article.title}｜${article.campus}｜常春藤幼兒園`)
+  })
+  it('首頁標題照已發布的字輸出，不在輸出時加地名', () => {
+    expect(publicCopy(site).siteMeta.title).toBe(site.siteMeta.title)
+    expect(pageSeo(publicCopy(site), 'https://ivy.example').title).toBe('常春藤幼兒園｜每一天都有新發現')
   })
   it('公開合成資料只保留 release 中已發布 profile，且不修改 fixture', () => {
     const c = site.campuses[4]!
@@ -127,11 +210,11 @@ describe.each(PAGES)('%s 頁的搜尋設定讀後台 pageSeo', (key, seoOf) => {
 
 describe('各頁搜尋設定的細節', () => {
   it('30 週年頁沿用既有標題格式，後台有填才覆寫', () => {
-    expect(anniversarySeo(site, ORIGIN).title).toBe(`常春藤 30 週年｜1997—2027｜${site.siteMeta.brandName}`)
+    expect(anniversarySeo(site, ORIGIN).title).toBe(`常春藤 30 週年｜1997—2027｜${TITLE_BRAND}`)
     expect(anniversarySeo(withPageSeo('anniversary', { title: '30 週年特別企劃' }), ORIGIN).title).toBe('30 週年特別企劃')
   })
   it('隱私權政策頁：後台沒填時標題仍以政策標題為準', () => {
-    expect(privacySeo(site, ORIGIN).title).toBe(`${site.privacyPolicy?.title || '隱私權政策'}｜${site.siteMeta.brandName}`)
+    expect(privacySeo(site, ORIGIN).title).toBe(`${site.privacyPolicy?.title || '隱私權政策'}｜${TITLE_BRAND}`)
     expect(privacySeo(withPageSeo('privacy', { title: '個資說明' }), ORIGIN).title).toBe('個資說明')
   })
   it('入學頁讀 pageSeo.admission（不再讀舊的 admissionTitle／admissionDescription）', () => {
@@ -171,5 +254,43 @@ describe('httpsUrl', () => {
     for (const bad of ['', '  ', null, undefined, 'http://example.com', 'javascript:alert(1)', 'data:text/html,x', '//example.com', '/relative', 'https://', 'https://user:pw@example.com', 'https://exa mple.com', 'https://example.com/a b', 'https://example.com\\evil']) {
       expect(httpsUrl(bad as string | null | undefined)).toBeUndefined()
     }
+  })
+})
+
+describe('入學頁常見問題的結構化資料', () => {
+  const page = () => admissionSeo(site, 'https://ivy.example').graph[0] as { '@type': unknown; mainEntity: { '@id': string; name: string; url: string; acceptedAnswer: { '@type': string; text: string } }[] }
+  it('頁面節點同時是 WebPage 與 FAQPage，題目、順序和頁面上的問答同一份，網址是每題的錨點', () => {
+    expect(page()['@type']).toEqual(['WebPage', 'FAQPage'])
+    const shown = ADMISSION_FAQ.flatMap((group) => group.items)
+    expect(page().mainEntity.map((q) => q.name)).toEqual(shown.map((item) => item.q))
+    expect(page().mainEntity.map((q) => q.url)).toEqual(shown.map((item) => `https://ivy.example/admission#${item.id}`))
+    for (const q of page().mainEntity) expect(q.acceptedAnswer.text.length).toBeGreaterThan(10)
+  })
+  it('答案帶進後台內容：各校電話、育兒津貼表、退費條款', () => {
+    const byId = Object.fromEntries(admissionFaqEntries(site.admission, site.campuses).map((entry) => [entry.id, entry.a]))
+    for (const c of site.campuses) expect(byId['faq-tuition']).toContain(`${c.name} ${c.phone}`)
+    for (const row of site.admission.allowance) expect(byId.fees).toContain(`${row.order}每月 ${row.amount} 元`)
+    expect(byId['faq-refund']).toContain(site.admission.refunds[0]!.title)
+    expect(byId['faq-refund']).toContain('實際金額以學校開的退費單據為準。')
+  })
+  it('後台把津貼與退費清空：那兩題不進結構化資料（和頁面一樣整題拿掉），其他題照列', () => {
+    const emptied = { ...site, admission: { ...site.admission, allowance: [], subsidies: [], refunds: [] } }
+    const ids = admissionFaqEntries(emptied.admission, emptied.campuses).map((entry) => entry.id)
+    expect(ids).not.toContain('fees')
+    expect(ids).not.toContain('faq-refund')
+    expect(ids).toContain('faq-age')
+    const names = (admissionSeo(emptied, 'https://ivy.example').graph[0] as { mainEntity: { name: string }[] }).mainEntity.map((q) => q.name)
+    expect(names).not.toContain('讀私立幼兒園有補助嗎？')
+  })
+})
+
+describe('單篇消息的分享標記', () => {
+  const article = site.news.articles[0]!
+  it('標成文章並帶發布日期；封面沒有說明時用標題；結構化資料指回本頁', () => {
+    const result = newsArticleSeo(site, 'https://ivy.example', { ...article, alt: '' }, false, '/cover.jpg')
+    expect(result.ogType).toBe('article')
+    expect(result.publishedTime).toBe(article.date)
+    expect(result.imageAlt).toBe(article.title)
+    expect(result.graph[0]).toMatchObject({ '@type': 'NewsArticle', mainEntityOfPage: result.canonical, publisher: { '@id': 'https://ivy.example/#organization' } })
   })
 })

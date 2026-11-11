@@ -1,3 +1,25 @@
+## 2026-11-11 搜尋與 AI 助理（SEO／GEO）補強（`feature/seo-geo-20261111`）
+
+使用者要求優化 SEO 與 GEO。盤點正式站（`web-production-04caa.up.railway.app`，目前全站 noindex）各頁實際輸出後，最大的缺口是：10-03 拿掉分校頁以後，五校的地址只剩 noindex 而且被 robots.txt 擋掉的 `/visit` 讀得到，首頁 HTML 只有輪播當下那一校；開放收錄後搜尋引擎與 AI 助理都拿不到四校的地址。頁面上的字與版面都沒動，改的是 `<title>`、分享標記、結構化資料、robots、sitemap、llms.txt。
+
+**使用者裁定兩項（同日）**
+
+- **預約頁開放收錄**（取代 10-12 的 noindex）：`/visit`、`/visit/<校>` 照全站收錄開關，進 sitemap；`/visit/<校>` 是各校的搜尋入口，也給 Google 商家檔案連。`/visit/manage` 照舊不收。仍不進後台「各頁搜尋與分享」，標題描述用內建。
+- **搜尋標題結尾改成「常春藤幼兒園」**：內頁與預約頁的標題結尾從品牌名「常春藤教育機構」改成「常春藤幼兒園」（`seo.ts` 的 `TITLE_BRAND`，後台提示字 `pageSeoDefaults.ts` 同步）。原本選了加「高雄」，使用者看過後說**標題不要加「高雄」**；首頁標題維持「常春藤幼兒園｜每一天都有新發現」不動。
+
+**其餘改動**
+
+- **首頁結構化資料加回五校**（`web/app/utils/seo.ts` `campusNode`）：`Preschool` ×5，校名、地址（拆縣市與行政區）、電話（國際寫法）、地圖連結、各校自己的社群、沿革年份，網址是各校預約頁。機構節點加別名「常春藤幼兒園」、服務範圍（高雄市）、`subOrganization`。不輸出經緯度、營業時間、收費、評分。
+- **每一頁都帶機構與網站節點**：內頁原本的 `isPartOf`／`publisher` 指到只有首頁才定義的 `@id`。預約頁新增結構化資料（頁面、麵包屑；`/visit/<校>` 另帶那一校的 `Preschool`，和首頁同一個 `@id`）。
+- **入學頁常見問題的結構化資料**（`FAQPage`，11 題）：和頁面上同一份問答（`web/app/utils/admission-faq.ts` `admissionFaqEntries`），津貼表、退費條款、各校電話攤平成句子；後台清空的題目一起拿掉。頁面的顯示條件改用同一個函式（`admissionFaqVisible`）。
+- **llms.txt**：補一句話介紹、五校地址電話、常見問題 11 題；「預約參觀」那行原本寫成每一校都能線上選場次，改成和預約頁一致的說法。
+- **robots.txt**：`Disallow: /visit` 改成只擋 `/visit/manage`。`web/server/middleware/preview-headers.ts`：`/visit` 的 `X-Robots-Tag` 改成部署沒開索引才送（同首頁）。
+- **分享標記**：全站加 `og:site_name`；單篇消息 `og:type=article`＋`article:published_time`，封面沒有說明時用標題。
+- **檢查腳本** `scripts/check-public-seo.mjs`：從只查首頁擴到七個固定頁，加查五校節點、常見問題錨點、`og:site_name`、robots、llms.txt、預約頁標頭與 sitemap；本機用 `*.localhost` 當正式主機名可驗開放收錄的樣子（用法在檔頭）。
+- **外部項目**（Search Console、Bing Webmaster、各校 Google 商家檔案）見 `docs/website-admin/seo-performance.md`。
+
+**驗證**（Node 22.23.2）：web typecheck 通過；`npm run test:website` 133 檔 1802 項全過（`seo.spec.ts`、`web-ux-20261029.spec.ts`、`preview-headers.spec.ts` 共新增 13 項）；admin 讀到這次改動檔案的 6 個測試檔 189 項通過（機器負載高，放寬逾時、單一 worker 跑；預設 5 秒逾時下有一批逾時失敗，放寬後全過）。dev server（fixture，`https://ivy.localhost`）開放收錄與未開放兩種模式 `check-public-seo.mjs` 都 PASS；逐頁看過標題、robots、canonical、結構化資料，`/sitemap.xml` 列出 `/visit` 與五個 `/visit/<校>`，`/visit/manage` 兩種模式都 noindex。**未跑**：admin 全套、stack／e2e、後端測試（沒動後端與 fixture；`tests/e2e/public-site.spec.ts` 只改了測試名稱）。未 commit、未部署；正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，開放收錄前只有標題與分享標記的改動看得到。
+
 ## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
 
 使用者要把 `www.ivykidschool.com` 從 Wix 移到 Cloudflare（Registrar＋DNS）、網站接 Railway，本輪只準備、不切換。完整步驟、DNS 紀錄表、對照表與待提供資料在 `docs/website-admin/migration-checklist.md`。

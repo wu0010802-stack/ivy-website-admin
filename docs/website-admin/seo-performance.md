@@ -7,10 +7,10 @@
 ### 搜尋與分享
 
 - 首頁與五校共用 `usePageSeo`，SSR 輸出 title、description、canonical、OG／Twitter 分享圖與圖片 alt。
-- JSON-LD：首頁機構／網站，分校 Preschool／BreadcrumbList；只引用頁面既有名稱、地址、電話、說明及照片。不生成評論、招生年齡、營業時間或地理座標。
+- JSON-LD（2026-11-11 更新）：首頁是機構、網站與五校 `Preschool`（沒有分校頁，節點掛在首頁五校區塊）；內頁是該頁、麵包屑，加精簡的機構與網站節點；入學頁另有 `FAQPage`（和頁面上同一份問答）；單篇消息是 `NewsArticle`。只引用已發布的名稱、地址、電話、社群、沿革年份與照片。不生成評論、招生年齡、營業時間、收費或地理座標。
 - Sitemap 由與頁面相同的當前 release 建立，只列已發布 profile 的校區；沒有可靠發布時間，故不捏造 `lastmod`。
 - CMS 既有的少數原型原文由 `publicCopy` 精確比對修正；園方自訂文案保持原樣，示意消息／活動及待補資料繼續明確標示。
-- `/admin`、`/preview`、`/visit` 使用 noindex 與 private/no-store。公開頁使用 no-cache，不增加 SWR／ISR／共享 HTML 快取。
+- `/admin`、`/preview`、`/visit/manage` 使用 noindex 與 private/no-store，robots.txt 另外擋這三個與 `/api/`。預約頁（`/visit`、`/visit/<校>`）2026-11-11 起開放收錄（使用者裁定，取代 10-12 的 noindex）：照全站收錄開關、進 sitemap，`/visit/<校>` 是各校的搜尋入口。公開頁使用 no-cache，不增加 SWR／ISR／共享 HTML 快取。
 
 ### 圖片、影片與字型
 
@@ -64,8 +64,9 @@ NUXT_PUBLIC_TELEMETRY_ENABLED=true
 node scripts/check-public-seo.mjs https://正式網域
 ```
 
-5. 每校 Google 商家檔案由有權限的帳號核對名稱、地址、電話、時間及照片；網站連結先設成首頁 `https://正式網域/`（各校分校頁已拿掉，`/campuses/*` 301 回首頁；若要改指各校預約頁 `/visit/對應key`，該頁一律 noindex，由園方決定）。不複製義華社群帳號到其他校。
-6. 收錄後固定比較自然搜尋曝光／點擊、商家互動、校區瀏覽／聯絡與後端真實需求筆數。以相同日期範圍比較，不把不同口徑計數拼成精確轉換率。
+5. 在 Bing Webmaster Tools 也驗證網域並提交 `/sitemap.xml`（可直接匯入 Search Console 的設定）：ChatGPT 搜尋與 Copilot 用的是 Bing 的索引，只做 Google 的話這兩個查不到。
+6. 每校 Google 商家檔案由有權限的帳號核對名稱、地址、電話、時間及照片（名稱、地址、電話的寫法要和官網、各校粉專一致，AI 助理與地圖搜尋靠這個判斷是同一所學校）；網站連結設成各校的預約頁 `https://正式網域/visit/<校 key>`（義華 `yihua`、明華 `minghua`、崇德 `chongde`、國際 `international`、仁武 `renwu`；2026-11-11 起開放收錄，頁面有該校地址、電話與參觀方式）。不複製義華社群帳號到其他校。
+7. 收錄後固定比較自然搜尋曝光／點擊、商家互動、校區瀏覽／聯絡與後端真實需求筆數。以相同日期範圍比較，不把不同口徑計數拼成精確轉換率。
 
 ## 五校內容待補表
 
@@ -79,7 +80,7 @@ node scripts/check-public-seo.mjs https://正式網域
 
 每項內容記錄核定人與確認日期，放入後台「五校介紹」（`/content/campus-profile`）編輯流程（FAQ 內容類型 2026-10-08 已刪除）。不要填推測數字。實際聯絡／參觀流程以各校目前 booking mode 為準，送出需求不等於預約成立。
 
-GEO 以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主。本輪不新增 llms.txt、虛構 FAQ rich result 或大量近似關鍵字文章。新聞原本維持 dialog；2026-09-26 使用者拍板開放獨立網址 `/news`、`/news/<id>`（示意消息 noindex、不進 sitemap），活動仍用 dialog。
+GEO（讓 AI 助理答得出常春藤的事）以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主，不寫虛構問答或大量近似關鍵字文章。`/llms.txt`（開放收錄後才提供）列一句話介紹、五校地址電話、各頁連結與入學頁同一份常見問題（2026-11-11）。AI 助理多半只讀 HTML 文字、不跑 JavaScript 也不一定讀 JSON-LD，所以最有用的仍是頁面上寫得出來的事實：目前學費、作息時間、交通車、課後延托、各校差異都沒有已發布內容，被問到只能答「請洽校區」。新聞原本維持 dialog；2026-09-26 使用者拍板開放獨立網址 `/news`、`/news/<id>`（示意消息 noindex、不進 sitemap），活動仍用 dialog。
 
 參考：[Google AI 搜尋指引](https://developers.google.com/search/docs/fundamentals/ai-optimization-guide)、[Core Web Vitals](https://web.dev/articles/vitals)、[Google 商家在地搜尋](https://support.google.com/business/answer/7091)。
 
@@ -87,7 +88,7 @@ GEO 以真實校區資訊、可讀 SSR、內部連結與實際教學案例為主
 
 - Node 22.23.2：57 項 Vitest、Nuxt typecheck、正式 server build 通過。
 - 7 項既有 Playwright SSR／404 測試通過；五校與首頁關閉 JavaScript 仍有內容。
-- `check-public-seo.mjs` 驗證索引開啟／關閉、6 頁 metadata／JSON-LD／canonical、sitemap、私有頁 noindex。
+- `check-public-seo.mjs` 驗證索引開啟／關閉、6 頁 metadata／JSON-LD／canonical、sitemap、私有頁 noindex。（2026-11-11 擴充成七頁，加查五校節點、常見問題、robots、llms.txt；見 README 同日段落。）
 - 390px／1440px Chrome：無水平溢出、hydration error 或素材破圖；校區換頁、電話事件、手機影片選檔、day 延後下載、save-data 及 DNT 通過。
 - 本機正式 live 模式後端不可達：首頁、校區、公開資料及 sitemap 均為 503；無 fixture fallback。事件格式、額外欄位、跨站、超大 payload 與 immutable 素材快取通過。
 - `node --check app.js`、`python3 package_preview.py`、`git diff --check` 通過。vanilla 原始碼未變，preview 重打包結果一致。

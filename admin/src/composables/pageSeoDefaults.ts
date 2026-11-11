@@ -1,6 +1,6 @@
 // 全站設定「各頁搜尋與分享」（2026-10-12）：七個公開頁各自的搜尋標題、描述與分享圖。
-// 內建標題與描述是官網 web/app/utils/seo.ts 各頁函式裡的文字（品牌名稱取 fixture 的
-// siteMeta.brandName、創校年份取沿革第一站的內建 1997、隱私權政策標題取內建「隱私權政策」）。
+// 內建標題與描述是官網 web/app/utils/seo.ts 各頁函式裡的文字（標題結尾取官網的
+// TITLE_BRAND、創校年份取沿革第一站的內建 1997、隱私權政策標題取內建「隱私權政策」）。
 // 後台只拿來當欄位的提示字（留空就是官網用這句）；__tests__/siteMetaSeo.test.ts 讀官網原始碼逐字比對，
 // 官網那邊改了這裡也要改。api/labels 與 contentFieldLabels 會用到本檔，所以這裡只 import 型別（避免循環）。
 
@@ -31,7 +31,8 @@ export const PAGE_SEO_PAGES: readonly PageSeoPage[] = [
   { key: 'privacy', label: '隱私權政策', path: '/privacy', note: '內建標題的頭一段，跟著「隱私權政策」頁的標題。' },
 ]
 
-const BRAND = '常春藤教育機構'
+// 官網 seo.ts 的 TITLE_BRAND（2026-11-11 起標題結尾不再用品牌名「常春藤教育機構」）
+const BRAND = '常春藤幼兒園'
 
 export const PAGE_SEO_DEFAULTS: Readonly<Record<PageSeoKey, { title: string; description: string }>> = {
   admission: {

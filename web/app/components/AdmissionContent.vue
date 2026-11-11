@@ -17,7 +17,7 @@ import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
 import { splitStampText } from '~/utils/passport-stamp'
 import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
-import { ADMISSION_FAQ, type AdmissionFaqItem } from '~/utils/admission-faq'
+import { ADMISSION_FAQ, admissionFaqVisible, type AdmissionFaqItem } from '~/utils/admission-faq'
 import type { AdmissionContent, Campus } from '~/types/site-content'
 
 // campuses 給常見問題「怎麼預約參觀」列各校電話；沒傳時那一題只有文字。
@@ -37,12 +37,7 @@ const showNewcomer = computed(() => admission.value.phases.length > 0 || hasNewc
 
 // ---------- 常見問題：讀後台內容的題目，內容清空就整題拿掉 ----------
 const phones = computed(() => (props.campuses ?? []).filter((campus) => campus.phone))
-function faqVisible(item: AdmissionFaqItem) {
-  const a = admission.value
-  if (item.slot === 'allowance') return a.allowance.length > 0 || a.subsidies.length > 0
-  if (item.slot === 'refunds') return a.refunds.length > 0
-  return true
-}
+const faqVisible = (item: AdmissionFaqItem) => admissionFaqVisible(item, admission.value)
 const faqGroups = computed(() => ADMISSION_FAQ.map((group) => ({
   ...group,
   items: group.items.filter(faqVisible).map((item) => ({
