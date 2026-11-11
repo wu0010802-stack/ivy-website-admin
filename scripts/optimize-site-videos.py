@@ -39,10 +39,10 @@ run_target = OUT / f'campus-run-{run_digest[:12]}.mp4'
 shutil.copyfile(run_prepared, run_target)
 manifest['campus-run'] = f'/assets/optimized/{run_target.name}'
 print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,} bytes', flush=True)
-# 孩子的一天的確認版：2026-11-10 起是園方校園日常片 13 鏡（design/day-film-daily-20261110），
-# 10-25 補 sRGB 標記的舞台表演版留著對照；母帶是哪一版就用那一版壓好的手機檔。
+# 孩子的一天的確認版：2026-11-11 起是繪本淡彩動畫六幕（design/day-film-animation-20261111，另有一支直式手機檔）；
+# 11-10 的園方校園日常片 13 鏡、10-25 補 sRGB 標記的舞台表演版留著對照。母帶是哪一版就用那一版壓好的手機檔。
 day_versions = []
-for day_dir in ('design/day-film-daily-20261110', 'design/day-film-color-20261025'):
+for day_dir in ('design/day-film-animation-20261111', 'design/day-film-daily-20261110', 'design/day-film-color-20261025'):
     graded = ROOT / day_dir
     variants = {item['file']: item for item in json.loads((graded / 'manifest.json').read_text())['variants']}
     day_versions.append((graded, variants))
@@ -90,6 +90,16 @@ for name, source, width, crf in [
         shutil.copyfile(prepared, target)
         manifest[name] = f'/assets/optimized/{target.name}'
         print(f'{name}: 採用已確認的 {day_graded.name} 手機檔 {target.stat().st_size:,} bytes', flush=True)
+        # 直式手機檔（760px 以下）：只有動畫版有，鏡頭在橫式畫面裡另外排過；沒有的版本直拿手機也播橫式手機檔。
+        if 'day-portrait.mp4' in day_approved:
+            prepared = day_graded / 'day-portrait.mp4'
+            digest = sha256(prepared.read_bytes()).hexdigest()
+            if digest != day_approved[prepared.name]['sha256']:
+                raise ValueError(f'孩子的一天影片與確認版雜湊不一致：{prepared.name}')
+            target = OUT / f'day-portrait-{digest[:12]}.mp4'
+            shutil.copyfile(prepared, target)
+            manifest['day-portrait'] = f'/assets/optimized/{target.name}'
+            print(f'day-portrait: 採用已確認的 {day_graded.name} 直式檔 {target.stat().st_size:,} bytes', flush=True)
         continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'
@@ -100,6 +110,7 @@ for name, source, width, crf in [
                         '-threads', '2', '-movflags', '+faststart', '-y', str(target)], check=True)
     manifest[name] = f'/assets/optimized/{target.name}'
     print(f'{name}: {original.stat().st_size:,} → {target.stat().st_size:,} bytes', flush=True)
+manifest.setdefault('day-portrait', manifest['day-mobile'])
 target = ROOT / 'web/app/generated/video-manifest.json'
 target.write_text(json.dumps(manifest, indent=2) + '\n')
 # 換參數或母帶後舊雜湊檔不會再被引用，留著只會撐大映像（2026-10-05 清掉 9 支、約 28 MB）

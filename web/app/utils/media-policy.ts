@@ -25,7 +25,9 @@ export function heroMayAutoplay(reducedMotion: boolean, connection?: ConnectionI
 export function backgroundVideoSrc(source: string, mobile: boolean): string {
   if (source === 'assets/hero-campus.mp4') return mobile ? videos['hero-mobile'] : videos['hero-desktop']
   if (source === 'assets/day-film.mp4') return mobile ? videos['day-mobile'] : videos['day-desktop']
-  if (source === 'assets/day-film-mobile.mp4') return videos['day-mobile']
+  // 孩子的一天的手機素材（760px 以下才用）是另一支直式檔（2026-11-11 動畫版：鏡頭在橫式畫面裡另外排過）；
+  // 母帶沒有直式版時 optimize-site-videos.py 會讓這個鍵指回橫式手機檔。
+  if (source === 'assets/day-film-mobile.mp4') return videos['day-portrait']
   // 2026-10-29 首屏換成混剪後，消息「一起跑向前」留在舊的七鏡戶外片（只有手機編碼一支）。
   if (source === 'assets/campus-film-run.mp4') return videos['campus-run']
   return `/${source.replace(/^\//, '')}`

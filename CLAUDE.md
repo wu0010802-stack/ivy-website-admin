@@ -65,7 +65,7 @@
 
 ## 現況容易搞錯的事（2026-09-24）
 
-- 「孩子的一天」是背景影片（760px 分界切桌／手機檔）＋六張可翻面拍立得，不是舊分頁；`dayMoments` 欄位 `key,time,label,tint,photo,alt,caption,title,story,question,answer`。
+- 「孩子的一天」是背景影片（760px 分界切桌／手機檔；2026-11-11 起內建的是繪本淡彩動畫六幕，760px 以下是另一支直式檔 `day-portrait`，見 `design/day-film-animation-20261111/`）＋六張可翻面拍立得，不是舊分頁；`dayMoments` 欄位 `key,time,label,tint,photo,alt,caption,title,story,question,answer`。
 - 首頁五校是 e3 墨綠底板卡，網站內沒有嵌入地圖（地址連到 Google 地圖另開分頁）；各校分校頁已於 2026-10-03 拿掉，`/campuses` 與 `/campuses/**` 301 回首頁。
 - 頁首預約鈕全站只有一種：金色滿高色塊（d9），手機退回膠囊。
 - 頁首捲過 40px 收成靠右的深綠膠囊：首頁、入學資訊、特色教學、關於常春藤、週年頁（`/anniversary`）這五頁任何寬度都收；900px 以下全站各頁也收；其餘桌機內頁（環境、消息、預約、隱私權政策等）不收（以 `SiteHeader.vue` 的 `PILL_PAGES` 為準）。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。

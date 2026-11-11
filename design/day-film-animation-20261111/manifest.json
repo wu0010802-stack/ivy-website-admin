@@ -1,0 +1,198 @@
+{
+  "generated_with": {
+    "_about": "Higgsfield 工作編號與各階段檔案雜湊。關鍵畫面 GPT Image 2.6（medium、2k、16:9）；動畫 Kling 3.0 pro、5 秒、無聲；放大 ByteDance 2K、aigc、24fps。AI 服務不保證重現，重做要用這裡記的檔案。",
+    "s1": {
+      "key_image_job": "520866d6-0dca-4749-ab00-0f644f186312",
+      "key_image_sha256": "0a0ef3fb52268f13cb17d92010e3da372f999a81615ef1a72ce1e5aefb13484a",
+      "video_job": "fed21a81-d128-41d6-8622-62a9c090ce2e",
+      "video_sha256": "7775f5dbd589e97963683e272019f1fb976d3e8abd3282608f34e740835ff1ca",
+      "upscale_job": "8ea79369-b0fe-42b8-823a-7819fbfab1ba",
+      "upscaled_sha256": "010595548a9961ba11407ef5bab18a3b36dfe48771aa8fb1fe71b9f9b37683b5"
+    },
+    "s2": {
+      "key_image_job": "4b90bc87-a51d-4c8f-885e-f8b9c04dbb2e",
+      "key_image_sha256": "b4ae5615dab9eebc89b156d86d25e34409f3878fe9074c10bc924e658bf87a8f",
+      "video_job": "a652be25-9288-45ed-bb79-d6b3466e610d",
+      "video_sha256": "bf83614f9791e30061f0b6b4590ff4375451e03c06ed11c1784cb566707107b7",
+      "upscale_job": "f4681fb5-90c4-4010-80f8-edbff9d98229",
+      "upscaled_sha256": "d9195eeffae37c6c1c5b387e939a24d8123d8b1cbaa839a50bd73b906c2569ad"
+    },
+    "s3": {
+      "key_image_job": "a39f0c71-8252-47a6-90bf-5d946bc47287",
+      "key_image_sha256": "dd8a88c8f0c3000de088e31cd7dff18a0a2faeaf919068b0f55d9986824f4f98",
+      "video_job": "e4bc1ee7-c6e5-4fbf-b936-5ef824750b01",
+      "video_sha256": "028170840d135650323ccef7409475656e411c0bdb9750af19064bf8862e7524",
+      "upscale_job": "973960fe-5c26-41ae-b185-d55ffa3957fa",
+      "upscaled_sha256": "51517a878499ef56204ec6f3003fb6601cf0ae5ac1b34589c97082e68624c6e0"
+    },
+    "s4": {
+      "key_image_job": "bb808cf4-44b7-4a91-bcd8-886ef980e45d",
+      "key_image_sha256": "aabe10f29b12b3617c15faacbf249049bf661b66ef6ec031a81de95f89170ee5",
+      "video_job": "4fd534a7-7834-473a-98a3-96d0c36ed8ec",
+      "video_sha256": "c63ccd17d181aa0e6d94c765cb6978548779cf5e95ce1cd88224e4cb74ae2dfe",
+      "upscale_job": "c9183084-8d5b-4b55-a831-f4e85f088777",
+      "upscaled_sha256": "1ce6bb8925a4a6199b4aadb1d2d91de41f5600ffba91b58f1cca17f1a0521dc1"
+    },
+    "s5": {
+      "key_image_job": "934b1a3d-5d48-4204-b135-37dd497598af",
+      "key_image_sha256": "272d6e46a342798b9c336aa988b873a9af4728f08be2a3417d8131c9cce48d19",
+      "video_job": "4e1dcc54-05b4-438a-92be-83e2c2995af1",
+      "video_sha256": "0c56bf08f35acee53eebc76f31b23bdb8d1ba98ae11fd4335d7a8b9e6ae546ee",
+      "upscale_job": "fa0eaba6-484c-45a5-9117-d8d13e2af6cb",
+      "upscaled_sha256": "b8a664ffda08cd608d52545ac513f5441296b7e74c614176564ebb251531ea71"
+    },
+    "s6": {
+      "key_image_job": "fb305e4d-f04e-4feb-92ba-beb126c067af",
+      "key_image_sha256": "61407f83f8242850b50bd8dcaeb4dd1c972c50a845dfd8fda3cdaf5449da6958",
+      "video_job": "20141c62-836b-496f-8624-19ebe56403e4",
+      "video_sha256": "c21aa0fa0dd0476f5d8dcd57a266f24458774e0b630912b37486e7c85106fd8e",
+      "upscale_job": "c96a42aa-efcc-4d13-b9ce-0c51c7a5c101",
+      "upscaled_sha256": "d959917aa315c4c8cec5171b16539b34f8591c43d3383dc8eb0b1cbcf101b55f"
+    }
+  },
+  "frame": {
+    "landscape": [
+      2560,
+      1440
+    ],
+    "portrait": [
+      960,
+      1440
+    ],
+    "fps": 24,
+    "transition_frames": 18
+  },
+  "tone": {
+    "knee": 0.6,
+    "white": 0.9,
+    "luma_ceiling_10bit": 829
+  },
+  "wash": {
+    "softness": 0.38,
+    "sweep": 0.55,
+    "edge_pigment": 0.05
+  },
+  "portrait_first_centre": 0.5834,
+  "color": "生成檔以 BT.601 limited 解碼；交付檔 BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "scenes": [
+    {
+      "key": "hello",
+      "time": "08:00",
+      "clip": "s1",
+      "frames": [
+        0,
+        121
+      ],
+      "pan": [
+        0.57,
+        0.79
+      ],
+      "note": "早安入園：牽手走向校門，老師在門口招手"
+    },
+    {
+      "key": "discover",
+      "time": "09:10",
+      "clip": "s2",
+      "frames": [
+        0,
+        121
+      ],
+      "pan": [
+        0.43,
+        0.55
+      ],
+      "note": "好奇探索：紫高麗菜變色實驗，倒進去暈成粉紅"
+    },
+    {
+      "key": "lunch",
+      "time": "11:40",
+      "clip": "s3",
+      "frames": [
+        0,
+        121
+      ],
+      "pan": [
+        0.4,
+        0.56
+      ],
+      "note": "一起用餐：自己拿湯匙，湯在冒煙"
+    },
+    {
+      "key": "rest",
+      "time": "12:30",
+      "clip": "s4",
+      "frames": [
+        0,
+        121
+      ],
+      "pan": [
+        0.33,
+        0.62
+      ],
+      "note": "安靜片刻：樹下看繪本、靠著老師睡著"
+    },
+    {
+      "key": "outside",
+      "time": "14:20",
+      "clip": "s5",
+      "frames": [
+        0,
+        121
+      ],
+      "pan": [
+        0.38,
+        0.6
+      ],
+      "note": "午後玩耍：操場吹泡泡"
+    },
+    {
+      "key": "home",
+      "time": "16:30",
+      "clip": "s6",
+      "frames": [
+        0,
+        96
+      ],
+      "pan": [
+        0.46,
+        0.42
+      ],
+      "note": "帶故事回家：牽著爸爸、舉著今天的畫"
+    }
+  ],
+  "variants": [
+    {
+      "file": "day-desktop.mp4",
+      "width": 1920,
+      "height": 1080,
+      "fps": "24/1",
+      "frames": "593",
+      "duration": "24.708333",
+      "bytes": 11915483,
+      "crf": 24,
+      "sha256": "30ae9eac5b856d933ef45de03574084f92f78d27983d247316c1eee53945f676"
+    },
+    {
+      "file": "day-mobile.mp4",
+      "width": 1280,
+      "height": 720,
+      "fps": "24/1",
+      "frames": "593",
+      "duration": "24.708333",
+      "bytes": 4431910,
+      "crf": 26,
+      "sha256": "0d60531d1f30638d6a2580ba5628b6292209344348baf2840559ab8f49c15a61"
+    },
+    {
+      "file": "day-portrait.mp4",
+      "width": 960,
+      "height": 1440,
+      "fps": "24/1",
+      "frames": "593",
+      "duration": "24.708333",
+      "bytes": 6396737,
+      "crf": 26,
+      "sha256": "a2fc8876369409752325d6f3594d21b6781c591ca0aa00aaa26b6ea85829a9d8"
+    }
+  ]
+}

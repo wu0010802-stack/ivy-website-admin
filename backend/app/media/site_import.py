@@ -153,7 +153,9 @@ def plan_site_assets(web_root: Path = DEFAULT_WEB_ROOT) -> list[ImportEntry]:
         ),
         ImportEntry(
             "day-film-mobile", "孩子的一天影片（手機）",
-            _manifest_video(web_root, manifest, "day-mobile", day["filmSrcMobile"]), MediaKind.VIDEO, None,
+            # 手機版位是 760px 以下用的素材：官網內建的是直式檔（2026-11-11），沒有才退回橫式手機檔
+            _manifest_video(web_root, manifest, "day-portrait" if "day-portrait" in manifest else "day-mobile",
+                            day["filmSrcMobile"]), MediaKind.VIDEO, None,
             None, DraftTarget("day_experience", None, "film_mobile"),
         ),
         ImportEntry(

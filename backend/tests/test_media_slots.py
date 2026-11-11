@@ -403,6 +403,9 @@ def test_plan_covers_current_site_files():
     # 官網實際播放的是 manifest 裡壓縮過的影片。
     video = next(e for e in entries if e.key == "hero-video-desktop")
     assert "optimized" in str(video.path)
+    # 孩子的一天的手機版位是 760px 以下用的素材：官網內建的是直式檔（2026-11-11），不是橫式手機編碼。
+    mobile_film = next(e for e in entries if e.key == "day-film-mobile")
+    assert mobile_film.path.name.startswith("day-portrait-")
     yihua = next(e for e in entries if e.key == "yihua-cover")
     assert yihua.campus_key == "yihua"
     assert yihua.target.extra == {"card_focus": {"x": 50.0, "y": 36.0}}

@@ -125,15 +125,15 @@ it('孩子的一天小標：原文只留英文，園方改過的照園方的', (
   expect(day('孩子的一天', '')).toMatchObject({ eyebrow: '孩子的一天', eyebrowEn: '' })
 })
 
-// 2026-11-10 背景影片換成園方校園日常片：後台還存著舊內建影片的說明「義華校 · 遊藝表演」，
+// 2026-11-11 背景影片換成繪本動畫：後台還存著舊內建影片的說明「義華校 · 遊藝表演」，
 // 只在仍用官網內建影片而且說明是舊內建原文時換成新內建文字；園方上傳過影片或改過說明都照園方的。
 it('孩子的一天：舊內建影片的說明只在仍用內建影片時換成新內建文字', () => {
   const site = fixture as unknown as SiteContent
   const day = (zh: string, filmSrc = 'assets/day-film.mp4') =>
     publicCopy({ ...site, dayExperience: { ...site.dayExperience, filmSrc, filmCaption: { zh, en: '' } } }).dayExperience.filmCaption.zh
-  expect(site.dayExperience.filmCaption.zh).toBe('校園日常紀錄')
-  expect(day('義華校 · 遊藝表演')).toBe('校園日常紀錄')
-  expect(day('校園日常紀錄')).toBe('校園日常紀錄')
+  expect(site.dayExperience.filmCaption.zh).toBe('繪本動畫 · 情境示意')
+  expect(day('義華校 · 遊藝表演')).toBe('繪本動畫 · 情境示意')
+  expect(day('繪本動畫 · 情境示意')).toBe('繪本動畫 · 情境示意')
   expect(day('園方自訂的說明')).toBe('園方自訂的說明')
   expect(day('義華校 · 遊藝表演', '/api/website/v1/public/media/abc/video')).toBe('義華校 · 遊藝表演')
 })
