@@ -4,10 +4,10 @@ import asyncio
 import logging
 import uuid
 from datetime import date, datetime, timezone
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -36,6 +36,7 @@ from app.operations import (
     audit_service,
     booking_outcomes_service,
     dashboard_service,
+    engagement_service,
     error_reports,
     public_caps,
     retention_service,
@@ -44,6 +45,11 @@ from app.operations import (
 )
 from app.operations.models import (
     CTA_ENTRIES,
+    ENGAGEMENT_MAX_ACTIVE_MS,
+    ENGAGEMENT_MAX_KEYS,
+    ENGAGEMENT_MAX_REV,
+    ENGAGEMENT_MAX_SEQ,
+    ENGAGEMENT_SOURCES,
     RETENTION_MAX_DAYS,
     RETENTION_MIN_DAYS,
     RetentionPolicy,
@@ -189,6 +195,80 @@ async def record_telemetry(
     await db.commit()
 
 
+EngagementSource = Literal[ENGAGEMENT_SOURCES]  # type: ignore[valid-type]
+# 區塊與互動代碼：小寫英數、底線、連字號與冒號，最長 48 字。冒號給首頁點開的各校消息用
+# （各校消息的代號帶校區前綴，例如 sn_yihua:open-day）。
+EngagementKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_:-]{0,47}$")]
+# 活動代碼（utm_campaign）：小寫英數、底線、連字號，最長 32 字。
+EngagementCampaign = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")]
+
+
+class EngagementIn(BaseModel):
+    """與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。
+    一筆是一次頁面瀏覽到目前為止的累計：停留毫秒數、捲動深度、各區塊停留與互動次數。
+    只收代碼與數字，不收網址、來源網址或任何家長資料。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    event: Literal["engagement"]
+    id: uuid.UUID
+    session: uuid.UUID
+    page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news", "anniversary"]
+    campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
+    device: Literal["mobile", "desktop"]
+    # 最新消息內文頁的消息代號；其他頁不帶。各校消息帶校區前綴（yihua:open-day）。
+    item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$")] | None = None
+    source: EngagementSource
+    active_ms: int = Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)
+    scroll: int = Field(ge=0, le=100)
+    sections: dict[EngagementKey, Annotated[int, Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    # 這次造訪的第幾頁、進站連結上的活動代碼（utm_campaign）：2026-11-11 第二輪加，
+    # 還開著舊版頁面的瀏覽器不會帶，所以都是選填。
+    seq: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_SEQ)
+    campaign: EngagementCampaign | None = None
+    # 這次瀏覽的第幾次回報：晚到的舊回報不蓋掉新的區塊與互動。
+    rev: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_REV)
+
+    @model_validator(mode="after")
+    def _consistent(self) -> "EngagementIn":
+        if (self.page not in ("campus", "visit") and self.campus is not None) or (self.page == "campus" and self.campus is None):
+            raise ValueError("page 與 campus 不一致")
+        if self.item is not None and self.page != "news":
+            raise ValueError("只有最新消息內文頁帶 item")
+        return self
+
+
+@router.post("/public/engagement", status_code=status.HTTP_204_NO_CONTENT)
+async def record_engagement(
+    payload: EngagementIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db_session),
+) -> None:
+    # 和瀏覽量、效能樣本共用同一組上限：單一來源每分鐘（被擋回 429）、全站每分鐘、
+    # 每來源每日與全站每日（被擋安靜丟棄、仍回 204）。
+    try:
+        admitted = await public_caps.admit(
+            ratelimit.limiter(request),
+            public_caps.telemetry_limits(request.app.state.settings, _trusted_source(request)),
+            gate=(TELEMETRY_LIMIT, ratelimit.client_key(request)),
+        )
+    except ratelimit.RateLimited as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="請求太頻繁",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    if not admitted:
+        return
+    await engagement_service.record_visit(
+        db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
+        item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
+        scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
+        seq=payload.seq, campaign=payload.campaign, rev=payload.rev,
+    )
+    await db.commit()
+
+
 class ClientErrorIn(BaseModel):
     """與 web/shared/client-error.ts 的 validateClientError 同一組欄位：web 端先驗過、這裡再驗一次，
     因為同源代理讓任何人都能直接打到這支公開端點。長度上限只是擋掉離譜的本文，超過欄位長度的
@@ -210,12 +290,17 @@ async def record_client_error(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    # 單一來源每分鐘上限（被擋回 429）與全站每日上限（被擋安靜丟棄、仍回 204），
+    # 單一來源每分鐘上限（被擋回 429）、單一來源每日與全站每日上限（被擋安靜丟棄、仍回 204），
     # 同一個限流交易內依序檢查，和 telemetry 一樣。
+    source = _trusted_source(request)
+    caps: list[public_caps.Cap] = []
+    if source is not None:
+        caps.append((error_reports.CLIENT_ERROR_SOURCE_DAILY, source))
+    caps.append((error_reports.CLIENT_ERROR_DAILY, public_caps.GLOBAL_KEY))
     try:
         admitted = await public_caps.admit(
             ratelimit.limiter(request),
-            ((error_reports.CLIENT_ERROR_DAILY, public_caps.GLOBAL_KEY),),
+            caps,
             gate=(error_reports.CLIENT_ERROR_SOURCE_PER_MINUTE, ratelimit.client_key(request)),
         )
     except ratelimit.RateLimited as exc:
@@ -343,6 +428,188 @@ async def get_traffic(
 ) -> dict:
     # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
     summary = await traffic_service.get_traffic_summary(db, days)
+    summary["as_of"] = now_utc()
+    return summary
+
+
+class EngagementPeriodOut(BaseModel):
+    visits: int
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+    median_session_ms: int
+    pages_per_session: float | None
+
+
+class EngagementTotalsOut(EngagementPeriodOut):
+    median_active_ms: int
+    mobile_sessions: int
+
+
+class EngagementDailyOut(BaseModel):
+    day: date
+    visits: int
+    sessions: int
+
+
+class EngagementStoryOut(BaseModel):
+    kind: Literal["news", "event", "film"]
+    id: str
+    title: str | None
+    visits: int
+
+
+class EngagementClassOut(BaseModel):
+    key: str
+    visits: int
+
+
+class EngagementCampaignOut(BaseModel):
+    campaign: str
+    source: str
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementFormStepOut(BaseModel):
+    key: str
+    sessions: int
+    rate: float | None
+
+
+class EngagementFormOut(BaseModel):
+    """進過預約頁的造訪裡各走到哪一步（以造訪為單位）。"""
+
+    sessions: int
+    steps: list[EngagementFormStepOut]
+    no_slots_sessions: int
+    invalid_sessions: int
+
+
+class EngagementJourneyPageOut(BaseModel):
+    page: str
+    sessions: int
+    rate: float | None
+
+
+class EngagementPathOut(BaseModel):
+    pages: list[str]
+    sessions: int
+    rate: float | None
+
+
+class EngagementJourneyOut(BaseModel):
+    sessions: int
+    entries: list[EngagementJourneyPageOut]
+    exits: list[EngagementJourneyPageOut]
+    paths: list[EngagementPathOut]
+
+
+class EngagementHourOut(BaseModel):
+    weekday: int
+    hour: int
+    visits: int
+
+
+class EngagementCampusOut(BaseModel):
+    campus_key: str
+    tab_visits: int
+    map_visits: int
+    visit_sessions: int
+    # 這段期間實際送出的預約數；沒有招生統計權限或不在校區範圍內是 null。
+    bookings: int | None
+
+
+class EngagementPageOut(BaseModel):
+    page: str
+    campus_key: str | None
+    visits: int
+    previous_visits: int | None
+    median_active_ms: int
+    bounce_rate: float | None
+    median_scroll_pct: int
+
+
+class EngagementSectionOut(BaseModel):
+    page: str
+    key: str
+    reached: int
+    visits: int
+    reach_rate: float | None
+    median_ms: int
+
+
+class EngagementActionOut(BaseModel):
+    page: str
+    key: str
+    visits: int
+    total: int
+
+
+class EngagementNewsOut(BaseModel):
+    id: str
+    title: str | None
+    visits: int
+    previous_visits: int | None
+    median_active_ms: int
+    read_rate: float | None
+
+
+class EngagementSourceOut(BaseModel):
+    source: str
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementConversionOut(BaseModel):
+    kind: Literal["page", "section"]
+    page: str
+    key: str | None
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementSummaryOut(BaseModel):
+    days: int
+    since: date
+    until: date
+    as_of: datetime
+    device: Literal["mobile", "desktop"] | None
+    totals: EngagementTotalsOut
+    # 上一期（往前同樣天數）；紀錄只留 90 天，選 90 天時沒有上一期。
+    previous: EngagementPeriodOut | None
+    daily: list[EngagementDailyOut]
+    pages: list[EngagementPageOut]
+    sections: list[EngagementSectionOut]
+    actions: list[EngagementActionOut]
+    news: list[EngagementNewsOut]
+    stories: list[EngagementStoryOut]
+    classes: list[EngagementClassOut]
+    sources: list[EngagementSourceOut]
+    campaigns: list[EngagementCampaignOut]
+    conversion: list[EngagementConversionOut]
+    booking_form: EngagementFormOut
+    journey: EngagementJourneyOut
+    hours: list[EngagementHourOut]
+    campuses: list[EngagementCampusOut]
+
+
+@router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
+async def get_engagement(
+    days: int = Query(28, ge=7, le=90),
+    device: Literal["mobile", "desktop"] | None = Query(None, description="只看手機或電腦；省略＝全部"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    # 和瀏覽量一樣是全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
+    # 只有「各校實際送出的預約數」比照招生統計：要有 admissions.stats，而且只給自己範圍內的校區。
+    booking_campuses = frozenset(
+        key for key in CAMPUS_KEYS if has_capability(current_user, "admissions.stats") and covers_campus(current_user, key)
+    )
+    summary = await engagement_service.get_engagement_summary(db, days, device, booking_campuses)
     summary["as_of"] = now_utc()
     return summary
 
@@ -681,8 +948,13 @@ class AuditActorOut(BaseModel):
 
 
 def _hidden_audit_actions(user: User) -> tuple[str, ...]:
-    """分校帳號用 booking.read 看自己校的紀錄時，排除只有招生統計權限才做得到的動作。"""
-    return () if has_capability(user, "admissions.stats") else audit_service.STATS_ONLY_ACTIONS
+    """分校帳號用 booking.read 看自己校的紀錄時，排除只有招生統計、通知設定權限才做得到的動作。"""
+    hidden: tuple[str, ...] = ()
+    if not has_capability(user, "admissions.stats"):
+        hidden += audit_service.STATS_ONLY_ACTIONS
+    if not has_capability(user, "notifications.manage"):
+        hidden += audit_service.NOTIFICATION_SETTINGS_ACTIONS
+    return hidden
 
 
 @router.get("/admin/audit-log/actors", response_model=list[AuditActorOut])

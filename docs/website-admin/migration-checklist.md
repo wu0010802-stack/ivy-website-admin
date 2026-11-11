@@ -11,6 +11,34 @@
 
 ---
 
+## ★ 切換結果（2026-11-11 下午，已上線）
+
+使用者同意當天切換。實際狀態以這一節為準，下面第 0–9 節是切換前的準備紀錄。
+
+| 項目 | 實際值 |
+| --- | --- |
+| Nameserver | 05:55Z 起 `cass.ns.cloudflare.com`、`sullivan.ns.cloudflare.com`（Wix「使用自訂名稱伺服器」）；Cloudflare zone 已 Active，Free 方案 |
+| 註冊商 | 仍在 Wix（Network Solutions），**尚未轉入 Cloudflare Registrar**；2027-10-30 到期 |
+| Railway | web 服務自訂網域 `www.ivykidschool.com`（port 3000），Let's Encrypt 憑證 VALID（到 2027-02-09，自動續） |
+| Cloudflare DNS | `www` CNAME `dbzv53t5.up.railway.app`（DNS only）；`_railway-verify.www` TXT；`@` A `192.0.2.1`（Proxied，只為轉址）；Google Workspace MX 5 筆；`@` TXT `google-site-verification` 兩筆（舊的一筆＋Search Console 新的一筆，**都要留**） |
+| apex 轉址 | Cloudflare Redirect Rule「apex to www」：`*://ivykidschool.com/*` → `https://www.ivykidschool.com/${2}`，301，保留查詢字串 |
+| Railway api 變數 | `WEBSITE_ADMIN_ORIGIN=https://www.ivykidschool.com`、`WEBSITE_ADMIN_EXTRA_ORIGINS=https://web-production-04caa.up.railway.app`（過渡期）、Google／LINE `REDIRECT_URI` 改 www；`WEBSITE_VAPID_SUBJECT` 沒改（只是聯絡用，不影響推播） |
+| Railway web 變數 | `NUXT_PUBLIC_SITE_ORIGIN=https://www.ivykidschool.com`、`NUXT_PUBLIC_INDEXING_ENABLED=true`（14:07 開放收錄）；`NUXT_REDIRECT_HOSTS` **還沒設** |
+| OAuth 主控台 | Google（專案 ivyWebsite）與 LINE Login channel 2011820492 都是新舊回呼並列 |
+| Search Console | 網域資源 `sc-domain:ivykidschool.com` 已驗證；已提交 `https://www.ivykidschool.com/sitemap.xml`；首頁已要求建立索引 |
+| 巡檢 | GitHub repo 變數 `UPTIME_BASE_URL=https://www.ivykidschool.com` |
+
+### 切換後待辦
+
+| 時機 | 項目 |
+| --- | --- |
+| 1–2 天後 | Search Console → Sitemap 確認狀態變「成功」（剛提交時 Google 還讀到舊 DNS，顯示「無法擷取」） |
+| 2–3 天後（各地 DNS 快取都更新） | web 設 `NUXT_REDIRECT_HOSTS=web-production-04caa.up.railway.app`，Railway 暫用網址 301 到 www（`/api/**`、`/release.json` 不轉，CI 與 LINE webhook 不受影響） |
+| 確認沒人再用 Railway 網址登入後台 | api 拿掉 `WEBSITE_ADMIN_EXTRA_ORIGINS`；Google／LINE 主控台移除 Railway 回呼 |
+| 新站穩定約一週後 | 網域轉入 Cloudflare Registrar：Wix 重新申請授權碼（先前那組曾貼進對話，作廢不用）→ Cloudflare Domain Registration → Transfer Domains → 付一年費用（本人操作）；轉完後 Wix 確認網域不再自動續約；**要在 2027-09 前完成** |
+| 使用者決定 | SPF／DKIM／DMARC（目前都沒有，見第 3 節建議）；Google Workspace 帳務從 Wix 轉給 Google；Wix 網站方案是否續約、舊 Wix 站是否取消發佈（避免 wixsite.com 網址被當成重複內容）；對照表 #22–#30；HSTS preload；LINE Messaging webhook 改 www（不改也能用） |
+| 後台內容 | `/anniversary`（30 週年開關關著）與 `/privacy`（尚未發布）目前 404、不在 sitemap |
+
 ## 0. 現況（2026-11-11 唯讀查得）
 
 | 項目 | 現況 | 來源 |

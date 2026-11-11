@@ -1,4 +1,4 @@
-import { anniversaryEnabled, crawlerIndexable, EMPTY_SITEMAP, normalizeSiteOrigin, sitemapXml } from '../../app/utils/seo'
+import { admissionEnabled, anniversaryEnabled, crawlerIndexable, EMPTY_SITEMAP, newsEnabled, normalizeSiteOrigin, sitemapXml } from '../../app/utils/seo'
 import { loadPublishedSite } from '../utils/published-site'
 
 export default defineEventHandler(async (event) => {
@@ -13,6 +13,8 @@ export default defineEventHandler(async (event) => {
   return sitemapXml(origin, published.content.news, {
     privacy: Boolean(published.content.privacyPolicy),
     anniversary: anniversaryEnabled(published.content.siteMeta),
+    newsPages: newsEnabled(published.content.siteMeta),
+    admission: admissionEnabled(published.content.siteMeta),
     campuses: published.content.campuses.map((campus) => campus.key)
   })
 })

@@ -42,6 +42,135 @@
 - **未驗證**：stack e2e 與正式的 `npm run test:e2e` 沒跑（要真後端與測試庫）；iOS／Android 實機沒試（Safari 的自動播放與全螢幕行為只能靠規則推斷）；焦點在原生控制列裡面時 Esc 不會暫停（瀏覽器吃掉按鍵，用控制列的暫停鈕）；影片在正式站的串流速度要上線後才量得到。
 - **上線前要園方確認**：片中孩子的肖像授權範圍涵蓋官網播放；新寫的幾個字（紀念影片、影片裡的話、分享影片、索引四項）。
 
+## 2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影（`fix/paper-context-lost-20261111`）
+
+使用者回報：真手機開正式站，「常春藤的一天」的卡片上會出現上一個畫面的殘影。部署紀錄見 `deploy/README.md` 同日段落。
+
+- **原因**：整頁的拍立得共用一個 WebGL context（`utils/paperPrints.ts`），每張卡 render 完再把共用畫布 `drawImage` 到自己的 2D 畫布。手機切到背景、記憶體吃緊時系統會把 context 收走，three 的 render 之後什麼都不畫，共用畫布留著最後一張成功畫出的卡，程式卻照樣複製。WebKit（iPhone 上所有瀏覽器）之後要畫的每一張卡都變成那一張、點了不翻面、context 還原後也不重畫；Chromium 複製到空白，卡片整張不見（DOM 正反面在 `.webgl-ready` 底下是透明的）。
+- **重現**：Playwright 手機模擬對正式站，用 `WEBGL_lose_context` 讓共用 context 遺失。WebKit 滑到第 4、5 張，畫面上都是第 3 張「美語時光」；Chromium 同一步驟卡片消失。兩邊還原 context 後都不會自己好。真機上遺失的觸發點（切 App、記憶體）是推論，沒有實機紀錄。
+- **修法**：紙每次要畫之前先問 context 還在不在（`isContextLost()`；`webglcontextlost` 事件晚一拍才到，也一起聽）。遺失的那個 renderer 不再用，掛著的紙通知卡片卸回 CSS 3D 版（DOM 的內容永遠是對的），1.2 秒後照平常的路用新的 context 重掛（手機照舊等捲動停下）。同一頁遺失第二次就停用 WebGL、維持 CSS 版，不來回閃。建不出 context（`new WebGLRenderer` 丟錯）也回 null，不再留下卡住的掛載。
+- 改動：`web/app/utils/paperPrints.ts`（共用 renderer 改成一個 renderer 一份狀態、`handleContextLost`、`render()` 的檢查、`initial.onLost`）、`web/app/components/DayMomentCard.vue`（`onPaperLost`）、`web/app/utils/paper-budget.ts`（`REMOUNT_AFTER_LOSS_MS`）。規則在 DESIGN.md 同日章節。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 140 檔 1864 過（新增 `web/tests/paper-context-lost-20261111.spec.ts` 9 項，修正前 8 項紅）。修正版 dev server（fixture 模式）手機模擬連續遺失兩次：Chromium、WebKit 第一次都馬上露出 DOM 卡片、4 秒內用新 context 重掛且畫的是自己；第二次之後維持 CSS 版，點卡片照樣翻面，沒有第三個 context。**沒在真機驗**；Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面（最小翻面卡也一樣），CSS 版在 WebKit 的畫面只能看 DOM 狀態，不能看截圖。
+- 沒做：減少 context 被收走的機率（`pixelRatio` 3 → 2，11-10 起待業主決定）；30 週年布幕、關於頁立體書的 WebGL 沒查。
+## 2026-11-11 入學試算的班別改成查一次算一次（`claude/busy-johnson-er03ju`）
+
+PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫「同一次瀏覽查了兩個孩子會各算一次」，但同一頁查兩個**同班別**的孩子只算一次（官網每個班別只記「做過」，後端也只數瀏覽數）。
+
+- 官網改成查一次算一次（`countEngagementAction`，`AdmissionContent.vue`）；後端班別改加總次數（`engagement_service.py`）。其他互動（表單進度、讀到文末、預約成功）照舊是「做過就記 1」。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL）、`web/tests/engagement.spec.ts` 與入學資訊相關共 7 檔 92 項過、`npm --prefix web run typecheck` 過。沒有 migration，沒有改 API 契約。
+- 同一個 PR 補上第二輪的部署紀錄（`deploy/README.md`）。
+
+## 2026-11-11 內容興趣第二輪：趨勢、預約表單流失、試算班別、瀏覽順序、時段、各校、活動代碼（`claude/busy-johnson-er03ju`）
+
+使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填）。
+
+- **預約表單卡在哪一步**：進到預約頁 → 選好校區 → 選了日期 → 選了場次 → 開始填資料 → 按了確認 → 預約成功，以造訪為單位，標出流失最多的一步；另記「看到沒有開放場次」與「送出時欄位沒過」的造訪數。只記走到了，不記填的內容（`VisitForm.vue`）。
+- **家長查的是哪個班別**：入學資訊頁生日試算算出的班別（還沒到幼幼班／幼幼／小／中／大班／已到國小年齡），只記班別不記生日，停 1.5 秒才記（`AdmissionContent.vue`）。
+- **每日造訪與上一期比較**：每日造訪直條；造訪次數、各頁與單篇消息的瀏覽都有「和上一期比」。紀錄只留 90 天，選近 90 天時沒有上一期。
+- **首頁點開的消息分篇**：消息、活動、影片各自計數（`HomeStories.vue` 的 `markSeen`），只列目前發布中的內容；卡片上原本的 `story_open` 拿掉。
+- **進站頁、離開頁與瀏覽順序**：每筆瀏覽多帶「這次造訪的第幾頁」，後台列第一頁、最後一頁與最常見的 10 種順序（前 4 頁）。
+- **只看手機或電腦**：面板多一個裝置選單，整段統計一起篩（`?device=`）。
+- **什麼時候有人看**：星期 × 七個時段的瀏覽次數（台北時間），列出最多人看的三個時段。
+- **各校的興趣與預約**：首頁切到哪一校、點哪一校地址、進哪一校預約頁，和這段期間實際送出的預約數並排。實際預約數取 `analytics_events` 的 `request_created`，要有 `admissions.stats` 而且在自己的校區範圍內才看得到，其餘校區顯示「—」。
+- **哪一則貼文或廣告帶來的**：進站連結的 `utm_campaign`（只留小寫英數、底線、連字號 32 字內，中文略過）記成活動代碼，後台列各代碼的造訪與送出預約。面板裡有加代碼的寫法。
+- **修掉 PR #69 自動審查指出的兩件事**：（1）各校自己發布的消息代號帶校區前綴（`yihua:open-day`，網址上冒號是編碼過的），第一輪把它當成不合格式、單篇消息統計整個漏掉各校消息；現在代號與互動代碼都收冒號，標題也到各校的 `campus_news` 對。（2）回報是 fire-and-forget、不保證照順序到，晚到的舊回報會把區塊與互動蓋回舊值（可能蓋掉「預約成功」「讀到文末」）；每筆多帶回報序號 `rev`，序號比較舊就不動區塊與互動。
+- **官網端的改動**：瀏覽紀錄改在元件 setup 之前就開始（plugin 啟動與 `router.afterEach`），元件一掛上就回報的進度才記得到；原本等 `page:finish`。
+- **隱私權政策草稿**再補三句：依序看了哪些頁面與瀏覽時段、預約表單填到哪一步與試算班別（不含內容與生日）、連結上的活動代碼。**發布前請使用者看過**。
+- **已知限制**：預約方式是 LINE／電話的校區沒有表單，造訪會停在「選好校區」；首頁一打開就顯示的那一校「切到這一校」偏低；時段用離開那一頁的時間；第二輪上線前的紀錄沒有頁序與表單進度；還開著舊版頁面的瀏覽器不帶新欄位（都是選填，照常收）。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL，全套結果見 PR）；migration 在全新資料庫升、降、再升都過；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1855 過；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔（`engagement.test.ts` 12 項）過；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 手機 390×844 帶 `?utm_source=facebook&utm_campaign=Open-Day-1122` 走首頁（點開消息）→ 入學資訊（輸入生日）→ 選校 → 義華表單（選日期場次、Email 填錯再改對）→ 預約成功：頁序 1–4、活動代碼、`sn_garden`、`class_middle`、表單六個代碼與 `booking_done` 都正確入庫；桌機進沒有場次的校區記到 `form_no_slots`。後台面板 1440 與 390 寬無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
+
+## 2026-11-11 後台「內容興趣」統計：停留、區塊、互動、單篇消息、來源與預約關聯（`claude/busy-johnson-er03ju`）
+
+使用者想知道 TA 對官網哪些內容有興趣。原本後台「數據」頁只有各頁瀏覽次數、預約鈕點擊與網頁速度，沒有停留、捲動或單篇內容的資料。這一輪加上匿名的內容興趣統計，後台在「數據」頁「官網瀏覽與速度」下面多一段「內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `d2f6b8a13c47`（只新增 `engagement_visits` 一張表）。
+
+- **量什麼**（`web/app/plugins/engagement.client.ts`、`web/app/utils/engagement.ts`）：每一頁實際在看的時間（分頁在前景、一分鐘內有操作才算）、捲動深度、畫面中央停在哪個區塊多久、點開了什麼（拍立得、常見問題、首頁五校切換與地址、首頁影片、首頁消息、班別對照表；只算打開）、消息內文有沒有讀到文末、這次造訪從哪一類管道來（搜尋／Facebook／Instagram／LINE／YouTube／付費廣告／其他／直接進站，只留類別不留網址），以及這次造訪有沒有送出預約。
+- **怎麼送**：切到背景、換頁、關分頁時把這次瀏覽的累計值送到既有的 `/api/telemetry`（請求上限 2048 → 4096 bytes），轉進 API 新的 `POST /public/engagement`，以瀏覽代碼 upsert（數字只會變大、別的造訪蓋不掉）。和瀏覽統計共用限流與全站上限；部署關閉統計或瀏覽器開 DNT／GPC 就不送。
+- **隱私**：不用 cookie、不記 IP、不和預約案件連結。為了把同一次造訪的頁面串起來，在 sessionStorage 放一組分頁內的隨機代碼（關掉分頁就消失）。紀錄保留 90 天。隱私權政策草稿（`admin/src/composables/privacyPolicyDraft.ts` 與規格附錄 A）第 4、5、7 節已補上這幾項；**政策發布前要請使用者看過這幾句**。
+- **後台**（`GET /admin/analytics/engagement`、`admin/src/components/ContentInterestPanel.vue`）：造訪概況、各頁停留與 10 秒內離開比例、各區塊有多少人看到與停留、點開了什麼、單篇消息的瀏覽與讀完率、從哪裡來、看過哪些內容的造訪比較會預約；每段都能匯出 CSV，樣本不到 20 寫「樣本太少」。登入的後台帳號都能看（同瀏覽統計，全站匿名彙總）。
+- **新增區塊或互動時**：在官網元件標 `data-track-section="代碼"`／`data-track-action="代碼"`，並到 `admin/src/api/engagement.ts` 補中文名稱；沒有名稱的代碼後台不顯示（公開端點任何人都能送，亂送的代碼不會出現在畫面上）。測試會擋官網標了但後台沒名稱的區塊。
+- **已知限制**：手機直接滑掉分頁時最後一段停留可能送不出來（手機數字偏低）；DNT 的訪客不計入；「送出預約的造訪」由瀏覽器回報，只用來比較內容，正式預約數仍看預約漏斗；隔天才回來預約的不會串起來；首頁直接點開的消息不分篇；LINE／Facebook App 常不帶來源，認不出來的算「直接進站」（貼連結加 `?utm_source=line` 可以分準）。
+- **沒做**：GA4、Meta Pixel、Google Ads、LINE Tag 與跨次造訪的 cookie 歸因（2026-10-03 決定的第 2、3 部分）。需要使用者提供各平台的 ID，且要先改寫隱私權政策的 Cookie 段，另開一輪。
+- 驗證：後端真 PostgreSQL 全套 5042 項過（新增 `tests/test_engagement.py` 18 項）；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1852 過（新增 `web/tests/engagement.spec.ts`；`environment-main-20261012.html` 基準檔只多了五個 `data-track-section`）；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔 3367 過（新增 `engagement.test.ts`）；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 390×844 與 1440×900 各走首頁 → 入學資訊 → 消息內文：首頁五個區塊、拍立得、常見問題（收起來不算）、讀到文末、來源都正確入庫；後台面板桌機與手機無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
+
+## 2026-11-11 手機選單與特色教學橫滑清單（`claude/vigilant-babbage-i2cuuv`）
+
+使用者要求優化前台手機版體驗。先把八頁在 390×844、360×640 量過一遍（水平溢出、40px 以下的點擊目標、12px 以下的字、16px 以下的輸入欄），再逐段看截圖：各頁都沒有水平溢出，輸入欄都是 16px 以上（iOS 不會自動放大）。修上一輪（同日預約頁）留下的兩項；30 週年頁使用者指示先不動。
+
+- **矮手機的選單卡**（`studio.css`，900 寬以下且可視高度 760 以下）：導覽列 64 → 52px、標題與間距收小。選單卡內容 744 → 648px：390×664 打開就看得到五校、參觀專線（y 605–683 → 509–587）與社群列上半（原本參觀專線只露出一半、社群列完全在摺線下）；360×640 參觀專線完整、375×553 還是要捲。高度超過 760 的手機照舊。
+- **特色教學三條橫滑清單有張數**（`CurriculumContent.vue`、`curriculum.css`，760 以下）：七個課程方向、孩子的作品、五件事底下各一行「1 / 7　左右滑動」，數字跟著捲動變（捲到底算最後一張）。原本只露出下一張的邊，看不出後面還有幾張。張數 `aria-hidden`（讀屏已經有清單項目數），桌機不顯示。
+- 驗證：`npm --prefix web run typecheck` 過、`npm run test:website` 138 檔 1843 過（新增 `web/tests/mobile-menu-rail-count-20261111.spec.ts`）。dev server（fixture 模式）無頭 Chromium 手機模擬：選單量 390×664、375×553、360×640、390×844、768×700；張數在 390×844、320×568 三條清單逐張捲都對（1…7、1…8、1…5），1440×900 不顯示；皆無水平溢出、沒有 JS 錯誤。**沒在真機 iOS Safari 上看**；`tests/e2e`、`tests/stack` 本機沒跑。
+- 還沒修：30 週年頁空白年份太長（每列 44px，2006–2019 連續 616px）與畫板卡捲動（使用者指示先不管）。
+
+## 2026-11-11 手機預約頁第一屏：看得到三所校區、月曆進第一屏（`claude/serene-maxwell-mipt4c`）
+
+使用者要求先檢查前台手機版排版，再修其中兩項：預約選校頁第一屏幾乎看不到選項、表單頁第一屏沒有可以操作的欄位。只動 760px 以下，桌機與平板（761 以上）量測位置不變。
+
+- **選校頁（`/visit`）**：可視高度 760 以下，薄荷色帶收成一行標題「帶著好奇　來校園走走」（眉標與巨大淡字拿掉），步驟列與「想先認識哪所校園？」的間距收小。390×664 第一張卡 y=442 → 253，黏底「下一步」上方完整的選校卡 1 張 → **3 張**；375×553（iPhone SE）0 張 → 2 張；360×640、320×568 各 2 張。高度超過 760 的手機色帶照舊（兩行大標＋淡字）。
+- **表單頁（`/visit/<校>`）**：頁名與「填寫參觀資料」只留給讀屏（步驟列已經寫「2 參觀資料」）；所選校園收成兩列——縮圖＋校名＋區域｜更換校區、地址｜電話（原本四列）；步驟列與「參觀安排」上下間距收小。390 寬月曆起點 y=601 → 312：664 高第一屏看得到 **4 週**（原本 0）、553 高 2 週。地址、電話、更換校區的點擊高度仍是 44px。來電洽詢的校區與送出後的結果頁共用同一條校園列，一起變短。
+- **麵包屑**：預約頁 760px 以下不顯示（占 58px；頁首 logo 就是回首頁，結構化資料的麵包屑照舊輸出），761 以上照舊。
+- 驗證：`npm --prefix web run typecheck` 過、`npm run test:website` 137 檔 1837 過（新增 `web/tests/visit-mobile-first-screen-20261111.spec.ts`，`mobile-ux-20261012.spec.ts` 的眉標條件由 620 改成 760）。本機 production build＋真後端＋拋棄式測試庫，無頭 Chromium 手機模擬量 390×664、375×553、360×640、320×568、390×844、430×932、667×375 橫拿與 768×1024、1440×900：皆無水平溢出；390×664 走完選校 → 選場次 → 填表 → 送出 → 管理頁，按「下一步」與「更換校區」後的捲動位置正常。**沒在真機 iOS Safari 上看**；`tests/e2e`、`tests/stack` 本機沒跑（兩組都沒有手機視口下的預約頁版面斷言）。
+- 同一輪檢查沒修的：30 週年頁空白年份太長與畫板卡捲動、幾個偏小的點擊目標、特色教學輪播沒有張數提示、選單社群列在摺線下，等使用者決定。（後兩項同日已修，見上一段；偏小的點擊目標複查後都有透明補墊到 44px。）
+
+## 2026-11-11 後台權限與資安稽核：十項低風險修正（`claude/zealous-turing-dl5e9h`）
+
+使用者要求檢查後台權限與資安。唯讀審查 `backend/app` 全部路由、`web/server` 代理、`admin/src`、OAuth／重設密碼、`deploy/`（只讀程式碼，沒打正式站）：**沒有高、中風險，沒有跨校區或跨角色的越權**；後端 Python 依賴 `pip-audit` 無已知漏洞。修掉查到的十項低風險：
+
+- **前端錯誤回報可被單一來源灌爆**：`/public/client-errors` 只有每分鐘與全站每日 5000 兩道上限，一個 IP 約 4 小時用光全站額度，之後真的錯誤整天被安靜丟棄。加單一來源每日 200（`error_reports.CLIENT_ERROR_SOURCE_DAILY`，代理有帶訪客 IP 時才套用，比照 telemetry）。
+- **匿名訪客可把自訂文字推到總管理者手機**：新錯誤的推播原本帶前端回報的類型與訊息前 60 字。官網／後台前端回報的錯誤改成只帶來源與「長得像識別字」的類型（否則顯示「前端錯誤」），不帶訊息；API 自己的錯誤照舊（`notifications/error_alerts.py`）。
+- **內容編輯不經審核就能改線上圖片的替代文字與裁切焦點**：這三欄直接輸出到公開官網。線上版本正在用的素材改這三欄要有發布權限（分校＝`content.publish`＋校區；共用＝`can_publish_shared_content`），否則 403 `MEDIA_LIVE_NEEDS_PUBLISH`；標籤、圖說等不公開的欄位與還沒上線的素材照舊（`media/routes.py`）。
+- **素材稽核抄了原始檔名**：上傳的稽核早就寫明不記檔名（常有家長或孩子的名字），刪除、復原、封存、清理卻有記；一律拿掉（`media/service.py`）。舊紀錄不動，後台 `auditLabels.ts` 的檔名標籤留著給舊紀錄用。
+- **分校帳號在操作紀錄看得到 LINE 群組 ID**：`line.campus_target.update` 帶校區、metadata 有群組 ID，設定頁本身限總管理者。沒有 `notifications.manage` 的人看校區操作紀錄與操作者清單時排除（`audit_service.NOTIFICATION_SETTINGS_ACTIONS`）。
+- **推播訂閱可被同事改綁**：以 endpoint 為衝突鍵直接覆寫 `user_id`。改綁到別人名下要帶同一組金鑰（同一台裝置換人登入照舊），否則 409 `PUSH_ENDPOINT_IN_USE`（`notifications/push_routes.py`）。
+- **上傳的替代文字／來源超長回 500**：`Form` 補 `max_length`（500／255），改回 422；`contracts/openapi.json` 同步。
+- **CSV 公式注入防護不擋全形 ＝＋－＠**：前後端 `safe_cell`／`safeCell` 都先 NFKC 再比對。
+- **案件頁 `mailto:` 沒編碼家長填的 Email**：可夾帶 `?cc=…&body=…`；`VisitCaseFacts.vue` 改成編碼（保留 `@`）。
+- **不含連字號的素材 UUID 躲過引用追蹤**：舊的 `image` 欄位收 32 碼寫法，只被歷史版本這樣引用的素材會被當成沒人用而刪掉；`media/references.py` 兩種寫法都找。
+- 驗證：每項都有新測試（`test_error_reports`、`test_error_alerts`、`test_push_routes`、`test_operations`、`test_csv_export`、`test_media_library`、admin `csvUtil.test.ts`）；後端全套 5022 過（本機真 PostgreSQL）；`npm --prefix admin run typecheck` 過、admin 全套 173 檔 3354 過；`npm run contract:check` 過。stack e2e 本機沒跑。
+- 沒修、待確認：正式站 API 是否確實沒有公開網域、Railway 邊緣的 `X-Forwarded-For` 行為（限流與稽核 IP 的可信度靠這兩點，repo 驗不到）；招生開關在正式站是開的但隱私權政策還沒發布（見 `deploy/README.md`）；Turnstile 失敗時放行、帳號鎖可被外人觸發 15 分鐘都是既有的刻意取捨。
+## 2026-11-11 後台可以先隱藏入學資訊分頁（`feature/hide-admission-20261111`）
+
+使用者要求在後台加一個開關，先把官網 `/admission` 藏起來。做法比照 10-24 的 30 週年開關：`site_meta` 多一個欄位 `admission_enabled`（預設開），沒有 migration、沒有新 API 與權限，走既有的存檔與發布流程。
+
+- **後台**：「網站標題與電話」（`admin/src/views/SiteMetaView.vue`）多一段「入學資訊分頁」，開關「在官網顯示入學資訊分頁」，**發布後生效**；段落目錄顯示目前是顯示或隱藏，側欄搜尋「隱藏入學資訊」「隱藏分頁」找得到。「入學資訊頁」的內容照常能編輯與預覽，再打開並發布就回來。權限同這一頁其他欄位（總管理者，或被授予共用內容的帳號）。
+- **官網隱藏時**：`/admission` 回 404；主選單與頁尾拿掉連到入學資訊的連結（內建與後台自訂的都算，`content-overlay.ts`，和 30 週年共用同一段過濾）；關於頁、環境頁結尾「還可以看看這幾頁」從三張變兩張；`sitemap.xml` 不列 `/admission`；`llms.txt` 不列「入學資訊」，也不列每題都連到入學頁錨點的「常見問題」。FAQPage 結構化資料只掛在入學頁自己身上，頁面 404 後就沒有。
+- **舊站入學網址**：`/常春藤入學-admission`、`/寶貝入學流程`、`/分班表`、`/新生入園須知`、`/收退費辦法` 平常 301 到 `/admission` 各章節；隱藏期間改成 302 到首頁、不給快取（`web/server/middleware/00.site-redirects.ts`），免得剛切網域、還留在搜尋結果裡的舊連結落到 404。只有這五條會讀已發布內容，其他請求照舊同步回應；讀不到內容時照原本的 301。瀏覽器若在隱藏前就快取了那五條 301（一小時），這段時間仍會到 404 頁。
+- **沒有動**：後台「各頁搜尋與分享」的入學資訊頁籤、成效統計的入學頁項目、`/preview?page=admission` 草稿預覽。舊的已發布版本沒有這個欄位＝顯示，開著時官網輸出和加開關之前逐欄相同（`overlay-baseline-20260925.json` 不用動）。
+- 驗證：`web/tests/admission-toggle.spec.ts`、`admin/src/__tests__/siteMetaSeo.test.ts`（入學資訊分頁開關）、`backend/tests/test_content_rules.py`（存得進去、發布後公開內容帶 false）、`tests/stack/admission-toggle.spec.ts`（後台點開關並發布 → 官網 404、連結拿掉、舊網址 302 → 打開後回來）。
+## 2026-11-11 後台最新消息開關：官網先不顯示最新消息（`feature/hide-home-news-20261111`）
+
+使用者要先把前台的「最新消息」收起來（首頁那一章、列表頁、單篇頁、選單與頁尾連結都不對外），之後要能自己打開。做法比照 10-24 的 30 週年開關。
+
+- **開關放在後台「網站標題與電話」（`/admin/content/site-meta`）的「最新消息」段落**，**發布後生效**；側欄搜尋「隱藏最新消息」「關閉最新消息」「消息開關」找得到。欄位是 `site_meta.news_enabled`，**預設開**，舊版本沒有這個欄位＝開，不需要 migration、OpenAPI 契約沒變。**部署後官網不會自己變**，要到後台把開關關掉並發布才會收起來。
+- **關閉時官網**：
+  - 首頁不放最新消息那一章：`pages/index.vue` 不渲染 `HomeNewsTransition`（五校→消息的換頁紙），五校區塊後面直接接頁尾；`#campuses` 錨點不再當成釘住的章節。`performance.css` 補一條量測前的預先疊位（`.day-reveal:not([data-motion]) > .campus-panorama`），沒有換頁層時量測前後位置一樣、不位移。
+  - `/news` 與 `/news/<id>` 一律 **302 導回首頁**（暫時性轉址：打開後網址照舊；單篇頁不論有沒有那一則都導回，不露出 404）。
+  - 主選單與頁尾拿掉連到最新消息的連結（`/news`、`/news?…`、`/news/<id>`、`/#latest-news`，內建或後台設定的都算，`content-overlay.ts` 的 `isNewsHref`）；後台選單只剩最新消息時退回內建選單。
+  - sitemap 不列 `/news` 與任何一則消息、llms.txt 不列最新消息。
+  - 開著時官網輸出跟加開關前逐欄相同（只在關閉時寫 `siteMeta.newsEnabled=false`）。
+- **後台照常可以編輯**：消息內容、粉專轉消息、發布都不受影響，只是官網不顯示。關著時「最新消息與活動」「各校消息與活動」兩個編輯頁最上面出現「官網目前沒有顯示最新消息」的提醒（`usePublishedNewsHidden` 讀官網發布中的 `site_meta`；讀不到就不提醒、不擋編輯）。後台的草稿預覽（`/preview`）不跟著開關，關著時照樣看得到消息，方便先準備內容。
+- 測試：`web/tests/news-toggle-20261111.spec.ts`（7 條）、`backend/tests/test_content_rules.py`、`admin/src/__tests__/newsFaqEditors.test.ts`、`siteMetaSeo.test.ts`；端到端 `tests/stack/news-toggle.spec.ts`（後台按開關發布 → 官網消息頁 302、首頁沒有那一章、沒連結、編輯頁有提醒 → 打開再發布回來，結束時一定打開）。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 135 檔 1814 過；dev server（fixture 暫時設 `newsEnabled:false`，驗完還原）用 Playwright 看 1440×900 與 390×844：首頁沒有 `.home-news`／`.news-transition`、五校區塊後面直接接頁尾、沒有 JS 錯誤，`/news` 與 `/news/abc` 回 302 到 `/`；量測前後五校區塊位置相同（margin-top 都是 -900px、頁面總高相同）。admin `vue-tsc` 過，`newsFaqEditors`＋`siteMetaSeo` 57 過；後端 `tests/test_content_rules.py` 14 過（獨立測試庫 `ivy_website_test_hide_news`）。
+- 沒驗證：本機負載 50–85（其他 session 同時在跑），admin 全套 173 檔那次有 48 檔失敗；放寬逾時重跑和這次改動有關的 34 檔，32 過、2 檔各 1 條 120 秒逾時（`admissionsView` 與這次無關；`editorSectionFields` 單獨重跑 32 過）——**admin 全套、後端全套、stack e2e 的乾淨結果以 CI 為準**。開著時的首頁畫面沒有另外截圖（程式路徑沒變）；iOS 實機、WebKit 沒驗。
+
+## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（`fix/launch-cleanup-20261111`）
+
+正式網域 `www.ivykidschool.com` 切換並開放收錄後，把正式站 16 個網址爬過一遍（只發 GET）：站內連結 18 條、資源 161 個、外部連結 20 條、舊 Wix 網址 20 條都正常。找到一處該修的：每一頁原始碼的頁面資料（`__NUXT_DATA__`）帶著原型時期寫給維護者看的字句。畫面與版面都沒動。
+
+- **原型備註不進公開資料**：`web/app/utils/public-copy.ts` 的 `withoutRetiredFields` 多拿掉三處，整份的 `_source`（「示範內容，非正式資料」）、消息區的 `note`（「文案、日期與活動均為原型示意」）、拍立得的 `caption`（2026-09-23 起不顯示；正式站後台存的還是「午休照片待補」「入園情境示意」）。fixture 與後台存的值不動，`NewsContent.note`、`DayMoment.caption` 型別改選填。首頁關於段的 `caption` 是另一個欄位，不受影響。
+- **維運預設網址改正式網域**：`deploy/uptime_check.py` 的預設網址與 `uptime.yml` 的備援值（repo 變數 `UPTIME_BASE_URL` 沒設時才用到）、`scripts/audit-public-site.mjs`、`scripts/page-font-chars.cjs`、`backend/.env.example` 的範例。`deploy/railway_ci.py` 的部署後 smoke 刻意留在 Railway 網址（不經正式網域的 DNS，網域出狀況不擋部署），加了註解。
+- **文件**：`deploy/README.md` 開頭的官網／後台網址與環境變數表改成切換後的實際值。
+- 驗證：`web/tests/public-copy.spec.ts` 新增一條，未修正版先紅（`_source` 還在）後綠；`npm --prefix web run typecheck` 過；`npm run test:website` 134 檔 1808 條，機器負載 66 時有 4 條逾時（`smoothness-20261105-anniversary`、`smoothness-20261105-prints`、`taipei-date`，和這次改動無關），三個檔單獨重跑 30 條全過；後端 `tests/test_uptime_check.py` 20 過（拋棄式測試庫）。
+- 沒驗到：後端、admin 全套與 stack e2e 沒在本機跑（交給 CI）；部署後要再抓正式站原始碼確認這些字句是 0 次。
+
+## 2026-11-11 前台 QA：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（`fix/qa-fixes-20261111`）
+
+對正式站做唯讀 QA（只發 GET、telemetry 與寫入全擋，預約沒有真的送出）：16 個路由 × 桌機 1440／手機 390，主要路由另跑 320／768／900／1024／1100／1920 六種寬度與 WebKit（桌機＋iPhone 14），加上導覽、首頁、入學生日查班、預約到送出前、管理預約、週年頁、404 的互動流程。沒有 JS 錯誤、破圖、水平溢出，站內連結全部 200；QA 途中正式站換了三版（`690ce04e`→`76839d66`→`39328c8d`），新版重跑巡檢結果相同。修兩處：
+
+- **錯誤頁 `<title>` 結尾**：`web/app/error.vue` 寫死「常春藤教育機構」，同日全站標題改成「常春藤幼兒園」時漏改；改用 `TITLE_BRAND`。
+- **手機選校卡（`/visit`）義華的撥號膠囊換到最左**：義華有「可線上預約」＋撥號兩顆，撥號排在後面，136×44 的撥號範圍落在卡片下半正中間（佔卡片 16%），想點卡片選義華的人點到會跳撥號；其他四校的撥號都在左下角。`visit-booking.css` 在兩顆並排的寬度（338–760px 與橫拿手機）用 `order:-1` 把撥號換到金色膠囊前面，範本順序、Tab 順序、44px 點擊範圍都不變。336px 以下兩顆本來就疊成兩行靠左、761 以上直卡上下疊，都沒動。
+- 驗證：`web/tests/qa-fixes-20261111.spec.ts` 5 條先紅後綠；`npm --prefix web run typecheck` 過；`npm run test:website` 134 檔 1807 過。dev server（fixture，預約設定轉正式站唯讀 API）用 Playwright 量 320／336／338／360／390／430／844×390／768／1440：338 起撥號膠囊 x=18、金色膠囊 x=150，撥號範圍不蓋金色膠囊；390 實際點卡片正中央、下半正中、金色膠囊、右下都選到義華；404 頁 SSR 與 hydrate 後標題都是「找不到這一頁｜常春藤幼兒園」。e2e／stack 本機沒跑。
+- 沒修、待確認：環境頁「五顆心」第 5 項（定時消毒）照片是半高拱形＋一條空的黃色積木，是不是刻意；336px 以下撥號範圍往上蓋到金色膠囊 4px（修正前就有）。沒驗到：WebKit 互動流程與 iOS 實機、預約與修改預約的成功路徑、五校 FB 粉專連結（FB 對機器人回 400）、效能。QA 腳本與結果在 `output/qa-web-20261111/`（Desktop 那份 checkout，已 gitignore）。
+
 ## 2026-11-11 後台 QA：粉專頁校區下拉縮成箭頭、手機編輯頁「放棄修改」超出畫面（`fix/admin-qa-20261111`）
 
 用總管理者帳號唯讀巡檢正式站後台：側欄 35 頁＋招生統計 11 分頁（桌機），再用 390px 同源 iframe 跑 36 頁手機寬度。沒有 JS 錯誤、沒有 4xx/5xx。修三處：
@@ -72,6 +201,18 @@
 - **外部項目**（Search Console、Bing Webmaster、各校 Google 商家檔案）見 `docs/website-admin/seo-performance.md`。
 
 **驗證**（Node 22.23.2）：web typecheck 通過；`npm run test:website` 133 檔 1802 項全過（`seo.spec.ts`、`web-ux-20261029.spec.ts`、`preview-headers.spec.ts` 共新增 13 項）；admin 讀到這次改動檔案的 6 個測試檔 189 項通過（機器負載高，放寬逾時、單一 worker 跑；預設 5 秒逾時下有一批逾時失敗，放寬後全過）。dev server（fixture，`https://ivy.localhost`）開放收錄與未開放兩種模式 `check-public-seo.mjs` 都 PASS；逐頁看過標題、robots、canonical、結構化資料，`/sitemap.xml` 列出 `/visit` 與五個 `/visit/<校>`，`/visit/manage` 兩種模式都 noindex。**未跑**：admin 全套、stack／e2e、後端測試（沒動後端與 fixture；`tests/e2e/public-site.spec.ts` 只改了測試名稱）。未 commit、未部署；正式站 `NUXT_PUBLIC_INDEXING_ENABLED=false`，開放收錄前只有標題與分享標記的改動看得到。
+
+## 2026-11-11 前台 QA 後續：stack 溢出檢查改成重量到穩定、CLAUDE.md 更正關於頁現況
+
+使用者要求做前台 QA，再要求處理 QA 列出的四件事。前台本身沒有發現要修的缺陷；這輪只動測試輔助與文件，沒有動 `web/`、`admin/`、`backend/` 的程式。
+
+- **`tests/stack/pages.ts` 的 `expectNoHorizontalOverflow` 改用 `expect.poll`（最多 2 秒）**：`admissions-withdraw.spec.ts` 在雲端容器穩定失敗（頁面寬 400／390）。實測是 `setViewportSize` 後的那一格，篩選列的 `el-select.records-filters__wide`（220px 寬、帶 transition）還停在舊版面，50ms 後再量就是 390。不是使用者看得到的溢出；真的溢出不會自己消失，等滿 2 秒照樣失敗。
+- **匯出檔名變成 `download` 是容器 locale 造成的**：容器預設 POSIX，Chrome 把中文下載檔名換成 `download`；`LANG=C.UTF-8` 下 `exports.spec.ts` 全過。程式沒問題，做法記進 CLAUDE.md「驗證工具的本機繞法」。
+- **CLAUDE.md**：`/about` 那條還寫「900px 以下是上翻畫冊（`AboutFlipBook.vue`）」，實際 10-30 起桌機手機同一份 DOM（`AboutContent.vue`），已更正。
+- **首頁手機版較重（three.js 538 KB、週年投影圖 462 KB）不改**：只有每個工作階段第一次進首頁才載（布幕開場），減少動態、省流量、慢速連線都略過，動態載入且逾時就放棄（`web/app/utils/entrance-policy.ts`）；正式站有 brotli。屬於已做過取捨的設計。
+- **正式站唯讀檢查（未登入）**：`/privacy` 404、公開內容沒有 `privacyPolicy`；義華預約模式是 `slots`、`privacy_notice` 空白，所以預約表單目前沒有任何個資告知入口。要園方在後台「全站與素材 → 隱私權政策」發布（擬稿在 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A）；本輪沒有改任何正式站設定或內容。
+- **驗證**（Node 22，雲端容器，`LANG=C.UTF-8`）：`npm run test:e2e:stack` 170 passed、30 skipped、0 failed（改之前同環境 2 failed）；`npm run test:e2e` 34 passed、6 skipped；web `typecheck` 通過、`test:unit` 133 檔 1789 passed。只用 Chrome，沒有測 Safari／Firefox。
+- 由 PR #65 併入 main（使用者要求）；只動測試輔助與文件，正式站行為不變。
 
 ## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
 

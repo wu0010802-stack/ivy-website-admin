@@ -528,7 +528,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
 
 <template>
   <section
-    v-if="current" id="campuses" ref="root" class="campus-panorama campus-gallery" data-cta-entry="home_campus_board"
+    v-if="current" id="campuses" ref="root" class="campus-panorama campus-gallery" data-cta-entry="home_campus_board" data-track-section="campuses"
     aria-roledescription="輪播" aria-labelledby="campuses-heading"
     :data-campus="current.key" :data-campus-key="current.key" :data-playing="playing"
     @focusin="focusChanged($event.target)" @focusout="focusChanged($event.relatedTarget)"
@@ -538,7 +538,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-tabs" role="tablist" aria-label="選擇分校">
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
-          type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
+          type="button" role="tab" :data-campus-tab="i" :data-track-action="`campus_${campus.key}`" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
           @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
           @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
@@ -623,7 +623,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-contact">
         <div class="contact-row">
           <svg class="icon" aria-hidden="true"><use href="#i-map-pin" /></svg>
-          <a :href="campusMapUrl(current)" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }}</a>
+          <a :href="campusMapUrl(current)" :data-track-action="`map_${current.key}`" :aria-label="`${current.address}，在 Google 地圖開啟（另開分頁）`" target="_blank" rel="noopener noreferrer">{{ current.address }}</a>
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
         <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，

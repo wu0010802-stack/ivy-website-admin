@@ -102,6 +102,20 @@ const directions = computed(() => DIRECTIONS.map((look, i) => ({ ...look, ...pro
 const gallery = computed(() => GALLERY.map((look, i) => ({ ...look, ...props.page.gallery[i]! })))
 const daily = computed(() => DAILY.map((look, i) => ({ ...look, ...props.page.daily[i]! })))
 
+// 手機三條橫滑清單（760px 以下，見 curriculum.css）底下的「第幾張／共幾張」：只露出下一張的邊，看不出後面還有幾張。
+// 捲動時找左緣最靠近清單起點的那一張；捲到底算最後一張（最後一張比較窄時左緣到不了起點）。桌機清單不橫捲、數字也不顯示。
+const railAt = reactive({ directions: 1, gallery: 1, daily: 1 })
+function onRailScroll(key: keyof typeof railAt, event: Event) {
+  const rail = event.currentTarget as HTMLElement
+  const items = Array.from(rail.children) as HTMLElement[]
+  if (!items.length) return
+  if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2) { railAt[key] = items.length; return }
+  const start = rail.scrollLeft + items[0]!.offsetLeft
+  let best = 0
+  items.forEach((el, i) => { if (Math.abs(el.offsetLeft - start) < Math.abs(items[best]!.offsetLeft - start)) best = i })
+  railAt[key] = best + 1
+}
+
 const root = ref<HTMLElement | null>(null)
 useWatercolor(root)
 </script>
@@ -110,7 +124,7 @@ useWatercolor(root)
   <main id="main" ref="root" tabindex="-1" class="cur" data-cta-entry="curriculum">
     <div class="cur-grain" aria-hidden="true" />
 
-    <section class="cur-hero" aria-labelledby="curriculum-title">
+    <section class="cur-hero" data-track-section="hero" aria-labelledby="curriculum-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-hero-grid">
         <!-- 橙色小顏料 2026-10-13 從左下移到右上：原本墊在首屏提醒底下，提醒字對比只剩 3.2–4.3:1、金色圓點看不見 -->
@@ -133,7 +147,7 @@ useWatercolor(root)
     </section>
 
     <!-- 01 四個年段：四團顏料一歲比一歲大 -->
-    <section id="years" class="cur-sec cur-years" aria-labelledby="years-title">
+    <section id="years" data-track-section="years" class="cur-sec cur-years" aria-labelledby="years-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-years-head" data-reveal>
@@ -161,7 +175,7 @@ useWatercolor(root)
     </section>
 
     <!-- 02 課程方向：大小錯落，品德培養印在一片顏料上 -->
-    <section id="directions" class="cur-sec cur-directions" aria-labelledby="directions-title">
+    <section id="directions" data-track-section="directions" class="cur-sec cur-directions" aria-labelledby="directions-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-dir-head" data-reveal>
@@ -169,7 +183,7 @@ useWatercolor(root)
           <h2 id="directions-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.directionsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p v-if="page.directionsText" class="cur-text">{{ page.directionsText }}</p>
         </div>
-        <ul class="cur-dir-grid" aria-label="七個課程方向" data-reveal-group data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
+        <ul class="cur-dir-grid" aria-label="七個課程方向" @scroll.passive="onRailScroll('directions', $event)" data-reveal-group data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
           <li v-for="item in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
             <span v-if="!item.image" class="cur-blot" data-blot="orange" aria-hidden="true" />
             <div v-if="item.image" class="cur-frame" :data-wash="item.wash">
@@ -182,11 +196,12 @@ useWatercolor(root)
             </div>
           </li>
         </ul>
+        <p class="cur-count" aria-hidden="true"><b>{{ railAt.directions }}</b> / {{ directions.length }}<span>左右滑動</span></p>
       </div>
     </section>
 
     <!-- 03 兒童美術館：作品保留原本比例，沙龍式掛成一面牆 -->
-    <section id="gallery" class="cur-sec cur-gallery" aria-labelledby="gallery-title">
+    <section id="gallery" data-track-section="gallery" class="cur-sec cur-gallery" aria-labelledby="gallery-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
@@ -196,12 +211,13 @@ useWatercolor(root)
           </div>
           <p v-if="page.galleryText || page.gallerySource" class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
         </div>
-        <ul class="cur-art-wall" aria-label="孩子的作品" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
+        <ul class="cur-art-wall" aria-label="孩子的作品" @scroll.passive="onRailScroll('gallery', $event)" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
             <div class="cur-frame" :data-wash="art.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy" /></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
+        <p class="cur-count" aria-hidden="true"><b>{{ railAt.gallery }}</b> / {{ gallery.length }}<span>左右滑動</span></p>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="FLOOR.wash"><ResponsivePicture v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy" /></div>
         </figure>
@@ -209,7 +225,7 @@ useWatercolor(root)
     </section>
 
     <!-- 04 五件事：紙上的五幅畫，各配一種顏料 -->
-    <section id="daily" class="cur-sec cur-daily" aria-labelledby="daily-title">
+    <section id="daily" data-track-section="daily" class="cur-sec cur-daily" aria-labelledby="daily-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap">
         <div class="cur-split-head" data-reveal>
@@ -219,7 +235,7 @@ useWatercolor(root)
           </div>
           <p v-if="page.dailyText || page.dailySource" class="cur-text">{{ page.dailyText }}<small v-if="page.dailySource" class="cur-source">{{ page.dailySource }}</small></p>
         </div>
-        <ol class="cur-daily-list" aria-label="五件事" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
+        <ol class="cur-daily-list" aria-label="五件事" @scroll.passive="onRailScroll('daily', $event)" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
           <li v-for="(item, i) in daily" :key="item.image" class="cur-thing" data-reveal>
             <div class="cur-frame" :data-wash="item.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy" /></div>
             <p class="cur-thing-no" lang="en"><span class="cur-blot" :data-blot="item.pigment" aria-hidden="true" />{{ String(i + 1).padStart(2, '0') }}</p>
@@ -227,6 +243,7 @@ useWatercolor(root)
             <p>{{ item.text }}</p>
           </li>
         </ol>
+        <p class="cur-count" aria-hidden="true"><b>{{ railAt.daily }}</b> / {{ daily.length }}<span>左右滑動</span></p>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="KITE.wash"><ResponsivePicture v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy" /></div>
         </figure>
@@ -234,7 +251,7 @@ useWatercolor(root)
     </section>
 
     <!-- 結尾：教學理念（2026-09-28 取代原本的結尾卡片，使用者要求） -->
-    <section id="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
+    <section id="belief" data-track-section="belief" class="cur-sec cur-belief" aria-labelledby="belief-title">
       <canvas class="cur-wash" aria-hidden="true" />
       <div class="cur-wrap cur-belief-body" data-reveal data-wash="sun,.5,.34,.42,.4,.016,44|mint,.14,.66,.18,.3,.02,34|sky,.86,.24,.16,.26,.02,34">
         <h2 id="belief-title" class="cur-belief-title"><template v-for="(line, i) in pageTitleLines(page.beliefTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>

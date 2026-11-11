@@ -52,9 +52,17 @@ useHead(() => ({
   <div v-if="data">
     <SiteHeader :content="data.content" />
     <main id="main" tabindex="-1">
-      <div class="container breadcrumb"><NuxtLink to="/">首頁</NuxtLink> / 預約校園參觀</div>
+      <div class="container breadcrumb visit-breadcrumb"><NuxtLink to="/">首頁</NuxtLink> / 預約校園參觀</div>
       <VisitForm :booking="data.content.booking" :campuses="data.content.campuses" :route-campus="campus?.key ?? ''" :policy-path="data.content.privacyPolicy ? '/privacy' : null" />
     </main>
     <SiteFooter :content="data.content" />
   </div>
 </template>
+
+<style scoped>
+/* 2026-11-11 手機不顯示麵包屑：占 58px，選校卡與月曆被推到第一屏外；頁首 logo 就是回首頁，
+   麵包屑的結構化資料照舊輸出。桌機與平板照舊。 */
+@media(max-width:760px) {
+  .visit-breadcrumb {display:none}
+}
+</style>

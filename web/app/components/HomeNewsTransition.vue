@@ -14,7 +14,7 @@ useNewsTransition(root, previous, paper)
     <div ref="previous" class="news-transition-prior">
       <div class="news-transition-underlay"><slot /></div>
     </div>
-    <div ref="paper" class="news-transition-paper">
+    <div ref="paper" class="news-transition-paper" data-track-section="news">
       <div class="news-transition-sheet"><NewsDialog :news="news" :campuses="campuses" /></div>
     </div>
   </div>

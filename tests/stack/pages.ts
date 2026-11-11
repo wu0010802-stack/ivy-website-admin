@@ -90,11 +90,22 @@ export async function searchVisitList(page: Page, text: string): Promise<void> {
   await applied
 }
 
-/** 頁面不橫向溢出（R16）：文件寬度不超過視窗。 */
+/**
+ * 頁面不橫向溢出（R16）：文件寬度不超過視窗。
+ * 用 expect.poll 重量到穩定：剛 setViewportSize 的那一格，帶 transition 的元件（例如 el-select
+ * 的寬度）還停在舊版面，會量到比視窗寬（2026-11-11 admissions-withdraw 在較快的機器上量到 400／390）。
+ * 真的溢出不會自己消失，等滿 2 秒照樣失敗。
+ */
 export async function expectNoHorizontalOverflow(page: Page): Promise<void> {
-  const { scrollWidth, clientWidth } = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-  }))
-  expect(scrollWidth, `頁面寬 ${scrollWidth}px，超出視窗 ${clientWidth}px`).toBeLessThanOrEqual(clientWidth)
+  const measure = () =>
+    page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: document.documentElement.clientWidth,
+    }))
+  await expect
+    .poll(async () => {
+      const { scrollWidth, clientWidth } = await measure()
+      return scrollWidth - clientWidth
+    }, { message: '頁面橫向溢出的 px 數（文件寬 − 視窗寬）', timeout: 2_000 })
+    .toBeLessThanOrEqual(0)
 }

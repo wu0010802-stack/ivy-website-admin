@@ -97,7 +97,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
         </nav>
       </header>
 
-      <section v-if="events.length" class="np-events" aria-labelledby="np-events-title">
+      <section v-if="events.length" class="np-events" data-track-section="events" aria-labelledby="np-events-title">
         <h2 id="np-events-title">近期活動<span v-if="eventsSample === 'all'" class="hn-sample-tag">示意內容</span></h2>
         <ul class="np-event-list">
           <li v-for="item in events" :key="item.id" class="np-event">
@@ -114,7 +114,7 @@ const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectP
         </ul>
       </section>
 
-      <section class="np-articles" aria-labelledby="np-articles-title">
+      <section class="np-articles" data-track-section="articles" aria-labelledby="np-articles-title">
         <h2 id="np-articles-title" :class="{ 'sr-only': !showArticlesTitle }">{{ campusName ? `${campusName}的消息` : '所有消息' }}<span v-if="articlesSample === 'all'" class="hn-sample-tag">示意內容</span></h2>
         <NewsFollowCampuses v-if="!lead" class="np-empty" :campuses="followCampuses" />
         <template v-else>

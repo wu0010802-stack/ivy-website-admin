@@ -138,6 +138,12 @@
 @media(max-width:760px),(max-width:960px) and (max-height:500px) and (orientation:landscape) {
   .visit-campus-mode.is-online + .visit-campus-mode.is-call::before {inset:-10px -6px}
 }
+/* 細條卡兩顆並排時，撥號膠囊換到金色膠囊前面（2026-11-11 QA）：排在後面時 136×44 的撥號範圍落在卡片下半
+   正中間（佔卡片 16%），想點卡片選義華的人點到會跳撥號；換到最左就和只撥號的四校同一個位置。只換畫面順序
+   （order），範本順序不動。336px 以下卡片放不下一列、兩顆本來就疊成兩行靠左（實測 338 起並排），不換。 */
+@media(min-width:338px) and (max-width:760px),(max-width:960px) and (max-height:500px) and (orientation:landscape) {
+  .visit-campus-mode.is-online + .visit-campus-mode.is-call {order:-1}
+}
 /* 參觀方式（VisitForm campusModeLabel）：讀到前先保留一行高度，不推動卡片文字。 */
 .visit-campus-mode {display:flex;align-items:center;align-self:flex-start;min-height:24px;margin-top:6px;font-size:var(--fs-xs);line-height:1.5;letter-spacing:.06em;font-weight:500}
 .visit-campus-mode.is-online {padding:2px 10px;border-radius:999px;background:var(--yellow);color:rgb(var(--ink))}
@@ -386,15 +392,45 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
 @media(max-width:760px) {
   .visit-next-row>p {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 }
+/* 2026-11-11 手機第一屏再收（使用者要求；10-12 的目標只到「第一張卡露出校名」）：390×664 原本第一張卡從 y=442 起、
+   黏底列上方只看得到 1 張多，375×553 連一張都不完整。可視高度 760 以下（iPhone Safari 與 LINE 內建瀏覽器多在 550–750）：
+   色帶收成一行標題（眉標、巨大淡字拿掉，<br> 藏起來、兩句用 flex 的欄距隔開），步驟列與選校標題的間距收小；
+   麵包屑手機一律不顯示（pages/visit/[[key]].vue）。390×664 看得到 3 張完整的選校卡、375×553 看得到 2 張。
+   高度超過 760 的手機色帶照舊（兩行大標＋淡字），只少麵包屑。 */
 @media(max-width:760px) and (max-height:760px) {
-  .visit-page[data-step='1'] .visit-welcome {padding:18px 0 14px}
-  .visit-page[data-step='1'] .visit-stage {padding-top:18px}
-}
-/* iPhone SE 這類（Safari 可視高度約 550）：眉標和麵包屑同一句也拿掉，第一張卡至少露出校名。 */
-@media(max-width:760px) and (max-height:620px) {
+  .visit-ghost {display:none}
   .visit-page[data-step='1'] .visit-eyebrow {display:none}
-  .visit-page[data-step='1'] .visit-steps {margin-bottom:16px}
-  .visit-campus-list {margin-top:14px}
+  .visit-page[data-step='1'] .visit-welcome {padding:14px 0}
+  .visit-page[data-step='1'] .visit-welcome h1 {display:flex;flex-wrap:wrap;column-gap:.45em;font-size:min(var(--fs-2xl),6.6vw);line-height:1.4}
+  .visit-page[data-step='1'] .visit-welcome h1 br {display:none}
+  .visit-page[data-step='1'] .visit-stage {padding-top:12px}
+  .visit-page[data-step='1'] .visit-steps {margin-bottom:10px}
+  .visit-campus-list {margin-top:12px}
+}
+/* 2026-11-11 手機第二步：月曆要進第一屏（使用者要求）。390 寬原本月曆從 y=601 起，664 高的第一屏沒有任何可以操作的欄位。
+   - 頁名（h1「預約校園參觀」）與「填寫參觀資料」只留給讀屏：步驟列已經寫「2 參觀資料」，校名就在上面。
+     h1 仍是 focusStage 捲動的目標（絕對定位後位置還在色帶頂端）。
+   - 所選校園收成兩列：縮圖＋校名＋區域｜更換校區；地址｜電話。.visit-aside-info 設 display:contents，
+     裡面三個元素直接排進 aside 的格線；連結與按鈕的點擊高度仍是 44px。
+   - 步驟列、「參觀安排」上下的間距收小。390 寬月曆起點 601 → 約 300：664 高看得到四週、553 高看得到兩週。 */
+@media(max-width:760px) {
+  .visit-page:not([data-step='1']) .visit-welcome {padding-top:0}
+  .visit-page:not([data-step='1']) .visit-welcome h1,.visit-contact-form>h2 {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+  .visit-page:not([data-step='1']) .visit-shell {margin-top:14px}
+  .visit-campus-aside {grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:0 14px;margin-bottom:14px;padding-bottom:6px}
+  .visit-aside-card {gap:12px}
+  .visit-aside-photo {width:56px;height:44px;border-radius:10px}
+  /* 標記順序是區域、校名；手機要校名在前：row-reverse 加 justify-content:flex-end 靠左排，放不下一列時 wrap-reverse 讓校名留在上面。 */
+  .visit-aside-caption {display:flex;flex-direction:row-reverse;flex-wrap:wrap-reverse;justify-content:flex-end;align-items:baseline;gap:0 10px;min-width:0}
+  .visit-aside-name {margin:0;font-size:var(--fs-2xl);line-height:1.35}
+  .visit-aside-district {letter-spacing:.08em}
+  .visit-aside-info {display:contents}
+  .visit-aside-info p {grid-area:2/1;min-height:44px}
+  .visit-aside-phone {grid-area:2/2;justify-self:end;font-size:var(--fs-md)}
+  .visit-change {grid-area:1/2;justify-self:end}
+  .visit-page:not([data-step='1']) .visit-steps {margin-bottom:12px}
+  .visit-schedule-section {margin-top:6px}
+  .visit-schedule-fields {margin-top:12px}
 }
 /* 橫拿手機（2026-10-12）：3:4 選校卡一列三張比可視高度還高（約 332／309px），下一步在三屏多以外；
    月曆右邊的場次欄跟月曆頂端對齊，點下排日期後新出現的場次在畫面外、看起來像沒反應。

@@ -217,7 +217,7 @@ onUnmounted(() => {
 <template>
   <div ref="rootEl" class="day-reveal">
     <div ref="trackEl" class="day-reveal-track">
-      <section ref="sectionEl" class="section day-experience" :id="day.sectionId" aria-labelledby="day-heading">
+      <section ref="sectionEl" class="section day-experience" data-track-section="day" :id="day.sectionId" aria-labelledby="day-heading">
         <div class="day-film" :data-light="dayLight" aria-hidden="true">
           <!-- 簾幕讓封面的初始位置落在 lazy 預載範圍內；src／srcset 與 AVIF 的 srcset 等 applyFilm 判定讀者捲到內容（posterReady）才給（<picture> 裡的 <source> 不等的話會自己載），沒有 JS 時由 noscript 顯示。 -->
           <ResponsivePicture

@@ -102,6 +102,8 @@ async def test_site_meta_old_payload_still_valid_and_defaults(admin_client):
     saved = resp.json()["latest_revision"]["payload"]
     assert saved["allow_indexing"] is True
     assert saved["anniversary_enabled"] is True
+    assert saved["news_enabled"] is True
+    assert saved["admission_enabled"] is True
     assert saved["share_image"] == ""
 
 
@@ -112,6 +114,30 @@ async def test_site_meta_anniversary_toggle_saved(admin_client):
     )
     assert resp.status_code == 201, resp.text
     assert resp.json()["latest_revision"]["payload"]["anniversary_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_site_meta_news_toggle_saved(admin_client):
+    resp = await admin_client.post(
+        f"{META}/revisions", json={"expected_version": 0, "payload": _meta(news_enabled=False)}
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["latest_revision"]["payload"]["news_enabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_site_meta_admission_toggle_saved_and_public(admin_client):
+    # 入學資訊分頁開關（2026-11-11）：存得進去，發布後公開內容帶 false，官網據此隱藏 /admission。
+    resp = await admin_client.post(
+        f"{META}/revisions", json={"expected_version": 0, "payload": _meta(admission_enabled=False)}
+    )
+    assert resp.status_code == 201, resp.text
+    revision = resp.json()["latest_revision"]
+    assert revision["payload"]["admission_enabled"] is False
+    published = await admin_client.post(f"{META}/publish", json={"revision_id": revision["id"]})
+    assert published.status_code == 200, published.text
+    site = await admin_client.get("/api/website/v1/public/site")
+    assert site.json()["content"]["site_meta"]["admission_enabled"] is False
 
 
 @pytest.mark.asyncio

@@ -11,7 +11,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
 
-from sqlalchemy import Text, cast, func, select
+from sqlalchemy import Text, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.content.models import ContentItem, ContentRevision, PublishJob, SiteReleaseEntry, SiteState
@@ -93,7 +93,14 @@ async def find_references(db: AsyncSession, media_id: uuid.UUID) -> MediaReferen
         select(ContentRevision, ContentItem)
         .join(ContentItem, ContentItem.id == ContentRevision.content_item_id)
         # 舊資料的 UUID 可能是大寫；解析時 uuid.UUID 會統一，篩選也不分大小寫。
-        .where(func.lower(cast(ContentRevision.payload, Text)).contains(needle))
+        # 舊的圖片欄位也收不含連字號的 32 碼寫法（registry._media_ref 一樣解析成素材），兩種都要找，
+        # 否則只被歷史版本這樣引用的素材會被當成沒人用而刪掉（2026-11-11 資安稽核）。
+        .where(
+            or_(
+                func.lower(cast(ContentRevision.payload, Text)).contains(needle),
+                func.lower(cast(ContentRevision.payload, Text)).contains(media_id.hex),
+            )
+        )
         .order_by(ContentItem.kind, ContentItem.campus_key, ContentRevision.version.desc())
     )
     references: list[MediaReference] = []

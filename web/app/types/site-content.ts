@@ -69,7 +69,8 @@ export interface DayMoment {
   tint: string
   photo: string
   alt: string
-  caption: string
+  /** 2026-09-23 起官網不顯示；後台與 fixture 仍有值，公開輸出前拿掉（utils/public-copy.ts）。 */
+  caption?: string
   title: string
   story: string
   question: string
@@ -209,7 +210,8 @@ export type HomeFilm =
 
 export interface NewsContent {
   sectionId: string
-  note: string
+  /** 原型抽取時留下的維護備註，官網不讀；公開輸出前拿掉（utils/public-copy.ts）。 */
+  note?: string
   /**
    * 原型示意內容的說明。示意與否逐則判斷（NewsArticle／NewsEvent 的 sample）：
    * 疊上後台內容時，全站消息看這段說明有沒有值，各校消息一律不是示意；
@@ -276,6 +278,12 @@ export interface SiteMetaContent {
   /** 後台「全站設定」的 30 週年開關（2026-10-24）：false 時首頁不播進站布幕、/anniversary 回 404，
    *  主選單與頁尾的 30 週年連結在 content-overlay 拿掉。沒有這個欄位＝開。 */
   anniversaryEnabled?: boolean
+  /** 後台「全站設定」的最新消息開關（2026-11-11）：false 時首頁不放最新消息那一章、/news 與單篇消息導回首頁，
+   *  主選單與頁尾連到最新消息的連結在 content-overlay 拿掉。沒有這個欄位＝開。 */
+  newsEnabled?: boolean
+  /** 後台「全站設定」的入學資訊分頁開關（2026-11-11）：false 時 /admission 回 404，主選單與頁尾的入學資訊連結
+   *  在 content-overlay 拿掉，關於頁與環境頁結尾也不連過去。沒有這個欄位＝顯示。 */
+  admissionEnabled?: boolean
 }
 
 export interface AdmissionStep { when: string; title: string; text: string }

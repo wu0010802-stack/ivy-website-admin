@@ -180,7 +180,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTime
 <template>
   <main id="main" ref="root" tabindex="-1" class="anni" data-cta-entry="anniversary" :style="{ '--anni-paper-tile': `url(${ANNI_MEDIA.paper})` }">
     <!-- 首屏：標題、紀念影片（放映區）、這一頁的內容。手機的順序是標題 → 影片 → 介紹 → 索引 -->
-    <section class="anni-hero" aria-labelledby="anni-title">
+    <section class="anni-hero" data-track-section="hero" aria-labelledby="anni-title">
       <div class="container anni-hero-in">
         <div class="anni-hero-title">
           <h1 id="anni-title">常春藤 30 週年</h1>
@@ -209,7 +209,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTime
     </section>
 
     <!-- 時間軸：往下捲，蠟筆線跟著畫，五校在成立那一年立起來，旁邊的地圖跟著長 -->
-    <section id="anni-line" class="anni-line" aria-labelledby="anni-line-title">
+    <section id="anni-line" class="anni-line" data-track-section="timeline" aria-labelledby="anni-line-title">
       <div class="container anni-line-head">
         <h2 id="anni-line-title">1997 到 2027</h2>
       </div>
@@ -308,7 +308,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTime
     <AnniversaryCake :colors="PAD_COLORS.map((c) => c.css)" />
 
     <!-- 作品拼成的 30 -->
-    <section id="anni-art" class="anni-art" aria-labelledby="anni-art-title">
+    <section id="anni-art" class="anni-art" data-track-section="art" aria-labelledby="anni-art-title">
       <div class="container anni-art-grid">
         <div class="anni-art-copy">
           <h2 id="anni-art-title">孩子的作品拼成的 30</h2>
@@ -354,7 +354,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTime
     </section>
 
     <!-- 換你畫一個 30 -->
-    <section id="anni-draw" class="anni-draw" aria-labelledby="anni-draw-title" @keydown="onPadKey">
+    <section id="anni-draw" class="anni-draw" data-track-section="draw" aria-labelledby="anni-draw-title" @keydown="onPadKey">
       <div class="container anni-draw-grid">
         <div class="anni-draw-copy">
           <h2 id="anni-draw-title">換你畫一個 30</h2>
@@ -401,7 +401,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTime
       </div>
     </section>
 
-    <section class="anni-visit" aria-labelledby="anni-visit-title">
+    <section class="anni-visit" data-track-section="visit" aria-labelledby="anni-visit-title">
       <div class="container anni-visit-inner">
         <h2 id="anni-visit-title">帶孩子來學校看看</h2>
         <p><span class="anni-nobr">想看看孩子每天在哪裡上學，</span><span class="anni-nobr">可以預約到校參觀。</span></p>

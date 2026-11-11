@@ -9,6 +9,7 @@ export const CSV_BOM = '\uFEFF'
 export type CsvCell = string | number | boolean | null | undefined
 
 const FORMULA_STARTS = new Set(['=', '+', '-', '@'])
+// 全形的 ＝＋－＠ 也算（NFKC 後比對，同後端）。
 // 試算表會先略過開頭的空白與控制字元再判斷是不是公式（同後端 isspace／isprintable）。
 const LEADING_SPACE_OR_CONTROL = /^[\s\p{C}]/u
 
@@ -19,7 +20,7 @@ export function safeCell(value: CsvCell): string {
   if (typeof value === 'boolean') return value ? '是' : '否'
   const text = String(value)
   if (!text) return ''
-  if (LEADING_SPACE_OR_CONTROL.test(text) || FORMULA_STARTS.has(text.trimStart().charAt(0))) return `'${text}`
+  if (LEADING_SPACE_OR_CONTROL.test(text) || FORMULA_STARTS.has(text.trimStart().charAt(0).normalize('NFKC'))) return `'${text}`
   return text
 }
 

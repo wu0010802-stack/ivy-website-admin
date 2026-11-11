@@ -3,6 +3,7 @@ import { responsiveTourImage } from '~/utils/tour-image'
 import { campusFacebookPages, isSampleNews, NEWS_PATH, titleClauses } from '~/utils/news-content'
 import { campusShort, countdownLabel, dateParts, homeStories, storiesForCampus, storyRings, type HomeStory } from '~/utils/news-home'
 import type { Campus, HomeFilm, NewsArticle, NewsEvent } from '~/types/site-content'
+import { storyActionKey, trackEngagementAction } from '~/utils/engagement'
 
 /**
  * 首頁手機版的「最新消息」（2026-10-17 方向 3）：活動、消息、活動影片排成一列直式卡，點開是可以連續看的動態
@@ -56,6 +57,8 @@ function cardFor(id: string) {
   return shelf.value?.querySelector<HTMLElement>(`[data-story="${CSS.escape(id)}"]`) ?? null
 }
 function markSeen(id: string) {
+  // 內容興趣統計：這次瀏覽第一次看到這一則才記（分篇；代號不合格式的只記總數）。
+  if (!seen.value.has(id)) trackEngagementAction(storyActionKey(id) ?? 'story_open')
   seen.value = new Set(seen.value).add(id)
 }
 </script>

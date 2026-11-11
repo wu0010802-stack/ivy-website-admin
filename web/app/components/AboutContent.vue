@@ -34,7 +34,8 @@ import {
 } from '~/utils/about-content'
 
 // anniversary：後台「全站設定」的 30 週年開關（關掉時 /anniversary 回 404，這頁也不連過去）
-const props = withDefaults(defineProps<{ campuses: Campus[]; page: AboutPageContent; anniversary?: boolean }>(), { anniversary: false })
+// admission：同一頁的入學資訊分頁開關（隱藏時 /admission 回 404，結尾「還可以看看這幾頁」不放入學資訊）
+const props = withDefaults(defineProps<{ campuses: Campus[]; page: AboutPageContent; anniversary?: boolean; admission?: boolean }>(), { anniversary: false, admission: true })
 
 // 年數由今年（台北）算：SSR 與瀏覽器各算一次，只有跨年那一刻才可能不同
 const thisYear = Number.parseInt(taipeiIsoDate(), 10)
@@ -120,6 +121,7 @@ const NEXT = [
   { href: '/curriculum', title: '特色教學', hint: '四個年段與課程方向', color: 'var(--yellow)' },
   { href: '/admission', title: '入學資訊', hint: '入學流程、分班對照', color: 'var(--studio-blue)' }
 ]
+const nextPages = computed(() => NEXT.filter((item) => props.admission || item.href !== '/admission'))
 
 // 動態：沿革卡紙站起來、紀念章轉一圈都是 about.css 的捲動驅動動畫（不支援的瀏覽器直接是完成狀態）。
 // 這裡只管兩件事：六圈（AboutWholePerson 等章節發 abk-open 才開始播，自己看得見才真的播），
@@ -153,7 +155,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <svg class="abh-wax" aria-hidden="true" focusable="false" v-html="WAX_FILTER" />
 
     <!-- 首屏：左大標、右一張大照片；下面一排章節索引 -->
-    <section class="abh-wrap abh-hero" aria-labelledby="about-title">
+    <section class="abh-wrap abh-hero" data-track-section="hero" aria-labelledby="about-title">
       <div class="abh-hero-text">
         <h1 id="about-title"><template v-for="(line, i) in pageTitleLines(page.heroTitle)" :key="i"><br v-if="i">{{ line }}</template></h1>
         <p class="abh-lede">{{ heroLede }}</p>
@@ -173,7 +175,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     </section>
 
     <!-- 一路走來：章名旁紀念章；沿革由舊到新，桌機五站一列（橫軸）、701–1000 中軸線左右交錯、700 以下字旁小卡紙 -->
-    <section id="story" class="abh-wrap abh-sec" aria-labelledby="story-title">
+    <section id="story" data-track-section="story" class="abh-wrap abh-sec" aria-labelledby="story-title">
       <p class="abh-no" lang="en">{{ chapterOf('story').no }}</p>
       <div class="abh-story-head">
         <div class="abh-title-row">
@@ -203,7 +205,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     </section>
 
     <!-- 全人教育：上下各一條細線，左邊六個領域選一個看說明、右邊六圈 -->
-    <section id="whole-child" class="abh-band" data-spread aria-labelledby="whole-title">
+    <section id="whole-child" data-track-section="whole-child" class="abh-band" data-spread aria-labelledby="whole-title">
       <div class="abh-wrap abh-split">
         <div class="abh-whole-text">
           <p class="abh-no" lang="en">{{ chapterOf('whole-child').no }}</p>
@@ -234,7 +236,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     </section>
 
     <!-- 我們的期許：引言（蠟筆「」）＋孩子的蠟筆畫（照片貼在房子窗戶上） -->
-    <section id="hope" ref="hope" class="abh-wrap abh-sec abh-hope" :class="{ 'is-opened': hopeOpened, 'is-grown': hopeGrown }" aria-labelledby="hope-title">
+    <section id="hope" data-track-section="hope" ref="hope" class="abh-wrap abh-sec abh-hope" :class="{ 'is-opened': hopeOpened, 'is-grown': hopeGrown }" aria-labelledby="hope-title">
       <div class="abh-split">
         <div>
           <p class="abh-no" lang="en">{{ chapterOf('hope').no }}</p>
@@ -268,7 +270,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     </section>
 
     <!-- 家長怎麼說：左邊一句一位家長（前面是那支影片的封面小圖），右邊一支影片；按播放才插 youtube-nocookie，沒有 JS 時是連到 YouTube -->
-    <section v-if="voices.length" id="voices" class="abh-wrap abh-sec" aria-labelledby="voices-title">
+    <section v-if="voices.length" id="voices" data-track-section="voices" class="abh-wrap abh-sec" aria-labelledby="voices-title">
       <div class="abh-split is-voices">
         <div class="abh-voices-text">
           <p class="abh-no" lang="en">{{ chapterOf('voices').no }}</p>
@@ -304,7 +306,7 @@ onBeforeUnmount(() => { observer?.disconnect(); clearTimeout(growTimer) })
     <section class="abh-wrap abh-sec abh-next" aria-labelledby="next-title">
       <h2 id="next-title">還可以看看這幾頁</h2>
       <nav class="abh-index is-next" aria-label="其他頁面">
-        <NuxtLink v-for="item in NEXT" :key="item.href" :to="item.href" :style="{ '--chap': item.color }">
+        <NuxtLink v-for="item in nextPages" :key="item.href" :to="item.href" :style="{ '--chap': item.color }">
           <span class="abh-mk" aria-hidden="true"><svg class="icon" focusable="false"><use href="#i-arrow-right" /></svg></span>
           <span><b>{{ item.title }}</b><small>{{ item.hint }}</small></span>
         </NuxtLink>

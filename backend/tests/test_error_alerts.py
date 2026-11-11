@@ -82,7 +82,7 @@ async def test_a_first_time_error_alerts_the_super_admin(push_app, admin):
     [payload] = push_app.state.fake_push.bodies_for(device)
     assert payload == {
         "title": "網站出現新的錯誤",
-        "body": "官網：TypeError x is not a function",
+        "body": "官網：TypeError（詳情請到系統狀態頁查看）",
         "url": "/admin/system-status#errors",
         "tag": "site-error",
     }
@@ -95,7 +95,7 @@ async def test_body_names_the_source(push_app, admin, source, label):
     device = await _subscribe(admin)
     await _report_error(push_app, source=source, kind="RangeError", message="boom")
     [payload] = push_app.state.fake_push.bodies_for(device)
-    assert payload["body"] == f"{label}：RangeError boom"
+    assert payload["body"] == f"{label}：RangeError（詳情請到系統狀態頁查看）"
 
 
 async def test_api_errors_alert_too(push_app, admin):
@@ -112,21 +112,21 @@ async def test_api_errors_alert_too(push_app, admin):
     assert payload["body"] == "API：ValueError kaboom" and payload["tag"] == "site-error"
 
 
-async def test_long_messages_are_cut_to_60_characters_and_whitespace_collapsed(push_app, admin):
-    device = await _subscribe(admin)
-    await _report_error(push_app, message="很長的訊息\n\n   " + "字" * 200)
-    [payload] = push_app.state.fake_push.bodies_for(device)
-    assert "\n" not in payload["body"] and "  " not in payload["body"]
-    shown = payload["body"].removeprefix("官網：TypeError ")
+def test_api_messages_are_cut_to_60_characters_and_whitespace_collapsed():
+    group = ErrorGroup(source="api", kind="ValueError", message="很長的訊息\n\n   " + "字" * 200)
+    body = error_alerts.alert_payload(group)["body"]
+    assert "\n" not in body and "  " not in body
+    shown = body.removeprefix("API：ValueError ")
     assert shown.startswith("很長的訊息 字") and len(shown) == 60
 
 
-async def test_message_is_the_redacted_stored_text_not_the_raw_report(push_app, admin):
+async def test_client_reported_text_never_reaches_the_push(push_app, admin):
+    """前端錯誤回報任何訪客都能偽造：訊息不進推播，類型不像錯誤類別名稱時也不帶（2026-11-11 資安稽核）。"""
     device = await _subscribe(admin)
-    await _report_error(push_app, message="failed for mom@example.com phone 0912345678")
+    await _report_error(push_app, kind="請至 evil.example 重新登入", message="您的帳號已停用 evil.example")
     [payload] = push_app.state.fake_push.bodies_for(device)
-    assert "mom@example.com" not in payload["body"] and "0912345678" not in payload["body"]
-    assert "[email]" in payload["body"]
+    assert payload["body"] == "官網：前端錯誤（詳情請到系統狀態頁查看）"
+    assert "evil" not in payload["body"]
 
 
 # ----------------------------------------------------------------------------- 只有新的一組或重新開啟才通知
@@ -162,7 +162,7 @@ async def test_alerts_are_throttled_site_wide_for_15_minutes(push_app, admin):
     await _report_error(push_app, kind="ErrorA")
     await _report_error(push_app, kind="ErrorB")  # 另一組新錯誤，但全站 15 分鐘內才推過
     await _report_error(push_app, kind="ErrorC")
-    assert [p["body"] for p in push_app.state.fake_push.bodies_for(device)] == ["官網：ErrorA x is not a function"]
+    assert [p["body"] for p in push_app.state.fake_push.bodies_for(device)] == ["官網：ErrorA（詳情請到系統狀態頁查看）"]
     groups = await _groups(push_app)
     assert [g.alerted_at is not None for g in groups] == [True, False, False]  # 被擋掉的不補推，也沒有標記
     await _age_alerts(push_app, 14)
@@ -170,7 +170,7 @@ async def test_alerts_are_throttled_site_wide_for_15_minutes(push_app, admin):
     assert len(push_app.state.fake_push.bodies_for(device)) == 1  # 14 分鐘還在窗口內
     await _age_alerts(push_app, 16)
     await _report_error(push_app, kind="ErrorE")
-    assert [p["body"] for p in push_app.state.fake_push.bodies_for(device)][-1] == "官網：ErrorE x is not a function"
+    assert [p["body"] for p in push_app.state.fake_push.bodies_for(device)][-1] == "官網：ErrorE（詳情請到系統狀態頁查看）"
     assert len(push_app.state.fake_push.bodies_for(device)) == 2
 
 

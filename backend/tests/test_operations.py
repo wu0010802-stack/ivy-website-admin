@@ -512,3 +512,24 @@ async def test_campus_audit_actors_skip_stats_only_actions(admin_client, minghua
     assert campus.json() == []
     hq = (await admin_client.get("/api/website/v1/admin/audit-log/actors?campus_key=minghua")).json()
     assert len(hq) == 1
+
+
+@pytest.mark.asyncio
+async def test_campus_audit_log_hides_line_target_changes_from_campus_staff(admin_client, minghua_client, db_session):
+    """LINE 群組設定限總管理者（notifications.manage），紀錄的 metadata 帶群組 ID：分校帳號看自己校的
+    操作紀錄與操作者清單時不列（2026-11-11 資安稽核）。"""
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    now = datetime.now(timezone.utc)
+    entry = await _audit(db_session, action="line.campus_target.update", created_at=now, campus_key="minghua")
+    entry.metadata_json = {"before": None, "after": "C" + "0" * 32}
+    await db_session.commit()
+
+    url = "/api/website/v1/admin/audit-log"
+    assert (await minghua_client.get(f"{url}?campus_key=minghua")).json() == []
+    assert (await minghua_client.get(url, params={"campus_key": "minghua", "q": "C000"})).json() == []
+    assert (await minghua_client.get(f"{url}/actors?campus_key=minghua")).json() == []
+    hq = (await admin_client.get(f"{url}?campus_key=minghua")).json()
+    assert [e["action"] for e in hq] == ["line.campus_target.update"]

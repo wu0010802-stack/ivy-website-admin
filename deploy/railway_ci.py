@@ -22,6 +22,9 @@ SERVICES = {
     "api": "9124b9c0-4ddf-4445-bd2f-798b277f44ec",
     "web": "e0851ec5-3bc0-4b5c-9471-9d9131616c26",
 }
+# 部署後的 smoke 刻意留在 Railway 網址：不經正式網域的 DNS 與 Cloudflare，網域出狀況不會擋部署。
+# web 設了 NUXT_REDIRECT_HOSTS 以後 /release.json 與 /api/** 不轉址，/ 與 /admin/login 會 301 到
+# 正式網域（urlopen 會跟著轉）。正式網域本身由 uptime.yml 每 10 分鐘巡檢。
 ORIGIN = "https://web-production-04caa.up.railway.app"
 # content/ 已於 2026-10-12 刪除（內容 fixture 合一到 web/server/data/）；git archive 對沒有追蹤檔案的路徑會失敗。
 SOURCE_PATHS = ("web", "admin", "backend", "contracts", "deploy", ".dockerignore")

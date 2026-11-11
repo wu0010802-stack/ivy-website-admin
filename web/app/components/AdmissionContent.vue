@@ -19,6 +19,7 @@ import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
 import { ADMISSION_FAQ, admissionFaqVisible, type AdmissionFaqItem } from '~/utils/admission-faq'
 import type { AdmissionContent, Campus } from '~/types/site-content'
+import { classActionKey, countEngagementAction } from '~/utils/engagement'
 
 // campuses 給常見問題「怎麼預約參觀」列各校電話；沒傳時那一題只有文字。
 const props = defineProps<{ admission: AdmissionContent; campuses?: Campus[] }>()
@@ -70,6 +71,15 @@ const plan = computed(() => {
 })
 const selected = ref(0)
 watch(plan, (value) => { if (value) selected.value = value.position })
+// 內容興趣統計：試算查到哪個班別（只記班別，不記生日）。打字途中的日期會連續變，停 1.5 秒才記。
+// 查一次算一次：同一頁查了兩個同班別的孩子算兩次（PR #70 審查）。
+let classTimer: ReturnType<typeof setTimeout> | undefined
+watch(plan, (value) => {
+  clearTimeout(classTimer)
+  const key = value ? classActionKey(value.status, value.position) : null
+  if (key) classTimer = setTimeout(() => countEngagementAction(key), 1500)
+})
+onBeforeUnmount(() => clearTimeout(classTimer))
 const selectedStation = computed(() => stations[selected.value]!)
 /** 出生區間（offset 班、year 學年度）是不是寶貝那一屆。 */
 const isMine = (offset: number, year: number) => plan.value?.cohort === year - offset
@@ -227,7 +237,7 @@ onBeforeUnmount(() => {
     </svg>
 
     <!-- 第 1 頁：打開的護照跨頁。左頁照片、右頁標題；外框的深綠是封面。 -->
-    <section class="ap-hero" aria-labelledby="admission-title">
+    <section class="ap-hero" data-track-section="hero" aria-labelledby="admission-title">
       <div class="ap-passport">
         <div class="ap-spread">
           <div class="ap-page ap-page-photo">
@@ -274,7 +284,7 @@ onBeforeUnmount(() => {
     </section>
 
     <!-- 第 2 頁：簽證欄。每格捲進視窗時依序蓋一個章，每格只蓋一次。 -->
-    <section id="process" class="ap-section ap-tint-page" aria-labelledby="process-title">
+    <section id="process" data-track-section="process" class="ap-section ap-tint-page" aria-labelledby="process-title">
       <div class="ap-band-host" data-band="process" aria-hidden="true">
         <svg v-if="bands.process" class="ap-band" :viewBox="`0 0 ${bands.process.width} 24`" :width="bands.process.width" height="24" focusable="false"><path v-for="(d, i) in bands.process.paths" :key="i" :d="d" /></svg>
       </div>
@@ -299,7 +309,7 @@ onBeforeUnmount(() => {
     </section>
 
     <!-- 第 3 頁：資料頁。輸入生日，大章蓋下去；五格學年度欄位＝成長軌道。 -->
-    <section id="classes" class="ap-section ap-tint-alt" aria-labelledby="classes-title">
+    <section id="classes" data-track-section="classes" class="ap-section ap-tint-alt" aria-labelledby="classes-title">
       <div class="ap-band-host" data-band="classes" aria-hidden="true">
         <svg v-if="bands.classes" class="ap-band" :viewBox="`0 0 ${bands.classes.width} 24`" :width="bands.classes.width" height="24" focusable="false"><path v-for="(d, i) in bands.classes.paths" :key="i" :d="d" /></svg>
       </div>
@@ -382,7 +392,7 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <details class="ap-table">
-          <summary><span class="ap-pill">看完整對照表<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-plus" /></svg></span></summary>
+          <summary data-track-action="class_table"><span class="ap-pill">看完整對照表<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-plus" /></svg></span></summary>
           <div class="ap-table-wrap">
             <table>
               <caption>各班出生區間（民國年，下方為西元）</caption>
@@ -405,7 +415,7 @@ onBeforeUnmount(() => {
     </section>
 
     <!-- 第 4 頁：新生準備。勾必備品時在那一行蓋「已備」小章；叮嚀直接看得到。 -->
-    <section v-if="showNewcomer" id="newcomer" class="ap-section ap-tint-page" aria-labelledby="newcomer-title">
+    <section v-if="showNewcomer" id="newcomer" data-track-section="newcomer" class="ap-section ap-tint-page" aria-labelledby="newcomer-title">
       <div class="ap-band-host" data-band="newcomer" aria-hidden="true">
         <svg v-if="bands.newcomer" class="ap-band" :viewBox="`0 0 ${bands.newcomer.width} 24`" :width="bands.newcomer.width" height="24" focusable="false"><path v-for="(d, i) in bands.newcomer.paths" :key="i" :d="d" /></svg>
       </div>
@@ -478,7 +488,7 @@ onBeforeUnmount(() => {
 
     <!-- 第 5 頁：常見問題（2026-11-03）。原本的收退費整章收進來：補助那題預設打開（補助券、津貼表），
          退費條款收成一題、預設收合。問答文字在 utils/admission-faq.ts，津貼、補助、退費照樣讀後台內容。 -->
-    <section id="faq" class="ap-section ap-tint-alt" aria-labelledby="faq-title">
+    <section id="faq" data-track-section="faq" class="ap-section ap-tint-alt" aria-labelledby="faq-title">
       <div class="ap-band-host" data-band="faq" aria-hidden="true">
         <svg v-if="bands.faq" class="ap-band" :viewBox="`0 0 ${bands.faq.width} 24`" :width="bands.faq.width" height="24" focusable="false"><path v-for="(d, i) in bands.faq.paths" :key="i" :d="d" /></svg>
       </div>
@@ -493,7 +503,7 @@ onBeforeUnmount(() => {
             <ul class="ap-faq-list">
               <li v-for="item in group.items" :key="item.id">
                 <details :id="item.id" :open="item.open">
-                  <summary>
+                  <summary :data-track-action="`faq_${item.id.replace(/^faq-/, '')}`">
                     <span class="ap-faq-mark" aria-hidden="true">問</span>
                     <span class="ap-faq-q">{{ item.q }}</span>
                     <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-plus" /></svg>

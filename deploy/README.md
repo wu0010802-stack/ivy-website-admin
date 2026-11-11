@@ -10,9 +10,84 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - environment：`cf5631c7-05b9-4f16-9358-c81d2650eb55`（production）
 - web：`e0851ec5-3bc0-4b5c-9471-9d9131616c26`，`deploy/web.Dockerfile`
 - api：`9124b9c0-4ddf-4445-bd2f-798b277f44ec`，`deploy/api.Dockerfile`
-- 官網：<https://web-production-04caa.up.railway.app/>
-- 後台：<https://web-production-04caa.up.railway.app/admin/>
+- 官網：<https://www.ivykidschool.com/>（2026-11-11 起；`https://ivykidschool.com/` 由 Cloudflare 301 過來）
+- 後台：<https://www.ivykidschool.com/admin/>
+- Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 拍立得 WebGL context 遺失修正上線（main CI 部署，沒有 migration）
+
+- **內容**：`4cfaaec8`（README「2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影」），分支 `fix/paper-context-lost-20261111`，rebase 到 `e3090816` 後快轉 main（只有 README 頂部衝突）。使用者回報真手機上「常春藤的一天」的卡片出現上一個畫面的殘影；共用的 WebGL context 被系統收走後，拍立得改成退回 CSS 版、再用新的 context 重掛，同一頁第二次遺失就停用 WebGL。只動 web（`paperPrints.ts`、`DayMomentCard.vue`、`paper-budget.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前（本機，rebase 後）**：web typecheck 過、全套 140 檔 1864 過。admin、後端、stack e2e 本機沒跑，以 CI 為準。
+- **CI**：main run 43041527974 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `4cfaaec8`（14:52:32Z）。
+- **部署後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：`/`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200。390×844 手機模擬，用 `WEBGL_lose_context` 讓共用 context 連續遺失兩次，Chromium 與 WebKit 結果相同：第一次遺失 0.35 秒內畫面上的卡都卸回 CSS 版、4 秒內用新的 context 重掛；翻面正常；第二次遺失後維持 CSS 版，點卡片照樣翻面，沒有再建第三個 context，沒有 JS 錯誤。Chromium 截圖逐張看過，每張卡都是自己的照片與文字。
+- **沒驗**：iOS／Android 實機（原始回報來自真手機，真機上 context 被收走的觸發點是推論）；WebKit 的 CSS 版畫面只看了 DOM 狀態（Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面，截圖不可信）。**請使用者用原本那支手機開首頁、切到別的 App 再回來幾次確認。**
+- **回退**：切回上一版映像即可，沒有資料變更。
+## 2026-11-11 內容興趣第二輪上線（main CI 部署，migration `e7a1c93b5d20` 加三個欄位）
+
+- **內容**：`e3090816`（PR #70 squash，README「2026-11-11 內容興趣第二輪」），分支 `claude/busy-johnson-er03ju`。預約表單卡在哪一步、入學試算班別、每日造訪與上一期比較、首頁消息分篇、進站頁／離開頁／瀏覽順序、只看手機或電腦、瀏覽時段、各校興趣對照實際預約、活動代碼；並修掉 PR #69 審查指出的兩件事（各校消息代號沒分篇、晚到的舊回報蓋掉新資料）。使用者要求併入 main。
+- **Migration**：`e7a1c93b5d20` 在 `engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填；本機在全新資料庫升、降、再升都過。
+- **推前（本機）**：後端 `test_engagement.py` 30 過（真 PostgreSQL；全套本機沒跑完，以 CI 為準）、web 139 檔 1855 過、admin typecheck 過（全套 174 檔中 173 檔過，`engagement.test.ts` 在改到一半時跑到而失敗，改完單獨重跑 12 項過）、契約檢查過；本機 dev server＋真 API 用無頭 Chromium 走過帶活動代碼的整段預約流程，資料正確入庫。
+- **CI**：合併前 PR head `1340e6c` 的 web、admin、後端 3 組全綠，E2E 還在跑（不擋部署）。main run 43038908050 全綠（含 E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `e3090816`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200、首頁 200、`/api/website/v1/admin/analytics/engagement?device=mobile` 未登入回 401。沒有登入正式站後台看面板，也沒有確認正式資料庫的新欄位已經有值。
+- **PR #70 的自動審查在合併後才回來**，指出一件事：入學試算同一頁查兩個同班別的孩子只算一次，和面板說明不符。下一個 PR 修（試算改成查一次算一次）。
+- **回退**：切回上一版映像即可；多出來的三個欄位都可為 NULL，上一版（#69）照常寫入。再往前（#69 之前）的版本不讀不寫這張表。
+
+## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
+
+- **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
+- **Migration**：`d2f6b8a13c47` 只新增 `engagement_visits`，不動既有資料，API 啟動時自動套用。
+- **推前（本機）**：後端全套 5042 過（真 PostgreSQL）、web 139 檔 1852 過、admin 174 檔 3367 過、兩邊 typecheck 與契約檢查過；本機 dev server＋真 API 用無頭 Chromium 在 390×844 與 1440×900 走過一遍，資料正確入庫。合併當下 PR 的 E2E 還在跑（不擋部署）。
+- **CI**：main run 43034669679 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `08833a3b`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200；`/api/website/v1/admin/analytics/engagement` 未登入回 401（路由已掛上）；首頁 HTML 有 `data-track-section`（hero、about、day、campuses；最新消息在正式站是關閉的，所以沒有 news）。沒有登入正式站後台看面板，也沒有確認正式資料庫已經收到第一筆紀錄。
+- **上線後要知道**：面板從部署這一刻開始累積，之前沒有資料。最新消息在正式站關閉期間，「單篇消息」不會有資料。隱私權政策草稿已補上對應說明，政策本身還沒發布。
+- **PR #69 的自動審查在合併後才回來**，指出兩件事：各校消息的代號帶冒號（`yihua:open-day`）沒被分篇統計、晚到的舊回報會蓋掉新的區塊與互動。兩項都在下一輪（PR #70）修，這一版先帶著上線；最新消息目前關閉，第一項暫時沒有影響。
+- **回退**：切回上一版映像即可；`engagement_visits` 留著不影響舊版（舊版不讀不寫）。
+
+## 2026-11-11 後台入學資訊分頁開關上線（main CI 部署，沒有 migration）
+
+- **內容**：`964b03bb`（README「2026-11-11 後台可以先隱藏入學資訊分頁」），分支 `feature/hide-admission-20261111`，rebase 到 `849289d8` 後快轉 main。後台「網站標題與電話」新增「入學資訊分頁」開關（`site_meta.admission_enabled`，預設開、發布後生效）；關閉時 `/admission` 回 404，主選單、頁尾、關於頁與環境頁結尾拿掉入學資訊連結，sitemap 與 llms.txt（含常見問題段）不列，舊站五條入學網址改 302 到首頁。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **和最新消息開關的合併**：同一天兩個開關改同一批檔案。`content-overlay.ts` 結尾三個開關（30 週年、入學資訊、最新消息）的選單與頁尾過濾收成同一份清單，選單過濾後是空的就退回內建選單、同樣套整份清單。
+- **推前（本機，rebase 後）**：web typecheck 過、全套 136 檔 1830 過；admin typecheck 過、全套 173 檔 3355 過；後端 `test_content_rules.py`＋`test_site_meta_seo.py` 78 過；契約檢查一致；stack e2e `admission-toggle`、`anniversary-toggle`、`news-toggle` 三支過。後端全套本機沒跑，以 CI 為準。
+- **CI**：main run 43000989030 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `964b03bb`。
+- **部署後正式站驗證**（只發 GET）：後台 `SiteMetaView` 的 bundle 已有「在官網顯示入學資訊分頁」；公開內容 API 的 `site_meta` 還沒有 `admission_enabled`（已發布版本早於這個欄位＝顯示）；`/admission` 200、首頁有入學資訊連結、sitemap 有 `/admission`、舊站 `/分班表` 照舊 301 到 `/admission#classes`。最新消息維持關閉（`news_enabled=false`、`/news` 302 回首頁），沒有被這次部署動到。
+- **還沒做**：正式站的開關沒有關——**部署後入學資訊分頁照常顯示**，要隱藏由使用者在後台關掉並發布。沒有登入正式站後台看畫面（開關與說明字在本機 stack 截圖看過）。
+- **回退**：切回上一版映像即可；`site_meta` 已存的 `admission_enabled` 欄位舊版會忽略（舊版官網會照常顯示入學資訊）。
+## 2026-11-11 後台最新消息開關上線，並已在正式站關閉最新消息（main CI 部署，沒有 migration）
+
+- **內容**：`cb5569ca`（README「2026-11-11 後台最新消息開關」），分支 `feature/hide-home-news-20261111`，rebase 到 `9f008bab` 後快轉 main（只有 README 頂部衝突）。後台「網站標題與電話」新增「最新消息」開關（`site_meta.news_enabled`，預設開、發布後生效）；關閉時首頁不放最新消息那一章、`/news` 與 `/news/<id>` 302 回首頁、主選單與頁尾拿掉最新消息連結、sitemap 與 llms.txt 不列。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前**：先推 feature 分支跑一輪 CI（run 42996445652，`b48b8752`）全綠：web 135 檔 1814 過、admin 173 檔 3351 過、後端 3 組、E2E stack 171 過（含 `tests/stack/news-toggle.spec.ts`）＋公開站 34 過。本機 web typecheck 與全套過（rebase 後 1815 過）；本機 admin 全套因機器負載 50–85 有逾時，以 CI 為準。
+- **CI**：main run 42998776156 全綠，Deploy Railway production success（10:02:43Z）；`/release.json` 的 `base_commit` 是 `cb5569ca`。
+- **部署後、關開關前**（只發 GET）：`/`、`/news`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200，首頁仍有最新消息那一章（開關預設開，畫面不變）。
+- **關閉最新消息**（使用者指示，10:05Z 前後）：用總管理者帳號在正式站後台「網站標題與電話」把「在官網顯示最新消息」關掉，「儲存並發布」（確認框顯示只更新 1 個欄位：最新消息）。
+- **關閉後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：公開內容 API `site_meta.news_enabled=false`；`/news`、`/news/no-such`、`/news?campus=yihua` 都 302 到 `/`；首頁 HTML 沒有 `id="latest-news"`、`.home-news`、`.news-transition`，`#campuses` 還在；`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/visit` 都 200 且沒有連到最新消息的連結；sitemap 11 個網址、沒有 `/news`；llms.txt 沒有最新消息。1440×900 與 390×844 捲到底：五校區塊後面直接接頁尾，頁尾沒有「最新消息」，沒有 JS 錯誤（唯一的 console 錯誤是被擋掉的非 GET 請求）。
+- 正式站後台「最新消息與活動」編輯頁最上面有出現「官網目前沒有顯示最新消息」的提醒，沒有未儲存的修改。
+- **沒驗**：iOS／Android 實機、WebKit；「各校消息與活動」編輯頁的提醒在正式站的畫面（單元測試與同一個元件驗過）；搜尋引擎已收錄的 `/news` 網址之後的變化。
+- **要再打開**：後台同一個開關打開並發布即可，消息內容都還在。
+- **回退**：切回上一版映像即可；`site_meta` 已存的 `news_enabled` 欄位舊版會忽略（舊版官網會照常顯示最新消息）。
+## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（main CI 部署，沒有 migration）
+
+- **內容**：`9f008bab`（README「2026-11-11 正式網域上線後收尾」），分支 `fix/launch-cleanup-20261111`，使用者自己推、快轉 main（`b604ecc5..9f008bab`）。web：`public-copy.ts` 公開輸出前多拿掉整份的 `_source`、消息區 `note`、拍立得 `caption`；維運：`uptime_check.py` 預設網址與 `uptime.yml` 備援值、`scripts/` 兩支工具、`.env.example` 改正式網域，`railway_ci.py` 的 smoke 留在 Railway 網址並加註解。沒有 migration、沒有新變數。
+- **推前本機**：`web/tests/public-copy.spec.ts` 新增一條先紅後綠；web typecheck 過；`npm run test:website` 134 檔 1808 條，機器負載 66 時 4 條失敗（3 條逾時、1 條時序斷言，`smoothness-20261105-anniversary`／`smoothness-20261105-prints`／`taipei-date`，與改動無關），三個檔單獨重跑 30 條全過；後端 `tests/test_uptime_check.py` 20 過。admin、後端全套、stack e2e 交給 CI。
+- **CI**：run 42997042656 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `9f008bab`（09:46:35Z）。
+- **正式站驗證**（只發 GET）：`/`、`/about`、`/curriculum`、`/admission`、`/environment`、`/news`、`/visit`、`/visit/yihua`、`/visit/chongde` 都 200，原始碼裡「示範內容」「原型」「示意」「待補」「app.js」都是 0 次（部署前公開資料裡各有 1／1／4／1／3 次，每一頁都帶著）；`/api/published-site` 沒有 `_source`、`news.note`，八張拍立得都沒有 `caption`。
+- **沒驗**：畫面沒有重新截圖比對（三個欄位元件都沒讀）；巡檢的預設網址只在 repo 變數 `UPTIME_BASE_URL` 沒設時才用到，目前變數有設。
+
+## 2026-11-11 正式網域切換：www.ivykidschool.com 上線、開放收錄（只改後台設定，沒有程式部署）
+
+- **DNS**：使用者在 Wix 把 nameserver 改成 Cloudflare（05:55Z 註冊局生效）；Cloudflare zone（使用者帳號、Free）照 Wix 匯入後改成：`www` CNAME Railway（DNS only）、Railway 驗證 TXT、apex A `192.0.2.1` Proxied＋Redirect Rule 301 到 www、MX 與 google-site-verification 照搬。註冊商仍在 Wix。
+- **Railway**：web 加自訂網域 `www.ivykidschool.com`（port 3000），憑證 VALID；變數 api `WEBSITE_ADMIN_ORIGIN`／`WEBSITE_ADMIN_EXTRA_ORIGINS`／Google、LINE `REDIRECT_URI`，web `NUXT_PUBLIC_SITE_ORIGIN`、`NUXT_PUBLIC_INDEXING_ENABLED=true`，觸發兩次重新部署都 SUCCESS。
+- **其他**：Google OAuth 與 LINE Login 回呼新舊並列；Search Console 網域資源驗證、提交 sitemap、首頁要求建立索引；GitHub 變數 `UPTIME_BASE_URL` 改 www；`website.yml` 部署環境連結改 www（本提交）。
+- **驗證**（只發 GET，另有一個無效權杖的重設密碼 verify 用來測 Origin）：www 各頁 200、`/release.json` 有版本、舊網址 `/分班表` 301 到 `/admission#classes`；apex `https`／`http` 都 301 到 www 同路徑並保留查詢字串；canonical、og:url、JSON-LD 都是 www；robots 開放並指向 www sitemap（16 個網址），Railway 網址 robots 仍全擋；Origin：www 與 Railway 網址通過（410 無效權杖）、其他網域 403；Google／LINE 登入起點帶 www 回呼；公開 DNS 的 MX 正確。
+- **沒驗**：本人實際登入後台寫入、Google／LINE 實際登入往返、Workspace 收信（請園方寄一封測試）；各地 DNS 快取（本機曾短暫解析到舊 Wix）。
+- 切換後待辦見 `docs/website-admin/migration-checklist.md`「切換結果」。
+
+## 2026-11-11 前台 QA 修正：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（main CI 部署，沒有 migration）
+
+- **內容**：`e10bc80e`（README「2026-11-11 前台 QA」），分支 `fix/qa-fixes-20261111`，直接快轉 main（推之前 main 沒有新提交）。只動 web：`error.vue` 的 `<title>` 改用 `TITLE_BRAND`；`visit-booking.css` 在 338–760px 與橫拿手機把義華的撥號膠囊用 `order:-1` 換到「可線上預約」前面。沒有 migration、沒有新變數。
+- **推前本機**：`web/tests/qa-fixes-20261111.spec.ts` 5 條先紅後綠；web typecheck 過；`npm run test:website` 134 檔 1807 過；dev server（fixture，預約設定轉正式站唯讀 API）Playwright 量 9 種視窗並實際點卡片。admin、後端、stack e2e 交給 CI。
+- **CI**：run 42968430554 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（06:01:56Z）；`/release.json` 的 `base_commit` 是 `e10bc80e`。
+- **正式站驗證**（只發 GET）：`/`、`/visit`、`/visit/yihua`、`/news`、`/admin/`、公開內容 API 都 200；`/qa-no-such-page` 回 404，SSR 與 hydrate 後標題都是「找不到這一頁｜常春藤幼兒園」；`/visit` 義華卡在 338／360／390／430／844×390 撥號膠囊 x=18、金色膠囊 x=150，撥號範圍在左下角、不蓋金色膠囊；320／336 兩顆疊兩行、768／1440 直卡上下疊，位置和部署前相同；九種寬度都沒有水平溢出。
+- **沒驗**：iOS 實機；336px 以下撥號範圍往上蓋到金色膠囊 4px（部署前就有，這次沒動）。
 ## 2026-11-11 後台 QA 修正：粉專頁校區下拉、手機編輯頁操作列（main CI 部署，沒有 migration）
 
 - **內容**：`39328c8d`（README「2026-11-11 後台 QA」），分支 `fix/admin-qa-20261111`，rebase 到 main `76839d66`（只有 README 頂部段落衝突，兩段都留）。只動 admin：`FacebookPostsView.vue` 校區下拉固定 160px（720px 以下 100%）、同步說明逗號後的空白；`ContentEditor.vue` 手機直排操作列改不換行。沒有 migration、沒有新變數。
@@ -2413,12 +2488,12 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | --- | --- |
 | web | `PORT=3000`、`NUXT_WEBSITE_ENV=production`、`NUXT_PUBLIC_CONTENT_MODE=live` |
 | web | `NUXT_WEBSITE_API_INTERNAL_BASE=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| web | `NUXT_PUBLIC_SITE_ORIGIN=https://web-production-04caa.up.railway.app`、`NUXT_PUBLIC_INDEXING_ENABLED=false` |
-| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。目前不設＝不轉；切換步驟見 `docs/website-admin/migration-checklist.md`） |
+| web | `NUXT_PUBLIC_SITE_ORIGIN=https://www.ivykidschool.com`、`NUXT_PUBLIC_INDEXING_ENABLED=true`（2026-11-11 正式網域切換並開放收錄；之前是 Railway 網址與 `false`） |
+| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。2026-11-11 切換後仍未設＝不轉，預計各地 DNS 快取更新後設成 Railway 主機名；步驟見 `docs/website-admin/migration-checklist.md`） |
 | api | `PORT=8000`、`WEBSITE_ENVIRONMENT=production`、`WEBSITE_ENABLE_FIXTURE=false`、`WEBSITE_INDEXING_ENABLED=false` |
 | api | `WEBSITE_SESSION_SECRET`（隨機產生的秘密）與 `WEBSITE_DATABASE_URL`（Postgres 參照） |
-| api | `WEBSITE_ADMIN_ORIGIN=https://web-production-04caa.up.railway.app` |
-| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。目前不設；正式網域接通後放 Railway 網址，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
+| api | `WEBSITE_ADMIN_ORIGIN=https://www.ivykidschool.com`（2026-11-11 起；Google／LINE 的 `REDIRECT_URI` 同源） |
+| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。2026-11-11 起設為 `https://web-production-04caa.up.railway.app`，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |

@@ -10,6 +10,7 @@ import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -239,6 +240,11 @@ watch([() => form.campus, () => bookingConfig.value?.mode], () => {
   if (slotsMounted) void loadSlots()
 })
 watch(selectedVisitDate, () => { selectedSlotId.value = ''; clearFieldError('visitDate'); clearFieldError('slotId') })
+// 內容興趣統計：預約表單走到哪一步（匿名，只記走到了，不記填的內容）。還原填到一半的資料也算走到過。
+watch(selectedVisitDate, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.date) })
+watch(selectedSlotId, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.slot) })
+watch(() => Boolean(form.parentName || form.childName || form.phone || form.email), (started) => { if (started) trackEngagementAction(FORM_ACTIONS.contact) })
+watch(() => step.value === 2 && bookingConfig.value?.mode === 'slots' && !slotsPending.value && !slotsError.value && !availableSlots.value.length, (empty) => { if (empty) trackEngagementAction(FORM_ACTIONS.noSlots) })
 onBeforeUnmount(() => { slotsMounted = false; slotRequest++ })
 
 const submitted = ref(false)
@@ -503,6 +509,7 @@ watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
+  trackEngagementAction(FORM_ACTIONS.submit)
   submitError.value = null
   submitRetryHint.value = false
   form.parentName = form.parentName.trim()
@@ -513,6 +520,7 @@ async function onSubmit() {
   if (!selectedVisitDate.value) fieldErrors.value.visitDate = '請選擇參觀日期。'
   else if (!selectedSlot.value || selectedSlot.value.slot_date !== selectedVisitDate.value) fieldErrors.value.slotId = '請選擇這一天的參觀場次。'
   if (Object.keys(fieldErrors.value).length) {
+    trackEngagementAction(FORM_ACTIONS.invalid)
     await nextTick()
     focusFirstInvalidField(formRef.value)
     return
@@ -554,6 +562,8 @@ async function onSubmit() {
     linkCopyFailed.value = false
     submitted.value = true
     clearDraft()
+    // 內容興趣統計：這次造訪送出了預約（匿名，只用來看「看過什麼內容的造訪比較會預約」）。
+    trackEngagementAction(BOOKED_ACTION)
     idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
@@ -634,7 +644,7 @@ async function onSubmit() {
       <div class="container visit-welcome-inner">
         <div class="visit-welcome-copy">
           <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
-          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇<br>來校園走走</template><template v-else>預約校園參觀</template></h1>
+          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking"><span>帶著好奇</span><br><span>來校園走走</span></template><template v-else>預約校園參觀</template></h1>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
           <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。

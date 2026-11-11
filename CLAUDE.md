@@ -72,7 +72,7 @@
 - 30 週年頁（`/anniversary`）首屏是紀念影片《長成自己喜歡的樣子》的放映區（2026-11-11，`AnniversaryFilm.vue`）：按了才播、播放時整頁關燈、直拿播直式版；10-04 的 30 秒開場動畫與 `AnniversaryIntro.vue` 已拿掉。影片、預告、封面由 `scripts/build-anniversary-film.py` 產生到 `web/public/assets/anniversary-film/`（單檔 < 50 MB），時間軸的素材場另由 `build-anniversary-media.py` 產生到 `assets/anniversary/`，兩個資料夾不要混。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
 - 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
-- `/about` 900px 以下是**上翻畫冊**（`AboutFlipBook.vue`，2026-10-19），不是把立體書拆成上下兩頁；桌機立體書（`.abk`）在手機整本隱藏、反之亦然，兩邊同時在 SSR 輸出（手機 id 前綴 `about-m-`）。改 /about 的內容或版面要兩邊都看；畫冊放不下會自己退回上下排開（`.afb[data-fit]`）。
+- `/about` 桌機手機是**同一份 DOM**（`AboutContent.vue`，2026-10-30 起；900px 以下改單欄，樣式在 `about.css`）。立體書（09-29）、上翻畫冊（10-19）、手機卡紙疊（10-25）都已取代並刪除（`AboutFlipBook`、`AboutSheets`、`about-m-` 前綴都不存在了），DESIGN.md 裡講翻頁、釘住、卡紙疊分頁的舊章節不再適用；現行風格是 11-10「乾淨留白」。章節 id `story`、`whole-child`、`hope`、`voices` 維持不變（頁內目次與後台預覽 `#voices` 會用）。
 - 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁〔10-06 已拿掉〕、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。
 
 ## 驗證工具的本機繞法
@@ -83,6 +83,7 @@
 - 對比度不要在瀏覽器 seek 影片取樣，改 ffmpeg 抽幀後離線算。
 - `npx impeccable detect --json <url>` 可用；`impeccable live` 這版跑不起來。
 - 機器只有 8GB RAM：同時只跑一組測試或重型轉檔。
+- 雲端容器（Claude Code on the web）跑 e2e 前先 `export LANG=C.UTF-8 LC_ALL=C.UTF-8`：預設 locale 是 POSIX，Chrome 會把中文下載檔名換成 `download`（`exports.spec.ts` 會紅）。PostgreSQL 要自己 `service postgresql start`，TCP 連線要密碼，用 `PGUSER`／`PGPASSWORD` 傳給 `start-api.sh`。
 
 ## 官網後台（web/ admin/ backend/，已上線）
 

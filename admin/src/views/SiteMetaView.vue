@@ -41,6 +41,8 @@ const editor = useContentItem<SiteMetaPayload>(
     share_image_alt: '',
     allow_indexing: true,
     anniversary_enabled: true,
+    news_enabled: true,
+    admission_enabled: true,
     primary_nav: defaultNav(),
     page_seo: normalizePageSeo(null),
     social_links: null,
@@ -61,6 +63,10 @@ const editor = useContentItem<SiteMetaPayload>(
         ...rest,
         // 2026-10-24 前的版本沒有這個欄位＝開。
         anniversary_enabled: rest.anniversary_enabled ?? true,
+        // 2026-11-11 前的版本沒有這個欄位＝開。
+        news_enabled: rest.news_enabled ?? true,
+        // 2026-11-11 前的版本沒有這個欄位＝顯示。
+        admission_enabled: rest.admission_enabled ?? true,
         primary_nav: rest.primary_nav?.length
           ? rest.primary_nav.map((link) => ({ ...link, label_en: link.label_en ?? '' }))
           : defaultNav(),
@@ -96,6 +102,18 @@ const navSections = computed<EditorSection[]>(() => [
     label: '30 週年',
     note: editor.form.value.anniversary_enabled ? '開啟' : '關閉',
     fields: ['anniversary_enabled'],
+  },
+  {
+    id: 'section-meta-news',
+    label: '最新消息',
+    note: editor.form.value.news_enabled ? '開啟' : '關閉',
+    fields: ['news_enabled'],
+  },
+  {
+    id: 'section-meta-admission',
+    label: '入學資訊分頁',
+    note: editor.form.value.admission_enabled ? '顯示' : '隱藏',
+    fields: ['admission_enabled'],
   },
   { id: 'section-meta-index', label: '搜尋引擎', fields: ['allow_indexing'] },
   { id: 'section-meta-nav', label: '主選單', fields: ['primary_nav'] },
@@ -134,7 +152,7 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor" :sections="navSections">
-    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、頁首右上角的聯絡電話與主選單、機構社群連結，以及 30 週年內容的開關。</template>
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、頁首右上角的聯絡電話與主選單、機構社群連結，以及 30 週年內容、最新消息、入學資訊分頁的開關。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
       <h3 id="section-meta-basic" class="meta-section meta-section--first" data-section-anchor tabindex="-1">網站標題與頁首電話</h3>
@@ -253,6 +271,28 @@ onMounted(editor.load)
           aria-label="在官網顯示 30 週年內容"
         />
         <span class="field-help">發布後生效。開啟時，首頁第一次進站會播 30 週年布幕，主選單與頁尾有「30 週年」分頁。關閉後，首頁不播布幕、直接看到首屏影片；30 週年分頁連同主選單、頁尾的連結一起拿掉，網址會顯示找不到頁面。</span>
+      </el-form-item>
+
+      <h3 id="section-meta-news" class="meta-section" data-section-anchor tabindex="-1">最新消息</h3>
+      <el-form-item>
+        <el-switch
+          v-model="editor.form.value.news_enabled"
+          data-field="news_enabled"
+          active-text="在官網顯示最新消息"
+          aria-label="在官網顯示最新消息"
+        />
+        <span class="field-help">發布後生效。開啟時，首頁有「最新消息」那一段，也有最新消息列表與每一則消息的頁面。關閉後，首頁那一段、主選單與頁尾連到最新消息的連結都拿掉，最新消息的網址會回到首頁。關閉期間照常可以在後台新增、修改消息，再打開就會顯示。</span>
+      </el-form-item>
+
+      <h3 id="section-meta-admission" class="meta-section" data-section-anchor tabindex="-1">入學資訊分頁</h3>
+      <el-form-item>
+        <el-switch
+          v-model="editor.form.value.admission_enabled"
+          data-field="admission_enabled"
+          active-text="在官網顯示入學資訊分頁"
+          aria-label="在官網顯示入學資訊分頁"
+        />
+        <span class="field-help">發布後生效。關閉後，入學資訊分頁連同主選單、頁尾與其他頁的連結一起拿掉，網址會顯示找不到頁面，搜尋引擎也不再列這一頁。「入學資訊頁」的內容照常可以編輯與預覽，再打開並發布就會回來。</span>
       </el-form-item>
 
       <h3 id="section-meta-index" class="meta-section" data-section-anchor tabindex="-1">搜尋引擎</h3>

@@ -84,6 +84,34 @@ it('fixture 的 _todo 維護備註不進公開資料：任何層級都沒有，�
   expect(withoutRetiredFields(site)).toEqual(withoutRetiredFields(withoutRetiredFields(site)))
 })
 
+// 2026-11-11 正式網域開放收錄：每一頁的原始碼（頁面資料）不能再帶原型時期寫給維護者看的備註。
+it('原型備註不進公開資料：_source、消息區 note、拍立得 caption 都拿掉，fixture 與後台存的值不外洩', () => {
+  const site = fixture as unknown as SiteContent
+  const raw = fixture as unknown as { _source: { note: string }; news: { note: string }; dayExperience: { moments: { caption: string }[] } }
+  // fixture 留著這些值：後端初始化內容與維護者要看。
+  expect(raw._source.note).toContain('示範內容')
+  expect(raw.news.note).toContain('原型示意')
+  // 正式站的拍立得 caption 是後台存的原型字句，疊上去之後也不能出現在公開資料。
+  const overlay = structuredClone(initialOverlay) as unknown as ContentOverlay & { day_experience: { moments: { caption: string }[] } }
+  overlay.day_experience.moments[0]!.caption = '教室空間參考 · 午休照片待補'
+  const live = publishedContent(site, { schema_version: '1', release_id: 'r1', content: overlay }).content
+  for (const result of [publicCopy(site), withoutRetiredFields(site), live]) {
+    expect(result).not.toHaveProperty('_source')
+    expect(result.news).not.toHaveProperty('note')
+    expect(result.dayExperience.moments.length).toBeGreaterThan(0)
+    for (const moment of result.dayExperience.moments) expect(moment).not.toHaveProperty('caption')
+    const json = JSON.stringify(result)
+    for (const word of ['示範內容', '非正式資料', '原型示意', 'app.js', '午休照片待補']) expect(json).not.toContain(word)
+  }
+  // 頁面用得到的欄位照舊。
+  expect(live.dayExperience.moments[0]!.title).toBeTruthy()
+  expect(live.news.sectionId).toBe(site.news.sectionId)
+  // 首頁關於段的 caption 是另一個欄位（照片旁的短句），鍵還在。
+  expect(live.home.about).toHaveProperty('caption')
+  // 不修改傳入的 fixture。
+  expect(raw.dayExperience.moments[0]).toHaveProperty('caption')
+})
+
 // 2026-11-04 TA 檢視：首頁關於段第一句交代身分並分段、孩子的一天背面改成站上已有的事實、頁尾校區標題直接說是什麼。
 it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換，園方改過的照園方的', () => {
   const site = fixture as unknown as SiteContent

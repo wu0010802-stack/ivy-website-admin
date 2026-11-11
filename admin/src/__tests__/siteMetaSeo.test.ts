@@ -30,6 +30,7 @@ import {
 import { DEFAULT_SOCIAL_LINKS, SOCIAL_LINKS_MAX, socialDuplicateIndex, socialUrlError } from '../composables/siteLinks'
 import type { EditorSection } from '../composables/editorSections'
 import { resetTitleFontCoverage } from '../composables/useTitleFontCoverage'
+import { NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { mediaPage, testUser } from './fixtures'
 
@@ -638,11 +639,45 @@ describe('存檔被擋時定位到欄位', () => {
   })
 })
 
+describe('入學資訊分頁開關（2026-11-11）', () => {
+  const toggle = (wrapper: VueWrapper) => wrapper.get('[data-field="admission_enabled"]')
+
+  it('舊版本沒有這個欄位＝顯示，畫面不會一打開就有未儲存的修改', async () => {
+    const wrapper = await mountMeta({ ...BASE })
+    expect(editorOf(wrapper).form.value.admission_enabled).toBe(true)
+    expect(editorOf(wrapper).isDirty.value).toBe(false)
+    expect(toggle(wrapper).get('input').attributes('aria-label')).toBe('在官網顯示入學資訊分頁')
+    expect((toggle(wrapper).get('input').element as HTMLInputElement).checked).toBe(true)
+    expect(wrapper.get('#section-meta-admission').text()).toBe('入學資訊分頁')
+  })
+
+  it('關掉後存檔送出 admission_enabled=false，段落目錄標「隱藏」', async () => {
+    const wrapper = await mountMeta({ ...BASE })
+    await toggle(wrapper).get('input').trigger('click')
+    await flushPromises()
+    expect(editorOf(wrapper).isDirty.value).toBe(true)
+    const sections = wrapper.findComponent(ContentEditor).props('sections') as EditorSection[]
+    expect(sections.find((s) => s.id === 'section-meta-admission')!.note).toBe('隱藏')
+    expect((await saved(wrapper)).admission_enabled).toBe(false)
+  })
+
+  it('已隱藏的版本載入後開關是關的；版本歷程與發布確認用「入學資訊分頁」稱呼這個欄位', async () => {
+    const wrapper = await mountMeta({ ...BASE, admission_enabled: false })
+    expect((toggle(wrapper).get('input').element as HTMLInputElement).checked).toBe(false)
+    expect(contentPathFieldLabel('site_meta', ['admission_enabled'])).toBe('入學資訊分頁')
+  })
+
+  it('側欄搜尋「隱藏入學資訊」找得到這一頁', () => {
+    const item = NAV_GROUPS.flatMap((group) => group.items).find((entry) => entry.name === 'site-meta')!
+    expect(item.keywords).toEqual(expect.arrayContaining(['隱藏入學資訊', '隱藏分頁']))
+  })
+})
+
 describe('段落目錄', () => {
   it('每段有標題 id，涵蓋所有欄位', async () => {
     const wrapper = await mountMeta({ ...BASE })
     const sections = wrapper.findComponent(ContentEditor).props('sections') as EditorSection[]
-    expect(sections.map((s) => s.label)).toEqual(['網站標題與頁首電話', '社群分享圖', '各頁搜尋與分享', '30 週年', '搜尋引擎', '主選單', '機構社群', '品牌名稱與 Logo'])
+    expect(sections.map((s) => s.label)).toEqual(['網站標題與頁首電話', '社群分享圖', '各頁搜尋與分享', '30 週年', '最新消息', '入學資訊分頁', '搜尋引擎', '主選單', '機構社群', '品牌名稱與 Logo'])
     for (const section of sections) {
       const heading = document.getElementById(section.id)
       expect(heading, section.id).not.toBeNull()
