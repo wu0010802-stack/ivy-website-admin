@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（main CI 部署，沒有 migration）
+
+- **內容**：`9f008bab`（README「2026-11-11 正式網域上線後收尾」），分支 `fix/launch-cleanup-20261111`，使用者自己推、快轉 main（`b604ecc5..9f008bab`）。web：`public-copy.ts` 公開輸出前多拿掉整份的 `_source`、消息區 `note`、拍立得 `caption`；維運：`uptime_check.py` 預設網址與 `uptime.yml` 備援值、`scripts/` 兩支工具、`.env.example` 改正式網域，`railway_ci.py` 的 smoke 留在 Railway 網址並加註解。沒有 migration、沒有新變數。
+- **推前本機**：`web/tests/public-copy.spec.ts` 新增一條先紅後綠；web typecheck 過；`npm run test:website` 134 檔 1808 條，機器負載 66 時 4 條失敗（3 條逾時、1 條時序斷言，`smoothness-20261105-anniversary`／`smoothness-20261105-prints`／`taipei-date`，與改動無關），三個檔單獨重跑 30 條全過；後端 `tests/test_uptime_check.py` 20 過。admin、後端全套、stack e2e 交給 CI。
+- **CI**：run 42997042656 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `9f008bab`（09:46:35Z）。
+- **正式站驗證**（只發 GET）：`/`、`/about`、`/curriculum`、`/admission`、`/environment`、`/news`、`/visit`、`/visit/yihua`、`/visit/chongde` 都 200，原始碼裡「示範內容」「原型」「示意」「待補」「app.js」都是 0 次（部署前公開資料裡各有 1／1／4／1／3 次，每一頁都帶著）；`/api/published-site` 沒有 `_source`、`news.note`，八張拍立得都沒有 `caption`。
+- **沒驗**：畫面沒有重新截圖比對（三個欄位元件都沒讀）；巡檢的預設網址只在 repo 變數 `UPTIME_BASE_URL` 沒設時才用到，目前變數有設。
+
 ## 2026-11-11 正式網域切換：www.ivykidschool.com 上線、開放收錄（只改後台設定，沒有程式部署）
 
 - **DNS**：使用者在 Wix 把 nameserver 改成 Cloudflare（05:55Z 註冊局生效）；Cloudflare zone（使用者帳號、Free）照 Wix 匯入後改成：`www` CNAME Railway（DNS only）、Railway 驗證 TXT、apex A `192.0.2.1` Proxied＋Redirect Rule 301 到 www、MX 與 google-site-verification 照搬。註冊商仍在 Wix。
