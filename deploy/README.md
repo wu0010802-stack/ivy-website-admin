@@ -14,6 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-11 後台入學資訊分頁開關上線（main CI 部署，沒有 migration）
+
+- **內容**：`964b03bb`（README「2026-11-11 後台可以先隱藏入學資訊分頁」），分支 `feature/hide-admission-20261111`，rebase 到 `849289d8` 後快轉 main。後台「網站標題與電話」新增「入學資訊分頁」開關（`site_meta.admission_enabled`，預設開、發布後生效）；關閉時 `/admission` 回 404，主選單、頁尾、關於頁與環境頁結尾拿掉入學資訊連結，sitemap 與 llms.txt（含常見問題段）不列，舊站五條入學網址改 302 到首頁。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **和最新消息開關的合併**：同一天兩個開關改同一批檔案。`content-overlay.ts` 結尾三個開關（30 週年、入學資訊、最新消息）的選單與頁尾過濾收成同一份清單，選單過濾後是空的就退回內建選單、同樣套整份清單。
+- **推前（本機，rebase 後）**：web typecheck 過、全套 136 檔 1830 過；admin typecheck 過、全套 173 檔 3355 過；後端 `test_content_rules.py`＋`test_site_meta_seo.py` 78 過；契約檢查一致；stack e2e `admission-toggle`、`anniversary-toggle`、`news-toggle` 三支過。後端全套本機沒跑，以 CI 為準。
+- **CI**：main run 43000989030 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `964b03bb`。
+- **部署後正式站驗證**（只發 GET）：後台 `SiteMetaView` 的 bundle 已有「在官網顯示入學資訊分頁」；公開內容 API 的 `site_meta` 還沒有 `admission_enabled`（已發布版本早於這個欄位＝顯示）；`/admission` 200、首頁有入學資訊連結、sitemap 有 `/admission`、舊站 `/分班表` 照舊 301 到 `/admission#classes`。最新消息維持關閉（`news_enabled=false`、`/news` 302 回首頁），沒有被這次部署動到。
+- **還沒做**：正式站的開關沒有關——**部署後入學資訊分頁照常顯示**，要隱藏由使用者在後台關掉並發布。沒有登入正式站後台看畫面（開關與說明字在本機 stack 截圖看過）。
+- **回退**：切回上一版映像即可；`site_meta` 已存的 `admission_enabled` 欄位舊版會忽略（舊版官網會照常顯示入學資訊）。
 ## 2026-11-11 後台最新消息開關上線，並已在正式站關閉最新消息（main CI 部署，沒有 migration）
 
 - **內容**：`cb5569ca`（README「2026-11-11 後台最新消息開關」），分支 `feature/hide-home-news-20261111`，rebase 到 `9f008bab` 後快轉 main（只有 README 頂部衝突）。後台「網站標題與電話」新增「最新消息」開關（`site_meta.news_enabled`，預設開、發布後生效）；關閉時首頁不放最新消息那一章、`/news` 與 `/news/<id>` 302 回首頁、主選單與頁尾拿掉最新消息連結、sitemap 與 llms.txt 不列。沒有 migration、沒有新變數、OpenAPI 契約沒變。
