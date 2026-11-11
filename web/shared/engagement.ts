@@ -10,6 +10,7 @@ export type EngagementSource = (typeof ENGAGEMENT_SOURCES)[number]
 
 export const ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
 export const ENGAGEMENT_MAX_KEYS = 24
+export const ENGAGEMENT_MAX_SEQ = 500
 /** 區塊與互動代碼：小寫英數、底線、連字號，最長 32 字。 */
 export const ENGAGEMENT_KEY = /^[a-z0-9][a-z0-9_-]{0,31}$/
 const ITEM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
@@ -29,6 +30,10 @@ export type EngagementEvent = PublicPage & {
   scroll: number
   sections: Record<string, number>
   actions: Record<string, number>
+  /** 這次造訪的第幾頁（從 1 起算）：看進站頁、離開頁與瀏覽順序用 */
+  seq?: number
+  /** 進站連結上的活動代碼（utm_campaign，園方自己設的） */
+  campaign?: string
 }
 
 /** 最新消息內文頁（/news/<代號>）的消息代號；代號不是單純英數就不帶。 */
@@ -47,7 +52,7 @@ function isCounts(value: unknown, min: number, max: number): value is Record<str
 export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   const item = input as Record<string, unknown>
-  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions']
+  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign']
   if (item.event !== 'engagement' || Object.keys(item).some((key) => !allowed.includes(key))) return null
   if (typeof item.id !== 'string' || !UUID.test(item.id) || typeof item.session !== 'string' || !UUID.test(item.session)) return null
   if (typeof item.page !== 'string' || !['mobile', 'desktop'].includes(item.device as string)) return null
@@ -60,5 +65,7 @@ export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!Number.isInteger(item.active_ms) || (item.active_ms as number) < 0 || (item.active_ms as number) > ENGAGEMENT_MAX_ACTIVE_MS) return null
   if (!Number.isInteger(item.scroll) || (item.scroll as number) < 0 || (item.scroll as number) > 100) return null
   if (!isCounts(item.sections, 0, ENGAGEMENT_MAX_ACTIVE_MS) || !isCounts(item.actions, 1, 99)) return null
+  if (item.seq !== undefined && (!Number.isInteger(item.seq) || (item.seq as number) < 1 || (item.seq as number) > ENGAGEMENT_MAX_SEQ)) return null
+  if (item.campaign !== undefined && (typeof item.campaign !== 'string' || !ENGAGEMENT_KEY.test(item.campaign))) return null
   return item as EngagementEvent
 }

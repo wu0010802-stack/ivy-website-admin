@@ -292,6 +292,18 @@ ENGAGEMENT_RETENTION_DAYS = 90
 # 「看過什麼內容的造訪比較會預約」，不是正式的預約數；正式數字看預約漏斗）。
 ENGAGEMENT_BOOKED_ACTION = "booking_done"
 ENGAGEMENT_READ_ACTION = "read_end"
+# 預約表單的進度（2026-11-11 第二輪）：預約頁那一筆瀏覽帶的互動代碼，依序是選了日期、選了場次、
+# 開始填資料、按了送出；另外兩個是看到「沒有開放場次」與送出時欄位沒過。要和
+# web/app/utils/engagement.ts 的 FORM_ACTIONS 一致（web 測試會比對）。
+ENGAGEMENT_FORM_STEPS = ("form_date", "form_slot", "form_contact", "form_submit")
+ENGAGEMENT_FORM_NO_SLOTS = "form_no_slots"
+ENGAGEMENT_FORM_INVALID = "form_invalid"
+# 入學試算查到的班別（入學資訊頁，只記班別不記生日）。順序同官網的分班表，
+# 要和 web/app/utils/engagement.ts 的 CLASS_ACTIONS 一致（web 測試會比對）。
+ENGAGEMENT_CLASS_ACTIONS = ("class_young", "class_toddler", "class_small", "class_middle", "class_big", "class_school")
+# 首頁點開的消息／活動／影片：代碼是前綴加內容代號。
+ENGAGEMENT_STORY_PREFIXES = {"sn_": "news", "se_": "event", "sf_": "film"}
+ENGAGEMENT_MAX_SEQ = 500
 
 
 class EngagementVisit(Base):
@@ -322,3 +334,8 @@ class EngagementVisit(Base):
     sections: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
     actions: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 這是這次造訪的第幾頁（從 1 起算），用來看進站頁、離開頁與瀏覽順序。2026-11-11 第二輪加，
+    # 之前的紀錄與還開著舊版頁面的瀏覽器是 NULL。
+    seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 進站連結上的活動代碼（utm_campaign，園方自己在連結上設的）；沒有就是 NULL。
+    campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)

@@ -47,6 +47,7 @@ from app.operations.models import (
     CTA_ENTRIES,
     ENGAGEMENT_MAX_ACTIVE_MS,
     ENGAGEMENT_MAX_KEYS,
+    ENGAGEMENT_MAX_SEQ,
     ENGAGEMENT_SOURCES,
     RETENTION_MAX_DAYS,
     RETENTION_MIN_DAYS,
@@ -218,6 +219,10 @@ class EngagementIn(BaseModel):
     scroll: int = Field(ge=0, le=100)
     sections: dict[EngagementKey, Annotated[int, Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
     actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    # 這次造訪的第幾頁、進站連結上的活動代碼（utm_campaign）：2026-11-11 第二輪加，
+    # 還開著舊版頁面的瀏覽器不會帶，所以都是選填。
+    seq: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_SEQ)
+    campaign: EngagementKey | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> "EngagementIn":
@@ -253,6 +258,7 @@ async def record_engagement(
         db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
         item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
         scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
+        seq=payload.seq, campaign=payload.campaign,
     )
     await db.commit()
 
@@ -420,20 +426,100 @@ async def get_traffic(
     return summary
 
 
-class EngagementTotalsOut(BaseModel):
+class EngagementPeriodOut(BaseModel):
     visits: int
     sessions: int
     booked_sessions: int
     booked_rate: float | None
-    median_active_ms: int
     median_session_ms: int
     pages_per_session: float | None
+
+
+class EngagementTotalsOut(EngagementPeriodOut):
+    median_active_ms: int
+    mobile_sessions: int
+
+
+class EngagementDailyOut(BaseModel):
+    day: date
+    visits: int
+    sessions: int
+
+
+class EngagementStoryOut(BaseModel):
+    kind: Literal["news", "event", "film"]
+    id: str
+    title: str | None
+    visits: int
+
+
+class EngagementClassOut(BaseModel):
+    key: str
+    visits: int
+
+
+class EngagementCampaignOut(BaseModel):
+    campaign: str
+    source: str
+    sessions: int
+    booked_sessions: int
+    booked_rate: float | None
+
+
+class EngagementFormStepOut(BaseModel):
+    key: str
+    sessions: int
+    rate: float | None
+
+
+class EngagementFormOut(BaseModel):
+    """進過預約頁的造訪裡各走到哪一步（以造訪為單位）。"""
+
+    sessions: int
+    steps: list[EngagementFormStepOut]
+    no_slots_sessions: int
+    invalid_sessions: int
+
+
+class EngagementJourneyPageOut(BaseModel):
+    page: str
+    sessions: int
+    rate: float | None
+
+
+class EngagementPathOut(BaseModel):
+    pages: list[str]
+    sessions: int
+    rate: float | None
+
+
+class EngagementJourneyOut(BaseModel):
+    sessions: int
+    entries: list[EngagementJourneyPageOut]
+    exits: list[EngagementJourneyPageOut]
+    paths: list[EngagementPathOut]
+
+
+class EngagementHourOut(BaseModel):
+    weekday: int
+    hour: int
+    visits: int
+
+
+class EngagementCampusOut(BaseModel):
+    campus_key: str
+    tab_visits: int
+    map_visits: int
+    visit_sessions: int
+    # 這段期間實際送出的預約數；沒有招生統計權限或不在校區範圍內是 null。
+    bookings: int | None
 
 
 class EngagementPageOut(BaseModel):
     page: str
     campus_key: str | None
     visits: int
+    previous_visits: int | None
     median_active_ms: int
     bounce_rate: float | None
     median_scroll_pct: int
@@ -459,6 +545,7 @@ class EngagementNewsOut(BaseModel):
     id: str
     title: str | None
     visits: int
+    previous_visits: int | None
     median_active_ms: int
     read_rate: float | None
 
@@ -484,23 +571,39 @@ class EngagementSummaryOut(BaseModel):
     since: date
     until: date
     as_of: datetime
+    device: Literal["mobile", "desktop"] | None
     totals: EngagementTotalsOut
+    # 上一期（往前同樣天數）；紀錄只留 90 天，選 90 天時沒有上一期。
+    previous: EngagementPeriodOut | None
+    daily: list[EngagementDailyOut]
     pages: list[EngagementPageOut]
     sections: list[EngagementSectionOut]
     actions: list[EngagementActionOut]
     news: list[EngagementNewsOut]
+    stories: list[EngagementStoryOut]
+    classes: list[EngagementClassOut]
     sources: list[EngagementSourceOut]
+    campaigns: list[EngagementCampaignOut]
     conversion: list[EngagementConversionOut]
+    booking_form: EngagementFormOut
+    journey: EngagementJourneyOut
+    hours: list[EngagementHourOut]
+    campuses: list[EngagementCampusOut]
 
 
 @router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
 async def get_engagement(
     days: int = Query(28, ge=7, le=90),
+    device: Literal["mobile", "desktop"] | None = Query(None, description="只看手機或電腦；省略＝全部"),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     # 和瀏覽量一樣是全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
-    summary = await engagement_service.get_engagement_summary(db, days)
+    # 只有「各校實際送出的預約數」比照招生統計：要有 admissions.stats，而且只給自己範圍內的校區。
+    booking_campuses = frozenset(
+        key for key in CAMPUS_KEYS if has_capability(current_user, "admissions.stats") and covers_campus(current_user, key)
+    )
+    summary = await engagement_service.get_engagement_summary(db, days, device, booking_campuses)
     summary["as_of"] = now_utc()
     return summary
 

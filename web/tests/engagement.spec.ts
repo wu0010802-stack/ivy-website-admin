@@ -3,11 +3,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { ENGAGEMENT_KEY, ENGAGEMENT_SOURCES, newsItemOf, validateEngagement } from '../shared/engagement'
-import { BOOKED_ACTION, READ_ACTION, actionKeyOf, classifySource, engagementSession, sectionKeyAt, setCurrentVisit, startVisit, trackEngagementAction } from '../app/utils/engagement'
+import { BOOKED_ACTION, CLASS_ACTIONS, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const ORIGIN = 'https://ivy.example'
-const SESSION = { id: '0b0e3c0e-6a57-4c58-9a51-0d0f5c1f7a11', source: 'facebook' as const }
+const SESSION = { id: '0b0e3c0e-6a57-4c58-9a51-0d0f5c1f7a11', source: 'facebook' as const, pages: 0 }
 const VISIT_ID = '9f1f6f3e-3a0c-4f0e-8f0a-6a3f0a1b2c3d'
 
 afterEach(() => { document.body.innerHTML = ''; setCurrentVisit(null) })
@@ -19,12 +19,18 @@ describe('內容興趣統計（2026-11-11）', () => {
     expect([...line.matchAll(/"([a-z]+)"/g)].map((m) => m[1])).toEqual([...ENGAGEMENT_SOURCES])
     expect(models).toContain(`ENGAGEMENT_BOOKED_ACTION = "${BOOKED_ACTION}"`)
     expect(models).toContain(`ENGAGEMENT_READ_ACTION = "${READ_ACTION}"`)
+    const tuple = (name: string) => [...models.split('\n').find((text) => text.startsWith(`${name} = (`))!.matchAll(/"([a-z_]+)"/g)].map((m) => m[1])
+    expect(tuple('ENGAGEMENT_FORM_STEPS')).toEqual([FORM_ACTIONS.date, FORM_ACTIONS.slot, FORM_ACTIONS.contact, FORM_ACTIONS.submit])
+    expect(tuple('ENGAGEMENT_CLASS_ACTIONS')).toEqual([...CLASS_ACTIONS])
+    expect(models).toContain(`ENGAGEMENT_FORM_NO_SLOTS = "${FORM_ACTIONS.noSlots}"`)
+    expect(models).toContain(`ENGAGEMENT_FORM_INVALID = "${FORM_ACTIONS.invalid}"`)
+    expect(models).toContain('ENGAGEMENT_STORY_PREFIXES = {"sn_": "news", "se_": "event", "sf_": "film"}')
   })
 
   it('元件上標的區塊與互動代碼都合格式', () => {
     const names = ['HeroVideo', 'AboutSection', 'DayExperience', 'CampusBoard', 'HomeNewsTransition', 'HomeStories', 'AboutContent', 'AdmissionContent', 'CurriculumContent', 'EnvironmentContent', 'AnniversaryContent', 'NewsArticleContent', 'NewsIndexContent']
     const keys = names.flatMap((name) => [...read(`../app/components/${name}.vue`).matchAll(/ data-track-(?:section|action)="([^"]+)"/g)].map((m) => m[1]!))
-    expect(keys.length).toBeGreaterThanOrEqual(30)
+    expect(keys.length).toBeGreaterThanOrEqual(28)
     expect(keys.filter((key) => !ENGAGEMENT_KEY.test(key))).toEqual([])
   })
 
@@ -54,6 +60,40 @@ describe('內容興趣統計（2026-11-11）', () => {
     store.set('ivy-engagement', '{"id":1,"source":"https://evil"}')
     expect(engagementSession(storage, () => 'line').source).toBe('line')
     expect(engagementSession(null, () => 'direct').id).toMatch(/^[0-9a-f-]{36}$/)
+  })
+
+  it('第二輪：活動代碼只在進站那一頁讀一次，第幾頁接著數（重新整理也接著）', () => {
+    const store = new Map<string, string>()
+    const storage = { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => { store.set(key, value) } }
+    const first = engagementSession(storage, () => 'facebook', () => campaignOf('?utm_source=fb&utm_campaign=Open Day 2026'))
+    expect([first.campaign, first.pages]).toEqual(['open-day-2026', 0])
+    expect([nextPage(storage, first), nextPage(storage, first)]).toEqual([1, 2])
+    const again = engagementSession(storage, () => 'direct', () => 'other')
+    expect([again.id, again.campaign, again.pages]).toEqual([first.id, 'open-day-2026', 2])
+    expect(nextPage(storage, again)).toBe(3)
+    const visit = startVisit('/admission', again, 'mobile', VISIT_ID, 3)!
+    const payload = visit.takePayload()!
+    expect([payload.seq, payload.campaign]).toEqual([3, 'open-day-2026'])
+    expect(validateEngagement(payload)).toEqual(payload)
+    expect([campaignOf(''), campaignOf('?utm_campaign=開放日'), campaignOf('?utm_campaign=_x'), campaignOf(`?utm_campaign=${'a'.repeat(40)}`)?.length]).toEqual([undefined, undefined, 'x', 32])
+    for (const bad of [{ ...payload, seq: 0 }, { ...payload, seq: 501 }, { ...payload, seq: 1.5 }, { ...payload, campaign: 'Open Day' }, { ...payload, campaign: '' }]) expect(validateEngagement(bad)).toBeNull()
+  })
+
+  it('第二輪：試算班別與首頁點開的消息換成代碼', () => {
+    expect([classActionKey('young', 0), classActionKey('enrolled', 0), classActionKey('enrolled', 3), classActionKey('school', 4), classActionKey('enrolled', 4)])
+      .toEqual(['class_young', 'class_toddler', 'class_big', 'class_school', null])
+    expect([storyActionKey('news:garden'), storyActionKey('event:event-m3x9a1b-4f2k'), storyActionKey('film:f1'), storyActionKey('news:含中文'), storyActionKey('other:x'), storyActionKey(`news:${'a'.repeat(40)}`)])
+      .toEqual(['sn_garden', 'se_event-m3x9a1b-4f2k', 'sf_f1', null, null, null])
+  })
+
+  it('第二輪：預約表單、入學試算、首頁消息都接上統計', () => {
+    const form = read('../app/components/VisitForm.vue')
+    for (const key of ['date', 'slot', 'contact', 'noSlots', 'submit', 'invalid']) expect(form).toContain(`trackEngagementAction(FORM_ACTIONS.${key})`)
+    expect(read('../app/components/AdmissionContent.vue')).toContain('classActionKey(value.status, value.position)')
+    const stories = read('../app/components/HomeStories.vue')
+    expect(stories).toContain("trackEngagementAction(storyActionKey(id) ?? 'story_open')")
+    // 分篇之後卡片上不再另外標 story_open，免得同一下點擊算兩次。
+    expect(stories).not.toContain('data-track-action')
   })
 
   it('累計停留、捲動、區塊與互動；沒有變動不重送', () => {

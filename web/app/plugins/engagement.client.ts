@@ -1,4 +1,4 @@
-import { IDLE_MS, READ_ACTION, actionKeyOf, classifySource, engagementSession, sectionKeyAt, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
+import { IDLE_MS, READ_ACTION, actionKeyOf, campaignOf, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
 import { trackingAllowed } from '../utils/cta-analytics'
 
 // 內容興趣統計（2026-11-11）：各頁停留、捲動深度、各區塊停留、互動與單篇消息，後台「數據」頁看。
@@ -12,7 +12,7 @@ export default defineNuxtPlugin((app) => {
   const device = matchMedia('(max-width: 760px)').matches ? 'mobile' as const : 'desktop' as const
   let storage: Storage | null = null
   try { storage = sessionStorage } catch { /* 被瀏覽器擋掉就不跨頁串接 */ }
-  const session = engagementSession(storage, () => classifySource(document.referrer, location.search, location.origin, navigator.userAgent))
+  const session = engagementSession(storage, () => classifySource(document.referrer, location.search, location.origin, navigator.userAgent), () => campaignOf(location.search))
 
   let visit: EngagementVisit | null = null
   let lastTick = performance.now()
@@ -37,9 +37,12 @@ export default defineNuxtPlugin((app) => {
     void fetch('/api/telemetry', { method: 'POST', credentials: 'omit', keepalive: true,
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
   }
-  function begin() {
-    if (visit?.path === location.pathname) return
-    visit = startVisit(location.pathname, session, device)
+  const samePath = (a: string, b: string) => (a.replace(/\/+$/, '') || '/') === (b.replace(/\/+$/, '') || '/')
+  function begin(path: string) {
+    if (visit && samePath(visit.path, path)) return
+    // 不統計的頁面（後台、預約修改頁…）不算進「第幾頁」。
+    const started = startVisit(path, session, device)
+    visit = started ? startVisit(path, session, device, undefined, nextPage(storage, session)) : null
     setCurrentVisit(visit)
     lastTick = lastActivity = performance.now()
   }
@@ -49,12 +52,12 @@ export default defineNuxtPlugin((app) => {
   }
 
   const router = useRouter()
-  // 換頁前把這一頁的累計送出去；換頁後舊的那筆就不再累計，等新頁面畫好再開始新的一筆。
-  router.beforeEach((to, from) => { if (to.path !== from.path) flush() })
-  router.afterEach((to, from) => { if (to.path !== from.path) { visit = null; setCurrentVisit(null) } })
-  app.hook('page:finish', begin)
+  // 這一頁的瀏覽在元件 setup 之前就開始：元件一掛上就回報的進度（例如預約頁還原填到一半的資料）才記得到。
+  // 換頁前把這一頁的累計送出去，換頁完成就開始新的一筆。第一次導覽的 from 是路由的起點，不是真的換頁。
+  begin(location.pathname)
+  router.beforeEach((to, from) => { if (visit && samePath(visit.path, from.path) && !samePath(to.path, from.path)) flush() })
+  router.afterEach((to) => begin(to.path))
   app.hook('app:mounted', () => {
-    begin()
     schedule()
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') flush()
