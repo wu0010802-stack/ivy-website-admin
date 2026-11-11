@@ -2386,9 +2386,11 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | web | `PORT=3000`、`NUXT_WEBSITE_ENV=production`、`NUXT_PUBLIC_CONTENT_MODE=live` |
 | web | `NUXT_WEBSITE_API_INTERNAL_BASE=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
 | web | `NUXT_PUBLIC_SITE_ORIGIN=https://web-production-04caa.up.railway.app`、`NUXT_PUBLIC_INDEXING_ENABLED=false` |
+| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。目前不設＝不轉；切換步驟見 `docs/website-admin/migration-checklist.md`） |
 | api | `PORT=8000`、`WEBSITE_ENVIRONMENT=production`、`WEBSITE_ENABLE_FIXTURE=false`、`WEBSITE_INDEXING_ENABLED=false` |
 | api | `WEBSITE_SESSION_SECRET`（隨機產生的秘密）與 `WEBSITE_DATABASE_URL`（Postgres 參照） |
 | api | `WEBSITE_ADMIN_ORIGIN=https://web-production-04caa.up.railway.app` |
+| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。目前不設；正式網域接通後放 Railway 網址，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |

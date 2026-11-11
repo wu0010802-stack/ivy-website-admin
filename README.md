@@ -1,3 +1,12 @@
+## 2026-11-11 網域移轉前置：舊網址 301、主網域轉址開關、過渡期雙網域寫入（`feature/domain-migration-20261111`）
+
+使用者要把 `www.ivykidschool.com` 從 Wix 移到 Cloudflare（Registrar＋DNS）、網站接 Railway，本輪只準備、不切換。完整步驟、DNS 紀錄表、對照表與待提供資料在 `docs/website-admin/migration-checklist.md`。
+
+- **舊 Wix 網址 301**：`web/server/utils/site-redirects.ts` 的對照表（舊站 sitemap 30 個網址，22 個有對應、8 個待確認照常 404），`web/server/middleware/00.site-redirects.ts` 只轉 GET／HEAD、保留查詢字串。
+- **主網域轉址**：web 新變數 `NUXT_REDIRECT_HOSTS`，預設空白不轉；設了以後列入的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 例外（CI 驗證、LINE webhook 照常）。
+- **robots.txt**：開放收錄後只有正式網址那台主機放行，其他主機 `Disallow: /`。
+- **過渡期雙網域寫入**：api 新變數 `WEBSITE_ADMIN_EXTRA_ORIGINS`；原本後台寫入、家長修改頁、重設密碼只認一個 Origin，換網域時另一邊會 403。
+- 未 commit、未部署；正式環境變數與 DNS 都沒動。
 ## 2026-11-11 特色教學扁長顏料團不再被切成直線（`fix/curriculum-blot-edge-20261111`）
 
 使用者指出 /curriculum「一年一年學」的天藍水彩下緣被切開，接著指出年段「4 歲」也有。
