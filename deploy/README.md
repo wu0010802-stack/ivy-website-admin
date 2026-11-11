@@ -22,7 +22,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **部署後、關開關前**（只發 GET）：`/`、`/news`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200，首頁仍有最新消息那一章（開關預設開，畫面不變）。
 - **關閉最新消息**（使用者指示，10:05Z 前後）：用總管理者帳號在正式站後台「網站標題與電話」把「在官網顯示最新消息」關掉，「儲存並發布」（確認框顯示只更新 1 個欄位：最新消息）。
 - **關閉後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：公開內容 API `site_meta.news_enabled=false`；`/news`、`/news/no-such`、`/news?campus=yihua` 都 302 到 `/`；首頁 HTML 沒有 `id="latest-news"`、`.home-news`、`.news-transition`，`#campuses` 還在；`/`、`/about`、`/admission`、`/environment`、`/curriculum`、`/visit` 都 200 且沒有連到最新消息的連結；sitemap 11 個網址、沒有 `/news`；llms.txt 沒有最新消息。1440×900 與 390×844 捲到底：五校區塊後面直接接頁尾，頁尾沒有「最新消息」，沒有 JS 錯誤（唯一的 console 錯誤是被擋掉的非 GET 請求）。
-- **沒驗**：iOS／Android 實機、WebKit；後台消息編輯頁的「官網目前沒有顯示最新消息」提醒在正式站的畫面（CI 的 stack e2e 驗過）；搜尋引擎已收錄的 `/news` 網址之後的變化。
+- 正式站後台「最新消息與活動」編輯頁最上面有出現「官網目前沒有顯示最新消息」的提醒，沒有未儲存的修改。
+- **沒驗**：iOS／Android 實機、WebKit；「各校消息與活動」編輯頁的提醒在正式站的畫面（單元測試與同一個元件驗過）；搜尋引擎已收錄的 `/news` 網址之後的變化。
 - **要再打開**：後台同一個開關打開並發布即可，消息內容都還在。
 - **回退**：切回上一版映像即可；`site_meta` 已存的 `news_enabled` 欄位舊版會忽略（舊版官網會照常顯示最新消息）。
 ## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（main CI 部署，沒有 migration）
