@@ -10,6 +10,9 @@ import { taipeiDay } from '../../utils/visitSchedule'
 const props = withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 const vc = injectVisitCase()
 
+// Email 是家長自己填的：? & 等字元要編碼，否則連結會夾帶 cc、body 等參數開進同仁的信件軟體。
+const mailtoHref = (email: string) => `mailto:${encodeURIComponent(email).replaceAll('%40', '@')}`
+
 interface Fact { label: string; text: string; href?: string; num?: boolean; pre?: boolean }
 
 const facts = computed<Fact[]>(() => {
@@ -20,7 +23,7 @@ const facts = computed<Fact[]>(() => {
   const rows: Fact[] = [
     { label: '電話', text: d.phone, href: `tel:${d.phone}`, num: true },
     { label: '孩子', text: child },
-    { label: 'Email', text: d.email || '未填寫', href: d.email ? `mailto:${d.email}` : undefined },
+    { label: 'Email', text: d.email || '未填寫', href: d.email ? mailtoHref(d.email) : undefined },
   ]
   if (props.compact) return rows
   rows.push({ label: '得知管道', text: referralSourceLabels(d.referral_sources) })

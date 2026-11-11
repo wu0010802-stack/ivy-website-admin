@@ -710,3 +710,68 @@ async def test_migration_backfills_usage_paths_from_latest_revision(app, admin_c
         (first["id"], "scenes[0].image", "campus_tour", saved["latest_revision"]["id"]),
         (second["id"], "scenes[1].image", "campus_tour", saved["latest_revision"]["id"]),
     ]
+
+
+# ---------------------------------------------------------------------------
+# 2026-11-11 資安稽核
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_editor_cannot_change_public_fields_of_media_that_is_live(admin_client, editor_client):
+    """替代文字與裁切焦點直接輸出到公開官網：線上版本在用的素材，內容編輯（只能送審）不能改這幾欄；
+    不會公開的欄位、還沒上線的素材照舊可以改，有發布權限的人不受影響。"""
+    live = await _upload(admin_client)
+    draft_only = await _upload(admin_client)
+    saved = await _save_campus_news(admin_client, 0, "消息", live["id"])
+    published = await admin_client.post(
+        f"{CAMPUS_NEWS}/publish?campus_key=yihua", json={"revision_id": saved["latest_revision"]["id"]}
+    )
+    assert published.status_code == 200, published.text
+
+    for body in ({"alt_text": "改掉的說明"}, {"crop_focus_x": 0.0, "crop_focus_y": 0.0}):
+        refused = await editor_client.patch(f"{MEDIA}/{live['id']}", json={"expected_version": 1, **body})
+        assert refused.status_code == 403, refused.text
+        assert refused.json()["detail"]["code"] == "MEDIA_LIVE_NEEDS_PUBLISH"
+    unchanged = (await admin_client.get(f"{MEDIA}/{live['id']}")).json()
+    assert unchanged["version"] == 1 and unchanged["alt_text"] == live["alt_text"]
+
+    internal = await editor_client.patch(f"{MEDIA}/{live['id']}", json={"expected_version": 1, "tags": ["活動"]})
+    assert internal.status_code == 200, internal.text
+    not_live = await editor_client.patch(f"{MEDIA}/{draft_only['id']}", json={"expected_version": 1, "alt_text": "新說明"})
+    assert not_live.status_code == 200, not_live.text
+    by_admin = await admin_client.patch(f"{MEDIA}/{live['id']}", json={"expected_version": 2, "alt_text": "總部改的"})
+    assert by_admin.status_code == 200, by_admin.text
+
+
+@pytest.mark.asyncio
+async def test_media_referenced_by_hyphenless_uuid_in_history_cannot_be_deleted(admin_client):
+    """舊的圖片欄位收不含連字號的 32 碼寫法；只被歷史版本這樣引用的素材也算有人在用。"""
+    media = await _upload(admin_client)
+    await _save_campus_news(admin_client, 0, "消息", uuid.UUID(media["id"]).hex)
+    await _save_campus_news(admin_client, 1, "消息", "garden")
+    blocked = await admin_client.delete(f"{MEDIA}/{media['id']}")
+    assert blocked.status_code == 409, blocked.text
+    assert blocked.json()["detail"]["code"] == "MEDIA_IN_HISTORY"
+
+
+@pytest.mark.asyncio
+async def test_upload_rejects_overlong_text_fields_instead_of_500(admin_client):
+    for form in ({"alt_text": "字" * 501}, {"source_attribution": "字" * 256}):
+        response = await admin_client.post(
+            MEDIA, data={"kind": "image", "campus_key": "yihua", **form},
+            files={"file": ("test.jpg", (FIXTURES / "test.jpg").read_bytes(), "image/jpeg")},
+        )
+        assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
+async def test_media_audit_never_records_the_original_filename(admin_client, db_session):
+    """檔名常直接寫著家長或孩子的名字：刪除、復原、封存的稽核都不抄檔名。"""
+    media = await _upload(admin_client, name="王小明生日.jpg")
+    assert (await admin_client.post(f"{MEDIA}/{media['id']}/archive")).status_code == 200
+    assert (await admin_client.post(f"{MEDIA}/{media['id']}/unarchive")).status_code == 200
+    assert (await admin_client.delete(f"{MEDIA}/{media['id']}")).status_code in (200, 204)
+    rows = (await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action.like("media.%")))).scalars().all()
+    assert {r.action for r in rows} >= {"media.archive", "media.unarchive", "media.delete"}
+    assert all("王小明" not in str(r.metadata_json) and "filename" not in r.metadata_json for r in rows)

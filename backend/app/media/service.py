@@ -507,7 +507,7 @@ async def mark_deleted(db: AsyncSession, asset: MediaAsset, *, actor_id: uuid.UU
         target_type="media_asset",
         target_id=str(asset.id),
         campus_key=asset.campus_key,
-        metadata={"filename": asset.original_filename, "size_bytes": asset.size_bytes},
+        metadata={"size_bytes": asset.size_bytes},
     )
     await db.flush()
 
@@ -521,7 +521,7 @@ async def restore_deleted(db: AsyncSession, asset: MediaAsset, *, actor_id: uuid
         target_type="media_asset",
         target_id=str(asset.id),
         campus_key=asset.campus_key,
-        metadata={"filename": asset.original_filename},
+        metadata={},
     )
     await db.flush()
 
@@ -542,7 +542,7 @@ async def set_archived(db: AsyncSession, asset: MediaAsset, archived: bool, *, a
         target_type="media_asset",
         target_id=str(asset.id),
         campus_key=asset.campus_key,
-        metadata={"filename": asset.original_filename},
+        metadata={},
     )
     await db.flush()
 
@@ -580,7 +580,7 @@ async def purge_one(
             target_type="media_asset",
             target_id=str(asset.id),
             campus_key=asset.campus_key,
-            metadata={"filename": asset.original_filename, "reason": "still_referenced"},
+            metadata={"reason": "still_referenced"},
         )
         await db.flush()
         return None
@@ -596,7 +596,6 @@ async def purge_one(
         target_id=str(asset.id),
         campus_key=asset.campus_key,
         metadata={
-            "filename": asset.original_filename,
             "size_bytes": asset.size_bytes,
             "deleted_at": asset.deleted_at.isoformat(),
         },

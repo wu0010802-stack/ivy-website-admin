@@ -6166,6 +6166,7 @@
           "alt_text": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {
@@ -6197,6 +6198,7 @@
           "source_attribution": {
             "anyOf": [
               {
+                "maxLength": 255,
                 "type": "string"
               },
               {

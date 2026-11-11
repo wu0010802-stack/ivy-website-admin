@@ -9,7 +9,9 @@
 alerted_at 設成現在」在同一把 advisory lock 與同一個交易裡完成並先 commit，再送出——多個程序
 同時偵測到新錯誤也只會有一個送出。
 
-推播內容只有來源、錯誤類型與訊息前 60 字（錯誤回報入庫前已遮蔽 Email、電話、token 等），不放堆疊與網址。"""
+推播內容：API 的錯誤（伺服器自己產生）是來源、錯誤類型與訊息前 60 字（入庫前已遮蔽 Email、電話、token 等），
+不放堆疊與網址。官網／後台前端回報的錯誤任何訪客都能偽造，推播只帶來源與「長得像錯誤類別名稱」的類型，
+不帶訊息——否則匿名訪客可以把自訂文字（例如「請到某網址重新登入」）推到總管理者手機（2026-11-11 資安稽核）。"""
 
 from __future__ import annotations
 
@@ -42,13 +44,23 @@ _LOCK_KEY = "ivy-website:error-alert"
 _tasks: set[asyncio.Task] = set()
 
 
+# 前端回報的錯誤類型只在長得像識別字（TypeError、ChunkLoadError…）時才放進推播。
+_CLIENT_KIND = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]{0,39}")
+CLIENT_DETAIL_HINT = "詳情請到系統狀態頁查看"
+
+
 def alert_payload(group: ErrorGroup) -> dict[str, str]:
     message = re.sub(r"\s+", " ", group.message or "").strip()[:MESSAGE_PREVIEW_CHARS]
     kind = re.sub(r"\s+", " ", group.kind or "").strip()
     source = SOURCE_LABELS.get(group.source, group.source)
+    if group.source == "api":
+        body = f"{source}：{kind} {message}".strip()
+    else:
+        safe_kind = kind if _CLIENT_KIND.fullmatch(kind) else "前端錯誤"
+        body = f"{source}：{safe_kind}（{CLIENT_DETAIL_HINT}）"
     return {
         "title": "網站出現新的錯誤",
-        "body": f"{source}：{kind} {message}".strip(),
+        "body": body,
         "url": ALERT_URL,
         "tag": "site-error",
     }

@@ -152,6 +152,25 @@ async def test_global_daily_cap_drops_silently(app, public_client, db_session, m
     assert len(await _groups(db_session)) == 3
 
 
+async def test_one_source_cannot_use_up_the_site_wide_daily_cap(app, public_client, db_session, monkeypatch):
+    """2026-11-11 資安稽核：只有每分鐘上限時，一個來源幾小時就能用光全站每日額度。單一來源每日上限
+    滿了之後安靜丟棄（仍回 204），別的來源照常寫入。"""
+    freeze_rate_limit_clock(app)
+    monkeypatch.setattr(
+        error_reports, "CLIENT_ERROR_SOURCE_DAILY",
+        ratelimit.Limit("client_errors_source_daily", 86_400, 2, sliding=False),
+    )
+    noisy = {"x-website-client-ip": "203.0.113.9"}
+    statuses = [
+        (await public_client.post(URL, json=_report(kind=f"Err{i}"), headers=noisy)).status_code for i in range(5)
+    ]
+    assert statuses == [204] * 5
+    assert len(await _groups(db_session)) == 2
+    other = await public_client.post(URL, json=_report(kind="Other"), headers={"x-website-client-ip": "198.51.100.7"})
+    assert other.status_code == 204
+    assert len(await _groups(db_session)) == 3
+
+
 async def test_storage_failure_does_not_break_the_report_endpoint(public_client, monkeypatch, caplog):
     async def broken(db, entry):
         raise RuntimeError("db down")

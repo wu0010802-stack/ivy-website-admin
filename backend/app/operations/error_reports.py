@@ -52,6 +52,10 @@ SERVER_STACK_LINES = 40
 # 單一來源每分鐘上限（超過回 429）與全站每日上限（超過安靜丟棄、仍回 204，比照 public_caps）。
 CLIENT_ERROR_SOURCE_PER_MINUTE = ratelimit.Limit("client_errors", window_seconds=60, max_per_window=60)
 CLIENT_ERROR_DAILY = ratelimit.Limit("client_errors_daily", DAY_SECONDS, 5000, sliding=False)
+# 單一來源每日上限（2026-11-11 資安稽核）：只有每分鐘上限時，一個來源幾小時就能用光全站每日額度，
+# 之後真正的錯誤整天被安靜丟棄、狀態頁也被洗版。正常瀏覽器一天回報不到幾筆（同一錯誤前端還會去重），
+# 200 筆綽綽有餘；超過一樣安靜丟棄。代理有帶訪客 IP 時才套用（同 public_caps 的每來源每日）。
+CLIENT_ERROR_SOURCE_DAILY = ratelimit.Limit("client_errors_source_daily", DAY_SECONDS, 200, sliding=False)
 
 # 同一個 fingerprint 在這個程序內 10 秒最多寫一次 DB；期間的次數累加到下一次寫入。
 # 崩潰迴圈（每個請求都丟同一個例外）才不會把 DB 打爆。

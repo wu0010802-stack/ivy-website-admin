@@ -210,12 +210,17 @@ async def record_client_error(
     request: Request,
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    # 單一來源每分鐘上限（被擋回 429）與全站每日上限（被擋安靜丟棄、仍回 204），
+    # 單一來源每分鐘上限（被擋回 429）、單一來源每日與全站每日上限（被擋安靜丟棄、仍回 204），
     # 同一個限流交易內依序檢查，和 telemetry 一樣。
+    source = _trusted_source(request)
+    caps: list[public_caps.Cap] = []
+    if source is not None:
+        caps.append((error_reports.CLIENT_ERROR_SOURCE_DAILY, source))
+    caps.append((error_reports.CLIENT_ERROR_DAILY, public_caps.GLOBAL_KEY))
     try:
         admitted = await public_caps.admit(
             ratelimit.limiter(request),
-            ((error_reports.CLIENT_ERROR_DAILY, public_caps.GLOBAL_KEY),),
+            caps,
             gate=(error_reports.CLIENT_ERROR_SOURCE_PER_MINUTE, ratelimit.client_key(request)),
         )
     except ratelimit.RateLimited as exc:
@@ -681,8 +686,13 @@ class AuditActorOut(BaseModel):
 
 
 def _hidden_audit_actions(user: User) -> tuple[str, ...]:
-    """分校帳號用 booking.read 看自己校的紀錄時，排除只有招生統計權限才做得到的動作。"""
-    return () if has_capability(user, "admissions.stats") else audit_service.STATS_ONLY_ACTIONS
+    """分校帳號用 booking.read 看自己校的紀錄時，排除只有招生統計、通知設定權限才做得到的動作。"""
+    hidden: tuple[str, ...] = ()
+    if not has_capability(user, "admissions.stats"):
+        hidden += audit_service.STATS_ONLY_ACTIONS
+    if not has_capability(user, "notifications.manage"):
+        hidden += audit_service.NOTIFICATION_SETTINGS_ACTIONS
+    return hidden
 
 
 @router.get("/admin/audit-log/actors", response_model=list[AuditActorOut])

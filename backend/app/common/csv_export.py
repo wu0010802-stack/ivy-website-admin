@@ -11,6 +11,7 @@ from __future__ import annotations
 import csv
 import io
 import re
+import unicodedata
 from collections.abc import Iterable, Sequence
 
 from fastapi import HTTPException, Response, status
@@ -49,7 +50,8 @@ def safe_cell(value: object) -> str:
     if text and (
         text[0].isspace()
         or not text[0].isprintable()
-        or text.lstrip()[:1] in ("=", "+", "-", "@")
+        # NFKC：全形的 ＝＋－＠ 也當成公式開頭（中日韓語系的試算表會把全形運算子當半形）。
+        or unicodedata.normalize("NFKC", text.lstrip()[:1]) in ("=", "+", "-", "@")
     ):
         return "'" + text
     return text
