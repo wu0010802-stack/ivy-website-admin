@@ -16,7 +16,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import case, delete, select
+from sqlalchemy import and_, case, delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -186,8 +186,14 @@ async def subscribe(
         id=uuid.uuid4(), endpoint=payload.endpoint, created_at=now, **values
     )
     # 同一個 endpoint 只會有一列（同一台裝置換人登入就改綁）。原本就是這個人的，開啟日期不變。
+    # 改綁到別人名下要帶同一組金鑰：同一台裝置的訂閱 endpoint 與金鑰是一起的，只知道別人 endpoint
+    # 的人不能把那一列搶走、讓對方收不到通知（2026-11-11 資安稽核）。
     stmt = stmt.on_conflict_do_update(
         index_elements=[PushSubscription.endpoint],
+        where=or_(
+            PushSubscription.user_id == stmt.excluded.user_id,
+            and_(PushSubscription.p256dh == stmt.excluded.p256dh, PushSubscription.auth == stmt.excluded.auth),
+        ),
         set_={
             **values,
             "created_at": case(
@@ -196,7 +202,13 @@ async def subscribe(
             ),
         },
     ).returning(PushSubscription.id)
-    subscription_id = (await db.execute(stmt)).scalar_one()
+    subscription_id = (await db.execute(stmt)).scalar_one_or_none()
+    if subscription_id is None:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "PUSH_ENDPOINT_IN_USE", "message": "這台裝置的通知已經登記在其他帳號，請關閉通知後重新開啟"},
+        )
     # 超過上限就刪最舊的；剛訂閱的這一台一定留著。
     surplus = (
         select(PushSubscription.id)

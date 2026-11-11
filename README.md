@@ -1,3 +1,19 @@
+## 2026-11-11 後台權限與資安稽核：十項低風險修正（`claude/zealous-turing-dl5e9h`）
+
+使用者要求檢查後台權限與資安。唯讀審查 `backend/app` 全部路由、`web/server` 代理、`admin/src`、OAuth／重設密碼、`deploy/`（只讀程式碼，沒打正式站）：**沒有高、中風險，沒有跨校區或跨角色的越權**；後端 Python 依賴 `pip-audit` 無已知漏洞。修掉查到的十項低風險：
+
+- **前端錯誤回報可被單一來源灌爆**：`/public/client-errors` 只有每分鐘與全站每日 5000 兩道上限，一個 IP 約 4 小時用光全站額度，之後真的錯誤整天被安靜丟棄。加單一來源每日 200（`error_reports.CLIENT_ERROR_SOURCE_DAILY`，代理有帶訪客 IP 時才套用，比照 telemetry）。
+- **匿名訪客可把自訂文字推到總管理者手機**：新錯誤的推播原本帶前端回報的類型與訊息前 60 字。官網／後台前端回報的錯誤改成只帶來源與「長得像識別字」的類型（否則顯示「前端錯誤」），不帶訊息；API 自己的錯誤照舊（`notifications/error_alerts.py`）。
+- **內容編輯不經審核就能改線上圖片的替代文字與裁切焦點**：這三欄直接輸出到公開官網。線上版本正在用的素材改這三欄要有發布權限（分校＝`content.publish`＋校區；共用＝`can_publish_shared_content`），否則 403 `MEDIA_LIVE_NEEDS_PUBLISH`；標籤、圖說等不公開的欄位與還沒上線的素材照舊（`media/routes.py`）。
+- **素材稽核抄了原始檔名**：上傳的稽核早就寫明不記檔名（常有家長或孩子的名字），刪除、復原、封存、清理卻有記；一律拿掉（`media/service.py`）。舊紀錄不動，後台 `auditLabels.ts` 的檔名標籤留著給舊紀錄用。
+- **分校帳號在操作紀錄看得到 LINE 群組 ID**：`line.campus_target.update` 帶校區、metadata 有群組 ID，設定頁本身限總管理者。沒有 `notifications.manage` 的人看校區操作紀錄與操作者清單時排除（`audit_service.NOTIFICATION_SETTINGS_ACTIONS`）。
+- **推播訂閱可被同事改綁**：以 endpoint 為衝突鍵直接覆寫 `user_id`。改綁到別人名下要帶同一組金鑰（同一台裝置換人登入照舊），否則 409 `PUSH_ENDPOINT_IN_USE`（`notifications/push_routes.py`）。
+- **上傳的替代文字／來源超長回 500**：`Form` 補 `max_length`（500／255），改回 422；`contracts/openapi.json` 同步。
+- **CSV 公式注入防護不擋全形 ＝＋－＠**：前後端 `safe_cell`／`safeCell` 都先 NFKC 再比對。
+- **案件頁 `mailto:` 沒編碼家長填的 Email**：可夾帶 `?cc=…&body=…`；`VisitCaseFacts.vue` 改成編碼（保留 `@`）。
+- **不含連字號的素材 UUID 躲過引用追蹤**：舊的 `image` 欄位收 32 碼寫法，只被歷史版本這樣引用的素材會被當成沒人用而刪掉；`media/references.py` 兩種寫法都找。
+- 驗證：每項都有新測試（`test_error_reports`、`test_error_alerts`、`test_push_routes`、`test_operations`、`test_csv_export`、`test_media_library`、admin `csvUtil.test.ts`）；後端受影響的 10 個測試檔（含新測試）全過，全套本機還在跑、以 CI 為準；`npm --prefix admin run typecheck` 過、admin 全套 173 檔 3354 過；`npm run contract:check` 過。stack e2e 本機沒跑。
+- 沒修、待確認：正式站 API 是否確實沒有公開網域、Railway 邊緣的 `X-Forwarded-For` 行為（限流與稽核 IP 的可信度靠這兩點，repo 驗不到）；招生開關在正式站是開的但隱私權政策還沒發布（見 `deploy/README.md`）；Turnstile 失敗時放行、帳號鎖可被外人觸發 15 分鐘都是既有的刻意取捨。
 ## 2026-11-11 前台 QA：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（`fix/qa-fixes-20261111`）
 
 對正式站做唯讀 QA（只發 GET、telemetry 與寫入全擋，預約沒有真的送出）：16 個路由 × 桌機 1440／手機 390，主要路由另跑 320／768／900／1024／1100／1920 六種寬度與 WebKit（桌機＋iPhone 14），加上導覽、首頁、入學生日查班、預約到送出前、管理預約、週年頁、404 的互動流程。沒有 JS 錯誤、破圖、水平溢出，站內連結全部 200；QA 途中正式站換了三版（`690ce04e`→`76839d66`→`39328c8d`），新版重跑巡檢結果相同。修兩處：

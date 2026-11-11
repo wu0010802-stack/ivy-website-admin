@@ -243,6 +243,19 @@ async def test_an_endpoint_that_belonged_to_someone_else_is_rebound_to_the_calle
     assert (await reception.get(SUBSCRIPTIONS)).json() == []  # 原本那個人不會再收到
 
 
+async def test_knowing_someone_elses_endpoint_is_not_enough_to_take_it_over(push_app, admin, reception):
+    """2026-11-11 資安稽核：改綁要帶同一組金鑰（同一台裝置才有）。只知道 endpoint 的人搶不走，對方照常收得到。"""
+    device = new_device()
+    await reception.post(SUBSCRIPTIONS, json=_body(device))
+    [before] = await _rows(push_app)
+    response = await admin.post(SUBSCRIPTIONS, json={"endpoint": device.endpoint, "keys": new_device().keys})
+    assert response.status_code == 409 and response.json()["detail"]["code"] == "PUSH_ENDPOINT_IN_USE"
+    [after] = await _rows(push_app)
+    assert (after.user_id, after.p256dh, after.auth) == (before.user_id, before.p256dh, before.auth)
+    assert (await admin.get(SUBSCRIPTIONS)).json() == []
+    assert len((await reception.get(SUBSCRIPTIONS)).json()) == 1
+
+
 async def test_at_most_ten_devices_per_person_oldest_dropped(push_app, admin):
     devices = [new_device() for _ in range(MAX_DEVICES_PER_USER + 2)]
     ids = []

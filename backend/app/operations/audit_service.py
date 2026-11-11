@@ -95,6 +95,10 @@ STATS_ONLY_ACTIONS = (
     "recruitment_visit.export_no_deposit",
 )
 
+# 只有 notifications.manage（總管理者）看得到的設定：metadata 帶 LINE 群組 ID，設定頁本身限總管理者，
+# 分校帳號看自己校的操作紀錄時也要排除（2026-11-11 資安稽核）。
+NOTIFICATION_SETTINGS_ACTIONS = ("line.campus_target.update",)
+
 
 def _visit_exists(entry: AuditLogEntry, existing: set[uuid.UUID]) -> bool | None:
     # 匯出這類動作的 target_id 是校區代號或 "all"，不是哪一筆案件。

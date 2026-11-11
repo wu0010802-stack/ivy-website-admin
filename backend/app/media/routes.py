@@ -22,6 +22,7 @@ from app.auth.permissions import (
     ScopeDenied,
     campus_scope,
     can_edit_shared_content,
+    can_publish_shared_content,
     covers_campus,
     has_capability,
     require_scope,
@@ -71,6 +72,17 @@ def _require_media_manage(user: User, campus_key: str | None) -> None:
             raise CapabilityDenied()
         return
     require_scope(user, "media.manage", campus_keys=[campus_key])
+
+
+# 會直接輸出到公開官網的素材欄位（service.public_media）。
+_LIVE_FIELDS = frozenset({"alt_text", "crop_focus_x", "crop_focus_y"})
+
+
+def _can_publish_for(user: User, campus_key: str | None) -> bool:
+    """能不能發布這個校區（None＝共用）的內容；跟 content 模組的 _require_publish 同一套判斷。"""
+    if campus_key is None:
+        return can_publish_shared_content(user)
+    return has_capability(user, "content.publish") and covers_campus(user, campus_key)
 
 
 def _too_large(max_bytes: int) -> HTTPException:
@@ -513,8 +525,8 @@ async def upload_media(
     file: UploadFile = File(...),
     kind: str = Form(...),
     campus_key: str | None = Form(default=None),
-    alt_text: str | None = Form(default=None),
-    source_attribution: str | None = Form(default=None),
+    alt_text: str | None = Form(default=None, max_length=500),
+    source_attribution: str | None = Form(default=None, max_length=255),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaAssetOut:
@@ -630,6 +642,18 @@ async def update_media(
         if getattr(asset, field) != value:
             changed.append(field)
         setattr(asset, field, value)
+    if _LIVE_FIELDS.intersection(changed) and await service.is_referenced_by_current_release(db, asset.id):
+        # 替代文字與裁切焦點會直接出現在公開官網（service.public_media），線上版本正在用的素材改這幾欄
+        # 等於不經審核就改了官網：內容編輯只能送審，所以要有發布權限（2026-11-11 資安稽核）。
+        if not _can_publish_for(current_user, asset.campus_key):
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "MEDIA_LIVE_NEEDS_PUBLISH",
+                    "message": "這個素材正在官網上使用，替代文字與焦點要由有發布權限的同事修改",
+                },
+            )
     if changed:
         asset.version += 1
         # 只記改了哪些欄位；說明與圖說是自由文字，不抄進稽核。
