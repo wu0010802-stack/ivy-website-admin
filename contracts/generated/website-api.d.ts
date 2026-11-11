@@ -6207,6 +6207,8 @@ export interface components {
              * @enum {string}
              */
             page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
+            /** Rev */
+            rev?: number | null;
             /** Scroll */
             scroll: number;
             /** Sections */

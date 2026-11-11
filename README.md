@@ -1,6 +1,6 @@
 ## 2026-11-11 內容興趣第二輪：趨勢、預約表單流失、試算班別、瀏覽順序、時段、各校、活動代碼（`claude/busy-johnson-er03ju`）
 
-使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign` 兩個可為 NULL 的欄位，不回填）。
+使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填）。
 
 - **預約表單卡在哪一步**：進到預約頁 → 選好校區 → 選了日期 → 選了場次 → 開始填資料 → 按了確認 → 預約成功，以造訪為單位，標出流失最多的一步；另記「看到沒有開放場次」與「送出時欄位沒過」的造訪數。只記走到了，不記填的內容（`VisitForm.vue`）。
 - **家長查的是哪個班別**：入學資訊頁生日試算算出的班別（還沒到幼幼班／幼幼／小／中／大班／已到國小年齡），只記班別不記生日，停 1.5 秒才記（`AdmissionContent.vue`）。
@@ -11,10 +11,11 @@
 - **什麼時候有人看**：星期 × 七個時段的瀏覽次數（台北時間），列出最多人看的三個時段。
 - **各校的興趣與預約**：首頁切到哪一校、點哪一校地址、進哪一校預約頁，和這段期間實際送出的預約數並排。實際預約數取 `analytics_events` 的 `request_created`，要有 `admissions.stats` 而且在自己的校區範圍內才看得到，其餘校區顯示「—」。
 - **哪一則貼文或廣告帶來的**：進站連結的 `utm_campaign`（只留小寫英數、底線、連字號 32 字內，中文略過）記成活動代碼，後台列各代碼的造訪與送出預約。面板裡有加代碼的寫法。
+- **修掉 PR #69 自動審查指出的兩件事**：（1）各校自己發布的消息代號帶校區前綴（`yihua:open-day`，網址上冒號是編碼過的），第一輪把它當成不合格式、單篇消息統計整個漏掉各校消息；現在代號與互動代碼都收冒號，標題也到各校的 `campus_news` 對。（2）回報是 fire-and-forget、不保證照順序到，晚到的舊回報會把區塊與互動蓋回舊值（可能蓋掉「預約成功」「讀到文末」）；每筆多帶回報序號 `rev`，序號比較舊就不動區塊與互動。
 - **官網端的改動**：瀏覽紀錄改在元件 setup 之前就開始（plugin 啟動與 `router.afterEach`），元件一掛上就回報的進度才記得到；原本等 `page:finish`。
 - **隱私權政策草稿**再補三句：依序看了哪些頁面與瀏覽時段、預約表單填到哪一步與試算班別（不含內容與生日）、連結上的活動代碼。**發布前請使用者看過**。
 - **已知限制**：預約方式是 LINE／電話的校區沒有表單，造訪會停在「選好校區」；首頁一打開就顯示的那一校「切到這一校」偏低；時段用離開那一頁的時間；第二輪上線前的紀錄沒有頁序與表單進度；還開著舊版頁面的瀏覽器不帶新欄位（都是選填，照常收）。
-- 驗證：後端 `tests/test_engagement.py` 25 項過（真 PostgreSQL，全套結果見 PR）；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1855 過；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔（`engagement.test.ts` 12 項）過；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 手機 390×844 帶 `?utm_source=facebook&utm_campaign=Open-Day-1122` 走首頁（點開消息）→ 入學資訊（輸入生日）→ 選校 → 義華表單（選日期場次、Email 填錯再改對）→ 預約成功：頁序 1–4、活動代碼、`sn_garden`、`class_middle`、表單六個代碼與 `booking_done` 都正確入庫；桌機進沒有場次的校區記到 `form_no_slots`。後台面板 1440 與 390 寬無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL，全套結果見 PR）；migration 在全新資料庫升、降、再升都過；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1855 過；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔（`engagement.test.ts` 12 項）過；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 手機 390×844 帶 `?utm_source=facebook&utm_campaign=Open-Day-1122` 走首頁（點開消息）→ 入學資訊（輸入生日）→ 選校 → 義華表單（選日期場次、Email 填錯再改對）→ 預約成功：頁序 1–4、活動代碼、`sn_garden`、`class_middle`、表單六個代碼與 `booking_done` 都正確入庫；桌機進沒有場次的校區記到 `form_no_slots`。後台面板 1440 與 390 寬無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
 
 ## 2026-11-11 後台「內容興趣」統計：停留、區塊、互動、單篇消息、來源與預約關聯（`claude/busy-johnson-er03ju`）
 

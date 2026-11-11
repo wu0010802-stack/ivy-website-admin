@@ -1,4 +1,4 @@
-import { ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_MAX_SEQ, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
+import { ENGAGEMENT_CAMPAIGN, ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_MAX_SEQ, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
 import { publicPage } from '#shared/telemetry'
 import { newIdempotencyKey } from './idempotency-key'
 
@@ -42,7 +42,7 @@ export function storyActionKey(storyId: string): string | null {
 export function campaignOf(search: string): string | undefined {
   const raw = new URLSearchParams(search).get('utm_campaign') ?? ''
   const key = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32).replace(/-+$/, '')
-  return ENGAGEMENT_KEY.test(key) ? key : undefined
+  return ENGAGEMENT_CAMPAIGN.test(key) ? key : undefined
 }
 const SESSION_KEY = 'ivy-engagement'
 
@@ -98,7 +98,7 @@ export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> 
     if (saved && typeof saved.id === 'string' && ENGAGEMENT_SOURCES.some((source) => source === saved.source)) {
       return {
         id: saved.id, source: saved.source!,
-        ...(typeof saved.campaign === 'string' && ENGAGEMENT_KEY.test(saved.campaign) ? { campaign: saved.campaign } : {}),
+        ...(typeof saved.campaign === 'string' && ENGAGEMENT_CAMPAIGN.test(saved.campaign) ? { campaign: saved.campaign } : {}),
         pages: Number.isInteger(saved.pages) && saved.pages! > 0 ? saved.pages! : 0
       }
     }
@@ -151,6 +151,7 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
   const sections: Record<string, number> = {}
   const actions: Record<string, number> = {}
   let sent = ''
+  let rev = 0
   const room = (map: Record<string, number>, key: string) => key in map || Object.keys(map).length < ENGAGEMENT_MAX_KEYS
   return {
     path,
@@ -180,7 +181,9 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
       const text = JSON.stringify(payload)
       if (text === sent) return null
       sent = text
-      return payload
+      // 回報序號：這幾筆不保證照順序到，後端靠它不讓晚到的舊回報蓋掉新的。
+      rev += 1
+      return { ...payload, rev }
     }
   }
 }

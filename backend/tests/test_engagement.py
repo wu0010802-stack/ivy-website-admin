@@ -59,6 +59,9 @@ async def test_same_visit_keeps_latest_and_cannot_be_overwritten_by_another_sess
     _visit(seq=501),
     _visit(campaign="Spring Sale"),
     _visit(campaign="x" * 33),
+    _visit(campaign="a:b"),
+    _visit(rev=0),
+    _visit(page="news", item="a/b"),
     _visit(ip="1.2.3.4"),
     _visit(referrer="https://www.facebook.com/"),
 ])
@@ -300,3 +303,54 @@ async def test_home_stories_resolve_titles_from_published_news(admin_client, pub
     ]
     assert not any(row["key"].startswith(("sn_", "se_", "sf_")) for row in body["actions"])
     assert content_service is not None
+
+
+@pytest.mark.asyncio
+async def test_late_stale_report_does_not_overwrite_newer_maps(public_client, db_session):
+    """#69 審查：回報不保證照順序到。帶序號的，晚到的舊回報不能把預約成功、讀到文末蓋掉。"""
+    base = _visit(page="visit", campus="yihua")
+    newer = {**base, "rev": 3, "active_ms": 50_000, "sections": {"form": 9_000}, "actions": {"form_submit": 1, "booking_done": 1}}
+    older = {**base, "rev": 2, "active_ms": 60_000, "scroll": 90, "sections": {"form": 4_000}, "actions": {"form_submit": 1}}
+    for body in (newer, older):
+        assert (await public_client.post(URL, json=body)).status_code == 204
+    row = (await db_session.execute(select(EngagementVisit))).scalar_one()
+    # 停留與捲動照舊取大的；區塊與互動留序號新的那一筆。
+    assert (row.active_ms, row.scroll_pct, row.rev) == (60_000, 90, 3)
+    assert row.sections == {"form": 9_000}
+    assert row.actions == {"form_submit": 1, "booking_done": 1}
+    # 序號更新的照常蓋；沒帶序號的舊版頁面照舊以後到的為準。
+    assert (await public_client.post(URL, json={**base, "rev": 4, "actions": {"form_submit": 2, "booking_done": 1}})).status_code == 204
+    await db_session.refresh(row)
+    assert (row.rev, row.actions) == (4, {"form_submit": 2, "booking_done": 1})
+    assert (await public_client.post(URL, json={**base, "actions": {"form_date": 1}})).status_code == 204
+    await db_session.refresh(row)
+    assert (row.rev, row.actions) == (4, {"form_date": 1})
+
+
+@pytest.mark.asyncio
+async def test_campus_news_ids_are_counted_and_titled(admin_client, public_client):
+    """#69 審查：各校消息的代號帶校區前綴（yihua:open-day），單篇消息與首頁分篇都要算得到、對得到標題。"""
+    from app.operations import engagement_service as service
+
+    async def fake_payload(db, kind, campus_key):
+        if kind == "home_news":
+            return {"articles": [{"id": "garden", "title": "小小園丁"}], "events": [], "films": []}
+        if kind == "campus_news" and campus_key == "yihua":
+            return {"articles": [{"id": "open-day", "title": "義華開放日"}], "events": [{"id": "fair", "title": "園遊會"}]}
+        return None
+
+    original = service.content_service.published_payload
+    service.content_service.published_payload = fake_payload
+    try:
+        await public_client.post(URL, json=_visit(page="news", item="yihua:open-day", actions={"read_end": 1}))
+        await public_client.post(URL, json=_visit(actions={"sn_yihua:open-day": 1, "se_yihua:fair": 1, "sn_minghua:open-day": 1}))
+        body = (await admin_client.get(f"{ADMIN_URL}?days=7")).json()
+    finally:
+        service.content_service.published_payload = original
+    assert body["news"] == [
+        {"id": "yihua:open-day", "title": "義華開放日", "visits": 1, "previous_visits": 0, "median_active_ms": 20_000, "read_rate": 1.0},
+    ]
+    assert body["stories"] == [
+        {"kind": "event", "id": "yihua:fair", "title": "園遊會", "visits": 1},
+        {"kind": "news", "id": "yihua:open-day", "title": "義華開放日", "visits": 1},
+    ]

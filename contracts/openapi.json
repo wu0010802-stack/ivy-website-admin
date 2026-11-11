@@ -8000,7 +8000,7 @@
           "actions": {
             "maxProperties": 24,
             "patternProperties": {
-              "^[a-z0-9][a-z0-9_-]{0,31}$": {
+              "^[a-z0-9][a-z0-9_:-]{0,47}$": {
                 "maximum": 99.0,
                 "minimum": 1.0,
                 "type": "integer"
@@ -8066,7 +8066,7 @@
           "item": {
             "anyOf": [
               {
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$",
                 "type": "string"
               },
               {
@@ -8090,6 +8090,19 @@
             "title": "Page",
             "type": "string"
           },
+          "rev": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          },
           "scroll": {
             "maximum": 100.0,
             "minimum": 0.0,
@@ -8099,7 +8112,7 @@
           "sections": {
             "maxProperties": 24,
             "patternProperties": {
-              "^[a-z0-9][a-z0-9_-]{0,31}$": {
+              "^[a-z0-9][a-z0-9_:-]{0,47}$": {
                 "maximum": 1800000.0,
                 "minimum": 0.0,
                 "type": "integer"

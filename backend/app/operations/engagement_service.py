@@ -48,23 +48,28 @@ async def record_visit(
     db: AsyncSession, *, visit_id: uuid.UUID, session_id: uuid.UUID, page: str, campus_key: str | None,
     item: str | None, device: str, source: str, active_ms: int, scroll_pct: int,
     sections: dict[str, int], actions: dict[str, int], seq: int | None = None, campaign: str | None = None,
+    rev: int | None = None,
 ) -> None:
     now = now_utc()
     stmt = insert(EngagementVisit).values(
         id=visit_id, session_id=session_id, day=today_local(now), page=page, campus_key=campus_key or "",
         item=item or "", device=device, source=source, active_ms=min(active_ms, ENGAGEMENT_MAX_ACTIVE_MS),
-        scroll_pct=scroll_pct, sections=sections, actions=actions, updated_at=now, seq=seq, campaign=campaign or None,
+        scroll_pct=scroll_pct, sections=sections, actions=actions, updated_at=now, seq=seq, campaign=campaign or None, rev=rev,
     )
     # 同一次瀏覽會回報多次（切到背景、換頁、關分頁），數字只會變大：留最新的一次。
+    # 回報是 fire-and-forget，幾筆可能不照順序到：帶回報序號（rev）的，序號比較舊就不動區塊與互動，
+    # 免得晚到的舊回報把「預約成功」「讀到文末」蓋掉；沒帶序號的舊版頁面照舊以後到的為準。
     # 只更新同一個造訪、同一頁的那一列，別人拿同一個 id 蓋不掉。
+    newer = or_(EngagementVisit.rev.is_(None), stmt.excluded.rev.is_(None), stmt.excluded.rev > EngagementVisit.rev)
     await db.execute(stmt.on_conflict_do_update(
         index_elements=[EngagementVisit.id],
         set_={
             "active_ms": func.greatest(EngagementVisit.active_ms, stmt.excluded.active_ms),
             "scroll_pct": func.greatest(EngagementVisit.scroll_pct, stmt.excluded.scroll_pct),
-            "sections": stmt.excluded.sections,
-            "actions": stmt.excluded.actions,
-            "updated_at": stmt.excluded.updated_at,
+            "sections": case((newer, stmt.excluded.sections), else_=EngagementVisit.sections),
+            "actions": case((newer, stmt.excluded.actions), else_=EngagementVisit.actions),
+            "rev": func.greatest(EngagementVisit.rev, stmt.excluded.rev),
+            "updated_at": func.greatest(EngagementVisit.updated_at, stmt.excluded.updated_at),
         },
         where=and_(
             EngagementVisit.session_id == stmt.excluded.session_id,
@@ -107,7 +112,13 @@ async def _news_content(db: AsyncSession) -> dict[str, dict[str, str]]:
             return {}
         return {str(item["id"]): str(item.get("title") or "") for item in items if isinstance(item, dict) and item.get("id")}
 
-    return {"news": titles("articles"), "event": titles("events"), "film": titles("films")}
+    content = {"news": titles("articles"), "event": titles("events"), "film": titles("films")}
+    # 各校自己發布的消息與活動：官網把代號加上校區前綴（yihua:open-day），這裡照樣對。
+    for campus_key in CAMPUS_KEYS:
+        payload = await content_service.published_payload(db, "campus_news", campus_key) or {}
+        for kind, key in (("news", "articles"), ("event", "events")):
+            content[kind].update({f"{campus_key}:{item_id}": title for item_id, title in titles(key).items()})
+    return content
 
 
 def _sessions_subquery(condition, name: str):

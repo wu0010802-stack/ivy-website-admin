@@ -47,6 +47,7 @@ from app.operations.models import (
     CTA_ENTRIES,
     ENGAGEMENT_MAX_ACTIVE_MS,
     ENGAGEMENT_MAX_KEYS,
+    ENGAGEMENT_MAX_REV,
     ENGAGEMENT_MAX_SEQ,
     ENGAGEMENT_SOURCES,
     RETENTION_MAX_DAYS,
@@ -195,8 +196,11 @@ async def record_telemetry(
 
 
 EngagementSource = Literal[ENGAGEMENT_SOURCES]  # type: ignore[valid-type]
-# 區塊與互動代碼：小寫英數、底線、連字號，最長 32 字。
-EngagementKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")]
+# 區塊與互動代碼：小寫英數、底線、連字號與冒號，最長 48 字。冒號給首頁點開的各校消息用
+# （各校消息的代號帶校區前綴，例如 sn_yihua:open-day）。
+EngagementKey = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_:-]{0,47}$")]
+# 活動代碼（utm_campaign）：小寫英數、底線、連字號，最長 32 字。
+EngagementCampaign = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,31}$")]
 
 
 class EngagementIn(BaseModel):
@@ -212,8 +216,8 @@ class EngagementIn(BaseModel):
     page: Literal["home", "campus", "visit", "about", "curriculum", "environment", "admission", "news", "anniversary"]
     campus: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None
     device: Literal["mobile", "desktop"]
-    # 最新消息內文頁的消息代號；其他頁不帶。
-    item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$")] | None = None
+    # 最新消息內文頁的消息代號；其他頁不帶。各校消息帶校區前綴（yihua:open-day）。
+    item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$")] | None = None
     source: EngagementSource
     active_ms: int = Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)
     scroll: int = Field(ge=0, le=100)
@@ -222,7 +226,9 @@ class EngagementIn(BaseModel):
     # 這次造訪的第幾頁、進站連結上的活動代碼（utm_campaign）：2026-11-11 第二輪加，
     # 還開著舊版頁面的瀏覽器不會帶，所以都是選填。
     seq: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_SEQ)
-    campaign: EngagementKey | None = None
+    campaign: EngagementCampaign | None = None
+    # 這次瀏覽的第幾次回報：晚到的舊回報不蓋掉新的區塊與互動。
+    rev: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_REV)
 
     @model_validator(mode="after")
     def _consistent(self) -> "EngagementIn":
@@ -258,7 +264,7 @@ async def record_engagement(
         db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
         item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
         scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
-        seq=payload.seq, campaign=payload.campaign,
+        seq=payload.seq, campaign=payload.campaign, rev=payload.rev,
     )
     await db.commit()
 

@@ -76,14 +76,16 @@ describe('內容興趣統計（2026-11-11）', () => {
     expect([payload.seq, payload.campaign]).toEqual([3, 'open-day-2026'])
     expect(validateEngagement(payload)).toEqual(payload)
     expect([campaignOf(''), campaignOf('?utm_campaign=開放日'), campaignOf('?utm_campaign=_x'), campaignOf(`?utm_campaign=${'a'.repeat(40)}`)?.length]).toEqual([undefined, undefined, 'x', 32])
-    for (const bad of [{ ...payload, seq: 0 }, { ...payload, seq: 501 }, { ...payload, seq: 1.5 }, { ...payload, campaign: 'Open Day' }, { ...payload, campaign: '' }]) expect(validateEngagement(bad)).toBeNull()
+    for (const bad of [{ ...payload, seq: 0 }, { ...payload, seq: 501 }, { ...payload, seq: 1.5 }, { ...payload, campaign: 'Open Day' }, { ...payload, campaign: '' }, { ...payload, campaign: 'a:b' }]) expect(validateEngagement(bad)).toBeNull()
   })
 
   it('第二輪：試算班別與首頁點開的消息換成代碼', () => {
     expect([classActionKey('young', 0), classActionKey('enrolled', 0), classActionKey('enrolled', 3), classActionKey('school', 4), classActionKey('enrolled', 4)])
       .toEqual(['class_young', 'class_toddler', 'class_big', 'class_school', null])
-    expect([storyActionKey('news:garden'), storyActionKey('event:event-m3x9a1b-4f2k'), storyActionKey('film:f1'), storyActionKey('news:含中文'), storyActionKey('other:x'), storyActionKey(`news:${'a'.repeat(40)}`)])
+    expect([storyActionKey('news:garden'), storyActionKey('event:event-m3x9a1b-4f2k'), storyActionKey('film:f1'), storyActionKey('news:含中文'), storyActionKey('other:x'), storyActionKey(`news:${'a'.repeat(50)}`)])
       .toEqual(['sn_garden', 'se_event-m3x9a1b-4f2k', 'sf_f1', null, null, null])
+    // 各校消息與活動的代號帶校區前綴，最長的校區代碼也放得下。
+    expect([storyActionKey('news:yihua:open-day'), storyActionKey('event:international:event-m3x9a1b-4f2k')]).toEqual(['sn_yihua:open-day', 'se_international:event-m3x9a1b-4f2k'])
   })
 
   it('第二輪：預約表單、入學試算、首頁消息都接上統計', () => {
@@ -107,12 +109,14 @@ describe('內容興趣統計（2026-11-11）', () => {
     const payload = visit.takePayload()
     expect(payload).toEqual({
       event: 'engagement', id: VISIT_ID, session: SESSION.id, page: 'news', campus: null, device: 'mobile', item: 'garden',
-      source: 'facebook', active_ms: 4500, scroll: 80, sections: { article: 3000 }, actions: { story_open: 2, read_end: 1 }
+      source: 'facebook', active_ms: 4500, scroll: 80, sections: { article: 3000 }, actions: { story_open: 2, read_end: 1 }, rev: 1
     })
     expect(validateEngagement(payload)).toEqual(payload)
     expect(visit.takePayload()).toBeNull()
     visit.tick(1000, 'related', 80)
-    expect(visit.takePayload()?.sections).toEqual({ article: 3000, related: 1000 })
+    // 有變動才送，回報序號跟著加一（晚到的舊回報後端不會拿來蓋新的）。
+    const second = visit.takePayload()!
+    expect([second.sections, second.rev]).toEqual([{ article: 3000, related: 1000 }, 2])
     expect(startVisit('/admin/login', SESSION, 'desktop')).toBeNull()
     expect(startVisit('/visit/yihua', SESSION, 'desktop', VISIT_ID)!.takePayload()).toMatchObject({ page: 'visit', campus: 'yihua' })
   })
@@ -143,7 +147,9 @@ describe('內容興趣統計（2026-11-11）', () => {
   })
 
   it('消息代號只收單純英數；驗證擋掉多餘欄位與不合理的值', () => {
-    expect([newsItemOf('/news/garden-2?x=1'), newsItemOf('/news'), newsItemOf('/news/%E6%B6%88')]).toEqual(['garden-2', undefined, undefined])
+    expect([newsItemOf('/news/garden-2?x=1'), newsItemOf('/news'), newsItemOf('/news/%E6%B6%88'), newsItemOf('/news/%E0%A4%A')]).toEqual(['garden-2', undefined, undefined, undefined])
+    // 各校消息的代號帶校區前綴，網址上冒號是編碼過的（#69 審查）。
+    expect([newsItemOf('/news/yihua%3Aopen-day'), startVisit('/news/yihua%3Aopen-day', SESSION, 'mobile', VISIT_ID)!.takePayload()!.item]).toEqual(['yihua:open-day', 'yihua:open-day'])
     const base = startVisit('/', SESSION, 'desktop', VISIT_ID)!.takePayload()!
     expect(validateEngagement(base)).toEqual(base)
     for (const bad of [
@@ -155,6 +161,9 @@ describe('內容興趣統計（2026-11-11）', () => {
       { ...base, scroll: 101 },
       { ...base, session: 'abc' },
       { ...base, sections: { Hero: 1 } },
+      { ...base, rev: 0 },
+      { ...base, rev: 1.5 },
+      { ...base, page: 'news', item: 'a/b' },
       { ...base, actions: { faq: 0 } },
       { ...base, sections: Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`s${i}`, 1])) }
     ]) expect(validateEngagement(bad)).toBeNull()

@@ -11,9 +11,13 @@ export type EngagementSource = (typeof ENGAGEMENT_SOURCES)[number]
 export const ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
 export const ENGAGEMENT_MAX_KEYS = 24
 export const ENGAGEMENT_MAX_SEQ = 500
-/** 區塊與互動代碼：小寫英數、底線、連字號，最長 32 字。 */
-export const ENGAGEMENT_KEY = /^[a-z0-9][a-z0-9_-]{0,31}$/
-const ITEM = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
+/** 區塊與互動代碼：小寫英數、底線、連字號與冒號，最長 48 字（冒號給各校消息的代號用，例如 sn_yihua:open-day）。 */
+export const ENGAGEMENT_KEY = /^[a-z0-9][a-z0-9_:-]{0,47}$/
+/** 活動代碼（utm_campaign）：小寫英數、底線、連字號，最長 32 字。 */
+export const ENGAGEMENT_CAMPAIGN = /^[a-z0-9][a-z0-9_-]{0,31}$/
+export const ENGAGEMENT_MAX_REV = 100_000
+// 各校消息的代號帶校區前綴（yihua:open-day）。
+const ITEM = /^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$/
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export type EngagementEvent = PublicPage & {
@@ -34,12 +38,17 @@ export type EngagementEvent = PublicPage & {
   seq?: number
   /** 進站連結上的活動代碼（utm_campaign，園方自己設的） */
   campaign?: string
+  /** 這次瀏覽的第幾次回報：晚到的舊回報不蓋掉新的區塊與互動 */
+  rev?: number
 }
 
-/** 最新消息內文頁（/news/<代號>）的消息代號；代號不是單純英數就不帶。 */
+/** 最新消息內文頁（/news/<代號>）的消息代號（網址上是 encodeURIComponent 過的）；代號不是單純英數與冒號就不帶。 */
 export function newsItemOf(path: string): string | undefined {
   const match = path.split(/[?#]/)[0]?.replace(/\/$/, '').match(/^\/news\/([^/]+)$/)
-  return match && ITEM.test(match[1]!) ? match[1] : undefined
+  if (!match) return undefined
+  let id = match[1]!
+  try { id = decodeURIComponent(id) } catch { return undefined }
+  return ITEM.test(id) ? id : undefined
 }
 
 function isCounts(value: unknown, min: number, max: number): value is Record<string, number> {
@@ -52,7 +61,7 @@ function isCounts(value: unknown, min: number, max: number): value is Record<str
 export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   const item = input as Record<string, unknown>
-  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign']
+  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign', 'rev']
   if (item.event !== 'engagement' || Object.keys(item).some((key) => !allowed.includes(key))) return null
   if (typeof item.id !== 'string' || !UUID.test(item.id) || typeof item.session !== 'string' || !UUID.test(item.session)) return null
   if (typeof item.page !== 'string' || !['mobile', 'desktop'].includes(item.device as string)) return null
@@ -66,6 +75,7 @@ export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!Number.isInteger(item.scroll) || (item.scroll as number) < 0 || (item.scroll as number) > 100) return null
   if (!isCounts(item.sections, 0, ENGAGEMENT_MAX_ACTIVE_MS) || !isCounts(item.actions, 1, 99)) return null
   if (item.seq !== undefined && (!Number.isInteger(item.seq) || (item.seq as number) < 1 || (item.seq as number) > ENGAGEMENT_MAX_SEQ)) return null
-  if (item.campaign !== undefined && (typeof item.campaign !== 'string' || !ENGAGEMENT_KEY.test(item.campaign))) return null
+  if (item.campaign !== undefined && (typeof item.campaign !== 'string' || !ENGAGEMENT_CAMPAIGN.test(item.campaign))) return null
+  if (item.rev !== undefined && (!Number.isInteger(item.rev) || (item.rev as number) < 1 || (item.rev as number) > ENGAGEMENT_MAX_REV)) return null
   return item as EngagementEvent
 }

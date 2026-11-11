@@ -1,4 +1,4 @@
-"""內容興趣統計第二輪：瀏覽順序與活動代碼。
+"""內容興趣統計第二輪：瀏覽順序、活動代碼與回報序號。
 
 Revision ID: e7a1c93b5d20
 Revises: d2f6b8a13c47
@@ -16,11 +16,13 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 只加兩個可為 NULL 的欄位：既有紀錄不回填，上一版程式照常寫入。
+    # 只加三個可為 NULL 的欄位：既有紀錄不回填，上一版程式照常寫入。
     op.add_column("engagement_visits", sa.Column("seq", sa.Integer(), nullable=True))
     op.add_column("engagement_visits", sa.Column("campaign", sa.String(length=32), nullable=True))
+    op.add_column("engagement_visits", sa.Column("rev", sa.Integer(), nullable=True))
 
 
 def downgrade() -> None:
+    op.drop_column("engagement_visits", "rev")
     op.drop_column("engagement_visits", "campaign")
     op.drop_column("engagement_visits", "seq")

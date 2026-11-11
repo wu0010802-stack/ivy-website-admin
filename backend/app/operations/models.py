@@ -304,6 +304,7 @@ ENGAGEMENT_CLASS_ACTIONS = ("class_young", "class_toddler", "class_small", "clas
 # 首頁點開的消息／活動／影片：代碼是前綴加內容代號。
 ENGAGEMENT_STORY_PREFIXES = {"sn_": "news", "se_": "event", "sf_": "film"}
 ENGAGEMENT_MAX_SEQ = 500
+ENGAGEMENT_MAX_REV = 100_000
 
 
 class EngagementVisit(Base):
@@ -339,3 +340,6 @@ class EngagementVisit(Base):
     seq: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 進站連結上的活動代碼（utm_campaign，園方自己在連結上設的）；沒有就是 NULL。
     campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    # 這次瀏覽的第幾次回報：晚到的舊回報不能把區塊與互動蓋回舊值（回報是 fire-and-forget，
+    # 切到背景、換頁、關分頁的幾筆可能不照順序到）。沒帶的舊版頁面照舊以後到的為準。
+    rev: Mapped[int | None] = mapped_column(Integer, nullable=True)
