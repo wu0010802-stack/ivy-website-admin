@@ -634,7 +634,7 @@ async function onSubmit() {
       <div class="container visit-welcome-inner">
         <div class="visit-welcome-copy">
           <p v-if="isPicking" class="visit-eyebrow">預約校園參觀</p>
-          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking">帶著好奇<br>來校園走走</template><template v-else>預約校園參觀</template></h1>
+          <h1 id="visit-title" ref="titleRef"><template v-if="isPicking"><span>帶著好奇</span><br><span>來校園走走</span></template><template v-else>預約校園參觀</template></h1>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
           <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。
