@@ -13,6 +13,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 官網：<https://web-production-04caa.up.railway.app/>
 - 後台：<https://web-production-04caa.up.railway.app/admin/>
 
+## 2026-11-11 前台 QA 修正：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（main CI 部署，沒有 migration）
+
+- **內容**：`e10bc80e`（README「2026-11-11 前台 QA」），分支 `fix/qa-fixes-20261111`，直接快轉 main（推之前 main 沒有新提交）。只動 web：`error.vue` 的 `<title>` 改用 `TITLE_BRAND`；`visit-booking.css` 在 338–760px 與橫拿手機把義華的撥號膠囊用 `order:-1` 換到「可線上預約」前面。沒有 migration、沒有新變數。
+- **推前本機**：`web/tests/qa-fixes-20261111.spec.ts` 5 條先紅後綠；web typecheck 過；`npm run test:website` 134 檔 1807 過；dev server（fixture，預約設定轉正式站唯讀 API）Playwright 量 9 種視窗並實際點卡片。admin、後端、stack e2e 交給 CI。
+- **CI**：run 42968430554 全綠（Frontend web／admin、Backend 3 組、E2E），Deploy Railway production success（06:01:56Z）；`/release.json` 的 `base_commit` 是 `e10bc80e`。
+- **正式站驗證**（只發 GET）：`/`、`/visit`、`/visit/yihua`、`/news`、`/admin/`、公開內容 API 都 200；`/qa-no-such-page` 回 404，SSR 與 hydrate 後標題都是「找不到這一頁｜常春藤幼兒園」；`/visit` 義華卡在 338／360／390／430／844×390 撥號膠囊 x=18、金色膠囊 x=150，撥號範圍在左下角、不蓋金色膠囊；320／336 兩顆疊兩行、768／1440 直卡上下疊，位置和部署前相同；九種寬度都沒有水平溢出。
+- **沒驗**：iOS 實機；336px 以下撥號範圍往上蓋到金色膠囊 4px（部署前就有，這次沒動）。
 ## 2026-11-11 後台 QA 修正：粉專頁校區下拉、手機編輯頁操作列（main CI 部署，沒有 migration）
 
 - **內容**：`39328c8d`（README「2026-11-11 後台 QA」），分支 `fix/admin-qa-20261111`，rebase 到 main `76839d66`（只有 README 頂部段落衝突，兩段都留）。只動 admin：`FacebookPostsView.vue` 校區下拉固定 160px（720px 以下 100%）、同步說明逗號後的空白；`ContentEditor.vue` 手機直排操作列改不換行。沒有 migration、沒有新變數。
