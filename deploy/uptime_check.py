@@ -21,7 +21,7 @@ from dataclasses import dataclass
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-DEFAULT_BASE_URL = "https://web-production-04caa.up.railway.app"
+DEFAULT_BASE_URL = "https://www.ivykidschool.com"
 USER_AGENT = "ivy-website-uptime/1.0"
 ATTEMPTS = 3
 RETRY_DELAY_SECONDS = 20.0

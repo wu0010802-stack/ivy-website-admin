@@ -12,6 +12,7 @@
 - **兩個名字各有用途**：品牌名「常春藤教育機構」是結構化資料的 `name`、`og:site_name` 與頁面上的品牌字；「常春藤幼兒園」（`SCHOOL_NAME`）是 `alternateName`，各校節點叫「常春藤幼兒園Ｘ校」，也是 `<title>` 的結尾（`TITLE_BRAND`，使用者 2026-11-11 選定）。**標題不加「高雄」**（同日使用者否決，首頁標題也不動）。改 `TITLE_BRAND` 要同步 `admin/src/composables/pageSeoDefaults.ts`（有測試逐字比對）。
 - **常見問題一份資料三個出口**：頁面 `<details>`、入學頁 `FAQPage`、`llms.txt` 都讀 `utils/admission-faq.ts`；新增或改題目只改那裡，顯示條件用 `admissionFaqVisible`。
 - **robots.txt** 只擋 `/admin`、`/preview`、`/visit/manage`、`/api/`。要讓某頁不被收錄用頁面 noindex，不要在 robots.txt 擋：擋掉以後搜尋引擎讀不到 noindex，被連到的網址仍可能以空白結果出現。
+- **頁面資料不帶維護備註**（2026-11-11 正式網域開放收錄後補）：公開資料會整份進每一頁原始碼的 `__NUXT_DATA__`，畫面沒畫的欄位搜尋引擎與 AI 助理照樣讀得到。只給維護者看、官網不讀的欄位（`_todo`、整份的 `_source`、消息區 `note`、拍立得 `caption`）一律在 `utils/public-copy.ts` 的 `withoutRetiredFields` 拿掉；fixture 與後台存的值不動。之後替 fixture 或內容加備註欄位，要一起加進那份清單與 `public-copy.spec.ts`。
 - **不做**：sitemap `lastmod`（沒有可靠的修改時間，維持 10-02 的規則）；個別列出 AI 爬蟲（`User-agent: *` 已放行）；為了關鍵字加頁面上看不到的隱藏文字。
 
 ## 前台流暢度第三批：捲動先讀後寫、拍立得少畫幾幀（2026-11-10，`feature/render-jank-20261110`）

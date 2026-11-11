@@ -10,8 +10,9 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - environment：`cf5631c7-05b9-4f16-9358-c81d2650eb55`（production）
 - web：`e0851ec5-3bc0-4b5c-9471-9d9131616c26`，`deploy/web.Dockerfile`
 - api：`9124b9c0-4ddf-4445-bd2f-798b277f44ec`，`deploy/api.Dockerfile`
-- 官網：<https://web-production-04caa.up.railway.app/>
-- 後台：<https://web-production-04caa.up.railway.app/admin/>
+- 官網：<https://www.ivykidschool.com/>（2026-11-11 起；`https://ivykidschool.com/` 由 Cloudflare 301 過來）
+- 後台：<https://www.ivykidschool.com/admin/>
+- Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
 ## 2026-11-11 正式網域切換：www.ivykidschool.com 上線、開放收錄（只改後台設定，沒有程式部署）
 
@@ -2429,12 +2430,12 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | --- | --- |
 | web | `PORT=3000`、`NUXT_WEBSITE_ENV=production`、`NUXT_PUBLIC_CONTENT_MODE=live` |
 | web | `NUXT_WEBSITE_API_INTERNAL_BASE=http://${{api.RAILWAY_PRIVATE_DOMAIN}}:8000` |
-| web | `NUXT_PUBLIC_SITE_ORIGIN=https://web-production-04caa.up.railway.app`、`NUXT_PUBLIC_INDEXING_ENABLED=false` |
-| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。目前不設＝不轉；切換步驟見 `docs/website-admin/migration-checklist.md`） |
+| web | `NUXT_PUBLIC_SITE_ORIGIN=https://www.ivykidschool.com`、`NUXT_PUBLIC_INDEXING_ENABLED=true`（2026-11-11 正式網域切換並開放收錄；之前是 Railway 網址與 `false`） |
+| web | `NUXT_REDIRECT_HOSTS`（選填，2026-11-11；列出的主機 301 到 `NUXT_PUBLIC_SITE_ORIGIN`，`/api/**`、`/release.json` 除外。2026-11-11 切換後仍未設＝不轉，預計各地 DNS 快取更新後設成 Railway 主機名；步驟見 `docs/website-admin/migration-checklist.md`） |
 | api | `PORT=8000`、`WEBSITE_ENVIRONMENT=production`、`WEBSITE_ENABLE_FIXTURE=false`、`WEBSITE_INDEXING_ENABLED=false` |
 | api | `WEBSITE_SESSION_SECRET`（隨機產生的秘密）與 `WEBSITE_DATABASE_URL`（Postgres 參照） |
-| api | `WEBSITE_ADMIN_ORIGIN=https://web-production-04caa.up.railway.app` |
-| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。目前不設；正式網域接通後放 Railway 網址，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
+| api | `WEBSITE_ADMIN_ORIGIN=https://www.ivykidschool.com`（2026-11-11 起；Google／LINE 的 `REDIRECT_URI` 同源） |
+| api | `WEBSITE_ADMIN_EXTRA_ORIGINS`（選填，2026-11-11；網域移轉過渡期另外接受寫入的 origin，逗號分隔、production 必須 https。2026-11-11 起設為 `https://web-production-04caa.up.railway.app`，過渡期結束拿掉，見 `docs/website-admin/migration-checklist.md`） |
 | api | `RAILWAY_RUN_UID=0`（僅供啟動準備）、`WEBSITE_MEDIA_ROOT=/data/media` |
 | api | `WEBSITE_TRUSTED_CLIENT_IP_HEADER=x-website-client-ip`（預設值，見下方「公開端點限流」） |
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |

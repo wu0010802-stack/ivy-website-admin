@@ -199,7 +199,7 @@ def test_base_url_defaults_to_production_and_rejects_non_urls():
 
     recorder = Recorder()
     assert uptime.main([], sleep=recorder.sleep, get=get, log=recorder.log) == 1
-    assert seen[0] == "https://web-production-04caa.up.railway.app/"
+    assert seen[0] == "https://www.ivykidschool.com/"
     seen.clear()
     assert uptime.main(["https://example.test/"], sleep=recorder.sleep, get=get, log=recorder.log) == 1
     assert seen[0] == "https://example.test/"  # 結尾斜線不會變成雙斜線
@@ -226,7 +226,7 @@ def test_workflow_is_scheduled_read_only_and_pinned():
     assert "timeout-minutes: 5" in workflow
     assert "actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4" in workflow
     assert "sparse-checkout: deploy/uptime_check.py" in workflow
-    assert "vars.UPTIME_BASE_URL || 'https://web-production-04caa.up.railway.app'" in workflow
+    assert "vars.UPTIME_BASE_URL || 'https://www.ivykidschool.com'" in workflow
     assert 'python3 deploy/uptime_check.py "$UPTIME_BASE_URL"' in workflow
     # 同一個 SHA 釘版與 website.yml 一致
     pinned = re.search(r"actions/checkout@([0-9a-f]{40})", (ROOT / ".github" / "workflows" / "website.yml").read_text(encoding="utf-8"))

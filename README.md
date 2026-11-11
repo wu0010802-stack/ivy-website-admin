@@ -1,3 +1,13 @@
+## 2026-11-11 正式網域上線後收尾：頁面原始碼不帶原型備註、維運預設網址改正式網域（`fix/launch-cleanup-20261111`）
+
+正式網域 `www.ivykidschool.com` 切換並開放收錄後，把正式站 16 個網址爬過一遍（只發 GET）：站內連結 18 條、資源 161 個、外部連結 20 條、舊 Wix 網址 20 條都正常。找到一處該修的：每一頁原始碼的頁面資料（`__NUXT_DATA__`）帶著原型時期寫給維護者看的字句。畫面與版面都沒動。
+
+- **原型備註不進公開資料**：`web/app/utils/public-copy.ts` 的 `withoutRetiredFields` 多拿掉三處，整份的 `_source`（「示範內容，非正式資料」）、消息區的 `note`（「文案、日期與活動均為原型示意」）、拍立得的 `caption`（2026-09-23 起不顯示；正式站後台存的還是「午休照片待補」「入園情境示意」）。fixture 與後台存的值不動，`NewsContent.note`、`DayMoment.caption` 型別改選填。首頁關於段的 `caption` 是另一個欄位，不受影響。
+- **維運預設網址改正式網域**：`deploy/uptime_check.py` 的預設網址與 `uptime.yml` 的備援值（repo 變數 `UPTIME_BASE_URL` 沒設時才用到）、`scripts/audit-public-site.mjs`、`scripts/page-font-chars.cjs`、`backend/.env.example` 的範例。`deploy/railway_ci.py` 的部署後 smoke 刻意留在 Railway 網址（不經正式網域的 DNS，網域出狀況不擋部署），加了註解。
+- **文件**：`deploy/README.md` 開頭的官網／後台網址與環境變數表改成切換後的實際值。
+- 驗證：`web/tests/public-copy.spec.ts` 新增一條，未修正版先紅（`_source` 還在）後綠；`npm --prefix web run typecheck` 過；`npm run test:website` 134 檔 1808 條，機器負載 66 時有 4 條逾時（`smoothness-20261105-anniversary`、`smoothness-20261105-prints`、`taipei-date`，和這次改動無關），三個檔單獨重跑 30 條全過；後端 `tests/test_uptime_check.py` 20 過（拋棄式測試庫）。
+- 沒驗到：後端、admin 全套與 stack e2e 沒在本機跑（交給 CI）；部署後要再抓正式站原始碼確認這些字句是 0 次。
+
 ## 2026-11-11 前台 QA：錯誤頁標題結尾、手機選校卡義華的撥號膠囊（`fix/qa-fixes-20261111`）
 
 對正式站做唯讀 QA（只發 GET、telemetry 與寫入全擋，預約沒有真的送出）：16 個路由 × 桌機 1440／手機 390，主要路由另跑 320／768／900／1024／1100／1920 六種寬度與 WebKit（桌機＋iPhone 14），加上導覽、首頁、入學生日查班、預約到送出前、管理預約、週年頁、404 的互動流程。沒有 JS 錯誤、破圖、水平溢出，站內連結全部 200；QA 途中正式站換了三版（`690ce04e`→`76839d66`→`39328c8d`），新版重跑巡檢結果相同。修兩處：

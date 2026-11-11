@@ -9,7 +9,14 @@ const OLD_DESCRIPTION = '走進常春藤，認識五校的環境與孩子的校�
 // 2026-10-08 常見問題（faq）、預約同意文字與橫幅（consentText／banner*）、分校簡介
 // 與臉書備註（intro／description／fbNote）連同 fixture 與後端欄位一起刪除，
 // 不在清單內。
+// 2026-11-11 正式網域開放收錄後再拿掉三處只給維護者看、畫面從來不畫的原型備註：整份的
+// _source（「示範內容，非正式資料」）、消息區的 note（「文案、日期與活動均為原型示意」）、
+// 拍立得的 caption（2026-09-23 起不顯示；正式站後台存的還是原型的「午休照片待補」
+// 「入園情境示意」）。它們會跟著頁面資料進每一頁的原始碼，搜尋引擎與 AI 助理讀得到。
 const RETIRED = {
+  site: ['_source'],
+  news: ['note'],
+  dayMoment: ['caption'],
   hero: ['eyebrow'],
   campusBoard: ['note'],
   dayExperience: ['sourceNote'],
@@ -36,12 +43,16 @@ function withoutTodoNotes<T>(value: T): T {
   return value
 }
 
-/** 拿掉官網已不顯示的舊欄位與維護備註 _todo（不修改傳入的物件）。 */
+/** 拿掉官網已不顯示的舊欄位、原型備註與維護備註 _todo（不修改傳入的物件）。 */
 export function withoutRetiredFields(site: SiteContent): SiteContent {
   return withoutTodoNotes({
-    ...site,
+    ...omit(site, RETIRED.site),
     home: { ...site.home, hero: omit(site.home.hero, RETIRED.hero), campusBoard: omit(site.home.campusBoard, RETIRED.campusBoard) },
-    dayExperience: omit(site.dayExperience, RETIRED.dayExperience),
+    dayExperience: {
+      ...omit(site.dayExperience, RETIRED.dayExperience),
+      ...(Array.isArray(site.dayExperience?.moments) && { moments: site.dayExperience.moments.map((moment) => omit(moment, RETIRED.dayMoment)) })
+    },
+    ...(site.news && { news: omit(site.news, RETIRED.news) }),
     booking: omit(site.booking, RETIRED.booking),
     campuses: site.campuses.map((campus) => ({
       ...omit(campus, RETIRED.campus),

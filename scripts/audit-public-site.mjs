@@ -9,7 +9,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const base = (process.env.AUDIT_BASE ?? 'https://web-production-04caa.up.railway.app').replace(/\/$/, '')
+const base = (process.env.AUDIT_BASE ?? 'https://www.ivykidschool.com').replace(/\/$/, '')
 const modes = process.argv.slice(2)
 const stamp = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)
 const out = path.resolve(repo, process.env.AUDIT_OUT ?? `output/playwright/audit-${modes.join('-')}-${stamp}`)

@@ -6,7 +6,7 @@
 // unicode-range 分片，display:none 的不算。字重 700 記進 bold，超過 700（配到 ExtraBold 800）記進 extraBold。
 //
 // 執行（預設讀線上正式站：內容以後台發布版為準，fixture 與正式內容不同）：
-//   node scripts/page-font-chars.cjs [https://web-production-04caa.up.railway.app]
+//   node scripts/page-font-chars.cjs [https://www.ivykidschool.com]
 // 輸出 web/app/generated/page-font-chars.json，再跑 scripts/subset-critical-fonts.py 重切。
 // 只送 GET：其餘請求（/api/telemetry 等）一律擋下，不把合成瀏覽寫進正式站統計。
 //
@@ -20,7 +20,7 @@ const path = require('node:path')
 const { chromium } = require(path.resolve(__dirname, '../node_modules/playwright'))
 const args = process.argv.slice(2)
 const checkOnly = args.includes('--check')
-const base = (args.find((arg) => !arg.startsWith('--')) || 'https://web-production-04caa.up.railway.app').replace(/\/$/, '')
+const base = (args.find((arg) => !arg.startsWith('--')) || 'https://www.ivykidschool.com').replace(/\/$/, '')
 const out = path.resolve(__dirname, '../web/app/generated/page-font-chars.json')
 const VIEWPORTS = [
   { name: 'mobile', viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true },

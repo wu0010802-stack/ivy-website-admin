@@ -69,7 +69,8 @@ export interface DayMoment {
   tint: string
   photo: string
   alt: string
-  caption: string
+  /** 2026-09-23 起官網不顯示；後台與 fixture 仍有值，公開輸出前拿掉（utils/public-copy.ts）。 */
+  caption?: string
   title: string
   story: string
   question: string
@@ -209,7 +210,8 @@ export type HomeFilm =
 
 export interface NewsContent {
   sectionId: string
-  note: string
+  /** 原型抽取時留下的維護備註，官網不讀；公開輸出前拿掉（utils/public-copy.ts）。 */
+  note?: string
   /**
    * 原型示意內容的說明。示意與否逐則判斷（NewsArticle／NewsEvent 的 sample）：
    * 疊上後台內容時，全站消息看這段說明有沒有值，各校消息一律不是示意；
