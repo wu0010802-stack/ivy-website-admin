@@ -72,6 +72,8 @@
 .cur-kicker .cur-num { color: var(--cur-accent); }
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
+/* 橫滑清單的張數，只有手機顯示（760px 以下才橫滑） */
+.cur-count { display: none; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
 /* 手機橫滑清單可 Tab 聚焦：沿用全站 3px 焦點環，清單貼齊視窗左右緣，所以畫在框內（2026-10-13；原本是瀏覽器預設 1px 黑框） */
 .cur [data-reveal-group]:focus-visible { outline: 3px solid var(--leaf); outline-offset: -3px; }
@@ -259,6 +261,10 @@
   .cur-dir-grid, .cur-daily-list, .cur-art-wall { display: flex; gap: 16px; margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 20px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
   .cur-dir-grid::-webkit-scrollbar, .cur-daily-list::-webkit-scrollbar, .cur-art-wall::-webkit-scrollbar { display: none; }
   .cur-band .cur-frame { aspect-ratio: 4 / 3; }
+  /* 張數提示（2026-11-11）：清單底下一行「1 / 7　左右滑動」，數字跟著捲動變 */
+  .cur-count { display: flex; align-items: baseline; gap: 4px; margin: 0; font: 600 var(--fs-sm)/1.4 var(--font-date); letter-spacing: .08em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .cur-count b { font-weight: 700; color: var(--green); }
+  .cur-count span { margin-left: 10px; font-family: var(--font); font-weight: 400; letter-spacing: .04em; }
   .cur-dir, .cur-thing { flex: 0 0 80%; display: block; margin-top: 0 !important; scroll-snap-align: start; }
   .cur-art-wall { align-items: flex-start; }
   .cur-art { flex: 0 0 62%; margin: 0 !important; scroll-snap-align: start; }
