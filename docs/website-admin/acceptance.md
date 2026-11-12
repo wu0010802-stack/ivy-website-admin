@@ -452,7 +452,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 | P02 | 發布阻擋 | 通過 | 同檔 `test_pending_marker_blocks_publish_with_count`、`test_pending_marker_in_title_blocks_publish`、`test_missing_updated_on_blocks_publish` |
 | P03 | 權限 | 通過 | 同檔 `test_editor_can_read_but_not_edit_shared_policy`；`admin/src/__tests__/bugfixRegressions.test.ts`（`privacy-policy` 限 super_admin） |
 | P04 | 公開輸出 | 通過 | 同檔 `test_public_site_has_policy_only_after_publish`、`test_draft_with_pending_marker_does_not_replace_published` |
-| P05 | 後台編輯 | 部分 | `admin/src/__tests__/privacyPolicy.test.ts`（側欄、標籤、初稿 12 段與 3 處待確認（2026-11-12 起，原 9 處）、計數、標題與小標字數計數的原始碼斷言）；編輯畫面的互動未寫元件測試，由人工開頁確認 |
+| P05 | 後台編輯 | 部分 | `admin/src/__tests__/privacyPolicy.test.ts`（側欄、標籤、初稿 12 段與 3 處待確認（2026-11-12 起，原 9 處）、第 4、6 段有 Turnstile／Cloudflare（2026-11-12 正式站啟用後加回）、計數、標題與小標字數計數的原始碼斷言）；編輯畫面的互動未寫元件測試，由人工開頁確認 |
 | P06 | 內文渲染 | 通過 | `web/tests/privacy-policy.spec.ts`（分段、條列、https 連結、標點、HTML 字元、元件無 `v-html`） |
 | P07 | 頁面 | 通過 | `web/tests/privacy-policy.spec.ts`（SEO）；stack `privacy-policy.spec.ts`（未發布 404、發布後內容與目錄） |
 | P08 | sitemap | 通過 | `web/tests/privacy-policy.spec.ts`（`sitemapXml` 的 `privacy` 選項） |

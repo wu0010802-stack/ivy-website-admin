@@ -46,6 +46,15 @@ describe('隱私權政策（privacy_policy）', () => {
     }
   })
 
+  it('初稿：正式站啟用了 Turnstile，第 4 段說明、第 6 段委外清單都有 Cloudflare', () => {
+    const sections = privacyPolicyDraft().sections
+    const auto = sections.find((s) => s.heading.startsWith('4.'))!
+    const vendors = sections.find((s) => s.heading.startsWith('6.'))!
+    expect(auto.body).toContain('Cloudflare Turnstile')
+    expect(auto.body).toContain('IP')
+    expect(vendors.body).toMatch(/^- Cloudflare：/m)
+  })
+
   it('待確認計數：標題與各段都算，補完後歸零', () => {
     const draft = privacyPolicyDraft()
     draft.title = `隱私權政策${PRIVACY_POLICY_PENDING_MARKER}：x】`

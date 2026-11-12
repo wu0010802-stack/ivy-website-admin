@@ -67,7 +67,8 @@ def test_notice_may_be_empty_to_hide_it():
         lambda d: d.update(subsidies=[{"amount": "", "unit": "元／月", "who": "大班", "by": "教育部"}]),
         lambda d: d["refunds"][0].update(groups=[]),
         lambda d: d["refunds"][0]["groups"][0].update(lines=["", " "]),
-        lambda d: d.update(uniform_week=d["uniform_week"] * 2),
+        # 內建內容的星期表 2026-11-12 清空（各校穿著日不同），超過 7 天要另外造
+        lambda d: d.update(uniform_week=[{"day": f"第{i}天", "wear": "制服"} for i in range(8)]),
     ],
 )
 def test_rejects_empty_or_oversized_sections(mutate):
