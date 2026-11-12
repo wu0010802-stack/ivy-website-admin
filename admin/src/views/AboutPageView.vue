@@ -11,7 +11,7 @@ import { vReadonlyValues } from '../composables/readonlyValues'
 import { builtinPhotoSrc } from '../composables/pageContent'
 import { ABOUT_BUILTIN_PHOTOS, ABOUT_CHAPTER_HINTS, ABOUT_PHOTO_PREVIEWS, aboutPageDraft } from '../composables/aboutPageDraft'
 
-// 關於常春藤頁（/about，立體書）。章節、沿革五站、期許兩段固定，只改字和換照片（2026-10-03 使用者裁定）。
+// 關於常春藤頁（/about）。章節、沿革五站、期許兩段固定，只改字和換照片（2026-10-03 使用者裁定）。
 // 六大領域與核心素養是課綱名詞，不在這裡。第四章「家長怎麼說」的影片也不在這裡：由各校「五校介紹」的「家長分享影片」段
 // 管理（campus_profile.testimonials，null＝沿用內建、[]＝這校不放，每校最多 4 支），官網五校輪流取最多 4 支
 // （web/app/utils/testimonials.ts 的 pickVoices）。
@@ -46,7 +46,7 @@ onMounted(editor.load)
 <template>
   <ContentEditor :editor="editor" :sections="navSections">
     <template #lead>
-      官網 <code>/about</code> 關於常春藤頁（立體書）的文字與照片。章節、沿革五站與版面是固定的，這裡只改字、換照片；校名與校區照片跟著「五校介紹」，家長分享影片在各校的五校介紹裡編。
+      官網 <code>/about</code> 關於常春藤頁的文字與照片。章節、沿革五站與版面是固定的，這裡只改字、換照片；校名、地址電話與沿革上的校舍手繪圖跟著「五校介紹」，家長分享影片在各校的五校介紹裡編。
     </template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
@@ -70,7 +70,7 @@ onMounted(editor.load)
         builtin="官網內建的校外教學照片（兩個孩子和老師）"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.hero)"
         :previews="ABOUT_PHOTO_PREVIEWS.hero"
-        help="首屏右邊那張卡紙，各種螢幕都裁成 4:3；請用寬 2000 以上的橫式照片，重點放在中間，或在下面點選焦點。"
+        help="首屏的大照片：電腦上在標題右邊、裁成 6:5（左右會裁掉一些），手機上在標題底下、3:2；請用寬 2000 以上的橫式照片，並在下面點選焦點（點在主角臉上）。"
         :disabled="editor.readOnly.value"
       />
 
@@ -88,7 +88,7 @@ onMounted(editor.load)
       </div>
 
       <h3 id="section-about-story" class="sub-title" data-section-anchor tabindex="-1">第一章：一路走來</h3>
-      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutStoryTitle" title help="第一行最多 6 字、第二三行最多 7 字，避開右上角的紀念章；超過存不了。" />
+      <PageCopyField v-model="form.story_title" label="一路走來的標題" hint="aboutStoryTitle" title help="第一行最多 6 字、第二三行最多 7 字；超過存不了。" />
       <PageCopyField v-model="form.story_text" label="一路走來的說明" hint="aboutPageText" multiline />
       <div data-list="milestones">
         <div v-for="(milestone, i) in form.milestones" :key="milestone.key" class="page-copy__item" :data-list-item="i">
@@ -124,11 +124,11 @@ onMounted(editor.load)
       <PagePhotoField
         v-model:photo="form.hope_photo"
         v-model:alt="form.hope_photo_alt"
-        label="紙房子窗戶的照片"
+        label="我們的期許的照片"
         builtin="官網內建的長輩與孩子合照"
         :builtin-src="builtinPhotoSrc(ABOUT_BUILTIN_PHOTOS.hope)"
         :previews="ABOUT_PHOTO_PREVIEWS.hope"
-        help="右頁紙房子的窗戶，裁成 4:3，而且很小，選人臉清楚的，並在下面點選焦點。"
+        help="第三章深綠底上的那張大照片，裁成 3:2；請用寬 1400 以上的橫式照片，選人臉清楚的，並在下面點選焦點。換了照片以後，照片底下「創辦人和常春藤的孩子」那行字不會出現。"
         :disabled="editor.readOnly.value"
       />
 

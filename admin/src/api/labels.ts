@@ -294,7 +294,7 @@ const MEDIA_SLOT_PATH_LABELS: Record<string, string> = {
   'hero_photo.media_id': '首屏照片',
   'years_photo.media_id': '四個年段的照片',
   'hero_back_photo.media_id': '首屏後排照片',
-  'hope_photo.media_id': '紙房子窗戶的照片',
+  'hope_photo.media_id': '我們的期許的照片',
   // 常春藤環境頁（hero_photo 同上）；主打區的照片在巢狀物件裡。
   'care_photo.media_id': '幼兒保育照片',
   'feature.photo.media_id': '校園環境主打區的照片',

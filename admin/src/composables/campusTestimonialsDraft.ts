@@ -18,7 +18,7 @@ interface BuiltinTestimonial {
 
 const BUILTIN_TESTIMONIALS: Readonly<Record<string, readonly BuiltinTestimonial[]>> = {
   yihua: [
-    { youtubeId: 'oaVMxHvquU0', quote: '老師把孩子放第一，不是把父母放第一。', speaker: '樂樂媽咪' },
+    { youtubeId: 'oaVMxHvquU0', quote: '老師把孩子放第一。', speaker: '樂樂媽咪' },
     { youtubeId: 'U5kRPt7By90', quote: '幼幼班就自己走進去學校的背影，真的很感動。', speaker: '榕榕媽咪' },
     { youtubeId: '7yM201hNUc0', quote: '學校每日一本故事書，讓我的孩子愛上閱讀。', speaker: '祈祈爸比' },
     { youtubeId: 'B8qR0D4kLMU', quote: '孩子在進步！學校的用心，奶奶看得見。', speaker: '函函奶奶' },

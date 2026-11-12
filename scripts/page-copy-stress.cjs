@@ -64,20 +64,21 @@ const RULES = {
     { sel: '.cur-belief-close .cur-source', chars: 30 }
   ],
   '/about': [
-    // 2026-10-30 換版：桌機手機同一套（取代立體書與手機卡紙疊），同一份後台欄位、同樣的上限
+    // 2026-11-11 整頁重做「紅磚上的常春藤」：同一份後台欄位、同樣的上限。首屏那行字（heroCaption）在照片左下角的缺口裡；
+    // 一路走來的標題旁邊不再有紀念章（逐行上限仍是後端 page_schemas.py 的 STORY_TITLE_PER_LINE：6、7、7）。
     { sel: '#about-title', lines: 3, perLine: 12 },
     { sel: '.abh-lede', chars: 120 },
-    { sel: '.abh-hero-art .is-main figcaption', chars: 20, box: '.abh-hero-art .is-main' },
+    // 首屏照片上的一句話（heroCaption，上限 20 字）：內建那句在官網輸出時拿掉了（public-copy.ts），fixture 畫面上沒有這個
+    // 元素，所以不列在這裡；園方自己填時在照片左下角的缺口裡，2026-11-11 用 20 字在 390／820／1440 另外量過不超出照片。
     { sel: '.abh-index b', chars: 6, box: '.abh-index a' },
-    // 章名旁是紀念章：逐行上限第一行 6、第二三行 7（page_schemas.py 的 STORY_TITLE_PER_LINE）
-    { sel: '#story-title', lines: 3, perLine: [6, 7, 7], avoid: '.abh-medal' },
+    { sel: '#story-title', lines: 3, perLine: [6, 7, 7] },
     { sel: '#whole-title', lines: 3, perLine: 12 },
     { sel: '#hope-title', lines: 3, perLine: 14 },
-    { sel: '#story > .abh-text', chars: 120 },
-    { sel: '.abh-tl-text > p:not(.abh-year)', chars: 30, box: '.abh-tl li' },
-    { sel: '#whole-child .abh-text', chars: 100 },
-    { sel: '.abh-fine', chars: 100, textNode: true },
-    { sel: '.abh-fine small', chars: 30 },
+    { sel: '.abh-story-side .abh-text', chars: 120 },
+    { sel: '.abh-stop-line', chars: 30, box: '.abh-stop' },
+    { sel: '#whole-child .abh-head .abh-text', chars: 100 },
+    { sel: '.abh-fine-lead', chars: 100 },
+    { sel: '.abh-fine-source', chars: 30 },
     { sel: '.abh-quote p', chars: 70 }
   ],
   // 常春藤環境頁（2026-10-12 開放前三章；2026-10-30 木頭積木版拿掉圖說、便條、小腳印與選校提示）：數字是 page_schemas.py 的 ENVIRONMENT_* 上限。

@@ -6,11 +6,13 @@ import fixture from '../server/data/site-fixture.json'
 import type { AboutPageContent, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveAboutPage } from '../app/utils/content-overlay'
 import AboutContent from '../app/components/AboutContent.vue'
+import AboutYear from '../app/components/AboutYear.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
+import { LITERACIES } from '../app/utils/about-content'
 
 // 後台改過的值會出現在官網：後台存的 payload 經 applyContentOverlay 套到內容，再用伺服器渲染（同官網 SSR）
-// 畫出 AboutContent，看沿革的年份、民國年與首屏索引的年份範圍。Nuxt 的自動匯入在單元測試裡沒有，這裡補上；
-// 六圈（AboutWholePerson）只在瀏覽器裡動，換成空元件。
+// 畫出 AboutContent，看沿革的年份、民國年與首屏索引的年份範圍。Nuxt 的自動匯入在單元測試裡沒有，這裡補上
+// （元件也要自己註冊：年份跳字 AboutYear）。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -24,11 +26,11 @@ const NuxtLink = defineComponent({
 })
 const snake = (key: string) => key.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)
 
-async function render(page: AboutPageContent, extra: { anniversary?: boolean } = {}): Promise<string> {
+async function render(page: AboutPageContent, extra: { anniversary?: boolean; campuses?: SiteContent['campuses'] } = {}): Promise<string> {
   const app = createSSRApp({ render: () => h(AboutContent as Component, { campuses: site.campuses, page, ...extra }) })
   app.component('NuxtLink', NuxtLink)
   app.component('ResponsivePicture', ResponsivePicture)
-  app.component('AboutWholePerson', defineComponent({ render: () => null }))
+  app.component('AboutYear', AboutYear)
   return renderToString(app)
 }
 
@@ -37,8 +39,11 @@ describe('關於常春藤頁：後台改過的值會出現在官網', () => {
     const html = await render(site.aboutPage)
     expect(html).toContain('民國 86 年')
     expect(html).toMatch(/<p class="abh-year"[^>]*><span lang="en"[^>]*>1997<\/span>/)
-    expect(html).toContain('1997 到 2021')
+    // 首屏索引的小字：創校那年到今年（沿革最後一站是今年）
+    expect(html).toMatch(/1997 到 20\d\d/)
     expect(html).not.toContain('1998')
+    // 年份里程表：伺服器輸出就停在第一站那一年（讀得到的是 sr-only 那個數字，滾動的直條不讀）
+    expect(html).toMatch(/<span class="sr-only"[^>]*>1997<\/span><span class="aby-reel" aria-hidden="true"/)
   })
 
   it('後台把義華年份改成 1998：沿革顯示民國 87 年、沿革年份與首屏索引用 1998', async () => {
@@ -49,7 +54,7 @@ describe('關於常春藤頁：後台改過的值會出現在官網', () => {
     expect(html).toContain('民國 87 年')
     expect(html).not.toContain('民國 86 年')
     expect(html).toMatch(/<p class="abh-year"[^>]*><span lang="en"[^>]*>1998<\/span>/)
-    expect(html).toContain('1998 到 2021')
+    expect(html).toMatch(/1998 到 20\d\d/)
     // 首屏介紹是後台的另一個欄位（這裡沒改），只看沿革與索引沒有舊年份
     expect(html).not.toMatch(/>1997<|1997 到/)
   })
@@ -82,8 +87,8 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
     expect(storyTitle(html)).toBe('一路走來\n五所校園')
   })
 
-  it('30 週年開關打開才接 /anniversary', async () => {
-    expect(await render(site.aboutPage, { anniversary: true })).toMatch(/<a href="\/anniversary"[^>]*>看常春藤 30 週年/)
+  it('內文不連 30 週年頁（2026-11-12 使用者說先拿掉），開關開或關都一樣', async () => {
+    expect(await render(site.aboutPage, { anniversary: true })).not.toContain('/anniversary')
     expect(await render(site.aboutPage)).not.toContain('/anniversary')
   })
 
@@ -96,6 +101,35 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
     expect(html.match(/<div class="abh-panel"/g)).toHaveLength(6)
     expect(html).not.toContain('<details')
     expect(html).toContain('認知不是背知識，而是學會找答案')
-    expect(html).toContain('六大核心素養：覺知辨識、表達溝通、關懷合作、推理賞析、想像創造、自主管理')
+    expect(html).toMatch(/<b[^>]*>六大核心素養<\/b>/)
+    for (const name of LITERACIES) expect(html).toMatch(new RegExp(`<span[^>]*>${name}</span>`))
+  })
+
+  // 2026-11-11：沿革一校一站，多了地址電話與那一校的場景照；最後一站是今年
+  it('沿革每一站有地址與電話連結，不放校園場景照；整章收在今年、寫第幾年與幾所校園', async () => {
+    at('2026-10-31T04:00:00Z')
+    const html = await render(site.aboutPage)
+    expect(html.match(/<li[^>]*class="abh-stop"/g)).toHaveLength(5)
+    for (const campus of site.campuses) {
+      expect(html).toContain(campus.address)
+      expect(html).toContain(`href="tel:${campus.phone.replace(/[^0-9+]/g, '')}"`)
+      expect(html).toContain(`alt="${campus.name}校舍的手繪圖"`)
+    }
+    for (const scene of site.campuses.flatMap((c) => c.tourScenes)) expect(html).not.toContain(`>${scene.name}<`)
+    const now = html.slice(html.indexOf('abh-finale'), html.indexOf('id="whole-child"'))
+    expect(now).toMatch(/<span class="sr-only"[^>]*>2026<\/span>/)
+    expect(now).toMatch(/<span[^>]*>民國 115 年<\/span><b[^>]*>第 30 年<\/b>/)
+    expect(now).toMatch(/<h3[^>]*>五所校園<\/h3>/)
+    expect(now).not.toContain('<a ')
+    expect(now.match(/<span class="abh-sky-art"/g)).toHaveLength(5)
+  })
+
+  it('分校下架：那一年留在沿革裡，不放線稿、校名與聯絡方式，今年那一站少算一所', async () => {
+    const html = await render(site.aboutPage, { campuses: site.campuses.filter((c) => c.key !== 'renwu') })
+    expect(html.match(/<li[^>]*class="abh-stop"/g)).toHaveLength(5)
+    expect(html).toContain('第五所校園，在仁武區成立。')
+    expect(html).not.toContain('仁武校校舍的手繪圖')
+    expect(html).not.toContain('京吉一路')
+    expect(html).toMatch(/<h3[^>]*>四所校園<\/h3>/)
   })
 })

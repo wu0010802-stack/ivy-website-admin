@@ -34,7 +34,7 @@ BASE = {
 def _item(**changes) -> dict:
     item = {
         "youtube_url": "https://www.youtube.com/watch?v=oaVMxHvquU0",
-        "quote": "老師把孩子放第一，不是把父母放第一。",
+        "quote": "老師把孩子放第一。",
         "speaker": "樂樂媽咪",
     }
     item.update(changes)
@@ -257,7 +257,7 @@ async def test_custom_list_round_trips_and_poster_media_is_public(admin_client, 
     assert live == [
         {
             "youtube_url": "https://www.youtube.com/watch?v=oaVMxHvquU0",
-            "quote": "老師把孩子放第一，不是把父母放第一。",
+            "quote": "老師把孩子放第一。",
             "speaker": "樂樂媽咪",
             "poster": {"media_id": poster["id"], "focus_x": 30.0, "focus_y": 60.0},
             "poster_alt": "媽媽在說話",

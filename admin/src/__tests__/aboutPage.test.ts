@@ -90,17 +90,15 @@ describe('關於常春藤頁（about_page）', () => {
     }
   })
 
-  it('照片焦點預覽的比例和官網 about.css 一致：首屏 4:3、紙房子窗戶 4:3', () => {
+  it('照片焦點預覽的比例和官網 about.css 一致：首屏電腦 6:5、手機 3:2，我們的期許 3:2', () => {
     const css = readFileSync(resolve(ROOT, 'web/app/assets/css/about.css'), 'utf8')
-    expect(css).toContain('.abh-card>img,.abh-card>:where(picture)>img,.abh-blank{display:block;width:100%;height:auto;aspect-ratio:var(--ar,4/3);object-fit:cover;')
-    expect(css).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:4\/3/)
-    expect(css).toContain('.abh-window img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover}')
+    expect(css).toMatch(/\.abh-hero-frame\{aspect-ratio:3\/2;/)
+    expect(css).toContain('.abh-hero-frame{width:min(100%,max(400px,calc((100svh - 190px) * 1.2)));margin-left:auto;aspect-ratio:6/5}')
+    expect(css).toMatch(/\.abh-hope-frame\{aspect-ratio:3\/2;/)
     const component = readFileSync(resolve(ROOT, 'web/app/components/AboutContent.vue'), 'utf8')
-    // 2026-11-03 拿掉首屏後排小卡
-    expect(component).not.toContain('is-back')
-    expect(component.slice(component.indexOf('<span class="abh-window">'))).toContain("pagePhotoAttrs('about-together', page.hopePhoto")
-    expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['4 / 3'])
-    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 3'])
+    expect(component.slice(component.indexOf('<figure class="abh-hope-photo"'))).toContain("pagePhotoAttrs('about-together', page.hopePhoto")
+    expect(ABOUT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['6 / 5', '3 / 2'])
+    expect(ABOUT_PHOTO_PREVIEWS.hope.map((p) => p.ratio)).toEqual(['3 / 2'])
     expect(Object.keys(ABOUT_PHOTO_PREVIEWS)).toEqual(['hero', 'hope'])
   })
 
@@ -142,7 +140,7 @@ describe('關於常春藤頁（about_page）', () => {
     expect(payload.milestones[1]!.year).toBe(2002)
   })
 
-  it('從未存過：換了照片再改回內建，不算未儲存的修改（首屏、紙房子窗戶兩張照片）', async () => {
+  it('從未存過：換了照片再改回內建，不算未儲存的修改（首屏、我們的期許兩張照片）', async () => {
     vi.spyOn(api, 'get').mockResolvedValue(neverSaved as never)
     const wrapper = await mountAs(superAdmin())
     const slots = wrapper.findAllComponents(MediaSlotField)
@@ -262,13 +260,13 @@ describe('關於常春藤頁：段落導覽、清單定位、素材用途標籤'
   it('素材庫「用在哪裡」認得三張照片，既有路徑不受影響', () => {
     expect(mediaFieldPathLabel('hero_photo.media_id')).toBe('首屏照片')
     expect(mediaFieldPathLabel('hero_back_photo.media_id')).toBe('首屏後排照片')
-    expect(mediaFieldPathLabel('hope_photo.media_id')).toBe('紙房子窗戶的照片')
+    expect(mediaFieldPathLabel('hope_photo.media_id')).toBe('我們的期許的照片')
     expect(mediaFieldPathLabel('years_photo.media_id')).toBe('四個年段的照片')
     expect(mediaFieldPathLabel('photo.media_id')).toBe('關於常春藤照片')
     expect(mediaFieldPathLabel('directions[2].photo.media_id')).toBe('課程方向第 3 項的照片')
   })
   it('欄位名與表單標籤一致', () => {
-    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '五所校園的標題', '五所校園的說明', '首屏照片', '紙房子窗戶的照片']
+    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '五所校園的標題', '五所校園的說明', '首屏照片', '我們的期許的照片']
     for (const label of labels) expect(source).toContain(`label="${label}"`)
     expect(source).not.toContain('label="首屏後排照片"')
     const kindLabels = new Set(['hero_title', 'hero_lede', 'hero_caption', 'hero_photo', 'hero_back_photo', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'hope_photo', 'outro_title', 'outro_text'].map((k) => contentFieldLabelFor('about_page', k)))

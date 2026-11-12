@@ -61,7 +61,7 @@ test('後台關掉 30 週年並發布：布幕、分頁、選單與頁尾連結�
     await expect(page.locator('dialog.entrance-curtain')).toHaveCount(0)
     await expect(page.locator('a[href^="/anniversary"]')).toHaveCount(0)
     await expect(page.getByRole('link', { name: '關於常春藤' }).first()).toBeAttached()
-    // 關於頁沿革尾端的「看常春藤 30 週年」跟著開關（2026-10-31）
+    // 關於頁：開關關掉時整頁沒有任何 30 週年連結（頁首選單也沒有）
     await page.goto('/about')
     await expect(page.locator('.abh-tl')).toBeAttached()
     await expect(page.locator('a[href^="/anniversary"]')).toHaveCount(0)
@@ -74,7 +74,10 @@ test('後台關掉 30 週年並發布：布幕、分頁、選單與頁尾連結�
     await page.goto('/')
     await skipEntrance(page)
     await expect(page.locator('a[href="/anniversary"]').first()).toBeAttached()
+    // 關於頁內文不連 30 週年（沿革尾端的「看常春藤 30 週年」2026-11-12 使用者說先拿掉）；頁首選單的入口照樣回來
     await page.goto('/about')
-    await expect(page.locator('.abh-tl-end a[href="/anniversary"]')).toBeAttached()
+    await expect(page.locator('.abh-tl')).toBeAttached()
+    await expect(page.locator('#main a[href="/anniversary"]')).toHaveCount(0)
+    await expect(page.locator('a[href="/anniversary"]').first()).toBeAttached()
   })
 })
