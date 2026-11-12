@@ -196,6 +196,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 環境頁五所校園每校三個角落上線（main CI 部署，沒有 migration）
+
+- **內容**：`a39622c5`（README「2026-11-12 環境頁『五所校園』每校三個角落」）。每校順序改成校園環境 → 教室 → 特色；明華新增學習區教室、紅磚迴廊中庭，崇德溜滑梯換有孩子的照片並與 PU 大操場對調，國際騎士堡移到第一張並新增木工創作教室，新照片取自各校 FB 粉專。
+- **CI**：run 43177201890 全綠，Deploy 成功。上一輪 43172898906（`9d692961`）是 web 部署被標成 REMOVED 失敗，不是測試問題。本機 stack 175 過、`media.spec` 一項逾時（單獨重跑 2 過）。
+- **線上驗證**：`/environment` 有學習區教室、紅磚迴廊中庭、騎士堡、木工創作教室，噴水池花園與校門口已不在；`tour-chongde-playground`、`tour-minghua-courtyard`、`tour-international-woodwork` 衍生檔 200。
+- **待使用者**：正式站義華的校園探索是後台發布的內容，仍是舊的戶外廣場／綠色園藝／共創教室；要在後台「全站與素材 → 校園探索 → 義華」刪綠色園藝、新增「生態花園」（照片 `~/Desktop/義華-生態花園-後台上傳用.jpg`），排成戶外廣場 → 共創教室 → 生態花園後發布。
+
 ## 2026-11-12 平台設定：HSTS、www 走 Cloudflare 代理、後台搬到 admin.ivykidschool.com（只改平台設定，沒有程式提交）
 
 上方「資安強化（2026-11-12）」的平台項目，使用者說「這些幫我做」，15:10–15:40（台北）做完。
