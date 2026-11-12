@@ -48,7 +48,7 @@ const sections = computed<Section[]>(() => {
   ]
 })
 
-// 能寄測試信：有設 SMTP，或測試環境寫進本機資料夾（sink）。兩者都沒有時按鈕停用。
+// 能寄測試信：有設真實寄信（SMTP 或 Resend，該列 level 為 ok），或測試環境寫進本機資料夾（sink）。兩者都沒有時按鈕停用。
 const canSendTest = computed(() => {
   const row = data.value?.services.find((item) => item.key === 'smtp')
   return row !== undefined && (row.level === 'ok' || Boolean(row.detail?.sink))

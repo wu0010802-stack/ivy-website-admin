@@ -14,6 +14,77 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 寄信：Resend（程式 2026-11-12 已上線，正式站尚未設定金鑰）
+
+正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
+
+1. **Resend 帳號與網域**：在 <https://resend.com> 建帳號，Domains → Add Domain。建議用子網域（例如 `send.ivykidschool.com`），不要直接用根網域：根網域的 MX／SPF 是 Google Workspace 的，分開才不會互相影響寄信信譽。區域選離台灣最近的（Tokyo）。
+2. **DNS（Cloudflare）**：把 Resend 列出的紀錄照抄進 Cloudflare（DKIM 的 TXT、回信路徑的 MX 與 SPF TXT），全部**灰雲（DNS only）**。回 Resend 按 Verify，等狀態變成 Verified。紀錄內容以 Resend 主控台顯示的為準，不要照別處的範例填。
+3. **API 金鑰**：API Keys → Create，權限選 Sending access、限定剛驗證的網域。金鑰只顯示一次，直接貼進 Railway，不要貼進對話或檔案。
+4. **Railway api 變數**：`WEBSITE_RESEND_API_KEY`（金鑰）、`WEBSITE_RESEND_FROM`（例如 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，網域要和第 1 步驗證的一致）。確認沒有設 `WEBSITE_SMTP_HOST`（兩個同時設 api 會啟動失敗）。存檔後 Railway 會重新部署。
+5. **驗證**：登入後台「系統 → 系統狀態」，寄信那一列應顯示「寄件地址 …，經 Resend 寄出」；按「寄一封測試信給我」，到信箱確認收到、沒進垃圾信。再用自己的 Email 在官網預約一次，確認收到預約成功信。
+
+上線後要知道：
+
+- 設好之後，家長確認信、變更／取消信、參觀前 24 小時提醒、停課通知、重設密碼連結都會開始真的寄出；提醒信第一輪會替接下來 24 小時內的參觀補排（見 `docs/website-admin/operations.md`）。之前因為沒設定而略過的信不會補寄。
+- Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
+- 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
+- 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
+## 2026-11-12 好奇探索、遊樂區、入學頁首屏換照上線（main CI 部署，沒有 migration）
+
+- **內容**：`9323f075`（README「2026-11-12 ivykids.tw 輪播照換上前台」），分支 `feature/slider-photos-20261112`。孩子的一天「好奇探索」、環境頁「安全歡樂遊樂區」換成義華 NAS 原檔，入學頁首屏改用新代號 `admission-hero`。使用者說「上線」。
+- **推前（本機）**：rebase 到 `4e121f67`（README 頂部衝突兩段都留）；`npm --prefix web run typecheck` 過、`npm run test:website` 141 檔 1,874 過；後端讀 fixture 的 6 檔 157 過（獨立測試庫，已刪）；`npm run e2e:build` 後 stack e2e 172 過、30 略過（獨立庫 `ivy_website_e2e_test_slider20261112`，已刪）。
+- **CI**：main run 43132857601 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `9323f075`。
+- **部署後正式站驗證**（只發 GET）：`/release.json`、`/api/website/v1/health`、首頁 200；首頁 `day-discover`、`/environment` 的 `env-space-playground` 都是新雜湊；`admission-hero` 衍生檔 200。`/admission` 回 404 是入學資訊分頁開關目前關著（`site_meta.admission_enabled`），不是這次造成的。
+- **還沒做（要本人登入後台）**：「常春藤的一天」的「好奇探索」替代文字存在正式站 CMS，仍是紫高麗菜那句，要改成新照片的描述。
+
+## 2026-11-12 寄信接上 Resend 上線（main CI 部署，沒有 migration）
+
+- **內容**：`4f4be3e4`（PR #72 squash，README「2026-11-11 寄信接上 Resend」），分支 `feature/resend-20261111`。後端多一條經 Resend HTTPS API 寄信的路（`WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`，和 SMTP 擇一），「有沒有設定寄信」統一看 `Settings.real_email_enabled`；後台系統狀態寄信那列改叫「寄信」、測試信多一種結果 `quota`。使用者要求 commit 並併入 main。
+- **推前（本機）**：後端全套 5087 過，1 項（`test_google_oauth.py::test_google_login_is_not_blocked_by_the_password_lock`）在機器負載 100 以上時失敗、單獨重跑整檔 54 項過；admin 全套過（sparse worktree 缺 `web/shared` 的一檔與一項 120 秒逾時，補目錄後單獨重跑 76 項過）；admin typecheck、`npm run contract:check` 過。沒有真的打過 Resend（沒有金鑰）。
+- **CI**：PR run 43128101724 全綠（web、admin、後端 3 組、E2E）；main run 43129606038 全綠，Deploy Railway production success；`/release.json` 的 `base_commit` 是 `4f4be3e4`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200、`/api/website/v1/health` 200、首頁與 `/admin/` 200、`/api/website/v1/admin/system-status` 未登入回 401；`/api/website/v1/public/booking-config/yihua` 的 `parent_email_enabled` 仍是 `false`（正式站沒設任何寄信變數，行為和部署前相同）。沒有登入正式站後台看系統狀態頁。
+- **還沒做（要本人登入）**：Resend 帳號、網域驗證（Cloudflare DNS）、金鑰與 Railway api 兩個變數，步驟在上面「寄信：Resend」。設好之前所有 Email 照舊不寄。
+
+
+## 2026-11-12 特色教學手機版只留一條橫滑上線（main CI 部署，沒有 migration）
+
+- **內容**：`3c6e4952`（README「2026-11-11 特色教學手機版：只留美術館一條橫滑」），分支 `feature/cur-mobile-20261111`，從 `e3eb1c08` 開、快轉 main。使用者回報 `/curriculum` 手機上很多內容都要左右滑；760px 以下原本三條橫滑，改成只留美術館一條（作品等高），課程方向沿用平板兩欄、五件事一列一件。使用者看過對照圖後說「部署」。只動 web（`curriculum.css` 的 760 區塊、`CurriculumContent.vue`、`useWatercolor.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前（本機）**：web typecheck 過；全套 141 檔 1,874 項過（加 `--testTimeout=30000`：當時機器負載 100 以上，預設 5 秒有 7 項重運算測試逾時，都不在這次改的檔案）。admin、後端、stack e2e 本機沒跑，以 CI 為準。
+- **CI**：main run 43127720161 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `3c6e4952`（00:37:22Z）。
+- **部署後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET 與統計、遙測）：`/`、`/curriculum`、`/about`、`/visit`、`/admin/` 都 200。`/curriculum` 量 320／390／768／1440：整頁都沒有橫向溢出；320、390 課程方向兩欄、五件事直排，兩條都不能橫捲也沒有 tabindex，美術館可以橫捲、張數跟著變（3、6、8、回到 1），直排清單沒有被裁掉的字；768、1440 沒有張數、三條清單都不橫捲，版面高度和改前的量測一致。390 寬整頁 8,099px（改前 6,551px）。390 的整頁截圖看過。
+- **沒驗**：iOS／Android 實機。
+- **回退**：切回上一版映像即可，沒有資料變更。
+## 2026-11-11 拍立得 WebGL context 遺失修正上線（main CI 部署，沒有 migration）
+
+- **內容**：`4cfaaec8`（README「2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影」），分支 `fix/paper-context-lost-20261111`，rebase 到 `e3090816` 後快轉 main（只有 README 頂部衝突）。使用者回報真手機上「常春藤的一天」的卡片出現上一個畫面的殘影；共用的 WebGL context 被系統收走後，拍立得改成退回 CSS 版、再用新的 context 重掛，同一頁第二次遺失就停用 WebGL。只動 web（`paperPrints.ts`、`DayMomentCard.vue`、`paper-budget.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前（本機，rebase 後）**：web typecheck 過、全套 140 檔 1864 過。admin、後端、stack e2e 本機沒跑，以 CI 為準。
+- **CI**：main run 43041527974 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `4cfaaec8`（14:52:32Z）。
+- **部署後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET）：`/`、`/about`、`/visit`、`/admin/`、公開內容 API 都 200。390×844 手機模擬，用 `WEBGL_lose_context` 讓共用 context 連續遺失兩次，Chromium 與 WebKit 結果相同：第一次遺失 0.35 秒內畫面上的卡都卸回 CSS 版、4 秒內用新的 context 重掛；翻面正常；第二次遺失後維持 CSS 版，點卡片照樣翻面，沒有再建第三個 context，沒有 JS 錯誤。Chromium 截圖逐張看過，每張卡都是自己的照片與文字。
+- **沒驗**：iOS／Android 實機（原始回報來自真手機，真機上 context 被收走的觸發點是推論）；WebKit 的 CSS 版畫面只看了 DOM 狀態（Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面，截圖不可信）。**請使用者用原本那支手機開首頁、切到別的 App 再回來幾次確認。**
+- **回退**：切回上一版映像即可，沒有資料變更。
+## 2026-11-11 內容興趣第二輪上線（main CI 部署，migration `e7a1c93b5d20` 加三個欄位）
+
+- **內容**：`e3090816`（PR #70 squash，README「2026-11-11 內容興趣第二輪」），分支 `claude/busy-johnson-er03ju`。預約表單卡在哪一步、入學試算班別、每日造訪與上一期比較、首頁消息分篇、進站頁／離開頁／瀏覽順序、只看手機或電腦、瀏覽時段、各校興趣對照實際預約、活動代碼；並修掉 PR #69 審查指出的兩件事（各校消息代號沒分篇、晚到的舊回報蓋掉新資料）。使用者要求併入 main。
+- **Migration**：`e7a1c93b5d20` 在 `engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填；本機在全新資料庫升、降、再升都過。
+- **推前（本機）**：後端 `test_engagement.py` 30 過（真 PostgreSQL；全套本機沒跑完，以 CI 為準）、web 139 檔 1855 過、admin typecheck 過（全套 174 檔中 173 檔過，`engagement.test.ts` 在改到一半時跑到而失敗，改完單獨重跑 12 項過）、契約檢查過；本機 dev server＋真 API 用無頭 Chromium 走過帶活動代碼的整段預約流程，資料正確入庫。
+- **CI**：合併前 PR head `1340e6c` 的 web、admin、後端 3 組全綠，E2E 還在跑（不擋部署）。main run 43038908050 全綠（含 E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `e3090816`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200、首頁 200、`/api/website/v1/admin/analytics/engagement?device=mobile` 未登入回 401。沒有登入正式站後台看面板，也沒有確認正式資料庫的新欄位已經有值。
+- **PR #70 的自動審查在合併後才回來**，指出一件事：入學試算同一頁查兩個同班別的孩子只算一次，和面板說明不符。下一個 PR 修（試算改成查一次算一次）。
+- **回退**：切回上一版映像即可；多出來的三個欄位都可為 NULL，上一版（#69）照常寫入。再往前（#69 之前）的版本不讀不寫這張表。
+
+## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
+
+- **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
+- **Migration**：`d2f6b8a13c47` 只新增 `engagement_visits`，不動既有資料，API 啟動時自動套用。
+- **推前（本機）**：後端全套 5042 過（真 PostgreSQL）、web 139 檔 1852 過、admin 174 檔 3367 過、兩邊 typecheck 與契約檢查過；本機 dev server＋真 API 用無頭 Chromium 在 390×844 與 1440×900 走過一遍，資料正確入庫。合併當下 PR 的 E2E 還在跑（不擋部署）。
+- **CI**：main run 43034669679 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `08833a3b`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200；`/api/website/v1/admin/analytics/engagement` 未登入回 401（路由已掛上）；首頁 HTML 有 `data-track-section`（hero、about、day、campuses；最新消息在正式站是關閉的，所以沒有 news）。沒有登入正式站後台看面板，也沒有確認正式資料庫已經收到第一筆紀錄。
+- **上線後要知道**：面板從部署這一刻開始累積，之前沒有資料。最新消息在正式站關閉期間，「單篇消息」不會有資料。隱私權政策草稿已補上對應說明，政策本身還沒發布。
+- **PR #69 的自動審查在合併後才回來**，指出兩件事：各校消息的代號帶冒號（`yihua:open-day`）沒被分篇統計、晚到的舊回報會蓋掉新的區塊與互動。兩項都在下一輪（PR #70）修，這一版先帶著上線；最新消息目前關閉，第一項暫時沒有影響。
+- **回退**：切回上一版映像即可；`engagement_visits` 留著不影響舊版（舊版不讀不寫）。
+
 ## 2026-11-11 後台入學資訊分頁開關上線（main CI 部署，沒有 migration）
 
 - **內容**：`964b03bb`（README「2026-11-11 後台可以先隱藏入學資訊分頁」），分支 `feature/hide-admission-20261111`，rebase 到 `849289d8` 後快轉 main。後台「網站標題與電話」新增「入學資訊分頁」開關（`site_meta.admission_enabled`，預設開、發布後生效）；關閉時 `/admission` 回 404，主選單、頁尾、關於頁與環境頁結尾拿掉入學資訊連結，sitemap 與 llms.txt（含常見問題段）不列，舊站五條入學網址改 302 到首頁。沒有 migration、沒有新變數、OpenAPI 契約沒變。
@@ -2474,6 +2545,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
+| api | `WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`（選填，2026-11-11；經 Resend 的 HTTPS API 寄信。兩個要一起設、和 `WEBSITE_SMTP_HOST` 只能擇一；寄件地址的網域要先在 Resend 驗證。步驟見「寄信：Resend」） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |

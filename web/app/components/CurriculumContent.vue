@@ -35,7 +35,8 @@ const YEARS = [
 // 2026-11-03 統整課程、多元文化、自主學習改用園方雲端「115招生照片」（推測崇德校、待園方確認，校別不標；原檔被 LINE 壓到 1477×1108，
 // 母檔照原尺寸不放大）：統整 4:5 置中是拉吊環、爬繩梯、盪鞦韆的孩子；多元文化 25% 讓外師和圍坐的孩子都在框內。
 // 同日自主學習再換成明華校 FB 粉專的外師科學課（2024-09-28 貼文，原圖 2048×1365，母檔置中裁 4:3）。
-const DIRECTION_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 520px'
+// 手機（760px 以下）課程方向是兩欄，一張約 45vw；藝術共創獨占一列。
+const DIRECTION_SIZES = '(max-width: 760px) 45vw, (max-width: 1100px) 50vw, 520px'
 const DIRECTIONS = [
   { key: 'cognitive', image: 'cur-cognitive', alt: '孩子們圍在桌邊一起翻看繪本', wash: 'sun,.58,.62,.6,.6' },
   { key: 'integrated', image: 'cur-integrated', alt: '孩子們在戶外遊具上拉吊環、爬繩梯、盪鞦韆', wash: 'mint,.44,.6,.66,.56', position: '50% 50%' },
@@ -43,21 +44,24 @@ const DIRECTIONS = [
   { key: 'quote' },
   { key: 'autonomy', image: 'cur-autonomy', alt: '男孩握著滴管，把顏色一滴滴加進桌上的水杯，老師在身後扶著他', wash: 'sun,.46,.6,.62,.6' },
   { key: 'activities', image: 'cur-activities', alt: '戶外教學到苗圃，女孩捧著種子仰頭大笑', wash: 'mint,.56,.6,.66,.56', position: '38% 42%' },
-  { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 760px) 80vw, (max-width: 1100px) 100vw, 800px' }
+  { key: 'art', image: 'cur-art', alt: '孩子們一起在大塊布上塗顏色', wash: 'orange,.4,.6,.56,.62,.024,40|sky,.95,.2,.2,.3,.03,26', sizes: '(max-width: 1100px) 100vw, 800px' }
 ] satisfies { key: string, image?: string, alt?: string, wash?: string, position?: string, sizes?: string }[]
 
 // 作品照片取自機構站「常春藤兒童美術館」相簿（原圖 4608×3456，依 EXIF 轉正後縮到長邊 1600）。
 // 沒放的：字母珠球（字母可能拼出孩子名字）、綠色膠帶畫（有手寫字）。替代文字描述作品本身。
+// tall＝直幅（3:4）。手機橫滑每件等高（curriculum.css 的 --art-h，上限 60vw）：直幅寬 45vw、橫幅 80vw，sizes 分開給。
+const GALLERY_SIZES = '(max-width: 760px) 80vw, (max-width: 1100px) 24vw, 300px'
+const GALLERY_SIZES_TALL = '(max-width: 760px) 45vw, (max-width: 1100px) 24vw, 300px'
 const GALLERY = [
-  { image: 'cur-gallery-canvas-yellow', alt: '黃色畫布上，用橘、白、紅色畫的人物和愛心', wash: 'orange,.55,.56,.58,.54' },
+  { image: 'cur-gallery-canvas-yellow', alt: '黃色畫布上，用橘、白、紅色畫的人物和愛心', wash: 'orange,.55,.56,.58,.54', tall: true },
   { image: 'cur-gallery-clay-ball', alt: '塗成藍紫色、黏滿黏土小裝飾的球', wash: 'sky,.5,.56,.58,.56' },
-  { image: 'cur-gallery-tote', alt: '用紅、藍、綠色點畫的帆布袋', wash: 'mint,.5,.56,.58,.54' },
+  { image: 'cur-gallery-tote', alt: '用紅、藍、綠色點畫的帆布袋', wash: 'mint,.5,.56,.58,.54', tall: true },
   { image: 'cur-gallery-plane-pink', alt: '塗成粉紅色的木頭雙翼飛機', wash: 'sun,.5,.6,.58,.56' },
   { image: 'cur-gallery-tee', alt: '染上粉紅與黃色的 T 恤', wash: 'mint,.5,.56,.58,.54' },
-  { image: 'cur-gallery-canvas-blue', alt: '藍綠色畫布上，用藍色線條和紅色圈圈畫的人', wash: 'sun,.5,.56,.58,.54' },
+  { image: 'cur-gallery-canvas-blue', alt: '藍綠色畫布上，用藍色線條和紅色圈圈畫的人', wash: 'sun,.5,.56,.58,.54', tall: true },
   { image: 'cur-gallery-tape', alt: '撕掉膠帶後留下白色線條的粉紅色畫', wash: 'orange,.5,.56,.58,.54' },
   { image: 'cur-gallery-plane-dots', alt: '點滿藍色與彩色小點的木頭雙翼飛機', wash: 'sky,.5,.6,.58,.56' }
-] satisfies { image: string, alt: string, wash: string }[]
+] satisfies { image: string, alt: string, wash: string, tall?: boolean }[]
 
 // 義華校的五件事，一件配一種顏料。
 // 照片後的顏料 2026-10-13 往上收（中心 .56–.6→.5、上下半徑 .6→.5，左右放寬 .64→.7）：原本往下暈到編號，01 天藍、03 橙的編號顏料團和底下同色顏料糊成一片。
@@ -102,18 +106,19 @@ const directions = computed(() => DIRECTIONS.map((look, i) => ({ ...look, ...pro
 const gallery = computed(() => GALLERY.map((look, i) => ({ ...look, ...props.page.gallery[i]! })))
 const daily = computed(() => DAILY.map((look, i) => ({ ...look, ...props.page.daily[i]! })))
 
-// 手機三條橫滑清單（760px 以下，見 curriculum.css）底下的「第幾張／共幾張」：只露出下一張的邊，看不出後面還有幾張。
-// 捲動時找左緣最靠近清單起點的那一張；捲到底算最後一張（最後一張比較窄時左緣到不了起點）。桌機清單不橫捲、數字也不顯示。
-const railAt = reactive({ directions: 1, gallery: 1, daily: 1 })
-function onRailScroll(key: keyof typeof railAt, event: Event) {
+// 手機只有美術館橫滑（760px 以下，見 curriculum.css；2026-11-11 起課程方向、五件事改直排）。
+// 底下的「第幾件／共幾件」：只露出下一件的邊，看不出後面還有幾件。捲動時找左緣最靠近清單起點的那一件；
+// 捲到底算最後一件（作品寬度不一，最後一件的左緣到不了起點）。桌機清單不橫捲、數字也不顯示。
+const galleryAt = ref(1)
+function onGalleryScroll(event: Event) {
   const rail = event.currentTarget as HTMLElement
   const items = Array.from(rail.children) as HTMLElement[]
   if (!items.length) return
-  if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2) { railAt[key] = items.length; return }
+  if (rail.scrollLeft + rail.clientWidth >= rail.scrollWidth - 2) { galleryAt.value = items.length; return }
   const start = rail.scrollLeft + items[0]!.offsetLeft
   let best = 0
   items.forEach((el, i) => { if (Math.abs(el.offsetLeft - start) < Math.abs(items[best]!.offsetLeft - start)) best = i })
-  railAt[key] = best + 1
+  galleryAt.value = best + 1
 }
 
 const root = ref<HTMLElement | null>(null)
@@ -183,7 +188,7 @@ useWatercolor(root)
           <h2 id="directions-title" class="cur-title"><template v-for="(line, i) in pageTitleLines(page.directionsTitle)" :key="i"><br v-if="i">{{ line }}</template></h2>
           <p v-if="page.directionsText" class="cur-text">{{ page.directionsText }}</p>
         </div>
-        <ul class="cur-dir-grid" aria-label="七個課程方向" @scroll.passive="onRailScroll('directions', $event)" data-reveal-group data-wash-mobile="mint,.45,.36,.72,.36,.022,34">
+        <ul class="cur-dir-grid" aria-label="七個課程方向" data-reveal-group>
           <li v-for="item in directions" :key="item.key" class="cur-dir" :class="`cur-dir--${item.key}`" data-reveal>
             <span v-if="!item.image" class="cur-blot" data-blot="orange" aria-hidden="true" />
             <div v-if="item.image" class="cur-frame" :data-wash="item.wash">
@@ -196,7 +201,6 @@ useWatercolor(root)
             </div>
           </li>
         </ul>
-        <p class="cur-count" aria-hidden="true"><b>{{ railAt.directions }}</b> / {{ directions.length }}<span>左右滑動</span></p>
       </div>
     </section>
 
@@ -211,13 +215,13 @@ useWatercolor(root)
           </div>
           <p v-if="page.galleryText || page.gallerySource" class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
         </div>
-        <ul class="cur-art-wall" aria-label="孩子的作品" @scroll.passive="onRailScroll('gallery', $event)" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
+        <ul class="cur-art-wall" aria-label="孩子的作品" @scroll.passive="onGalleryScroll" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
-            <div class="cur-frame" :data-wash="art.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, '(max-width: 760px) 62vw, (max-width: 1100px) 24vw, 300px'), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy" /></div>
+            <div class="cur-frame" :data-wash="art.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, art.tall ? GALLERY_SIZES_TALL : GALLERY_SIZES), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy" /></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
-        <p class="cur-count" aria-hidden="true"><b>{{ railAt.gallery }}</b> / {{ gallery.length }}<span>左右滑動</span></p>
+        <p class="cur-count" aria-hidden="true"><b>{{ galleryAt }}</b> / {{ gallery.length }}<span>左右滑動</span></p>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="FLOOR.wash"><ResponsivePicture v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy" /></div>
         </figure>
@@ -235,15 +239,14 @@ useWatercolor(root)
           </div>
           <p v-if="page.dailyText || page.dailySource" class="cur-text">{{ page.dailyText }}<small v-if="page.dailySource" class="cur-source">{{ page.dailySource }}</small></p>
         </div>
-        <ol class="cur-daily-list" aria-label="五件事" @scroll.passive="onRailScroll('daily', $event)" data-reveal-group data-wash-mobile="sky,.45,.3,.72,.3,.022,34">
+        <ol class="cur-daily-list" aria-label="五件事" data-reveal-group>
           <li v-for="(item, i) in daily" :key="item.image" class="cur-thing" data-reveal>
-            <div class="cur-frame" :data-wash="item.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 80vw, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy" /></div>
+            <div class="cur-frame" :data-wash="item.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(item.image, item.photo, '(max-width: 760px) 148px, (max-width: 1100px) 50vw, 400px'), item.photo)" :alt="pagePhotoAlt(item.alt, item.photo, item.photoAlt)" loading="lazy" /></div>
             <p class="cur-thing-no" lang="en"><span class="cur-blot" :data-blot="item.pigment" aria-hidden="true" />{{ String(i + 1).padStart(2, '0') }}</p>
             <h3>{{ item.title }}</h3>
             <p>{{ item.text }}</p>
           </li>
         </ol>
-        <p class="cur-count" aria-hidden="true"><b>{{ railAt.daily }}</b> / {{ daily.length }}<span>左右滑動</span></p>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="KITE.wash"><ResponsivePicture v-bind="pagePhotoAttrs(KITE.image, undefined, BAND_SIZES)" :alt="KITE.alt" :style="{ objectPosition: KITE.position }" loading="lazy" /></div>
         </figure>

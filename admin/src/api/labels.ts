@@ -396,7 +396,7 @@ export function notificationLabel(kind: string, payload?: Record<string, unknown
   return label
 }
 
-// 逾時與連不上：寄信走 smtplib（socket 的例外），LINE 推播走 httpx（httpx 自己的
+// 逾時與連不上：SMTP 寄信走 smtplib（socket 的例外），Resend 寄信與 LINE 推播走 httpx（httpx 自己的
 // 例外類別，LinePushError 只包 HTTP 狀態碼，網路錯誤是原樣的 httpx 類別名稱）。
 const OUTBOX_TIMEOUT_CODES = /^(TimeoutError|timeout|ConnectTimeout|ReadTimeout|WriteTimeout|PoolTimeout)$/
 const OUTBOX_CONNECTION_CODES =
@@ -407,6 +407,11 @@ const OUTBOX_CONNECTION_CODES =
 export function outboxErrorLabel(code: string | null | undefined): string {
   if (!code) return '原因不明'
   if (code === 'LinePushError') return 'LINE 推播失敗'
+  // 經 Resend 寄信（後端 notifications/email_adapter.py 的 Resend*Error）。
+  if (code === 'ResendAuthError') return 'Resend 金鑰無效或已停用'
+  if (code === 'ResendRejectedError') return 'Resend 拒收（寄件網域還沒驗證，或地址有誤）'
+  if (code === 'ResendQuotaError') return 'Resend 額度用完或寄得太快'
+  if (code.startsWith('Resend')) return 'Resend 服務錯誤'
   if (code === 'SMTPAuthenticationError') return '寄信伺服器帳號或密碼錯誤'
   if (code === 'SMTPRecipientsRefused') return '收件地址被寄信伺服器拒絕'
   if (code.startsWith('SMTP')) return '寄信伺服器錯誤'

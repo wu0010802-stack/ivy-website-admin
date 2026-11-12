@@ -3,6 +3,7 @@ import { responsiveTourImage } from '~/utils/tour-image'
 import { campusFacebookPages, isSampleNews, NEWS_PATH, titleClauses } from '~/utils/news-content'
 import { campusShort, countdownLabel, dateParts, homeStories, storiesForCampus, storyRings, type HomeStory } from '~/utils/news-home'
 import type { Campus, HomeFilm, NewsArticle, NewsEvent } from '~/types/site-content'
+import { storyActionKey, trackEngagementAction } from '~/utils/engagement'
 
 /**
  * 首頁手機版的「最新消息」（2026-10-17 方向 3）：活動、消息、活動影片排成一列直式卡，點開是可以連續看的動態
@@ -56,6 +57,8 @@ function cardFor(id: string) {
   return shelf.value?.querySelector<HTMLElement>(`[data-story="${CSS.escape(id)}"]`) ?? null
 }
 function markSeen(id: string) {
+  // 內容興趣統計：這次瀏覽第一次看到這一則才記（分篇；代號不合格式的只記總數）。
+  if (!seen.value.has(id)) trackEngagementAction(storyActionKey(id) ?? 'story_open')
   seen.value = new Set(seen.value).add(id)
 }
 </script>
@@ -93,7 +96,7 @@ function markSeen(id: string) {
       <li v-for="story in stories" :key="story.id">
         <button
           v-if="story.kind === 'event'" type="button" class="hs-card is-event" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" data-track-action="story_open" :style="{ '--tint': TINTS[story.tint] }" @click="openFromCard(story, $event)"
+          :data-story="story.id" :style="{ '--tint': TINTS[story.tint] }" @click="openFromCard(story, $event)"
         >
           <span class="hs-card-top"><span class="hs-pill">{{ story.event.campus }}</span></span>
           <span v-if="isSample(story.event)" class="hs-event-date is-sample"><b>示意</b><span>日期未定</span></span>
@@ -102,7 +105,7 @@ function markSeen(id: string) {
         </button>
         <button
           v-else-if="story.kind === 'news'" type="button" class="hs-card" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" data-track-action="story_open" @click="openFromCard(story, $event)"
+          :data-story="story.id" @click="openFromCard(story, $event)"
         >
           <ResponsivePicture v-bind="responsiveTourImage(story.article.image, '(max-width: 640px) 60vw, 240px', false, story.article.imageMedia)" :style="story.article.imageMedia?.position ? { objectPosition: story.article.imageMedia.position } : undefined" :alt="story.article.alt" loading="lazy" />
           <span class="hs-card-top"><span class="hs-pill">{{ story.article.campus }}</span><span v-if="isSample(story.article)" class="hs-pill">示意</span></span>
@@ -110,7 +113,7 @@ function markSeen(id: string) {
         </button>
         <button
           v-else type="button" class="hs-card" :class="{ 'is-seen': seen.has(story.id) }"
-          :data-story="story.id" data-track-action="story_open" @click="openFromCard(story, $event)"
+          :data-story="story.id" @click="openFromCard(story, $event)"
         >
           <img :src="story.film.poster" alt="" loading="lazy" draggable="false">
           <span class="hs-card-top"><span class="hs-pill">影片</span><span class="hs-play" aria-hidden="true"><svg class="icon"><use href="#i-play" /></svg></span></span>

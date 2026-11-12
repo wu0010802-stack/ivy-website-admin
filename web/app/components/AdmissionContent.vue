@@ -19,6 +19,7 @@ import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
 import { ADMISSION_FAQ, admissionFaqVisible, type AdmissionFaqItem } from '~/utils/admission-faq'
 import type { AdmissionContent, Campus } from '~/types/site-content'
+import { classActionKey, countEngagementAction } from '~/utils/engagement'
 
 // campuses 給常見問題「怎麼預約參觀」列各校電話；沒傳時那一題只有文字。
 const props = defineProps<{ admission: AdmissionContent; campuses?: Campus[] }>()
@@ -70,6 +71,15 @@ const plan = computed(() => {
 })
 const selected = ref(0)
 watch(plan, (value) => { if (value) selected.value = value.position })
+// 內容興趣統計：試算查到哪個班別（只記班別，不記生日）。打字途中的日期會連續變，停 1.5 秒才記。
+// 查一次算一次：同一頁查了兩個同班別的孩子算兩次（PR #70 審查）。
+let classTimer: ReturnType<typeof setTimeout> | undefined
+watch(plan, (value) => {
+  clearTimeout(classTimer)
+  const key = value ? classActionKey(value.status, value.position) : null
+  if (key) classTimer = setTimeout(() => countEngagementAction(key), 1500)
+})
+onBeforeUnmount(() => clearTimeout(classTimer))
 const selectedStation = computed(() => stations[selected.value]!)
 /** 出生區間（offset 班、year 學年度）是不是寶貝那一屆。 */
 const isMine = (offset: number, year: number) => plan.value?.cohort === year - offset
@@ -234,9 +244,9 @@ onBeforeUnmount(() => {
             <div class="ap-runhead"><span>常春藤入學護照</span><span>第 1 頁</span></div>
             <figure class="ap-photo">
               <div class="ap-photo-frame">
-                <ResponsivePicture v-bind="hero" alt="兩個男孩手牽著手，在早晨的陽光裡笑開了" loading="eager" fetchpriority="high" />
+                <ResponsivePicture v-bind="hero" alt="女孩站在逆光裡，抬頭笑開了嘴" loading="eager" fetchpriority="high" />
               </div>
-              <figcaption>早上到校，牽起好朋友的手。</figcaption>
+              <figcaption>早上到校，一抬頭就笑開了。</figcaption>
               <div class="ap-stamp-host ap-welcome">
                 <Transition :css="false" @enter="onPress" @leave="onLift">
                   <PassportStamp v-if="welcome" kind="round" ring="常春藤幼兒園・入學護照" :lines="['歡迎', '入學']" mode="pair" tone="green" :size="128" :rot="-12" />

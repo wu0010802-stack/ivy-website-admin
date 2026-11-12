@@ -6,7 +6,7 @@ import type { PaperHandle } from '~/utils/paperPrints'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 import { isScrollIdle, scheduleScrollIdle } from '~/utils/scrollIdle'
 import { warmPaper, warmPaperWhenIdle } from '~/utils/paper-warm'
-import { registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
+import { REMOUNT_AFTER_LOSS_MS, registerMountedPaper, unregisterMountedPaper, type MountedPaper } from '~/utils/paper-budget'
 import { FLIP_MS, turnTarget } from '~/utils/printFlip'
 import { CORNER_REST, PUFF_MS, leadPose, puffPose, strongest, type CornerPose } from '~/utils/cornerWind'
 import { curlAngle } from '~/utils/cornerCurl'
@@ -48,6 +48,27 @@ function detachPaper() {
   paper?.dispose()
   paper = null
   webglReady.value = false
+}
+// 共用的 WebGL context 遺失（手機切到背景、記憶體吃緊；paperPrints.ts 的 handleContextLost，2026-11-11）：
+// 這張紙不能再畫了，馬上卸回 CSS 版——DOM 的內容永遠是對的，原本會留著別張卡的畫面或整張不見。
+// 過一會兒照平常的路重掛（手機等捲動停下、要在畫面附近）；同一頁再遺失一次 paperPrints 就停用 WebGL，卡片維持 CSS 版。
+let remountTimer = 0
+function onPaperLost() {
+  // .print 從 transform:none 回到 rotateY(var(--flip))：已翻到背面的卡不要在讀者眼前再翻一次
+  isSnapping.value = true
+  detachPaper()
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    isSnapping.value = false
+  }))
+  // 翻面起手、進場輕掀若還在跑，改由 CSS 版的紙角接手
+  renderCorner()
+  window.clearTimeout(remountTimer)
+  remountTimer = window.setTimeout(() => {
+    remountTimer = 0
+    if (!wrapEl.value?.isConnected || paper) return
+    if (deferPaper) queuePaper()
+    else if (isNear) void attachPaper()
+  }, REMOUNT_AFTER_LOSS_MS)
 }
 let turnFrom = 0
 let turningTimer = 0
@@ -283,7 +304,8 @@ async function attachPaper() {
     get flipped() { return isFlipped.value },
     // 停留段落的時間戳亮一階：建場時就照目前狀態畫，下面的 setActive 狀態相同就不再整張重畫重傳
     get active() { return Boolean(props.active) },
-    canMount: readyForPaper
+    canMount: readyForPaper,
+    onLost: onPaperLost
   })
   paperPending = false
   if (!handle) {
@@ -397,6 +419,7 @@ onUnmounted(() => {
   window.clearTimeout(cueTimer)
   window.clearTimeout(openerTimer)
   window.clearTimeout(turningTimer)
+  window.clearTimeout(remountTimer)
   detachPaper()
 })
 

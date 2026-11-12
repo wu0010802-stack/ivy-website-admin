@@ -1,4 +1,4 @@
-## 2026-11-12 關於頁：使用者看過後的六項修改（`feature/about-new-20261111`，同一個 worktree，仍未 commit）
+## 2026-11-12 關於頁：使用者看過後的修改（`feature/about-new-20261111`）
 
 使用者看了下面那一版（11-11「紅磚上的常春藤」）後截圖提了六點，這一段是照著改的結果；和下面那段不一樣的地方以這段為準。
 
@@ -12,10 +12,11 @@
 - **家長章不特別寫義華校**：介紹改成「家長在學校 YouTube 頻道上的分享。」、連結「到 YouTube 看更多分享」、每一位底下只寫稱呼。之後有兩校以上放影片時才標校名（分得出是哪一校）。
 - 驗證：web `typecheck` 過、`npm run test:website` 138 檔 1861 項過、`nuxt build` 過；後台 `campusTestimonials`＋`aboutPage` 測試 47 項過、`vue-tsc` 過；後端讀內建內容的 5 支測試（`test_campus_testimonials`、`test_content_initialize`、`test_about_page_content`、`test_media_slots`、`test_site_structure_content`）139 項過（自建測試庫，跑完已刪）；`output/about-new-20261111/qa.cjs` 32 項全過（axe 改成和 a11y 閘門一樣用減少動態掃整頁，另外在有動態時單掃深綠裡還沒亮的引言）。整頁高度桌機 10,380 → 8,387px、手機 9,362 → 8,170px。**沒跑**：`tests/stack`、實機、後台整套測試。
 - 待園方確認：六張新照片的肖像同意（都是園方自己雲端裡的活動照）。
+- **提交與上線前檢查（11-12）**：`eafd0c5d` 提交在 `feature/about-new-20261111`，再合併 `origin/main` `18855454`（README／DESIGN.md 頂部兩邊都留；`image-manifest.json` 以 main 為底重新加入這次的照片；環境頁快照重產，和 main 只差線稿候選檔）。合併後：web `typecheck` 過、`test:website` 140 檔 1885 項過；後台相關 13 支 364 項與 `vue-tsc` 過；後端讀內建內容的 6 支 159 項過；本機 stack（真後端＋正式建置）172 過、30 略過。**尚未推 `main`、尚未部署。**
 
 ## 2026-11-11 關於頁整頁重做「紅磚上的常春藤」（`feature/about-new-20261111`）
 
-使用者對線上的 `/about`（11-10「乾淨留白」版）說「全新方向重做」，不滿意三件事：整體質感不夠專業、內容說服力不夠、動效與互動沒有記憶點。這一輪從 `origin/main` 重做整頁，沒有沿用未上線的「常春藤一年一年長」（worktree `about-pro-20261110`，仍在、未動）。**未 commit、未部署**；只動 `web/`、`admin/` 的說明文字與測試、一支圖片腳本，沒動後端與資料。設計規則在 `DESIGN.md` 最上面一段。
+使用者對線上的 `/about`（11-10「乾淨留白」版）說「全新方向重做」，不滿意三件事：整體質感不夠專業、內容說服力不夠、動效與互動沒有記憶點。這一輪從 `origin/main` 重做整頁，沒有沿用未上線的「常春藤一年一年長」（worktree `about-pro-20261110`，仍在、未動）。只動 `web/`、`admin/` 的說明文字與測試、一支圖片腳本，沒動後端與資料（提交與上線狀態見上一段）。設計規則在 `DESIGN.md` 最上面一段。
 
 - **方向**：配色取自五校的紅磚校舍與手繪線稿——米白紙底、常春藤深綠、磚紅（新 token `--ivy-about-brick`）、暖黃。大標用品牌字放大，照片放大，整頁只有兩種欄位切法。
 - **首屏**：特大標題在上、介紹在右下，底下一張和版心同寬的寬幅照片（母檔換回 3:2 的修圖版，不裁成 4:3）；再一排章節索引。
@@ -34,6 +35,86 @@
 - **新寫的字**（其餘都是後台既有內容）：第三章內建照片底下的「創辦人和常春藤的孩子」（照片裡的長輩是創辦人，使用者 10-02 確認；姓名未提供、不寫）、沿革結尾的連結「看五校的校園環境」。年份里程表的「第 N 所校園」「第 30 年」「五所校園」由資料算。
 - **沒做、要園方才能補**：創辦人姓名；沿革每站那一句（現在是後台原文，如「左營區的第二所校園。」）換成更有內容的話；各校一句特色。
 - **驗證**（Node 22）：`npm --prefix web run typecheck` 過；`npm run test:website` 138 檔 1856 項過（機器負載高時要加 `--testTimeout=30000`，不然有二十幾項和這頁無關的逾時）；後台和這頁有關的 13 支測試 360 項過、`vue-tsc` 過；`nuxt build` 過。fixture dev server（3190）與正式建置各跑一次 `output/about-new-20261111/qa.cjs` 30 項全過：22 個寬度（320–1920）無橫向溢出、年份里程表每一站對得上（含跳回頁頂、一次跳過整章）、手機年份條到站才換、六張照片點／鍵盤／滑鼠停留、整塊高度不跳、影片一次只播一支且是 youtube-nocookie、捲完沒有區塊還收著、沒有 JS 內容全看得到、減少動態沒有動畫、觸控目標 44px、axe WCAG A/AA 桌機與手機各章 0 項、WebKit 桌機與手機。`scripts/page-copy-stress.cjs /about` 五個寬度過；首屏照片上的一句話另外用 20 字量過缺口不超出照片。**沒跑**：`tests/stack`（真後端的 a11y、hydration、後台即時預覽）、iOS／Android 實機、後台整套測試（只跑了有關的 13 支）、後端測試（沒動後端與 fixture）。
+
+## 2026-11-12 ivykids.tw 輪播照換上前台（`feature/slider-photos-20261112`）
+
+使用者挑了 ivykids.tw 首頁輪播的 8 張照片，問前台哪些照片可以換。原檔用縮圖特徵比對從義華 NAS（`/IVY Photos and Videos` 14,411 張＋`/IVY Designs`）找出來。
+
+- **換了三處**：
+  - 孩子的一天「好奇探索」`day-discover`：碎石地三個男孩（NAS `2024/2024-11農友戶外教學/2024-11-05 戶外教學D2/修/5D4A1671`，6720×4480，裁 x20%–100%、y10%–100%）。取代戴口罩拿紫高麗菜的舊照。fixture 的 alt、caption 一起改。
+  - 環境頁「安全歡樂遊樂區」`env-space-playground`：六個孩子坐在溜滑梯前揮手（`2024/2024-02-23 車車封面＋吃湯圓reels/IMG_5755`，3984×2656，裁 x7%–93%、y14%–100% → 1600×1067）。原本規劃放「早安」`day-hello`，但原圖是廣角，拍立得只露出正方形，六個孩子的臉都太小，所以改放這格。
+  - 入學頁首屏改用自己的 `admission-hero`（不再借 `day-hello`）：逆光仰頭笑的女孩（`2026/2026-01-08 三鳳中街/選/選修/5D4A4519拷貝`，裁 x13%–64%、y22%–79%）。右後方大人戴口罩，右邊裁到女孩頭髮外緣；臉放在上半部，避開右下角「歡迎入學」印章。圖說改「早上到校，一抬頭就笑開了。」
+- **沒換**：
+  - 合十、趴著畫畫、笑著拉朋友：NAS 比對不到原檔，網站上的版本只有 2000×803、1440×578。合十那張背後孩子的口罩被雙手擋在中間，裁不掉。
+  - 拉朋友原本規劃放的「戶外廣場」只能用明華校的照片。
+  - 吉祥物（`2025/2025-04-30 草地音樂會/5D4A6890`）沒有合適的位置；4:3 試裁可以當「課程活動」的備選。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 141 檔 1,874 項過（環境頁渲染快照、`overlay-baseline` 跟著新 alt 更新；`avif-picture.spec.ts` 的「部分寬度沒有 AVIF」範例改用 `day-lunch`，因為新的 `day-discover` 每個寬度都有 AVIF）。後端讀 fixture 的 6 檔 157 項過（獨立測試庫，跑完已刪）。dev server（fixture 模式）用 Playwright 截了桌機 1440 與手機 390 的三處。
+- 正式站注意：孩子的一天的 alt 存在 CMS，部署後要到後台「常春藤的一天」把「好奇探索」的替代文字改掉，否則正式站還是寫紫高麗菜。
+
+## 2026-11-11 寄信接上 Resend（`feature/resend-20261111`）
+
+使用者要求接 Resend。正式站一直沒有設定寄信（家長確認信、參觀提醒、停課通知、重設密碼連結都寄不出去），原本只支援 SMTP。**程式 2026-11-12 已部署（`4f4be3e4`，PR #72），正式站還沒設定金鑰**：不設變數行為完全不變，部署紀錄見 `deploy/README.md`。
+
+- **做法**：後端多一個走 Resend HTTPS API 的寄信 adapter（`backend/app/notifications/email_adapter.py` 的 `ResendEmailAdapter`，`POST https://api.resend.com/emails`，純文字信）。不走 Resend 的 SMTP 介面：部署平台可能擋對外的 SMTP 連接埠，HTTPS 一定通，也不用多管 port 與加密方式。
+- **設定**：api 新增 `WEBSITE_RESEND_API_KEY`、`WEBSITE_RESEND_FROM`，兩個要一起設；和 `WEBSITE_SMTP_HOST` 只能擇一（同時設會在啟動時擋下，不默默挑一個）。金鑰不進 `repr`、不出現在系統狀態。
+- **「有沒有設定寄信」改成同一個判斷**：`Settings.real_email_enabled`（SMTP 或 Resend）。公開與後台預約設定的 `parent_email_enabled`、重寄確認信、停課通知、重設密碼連結、背景寄信與系統狀態測試信原本各自看 `smtp_host`，現在都看這個。
+- **錯誤分類**：Resend 回的錯誤轉成 `ResendAuthError`（金鑰無效或停用）、`ResendRejectedError`（寄件網域還沒驗證或地址有誤）、`ResendQuotaError`（每日／每月額度或寄太快）、`ResendServerError`；例外只帶狀態碼與錯誤種類，不帶回應內文（可能含收件地址）。後台「通知」頁的失敗原因與操作紀錄會顯示對應的中文。
+- **後台系統狀態**：寄信那一列改叫「寄信」（原本寫「寄信（SMTP）」），經 Resend 時顯示「寄件地址 …，經 Resend 寄出」；測試信多一種結果「額度用完或寄得太快」（API 的 `error` 多一個值 `quota`，契約已重新產生）。
+- 改動：`backend/app/config.py`、`backend/app/notifications/email_adapter.py`、`backend/app/operations/system_status.py`、`backend/app/booking/{access_routes,config_routes,schedule_routes}.py`、`admin/src/api/labels.ts`、`admin/src/utils/systemStatusFormat.ts`、`contracts/`；新測試 `backend/tests/test_resend_adapter.py`。上線步驟見 `deploy/README.md`「寄信：Resend」。
+- **沒做**：沒有真的打過 Resend（沒有金鑰，測試用 `httpx.MockTransport`）；信仍是純文字、沒有 HTML 版；沒帶 `Idempotency-Key`（逾時後重試理論上可能重複寄一封）；沒接退信／客訴 webhook，也沒有 Reply-To（家長直接回信會寄到寄件地址）。
+## 2026-11-11 特色教學手機版：只留美術館一條橫滑（`feature/cur-mobile-20261111`）
+
+使用者回報 `/curriculum` 手機上很多內容都要左右滑，要改善體驗。規則在 DESIGN.md 同日章節。
+
+- **改前（正式站，390×844）**：02 課程方向、03 兒童美術館、04 五件事連著三條橫滑，共 20 張，不滑只看得到 3 張，要滑 17 次才看完。課程方向一張 280×400 的卡只放 19–40 個字；五件事每張 62–87 字，是全頁字最多的地方；美術館直幅 325px、橫幅 198px 同寬混排，5 張橫幅底下各空 127px。
+- **使用者裁定**（看過現況／全部直排／建議版三欄對照）：美術館留橫滑、改等高；頁面變長約 2 個螢幕可以接受。
+- **改後（760px 以下）**：
+  - 02 課程方向沿用平板的兩欄，七個方向不用滑。清單 430 → 1,360px。
+  - 03 兒童美術館是唯一的橫滑：作品等高（390 寬 234px，直幅寬 176、橫幅 312），沒有空洞；吸附改鬆。清單 357 → 301px。張數「1 / 8　左右滑動」留著。
+  - 04 五件事一列一件，左邊方形照片（390 寬 121px）、右邊編號＋標題＋內文。清單 444 → 1,175px。
+  - 整頁 6,551 → 8,147px（7.8 → 9.7 個螢幕）。
+- 順手修：`useWatercolor.ts` 判斷清單是不是橫滑只看 `scrollWidth`，往外暈的顏料團會把它撐大；改成要有 `overflow-x`。平板（761–1100px）的課程方向在視窗改過大小後不再多一個鍵盤停點。
+- 改動：`web/app/assets/css/curriculum.css`（只動 `@media (width <= 760px)` 區塊）、`web/app/components/CurriculumContent.vue`（張數只剩美術館、拿掉兩條清單的 `data-wash-mobile`、照片 `sizes` 跟著新版面）、`web/app/composables/useWatercolor.ts`（`scrollsX`）。桌機與平板的版面不動。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 141 檔 1,874 項過（新增 `web/tests/curriculum-mobile-rails-20261111.spec.ts` 13 項，動手前先寫的 12 項有 10 項紅；張數那一組從 `mobile-menu-rail-count-20261111.spec.ts` 搬過來）。全套是加 `--testTimeout=30000` 跑的：當時機器負載 100 以上（別的 session 在跑測試），預設 5 秒有 7 項重運算的測試逾時，都不在這次改的檔案，放寬後全過。dev server（fixture 模式）用 Playwright 量 320／390／760／768／1440 五種寬度：整頁都沒有橫向溢出；760 以下課程方向、五件事不能橫捲也沒有 tabindex，美術館可以橫捲、張數跟著變（3、6、8、回到 1）；「六歲定八十」320 寬也是一行；直排清單裡沒有被裁掉的字；768 與 1440 沒有張數、三條清單都不橫捲。整頁截圖看過 320 與 390。
+- 沒驗：iOS 實機；正式站家長實際滑了幾張沒有數據，「多半不滑」是依版面推斷。
+- 沒做：美術館兩欄瀑布牆、五件事滿版大圖直排（試排過，清單 2,234px）。試排與對照圖在 `output/cur-mobile-ux-20261111/`（主 checkout，未進版控）。
+
+## 2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影（`fix/paper-context-lost-20261111`）
+
+使用者回報：真手機開正式站，「常春藤的一天」的卡片上會出現上一個畫面的殘影。部署紀錄見 `deploy/README.md` 同日段落。
+
+- **原因**：整頁的拍立得共用一個 WebGL context（`utils/paperPrints.ts`），每張卡 render 完再把共用畫布 `drawImage` 到自己的 2D 畫布。手機切到背景、記憶體吃緊時系統會把 context 收走，three 的 render 之後什麼都不畫，共用畫布留著最後一張成功畫出的卡，程式卻照樣複製。WebKit（iPhone 上所有瀏覽器）之後要畫的每一張卡都變成那一張、點了不翻面、context 還原後也不重畫；Chromium 複製到空白，卡片整張不見（DOM 正反面在 `.webgl-ready` 底下是透明的）。
+- **重現**：Playwright 手機模擬對正式站，用 `WEBGL_lose_context` 讓共用 context 遺失。WebKit 滑到第 4、5 張，畫面上都是第 3 張「美語時光」；Chromium 同一步驟卡片消失。兩邊還原 context 後都不會自己好。真機上遺失的觸發點（切 App、記憶體）是推論，沒有實機紀錄。
+- **修法**：紙每次要畫之前先問 context 還在不在（`isContextLost()`；`webglcontextlost` 事件晚一拍才到，也一起聽）。遺失的那個 renderer 不再用，掛著的紙通知卡片卸回 CSS 3D 版（DOM 的內容永遠是對的），1.2 秒後照平常的路用新的 context 重掛（手機照舊等捲動停下）。同一頁遺失第二次就停用 WebGL、維持 CSS 版，不來回閃。建不出 context（`new WebGLRenderer` 丟錯）也回 null，不再留下卡住的掛載。
+- 改動：`web/app/utils/paperPrints.ts`（共用 renderer 改成一個 renderer 一份狀態、`handleContextLost`、`render()` 的檢查、`initial.onLost`）、`web/app/components/DayMomentCard.vue`（`onPaperLost`）、`web/app/utils/paper-budget.ts`（`REMOUNT_AFTER_LOSS_MS`）。規則在 DESIGN.md 同日章節。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 140 檔 1864 過（新增 `web/tests/paper-context-lost-20261111.spec.ts` 9 項，修正前 8 項紅）。修正版 dev server（fixture 模式）手機模擬連續遺失兩次：Chromium、WebKit 第一次都馬上露出 DOM 卡片、4 秒內用新 context 重掛且畫的是自己；第二次之後維持 CSS 版，點卡片照樣翻面，沒有第三個 context。**沒在真機驗**；Playwright 的 WebKit 截圖不會隱藏 `backface-visibility:hidden` 的背面（最小翻面卡也一樣），CSS 版在 WebKit 的畫面只能看 DOM 狀態，不能看截圖。
+- 沒做：減少 context 被收走的機率（`pixelRatio` 3 → 2，11-10 起待業主決定）；30 週年布幕、關於頁立體書的 WebGL 沒查。
+## 2026-11-11 入學試算的班別改成查一次算一次（`claude/busy-johnson-er03ju`）
+
+PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫「同一次瀏覽查了兩個孩子會各算一次」，但同一頁查兩個**同班別**的孩子只算一次（官網每個班別只記「做過」，後端也只數瀏覽數）。
+
+- 官網改成查一次算一次（`countEngagementAction`，`AdmissionContent.vue`）；後端班別改加總次數（`engagement_service.py`）。其他互動（表單進度、讀到文末、預約成功）照舊是「做過就記 1」。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL）、`web/tests/engagement.spec.ts` 與入學資訊相關共 7 檔 92 項過、`npm --prefix web run typecheck` 過。沒有 migration，沒有改 API 契約。
+- 同一個 PR 補上第二輪的部署紀錄（`deploy/README.md`）。
+
+## 2026-11-11 內容興趣第二輪：趨勢、預約表單流失、試算班別、瀏覽順序、時段、各校、活動代碼（`claude/busy-johnson-er03ju`）
+
+使用者看過第一輪（PR #69，見下一段）後要求把提案的 1～9 項都做。全部沿用第一輪的匿名做法（不用 cookie、不記 IP、不連預約案件），後台仍在「數據 → 內容興趣」。**尚未部署**：合進 `main` 會自動套用 migration `e7a1c93b5d20`（`engagement_visits` 加 `seq`、`campaign`、`rev` 三個可為 NULL 的欄位，不回填）。
+
+- **預約表單卡在哪一步**：進到預約頁 → 選好校區 → 選了日期 → 選了場次 → 開始填資料 → 按了確認 → 預約成功，以造訪為單位，標出流失最多的一步；另記「看到沒有開放場次」與「送出時欄位沒過」的造訪數。只記走到了，不記填的內容（`VisitForm.vue`）。
+- **家長查的是哪個班別**：入學資訊頁生日試算算出的班別（還沒到幼幼班／幼幼／小／中／大班／已到國小年齡），只記班別不記生日，停 1.5 秒才記（`AdmissionContent.vue`）。
+- **每日造訪與上一期比較**：每日造訪直條；造訪次數、各頁與單篇消息的瀏覽都有「和上一期比」。紀錄只留 90 天，選近 90 天時沒有上一期。
+- **首頁點開的消息分篇**：消息、活動、影片各自計數（`HomeStories.vue` 的 `markSeen`），只列目前發布中的內容；卡片上原本的 `story_open` 拿掉。
+- **進站頁、離開頁與瀏覽順序**：每筆瀏覽多帶「這次造訪的第幾頁」，後台列第一頁、最後一頁與最常見的 10 種順序（前 4 頁）。
+- **只看手機或電腦**：面板多一個裝置選單，整段統計一起篩（`?device=`）。
+- **什麼時候有人看**：星期 × 七個時段的瀏覽次數（台北時間），列出最多人看的三個時段。
+- **各校的興趣與預約**：首頁切到哪一校、點哪一校地址、進哪一校預約頁，和這段期間實際送出的預約數並排。實際預約數取 `analytics_events` 的 `request_created`，要有 `admissions.stats` 而且在自己的校區範圍內才看得到，其餘校區顯示「—」。
+- **哪一則貼文或廣告帶來的**：進站連結的 `utm_campaign`（只留小寫英數、底線、連字號 32 字內，中文略過）記成活動代碼，後台列各代碼的造訪與送出預約。面板裡有加代碼的寫法。
+- **修掉 PR #69 自動審查指出的兩件事**：（1）各校自己發布的消息代號帶校區前綴（`yihua:open-day`，網址上冒號是編碼過的），第一輪把它當成不合格式、單篇消息統計整個漏掉各校消息；現在代號與互動代碼都收冒號，標題也到各校的 `campus_news` 對。（2）回報是 fire-and-forget、不保證照順序到，晚到的舊回報會把區塊與互動蓋回舊值（可能蓋掉「預約成功」「讀到文末」）；每筆多帶回報序號 `rev`，序號比較舊就不動區塊與互動。
+- **官網端的改動**：瀏覽紀錄改在元件 setup 之前就開始（plugin 啟動與 `router.afterEach`），元件一掛上就回報的進度才記得到；原本等 `page:finish`。
+- **隱私權政策草稿**再補三句：依序看了哪些頁面與瀏覽時段、預約表單填到哪一步與試算班別（不含內容與生日）、連結上的活動代碼。**發布前請使用者看過**。
+- **已知限制**：預約方式是 LINE／電話的校區沒有表單，造訪會停在「選好校區」；首頁一打開就顯示的那一校「切到這一校」偏低；時段用離開那一頁的時間；第二輪上線前的紀錄沒有頁序與表單進度；還開著舊版頁面的瀏覽器不帶新欄位（都是選填，照常收）。
+- 驗證：後端 `tests/test_engagement.py` 30 項過（真 PostgreSQL，全套結果見 PR）；migration 在全新資料庫升、降、再升都過；`npm --prefix web run typecheck` 過、`npm run test:website` 139 檔 1855 過；`npm --prefix admin run typecheck` 過、`test:unit` 174 檔（`engagement.test.ts` 12 項）過；`npm run contract:check` 過。本機 dev server＋真 API＋拋棄式資料庫，無頭 Chromium 手機 390×844 帶 `?utm_source=facebook&utm_campaign=Open-Day-1122` 走首頁（點開消息）→ 入學資訊（輸入生日）→ 選校 → 義華表單（選日期場次、Email 填錯再改對）→ 預約成功：頁序 1–4、活動代碼、`sn_garden`、`class_middle`、表單六個代碼與 `booking_done` 都正確入庫；桌機進沒有場次的校區記到 `form_no_slots`。後台面板 1440 與 390 寬無水平溢出。沒跑 `tests/stack`、`tests/e2e`。
 
 ## 2026-11-11 後台「內容興趣」統計：停留、區塊、互動、單篇消息、來源與預約關聯（`claude/busy-johnson-er03ju`）
 

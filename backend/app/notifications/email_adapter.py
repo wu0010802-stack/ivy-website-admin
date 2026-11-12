@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import smtplib
 import ssl
 import uuid
@@ -9,6 +10,8 @@ from email.message import EmailMessage
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Protocol
+
+import httpx
 
 if TYPE_CHECKING:
     from app.config import Settings
@@ -90,9 +93,98 @@ class SmtpEmailAdapter:
             client.send_message(message)
 
 
+RESEND_API_BASE = "https://api.resend.com"
+# 對方回的錯誤種類（name）只認短代碼；其他內容不帶進例外與紀錄。
+_RESEND_ERROR_NAME = re.compile(r"[a-z0-9_]{1,64}")
+# 金鑰本身有問題（不存在、停用、權限不足）的錯誤種類；403 的其他情況是寄件網域或收件地址被擋。
+_RESEND_KEY_ERRORS = frozenset({"missing_api_key", "restricted_api_key", "suspended_api_key", "invalid_permission", "invalid_api_key"})
+
+
+class ResendError(Exception):
+    """Resend 回了錯誤。訊息只帶狀態碼與錯誤種類，不帶回應內文（可能含收件地址與網域）。
+    子類別的名稱會成為 outbox 的 error_code，後台依名稱顯示大概原因。"""
+
+    def __init__(self, status_code: int, name: str) -> None:
+        super().__init__(f"RESEND_HTTP_{status_code}:{name}")
+        self.status_code = status_code
+        self.name = name
+
+
+class ResendAuthError(ResendError):
+    """API 金鑰不存在、已停用或權限不足。"""
+
+
+class ResendRejectedError(ResendError):
+    """請求被拒：寄件網域還沒驗證、測試模式只能寄給自己，或寄件／收件地址格式不對。"""
+
+
+class ResendQuotaError(ResendError):
+    """超過每日／每月額度，或寄得太快。"""
+
+
+class ResendServerError(ResendError):
+    """Resend 那一端出錯（5xx）。"""
+
+
+def _resend_error(response: httpx.Response) -> ResendError:
+    status_code = response.status_code
+    name = "unknown"
+    try:
+        payload = response.json()
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict) and isinstance(payload.get("name"), str) and _RESEND_ERROR_NAME.fullmatch(payload["name"]):
+        name = payload["name"]
+    if status_code == 401 or (status_code == 403 and name in _RESEND_KEY_ERRORS):
+        return ResendAuthError(status_code, name)
+    if status_code == 429:
+        return ResendQuotaError(status_code, name)
+    if status_code >= 500:
+        return ResendServerError(status_code, name)
+    if status_code in (400, 403, 422):
+        return ResendRejectedError(status_code, name)
+    return ResendError(status_code, name)
+
+
+class ResendEmailAdapter:
+    """經 Resend 的 HTTPS API 真實寄信（2026-11-11）。不走 SMTP：部署平台可能擋對外的 SMTP 連接埠，
+    HTTPS 一定通。每封信一次請求、純文字內容；失敗直接拋出，由 outbox 記錯誤碼並排下次重試。
+
+    send 是同步呼叫（和 SmtpEmailAdapter 一樣在背景 thread 裡跑），所以用 httpx.Client。"""
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        sender: str,
+        transport: httpx.BaseTransport | None = None,
+        base_url: str = RESEND_API_BASE,
+        timeout: float = 10.0,
+    ) -> None:
+        self._api_key = api_key
+        self.sender = sender
+        self._transport = transport
+        self._base_url = base_url
+        self._timeout = timeout
+
+    def send(self, *, to: str, subject: str, body: str) -> None:
+        with httpx.Client(
+            base_url=self._base_url,
+            transport=self._transport,
+            timeout=httpx.Timeout(self._timeout),
+            headers={"Authorization": f"Bearer {self._api_key}"},
+        ) as client:
+            response = client.post(
+                "/emails",
+                json={"from": self.sender, "to": [to], "subject": subject, "text": body},
+            )
+        if response.status_code >= 400:
+            raise _resend_error(response)
+
+
 def get_email_adapter(sink_dir: str | None, settings=None) -> EmailAdapter:
-    """有 SMTP 設定就真的寄；否則退回本機 sink（開發用）；兩者都沒有就拋
-    EmailNotConfigured，呼叫端如實回報未配置。"""
+    """有 SMTP 或 Resend 設定就真的寄（兩者只能擇一，Settings 啟動時已檢查）；否則退回本機 sink
+    （開發用）；都沒有就拋 EmailNotConfigured，呼叫端如實回報未配置。"""
     if settings is not None and getattr(settings, "smtp_host", None):
         return SmtpEmailAdapter(
             host=settings.smtp_host,
@@ -102,14 +194,16 @@ def get_email_adapter(sink_dir: str | None, settings=None) -> EmailAdapter:
             password=settings.smtp_password,
             security=settings.smtp_security,
         )
+    if settings is not None and getattr(settings, "resend_api_key", None):
+        return ResendEmailAdapter(api_key=settings.resend_api_key, sender=settings.resend_from)
     return LocalSinkEmailAdapter(sink_dir)
 
 
 def email_channel_available(settings: Settings) -> bool:
-    """部署有沒有可用的寄信管道。正式環境只認 SMTP：沒設 SMTP 就算有 sink 資料夾也不算，
-    否則畫面或信件紀錄說「已寄出」，信卻只是躺在伺服器的資料夾裡。非正式環境另外接受
+    """部署有沒有可用的寄信管道。正式環境只認真實寄信（SMTP 或 Resend）：兩者都沒設就算有 sink 資料夾
+    也不算，否則畫面或信件紀錄說「已寄出」，信卻只是躺在伺服器的資料夾裡。非正式環境另外接受
     本機 sink（開發與 stack e2e 讀信用）。"""
-    if settings.smtp_host:
+    if settings.real_email_enabled:
         return True
     return settings.environment != "production" and bool(settings.notification_email_sink_dir)
 
@@ -118,5 +212,7 @@ def deployment_email_adapter(settings: Settings) -> EmailAdapter:
     """依部署設定取寄信 adapter；沒有可用的管道時丟 EmailNotConfigured（呼叫端走「未配置」處理，
     不要在啟動時驗證失敗）。outbox 背景工作、重設密碼連結與系統狀態測試信共用這一條規則。"""
     if not email_channel_available(settings):
-        raise EmailNotConfigured("沒有可用的寄信管道（正式環境只認 SMTP）" if settings.environment == "production" else "未設定寄信管道")
+        raise EmailNotConfigured(
+            "沒有可用的寄信管道（正式環境只認 SMTP 或 Resend）" if settings.environment == "production" else "未設定寄信管道"
+        )
     return get_email_adapter(settings.notification_email_sink_dir, settings)

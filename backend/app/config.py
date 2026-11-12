@@ -58,6 +58,10 @@ class Settings(BaseSettings):
     smtp_password: str | None = None
     smtp_from: str | None = None
     smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    # 真實寄信的另一條路：Resend 的 HTTPS API（2026-11-11）。和 SMTP 只能擇一；金鑰與寄件地址要一起設。
+    # 寄件地址的網域要先在 Resend 驗證過（DNS 加 DKIM／SPF 紀錄），否則每封信都會被拒。
+    resend_api_key: str | None = Field(default=None, repr=False)
+    resend_from: str | None = None
     # LINE 官方帳號 Messaging API（園方群組推播）。與「用 LINE 登入」是不同
     # 類型的 channel，金鑰也不同，所以另外命名。兩個都有才啟用。
     line_messaging_channel_secret: str | None = Field(default=None, repr=False)
@@ -309,6 +313,12 @@ class Settings(BaseSettings):
         return bool(self.s3_bucket and self.s3_access_key_id and self.s3_secret_access_key)
 
     @property
+    def real_email_enabled(self) -> bool:
+        """有沒有設定真實寄信（SMTP 或 Resend）。家長信、重設密碼連結寄不寄得出去都看這個；
+        本機 sink 資料夾不算（那只是把信寫成檔案）。"""
+        return bool(self.smtp_host or self.resend_api_key)
+
+    @property
     def line_messaging_enabled(self) -> bool:
         return bool(self.line_messaging_channel_secret and self.line_messaging_access_token)
 
@@ -440,6 +450,10 @@ class Settings(BaseSettings):
             vapid.check_configuration(self.vapid_public_key, self.vapid_private_key, self.web_push_subject)
         if self.smtp_host and not self.smtp_from:
             raise ValueError("設定 WEBSITE_SMTP_HOST 時必須一併設定 WEBSITE_SMTP_FROM")
+        if bool(self.resend_api_key) != bool(self.resend_from):
+            raise ValueError("Resend 寄信必須同時設定 WEBSITE_RESEND_API_KEY 與 WEBSITE_RESEND_FROM")
+        if self.smtp_host and self.resend_api_key:
+            raise ValueError("寄信管道只能擇一：WEBSITE_SMTP_HOST 與 WEBSITE_RESEND_API_KEY 不能同時設定")
         if self.smtp_host and self.environment == "production" and self.smtp_security == "none":
             # 通知信含員工信箱與案件編號，正式環境不走明文 SMTP。
             raise ValueError("production 環境寄信必須使用 starttls 或 ssl")

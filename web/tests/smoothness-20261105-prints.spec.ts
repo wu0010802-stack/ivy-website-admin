@@ -102,6 +102,10 @@ vi.mock('../app/utils/three-lite', () => {
     shadowMap: Record<string, unknown> = {}
     width = 0
     height = 0
+    // 2026-11-11 起紙在每次要畫之前先問 context 還在不在（paper-context-lost-20261111.spec.ts）
+    getContext() {
+      return { isContextLost: () => false }
+    }
     setPixelRatio() {}
     compileAsync() {
       return Promise.resolve()

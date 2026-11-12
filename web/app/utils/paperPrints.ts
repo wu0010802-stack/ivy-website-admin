@@ -15,6 +15,9 @@
  *   停下時遠端輕輕回彈；紙膠帶畫進貼圖，跟著紙一起翻，不再停在原位。
  * - 翻面暗示 A 角落捲起（2026-09-23 晚）：沒有折角，觀者看到的右下角被掀起（網格沿對角折線彎曲，
  *   cornerCurl.ts），角度由 DayMomentCard 取翻面起手、進場輕掀較大者後經 setCorner 餵進來（捲動起風 10-03 拿掉）。
+ * - 共用 context 遺失（2026-11-11）：手機切到背景、記憶體吃緊時系統會把 WebGL context 收走，three 的 render 什麼都不畫。
+ *   那一刻起這個 renderer 不再用：掛著的紙各自通知卡片（initial.onLost）退回 CSS 3D 版，之後掛的紙另建 context；
+ *   同一頁遺失第二次就整頁停用。見下方 handleContextLost 與 render() 裡的檢查。
  */
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
@@ -77,7 +80,22 @@ const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
 
 let threePromise: Promise<Three | null> | null = null
-let shared: { renderer: ThreeNS.WebGLRenderer; three: Three; users: number; warm: { scene: ThreeNS.Scene; camera: ThreeNS.PerspectiveCamera } } | null = null
+interface SharedRenderer {
+  renderer: ThreeNS.WebGLRenderer
+  three: Three
+  users: number
+  warm: { scene: ThreeNS.Scene; camera: ThreeNS.PerspectiveCamera }
+  /** context 已遺失：不再給新的紙用，等還拿著它的紙都卸掉就釋放 */
+  lost: boolean
+  /** 掛在這個 renderer 上的紙；context 遺失時逐一通知 */
+  papers: Set<() => void>
+  unlisten: () => void
+  destroyed: boolean
+}
+let shared: SharedRenderer | null = null
+// 同一頁 context 遺失幾次。第二次就不再用 WebGL：多半是記憶體不夠，重建只會再被收走一次，卡片在 CSS 版與紙之間來回閃。
+let contextLosses = 0
+const MAX_CONTEXT_LOSSES = 2
 
 // 探測結果整頁只算一次：每次 getContext('webgl') 都是真的建一個 GL context（低階裝置
 // 上百毫秒，而且要等 GC 才釋放），六張卡各探一次太浪費。
@@ -119,32 +137,63 @@ export function warmThree(): void {
   void loadThree().then((three) => {
     if (!three || shared) return
     const build = () => {
-      if (!shared) ensureRenderer(three)
+      if (!shared && canUseWebGL()) ensureRenderer(three)
     }
     if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(build)
     else window.setTimeout(build, 0)
   })
 }
 
-function acquireRenderer(three: Three) {
-  ensureRenderer(three)
-  shared!.users += 1
-  return shared!.renderer
+function acquireRenderer(three: Three): SharedRenderer | null {
+  const pool = ensureRenderer(three)
+  if (pool) pool.users += 1
+  return pool
 }
 
-function ensureRenderer(three: Three) {
+// 建不出 context（記憶體不足、context 數量到上限時 three 會丟錯）就回 null，這一頁之後也不再試：卡片維持 CSS 3D 版。
+function ensureRenderer(three: Three): SharedRenderer | null {
   if (!shared) {
-    const renderer = new three.WebGLRenderer({ alpha: true, antialias: true })
+    let renderer: ThreeNS.WebGLRenderer
+    try {
+      renderer = new three.WebGLRenderer({ alpha: true, antialias: true })
+    } catch {
+      webglProbe = false
+      return null
+    }
     renderer.setPixelRatio(pixelRatio())
     renderer.shadowMap.enabled = true
     renderer.shadowMap.type = three.PCFShadowMap
-    shared = { renderer, three, users: 0, warm: buildWarmScene(three) }
+    const pool: SharedRenderer = { renderer, three, users: 0, warm: buildWarmScene(three), lost: false, papers: new Set(), unlisten: () => {}, destroyed: false }
+    // 事件比實際遺失晚一拍才到：中間要畫的那一幀由紙自己在 render() 裡用 isContextLost() 擋。
+    const onLost = () => handleContextLost(pool)
+    renderer.domElement.addEventListener('webglcontextlost', onLost)
+    pool.unlisten = () => renderer.domElement.removeEventListener('webglcontextlost', onLost)
+    shared = pool
     // 先把紙與地板用到的 shader program 編好並一直持有：three 會在同 program 的
     // 材質全部 dispose 時釋放 program，觸控裝置的掛載名額（paper-budget）卸掉卡片後，
     // 下一張重掛就得重新編譯（4x 節流實測單幀 1 s 以上）。這個暖身場景的材質永不
     // dispose，program 就一直留在快取裡。燈光組合與材質參數必須跟 buildScene 一致。
-    void renderer.compileAsync(shared.warm.scene, shared.warm.camera).catch(() => {})
+    void renderer.compileAsync(pool.warm.scene, pool.warm.camera).catch(() => {})
   }
+  return shared
+}
+
+/**
+ * 共用的 WebGL context 被系統收走（2026-11-11）。three 的 render 之後什麼都不畫，共用畫布留著最後一張成功畫出的卡：
+ * 原本照樣 drawImage 到各卡的顯示畫布，WebKit（iPhone）上之後要畫的每一張卡都變成那一張、點了不翻、context 還原後也不重畫；
+ * Chromium 則複製到空白，卡片整張不見（DOM 正反面在 .webgl-ready 底下是透明的）。
+ * 做法：這個 renderer 從此不再用（three 還原 context 後貼圖、shader 都要重建，不如換一個乾淨的）；掛著的紙逐一通知，
+ * 由卡片卸回 CSS 3D 版（DOM 的內容永遠是對的）再照平常的排程重掛。
+ */
+function handleContextLost(pool: SharedRenderer) {
+  if (pool.lost) return
+  pool.lost = true
+  contextLosses += 1
+  if (contextLosses >= MAX_CONTEXT_LOSSES) webglProbe = false
+  if (shared === pool) shared = null
+  // 通知途中紙會把自己從集合拿掉，先複製一份
+  for (const notify of [...pool.papers]) notify()
+  if (pool.users <= 0) destroyRenderer(pool)
 }
 
 function buildWarmScene(three: Three) {
@@ -170,24 +219,28 @@ function buildWarmScene(three: Three) {
   return { scene, camera }
 }
 
-function releaseRenderer() {
-  if (!shared) return
-  shared.users -= 1
-  if (shared.users <= 0) {
-    shared.warm.scene.traverse((obj) => {
-      const mesh = obj as ThreeNS.Mesh
-      if (mesh.isMesh) {
-        mesh.geometry.dispose()
-        const material = mesh.material as ThreeNS.MeshStandardMaterial
-        material.map?.dispose()
-        material.dispose()
-      }
-      const light = obj as ThreeNS.DirectionalLight
-      if (light.isDirectionalLight) light.shadow.dispose()
-    })
-    shared.renderer.dispose()
-    shared = null
-  }
+function releaseRenderer(pool: SharedRenderer) {
+  pool.users -= 1
+  if (pool.users <= 0) destroyRenderer(pool)
+}
+
+function destroyRenderer(pool: SharedRenderer) {
+  if (pool.destroyed) return
+  pool.destroyed = true
+  pool.unlisten()
+  pool.warm.scene.traverse((obj) => {
+    const mesh = obj as ThreeNS.Mesh
+    if (mesh.isMesh) {
+      mesh.geometry.dispose()
+      const material = mesh.material as ThreeNS.MeshStandardMaterial
+      material.map?.dispose()
+      material.dispose()
+    }
+    const light = obj as ThreeNS.DirectionalLight
+    if (light.isDirectionalLight) light.shadow.dispose()
+  })
+  pool.renderer.dispose()
+  if (shared === pool) shared = null
 }
 
 // ---- 讀 DOM 樣式，讓貼圖跟 CSS 同一套 token ----
@@ -389,7 +442,8 @@ async function waitImage(img: HTMLImageElement): Promise<HTMLImageElement> {
 export async function mountPaper(
   wrap: HTMLElement,
   copy: PaperCopy,
-  initial: { developed?: boolean; flipped?: boolean; active?: boolean; canMount?: () => boolean } = {}
+  /** onLost：共用的 WebGL context 遺失、這張紙不能再畫了；呼叫端要 dispose() 並露出 DOM 卡片（只在拿到 handle 之後才會呼叫）。 */
+  initial: { developed?: boolean; flipped?: boolean; active?: boolean; canMount?: () => boolean; onLost?: () => void } = {}
 ): Promise<PaperHandle | null> {
   if (initial.canMount && !initial.canMount()) return null
   if (!canUseWebGL()) return null
@@ -414,7 +468,24 @@ export async function mountPaper(
 
   const DPR = pixelRatio()
   const fine = window.matchMedia('(hover: hover) and (pointer: fine)')
-  const renderer = acquireRenderer(three)
+  const acquired = acquireRenderer(three)
+  if (!acquired) return null
+  const pool: SharedRenderer = acquired
+  const renderer = pool.renderer
+  const gl = renderer.getContext()
+  // context 遺失：建場途中（還沒交出 handle）就讓 mountPaper 回 null；交出去之後通知卡片。
+  let lost = false
+  let delivered = false
+  const onContextLost = () => {
+    if (lost) return
+    lost = true
+    if (delivered) initial.onLost?.()
+  }
+  pool.papers.add(onContextLost)
+  const leaveRenderer = () => {
+    pool.papers.delete(onContextLost)
+    releaseRenderer(pool)
+  }
 
   // 元件狀態（由 DayMomentCard 透過 handle 餵進來）。active 也在這裡讀：原本先用「非停留」的時間戳畫好、上傳，
   // 接手時 setActive 又整張正面重畫重傳一次（手機 DPR3 約 4.6 MB），畫面上只看得到第二次（2026-11-05）。
@@ -439,7 +510,7 @@ export async function mountPaper(
   const viewCtx = view.getContext('2d')
   if (!viewCtx) {
     view.remove()
-    releaseRenderer()
+    leaveRenderer()
     return null
   }
 
@@ -1046,6 +1117,12 @@ export async function mountPaper(
         drawn.gx === glare.position.x &&
         drawn.gy === glare.position.y
       if (!same) {
+        // context 遺失時 three 的 render 直接回來，共用畫布留著最後一張成功畫出的卡：不能複製（見 handleContextLost）。
+        // 事件晚一拍才到，所以每次要畫之前自己問一次；handleContextLost 會通知所有掛著的紙，包含這一張。
+        if (lost || gl.isContextLost()) {
+          handleContextLost(pool)
+          return
+        }
         // 共用 renderer 切到不同尺寸的卡片時才重設 backing buffer。
         // three 的 setSize 即使尺寸相同也會寫入 canvas.width／height。
         renderer.getSize(rendererSize)
@@ -1134,13 +1211,18 @@ export async function mountPaper(
     } catch {
       /* 沒有 compileAsync 或編譯失敗：第一幀 render 會照常同步編譯 */
     }
-    if (disposed) {
+    if (disposed || lost) {
       built.dispose()
       return null
     }
     // 改完尺寸馬上同步畫第一幀：改 width/height 會清空畫布，若等下一個 rAF 才畫，中間會有一格空白。
     sizeView()
     render()
+    // 第一幀才發現 context 已遺失：畫布是空的，這個場景不能用
+    if (lost) {
+      built.dispose()
+      return null
+    }
     return built
   }
 
@@ -1169,9 +1251,10 @@ export async function mountPaper(
   scene = await buildScene()
   if (!scene) {
     view.remove()
-    releaseRenderer()
+    leaveRenderer()
     return null
   }
+  delivered = true
   lastWidth = scene.W
   const resizer = new ResizeObserver(() => {
     if (!resizeFrame && !disposed) resizeFrame = requestAnimationFrame(() => void rebuild())
@@ -1218,7 +1301,7 @@ export async function mountPaper(
       scene?.dispose()
       scene = null
       view.remove()
-      releaseRenderer()
+      leaveRenderer()
     }
   }
 }

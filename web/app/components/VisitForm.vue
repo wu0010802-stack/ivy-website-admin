@@ -10,7 +10,7 @@ import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { reportBookingActionClick } from '~/utils/cta-analytics'
-import { BOOKED_ACTION, trackEngagementAction } from '~/utils/engagement'
+import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -240,6 +240,11 @@ watch([() => form.campus, () => bookingConfig.value?.mode], () => {
   if (slotsMounted) void loadSlots()
 })
 watch(selectedVisitDate, () => { selectedSlotId.value = ''; clearFieldError('visitDate'); clearFieldError('slotId') })
+// 內容興趣統計：預約表單走到哪一步（匿名，只記走到了，不記填的內容）。還原填到一半的資料也算走到過。
+watch(selectedVisitDate, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.date) })
+watch(selectedSlotId, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.slot) })
+watch(() => Boolean(form.parentName || form.childName || form.phone || form.email), (started) => { if (started) trackEngagementAction(FORM_ACTIONS.contact) })
+watch(() => step.value === 2 && bookingConfig.value?.mode === 'slots' && !slotsPending.value && !slotsError.value && !availableSlots.value.length, (empty) => { if (empty) trackEngagementAction(FORM_ACTIONS.noSlots) })
 onBeforeUnmount(() => { slotsMounted = false; slotRequest++ })
 
 const submitted = ref(false)
@@ -504,6 +509,7 @@ watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
+  trackEngagementAction(FORM_ACTIONS.submit)
   submitError.value = null
   submitRetryHint.value = false
   form.parentName = form.parentName.trim()
@@ -514,6 +520,7 @@ async function onSubmit() {
   if (!selectedVisitDate.value) fieldErrors.value.visitDate = '請選擇參觀日期。'
   else if (!selectedSlot.value || selectedSlot.value.slot_date !== selectedVisitDate.value) fieldErrors.value.slotId = '請選擇這一天的參觀場次。'
   if (Object.keys(fieldErrors.value).length) {
+    trackEngagementAction(FORM_ACTIONS.invalid)
     await nextTick()
     focusFirstInvalidField(formRef.value)
     return

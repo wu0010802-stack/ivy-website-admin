@@ -34,11 +34,11 @@ describe('responsiveImage() 的 avifSrcset', () => {
   })
 
   it('部分寬度沒有 AVIF（沒省到一成）：那個寬度沿用 WebP 網址，級距不變', () => {
-    const attrs = responsiveImage('day-discover')
+    const attrs = responsiveImage('day-lunch')
     const webp = attrs.srcset!.split(', ')
     const avif = attrs.avifSrcset!.split(', ')
     expect(avif).toHaveLength(webp.length)
-    const missing = images['day-discover']!.candidates.filter((candidate) => !candidate.avif)
+    const missing = images['day-lunch']!.candidates.filter((candidate) => !candidate.avif)
     expect(missing.length).toBeGreaterThan(0)
     for (const candidate of missing) expect(avif).toContain(`${candidate.src} ${candidate.width}w`)
     expect(widthsOf(attrs.avifSrcset!)).toEqual(widthsOf(attrs.srcset!))

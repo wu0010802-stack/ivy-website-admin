@@ -7730,6 +7730,104 @@
         "title": "EngagementActionOut",
         "type": "object"
       },
+      "EngagementCampaignOut": {
+        "properties": {
+          "booked_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Rate"
+          },
+          "booked_sessions": {
+            "title": "Booked Sessions",
+            "type": "integer"
+          },
+          "campaign": {
+            "title": "Campaign",
+            "type": "string"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campaign",
+          "source",
+          "sessions",
+          "booked_sessions",
+          "booked_rate"
+        ],
+        "title": "EngagementCampaignOut",
+        "type": "object"
+      },
+      "EngagementCampusOut": {
+        "properties": {
+          "bookings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bookings"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "map_visits": {
+            "title": "Map Visits",
+            "type": "integer"
+          },
+          "tab_visits": {
+            "title": "Tab Visits",
+            "type": "integer"
+          },
+          "visit_sessions": {
+            "title": "Visit Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "tab_visits",
+          "map_visits",
+          "visit_sessions",
+          "bookings"
+        ],
+        "title": "EngagementCampusOut",
+        "type": "object"
+      },
+      "EngagementClassOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "visits"
+        ],
+        "title": "EngagementClassOut",
+        "type": "object"
+      },
       "EngagementConversionOut": {
         "properties": {
           "booked_rate": {
@@ -7786,6 +7884,115 @@
         "title": "EngagementConversionOut",
         "type": "object"
       },
+      "EngagementDailyOut": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "visits",
+          "sessions"
+        ],
+        "title": "EngagementDailyOut",
+        "type": "object"
+      },
+      "EngagementFormOut": {
+        "description": "進過預約頁的造訪裡各走到哪一步（以造訪為單位）。",
+        "properties": {
+          "invalid_sessions": {
+            "title": "Invalid Sessions",
+            "type": "integer"
+          },
+          "no_slots_sessions": {
+            "title": "No Slots Sessions",
+            "type": "integer"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementFormStepOut"
+            },
+            "title": "Steps",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sessions",
+          "steps",
+          "no_slots_sessions",
+          "invalid_sessions"
+        ],
+        "title": "EngagementFormOut",
+        "type": "object"
+      },
+      "EngagementFormStepOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "sessions",
+          "rate"
+        ],
+        "title": "EngagementFormStepOut",
+        "type": "object"
+      },
+      "EngagementHourOut": {
+        "properties": {
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "hour",
+          "visits"
+        ],
+        "title": "EngagementHourOut",
+        "type": "object"
+      },
       "EngagementIn": {
         "additionalProperties": false,
         "description": "與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。\n一筆是一次頁面瀏覽到目前為止的累計：停留毫秒數、捲動深度、各區塊停留與互動次數。\n只收代碼與數字，不收網址、來源網址或任何家長資料。",
@@ -7793,7 +8000,7 @@
           "actions": {
             "maxProperties": 24,
             "patternProperties": {
-              "^[a-z0-9][a-z0-9_-]{0,31}$": {
+              "^[a-z0-9][a-z0-9_:-]{0,47}$": {
                 "maximum": 99.0,
                 "minimum": 1.0,
                 "type": "integer"
@@ -7807,6 +8014,18 @@
             "minimum": 0.0,
             "title": "Active Ms",
             "type": "integer"
+          },
+          "campaign": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign"
           },
           "campus": {
             "anyOf": [
@@ -7847,7 +8066,7 @@
           "item": {
             "anyOf": [
               {
-                "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$",
                 "type": "string"
               },
               {
@@ -7871,6 +8090,19 @@
             "title": "Page",
             "type": "string"
           },
+          "rev": {
+            "anyOf": [
+              {
+                "maximum": 100000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rev"
+          },
           "scroll": {
             "maximum": 100.0,
             "minimum": 0.0,
@@ -7880,7 +8112,7 @@
           "sections": {
             "maxProperties": 24,
             "patternProperties": {
-              "^[a-z0-9][a-z0-9_-]{0,31}$": {
+              "^[a-z0-9][a-z0-9_:-]{0,47}$": {
                 "maximum": 1800000.0,
                 "minimum": 0.0,
                 "type": "integer"
@@ -7888,6 +8120,19 @@
             },
             "title": "Sections",
             "type": "object"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "maximum": 500.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
           },
           "session": {
             "format": "uuid",
@@ -7925,6 +8170,73 @@
         "title": "EngagementIn",
         "type": "object"
       },
+      "EngagementJourneyOut": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementJourneyPageOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "exits": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementJourneyPageOut"
+            },
+            "title": "Exits",
+            "type": "array"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementPathOut"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "sessions",
+          "entries",
+          "exits",
+          "paths"
+        ],
+        "title": "EngagementJourneyOut",
+        "type": "object"
+      },
+      "EngagementJourneyPageOut": {
+        "properties": {
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "page",
+          "sessions",
+          "rate"
+        ],
+        "title": "EngagementJourneyPageOut",
+        "type": "object"
+      },
       "EngagementNewsOut": {
         "properties": {
           "id": {
@@ -7934,6 +8246,17 @@
           "median_active_ms": {
             "title": "Median Active Ms",
             "type": "integer"
+          },
+          "previous_visits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Visits"
           },
           "read_rate": {
             "anyOf": [
@@ -7966,6 +8289,7 @@
           "id",
           "title",
           "visits",
+          "previous_visits",
           "median_active_ms",
           "read_rate"
         ],
@@ -8008,6 +8332,17 @@
             "title": "Page",
             "type": "string"
           },
+          "previous_visits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Visits"
+          },
           "visits": {
             "title": "Visits",
             "type": "integer"
@@ -8017,11 +8352,97 @@
           "page",
           "campus_key",
           "visits",
+          "previous_visits",
           "median_active_ms",
           "bounce_rate",
           "median_scroll_pct"
         ],
         "title": "EngagementPageOut",
+        "type": "object"
+      },
+      "EngagementPathOut": {
+        "properties": {
+          "pages": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rate"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "pages",
+          "sessions",
+          "rate"
+        ],
+        "title": "EngagementPathOut",
+        "type": "object"
+      },
+      "EngagementPeriodOut": {
+        "properties": {
+          "booked_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Rate"
+          },
+          "booked_sessions": {
+            "title": "Booked Sessions",
+            "type": "integer"
+          },
+          "median_session_ms": {
+            "title": "Median Session Ms",
+            "type": "integer"
+          },
+          "pages_per_session": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pages Per Session"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "visits",
+          "sessions",
+          "booked_sessions",
+          "booked_rate",
+          "median_session_ms",
+          "pages_per_session"
+        ],
+        "title": "EngagementPeriodOut",
         "type": "object"
       },
       "EngagementSectionOut": {
@@ -8104,6 +8525,46 @@
         "title": "EngagementSourceOut",
         "type": "object"
       },
+      "EngagementStoryOut": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "news",
+              "event",
+              "film"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "title",
+          "visits"
+        ],
+        "title": "EngagementStoryOut",
+        "type": "object"
+      },
       "EngagementSummaryOut": {
         "properties": {
           "actions": {
@@ -8118,6 +8579,30 @@
             "title": "As Of",
             "type": "string"
           },
+          "booking_form": {
+            "$ref": "#/components/schemas/EngagementFormOut"
+          },
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementCampaignOut"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementCampusOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementClassOut"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
           "conversion": {
             "items": {
               "$ref": "#/components/schemas/EngagementConversionOut"
@@ -8125,9 +8610,41 @@
             "title": "Conversion",
             "type": "array"
           },
+          "daily": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementDailyOut"
+            },
+            "title": "Daily",
+            "type": "array"
+          },
           "days": {
             "title": "Days",
             "type": "integer"
+          },
+          "device": {
+            "anyOf": [
+              {
+                "enum": [
+                  "mobile",
+                  "desktop"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Device"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementHourOut"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "journey": {
+            "$ref": "#/components/schemas/EngagementJourneyOut"
           },
           "news": {
             "items": {
@@ -8142,6 +8659,16 @@
             },
             "title": "Pages",
             "type": "array"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EngagementPeriodOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "sections": {
             "items": {
@@ -8162,6 +8689,13 @@
             "title": "Sources",
             "type": "array"
           },
+          "stories": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementStoryOut"
+            },
+            "title": "Stories",
+            "type": "array"
+          },
           "totals": {
             "$ref": "#/components/schemas/EngagementTotalsOut"
           },
@@ -8176,13 +8710,23 @@
           "since",
           "until",
           "as_of",
+          "device",
           "totals",
+          "previous",
+          "daily",
           "pages",
           "sections",
           "actions",
           "news",
+          "stories",
+          "classes",
           "sources",
-          "conversion"
+          "campaigns",
+          "conversion",
+          "booking_form",
+          "journey",
+          "hours",
+          "campuses"
         ],
         "title": "EngagementSummaryOut",
         "type": "object"
@@ -8212,6 +8756,10 @@
             "title": "Median Session Ms",
             "type": "integer"
           },
+          "mobile_sessions": {
+            "title": "Mobile Sessions",
+            "type": "integer"
+          },
           "pages_per_session": {
             "anyOf": [
               {
@@ -8237,9 +8785,10 @@
           "sessions",
           "booked_sessions",
           "booked_rate",
-          "median_active_ms",
           "median_session_ms",
-          "pages_per_session"
+          "pages_per_session",
+          "median_active_ms",
+          "mobile_sessions"
         ],
         "title": "EngagementTotalsOut",
         "type": "object"
@@ -17470,6 +18019,7 @@
                   "auth_failed",
                   "connect_failed",
                   "rejected",
+                  "quota",
                   "timeout",
                   "other"
                 ],
@@ -25794,6 +26344,28 @@
               "minimum": 7,
               "title": "Days",
               "type": "integer"
+            }
+          },
+          {
+            "description": "只看手機或電腦；省略＝全部",
+            "in": "query",
+            "name": "device",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "mobile",
+                    "desktop"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只看手機或電腦；省略＝全部",
+              "title": "Device"
             }
           },
           {
@@ -35207,7 +35779,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/access-link": {
       "post": {
-        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在\n真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。",
+        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在\n真的會寄出（另外還要有設定寄信：SMTP 或 Resend）時為 True，否則園方要自行把連結交給家長。",
         "operationId": "create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post",
         "parameters": [
           {
@@ -36099,7 +36671,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/resend-confirmation": {
       "post": {
-        "description": "重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。\n沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。",
+        "description": "重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。\n沒設定寄信（SMTP 或 Resend）時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。",
         "operationId": "resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post",
         "parameters": [
           {

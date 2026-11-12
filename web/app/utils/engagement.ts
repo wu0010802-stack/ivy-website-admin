@@ -1,4 +1,4 @@
-import { ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
+import { ENGAGEMENT_CAMPAIGN, ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_MAX_SEQ, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
 import { publicPage } from '#shared/telemetry'
 import { newIdempotencyKey } from './idempotency-key'
 
@@ -13,6 +13,37 @@ export const IDLE_MS = 60_000
 export const MAX_TICK_MS = 2_000
 export const BOOKED_ACTION = 'booking_done'
 export const READ_ACTION = 'read_end'
+// 預約表單的進度（預約頁）：選了日期、選了場次、開始填資料、按了送出；另外兩個是看到「沒有開放場次」
+// 與送出時欄位沒過。要和後端 operations/models.py 的 ENGAGEMENT_FORM_* 一致（測試會比對）。
+export const FORM_ACTIONS = { date: 'form_date', slot: 'form_slot', contact: 'form_contact', submit: 'form_submit', noSlots: 'form_no_slots', invalid: 'form_invalid' } as const
+// 入學試算查到的班別：還沒到幼幼班年齡、幼幼班、小班、中班、大班、已到國小年齡。只記班別，不記生日。
+// 要和後端的 ENGAGEMENT_CLASS_ACTIONS 一致（測試會比對）。
+export const CLASS_ACTIONS = ['class_young', 'class_toddler', 'class_small', 'class_middle', 'class_big', 'class_school'] as const
+
+/** 入學試算的結果 → 班別代碼。position 是成長軌道上的站（0＝幼幼班…3＝大班）。 */
+export function classActionKey(status: 'enrolled' | 'young' | 'school', position: number): string | null {
+  if (status === 'young') return CLASS_ACTIONS[0]
+  if (status === 'school') return CLASS_ACTIONS[5]
+  return CLASS_ACTIONS[position + 1] && position >= 0 && position <= 3 ? CLASS_ACTIONS[position + 1]! : null
+}
+
+const STORY_PREFIXES: Record<string, string> = { news: 'sn_', event: 'se_', film: 'sf_' }
+/** 首頁點開的消息／活動／影片（HomeStories 的 id 是「news:<代號>」）→ 互動代碼；代號不合格式就不分篇記。 */
+export function storyActionKey(storyId: string): string | null {
+  const [kind, ...rest] = storyId.split(':')
+  const key = `${STORY_PREFIXES[kind ?? ''] ?? ''}${rest.join(':')}`
+  return STORY_PREFIXES[kind ?? ''] && ENGAGEMENT_KEY.test(key) ? key : null
+}
+
+/**
+ * 進站連結上的活動代碼（utm_campaign）：園方貼連結時自己設的，用來分辨是哪一則貼文或廣告。
+ * 只留小寫英數、底線、連字號，最長 32 字；其他字元換成連字號，整個不合格式就不記。
+ */
+export function campaignOf(search: string): string | undefined {
+  const raw = new URLSearchParams(search).get('utm_campaign') ?? ''
+  const key = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32).replace(/-+$/, '')
+  return ENGAGEMENT_CAMPAIGN.test(key) ? key : undefined
+}
 const SESSION_KEY = 'ivy-engagement'
 
 const SEARCH_HOSTS = /(^|\.)(google\.[a-z.]+|bing\.com|yahoo\.com|duckduckgo\.com|baidu\.com)$/
@@ -54,21 +85,35 @@ function bySourceName(name: string): EngagementSource | null {
   return 'other'
 }
 
-export interface EngagementSession { id: string; source: EngagementSource }
+export interface EngagementSession { id: string; source: EngagementSource; campaign?: string; /** 這次造訪已經看了幾頁 */ pages: number }
 
 /**
  * 分頁內的暫時代碼與進站來源：存在 sessionStorage，關掉分頁就消失，不跨分頁、不跨次造訪。
  * 來源只在這次造訪的第一頁判斷一次，站內換頁不會變成「直接進站」。sessionStorage 不能用
  * （無痕模式的某些設定）時每次載入各算一次造訪。
  */
-export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> | null, classify: () => EngagementSource): EngagementSession {
+export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> | null, classify: () => EngagementSource, campaign?: () => string | undefined): EngagementSession {
   try {
     const saved = JSON.parse(storage?.getItem(SESSION_KEY) || 'null') as Partial<EngagementSession> | null
-    if (saved && typeof saved.id === 'string' && ENGAGEMENT_SOURCES.some((source) => source === saved.source)) return saved as EngagementSession
+    if (saved && typeof saved.id === 'string' && ENGAGEMENT_SOURCES.some((source) => source === saved.source)) {
+      return {
+        id: saved.id, source: saved.source!,
+        ...(typeof saved.campaign === 'string' && ENGAGEMENT_CAMPAIGN.test(saved.campaign) ? { campaign: saved.campaign } : {}),
+        pages: Number.isInteger(saved.pages) && saved.pages! > 0 ? saved.pages! : 0
+      }
+    }
   } catch { /* 存的內容壞掉就重新產生 */ }
-  const session = { id: newIdempotencyKey(), source: classify() }
+  const code = campaign?.()
+  const session: EngagementSession = { id: newIdempotencyKey(), source: classify(), ...(code ? { campaign: code } : {}), pages: 0 }
   try { storage?.setItem(SESSION_KEY, JSON.stringify(session)) } catch { /* 寫不進去也照樣統計這一頁 */ }
   return session
+}
+
+/** 這次造訪又看了一頁：回傳這一頁是第幾頁，並記回 sessionStorage（重新整理、換頁都接著數）。 */
+export function nextPage(storage: Pick<Storage, 'setItem'> | null, session: EngagementSession): number {
+  session.pages += 1
+  try { storage?.setItem(SESSION_KEY, JSON.stringify(session)) } catch { /* 寫不進去就只在這次載入內累計 */ }
+  return session.pages
 }
 
 /** 互動代碼：元件上寫的 data-track-action；不合格式的不記。 */
@@ -97,7 +142,7 @@ export interface EngagementVisit {
   takePayload(): EngagementEvent | null
 }
 
-export function startVisit(path: string, session: EngagementSession, device: 'mobile' | 'desktop', id: string = newIdempotencyKey()): EngagementVisit | null {
+export function startVisit(path: string, session: EngagementSession, device: 'mobile' | 'desktop', id: string = newIdempotencyKey(), seq?: number): EngagementVisit | null {
   const page = publicPage(path)
   if (!page) return null
   const item = newsItemOf(path)
@@ -106,6 +151,7 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
   const sections: Record<string, number> = {}
   const actions: Record<string, number> = {}
   let sent = ''
+  let rev = 0
   const room = (map: Record<string, number>, key: string) => key in map || Object.keys(map).length < ENGAGEMENT_MAX_KEYS
   return {
     path,
@@ -128,12 +174,16 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
         event: 'engagement', id, session: session.id, ...page, device, ...(item ? { item } : {}), source: session.source,
         active_ms: Math.round(activeMs), scroll,
         sections: Object.fromEntries(Object.entries(sections).map(([key, ms]) => [key, Math.round(ms)])),
-        actions: { ...actions }
+        actions: { ...actions },
+        ...(seq && seq <= ENGAGEMENT_MAX_SEQ ? { seq } : {}),
+        ...(session.campaign ? { campaign: session.campaign } : {})
       }
       const text = JSON.stringify(payload)
       if (text === sent) return null
       sent = text
-      return payload
+      // 回報序號：這幾筆不保證照順序到，後端靠它不讓晚到的舊回報蓋掉新的。
+      rev += 1
+      return { ...payload, rev }
     }
   }
 }
@@ -143,3 +193,5 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
 let current: EngagementVisit | null = null
 export function setCurrentVisit(visit: EngagementVisit | null): void { current = visit }
 export function trackEngagementAction(key: string): void { current?.mark(key) }
+/** 同一頁做了幾次就算幾次（例如入學試算查了兩個孩子）；trackEngagementAction 則是做過就記 1。 */
+export function countEngagementAction(key: string): void { current?.action(key) }

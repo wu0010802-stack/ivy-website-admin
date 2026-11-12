@@ -12,6 +12,11 @@ export interface MountedPaper {
 }
 
 export const TOUCH_MOUNT_CAP = 2
+/**
+ * 共用的 WebGL context 遺失、卡片退回 CSS 版之後，隔多久再試著掛回 WebGL 紙（2026-11-11，見 paperPrints.ts 的 handleContextLost）。
+ * 留一點時間讓系統把舊 context 收完；手機照舊還要等捲動停下。同一頁遺失第二次 paperPrints 就停用 WebGL，不會一直重試。
+ */
+export const REMOUNT_AFTER_LOSS_MS = 1200
 const mounted = new Set<MountedPaper>()
 
 export function registerMountedPaper(entry: MountedPaper): void {
