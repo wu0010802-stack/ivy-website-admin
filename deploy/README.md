@@ -31,6 +31,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 環境頁「定時消毒」換照片上線（main CI 部署，沒有 migration）
+
+- **內容**：`892a83bb`（README「2026-11-12 環境頁「定時消毒」換照片」），分支 `feature/env-care-clean-20261112`。`env-care-clean` 從義華 NAS 那張背對鏡頭的洗手照（放進半圓後頭被切掉）換成崇德校粉專 2025-05-09 的洗手照；只動 `web/` 的一張母檔、它的響應式檔、替代文字與兩份渲染快照，沒動 fixture、後台與後端。
+- **連帶上線**：`a40c8d08`（入學頁常見問題拿掉「有美語課嗎？」，別的 session 推的）的 run 43152163888 在排隊時被這次的 run 取代（cancelled），內容隨這次一起部署。
+- **推前（本機）**：web `typecheck` 過、`npm run test:website` 140 檔 1888 項過；`tests/stack` 172 項過、30 項略過（14.5 分；跑在 rebase 之前的 `60f99d12` 上，之後接了 main 的 6 個提交——成效統計分四類、隱私權初稿、入學頁文案與各自的部署紀錄——只重跑 typecheck 與 web 測試）；Playwright 在 dev server 看過 1440×900 與 390×844。
+- **CI**：main run 43152969349 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（04:22:49Z）。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `892a83bb`；`/`、`/environment`、`/visit`、`/admin/` 200，`/api/website/v1/health` 200；`/environment` 載 `env-care-clean-9bd83911d844`（WebP）／`af2716a5a715`（AVIF），新替代文字在、舊替代文字 0；新檔 200（`image/webp`、`image/avif`），舊雜湊 `f25e6a36a52c` 404。
+- **沒驗、待使用者**：實機（iOS／Android）沒看；照片來自崇德校公開粉專，放上官網要不要另外知會崇德校與照片裡孩子的家長，待園方確認。文案「每日定時教室消毒」沒改，照片是洗手、不是消毒。
+
 ## 2026-11-12 隱私權政策後台初稿補齊上線（main CI 部署，沒有 migration）
 
 - **內容**：`741aaee9`（README「2026-11-12 隱私權政策初稿補三項」），分支 `fix/privacy-draft-20261112`。只動後台的隱私權政策初稿（`admin/src/composables/privacyPolicyDraft.ts`）、一支測試與文件：Turnstile 兩處說明拿掉、寄信服務商填 Resend、第 3 與第 10 段寫明參觀後的招生紀錄、第 7 段不寫保存天數與到期刪除；【待確認】從 9 處剩 3 處（登記名稱、主機地區、聯絡 Email）。官網前台與後端沒有改。使用者說「部署」。
