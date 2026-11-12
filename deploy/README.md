@@ -85,6 +85,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 入學頁各校不同的規定與流程改成五校共通說法上線（main CI 部署，沒有 migration）
+
+- **內容**：`11ba3ac3`（README「2026-11-12 入學頁：各校不同的規定與流程改成五校共通說法」），分支 `fix/admission-campus-20261112`。使用者說有些分校的規定與流程不同，要把有爭議的地方改寫：流程第 4–6 步拿掉「開學前約一個月／約一週」「前三天以半天為主」；二部曲標題改「適應期（一開學）」「適應之後（快樂來上學）」；首部曲叮嚀加「必備品各校略有不同，報到時會提供完整清單，請依清單為寶貝準備。」；每天穿什麼星期表拿掉、併入註冊須知；收費袋「次月 5 日前」改由校區通知；收退費公告時點照高雄市收退費辦法第 14 條。常見問題「一直哭」、首頁孩子的一天背面、特色教學「老師好愛我」同步。動了 `web/server/data/site-fixture.json`、兩份 overlay 測試基準、`public-copy.ts`、`admission-faq.ts`、後台 `curriculumPageDraft.ts`（特色教學預設）、後端 `test_admission_content.py`。使用者說「幫我部署」。
+- **推前（本機）**：web `typecheck` 過；`npm run test:website` 140 檔 1888 項過（負載 40–70 時預設逾時有 2 項紅，`--testTimeout=60000` 全過）；admin 相關 54 項、後端讀 fixture 的 273 項過（獨立測試庫）；Playwright 在 fixture dev server 看 1440×900、390×844，無水平溢出。rebase 到 `aa1552e1` 後入學與後台相關 84 項重跑過。
+- **CI**：run 43161894596 全綠（web、admin、後端三組、stack E2E），Deploy 05:52:42Z。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` 的 `base_commit` 是 `11ba3ac3`；`/admission` 200，舊字句「每天穿什麼」「上學前三天」「註冊了」「收費袋」「前三天以半天為主」「開學前約」「結束前一個月」整頁（含資料）0 次，新句子與兩個二部曲標題都在；首頁 200、背面是新句子；`/curriculum` 200、「頭三天以半天為主」0 次；`/visit`、`/admin/`、`/api/website/v1/health` 200。
+- **順帶看到（和這次無關、沒處理）**：`https://www.ivykidschool.com//`（多一條斜線）回 500。
+- **沒驗、待使用者**：實機沒看。設施與餐點描述（套房式衛廁、廚房現煮早餐＋每天兩份蔬果）、導師開學前打電話、名牌、必備品清單內容、入園時家長先陪一下，五校是否一致待確認。
+
 ## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
 
 - **Cloudflare**：使用者個人帳號建了 Turnstile widget「常春藤官網預約」，Managed 模式、pre-clearance 關（www 是灰雲，用不到）；hostname `ivykidschool.com`（含 www）與 `web-production-04caa.up.railway.app`（Railway 網址轉址之後可以拿掉）。
