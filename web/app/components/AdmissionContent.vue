@@ -244,9 +244,9 @@ onBeforeUnmount(() => {
             <div class="ap-runhead"><span>常春藤入學護照</span><span>第 1 頁</span></div>
             <figure class="ap-photo">
               <div class="ap-photo-frame">
-                <ResponsivePicture v-bind="hero" alt="兩個男孩手牽著手，在早晨的陽光裡笑開了" loading="eager" fetchpriority="high" />
+                <ResponsivePicture v-bind="hero" alt="女孩站在逆光裡，抬頭笑開了嘴" loading="eager" fetchpriority="high" />
               </div>
-              <figcaption>早上到校，牽起好朋友的手。</figcaption>
+              <figcaption>早上到校，一抬頭就笑開了。</figcaption>
               <div class="ap-stamp-host ap-welcome">
                 <Transition :css="false" @enter="onPress" @leave="onLift">
                   <PassportStamp v-if="welcome" kind="round" ring="常春藤幼兒園・入學護照" :lines="['歡迎', '入學']" mode="pair" tone="green" :size="128" :rot="-12" />
