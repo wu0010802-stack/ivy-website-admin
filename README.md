@@ -1,3 +1,7 @@
+## 2026-11-12 訪客 IP 改採信 X-Real-IP（`fix/client-ip-real-ip-20261112`）
+
+- 操作紀錄與限流的訪客 IP 一直記成 Railway edge 前面那層 CDN77 的節點。實測 Railway 會覆寫 `X-Real-IP` 為真正的連線來源（訪客自帶的蓋掉），`web/server/utils/client-ip.ts` 改成先看 `NUXT_CLIENT_IP_HEADER`（正式站 `x-real-ip`），沒設才照舊從 `X-Forwarded-For` 取。暫時的診斷端點移除。細節見 `deploy/README.md` 同日段落。
+
 ## 2026-11-12 環境頁「五所校園」崇德與國際第一張換成校園實景（`feature/env-tour-photos-20261112`）
 
 使用者看線上後要求：國際校美語商店街不要用這個主題、換成真實的操場外觀，騎士堡照片不換；崇德溜滑梯整個換主題、不要溜滑梯，改用學校的廣場。照片都取自各校 FB 粉專（對照頁 `design/env-tour-photos-20261112/`）。
