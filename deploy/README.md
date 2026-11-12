@@ -30,6 +30,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
+## 2026-11-12 特色教學手機版只留一條橫滑上線（main CI 部署，沒有 migration）
+
+- **內容**：`3c6e4952`（README「2026-11-11 特色教學手機版：只留美術館一條橫滑」），分支 `feature/cur-mobile-20261111`，從 `e3eb1c08` 開、快轉 main。使用者回報 `/curriculum` 手機上很多內容都要左右滑；760px 以下原本三條橫滑，改成只留美術館一條（作品等高），課程方向沿用平板兩欄、五件事一列一件。使用者看過對照圖後說「部署」。只動 web（`curriculum.css` 的 760 區塊、`CurriculumContent.vue`、`useWatercolor.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
+- **推前（本機）**：web typecheck 過；全套 141 檔 1,874 項過（加 `--testTimeout=30000`：當時機器負載 100 以上，預設 5 秒有 7 項重運算測試逾時，都不在這次改的檔案）。admin、後端、stack e2e 本機沒跑，以 CI 為準。
+- **CI**：main run 43127720161 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `3c6e4952`（00:37:22Z）。
+- **部署後正式站驗證**（只發 GET；Playwright 擋掉所有非 GET 與統計、遙測）：`/`、`/curriculum`、`/about`、`/visit`、`/admin/` 都 200。`/curriculum` 量 320／390／768／1440：整頁都沒有橫向溢出；320、390 課程方向兩欄、五件事直排，兩條都不能橫捲也沒有 tabindex，美術館可以橫捲、張數跟著變（3、6、8、回到 1），直排清單沒有被裁掉的字；768、1440 沒有張數、三條清單都不橫捲，版面高度和改前的量測一致。390 寬整頁 8,099px（改前 6,551px）。390 的整頁截圖看過。
+- **沒驗**：iOS／Android 實機。
+- **回退**：切回上一版映像即可，沒有資料變更。
 ## 2026-11-11 拍立得 WebGL context 遺失修正上線（main CI 部署，沒有 migration）
 
 - **內容**：`4cfaaec8`（README「2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影」），分支 `fix/paper-context-lost-20261111`，rebase 到 `e3090816` 後快轉 main（只有 README 頂部衝突）。使用者回報真手機上「常春藤的一天」的卡片出現上一個畫面的殘影；共用的 WebGL context 被系統收走後，拍立得改成退回 CSS 版、再用新的 context 重掛，同一頁第二次遺失就停用 WebGL。只動 web（`paperPrints.ts`、`DayMomentCard.vue`、`paper-budget.ts`）。沒有 migration、沒有新變數、OpenAPI 契約沒變。
