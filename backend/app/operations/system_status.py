@@ -17,6 +17,7 @@ import ssl
 from datetime import datetime, timedelta
 from typing import Any, Literal
 
+import httpx
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,7 +33,14 @@ from app.content.publish_jobs import unresolved_condition
 from app.media.models import MediaAsset, MediaJob, MediaStatus
 from app.notifications import outbox_admin
 from app.notifications.models import PushSubscription
-from app.notifications.email_adapter import EmailAdapter, deployment_email_adapter
+from app.notifications.email_adapter import (
+    EmailAdapter,
+    ResendAuthError,
+    ResendError,
+    ResendQuotaError,
+    ResendRejectedError,
+    deployment_email_adapter,
+)
 from app.operations import error_reports
 from app.operations.models import RetentionPolicy
 
@@ -94,6 +102,9 @@ def service_items(settings: Settings, *, policy_auto_run: bool, push_devices: in
                 "sender": settings.smtp_from,
             },
         )
+    elif settings.resend_api_key:
+        # key 沿用 smtp（畫面與測試信按鈕都認這一列）；detail 的 provider 讓畫面知道走的是 Resend。只回寄件地址，不回金鑰。
+        smtp = SystemStatusItem(key="smtp", level="ok", detail={"provider": "resend", "sender": settings.resend_from})
     elif settings.notification_email_sink_dir and not production:
         smtp = SystemStatusItem(key="smtp", level="info", detail={"sink": True})
     else:
@@ -319,7 +330,7 @@ async def build_status(db: AsyncSession, state: Any, settings: Settings, now: da
 TEST_EMAIL_LIMIT = ratelimit.Limit("system_test_email", 600, 3)
 TEST_EMAIL_TIMEOUT_SECONDS = 20.0
 TEST_EMAIL_SUBJECT = "【常春藤官網後台】測試信"
-SystemEmailTestError = Literal["not_configured", "auth_failed", "connect_failed", "rejected", "timeout", "other"]
+SystemEmailTestError = Literal["not_configured", "auth_failed", "connect_failed", "rejected", "quota", "timeout", "other"]
 
 
 class SystemEmailTestOut(BaseModel):
@@ -331,7 +342,7 @@ def mail_adapter(settings: Settings) -> EmailAdapter:
     """寄測試信用的 adapter；沒有可用的寄信管道時丟 EmailNotConfigured。測試以 monkeypatch 換掉
     （比照 auth/password_reset.mail_adapter）。
 
-    正式環境只認 SMTP：沒設 SMTP 時就算有 sink 資料夾也不寫檔，否則畫面會說「已寄出」，信卻只是
+    正式環境只認真實寄信（SMTP 或 Resend）：都沒設時就算有 sink 資料夾也不寫檔，否則畫面會說「已寄出」，信卻只是
     躺在伺服器的資料夾裡（規則在 email_adapter.deployment_email_adapter，三處共用）。"""
     return deployment_email_adapter(settings)
 
@@ -356,12 +367,19 @@ def classify_email_error(exc: BaseException) -> SystemEmailTestError:
     smtplib 的例外都是 OSError 的子類別，所以先判斷 SMTP 專屬的，再判斷一般連線錯誤。
     伺服器不支援 STARTTLS（SMTPNotSupportedError）與憑證或加密錯（ssl.SSLError）都是主機、port 或
     加密方式設錯，歸 connect_failed，畫面叫人檢查這三項。"""
-    if isinstance(exc, smtplib.SMTPAuthenticationError):
+    if isinstance(exc, (smtplib.SMTPAuthenticationError, ResendAuthError)):
         return "auth_failed"
-    if isinstance(exc, (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError)):
+    if isinstance(exc, (smtplib.SMTPRecipientsRefused, smtplib.SMTPSenderRefused, smtplib.SMTPDataError, ResendRejectedError)):
         return "rejected"
-    if isinstance(exc, TimeoutError):
+    if isinstance(exc, ResendQuotaError):
+        return "quota"
+    if isinstance(exc, ResendError):
+        return "other"
+    # Resend 走 httpx：逾時與連不上是 httpx 自己的例外，不是 OSError 的子類別。
+    if isinstance(exc, (TimeoutError, httpx.TimeoutException)):
         return "timeout"
+    if isinstance(exc, httpx.TransportError):
+        return "connect_failed"
     if isinstance(exc, (smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected, smtplib.SMTPNotSupportedError)):
         return "connect_failed"
     if isinstance(exc, smtplib.SMTPException):

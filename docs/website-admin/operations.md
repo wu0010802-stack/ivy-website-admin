@@ -39,9 +39,16 @@ export WEBSITE_SMTP_PASSWORD=...             # 放部署平台的 secret，不�
 export WEBSITE_SMTP_FROM='常春藤官網 <noreply@example.org>'   # 設了 HOST 就必填
 ```
 
+或改用 Resend（2026-11-11 起；走 HTTPS API，部署平台擋 SMTP 連接埠時用這個）。和 SMTP 只能擇一，兩個同時設會在啟動時報錯：
+
+```bash
+export WEBSITE_RESEND_API_KEY=...            # 放部署平台的 secret；建議用只有寄信權限、限定該網域的金鑰
+export WEBSITE_RESEND_FROM='常春藤幼兒園 <noreply@send.example.org>'   # 網域要先在 Resend 驗證過
+```
+
 每一輪依序做五件事，一步失敗不擋後面的步驟：到期的**排程發布**（每筆自己一個交易，失敗或「官網已經是更新版本」寫在排程上、後台看得到原因）→ 產生**提醒**（員工的即將參觀提醒、家長參觀提醒，見下）→ 釋放逾期占位 → 處理 outbox（站內通知＋LINE＋寄信）→ 刪除過期的限流計數。
 
-寄信未設定（沒有 SMTP 也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好 SMTP 再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。SMTP 在背景 thread 執行，不會卡住 API 的請求。
+寄信未設定（沒有 SMTP、沒有 Resend，也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好寄信再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。寄信（SMTP 與 Resend 都是）在背景 thread 執行，不會卡住 API 的請求。
 
 LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。LINE 推播失敗（月額度用完、token 失效、bot 被移出群組、逾時）不會擋住 email：信照寄，整筆再以失敗重試，重試時只補推 LINE（2026-09-29 起；之前 LINE 一失敗 email 就一封都不寄）。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
 

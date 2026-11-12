@@ -1,3 +1,14 @@
+## 2026-11-11 寄信接上 Resend（`feature/resend-20261111`）
+
+使用者要求接 Resend。正式站一直沒有設定寄信（家長確認信、參觀提醒、停課通知、重設密碼連結都寄不出去），原本只支援 SMTP。**尚未部署，正式站也還沒設定金鑰**：程式併進 `main` 後不設變數行為完全不變。
+
+- **做法**：後端多一個走 Resend HTTPS API 的寄信 adapter（`backend/app/notifications/email_adapter.py` 的 `ResendEmailAdapter`，`POST https://api.resend.com/emails`，純文字信）。不走 Resend 的 SMTP 介面：部署平台可能擋對外的 SMTP 連接埠，HTTPS 一定通，也不用多管 port 與加密方式。
+- **設定**：api 新增 `WEBSITE_RESEND_API_KEY`、`WEBSITE_RESEND_FROM`，兩個要一起設；和 `WEBSITE_SMTP_HOST` 只能擇一（同時設會在啟動時擋下，不默默挑一個）。金鑰不進 `repr`、不出現在系統狀態。
+- **「有沒有設定寄信」改成同一個判斷**：`Settings.real_email_enabled`（SMTP 或 Resend）。公開與後台預約設定的 `parent_email_enabled`、重寄確認信、停課通知、重設密碼連結、背景寄信與系統狀態測試信原本各自看 `smtp_host`，現在都看這個。
+- **錯誤分類**：Resend 回的錯誤轉成 `ResendAuthError`（金鑰無效或停用）、`ResendRejectedError`（寄件網域還沒驗證或地址有誤）、`ResendQuotaError`（每日／每月額度或寄太快）、`ResendServerError`；例外只帶狀態碼與錯誤種類，不帶回應內文（可能含收件地址）。後台「通知」頁的失敗原因與操作紀錄會顯示對應的中文。
+- **後台系統狀態**：寄信那一列改叫「寄信」（原本寫「寄信（SMTP）」），經 Resend 時顯示「寄件地址 …，經 Resend 寄出」；測試信多一種結果「額度用完或寄得太快」（API 的 `error` 多一個值 `quota`，契約已重新產生）。
+- 改動：`backend/app/config.py`、`backend/app/notifications/email_adapter.py`、`backend/app/operations/system_status.py`、`backend/app/booking/{access_routes,config_routes,schedule_routes}.py`、`admin/src/api/labels.ts`、`admin/src/utils/systemStatusFormat.ts`、`contracts/`；新測試 `backend/tests/test_resend_adapter.py`。上線步驟見 `deploy/README.md`「寄信：Resend」。
+- **沒做**：沒有真的打過 Resend（沒有金鑰，測試用 `httpx.MockTransport`）；信仍是純文字、沒有 HTML 版；沒帶 `Idempotency-Key`（逾時後重試理論上可能重複寄一封）；沒接退信／客訴 webhook，也沒有 Reply-To（家長直接回信會寄到寄件地址）。
 ## 2026-11-11 特色教學手機版：只留美術館一條橫滑（`feature/cur-mobile-20261111`）
 
 使用者回報 `/curriculum` 手機上很多內容都要左右滑，要改善體驗。規則在 DESIGN.md 同日章節。

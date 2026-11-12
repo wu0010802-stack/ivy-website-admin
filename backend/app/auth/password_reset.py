@@ -47,8 +47,8 @@ def hash_token(raw: str) -> str:
 
 
 def email_enabled(settings) -> bool:
-    """能不能寄重設連結：要有後台網址（信裡的連結）而且有寄信管道。正式環境只認
-    SMTP；其他環境另外接受本機 sink（開發與 stack e2e 讀信用）。"""
+    """能不能寄重設連結：要有後台網址（信裡的連結）而且有寄信管道。正式環境只認真實寄信（SMTP 或
+    Resend）；其他環境另外接受本機 sink（開發與 stack e2e 讀信用）。"""
     return bool(settings.admin_origin) and email_channel_available(settings)
 
 

@@ -188,6 +188,12 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     expect(outboxErrorLabel('SMTPAuthenticationError')).toBe('寄信伺服器帳號或密碼錯誤')
     expect(outboxErrorLabel('SMTPServerDisconnected')).toBe('寄信伺服器錯誤')
     expect(outboxErrorLabel('ConnectionRefusedError')).toBe('連不上寄信或推播伺服器')
+    // 經 Resend 寄信（2026-11-11）：錯誤碼是 email_adapter 的 Resend*Error 類別名稱。
+    expect(outboxErrorLabel('ResendAuthError')).toBe('Resend 金鑰無效或已停用')
+    expect(outboxErrorLabel('ResendRejectedError')).toBe('Resend 拒收（寄件網域還沒驗證，或地址有誤）')
+    expect(outboxErrorLabel('ResendQuotaError')).toBe('Resend 額度用完或寄得太快')
+    expect(outboxErrorLabel('ResendServerError')).toBe('Resend 服務錯誤')
+    expect(outboxErrorLabel('ResendError')).toBe('Resend 服務錯誤')
     expect(outboxErrorLabel('TimeoutError')).toBe('連線逾時')
     // LINE 推播連不上或逾時時，錯誤碼是 httpx 的例外類別名稱（沒有包成 LinePushError）。
     for (const code of ['ConnectError', 'ReadError', 'WriteError', 'RemoteProtocolError', 'ProxyError']) {

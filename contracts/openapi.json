@@ -18019,6 +18019,7 @@
                   "auth_failed",
                   "connect_failed",
                   "rejected",
+                  "quota",
                   "timeout",
                   "other"
                 ],
@@ -35778,7 +35779,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/access-link": {
       "post": {
-        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在\n真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。",
+        "description": "重新產生家長管理連結並寄出（規格 3.6）。同一時間只有一條有效：重新產生會先\n撤銷舊連結與舊連結換到的 session，遺失或外流時直接換一條。\n\n完整網址用公開官網 origin（WEBSITE_ADMIN_ORIGIN），前端不寫死網域。原始 token\n不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。\n\n有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在\n真的會寄出（另外還要有設定寄信：SMTP 或 Resend）時為 True，否則園方要自行把連結交給家長。",
         "operationId": "create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post",
         "parameters": [
           {
@@ -36670,7 +36671,7 @@
     },
     "/api/website/v1/admin/visit-requests/{visit_request_id}/resend-confirmation": {
       "post": {
-        "description": "重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。\n沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。",
+        "description": "重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。\n沒設定寄信（SMTP 或 Resend）時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。",
         "operationId": "resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post",
         "parameters": [
           {

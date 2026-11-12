@@ -43,7 +43,7 @@ async def get_booking_config(
     config = await service.get_or_create_config(db, campus_key)
     await db.commit()
     return BookingConfigOut.model_validate(config).model_copy(
-        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+        update={"parent_email_enabled": request.app.state.settings.real_email_enabled}
     )
 
 
@@ -110,7 +110,7 @@ async def update_booking_config(
     )
     await db.commit()
     return BookingConfigOut.model_validate(config).model_copy(
-        update={"parent_email_enabled": bool(request.app.state.settings.smtp_host)}
+        update={"parent_email_enabled": request.app.state.settings.real_email_enabled}
     )
 
 
@@ -166,7 +166,7 @@ async def get_public_booking_config(
     else:
         out = PublicBookingConfigOut.model_validate(config)
     settings = request.app.state.settings
-    out = out.model_copy(update={"parent_email_enabled": bool(settings.smtp_host)})
+    out = out.model_copy(update={"parent_email_enabled": settings.real_email_enabled})
     if settings.turnstile_enabled:
         out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})
     if privacy is not None:

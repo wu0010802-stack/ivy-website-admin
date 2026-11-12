@@ -167,7 +167,7 @@ async def process_notifications_once() -> None:
     if result.parent_reminders_enqueued:
         print(f"已排 {result.parent_reminders_enqueued} 封家長參觀提醒信。")
     if not result.email_configured:
-        print("尚未設定 WEBSITE_SMTP_HOST 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
+        print("尚未設定 WEBSITE_SMTP_HOST、WEBSITE_RESEND_API_KEY 或 WEBSITE_NOTIFICATION_EMAIL_SINK_DIR，email 通知未配置（站內通知照寫）。")
     print(f"已處理通知：成功 {result.notifications_sent} 筆、失敗 {result.notifications_failed} 筆")
     if result.notifications_skipped:
         print(f"另有 {result.notifications_skipped} 則提醒到寄送時已不適用（改期、取消或已處理），未送出。")
@@ -179,7 +179,7 @@ async def process_notifications_once() -> None:
 async def requeue_notifications(campus_key: str | None, dry_run: bool) -> None:
     """把寄送失敗（已達自動重試上限）的通知重新排入，下一輪定期工作重送。
     已送到的管道與收件人會略過，不會重複寫站內通知或重推 LINE。後台「站內
-    通知」頁也可以逐則或整批重新寄送；這個指令給 SMTP 修好後一次補送用。"""
+    通知」頁也可以逐則或整批重新寄送；這個指令給寄信（SMTP 或 Resend）修好後一次補送用。"""
     from app.notifications import outbox_admin
 
     factory = await _session_factory()

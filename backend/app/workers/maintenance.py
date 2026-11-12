@@ -188,7 +188,7 @@ async def _run_steps(
             result.failed_steps.append("reminders")
 
     try:
-        # 正式環境只認 SMTP：沒設 SMTP 就當未配置（家長信略過），不把信寫進 sink 資料夾還算成已寄出。
+        # 正式環境只認真實寄信（SMTP 或 Resend）：都沒設就當未配置（家長信略過），不把信寫進 sink 資料夾還算成已寄出。
         adapter = deployment_email_adapter(settings)
         result.email_configured = True
     except EmailNotConfigured:
