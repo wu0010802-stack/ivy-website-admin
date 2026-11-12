@@ -31,13 +31,13 @@ describe('隱私權政策（privacy_policy）', () => {
     expect(contentFieldLabel('updated_on')).not.toBe('updated_on')
   })
 
-  it('初稿：12 段、標題與後端預設一致、更新日期留空、有 9 處待確認', () => {
+  it('初稿：12 段、標題與後端預設一致、更新日期留空、有 3 處待確認', () => {
     const draft = privacyPolicyDraft()
     expect(draft.title).toBe('隱私權政策')
     expect(draft.updated_on).toBeNull()
     expect(draft.sections).toHaveLength(12)
     expect(draft.sections.length).toBeLessThanOrEqual(PRIVACY_POLICY_SECTIONS_MAX)
-    expect(privacyPolicyPendingCount(draft)).toBe(9)
+    expect(privacyPolicyPendingCount(draft)).toBe(3)
     for (const section of draft.sections) {
       expect(section.heading.trim()).not.toBe('')
       expect(section.body.trim()).not.toBe('')
@@ -49,7 +49,7 @@ describe('隱私權政策（privacy_policy）', () => {
   it('待確認計數：標題與各段都算，補完後歸零', () => {
     const draft = privacyPolicyDraft()
     draft.title = `隱私權政策${PRIVACY_POLICY_PENDING_MARKER}：x】`
-    expect(privacyPolicyPendingCount(draft)).toBe(10)
+    expect(privacyPolicyPendingCount(draft)).toBe(4)
     const cleaned = {
       title: '隱私權政策',
       updated_on: '2026-10-03',

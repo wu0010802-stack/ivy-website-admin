@@ -23,7 +23,13 @@ const activeIndex = ref(-1)
 // 讀者停在哪張相片，背景就換成那個時段的光（還沒讀到第一張時不加光）。
 const dayLight = computed(() => dayLightFor(props.day.moments[activeIndex.value]?.time))
 const posterReady = ref(false)
-const posterImage = computed(() => pickImage(props.day.filmPoster, props.day.filmPosterMedia))
+// 內建影片手機另剪直式（2026-11-12），封面也換成直式那張，影片淡入時才不會跳一下構圖。
+// 伺服器輸出與 hydration 一律先用桌機那張（那時還沒給 src）；讀者捲到內容、要給 src 的同一刻才依寬度決定。
+const narrowPoster = ref(false)
+const posterImage = computed(() => pickImage(
+  (narrowPoster.value && props.day.filmPosterMobile) || props.day.filmPoster,
+  props.day.filmPosterMedia
+))
 const filmPosition = ref<string | null>(null)
 
 // panel 綁在這個元件的根元素本身（.day-experience），理由跟
@@ -114,7 +120,10 @@ function measurePrints() {
 function applyFilm() {
   // 簾幕下層在初始幾何已接近首屏；封面也要等讀者捲到內容才下載。
   // 與自動播放偏好分開，減少動態或影片失敗時仍能看到靜態封面。
-  if (onScreen && window.scrollY > 0) posterReady.value = true
+  if (onScreen && window.scrollY > 0 && !posterReady.value) {
+    narrowPoster.value = window.matchMedia('(max-width: 760px)').matches
+    posterReady.value = true
+  }
   const video = videoEl.value
   if (!video || hasFailed.value) return
   // 首頁簾幕的下層幾何可能已碰到 viewport，但尚未真的捲入內容。
@@ -124,7 +133,8 @@ function applyFilm() {
     return
   }
   if (!video.getAttribute('src')) {
-    // 素材與裁切位置依寬度；編碼版本依布幕的手機定義，橫拿手機也拿手機檔（與 HeroVideo 同一套）。
+    // 素材與裁切位置依寬度；編碼版本依布幕的手機定義（與 HeroVideo 同一套）。內建的一天影片手機是另剪的直式，
+    // 橫拿手機拿桌機那支（見 backgroundVideoSrc）。
     const narrow = window.matchMedia('(max-width: 760px)').matches
     const compact = window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches
     video.src = backgroundVideoSrc(narrow ? props.day.filmSrcMobile : props.day.filmSrc, compact)

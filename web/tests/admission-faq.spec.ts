@@ -56,6 +56,14 @@ describe('常見問題資料（utils/admission-faq.ts）', () => {
     expect(answer('faq-pickup')).toContain('30 分鐘')
   })
 
+  it('學校沒有接送證，代接一律打電話；「有美語課嗎？」整題拿掉（2026-11-12）', () => {
+    const answer = (id: string) => items.find((item) => item.id === id)!.a.join('')
+    expect(answer('faq-pickup')).toContain('打電話告訴老師')
+    expect(JSON.stringify(ADMISSION_FAQ)).not.toMatch(/接送證|麻煩/)
+    expect(items.map((item) => item.id)).not.toContain('faq-english')
+    expect(JSON.stringify(ADMISSION_FAQ)).not.toMatch(/美語課|沉浸式|全美語|商店街/)
+  })
+
   it('這頁不放預約參觀：延伸連結不連到 /visit；文案不用破折號', () => {
     expect(items.map((item) => item.link?.href).filter(Boolean).filter((href) => href!.startsWith('/visit'))).toEqual([])
     expect(JSON.stringify(ADMISSION_FAQ)).not.toMatch(/—|--/)

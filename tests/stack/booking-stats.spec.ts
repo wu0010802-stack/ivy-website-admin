@@ -68,7 +68,8 @@ test('分校管理者看不到招生統計：側欄沒有，直接開網址被�
 })
 
 for (const { name, device } of VIEWPORTS) {
-  test(`${name}px：成效統計只剩官網瀏覽與速度`, async ({ browser }) => {
+  // 2026-11-12 起成效統計分四類（按鈕群組，不是 role=tab）；舊連結的 ?tab=booking 認不得，回到第一類「瀏覽與速度」。
+  test(`${name}px：成效統計沒有參觀預約的統計，舊連結回到瀏覽與速度`, async ({ browser }) => {
     const { context, page } = await openAs(browser, 'super_admin', device)
     await gotoAdmin(page, '/analytics?tab=booking', '成效統計')
     await expect(page.getByRole('heading', { level: 2, name: /^瀏覽次數/ })).toBeVisible()

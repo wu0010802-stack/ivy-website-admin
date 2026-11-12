@@ -437,20 +437,19 @@
     "height": 810,
     "candidates": [
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-480.webp",
-        "width": 480,
-        "avif": "/assets/responsive/day-poster-b33048bbfab1-480.avif"
+        "src": "/assets/responsive/day-poster-df2e758b42c4-480.webp",
+        "width": 480
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-800.webp",
+        "src": "/assets/responsive/day-poster-df2e758b42c4-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-1200.webp",
+        "src": "/assets/responsive/day-poster-df2e758b42c4-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/day-poster-2a6dbef88732-1440.webp",
+        "src": "/assets/responsive/day-poster-df2e758b42c4-1440.webp",
         "width": 1440
       }
     ]
@@ -1101,33 +1100,28 @@
     ]
   },
   "env-care-clean": {
-    "width": 2100,
-    "height": 1000,
+    "width": 1477,
+    "height": 738,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-480.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-480.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-800.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-800.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1200.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1200.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1600.webp",
-        "width": 1600,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1600.avif"
-      },
-      {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-2100.webp",
-        "width": 2100,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-2100.avif"
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-1477.webp",
+        "width": 1477,
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-1477.avif"
       }
     ]
   },
@@ -2854,6 +2848,20 @@
         "src": "/assets/responsive/about-whole-art-d0b04b509069-1800.webp",
         "width": 1800,
         "avif": "/assets/responsive/about-whole-art-2903d51a5e94-1800.avif"
+      }
+    ]
+  },
+  "day-poster-mobile": {
+    "width": 720,
+    "height": 1280,
+    "candidates": [
+      {
+        "src": "/assets/responsive/day-poster-mobile-b656363be0e8-480.webp",
+        "width": 480
+      },
+      {
+        "src": "/assets/responsive/day-poster-mobile-b656363be0e8-720.webp",
+        "width": 720
       }
     ]
   }

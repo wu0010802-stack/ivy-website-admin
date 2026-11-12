@@ -42,6 +42,8 @@ DEFAULT_WIDTHS = [480, 800, 1200, 1600]
 # 雜湊鹽值不變、不必重產。
 OVERRIDES = {
     'day-poster': {'quality': 68, 'widths': [480, 800, 1200]},
+    # 2026-11-12：背景影片手機另剪直式，封面也另一張直式（720×1280，影片第 0 格）。
+    'day-poster-mobile': {'quality': 68, 'widths': [480]},
     'classroom': {'quality': 72, 'widths': [480, 800, 1200]},
     'learning': {'quality': 72, 'widths': [480, 800, 1200]},
     'hero-campus-still': {'widths': [480, 640, 800]},

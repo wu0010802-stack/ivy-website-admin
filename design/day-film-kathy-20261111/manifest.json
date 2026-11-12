@@ -1,0 +1,31 @@
+{
+  "source": "明華校 FB〈幼幼寶貝的快樂生活〉815137417136803（3840×2160 AV1；同園方雲端〈2024幼幼班介紹Kathy.mp4〉）",
+  "source_sha256": "5e7f9548748dcc47db0502aff3e5c788230ff84ed6a58fd255034c14fd6fd74b",
+  "lut": "design/day-film-color-20261025/screen-17.cube",
+  "decode": "BT.601 limited（瀏覽器對沒標記影片的解法）",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "variants": [
+    {
+      "file": "day-kathy-desktop.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "30/1",
+      "frames": "618",
+      "duration": "20.600000",
+      "bytes": 7363234,
+      "crf": 22,
+      "sha256": "46f6644bd22c47c04788adf3edc4c3e31517cbb245b91405193aa2893e4bf73a"
+    },
+    {
+      "file": "day-kathy-mobile.mp4",
+      "width": 720,
+      "height": 1280,
+      "fps": "30/1",
+      "frames": "618",
+      "duration": "20.600000",
+      "bytes": 3963493,
+      "crf": 25,
+      "sha256": "b6ec4bd9c4b68974e032ea59c28d839696daa6d2456a99af53a33feb824088b2"
+    }
+  ]
+}

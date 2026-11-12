@@ -31,9 +31,15 @@ describe('入學頁白話改寫（public-copy.ts 的 ADMISSION_TA_COPY）', () =
     }
   })
 
-  it('只改說法：數字一個都沒變，「（使用一個月）」照留', () => {
+  it('只改說法：數字一個都沒變', () => {
     for (const [original, next] of Object.entries(ADMISSION_TA_COPY)) expect(digits(next), original).toBe(digits(original))
-    expect(publicCopy(site).admission!.pickupNotes.join('')).toContain('（使用一個月）')
+  })
+
+  it('學校沒有接送證（2026-11-12）：新生準備、接送安全、孩子的一天背面都不再提，接送寫打電話', () => {
+    const out = publicCopy(site)
+    const page = [...texts(out.admission!), ...(out.dayExperience?.moments ?? []).map((moment) => moment.answer)].join('\n')
+    expect(page).not.toMatch(/接送證|麻煩在/)
+    expect(out.admission!.pickupNotes.join('')).toContain('30 分鐘先打電話告訴老師')
   })
 
   it('園方改過的句子照園方的，不被換掉', () => {

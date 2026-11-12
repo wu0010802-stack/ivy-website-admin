@@ -345,7 +345,8 @@ describe('2026-10-13 搬移：參觀預約到招生統計，成效統計只留�
     expect(wrapper.findComponent({ name: 'BookingOutcomesSection' }).props('showCompare')).toBe(false)
   })
 
-  it('成效統計沒有頁籤與預約面板，只掛官網瀏覽與速度；舊連結 ?tab=booking 也一樣', async () => {
+  // 2026-11-12 起成效統計分四類（analyticsView.test.ts）；這裡只守住 10-13 的搬移：沒有預約面板、不讀預約 API。
+  it('成效統計沒有預約面板；舊連結 ?tab=booking 回到「瀏覽與速度」', async () => {
     const pinia = createPinia()
     useAuthStore(pinia).user = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
     const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
@@ -359,6 +360,7 @@ describe('2026-10-13 搬移：參觀預約到招生統計，成效統計只留�
     expect(wrapper.find('[role="tab"]').exists()).toBe(false)
     expect(wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(false)
     expect(get).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('官網的瀏覽量與網頁速度')
+    expect(wrapper.find('.status-tab.is-active').text()).toBe('瀏覽與速度')
+    expect(wrapper.findComponent({ name: 'SiteTrafficPanel' }).isVisible()).toBe(true)
   })
 })

@@ -61,10 +61,12 @@ describe('瀏覽統計面板', () => {
     return { wrapper, get }
   }
 
-  it('標題寫出期間，期間選單有看得到的標籤；說明寫清楚算了哪些頁面', async () => {
-    const { wrapper } = await mountPanel()
-    expect(wrapper.find('h2').text()).toBe('官網瀏覽與速度（近 28 天）')
-    expect(wrapper.find('.filter-field > span').text()).toBe('期間')
+  it('期間由頁首共用的那一組決定，面板自己不放選單；說明寫清楚算了哪些頁面', async () => {
+    const { wrapper, get } = await mountPanel()
+    expect(get).toHaveBeenCalledWith('/admin/analytics/traffic?days=28')
+    // 第一個標題就是資料本身，後面跟著這批資料的實際日期。
+    expect(wrapper.find('h2').text()).toBe('瀏覽次數09/02–09/29')
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
     const text = wrapper.text()
     // 2026-09-30 起內頁也回報瀏覽：說明要寫進去，並提醒跨過這天的期間不能直接比。
     expect(text).toContain('首頁、五校介紹頁、預約參觀頁')
@@ -88,20 +90,21 @@ describe('瀏覽統計面板', () => {
     expect(table.find('tbody th').attributes('title')).toBe('LCP')
   })
 
-  it('換期間時保留舊數字並寫「更新中…」，標題跟著換', async () => {
+  it('換期間時保留舊數字、整塊淡一點，並告訴頁首正在更新', async () => {
     const { wrapper, get } = await mountPanel()
     let resolve!: (value: unknown) => void
     get.mockImplementationOnce(() => new Promise(r => { resolve = r }) as never)
-    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', 7)
+    await wrapper.setProps({ days: 7 })
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/traffic?days=7')
     expect(wrapper.find('.el-skeleton').exists()).toBe(false)
     expect(wrapper.find('.traffic__grid').classes()).toContain('is-updating')
-    expect(wrapper.text()).toContain('更新中…')
-    resolve(traffic(7))
+    expect(wrapper.emitted('updating')!.at(-1)).toEqual([true])
+    resolve({ ...traffic(7), since: '2026-09-23' })
     await flushPromises()
-    expect(wrapper.find('h2').text()).toBe('官網瀏覽與速度（近 7 天）')
-    expect(wrapper.text()).not.toContain('更新中…')
+    expect(wrapper.find('h2').text()).toBe('瀏覽次數09/23–09/29')
+    expect(wrapper.find('.traffic__grid').classes()).not.toContain('is-updating')
+    expect(wrapper.emitted('updating')!.at(-1)).toEqual([false])
   })
 })
 

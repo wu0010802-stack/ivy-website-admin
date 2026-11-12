@@ -84,7 +84,7 @@ function onPickMomentPhoto(moment: DayMomentPayload, asset: MediaAssetOut, previ
 
 // 影片說明：null＝沿用官網內建；打開「自訂」時先帶入內建文字再改，關掉就改回 null。
 // 關掉時把自訂的文字記在這個畫面裡，再打開就還原（誤關不用重打），離開頁面就不記了。
-const BUILTIN_CAPTION = { zh: '義華校 · 遊藝表演', en: 'LITTLE MOMENTS, BIG GROWTH.' }
+const BUILTIN_CAPTION = { zh: '明華校 · 幼幼班的一天', en: 'LITTLE MOMENTS, BIG GROWTH.' }
 let rememberedCaption: { zh: string; en: string | null } | null = null
 function toggleCaption(on: boolean) {
   const form = editor.form.value
@@ -162,7 +162,7 @@ onMounted(editor.load)
       <h3 id="section-day-film" data-section-anchor tabindex="-1" class="form-section">背景影片</h3>
       <p class="field-help">影片靜音循環、當作背景，沒有字幕。手機版影片沒選時用桌機那支；影片封面是影片載入前看到的畫面。</p>
       <el-form-item label="桌機影片">
-        <MediaSlotField v-model="editor.form.value.film_desktop" kind="video" builtin="官網內建的遊藝表演影片" :disabled="editor.readOnly.value" />
+        <MediaSlotField v-model="editor.form.value.film_desktop" kind="video" builtin="官網內建的明華校幼幼班影片" :disabled="editor.readOnly.value" />
       </el-form-item>
       <el-form-item label="手機影片（選填）">
         <MediaSlotField v-model="editor.form.value.film_mobile" kind="video" builtin="桌機影片（沒選桌機影片時是內建的手機版）" :disabled="editor.readOnly.value" />
@@ -179,7 +179,7 @@ onMounted(editor.load)
       <el-form-item label="影片左下角的說明">
         <el-switch
           :model-value="editor.form.value.film_caption_zh != null"
-          active-text="自訂（關閉時沿用官網內建：義華校 · 遊藝表演）"
+          active-text="自訂（關閉時沿用官網內建：明華校 · 幼幼班的一天）"
           aria-label="自訂影片左下角的說明"
           @update:model-value="toggleCaption(Boolean($event))"
         />

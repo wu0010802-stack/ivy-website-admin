@@ -70,12 +70,13 @@
    "day": "的一天"
   },
   "filmCaption": {
-   "zh": "義華校 · 遊藝表演",
+   "zh": "明華校 · 幼幼班的一天",
    "en": "LITTLE MOMENTS, BIG GROWTH."
   },
   "filmSrc": "assets/day-film.mp4",
   "filmSrcMobile": "assets/day-film-mobile.mp4",
   "filmPoster": "day-poster",
+  "filmPosterMobile": "day-poster-mobile",
   "note": "日常情境提案，以義華校素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景取自義華遊藝表演紀錄，與相片非同一天拍攝。",
   "sourceNote": "時刻取自官網一日流程 https://www.ivykidschool.com/一日流程；相片為義華校既有素材，與背景影片非同一天拍攝。",
   "moments": [
@@ -910,7 +911,7 @@
      "枕頭"
     ],
     "tips": [
-     "新生入園第一天，學校會發回書包、餐袋（請清洗後再使用）、接送證 2 張、幼生名牌 1 張及註冊袋。",
+     "新生入園第一天，學校會發回書包、餐袋（請清洗後再使用）、幼生名牌 1 張及註冊袋。",
      "請勿拿老師來嚇寶貝，以免寶貝覺得老師很兇，而害怕老師或不願上學。"
     ]
    }
@@ -939,7 +940,6 @@
   ],
   "uniformNote": "制服與運動服於註冊後發放。",
   "pickupNotes": [
-   "接寶貝回家時，請出示幼兒接送證（使用一個月），以便識別。",
    "請他人代接時，請在受託人到園前 30 分鐘來電告知；確認身分並登記後，才會把寶貝交給對方。"
   ],
   "registrationNotes": [

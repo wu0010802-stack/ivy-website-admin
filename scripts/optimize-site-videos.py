@@ -39,20 +39,24 @@ run_target = OUT / f'campus-run-{run_digest[:12]}.mp4'
 shutil.copyfile(run_prepared, run_target)
 manifest['campus-run'] = f'/assets/optimized/{run_target.name}'
 print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,} bytes', flush=True)
-day_graded = ROOT / 'design/day-film-color-20261025'
+# 孩子的一天 2026-11-12 起換成明華校幼幼班六鏡（design/day-film-kathy-20261111）：桌機 16:9、手機另剪直式 9:16
+# （構圖不同，不是同一支換編碼）。兩支母帶就是確認版成片，直接交付、不再轉碼；雜湊對不上就停，免得放錯檔。
+day_graded = ROOT / 'design/day-film-kathy-20261111'
 day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
+DAY_MASTERS = {'day-film.mp4': 'day-kathy-desktop.mp4', 'day-film-mobile.mp4': 'day-kathy-mobile.mp4'}
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
-# 手機約 0.57 MB、桌機約 1.18 MB。day 影片保留母檔解析度（進入視窗才載入）。
+# 手機約 0.57 MB、桌機約 1.18 MB。day 影片直接交付母帶（進入視窗才載入）。
 for name, source, width, crf in [
     ('hero-mobile', 'hero-campus.mp4', 720, 34),
     ('hero-desktop', 'hero-campus.mp4', 1280, 33),
-    # 影片以 cover 鋪滿視窗；480×270 在直式手機會被放大數倍。
-    # 桌機直接保留現有最佳母檔；手機也由同一母檔輸出，避免小檔二次壓縮。
+    # 影片以 cover 鋪滿視窗：桌機 1440×810、手機直式 720×1280，各自的母帶原樣交付。
     ('day-desktop', 'day-film.mp4', 1440, None),
-    ('day-mobile', 'day-film.mp4', 1440, 25),
+    ('day-mobile', 'day-film-mobile.mp4', 720, None),
 ]:
     original = SOURCES / source
     if crf is None:
+        if sha256(original.read_bytes()).hexdigest() != day_approved[DAY_MASTERS[source]]['sha256']:
+            raise ValueError(f'孩子的一天母帶與確認版雜湊不一致：{source}（應為 {DAY_MASTERS[source]}）')
         digest = sha256(original.read_bytes()).hexdigest()[:12]
         target = OUT / f'{name}-{digest}.mp4'
         shutil.copyfile(original, target)
@@ -70,18 +74,6 @@ for name, source, width, crf in [
             shutil.copyfile(prepared, target)
             manifest[key] = f'/assets/optimized/{target.name}'
             print(f'{key}: 採用已確認的調色版 {target.stat().st_size:,} bytes', flush=True)
-        continue
-    # 孩子的一天 2026-10-25 起是補 sRGB 標記的版本（design/day-film-color-20261025）：母帶就是它的桌機檔，
-    # 手機檔已從同一份 10-bit 中間檔壓好，直接採用，不從母帶再壓一次。
-    if name == 'day-mobile' and sha256(original.read_bytes()).hexdigest() == day_approved['day-desktop.mp4']['sha256']:
-        prepared = day_graded / 'day-mobile.mp4'
-        digest = sha256(prepared.read_bytes()).hexdigest()
-        if digest != day_approved[prepared.name]['sha256']:
-            raise ValueError(f'孩子的一天影片與確認版雜湊不一致：{prepared.name}')
-        target = OUT / f'{name}-{digest[:12]}.mp4'
-        shutil.copyfile(prepared, target)
-        manifest[name] = f'/assets/optimized/{target.name}'
-        print(f'{name}: 採用已確認的標記版 {target.stat().st_size:,} bytes', flush=True)
         continue
     digest = sha256(original.read_bytes() + f'h264-{width}-{crf}-v1'.encode()).hexdigest()[:12]
     target = OUT / f'{name}-{digest}.mp4'

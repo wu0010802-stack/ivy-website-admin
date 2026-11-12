@@ -14,9 +14,9 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 寄信：Resend（程式 2026-11-12 已上線，正式站尚未設定金鑰）
+## 寄信：Resend（程式 2026-11-12 已上線；11-12 後台系統狀態已顯示經 Resend 寄出）
 
-正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
+正式站 2026-11-12 已照下面設好並開始寄信：寄件地址 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，Resend 網域 `send.ivykidschool.com`（區域 Tokyo），公開預約設定的 `parent_email_enabled` 為 `true`。下面的步驟留給日後換網域或換金鑰時參考；每一步都要本人登入，程式不會自己做。
 
 1. **Resend 帳號與網域**：在 <https://resend.com> 建帳號，Domains → Add Domain。建議用子網域（例如 `send.ivykidschool.com`），不要直接用根網域：根網域的 MX／SPF 是 Google Workspace 的，分開才不會互相影響寄信信譽。區域選離台灣最近的（Tokyo）。
 2. **DNS（Cloudflare）**：把 Resend 列出的紀錄照抄進 Cloudflare（DKIM 的 TXT、回信路徑的 MX 與 SPF TXT），全部**灰雲（DNS only）**。回 Resend 按 Verify，等狀態變成 Verified。紀錄內容以 Resend 主控台顯示的為準，不要照別處的範例填。
@@ -30,6 +30,38 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
+## 2026-11-12 隱私權政策後台初稿補齊上線（main CI 部署，沒有 migration）
+
+- **內容**：`741aaee9`（README「2026-11-12 隱私權政策初稿補三項」），分支 `fix/privacy-draft-20261112`。只動後台的隱私權政策初稿（`admin/src/composables/privacyPolicyDraft.ts`）、一支測試與文件：Turnstile 兩處說明拿掉、寄信服務商填 Resend、第 3 與第 10 段寫明參觀後的招生紀錄、第 7 段不寫保存天數與到期刪除；【待確認】從 9 處剩 3 處（登記名稱、主機地區、聯絡 Email）。官網前台與後端沒有改。使用者說「部署」。
+- **推前（本機）**：admin 全套 174 檔——整套跑時機器負載破百，13 檔 51 項逾時失敗；負載降下後單獨重跑那 13 檔全過（504 項中 503 過、1 略過）；`privacyPolicy.test.ts`＋`expectedStart.test.ts` 39 過；admin `npm run typecheck` 過。推之前接了兩次別的 session 的新提交（成效統計分四類、它的部署紀錄），接完只重跑了那兩支測試與 typecheck。沒跑後端與 stack e2e（沒動到）。
+- **CI**：main run 43150434230 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `741aaee9`；`/`、`/visit`、`/admin/` 200，`/api/website/v1/health` 200；後台 `PrivacyPolicyView` chunk 有新的三句（Resend、沒有固定保存期限、參觀後的招生聯繫），沒有 Turnstile 說明與 730 天，【待確認】3 處。`/privacy` 仍是 404（政策還沒發布，符合預期）。
+- **沒驗、待使用者**：沒登入後台開「隱私權政策」頁——如果正式站以前存過這份內容，後台載入的是存過的版本，這次的初稿不會出現，要手動貼。政策要園方補完 3 處【待確認】、填最後更新日期並發布，`/privacy` 才會有內容。正式站個資清理仍是關的（`WEBSITE_RETENTION_ALLOW_REAL_RUN` 未設）；後台沒有單筆刪除的按鈕。初稿其餘和程式不符的地方（分頁暫存項目與預約表單草稿、LINE 群組推播帶家長稱呼、得知管道六個選項、總管理者看得到全部校區等）還沒改。
+
+## 2026-11-12 成效統計分成四類、整頁共用一組期間上線（main CI 部署，沒有 migration）
+
+- **內容**：`5ab7a531`（README「2026-11-12 成效統計 UI/UX」），分支 `feature/analytics-ux-20261112`。後台 `/admin/analytics` 的 18 張表分成四類（瀏覽與速度／看了什麼／怎麼來、怎麼逛／走到預約，`?tab=`），期間整頁一組（`?days=`）、裝置只在後三類（`?device=`），兩欄各自往下疊，拿掉整排沒有資訊的字。只動 admin 與 stack 測試清單，後端、契約、資料都沒改。使用者說「部署」。
+- **推前（本機）**：rebase 到 `4396f9fc`（README／DESIGN 頂部兩段都留）；`npm --prefix admin run typecheck` 過、`npm --prefix admin run build` 過；和這頁相關的 5 檔 55 項過。admin 全套在 rebase 前跑過一輪 175 檔 3,385 過、1 紅（舊測試比對舊的頁首說明，已改斷言），之後沒有整輪重跑，以 CI 為準。畫面用 `vite --port 5199`＋攔截 API 的假資料看過 1470／1280／390 × 四類：水平溢出 0、axe serious／critical 0。沒跑 stack e2e（本機負載 50–77）。
+- **CI**：main run 43148554367 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（03:35Z–03:40Z）；`/release.json` 的 `base_commit` 是 `5ab7a531`（03:36Z）。E2E 含這次加進 axe 與溢出清單的三個分類網址。
+- **部署後正式站驗證**（只發 GET）：`/admin/` 的 `AnalyticsView-B9pt_iz6.js` 有「怎麼來、怎麼逛」「走到預約」「流失最多」與新的頁首說明；`/api/website/v1/health` 回 ok。
+- **還沒做**：沒有登入正式後台看四類的實際畫面（待使用者看）；iOS／Android 實機沒驗。分類名稱與頁首說明是這一輪新取的，使用者還沒表示意見。
+
+## 2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡上線（main CI 部署，沒有 migration）
+
+- **內容**：`28fa4e09`（README「2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡」），分支 `feature/day-film-kathy-20261112`。首頁「孩子的一天」背景影片從義華遊藝表演換成明華校幼幼班六鏡（桌機 1440×810、手機另剪直式 720×1280）、封面兩張、左下角圖說改「明華校 · 幼幼班的一天」；橫拿手機改拿桌機那支。紗沒動。使用者說「幫我部署」。
+- **推前（本機）**：rebase 到 `a0625b6c`（README 頂部兩段都留）；`npm --prefix web run typecheck` 過、`npm run test:website` 140 檔 1,886 過；後端讀內建內容的 5 檔 139 過（獨立測試庫，已刪）；後台 `vue-tsc` 過、引用這個畫面的 6 支 180 過。後台全套在本機沒跑出全綠（機器負載 115–150，107 項裡 104 項是逾時，失敗檔與這次改動無關），以 CI 為準。沒跑 stack e2e。
+- **CI**：main run 43144864229 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `28fa4e09`（03:04Z）。
+- **部署後正式站驗證**（`https://www.ivykidschool.com/`，只發 GET、擋掉遙測，腳本 `output/day-kathy-20261111/verify-prod.cjs`）：1440×900 播 `day-desktop-46f6644bd22c.mp4`（1440×810、20.60 秒）＋封面 `day-poster-df2e758b42c4-1440.webp`；390×844 播 `day-mobile-b6ec4bd9c4b6.mp4`（720×1280）＋直式封面 `day-poster-mobile-b656363be0e8-720.webp`；844×390（橫拿手機）拿桌機那支與桌機封面；三種視窗圖說都是「明華校 · 幼幼班的一天」、沒有主控台錯誤。兩支影片下載後的 sha256 前 12 碼與檔名相同；舊的 `day-desktop-ce1da5e82d75.mp4` 回 404（HTML 已不引用）；`/api/website/v1/health` 回 ok。
+- **還沒做**：iOS／Android 實機、Firefox、Windows 沒驗；開場大標最亮像素對比 2.44–2.58（舊片 2.50–2.58，既有問題）沒處理；這支片來自明華校粉專，放上首頁是否另外知會明華校與片中家長待園方確認。
+
+## 2026-11-12 後台 QA 第三輪：成效統計拍立得顯示卡片名稱上線（main CI 部署，沒有 migration）
+
+- **內容**：`cd645c67`（README「2026-11-12 後台 QA 第三輪」），分支 `fix/admin-qa-20261112`。成效統計「點開了什麼」原本把後台新增的拍立得卡顯示成代號（`moment-<時間戳>`），改由後端從發布中的 `day_experience` 帶卡片名稱（`EngagementActionOut.label`），契約重產。使用者說「部署」。
+- **推前（本機）**：後端 `test_engagement.py` 31 過（新測試先紅後綠，獨立測試庫已刪）；admin build 過、全套 174 檔 3,372 過；`npm run contract:check` 過。
+- **CI**：main run 43141187430 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success。
+- **部署後正式站驗證**：登入後台（使用者的 Chrome、總管理者）看成效統計，「點開了什麼」顯示「孩子的一天：翻開「美語時光」」，不再露出代號。
+- 另外看到：系統狀態寄信那列已顯示「寄件地址 常春藤幼兒園 <noreply@send.ivykidschool.com>，經 Resend 寄出」，表示正式站 Resend 變數已設（上面「寄信：Resend」段標題的「尚未設定金鑰」已過時）；沒有按測試信。
 
 ## 2026-11-12 關於頁整頁重做「紅磚上的常春藤」上線（main CI 部署，沒有 migration）
 
@@ -2557,7 +2589,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
-| api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」） |
+| api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」。正式站實際是開的：2026-10-04 那次部署後與 2026-11-12 未登入打 `/admin/admissions/options` 都回 401；隱私權政策到 11-12 還沒發布，Q1 的告知仍欠著） |
 | api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
@@ -2565,7 +2597,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
-| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設） |
+| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 正式站沒設；**啟用前先在隱私權政策第 4、6 段加回 Turnstile 說明並重新發布**，文字在 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
 | api | `WEBSITE_SESSION_IDLE_MINUTES`（120）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、`WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`（600）／`_DAILY_CAP`（20000）、`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`（120）／`_DAILY_CAP`（5000）（皆選填） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）

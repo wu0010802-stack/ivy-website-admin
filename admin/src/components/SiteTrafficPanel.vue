@@ -7,16 +7,13 @@ import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
+import { DEFAULT_ANALYTICS_DAYS, type AnalyticsDays } from './analytics/filters'
 
-// 後端只接受 7～90 天（速度資料只留 90 天），所以期間只有這三種（參觀預約的期間另外選）；
-// 28 天對齊 Google 量測網頁速度的區間。
-const DAY_OPTIONS = [
-  { value: 7, label: '近 7 天' },
-  { value: 28, label: '近 28 天' },
-  { value: 90, label: '近 90 天' },
-]
+// 期間由成效統計頁首共用的那一組決定（2026-11-12，原本面板自己有一個選單），這裡只管讀資料與顯示。
+// 換期間時告訴頁首「正在更新」（updating），提示寫在期間旁邊。
+const props = withDefaults(defineProps<{ days?: AnalyticsDays }>(), { days: DEFAULT_ANALYTICS_DAYS })
+const emit = defineEmits<{ updating: [value: boolean] }>()
 
-const days = ref(28)
 const summary = ref<TrafficSummary | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -27,7 +24,7 @@ async function load() {
   loading.value = true
   error.value = null
   try {
-    const result = await api.get<TrafficSummary>(`/admin/analytics/traffic?days=${days.value}`)
+    const result = await api.get<TrafficSummary>(`/admin/analytics/traffic?days=${props.days}`)
     if (requests.isCurrent(request)) summary.value = result
   } catch {
     if (requests.isCurrent(request)) error.value = '無法讀取瀏覽統計，請重新載入。'
@@ -36,11 +33,11 @@ async function load() {
   }
 }
 
-watch(days, load, { immediate: true })
+watch(() => props.days, load, { immediate: true })
 
-const periodLabel = computed(() => DAY_OPTIONS.find((option) => option.value === days.value)?.label ?? `近 ${days.value} 天`)
-// 換期間時保留上一次的數字、淡一點並寫「更新中…」；只有第一次載入用骨架。
+// 換期間時保留上一次的數字、淡一點；只有第一次載入用骨架。
 const updating = computed(() => loading.value && summary.value !== null)
+watch(updating, (value) => emit('updating', value))
 const today = computed(() => summary.value?.daily.at(-1)?.views ?? 0)
 const dailyPoints = computed(() => (summary.value?.daily ?? []).map((item) => ({ day: item.day, value: item.views })))
 const TRAFFIC_MARKERS = [{ day: TRAFFIC_COVERAGE_EXPANDED_ON, label: '內頁也開始計入瀏覽，這天前後的次數不能直接比較' }]
@@ -88,20 +85,7 @@ function exportVitals() {
 </script>
 
 <template>
-  <section class="traffic" aria-labelledby="traffic-title" :aria-busy="loading">
-    <div class="traffic__head">
-      <h2 id="traffic-title" class="traffic__section-title">官網瀏覽與速度（{{ periodLabel }}）</h2>
-      <div class="traffic__controls">
-        <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
-        <label class="filter-field">
-          <span>期間</span>
-          <el-select v-model="days" aria-label="官網瀏覽的期間">
-            <el-option v-for="option in DAY_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
-          </el-select>
-        </label>
-      </div>
-    </div>
-
+  <section class="traffic" aria-label="官網瀏覽與速度" :aria-busy="loading">
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="traffic__alert">
       <el-button @click="load">重新載入</el-button>
     </el-alert>
@@ -193,33 +177,6 @@ function exportVitals() {
 </template>
 
 <style scoped>
-.traffic__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 8px 12px;
-  margin-bottom: 12px;
-}
-
-.traffic__section-title {
-  font-size: var(--text-lg);
-}
-
-.traffic__controls {
-  display: flex;
-  align-items: flex-end;
-  gap: 12px;
-}
-
-.traffic__controls .filter-field {
-  font-size: var(--text-xs);
-}
-
-.traffic__controls .filter-field :deep(.el-select) {
-  width: 140px;
-}
-
 .traffic__alert {
   margin-bottom: 16px;
 }
@@ -358,19 +315,6 @@ function exportVitals() {
 }
 
 @media (max-width: 720px) {
-  .traffic__controls {
-    width: 100%;
-  }
-
-  .traffic__controls .filter-field {
-    flex: 1;
-    font-size: var(--text-base);
-  }
-
-  .traffic__controls .filter-field :deep(.el-select) {
-    width: 100%;
-  }
-
   .traffic__stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
