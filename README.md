@@ -1,3 +1,11 @@
+## 2026-11-12 /about 首屏照片：老師的美甲改自然指甲、頭髮調黑（`fix/about-hero-teacher-20261112`）
+
+使用者要把首屏照片右邊老師的美甲 P 掉、頭髮黑一點。母檔沿用 11-10 修過小孩的無損版（`design/about-hero-retouch-20261110/about-hero-retouched.png`，與正式站同一張）：
+
+- **指甲**：右手五片、左手兩片，只動橢圓範圍內低彩度（指甲油）的像素。顏色取旁邊手指的皮膚往白拉、降彩度，保留一半原本的明暗；左手在陰影裡的兩片提亮得少，免得像白色指甲油。
+- **頭髮**：頭頂多邊形範圍內暗、低彩度、不是皮膚／樹葉／領子的像素，亮度曲線往下壓（亮處壓多）、彩度降到 55%，邊緣羽化。
+- `scripts/optimize-site-images.py --only about-hero` 重產各尺寸，舊雜湊檔刪掉。腳本與前後對照在 `design/about-hero-teacher-retouch-20261112/`（不進版控）。
+
 ## 2026-11-12 資安強化：代理、CSP、__Host- cookie、Cloudflare／後台子網域準備、依賴自動更新（`claude/nifty-wozniak-vgwr5s`，PR #73）
 
 使用者要「提升這個專案的資安」。先分四路唯讀稽核（後端登入／權限、後端資料處理、web 伺服器層與兩個前端、部署／CI／GitHub）：**沒有可直接利用的高風險漏洞**，剩下的風險多在正式站設定（個資清理沒開、資料庫沒有自動備份、後台沒有兩步驟驗證；公開預約的 Turnstile 已由同日另一個 session 在正式站啟用，新 CSP 照 Cloudflare 文件放行 `script-src`／`frame-src` 的 `challenges.cloudflare.com`），那些要使用者在各平台處理，清單在 `deploy/README.md`「資安強化（2026-11-12）」。使用者要求把程式能做的都做掉：
