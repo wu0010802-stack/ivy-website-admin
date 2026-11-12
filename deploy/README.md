@@ -209,7 +209,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
   - 操作紀錄的 IP 是不是自己的（不是 Cloudflare 節點）——Railway 日誌沒有逐筆存取紀錄，要登入後台操作一次看。
   - 後台用帳密、Google、LINE 各登入一次；改草稿看預覽；用自己的 Email 預約一次，確認改期連結是 `www` 開頭。
   - 同事要在新網址重新登入、重存密碼、重開手機通知、重加主畫面捷徑。
-- **還沒做**：Cloudflare WAF 受管規則、Bot Fight Mode、預約 API 限流規則；GitHub production environment 與分支保護、Renovate。
+- **同日 15:40–15:50 接著做（使用者說「這些幫我做」）**：
+  - **Cloudflare WAF**：免費方案的「Cloudflare managed ruleset」本來就是 Always active；可自訂的 Managed rules 要升級付費，沒開。
+  - **Cloudflare 限流規則**「預約送出限流」：`(http.request.uri.path eq "/api/website/v1/public/visit-requests")`，同 IP 10 秒超過 5 次 → Block 10 秒（免費方案只能 10 秒）。用 GET 連打 8 次驗證：前 5 次 405（後端不收 GET，不會建立預約）、第 6 次起 429，12 秒後恢復 405。
+  - **Bot Fight Mode**：開啟。免費版不能設例外，所以先檢查「伺服器打進來」的請求：LINE 群組推播 webhook 原本填 Railway 網址（不經 Cloudflare），順便改成 `https://admin.ivykidschool.com/api/website/v1/line/webhook`（灰雲、和後台「LINE 通知」頁顯示一致，也不怕之後 Railway 網址轉址），LINE Developers 的 Verify 回 Success。開啟後本機 curl 打首頁、`/visit`、health、sitemap 都 200；手動觸發 GitHub「Website uptime」run 43177786386 全部 ok。
+  - **GitHub production environment**：原本就只允許 `main`（custom branch policy），`RAILWAY_TOKEN` 已是 environment secret、沒有 repository secret，不需要改。
+  - **main 分支保護**：要求 PR（0 位審核）、6 個 CI job 通過（Frontend web／admin、Backend 1–3/3、E2E）、禁止 force push 與刪除；`enforce_admins` 關，所以 owner 直接推 main 照舊可以，協作者要走 PR。注意 CI 有 `paths-ignore`（`**.md`、docs、design、versions），**協作者只改文件的 PR 不會跑 CI，必要檢查會一直等待**，要由 owner 合併。
+  - **Dependabot security updates**：開啟（`automated-security-fixes` enabled）。
+  - **Renovate**：關閉 PR #1「Configure Renovate」並刪掉 `renovate/configure` 分支。**GitHub App 本身還沒解除安裝**（要到 github.com/settings/installations 操作；它可能也裝在其他 repo，由使用者決定）。
 
 ## 2026-11-12 外部服務串接五項上線：GA4＋Meta Pixel、Instagram、Search Console、CrUX（main CI 部署，migration `f3b8d2a6c19e`）
 
