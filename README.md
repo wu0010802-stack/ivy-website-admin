@@ -1,3 +1,42 @@
+## 2026-11-12 資安強化：代理、CSP、__Host- cookie、Cloudflare／後台子網域準備、依賴自動更新（`claude/nifty-wozniak-vgwr5s`，PR #73）
+
+使用者要「提升這個專案的資安」。先分四路唯讀稽核（後端登入／權限、後端資料處理、web 伺服器層與兩個前端、部署／CI／GitHub）：**沒有可直接利用的高風險漏洞**，剩下的風險多在正式站設定（Turnstile 沒開、個資清理沒開、資料庫沒有自動備份、後台沒有兩步驟驗證），那些要使用者在各平台處理，清單在 `deploy/README.md`「資安強化（2026-11-12）」。使用者要求把程式能做的都做掉：
+
+- **web 代理**（`web/server/utils/api-proxy.ts`、`stream-proxy.ts`、`routes/api/website/v1/[...].ts`）：
+  - 不再用 h3 的 `proxyRequest`（它會把訪客的請求標頭幾乎原樣轉給 API），改成白名單：只轉後端會讀的標頭，`X-Forwarded-*`、`Forwarded`、`X-Real-IP`、`Authorization` 都不轉。
+  - 回應拿掉 `server: uvicorn`。
+  - 上游 120 秒沒給回應標頭就回 504（串流上傳不套用）；素材下載的客戶端 120 秒沒讀走資料就斷線並中止上游。
+  - `/public/engagement` 比照 telemetry、client-errors，只給 `telemetry.post.ts` 從伺服器端轉送，瀏覽器直接打回 404。
+  - `/api/site-fixture` 在正式環境被執行期變數設成 fixture 模式時回 503；`/api/public-site` 加 8 秒逾時。
+- **公開頁 CSP**（`server/plugins/security-headers.ts`、`utils/security-headers.ts`）：
+  - inline script 雜湊只算 head 與 bodyAppend（head 管理器與 Nuxt 自己的）。app 本體與 `<Teleport to="body">` 裡的 script 不再自動放行，伺服器端漏出的 `<script>` 會被擋。
+  - 新增 `img-src 'self' data: blob: https://i.ytimg.com`、`connect-src 'self' https://challenges.cloudflare.com`、`frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com`；不收 `default-src`（字型、樣式、影片維持原樣）。
+  - HSTS 加 `includeSubDomains`（整個網域要在 Cloudflare 的 apex 開，見 deploy/README）。
+- **`__Host-` cookie**（`backend/app/common/host_cookies.py`）：正式環境的後台 session、家長改期 session、LINE／Google OAuth 握手 cookie 一律改成 `__Host-` 寫法（Secure、Path=/、沒有 Domain），由最外層 middleware 統一改名，路由程式不用動。沒有前綴的同名 cookie 不採信並清掉，子網域塞 cookie（cookie tossing）造成的 login CSRF 因此擋住。**上線後所有人要重新登入一次。**
+- **Cloudflare 代理準備**（`NUXT_CLOUDFLARE_CLIENT_IP`，預設關）：www 改橘雲後，上一跳確實是 Cloudflare 節點（IP 段寫在 `web/server/utils/cloudflare-ip.ts`）才採信 `CF-Connecting-IP`，繞過 Cloudflare 直接打 Railway 的人偽造不了 IP。
+- **後台獨立子網域準備**（`NUXT_ADMIN_HOST`、`WEBSITE_PUBLIC_ORIGIN`，預設關）：
+  - web 依 Host 分流（`web/server/utils/admin-host.ts`，排在靜態檔之前）：官網主機的 `/admin`、`/preview` 轉到後台主機，後台與登入 API 在官網主機一律 404；後台主機上的公開頁 301 回官網。
+  - api 的家長改期與重新預約連結改用 `WEBSITE_PUBLIC_ORIGIN`。
+  - 啟用步驟（DNS、Railway 網域、Google／LINE 回呼網址）在 deploy/README。
+- **帳號**（`backend/app/auth/routes.py`）：總管理者直接設定新密碼時，也解除對方的 Google／LINE 綁定。原本只有寄重設連結會解除，帳號被盜時直接重設，攻擊者綁上的 LINE 還能登回來。後台「使用者」頁的說明與成功訊息跟著改（有綁定才提）。
+- **定期工作的清理**（`workers/maintenance.py`、`operations/audit_service.py`、`auth/service.py`、`auth/password_reset.py`、`booking/access_service.py`）：
+  - 操作紀錄的來源 IP 與 User-Agent 超過 `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（預設 365，下限 30）天就清成 NULL，紀錄照留；
+  - 失效超過 30 天的後台 session、重設連結、家長 session 刪除。
+  - 分批、一批一個交易，每輪最多 2 萬筆；系統狀態頁多兩個步驟名稱。沒有 migration。
+- **區域分析資料同步**（`admissions/geo/sync.py`）：原本只檢查 https，現在只能連 `SOURCE_HOSTS`（由各資料的固定來源網址推出，加上 `WEBSITE_GEO_*_URL` 設定的主機），轉址到其他主機會在送出前被擋。
+- **依賴**：
+  - 新增 `.github/dependabot.yml`：每週一檢查 `deploy/*.Dockerfile` 同 tag 的新 digest，以及 workflow 的 action SHA；忽略 Python／Node 大小版本。
+  - base image 換成 2026-11-12 的 digest（`python:3.12-slim`、`node:22-alpine`）。
+  - npm audit 放行清單原本 11-30 到期，重新評估時兩則公告已由 web 的 overrides 修掉，清單清空。現在只剩 low 等級的 deepmerge（建置鏈），閘門不擋。
+- **驗證**（本機，Node 22.23、PostgreSQL 16）：
+  - `npm --prefix web run typecheck` 過；web 全套 143 檔 1965 項全過。新測試：`api-proxy`（標頭白名單、engagement、504、閒置斷線）、`script-csp`（本體與 Teleport 的 script 不算雜湊）、`security-headers`、`admin-host`、`cloudflare-client-ip`、`site-fixture-route`。
+  - `npm --prefix admin run typecheck` 過；`usersUx`、`auditUx` 30 項過。`npm run contract:check` 一致。
+  - `python3 -m unittest discover -s deploy/tests` 48 項過。
+  - 後端：`test_host_cookies`、`test_public_origin`、`test_parent_access`、`test_config_isolation` 49 項過（獨立測試庫）。
+  - `npm run e2e:build` 後跑 stack 的 `public-csp`（11 頁沒有違規，注入的腳本、外站圖片、fetch、iframe 都被擋）、`editor-live-preview`、`booking-flow`、`media`、`password-reset`、`audit-client-info`：38 項全過。
+  - PR #73 第一批提交（web、`__Host-`、依賴）的 CI 全綠。
+- **沒驗**：Docker 映像本機建置（這台機器沒有 Docker daemon，新 digest 要等 Railway 建置）；正式站的 `__Host-` cookie 實際登入（測試環境不開，只用包 middleware 的測試驗）；`NUXT_ADMIN_HOST`、`NUXT_CLOUDFLARE_CLIENT_IP` 在真網域上的行為（要先做 deploy/README 的平台設定）；iOS／Android 實機。
+
 ## 2026-11-12 環境頁「定時消毒」換照片（`feature/env-care-clean-20261112`）
 
 使用者截了環境頁「五件照顧的小事」第五格說「這張照片幫我換掉」，來源不限義華 NAS，粉專、園方雲端都可以。11-10 換上的那張是女孩背對鏡頭洗手，放進半圓以後頭被圓弧切掉，只剩身體和手。
