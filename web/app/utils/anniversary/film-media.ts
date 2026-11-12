@@ -2,8 +2,8 @@
 // 30 週年紀念影片《長成自己喜歡的樣子》的網頁版：影片、無聲預告、封面、「影片裡的話」縮圖。
 export const ANNI_FILM = {
   "film": {
-    "desktop": "/assets/anniversary-film/film-desktop-2f34149ab5.mp4",
-    "mobile": "/assets/anniversary-film/film-mobile-7fcfca04cc.mp4"
+    "desktop": "/assets/anniversary-film/film-desktop-f84c00e4d4.mp4",
+    "mobile": "/assets/anniversary-film/film-mobile-be3548ce1d.mp4"
   },
   "teaser": {
     "desktop": "/assets/anniversary-film/teaser-desktop-8993b08834.mp4",
@@ -48,8 +48,8 @@ export const ANNI_FILM = {
     "/assets/anniversary-film/cue-5-909d0bb06e.webp"
   ],
   "bytes": {
-    "film-desktop": 46865122,
-    "film-mobile": 28895574,
+    "film-desktop": 46871396,
+    "film-mobile": 28898338,
     "teaser-desktop": 3062197,
     "teaser-mobile": 2296573
   }
