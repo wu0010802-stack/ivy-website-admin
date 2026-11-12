@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 成效統計分成四類、整頁共用一組期間上線（main CI 部署，沒有 migration）
+
+- **內容**：`5ab7a531`（README「2026-11-12 成效統計 UI/UX」），分支 `feature/analytics-ux-20261112`。後台 `/admin/analytics` 的 18 張表分成四類（瀏覽與速度／看了什麼／怎麼來、怎麼逛／走到預約，`?tab=`），期間整頁一組（`?days=`）、裝置只在後三類（`?device=`），兩欄各自往下疊，拿掉整排沒有資訊的字。只動 admin 與 stack 測試清單，後端、契約、資料都沒改。使用者說「部署」。
+- **推前（本機）**：rebase 到 `4396f9fc`（README／DESIGN 頂部兩段都留）；`npm --prefix admin run typecheck` 過、`npm --prefix admin run build` 過；和這頁相關的 5 檔 55 項過。admin 全套在 rebase 前跑過一輪 175 檔 3,385 過、1 紅（舊測試比對舊的頁首說明，已改斷言），之後沒有整輪重跑，以 CI 為準。畫面用 `vite --port 5199`＋攔截 API 的假資料看過 1470／1280／390 × 四類：水平溢出 0、axe serious／critical 0。沒跑 stack e2e（本機負載 50–77）。
+- **CI**：main run 43148554367 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（03:35Z–03:40Z）；`/release.json` 的 `base_commit` 是 `5ab7a531`（03:36Z）。E2E 含這次加進 axe 與溢出清單的三個分類網址。
+- **部署後正式站驗證**（只發 GET）：`/admin/` 的 `AnalyticsView-B9pt_iz6.js` 有「怎麼來、怎麼逛」「走到預約」「流失最多」與新的頁首說明；`/api/website/v1/health` 回 ok。
+- **還沒做**：沒有登入正式後台看四類的實際畫面（待使用者看）；iOS／Android 實機沒驗。分類名稱與頁首說明是這一輪新取的，使用者還沒表示意見。
+
 ## 2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡上線（main CI 部署，沒有 migration）
 
 - **內容**：`28fa4e09`（README「2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡」），分支 `feature/day-film-kathy-20261112`。首頁「孩子的一天」背景影片從義華遊藝表演換成明華校幼幼班六鏡（桌機 1440×810、手機另剪直式 720×1280）、封面兩張、左下角圖說改「明華校 · 幼幼班的一天」；橫拿手機改拿桌機那支。紗沒動。使用者說「幫我部署」。
