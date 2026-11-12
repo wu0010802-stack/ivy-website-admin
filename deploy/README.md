@@ -196,6 +196,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 外部服務串接五項上線：GA4＋Meta Pixel、Instagram、Search Console、CrUX（main CI 部署，migration `f3b8d2a6c19e`）
+
+- **內容**：`9d692961`（README 同日「外部服務串接五項」），分支 `feature/integrations-20261112`。**全部預設關**，正式站沒設任何新變數，行為和之前相同。migration 只在 `facebook_page_posts` 加 `source`（預設 facebook）、`facebook_page_sync` 加四個 `ig_` 欄位，不改寫資料，沒有先備份。
+- **推前（本機）**：web 2014、admin 3430（1 略過）、後端 5229（1 略過）全綠，契約一致；rebase 到 `14ccc94a` 後重跑 web 2015 全綠、typecheck 0 錯、alembic 單一 head。
+- **CI**：run 43172898906 測試全綠；Deploy job 紅在 `web deployment cd4fa839…: REMOVED`——同一提交在 Railway 有兩次 web 部署，15:25 的 `64a0bfa9` SUCCESS 取代了 CI 等的那份，不是程式問題。api `8b941d4f` 15:21 SUCCESS（啟動前跑 alembic）。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` base_commit `9d692961`；health ok；`/admin/crux`、`/admin/search-insights` 回 401（路由在）；首頁 CSP 的 img-src／connect-src 與之前一字不差、HTML 沒有 googletagmanager／fbevents、runtimeConfig 兩個 ID 是空字串。
+- **待使用者**：照上方「GA4 與 Meta Pixel」（先發布隱私權政策）、「Instagram 貼文」、「Google Search Console 與 CrUX」、「外部存活監測：UptimeRobot」各段開帳號與設變數；開了之後再做真實驗收。
+
 ## 2026-11-12 選單參觀專線五校並列、孩子的一天午休與戶外回答改寫上線（main CI 部署，沒有 migration）
 
 - **內容**：`14ccc94a`（README 同日「選單參觀專線五校並列＋孩子的一天午休／戶外回答改寫」），分支 `fix/day-answers-menu-phone-20261112`。選單底部原本只顯示義華校參觀專線，改成五校電話並列；`DAY_ANSWERS` 改寫 12:30、14:20 兩題回答（待園方確認）。
