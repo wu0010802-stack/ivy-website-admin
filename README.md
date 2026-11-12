@@ -42,6 +42,34 @@
 - **未驗證**：stack e2e 與正式的 `npm run test:e2e` 沒跑（要真後端與測試庫）；iOS／Android 實機沒試（Safari 的自動播放與全螢幕行為只能靠規則推斷）；焦點在原生控制列裡面時 Esc 不會暫停（瀏覽器吃掉按鍵，用控制列的暫停鈕）；影片在正式站的串流速度要上線後才量得到。
 - **上線前要園方確認**：片中孩子的肖像授權範圍涵蓋官網播放；新寫的幾個字（紀念影片、影片裡的話、分享影片、索引四項）。
 
+## 2026-11-11 寄信接上 Resend（`feature/resend-20261111`）
+
+使用者要求接 Resend。正式站一直沒有設定寄信（家長確認信、參觀提醒、停課通知、重設密碼連結都寄不出去），原本只支援 SMTP。**尚未部署，正式站也還沒設定金鑰**：程式併進 `main` 後不設變數行為完全不變。
+
+- **做法**：後端多一個走 Resend HTTPS API 的寄信 adapter（`backend/app/notifications/email_adapter.py` 的 `ResendEmailAdapter`，`POST https://api.resend.com/emails`，純文字信）。不走 Resend 的 SMTP 介面：部署平台可能擋對外的 SMTP 連接埠，HTTPS 一定通，也不用多管 port 與加密方式。
+- **設定**：api 新增 `WEBSITE_RESEND_API_KEY`、`WEBSITE_RESEND_FROM`，兩個要一起設；和 `WEBSITE_SMTP_HOST` 只能擇一（同時設會在啟動時擋下，不默默挑一個）。金鑰不進 `repr`、不出現在系統狀態。
+- **「有沒有設定寄信」改成同一個判斷**：`Settings.real_email_enabled`（SMTP 或 Resend）。公開與後台預約設定的 `parent_email_enabled`、重寄確認信、停課通知、重設密碼連結、背景寄信與系統狀態測試信原本各自看 `smtp_host`，現在都看這個。
+- **錯誤分類**：Resend 回的錯誤轉成 `ResendAuthError`（金鑰無效或停用）、`ResendRejectedError`（寄件網域還沒驗證或地址有誤）、`ResendQuotaError`（每日／每月額度或寄太快）、`ResendServerError`；例外只帶狀態碼與錯誤種類，不帶回應內文（可能含收件地址）。後台「通知」頁的失敗原因與操作紀錄會顯示對應的中文。
+- **後台系統狀態**：寄信那一列改叫「寄信」（原本寫「寄信（SMTP）」），經 Resend 時顯示「寄件地址 …，經 Resend 寄出」；測試信多一種結果「額度用完或寄得太快」（API 的 `error` 多一個值 `quota`，契約已重新產生）。
+- 改動：`backend/app/config.py`、`backend/app/notifications/email_adapter.py`、`backend/app/operations/system_status.py`、`backend/app/booking/{access_routes,config_routes,schedule_routes}.py`、`admin/src/api/labels.ts`、`admin/src/utils/systemStatusFormat.ts`、`contracts/`；新測試 `backend/tests/test_resend_adapter.py`。上線步驟見 `deploy/README.md`「寄信：Resend」。
+- **沒做**：沒有真的打過 Resend（沒有金鑰，測試用 `httpx.MockTransport`）；信仍是純文字、沒有 HTML 版；沒帶 `Idempotency-Key`（逾時後重試理論上可能重複寄一封）；沒接退信／客訴 webhook，也沒有 Reply-To（家長直接回信會寄到寄件地址）。
+## 2026-11-11 特色教學手機版：只留美術館一條橫滑（`feature/cur-mobile-20261111`）
+
+使用者回報 `/curriculum` 手機上很多內容都要左右滑，要改善體驗。規則在 DESIGN.md 同日章節。
+
+- **改前（正式站，390×844）**：02 課程方向、03 兒童美術館、04 五件事連著三條橫滑，共 20 張，不滑只看得到 3 張，要滑 17 次才看完。課程方向一張 280×400 的卡只放 19–40 個字；五件事每張 62–87 字，是全頁字最多的地方；美術館直幅 325px、橫幅 198px 同寬混排，5 張橫幅底下各空 127px。
+- **使用者裁定**（看過現況／全部直排／建議版三欄對照）：美術館留橫滑、改等高；頁面變長約 2 個螢幕可以接受。
+- **改後（760px 以下）**：
+  - 02 課程方向沿用平板的兩欄，七個方向不用滑。清單 430 → 1,360px。
+  - 03 兒童美術館是唯一的橫滑：作品等高（390 寬 234px，直幅寬 176、橫幅 312），沒有空洞；吸附改鬆。清單 357 → 301px。張數「1 / 8　左右滑動」留著。
+  - 04 五件事一列一件，左邊方形照片（390 寬 121px）、右邊編號＋標題＋內文。清單 444 → 1,175px。
+  - 整頁 6,551 → 8,147px（7.8 → 9.7 個螢幕）。
+- 順手修：`useWatercolor.ts` 判斷清單是不是橫滑只看 `scrollWidth`，往外暈的顏料團會把它撐大；改成要有 `overflow-x`。平板（761–1100px）的課程方向在視窗改過大小後不再多一個鍵盤停點。
+- 改動：`web/app/assets/css/curriculum.css`（只動 `@media (width <= 760px)` 區塊）、`web/app/components/CurriculumContent.vue`（張數只剩美術館、拿掉兩條清單的 `data-wash-mobile`、照片 `sizes` 跟著新版面）、`web/app/composables/useWatercolor.ts`（`scrollsX`）。桌機與平板的版面不動。
+- 驗證：`npm --prefix web run typecheck` 過；`npm run test:website` 141 檔 1,874 項過（新增 `web/tests/curriculum-mobile-rails-20261111.spec.ts` 13 項，動手前先寫的 12 項有 10 項紅；張數那一組從 `mobile-menu-rail-count-20261111.spec.ts` 搬過來）。全套是加 `--testTimeout=30000` 跑的：當時機器負載 100 以上（別的 session 在跑測試），預設 5 秒有 7 項重運算的測試逾時，都不在這次改的檔案，放寬後全過。dev server（fixture 模式）用 Playwright 量 320／390／760／768／1440 五種寬度：整頁都沒有橫向溢出；760 以下課程方向、五件事不能橫捲也沒有 tabindex，美術館可以橫捲、張數跟著變（3、6、8、回到 1）；「六歲定八十」320 寬也是一行；直排清單裡沒有被裁掉的字；768 與 1440 沒有張數、三條清單都不橫捲。整頁截圖看過 320 與 390。
+- 沒驗：iOS 實機；正式站家長實際滑了幾張沒有數據，「多半不滑」是依版面推斷。
+- 沒做：美術館兩欄瀑布牆、五件事滿版大圖直排（試排過，清單 2,234px）。試排與對照圖在 `output/cur-mobile-ux-20261111/`（主 checkout，未進版控）。
+
 ## 2026-11-11 拍立得：WebGL context 遺失時不再留下別張卡的殘影（`fix/paper-context-lost-20261111`）
 
 使用者回報：真手機開正式站，「常春藤的一天」的卡片上會出現上一個畫面的殘影。部署紀錄見 `deploy/README.md` 同日段落。

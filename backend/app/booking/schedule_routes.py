@@ -355,9 +355,9 @@ async def create_visit_closure(
             },
         )
     settings = request.app.state.settings
-    # 與公開預約設定的 parent_email_enabled 同一個判斷：沒設 SMTP 就不會真的寄給家長，
+    # 與公開預約設定的 parent_email_enabled 同一個判斷：沒設定寄信（SMTP 或 Resend）就不會真的寄給家長，
     # 也就不排信（排了只會被標成略過，還會佔住去重鍵）。
-    email_enabled = bool(settings.smtp_host)
+    email_enabled = settings.real_email_enabled
     notify = payload.notify_parents and email_enabled
     results: list[VisitClosureCampusOut] = []
     for campus_key in sorted(payload.campus_keys):

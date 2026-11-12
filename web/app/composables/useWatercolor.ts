@@ -10,7 +10,7 @@ import { PIGMENTS, type Pigment, type Point, blotCanvas, bloomCanvas, deckleCanv
  * - `.cur-frame`：照片撕紙毛邊＋進場從中間暈開（兩層 mask，第二層 mask-size 從 0 放大）。
  * - `data-reveal`：捲到才淡入；掛上時已經在視窗內的直接顯示，不閃。
  * - 首屏：滑鼠滑過滴下淡淡的顏料（最多 26 滴，只認滑鼠）。
- * - `data-reveal-group`（手機的橫滑清單）：真的能橫向捲動時才加 tabindex="0"，讓只用鍵盤的人也捲得動
+ * - `data-reveal-group`（手機的橫滑清單，2026-11-11 起只剩美術館）：真的能橫向捲動時才加 tabindex="0"，讓只用鍵盤的人也捲得動
  *   （axe scrollable-region-focusable）；桌機不捲動就不多一個 Tab 停點。
  * 顏料色讀 tokens.css 的 `--ivy-paint-<顏料>-rgb`。減少動態：一次畫完、不暈開、不滴顏料。強制色彩：整層不畫（CSS 也會藏）。
  *
@@ -137,6 +137,12 @@ function start(main: HTMLElement) {
     const inside = el.matches('.cur-frame') ? [el] : [...el.querySelectorAll('.cur-frame')]
     inside.forEach((frame, i) => later(() => frame.classList.add('is-bloomed'), 120 + i * 140))
   }
+  // 真的能橫向捲動：要有 overflow-x，不能只看 scrollWidth。直排的清單裡往外暈的顏料團（品德培養引言）也會把 scrollWidth 撐大，
+  // 只看寬度會把不捲動的清單當成橫滑：整排一起淡入、還多一個鍵盤停點（2026-11-11 手機的課程方向改直排後量到）。
+  const scrollsX = (el: HTMLElement) => {
+    const overflow = getComputedStyle(el).overflowX
+    return (overflow === 'auto' || overflow === 'scroll') && el.scrollWidth > el.clientWidth + 2
+  }
   const reveal = (el: Element) => { el.classList.add('is-in'); bloomWithin(el) }
   const revealObserver = new IntersectionObserver((entries) => entries.forEach((entry) => {
     if (!entry.isIntersecting) return
@@ -149,13 +155,13 @@ function start(main: HTMLElement) {
   for (const el of main.querySelectorAll<HTMLElement>('[data-reveal]')) {
     const group = el.parentElement?.closest<HTMLElement>('[data-reveal-group]')
     if (reduce || inView(el)) el.classList.add('is-in')
-    else if (group && group.scrollWidth > group.clientWidth + 2) groups.add(group)
+    else if (group && scrollsX(group)) groups.add(group)
     else revealObserver.observe(el)
   }
   groups.forEach((group) => revealObserver.observe(group))
   const scrollers = [...main.querySelectorAll<HTMLElement>('[data-reveal-group]')]
   const syncScrollers = () => scrollers.forEach((list) => {
-    if (list.scrollWidth > list.clientWidth + 2) list.tabIndex = 0
+    if (scrollsX(list)) list.tabIndex = 0
     else list.removeAttribute('tabindex')
   })
   syncScrollers()
@@ -275,8 +281,7 @@ function start(main: HTMLElement) {
   }
   const inScroller = (el: HTMLElement, section: HTMLElement) => {
     for (let a = el.parentElement; a && a !== section; a = a.parentElement) {
-      const overflow = getComputedStyle(a).overflowX
-      if ((overflow === 'auto' || overflow === 'scroll') && a.scrollWidth > a.clientWidth + 2) return true
+      if (scrollsX(a)) return true
     }
     return false
   }

@@ -15,7 +15,7 @@ import { canListNavItem, navItem, NAV_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { campusAdmin, cleanup, mountWith, reception } from './admissionsTestKit'
 import { testUser } from './fixtures'
-import { DATASET_LABELS, ITEM_LABELS, STEP_LABELS, describeItem, itemLink } from '../utils/systemStatusFormat'
+import { DATASET_LABELS, ITEM_LABELS, STEP_LABELS, TEST_EMAIL_ERROR_TEXT, describeItem, itemLink } from '../utils/systemStatusFormat'
 import { ERROR_SOURCE_LABELS, errorTitle, formatRelativeTime } from '../utils/errorReportFormat'
 
 const backendSources = import.meta.glob('../../../backend/app/**/*.py', { query: '?raw', import: 'default', eager: true }) as Record<string, string>
@@ -63,6 +63,9 @@ describe('文案', () => {
   it('寄信：有設時寫寄件地址與主機，測試環境寫本機資料夾，沒設時說清楚影響', () => {
     expect(describeItem(item('smtp', 'ok', { host: 'smtp.example.com', port: 587, security: 'starttls', sender: 'noreply@ivy.example' }), 'services'))
       .toBe('寄件地址 noreply@ivy.example，主機 smtp.example.com:587（STARTTLS）')
+    // Resend（2026-11-11）：走 HTTPS API，沒有主機與 port，只寫寄件地址與服務名稱。
+    expect(describeItem(item('smtp', 'ok', { provider: 'resend', sender: '常春藤幼兒園 <noreply@mail.ivy.example>' }), 'services'))
+      .toBe('寄件地址 常春藤幼兒園 <noreply@mail.ivy.example>，經 Resend 寄出')
     expect(describeItem(item('smtp', 'info', { sink: true }), 'services')).toBe('寫入本機資料夾（測試用）')
     expect(describeItem(item('smtp', 'attention'), 'services')).toContain('家長確認信、參觀提醒、停課通知與重設密碼連結都寄不出去')
   })
@@ -133,7 +136,8 @@ describe('頁面', () => {
     expect(get).toHaveBeenCalledWith('/admin/system-status')
     expect(wrapper.findAll('h2').map((h) => h.text())).toEqual(['對外服務設定', '背景工作', '公開資料', '通知與發布', '錯誤回報'])
     const smtp = wrapper.get('li.status-row[data-key="smtp"]')
-    expect(smtp.text()).toContain('寄信（SMTP）')
+    // 列名不寫 SMTP：也可能是經 Resend 寄（2026-11-11）。
+    expect(smtp.get('.status-row__name').text()).toBe('寄信')
     expect(smtp.text()).toContain('要注意')
     expect(wrapper.text()).toContain('資料時間 12:00')
     cleanup()
@@ -210,6 +214,10 @@ describe('頁面', () => {
     await flushPromises()
     expect(post).toHaveBeenCalledWith('/admin/system-status/test-email')
     expect(wrapper.get('[role="status"]').text()).toBe('已寄到 a***@example.invalid，請到信箱確認')
+  })
+
+  it('額度用完（quota）有自己的說法', () => {
+    expect(TEST_EMAIL_ERROR_TEXT.quota).toBe('寄信服務的額度用完了，或寄得太快，請晚點再試')
   })
 
   it('測試環境（寫入本機資料夾）也能按測試信；沒寄出時寫原因', async () => {
