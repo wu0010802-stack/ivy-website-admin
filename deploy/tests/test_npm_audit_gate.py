@@ -179,8 +179,9 @@ class NpmAuditGateTests(unittest.TestCase):
                         self.gate.run_npm_audit("web")
 
     def test_committed_allowlist_is_well_formed(self):
+        # 2026-11-12 起清單是空的（見下一個測試）；有登記時每一則都要格式正確。
         entries = json.loads(ALLOWLIST_PATH.read_text())["entries"]
-        self.assertTrue(entries)
+        self.assertIsInstance(entries, list)
         seen = set()
         for entry in entries:
             with self.subTest(entry=entry["id"]):
@@ -191,10 +192,12 @@ class NpmAuditGateTests(unittest.TestCase):
                 self.assertGreater(len(entry["reason"]), 20, "原因要寫清楚為什麼不影響")
                 date.fromisoformat(entry["expires"])
 
-    def test_committed_allowlist_covers_exactly_what_web_reports_after_nuxt_4_6_3(self):
-        # 2026-11-01 升 nuxt 4.6.3 後 web 的 npm audit --omit=dev：moderate 只剩 glob、minimatch（low 的 deepmerge 不擋）。
+    def test_committed_allowlist_covers_exactly_what_web_reports(self):
+        # 2026-11-01 升 nuxt 4.6.3 後 moderate 只剩 glob、minimatch 兩則；2026-11-12 重新評估時 web 的 overrides
+        # 已把兩者升到修正版（glob 14.0.3、minimatch 11.0.4），npm audit --omit=dev 只剩 low 的 deepmerge（不擋），
+        # 清單清空。日後再登記時改這裡的期望值。
         listed = {entry["id"] for entry in json.loads(ALLOWLIST_PATH.read_text())["entries"]}
-        self.assertEqual(listed, {"GHSA-3g3m-2fjr-6pw4", "GHSA-g3hv-75wg-m249"})
+        self.assertEqual(listed, set())
 
     def test_committed_allowlist_has_no_findings_of_its_own(self):
         self.assertEqual(self.gate.check_allowlist(json.loads(ALLOWLIST_PATH.read_text()), date(2026, 11, 1)), [])

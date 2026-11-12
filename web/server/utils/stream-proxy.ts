@@ -44,10 +44,28 @@ export function abortOnClientClose(event: H3Event): AbortController {
   return controller
 }
 
+// 上游多久沒給回應標頭就回 504；客戶端多久沒有讀走任何資料就斷線（2026-11-12）。
+// 閒置逾時擋的是「開了連線卻故意不讀」：有背壓之後上游會跟著停，但 API 的連線與
+// 開著的檔案會一直被佔住。影片播放器緩衝夠了也會暫停讀取，斷線後它會自己用 Range
+// 續傳，所以這裡給寬一點。
+export const DEFAULT_MEDIA_UPSTREAM_TIMEOUT_SECONDS = 120
+export const DEFAULT_MEDIA_IDLE_TIMEOUT_SECONDS = 120
+
+export interface StreamProxyOptions {
+  upstreamTimeoutSeconds?: number
+  idleTimeoutSeconds?: number
+}
+
+function positiveSeconds(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && (value as number) > 0 ? (value as number) : fallback
+}
+
 /** GET／HEAD 素材的串流代理；overrides 蓋過轉送的請求標頭（例如訪客 IP）。 */
-export async function streamProxy(event: H3Event, target: string, overrides: Record<string, string>): Promise<void> {
+export async function streamProxy(event: H3Event, target: string, overrides: Record<string, string>, options: StreamProxyOptions = {}): Promise<void> {
   const res = event.node.res
   const controller = abortOnClientClose(event)
+  const upstreamTimeoutMs = positiveSeconds(options.upstreamTimeoutSeconds, DEFAULT_MEDIA_UPSTREAM_TIMEOUT_SECONDS) * 1000
+  const idleTimeoutMs = positiveSeconds(options.idleTimeoutSeconds, DEFAULT_MEDIA_IDLE_TIMEOUT_SECONDS) * 1000
   // 要求上游不要壓縮：fetch 會自動解壓，轉出去的 Content-Length 就對不上。
   const headers: Record<string, string> = { 'accept-encoding': 'identity' }
   for (const name of FORWARD_REQUEST_HEADERS) {
@@ -57,12 +75,20 @@ export async function streamProxy(event: H3Event, target: string, overrides: Rec
   Object.assign(headers, overrides)
 
   let upstream: Response
+  let timedOut = false
+  const timer = setTimeout(() => {
+    timedOut = true
+    controller.abort()
+  }, upstreamTimeoutMs)
   try {
     upstream = await fetch(target, { method: event.method, headers, redirect: 'manual', signal: controller.signal })
   } catch (error) {
+    if (timedOut) throw createError({ statusCode: 504, statusMessage: 'Gateway Timeout' })
     // 客戶端已經離開：沒有人等這個回應，不算伺服器錯誤。
     if (controller.signal.aborted) return
     throw createError({ statusCode: 502, statusMessage: 'Bad Gateway', cause: error })
+  } finally {
+    clearTimeout(timer)
   }
 
   res.statusCode = upstream.status
@@ -77,6 +103,9 @@ export async function streamProxy(event: H3Event, target: string, overrides: Rec
     res.end()
     return
   }
+  // 客戶端一段時間沒有讀走任何資料（socket 沒有進度）就斷線：close 會觸發上面的 abort，
+  // 上游連線跟著關掉。回應送完後 Node 會把 keep-alive 的 socket 逾時改回伺服器設定。
+  res.setTimeout(idleTimeoutMs, () => res.destroy())
   try {
     await pipeline(Readable.fromWeb(upstream.body as NodeReadableStream<Uint8Array>), res)
   } catch (error) {

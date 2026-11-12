@@ -1,0 +1,39 @@
+# 依賴自動更新（2026-11-12 資安強化）：只開「基底映像」與「GitHub Actions」兩類版本更新 PR。
+# npm／uv 的套件不在這裡開版本更新：CI 已用 npm audit 閘門與 pip-audit 擋已知漏洞，
+# 一般升級照舊人工做（升 Nuxt 要一起看 vue 是否變兩份等，見 README）。
+# PR 一律開到 main、跑完整 CI；合併 main＝正式部署，所以要人看過 CI 全綠再合。
+version: 2
+updates:
+  # deploy/api.Dockerfile、deploy/web.Dockerfile：tag 後面以 digest 釘版。Dependabot 會在同一個 tag
+  # 出新映像（作業系統安全更新）時改 digest；換 Python／Node 大小版本要另外驗證，所以忽略。
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:00'
+      timezone: Asia/Taipei
+    ignore:
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
+    groups:
+      base-images:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore(deploy)'
+    open-pull-requests-limit: 2
+
+  # workflow 裡的 action 以 commit SHA 釘版（後面註解是版本），Dependabot 會一起改 SHA 與註解。
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '10:00'
+      timezone: Asia/Taipei
+    groups:
+      github-actions:
+        patterns: ['*']
+    commit-message:
+      prefix: 'chore(ci)'
+    open-pull-requests-limit: 2

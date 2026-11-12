@@ -55,6 +55,8 @@ export const STEP_LABELS: Record<string, string> = {
   outbox: '寄送通知',
   rate_limits: '清除限流計數',
   purge_media: '清除待刪素材',
+  audit_client_info: '清除操作紀錄的舊 IP 與裝置',
+  stale_auth: '清除失效的登入與重設連結',
   retention: '個資保存清理',
 }
 

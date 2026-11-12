@@ -20,8 +20,18 @@ describe('資安標頭', () => {
     expect(headers['X-Frame-Options']).toBe('SAMEORIGIN')
     expect(headers['X-Content-Type-Options']).toBe('nosniff')
     expect(headers['Referrer-Policy']).toBe('strict-origin-when-cross-origin')
-    expect(headers['Strict-Transport-Security']).toBe('max-age=31536000')
+    expect(headers['Strict-Transport-Security']).toBe('max-age=31536000; includeSubDomains')
     expect(headers['Cache-Control']).toBeUndefined()
+  })
+
+  it('公開頁限制圖片、連線與內嵌框的來源（2026-11-12）', () => {
+    const csp = securityHeadersFor('/', 'production')['Content-Security-Policy']
+    expect(csp).toContain("img-src 'self' data: blob: https://i.ytimg.com;")
+    expect(csp).toContain("connect-src 'self' https://challenges.cloudflare.com;")
+    expect(csp).toContain("frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com;")
+    expect(csp).not.toContain('default-src')
+    // nuxt dev 不收 script-src，但資源來源照收不收都沒差：只留原本三條
+    expect(securityHeadersFor('/', 'production', { scriptPolicy: false })['Content-Security-Policy']).not.toContain('img-src')
   })
 
   it('後台一律用嚴格 CSP（縱深防禦；admin-same-origin-as-public-site 僅部分緩解、仍未關閉）', () => {
@@ -152,7 +162,7 @@ it('靜態資源處理器（排在所有 middleware 之前）回的 /admin/ 也�
   expect(admin.headers.get('x-frame-options')).toBe('SAMEORIGIN')
   expect(admin.headers.get('x-content-type-options')).toBe('nosniff')
   expect(admin.headers.get('referrer-policy')).toBe('strict-origin-when-cross-origin')
-  expect(admin.headers.get('strict-transport-security')).toBe('max-age=31536000')
+  expect(admin.headers.get('strict-transport-security')).toBe('max-age=31536000; includeSubDomains')
   expect(admin.headers.get('cache-control')).toBe('private, no-store')
   expect(admin.headers.get('x-robots-tag')).toBe('noindex, nofollow')
 

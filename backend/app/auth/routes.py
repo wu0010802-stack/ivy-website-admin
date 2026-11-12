@@ -488,7 +488,8 @@ async def reset_user_password(
     不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
     撿到總管理者 session 的人就能直接把密碼改成自己知道的。
 
-    也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03）。"""
+    也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03），並比照重設連結
+    解除 LINE／Google 綁定（2026-11-12）。"""
     require_scope(current_user, "users.manage")
     if user_id == current_user.id:
         raise HTTPException(
@@ -496,17 +497,23 @@ async def reset_user_password(
             detail={"code": "USE_CHANGE_PASSWORD", "message": "要改自己的密碼，請到「我的帳號」輸入目前的密碼後變更"},
         )
     await _require_recent_auth(request, db, current_user, session, payload.current_password)
-    user = await _load_user(db, user_id)
-    user.password_hash = await service.hash_password_async(payload.password)
+    # 雜湊先算好（約 250 ms）再鎖帳號列，鎖住期間不做慢的事（同重設連結）。要鎖住再讀：綁定 callback
+    # 也在帳號列鎖內寫 sub，不鎖的話剛綁上的 sub 會被當成沒變更而留下（見 _load_user）。
+    new_hash = await service.hash_password_async(payload.password)
+    user = await _load_user(db, user_id, lock=True)
+    user.password_hash = new_hash
     revoked = await service.revoke_user_sessions(db, user.id)
     await password_reset.revoke_outstanding(db, user.id)
+    # 總管理者直接設密碼多半是帳號出事（忘記密碼或疑似被盜）：只換密碼的話，攻擊者先前綁上的
+    # LINE／Google 還能登入。跟重設連結一樣一併解除，本人要用再到「我的帳號」重新綁定（2026-11-12）。
+    unlinked = service.clear_external_logins(user)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
         action="user.reset_password",
         target_type="user",
         target_id=str(user_id),
-        metadata={"revoked_sessions": revoked},
+        metadata={"revoked_sessions": revoked, **unlinked},
     )
     await db.commit()
     await service.clear_login_lock(ratelimit.limiter(request), user.email)
@@ -567,9 +574,9 @@ async def clear_user_external_logins(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
-    """總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用時
-    的處置；重設密碼不會動到綁定）。自己的綁定請到「我的帳號」解除，那邊要
-    重新驗證。"""
+    """總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用、
+    但不必換密碼時的處置；重設密碼——直接設定或寄連結——本來就會一併解除綁定）。
+    自己的綁定請到「我的帳號」解除，那邊要重新驗證。"""
     require_scope(current_user, "users.manage")
     if user_id == current_user.id:
         raise HTTPException(

@@ -16,7 +16,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import PasswordResetToken, User
@@ -93,6 +93,27 @@ async def revoke_token(db: AsyncSession, token_id: uuid.UUID) -> None:
         .where(PasswordResetToken.id == token_id, PasswordResetToken.revoked_at.is_(None))
         .values(revoked_at=datetime.now(timezone.utc))
     )
+
+
+async def purge_stale_tokens(db: AsyncSession, cutoff: datetime, *, limit: int) -> int:
+    """刪掉 cutoff 以前就用過、作廢或到期的重設連結（2026-11-12）。寄出、使用、被拒都另外寫在操作紀錄裡，
+    這些列只用來比對連結；刪掉之後，很久以前的舊連結打開會顯示「連結無效」而不是「已過期」。沒有別的表參照它。
+    一次最多 limit 筆，回傳刪了幾筆；由定期工作分批呼叫（app/workers/maintenance.py）。"""
+    due = (
+        select(PasswordResetToken.id)
+        .where(
+            or_(
+                PasswordResetToken.used_at < cutoff,
+                PasswordResetToken.revoked_at < cutoff,
+                PasswordResetToken.expires_at < cutoff,
+            )
+        )
+        .limit(limit)
+    )
+    result = await db.execute(
+        delete(PasswordResetToken).where(PasswordResetToken.id.in_(due)).execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
 
 
 async def issue(db: AsyncSession, user: User, *, actor_id: uuid.UUID) -> IssuedLink:

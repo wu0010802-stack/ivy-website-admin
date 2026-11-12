@@ -8,7 +8,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
-from sqlalchemy import func, select, text, update
+from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
@@ -543,6 +543,17 @@ async def revoke_user_sessions(db: AsyncSession, user_id, *, keep_session_id: st
             revoked += 1
     await db.flush()
     return revoked
+
+
+async def purge_stale_sessions(db: AsyncSession, cutoff: datetime, *, limit: int) -> int:
+    """刪掉 cutoff 以前就撤銷或到期的後台 session（2026-11-12）。這種列不會再通過驗證、也不會被延長
+    （refresh_session_expiry 只延長還有效的），沒有別的表參照它；留著只是越積越多，撤銷全部 session 時也越掃越多。
+    一次最多 limit 筆，回傳刪了幾筆；由定期工作分批呼叫（app/workers/maintenance.py）。"""
+    due = select(Session.id).where(or_(Session.revoked_at < cutoff, Session.expires_at < cutoff)).limit(limit)
+    result = await db.execute(
+        delete(Session).where(Session.id.in_(due)).execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
 
 
 async def change_role(db: AsyncSession, user: User, role: Role) -> None:

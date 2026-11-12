@@ -5,7 +5,8 @@
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
   try {
-    return await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/site`)
+    // 逾時比照 utils/published-site.ts：API 卡住時不讓這支請求無限期掛著（2026-11-12）。
+    return await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/site`, { timeout: 8000 })
   } catch (err: any) {
     const statusCode = err?.response?.status ?? err?.statusCode ?? 503
     throw createError({

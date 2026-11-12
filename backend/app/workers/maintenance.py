@@ -1,6 +1,7 @@
 """API 內建的定期工作：排程發布、依每週規則補時段、產生提醒
 （員工的即將參觀、家長的參觀提醒）、處理通知 outbox、清過期限流計數、清理刪除超過
-保留天數的素材、依個資保存政策每天清理一次。
+保留天數的素材、清掉超過保留天數的操作紀錄來源 IP 與 User-Agent、刪掉早已失效的
+登入 session／重設連結／家長 session、依個資保存政策每天清理一次。
 
 原本只能靠外部 cron 呼叫 `python -m app.cli process-notifications`，但 repo 與
 部署設定裡都沒有這個 cron——排程發布永遠不會到點上線，後台也收不到任何通知。
@@ -18,14 +19,17 @@ import asyncio
 import logging
 import os
 import socket
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from app.booking import schedule_service
+from app.auth import password_reset
+from app.auth import service as auth_service
+from app.booking import access_service, schedule_service
 from app.common.ratelimit import purge_expired_counters
 from app.common.timezones import today_local
 from app.config import Settings
@@ -40,6 +44,12 @@ from app.workers.runner import process_outbox_until_drained
 logger = logging.getLogger("app.maintenance")
 
 _LOCK_KEY = "ivy-website:maintenance"
+# 已經失效的登入 session、重設連結、家長 session 再留這麼久才刪（2026-11-12）：最近一個月的留著方便查問題。
+STALE_AUTH_GRACE = timedelta(days=30)
+# 清操作紀錄來源、刪失效列都分批：一批一個交易；一輪最多做 HOUSEKEEPING_MAX_BATCHES 批，積壓很多時
+# （第一次上線、調短保存天數）剩下的下一輪接著做，不讓單一輪拖太久、也不開一個很大的交易。
+HOUSEKEEPING_BATCH = 1000
+HOUSEKEEPING_MAX_BATCHES = 20
 
 
 @dataclass
@@ -59,6 +69,9 @@ class CycleResult:
     notifications_skipped: int = 0
     rate_limit_rows_purged: int = 0
     media_purged: int = 0
+    # 這一輪清掉來源 IP／User-Agent 的操作紀錄筆數；刪掉的失效 session、重設連結、家長 session 筆數。
+    audit_client_info_cleared: int = 0
+    stale_auth_rows_purged: int = 0
     # 個資保存政策：這一輪有沒有執行、匿名化幾筆。
     retention_ran: bool = False
     retention_anonymized: int = 0
@@ -79,6 +92,8 @@ class CycleResult:
                 self.notifications_skipped,
                 self.rate_limit_rows_purged,
                 self.media_purged,
+                self.audit_client_info_cleared,
+                self.stale_auth_rows_purged,
                 self.retention_ran,
                 self.failed_steps,
             )
@@ -204,6 +219,7 @@ async def _run_steps(
         async with session_factory() as db:
             outbox = await process_outbox_until_drained(
                 db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin,
+                public_origin=settings.parent_origin,
                 access_secret=settings.session_secret, push=push,
             )
         result.notifications_sent = outbox["sent"]
@@ -239,6 +255,34 @@ async def _run_steps(
         logger.exception("定期工作：清理刪除的素材失敗")
         result.failed_steps.append("purge_media")
 
+    # 操作紀錄的來源 IP 與 User-Agent 只留 WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS 天（預設 365，2026-11-12）：
+    # 過了就清成 NULL，紀錄本身照留。
+    now = datetime.now(timezone.utc)
+    client_info_cutoff = now - timedelta(days=settings.audit_client_info_retention_days)
+    try:
+        result.audit_client_info_cleared = await _in_batches(
+            session_factory, lambda db, limit: audit_service.clear_client_info_before(db, client_info_cutoff, limit=limit)
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：清除操作紀錄的來源 IP 與裝置失敗")
+        result.failed_steps.append("audit_client_info")
+
+    # 撤銷或到期超過 STALE_AUTH_GRACE 的後台 session、用過／作廢／過期的重設連結、家長受限 session 原本永遠不刪
+    # （2026-11-12）。三張表各自分批，一張失敗不擋另外兩張。
+    stale_cutoff = now - STALE_AUTH_GRACE
+    stale_purges: list[tuple[str, Callable[[AsyncSession, int], Awaitable[int]]]] = [
+        ("後台 session", lambda db, limit: auth_service.purge_stale_sessions(db, stale_cutoff, limit=limit)),
+        ("重設密碼連結", lambda db, limit: password_reset.purge_stale_tokens(db, stale_cutoff, limit=limit)),
+        ("家長 session", lambda db, limit: access_service.purge_stale_parent_sessions(db, stale_cutoff, limit=limit)),
+    ]
+    for label, purge in stale_purges:
+        try:
+            result.stale_auth_rows_purged += await _in_batches(session_factory, purge)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：刪除失效的%s失敗", label)
+            if "stale_auth" not in result.failed_steps:
+                result.failed_steps.append("stale_auth")
+
     # 個資保存政策（規格 L282）：政策開啟自動執行、而且部署設定允許真正清理
     # 時，每個台灣日期最多匿名化一次；任一個沒開就什麼都不做。
     if settings.retention_allow_real_run:
@@ -250,6 +294,22 @@ async def _run_steps(
             result.failed_steps.append("retention")
 
     return result
+
+
+async def _in_batches(
+    session_factory: async_sessionmaker[AsyncSession], step: Callable[[AsyncSession, int], Awaitable[int]]
+) -> int:
+    """step(db, limit) 處理最多 limit 筆、回傳處理了幾筆；一批一個交易，不滿一批就是做完了。
+    一輪最多 HOUSEKEEPING_MAX_BATCHES 批，回傳這一輪總共處理的筆數。"""
+    total = 0
+    for _ in range(HOUSEKEEPING_MAX_BATCHES):
+        async with session_factory() as db:
+            done = await step(db, HOUSEKEEPING_BATCH)
+            await db.commit()
+        total += done
+        if done < HOUSEKEEPING_BATCH:
+            break
+    return total
 
 
 async def _run_retention(db: AsyncSession, result: CycleResult) -> None:

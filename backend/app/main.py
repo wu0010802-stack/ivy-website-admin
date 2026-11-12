@@ -19,6 +19,7 @@ from app.auth.routes import router as auth_router
 from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware
 from app.common.client_info import ClientInfoMiddleware
+from app.common.host_cookies import HostPrefixCookieMiddleware
 from app.common.request_id import REQUEST_ID_HEADER, RequestIdMiddleware, request_id_of
 from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
@@ -227,6 +228,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         elif path.startswith(_NO_STORE_PREFIXES) and "cache-control" not in response.headers:
             response.headers["Cache-Control"] = "private, no-store"
         return response
+
+    # 一定要最後加（最外層）：裡面每一層（含 Google 的 SessionMiddleware、body_limit 讀 session）
+    # 看到的都是去掉 __Host- 前綴的名稱，送出的 Set-Cookie 也都經過它改寫（見 common/host_cookies.py）。
+    app.add_middleware(HostPrefixCookieMiddleware, enabled=settings.environment == "production")
 
     @app.get("/api/website/v1/health")
     async def health() -> dict:

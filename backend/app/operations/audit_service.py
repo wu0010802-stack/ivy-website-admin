@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Literal
 
-from sqlalchemy import String, Text, and_, cast, func, or_, select, tuple_
+from sqlalchemy import String, Text, and_, cast, func, or_, select, tuple_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
@@ -55,6 +55,27 @@ async def log_action(
     db.add(entry)
     await db.flush()
     return entry
+
+
+async def clear_client_info_before(db: AsyncSession, cutoff: datetime, *, limit: int) -> int:
+    """把 cutoff 以前的操作紀錄的來源 IP 與 User-Agent 清成 NULL（2026-11-12，WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS）。
+    紀錄本身（誰、何時、做了什麼、metadata）照留；裝置欄是讀取時由 User-Agent 推出來的，不另外存。
+    一次最多 limit 筆，回傳清了幾筆；由定期工作分批呼叫（app/workers/maintenance.py）。"""
+    due = (
+        select(AuditLogEntry.id)
+        .where(
+            AuditLogEntry.created_at < cutoff,
+            or_(AuditLogEntry.ip_address.is_not(None), AuditLogEntry.user_agent.is_not(None)),
+        )
+        .limit(limit)
+    )
+    result = await db.execute(
+        update(AuditLogEntry)
+        .where(AuditLogEntry.id.in_(due))
+        .values(ip_address=None, user_agent=None)
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
 
 
 @dataclass(frozen=True)

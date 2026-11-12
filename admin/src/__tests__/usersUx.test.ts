@@ -92,7 +92,46 @@ describe('解除別人的 Google／LINE 綁定並登出（2026-09-29）', () => 
     expect(String(message)).not.toContain('自動重新綁定')
     expect(String(message)).toContain('「我的帳號」')
     expect(String(message)).toContain('Google 與 LINE 都要本人')
+    // 2026-11-12 起重設密碼也會解除綁定：不再叫人「先重設密碼」再來解除。
+    expect(String(message)).toContain('重設密碼也會解除綁定')
+    expect(String(message)).not.toContain('請先幫他重設密碼')
     expect(post).toHaveBeenCalledWith('/admin/users/other/clear-external-logins')
+  })
+
+  it('直接設定新密碼也會解除綁定（2026-11-12）：事前說明、事後該列不再顯示綁定', async () => {
+    const me = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
+    const other = testUser('campus_admin', { id: 'other', email: 'other@ivy.example', campus_keys: ['yihua'], line_linked: true, google_linked: true })
+    vi.spyOn(api, 'get').mockResolvedValue([me, other])
+    const post = vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
+    const wrapper = await setup()
+    expect(clearLoginItems(wrapper)).toHaveLength(2)
+    await button(wrapper, '重設密碼').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="reset-direct-hint"]').text()).toContain('Google／LINE 綁定也會解除')
+    await button(wrapper, '產生密碼').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ElDialog' }).find(item => item.props('modelValue'))!
+    await dialog.findAll('button').find(item => item.text() === '重設密碼')!.trigger('click')
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith('/admin/users/other/password', expect.objectContaining({ password: expect.any(String) }))
+    expect(wrapper.get('[data-test="reset-password"]').text()).toContain('Google／LINE 綁定也已解除')
+    // 後端回 204、沒有帳號資料：該列自己改成沒有綁定，「解除綁定並登出」跟著消失。
+    expect(clearLoginItems(wrapper)).toHaveLength(0)
+  })
+
+  it('沒有綁定的人重設密碼時不提綁定', async () => {
+    const me = testUser('super_admin', { id: 'local-test', email: 'test@example.invalid' })
+    const plain = testUser('editor', { id: 'plain', email: 'plain@ivy.example', campus_keys: ['yihua'] })
+    vi.spyOn(api, 'get').mockResolvedValue([me, plain])
+    vi.spyOn(api, 'post').mockResolvedValue(undefined as never)
+    const wrapper = await setup()
+    await button(wrapper, '重設密碼').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="reset-direct-hint"]').text()).not.toContain('綁定')
+    await button(wrapper, '產生密碼').trigger('click')
+    const dialog = wrapper.findAllComponents({ name: 'ElDialog' }).find(item => item.props('modelValue'))!
+    await dialog.findAll('button').find(item => item.text() === '重設密碼')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="reset-password"]').text()).not.toContain('綁定')
   })
 
   it('自己的列不提供（要到「我的帳號」操作）', async () => {
