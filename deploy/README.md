@@ -197,6 +197,12 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 環境頁崇德戶外廣場、國際中庭操場上線（main CI 部署，沒有 migration）
+
+- **內容**：`5eeb47ca`（README「2026-11-12 環境頁『五所校園』崇德與國際第一張換成校園實景」）。崇德溜滑梯換成戶外廣場；國際美語商店街拿掉，第一張改中庭操場、騎士堡移到第三張。
+- **CI**：run 43186062317 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：`/environment` 有戶外廣場、中庭操場、騎士堡，美語商店街與歡樂安全溜滑梯已不在；`tour-chongde-plaza`、`tour-international-court` 衍生檔 200。正式站崇德、國際沒有後台發布的校園探索，不需後台操作。
+
 ## 2026-11-12 預約表單預計入學時間改學年＋上下學期上線（main CI 部署，沒有 migration）
 
 - **內容**：`40881596`（README「2026-11-12 預約表單『預計入學時間』選項改成學年＋上下學期」）＋ e2e 修正 `5c68ffc6`。選項文字由「2027 年 2 月」改「115 學年下學期」；存的值、後台顯示、API 範圍不變。
