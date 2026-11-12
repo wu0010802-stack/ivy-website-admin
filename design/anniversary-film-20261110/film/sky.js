@@ -7,19 +7,23 @@
  *   開場整圈都還沒亮；之後一年亮一顆（2006–2019 一個八分音符一顆，星空同時拉出星軌），第 18 小節前一拍
  *   2022–2026 連續亮起，第 18 小節整圈合起來＝滿 30 年，左邊打出「30 週年　1997 — 2027」。
  *   年份上方另有一行「第 N 年」。星環只在拉遠的鏡頭看得到（開場、星軌、星座），特寫時收掉。
+ * - 星圖落地（2026-11-12）：星環合起來的那一拍，圈裡浮出高雄——區界、愛河、澄清湖、區名（map-data.js，和官網
+ *   30 週年頁的地圖同一份資料）。圈是三十年，圈裡是高雄：五顆星就落在各自的門牌位置。
  * 最後鏡頭衝進明華那顆星，白光接進明華的影片。
  *
  * 全部由 frame 決定。共用 film.js 的 clamp／lerp／prog／E／mulberry32／el／KText 等工具（film.js 載入後才會呼叫）。
  */
 'use strict';
 
-/* 五校：官網沿革文字（web/app/utils/anniversary/timeline.ts）＋門牌投影座標（map-data.ts 的 campuses） */
+/* 五校：年份與區名依官網沿革（web/app/utils/anniversary/timeline.ts）＋門牌投影座標（map-data.ts 的 campuses）。
+   說明原本照抄沿革的五句（像五筆資料），2026-11-12 使用者要「更有故事性、但字不要多」，改成前後接力的一句話：
+   隔了幾年、到了哪一區。間隔由成立年份算出來（1997→2001→2005→2020→2021），不另外編情節。每校只有一行。 */
 const SKY_CAMPUS = {
-  yihua: { name: '義華校', year: 1997, hist: ['第一間常春藤，', '在三民區義華路成立。'], map: [711.1, 730], ign: 320, close: [558, 586], crop: [1550, 760, 2500] },
-  minghua: { name: '明華校', year: 2001, hist: ['走進左營區，', '有了第二所校園。'], map: [264.7, 462.2], ign: 640, close: [738, 764], crop: [868, 470, 1700] },
-  chongde: { name: '崇德校', year: 2005, hist: ['左營區的', '第二所校園。'], map: [275.4, 327.1], ign: 800, close: [904, 932], crop: [868, 480, 1700] },
-  international: { name: '國際校', year: 2020, hist: ['在鳥松區', '球場路成立。'], map: [622.4, 555], ign: 1120, close: [1226, 1254], crop: [868, 470, 1700] },
-  renwu: { name: '仁武校', year: 2021, hist: ['第五所校園，', '在仁武區成立。'], map: [701.9, 209.9], ign: 1280, close: [1386, 1414], crop: [868, 500, 1700] },
+  yihua: { name: '義華校', year: 1997, hist: ['從三民區義華路開始。'], map: [711.1, 730], ign: 320, close: [558, 586], crop: [1550, 760, 2500] },
+  minghua: { name: '明華校', year: 2001, hist: ['四年後，走進左營。'], map: [264.7, 462.2], ign: 640, close: [738, 764], crop: [868, 470, 1700] },
+  chongde: { name: '崇德校', year: 2005, hist: ['再四年，左營的第二所。'], map: [275.4, 327.1], ign: 800, close: [904, 932], crop: [868, 480, 1700] },
+  international: { name: '國際校', year: 2020, hist: ['十五年後，到了鳥松。'], map: [622.4, 555], ign: 1120, close: [1226, 1254], crop: [868, 470, 1700] },
+  renwu: { name: '仁武校', year: 2021, hist: ['隔年，第五所在仁武。'], map: [701.9, 209.9], ign: 1280, close: [1386, 1414], crop: [868, 500, 1700] },
 };
 const SKY_ORDER = ['yihua', 'minghua', 'chongde', 'international', 'renwu'];
 for (const k of SKY_ORDER) {
@@ -45,6 +49,17 @@ const SKY_RING_LIT = (() => {
 const SKY_RING_CAMPUS = new Set(SKY_ORDER.map((k) => SKY_CAMPUS[k].year - SKY_YEAR0));
 const skyRingPoint = (i, R) => { const a = -Math.PI / 2 + (i / SKY_RING_N) * 2 * Math.PI; return [Math.cos(a) * R, Math.sin(a) * R]; };
 const skyLitCount = (f) => SKY_RING_LIT.reduce((n, t) => n + (f >= t ? 1 : 0), 0);
+/* 星圖落地：區名與水的名字放的位置（星空座標）。都在星環裡面、各自的區裡，避開五校的標籤與星座線。
+   只標有校園的四個區；蓮池潭大半在星環外面，只露出一角、不標名字。 */
+const SKY_MAP_LABELS = [
+  { text: '左營區', at: [-330, -650], kind: 'district' },
+  { text: '仁武區', at: [690, -430], kind: 'district' },
+  { text: '鳥松區', at: [700, 352], kind: 'district' },
+  { text: '三民區', at: [-120, 500], kind: 'district' },
+  { text: '愛河', at: [-330, 330], kind: 'water' },
+  { text: '澄清湖', at: [690, 60], kind: 'water' },
+];
+const SKY_MAP_IN = SKY_RING_CLOSE;       // 星環合起來的那一拍開始，從圈心往外鋪開
 const SKY_DAILY = ['cur-hero', 'day-hello', 'cur-kite', 'env-hero-hug', 'day-lunch', 'cur-floor-painting', 'about-curious',
   'day-outside', 'cur-activities', 'env-care-meal', 'cur-integrated', 'home-about', 'cur-daily-reading', 'cur-years'];
 
@@ -60,13 +75,13 @@ function skyLayout() {
   // 乘上 Zw×1.06 就是第 18 小節停住時畫面上的半徑：橫式 490px、直式 480px，剛好放進畫面，五校的標籤也都在圈內）。
   return V ? {
     A: [540, 1190], Zs: 1.32, Zw: 0.4922, Aw: [540, 1210], ringR: 920, win: [940, 395], meteor: [0.4, 1.1, 0.36, 0.62],
-    year: { x: 78, y: 300, size: 196 }, tag: { x: 88, y: 246, size: 32 }, name: { x: 84, y: 560, size: 58 }, hist: { x: 86, y: 652, size: 34 },
+    year: { x: 78, y: 300, size: 196 }, tag: { x: 88, y: 246, size: 32 }, name: { x: 84, y: 560, size: 58 }, hist: { x: 86, y: 656, size: 44 }, mapLabel: [30, 25],
     open: { x: 540, y: 520, size: 60, align: 'center' },
     lock: { x: 540, y: 150, size: 250, unit: 58, range: { y: 418, size: 42 }, align: 'center' },
     title: { x: 540, y: 500, size: 62, align: 'center' }, orbR: 290, orbD: 136, labelSize: 30,
   } : {
     A: [1316, 540], Zs: 1.45, Zw: 0.5025, Aw: [1300, 540], ringR: 920, win: [1060, 446], meteor: [0.66, 1.08, -0.05, 0.34],
-    year: { x: 138, y: 250, size: 236 }, tag: { x: 150, y: 192, size: 34 }, name: { x: 146, y: 548, size: 62 }, hist: { x: 148, y: 648, size: 38 },
+    year: { x: 138, y: 250, size: 236 }, tag: { x: 150, y: 192, size: 34 }, name: { x: 146, y: 548, size: 62 }, hist: { x: 148, y: 650, size: 44 }, mapLabel: [28, 23],
     open: { x: 146, y: 452, size: 62, align: 'left' },
     lock: { x: 132, y: 150, size: 300, unit: 64, range: { y: 468, size: 46 }, align: 'left' },
     title: { x: 146, y: 560, size: 66, align: 'left' }, orbR: 290, orbD: 136, labelSize: 31,
@@ -187,6 +202,10 @@ class Sky {
     this.orb = document.createElement('canvas');
     this.orb.width = this.orb.height = this.L.orbD + 4;
     this.octx = this.orb.getContext('2d');
+    // 星圖落地：高雄地圖先畫在離屏畫布（要套一圈由圈心往外的遮罩），再疊到主畫面
+    this.mapCv = document.createElement('canvas');
+    this.mapCv.width = W; this.mapCv.height = H;
+    this.mctx = this.mapCv.getContext('2d');
 
     // 文字：年份（細體、會交叉淡換）、校名、沿革
     const L = this.L;
@@ -224,7 +243,25 @@ class Sky {
     });
     this.lock.innerHTML = `<span style="font-weight:100;font-size:${L.lock.size}px;letter-spacing:.03em;text-shadow:0 0 34px rgba(239,188,75,0.45),0 0 2px rgba(255,240,210,0.5)">30</span>`
       + `<span style="font-weight:700;font-size:${L.lock.unit}px;letter-spacing:.14em;margin-left:${Math.round(L.lock.unit * 0.4)}px;color:#FFF6E2;text-shadow:0 0 22px rgba(239,188,75,0.3)">週年</span>`;
-    this.lockRange = new KText(this.root, ['1997 — 2027'], { size: L.lock.range.size, weight: 400, color: '#F0DDA8', ls: 0.2, x: L.lock.x + (centered ? 0 : 14), y: L.lock.range.y, align: L.lock.align, w: 1000 });
+    // 「高雄 · 1997 — 2027」：地名用粗體米白（比年份重），中間一個小金點
+    this.lockRange = el('div', this.root, {
+      position: 'absolute', left: centered ? '0' : px(L.lock.x + 14), top: px(L.lock.range.y), width: centered ? px(W) : 'auto', textAlign: L.lock.align,
+      fontFamily: "'LINE Seed TW'", fontSize: px(L.lock.range.size), lineHeight: '1.2', whiteSpace: 'nowrap', opacity: 0,
+    });
+    this.lockRange.innerHTML = `<span style="font-weight:700;letter-spacing:.3em;color:#FFF6E2;text-shadow:0 0 20px rgba(239,188,75,0.3)">高雄</span>`
+      + `<span style="display:inline-block;width:${Math.round(L.lock.range.size * 0.16)}px;height:${Math.round(L.lock.range.size * 0.16)}px;border-radius:50%;background:#EFBC4B;vertical-align:middle;margin:0 ${Math.round(L.lock.range.size * 0.62)}px 0 ${Math.round(L.lock.range.size * 0.32)}px;position:relative;top:-0.06em"></span>`
+      + `<span style="font-weight:400;letter-spacing:.2em;color:#F0DDA8">1997 — 2027</span>`;
+    // 星圖落地的區名與水的名字（比五校的標籤小、淡、字距寬，一眼分得出是地名不是校名）
+    this.mapLabels = SKY_MAP_LABELS.map((m) => {
+      const water = m.kind === 'water';
+      const d = el('div', this.root, {
+        position: 'absolute', left: 0, top: 0, whiteSpace: 'nowrap', fontFamily: "'LINE Seed TW'", fontWeight: 400,
+        fontSize: px(L.mapLabel[water ? 1 : 0]), letterSpacing: water ? '.22em' : '.36em', lineHeight: '1',
+        color: water ? 'rgba(178,224,214,0.9)' : 'rgba(214,230,214,0.92)', opacity: 0, textShadow: '0 0 12px rgba(5,12,9,0.95), 0 0 3px rgba(5,12,9,0.8)',
+      });
+      d.textContent = m.text;
+      return { ...m, el: d };
+    });
     this.labels = {};
     for (const k of SKY_ORDER) {
       const d = el('div', this.root, {
@@ -365,6 +402,8 @@ class Sky {
       this.drawStarCore(pY[0], pY[1], 3 + pre * 22, 0.25 + pre * 0.75, pre * 0.6);
     }
 
+    // 星圖落地：圈裡的高雄（畫在星環、星座線底下）
+    this.drawMap(f, cam);
     // 三十年的星環（只在拉遠時看得到）
     this.drawRing(f, cam);
     // 星座線
@@ -402,8 +441,28 @@ class Sky {
         setStyle(this.lock, 'transform', `translate3d(0,${((1 - pin) * 16 - pout * 16).toFixed(2)}px,0) scale(${(1 + (1 - pin) * 0.06).toFixed(4)})`);
       }
     }
-    this.lockRange.update(f, 1452, 1546, { stagger: 1.2, dur: 24, rise: 0.25, blur: 10, outDur: 16 });
+    {
+      const pin = E.outQuint(prog(f, 1452, 1482)), pout = E.inOut(prog(f, 1546, 1562));
+      const o = pin * (1 - pout);
+      setStyle(this.lockRange, 'opacity', o.toFixed(3));
+      if (o > 0) {
+        const bl = (1 - pin) * 10 + pout * 5;
+        setStyle(this.lockRange, 'filter', bl > 0.05 ? `blur(${bl.toFixed(2)}px)` : 'none');
+        setStyle(this.lockRange, 'transform', `translate3d(0,${((1 - pin) * 12 - pout * 8).toFixed(2)}px,0)`);
+      }
+    }
     this.title.update(f, 1462, 1546, { stagger: 1.6, dur: 28, rise: 0.25, blur: 14, outDur: 16 });
+    // 區名與水的名字：地圖鋪到那裡才出來
+    {
+      const vis = this.mapVis(f, cam);
+      for (const [i, m] of this.mapLabels.entries()) {
+        const a = E.out(prog(f, SKY_MAP_IN + 20 + i * 5, SKY_MAP_IN + 48 + i * 5)) * (1 - E.inOut(prog(f, 1544, 1562))) * Math.min(1, vis * 1.2);
+        if (a <= 0.004) { setStyle(m.el, 'opacity', '0'); continue; }
+        const p = skyProject(m.at, cam, 1);
+        setStyle(m.el, 'transform', `translate3d(${p[0].toFixed(1)}px,${p[1].toFixed(1)}px,0) translate(-50%,-50%)`);
+        setStyle(m.el, 'opacity', (a * (m.kind === 'water' ? 0.8 : 0.86)).toFixed(3));
+      }
+    }
     // 五校標籤都排在星環裡面：義華在星的左下、明華與仁武在左、崇德在正上方、國際在右
     for (const [i, k] of SKY_ORDER.entries()) {
       const lab = this.labels[k];
@@ -418,6 +477,88 @@ class Sky {
       setStyle(lab, 'transform', `translate3d(${at[0].toFixed(1)}px,${at[1].toFixed(1)}px,0)`);
       setStyle(lab, 'opacity', a.toFixed(3));
     }
+  }
+
+  /* 地圖整體的能見度：星環合起來才有；鏡頭衝進明華那顆星時跟著收掉 */
+  mapVis(f, cam) {
+    if (f < SKY_MAP_IN - 4) return 0;
+    return (1 - E.inOut(prog(f, 1552, 1578))) * (1 - smooth(1.0, 3.2, cam.Z));
+  }
+
+  /* 星圖落地：星環合起來的那一拍，圈裡浮出高雄。區界是細虛線（像星圖上的星座界線，和五校之間的實線分得開），
+     愛河是一道光，湖是微亮的水面。從圈心往外鋪開，到星環邊上淡掉；線寬固定用畫面上的 px，不跟著鏡頭縮放變粗。 */
+  drawMap(f, cam) {
+    const vis = this.mapVis(f, cam);
+    if (vis <= 0.004) return;
+    const grow = E.outQuint(prog(f, SKY_MAP_IN - 4, SKY_MAP_IN + 46));
+    if (grow <= 0) return;
+    const ctx = this.ctx, m = this.mctx, L = this.L, Z = cam.Z;
+    const age = f - SKY_MAP_IN;
+    const flash = age >= 0 ? Math.exp(-age / 24) : 0;          // 剛鋪開時亮一點，再沉下來
+    const shimmer = 0.92 + 0.08 * Math.sin(f * 0.06);
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.globalCompositeOperation = 'source-over';
+    m.globalAlpha = 1;
+    m.clearRect(0, 0, W, H);
+    // 星空座標 → 畫面
+    const c = Math.cos(cam.R), s = Math.sin(cam.R);
+    m.setTransform(c * Z, s * Z, -s * Z, c * Z, cam.A[0] - (c * cam.T[0] - s * cam.T[1]) * Z, cam.A[1] - (s * cam.T[0] + c * cam.T[1]) * Z);
+    const path = (fl, close) => {
+      m.beginPath();
+      m.moveTo(fl[0], fl[1]);
+      for (let i = 2; i < fl.length; i += 2) m.lineTo(fl[i], fl[i + 1]);
+      if (close) m.closePath();
+    };
+    m.lineJoin = 'round'; m.lineCap = 'round';
+    // 湖：一片微亮的水面＋細外框
+    for (const w of SKY_MAP.water) {
+      path(w.ring, true);
+      m.fillStyle = `rgba(150,214,200,${(0.13 + 0.1 * flash).toFixed(3)})`;
+      m.fill();
+      m.strokeStyle = `rgba(190,236,222,${(0.5 + 0.3 * flash).toFixed(3)})`;
+      m.lineWidth = 1.1 / Z;
+      m.stroke();
+    }
+    // 愛河：一道光（外面一層寬而淡、裡面一條細而亮）
+    for (const r of SKY_MAP.river) {
+      path(r, false);
+      m.strokeStyle = `rgba(150,214,200,${(0.12 + 0.1 * flash).toFixed(3)})`;
+      m.lineWidth = 8 / Z;
+      m.stroke();
+      m.strokeStyle = `rgba(206,242,230,${((0.62 + 0.3 * flash) * shimmer).toFixed(3)})`;
+      m.lineWidth = 1.7 / Z;
+      m.stroke();
+    }
+    // 區界：細虛線
+    m.setLineDash([7 / Z, 7 / Z]);
+    m.strokeStyle = `rgba(232,226,196,${(0.5 + 0.3 * flash).toFixed(3)})`;
+    m.lineWidth = 1.3 / Z;
+    for (const b of SKY_MAP.border) { path(b, false); m.stroke(); }
+    m.setLineDash([]);
+    // 遮罩：由圈心往外鋪開，到星環邊上淡掉（稍微超出一點點，線才不會齊齊斷在圈上）
+    const pc = skyProject([0, 0], cam, 1);
+    const R = L.ringR * Z * 1.07 * grow;
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.globalCompositeOperation = 'destination-in';
+    const g = m.createRadialGradient(pc[0], pc[1], 0, pc[0], pc[1], Math.max(1, R));
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(0.84, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    m.fillStyle = g;
+    m.fillRect(0, 0, W, H);
+    m.globalCompositeOperation = 'source-over';
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = vis;
+    ctx.drawImage(this.mapCv, 0, 0);
+    // 鋪開的前緣：一圈很淡的光跟著往外走
+    if (grow < 0.995) {
+      ctx.globalAlpha = 1;
+      ctx.strokeStyle = `rgba(206,242,230,${(0.34 * (1 - grow) * vis).toFixed(3)})`;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath(); ctx.arc(pc[0], pc[1], Math.max(1, R * 0.92), 0, 6.283); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
   }
 
   /* 三十年的星環：一圈細線＋三十顆年份星。還沒到的年份是小空心圓；到了那一年亮成金色的星（校園成立的那五年大一點）。

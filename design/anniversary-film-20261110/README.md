@@ -30,11 +30,13 @@
      裁成 16:9 鏡頭。每個鏡頭的框避開燒入字幕與校徽；慢動作用 RIFE 4.26 補幀（`rife.py`，網路結構自己重寫、
      權重只載入張量）。剪接點以影格精確計算，算完自動掃描是否跨到別的鏡頭。
    - `make_sky.py`：第一、二幕〈星圖〉的夜空底圖（domain-warp fbm 的深綠星雲、稜線雜訊的近景塵埃）與五校實景照。
+   - `make_map.mjs`：第 18 小節圈裡那張高雄地圖的線條（區界、愛河、湖），從官網 30 週年頁地圖的同一份資料換成星空座標，
+     寫到 `film/map-data.js`（已進版控；官網那份資料沒變就不用重跑）。
    - `build_crest_layers.py`：30 週年校徽去背後拆成皇冠、六顆星、左右月桂、兩個孩子、IVY KIDS、30th 緞帶共 12 層。
    - `make_paper.py`：第五幕的米白紙紋。
 2. **畫面**（`film/`）：`index.html`＋`film.js` 是一個 1920×1080 的舞台，`window.seek(frame)` 依格數決定所有東西的位置
    （沒有 CSS 動畫、沒有計時器）。`sky.js` 是第一、二幕〈星圖〉：canvas 加色合成的視差星空、星點亮、寬銀幕光窗、
-   依五校真實位置連成的星座、星軌與記憶光球，以及圍著星座、一年亮一顆的「三十年的星環」（設計見 TREATMENT.md 最後兩節）；`film.js` 是影片段的字卡、
+   依五校真實位置連成的星座、星軌與記憶光球、圍著星座一年亮一顆的「三十年的星環」，以及星環合起來時圈裡浮出的高雄地圖（設計見 TREATMENT.md 最後三節）；`film.js` 是影片段的字卡、
    逐字浮現的字、第五幕校徽逐層組裝與片尾。
 3. **算圖**：`scripts/render.mjs` 起本機靜態伺服器、用無頭 Chromium 逐格截圖，送進 ffmpeg 存成近無損分段（BT.709）。
 4. **配樂**：`music/`，見該資料夾 README。**音效**：`scripts/foley.py` 依〈星圖〉的格數合成光與空氣的聲音
@@ -47,6 +49,7 @@
 cd design/anniversary-film-20261110/scripts
 python3 prepare_footage.py build
 python3 make_sky.py && python3 build_crest_layers.py && python3 make_paper.py
+node make_map.mjs   # 官網的地圖資料有變才需要
 node render.mjs range 0 4320 --workers=3
 python3 foley.py && python3 mix_final.py
 python3 assemble.py
@@ -61,10 +64,12 @@ LINE Seed TW（官方 zip）與 Source Sans 3 字型檔放在 `output/anniversar
 
 ## 內容規則（沿用官網）
 
-- 年份、沿革、標語全部取自官網已上線的文字：`web/app/utils/anniversary/timeline.ts` 的沿革、
+- 年份、區名、標語全部取自官網已上線的內容：`web/app/utils/anniversary/timeline.ts` 的沿革（年份與區名）、
   `site-fixture.json` 的「孩子的第一所學校，也是第二個家。」「在遊戲裡，慢慢長大。」「每一天都有新發現」
   「把每個孩子，放在心上。」「從一間幼兒園，長成五所校園。」頁尾「陪伴每一個孩子，長成自己喜歡的樣子。」、
   30 週年頁的「從義華的第一間，到現在高雄的五所校園。」。
+  新寫的字只有：星軌那段的「一年，又一年。」，以及五校各一行的說明（2026-11-12 使用者同意改成接力的一句話，
+  只用成立年份的間隔與區名，見 TREATMENT.md 最後一節）。
 - 影像全部是常春藤自己的照片與影片；不寫人數、活動、故事；外師特寫等以大人為主角的鏡頭不用。
 - 顏色只用品牌色；片尾字標依品牌規範（中文 Noto Sans TC 600 Logo 綠、英文 Source Sans 3 400 Logo 藍、與中文等寬）。
 
@@ -72,7 +77,9 @@ LINE Seed TW（官方 zip）與 Source Sans 3 字型檔放在 `output/anniversar
 
 - 影片素材：常春藤明華校〈寶貝的快樂城堡〉、〈2026 畢業典禮宣傳片〉（園方提供）。
 - 照片、30 週年校徽：常春藤官網素材（30 週年校徽依業主 2026-10-04 同意用於 30 週年內容）。
-- 五校位置：官網週年頁地圖資料的門牌座標（`web/app/utils/anniversary/map-data.ts`，只取座標）。
+- 五校位置與第 18 小節圈裡的高雄地圖：官網週年頁的地圖資料（`web/app/utils/anniversary/map-data.ts`）。
+  區界＝內政部國土測繪中心鄉鎮市區界線（政府資料開放授權條款）；湖泊、愛河＝© OpenStreetMap 貢獻者（ODbL）。
+  **公開發布時影片說明要標這一行出處**（DELIVERY.md 的貼文說明已經帶上）。
 - 字型：LINE Seed TW（SIL OFL 1.1）、Source Sans 3（SIL OFL 1.1）、Noto Sans TC 品牌子集（SIL OFL 1.1）。
 - 鋼琴取樣：Salamander Grand Piano V3，Alexander Holm，CC BY 3.0。
 - 其他樂器：MuseScore General SoundFont（MIT）。
