@@ -107,8 +107,8 @@ async def count_case_change(request: Request, limit: ratelimit.Limit, visit_requ
 
 
 def parent_email_enabled(request: Request) -> bool:
-    """與公開預約設定的 parent_email_enabled 同一個判斷：沒設 SMTP 就不會真的寄給家長。"""
-    return bool(request.app.state.settings.smtp_host)
+    """與公開預約設定的 parent_email_enabled 同一個判斷：沒設定寄信（SMTP 或 Resend）就不會真的寄給家長。"""
+    return request.app.state.settings.real_email_enabled
 
 
 class TokenExchangeRequest(BaseModel):
@@ -400,7 +400,7 @@ async def create_parent_access_link(
     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
 
     有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在
-    真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。"""
+    真的會寄出（另外還要有設定寄信：SMTP 或 Resend）時為 True，否則園方要自行把連結交給家長。"""
     result = await db.execute(
         select(VisitRequest)
         .options(selectinload(VisitRequest.slot))
@@ -426,8 +426,8 @@ async def create_parent_access_link(
     )
     mail_parent = bool(visit_request.email)
     if mail_parent:
-        # 沒設 SMTP 也照排，但下一輪背景工作會把這封標成略過（notifications/service._dispatch_parent_email：
-        # 沒有寄信管道就回 False），之後才設好 SMTP 也不會補寄；所以 emailed 在沒設 SMTP 時是 False，
+        # 沒設定寄信也照排，但下一輪背景工作會把這封標成略過（notifications/service._dispatch_parent_email：
+        # 沒有寄信管道就回 False），之後才設好寄信也不會補寄；所以 emailed 在沒設定寄信時是 False，
         # 園方要自行把連結交給家長。
         await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     emailed = mail_parent and parent_email_enabled(request)
@@ -471,7 +471,7 @@ async def resend_parent_confirmation(
     db: AsyncSession = Depends(get_db_session),
 ) -> ResendConfirmationOut:
     """重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。
-    沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。"""
+    沒設定寄信（SMTP 或 Resend）時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。"""
     result = await db.execute(
         select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == visit_request_id)
     )

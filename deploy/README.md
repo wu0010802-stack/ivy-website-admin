@@ -14,6 +14,23 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 寄信：Resend（2026-11-11 程式已備妥，正式站尚未設定）
+
+正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
+
+1. **Resend 帳號與網域**：在 <https://resend.com> 建帳號，Domains → Add Domain。建議用子網域（例如 `send.ivykidschool.com`），不要直接用根網域：根網域的 MX／SPF 是 Google Workspace 的，分開才不會互相影響寄信信譽。區域選離台灣最近的（Tokyo）。
+2. **DNS（Cloudflare）**：把 Resend 列出的紀錄照抄進 Cloudflare（DKIM 的 TXT、回信路徑的 MX 與 SPF TXT），全部**灰雲（DNS only）**。回 Resend 按 Verify，等狀態變成 Verified。紀錄內容以 Resend 主控台顯示的為準，不要照別處的範例填。
+3. **API 金鑰**：API Keys → Create，權限選 Sending access、限定剛驗證的網域。金鑰只顯示一次，直接貼進 Railway，不要貼進對話或檔案。
+4. **Railway api 變數**：`WEBSITE_RESEND_API_KEY`（金鑰）、`WEBSITE_RESEND_FROM`（例如 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，網域要和第 1 步驗證的一致）。確認沒有設 `WEBSITE_SMTP_HOST`（兩個同時設 api 會啟動失敗）。存檔後 Railway 會重新部署。
+5. **驗證**：登入後台「系統 → 系統狀態」，寄信那一列應顯示「寄件地址 …，經 Resend 寄出」；按「寄一封測試信給我」，到信箱確認收到、沒進垃圾信。再用自己的 Email 在官網預約一次，確認收到預約成功信。
+
+上線後要知道：
+
+- 設好之後，家長確認信、變更／取消信、參觀前 24 小時提醒、停課通知、重設密碼連結都會開始真的寄出；提醒信第一輪會替接下來 24 小時內的參觀補排（見 `docs/website-admin/operations.md`）。之前因為沒設定而略過的信不會補寄。
+- Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
+- 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
+- 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
 ## 2026-11-11 後台「內容興趣」統計上線（main CI 部署，migration `d2f6b8a13c47` 新增一張表）
 
 - **內容**：`08833a3b`（PR #69 squash，README「2026-11-11 後台「內容興趣」統計」），分支 `claude/busy-johnson-er03ju`。官網回報各頁停留、捲動、區塊停留、互動、消息讀完與來源類別；API 新增 `POST /public/engagement`、`GET /admin/analytics/engagement`；後台「數據」頁多一段「內容興趣」。使用者要求併入 main。
@@ -2485,6 +2502,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
+| api | `WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`（選填，2026-11-11；經 Resend 的 HTTPS API 寄信。兩個要一起設、和 `WEBSITE_SMTP_HOST` 只能擇一；寄件地址的網域要先在 Resend 驗證。步驟見「寄信：Resend」） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |

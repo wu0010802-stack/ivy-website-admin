@@ -2707,7 +2707,7 @@ export interface paths {
          *     不存資料庫（只存雜湊），由密鑰與 token 列 id 重算；稽核與歷程都只記產生這件事。
          *
          *     有 Email 時排一封「預約已變更」給家長（信在寄件當下重算連結）。emailed 只有在
-         *     真的會寄出（另外還要有設定 SMTP）時為 True，否則園方要自行把連結交給家長。
+         *     真的會寄出（另外還要有設定寄信：SMTP 或 Resend）時為 True，否則園方要自行把連結交給家長。
          */
         post: operations["create_parent_access_link_api_website_v1_admin_visit_requests__visit_request_id__access_link_post"];
         delete?: never;
@@ -2914,7 +2914,7 @@ export interface paths {
         /**
          * Resend Parent Confirmation
          * @description 重寄預約成功信給家長。連結沿用目前有效的那條（寄件時重算），沒有就補發。
-         *     沒設 SMTP 時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。
+         *     沒設定寄信（SMTP 或 Resend）時回 409 PARENT_EMAIL_DISABLED：不排信、不記稽核，園方改把連結直接交給家長。
          */
         post: operations["resend_parent_confirmation_api_website_v1_admin_visit_requests__visit_request_id__resend_confirmation_post"];
         delete?: never;
@@ -9505,7 +9505,7 @@ export interface components {
         /** SystemEmailTestOut */
         SystemEmailTestOut: {
             /** Error */
-            error?: ("not_configured" | "auth_failed" | "connect_failed" | "rejected" | "timeout" | "other") | null;
+            error?: ("not_configured" | "auth_failed" | "connect_failed" | "rejected" | "quota" | "timeout" | "other") | null;
             /** Ok */
             ok: boolean;
         };

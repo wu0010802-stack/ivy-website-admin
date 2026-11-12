@@ -861,7 +861,7 @@ class ParentAccessLinkCreatedOut(BaseModel):
     manage_url_fragment: str
     expires_at: datetime
     replaced_previous: bool
-    # 會寄信給家長：有 Email、案件有場次、而且有設定 SMTP。False 時園方要自行轉交連結。
+    # 會寄信給家長：有 Email、案件有場次、而且有設定寄信（SMTP 或 Resend）。False 時園方要自行轉交連結。
     emailed: bool = False
 
 

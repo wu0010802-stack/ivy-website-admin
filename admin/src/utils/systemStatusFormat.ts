@@ -12,7 +12,7 @@ export const LEVEL_LABELS: Record<StatusLevel, string> = { ok: '正常', attenti
 export const LEVEL_TAG_TYPES: Record<StatusLevel, 'success' | 'danger' | 'info'> = { ok: 'success', attention: 'danger', info: 'info', off: 'info' }
 
 export const ITEM_LABELS: Record<string, string> = {
-  smtp: '寄信（SMTP）',
+  smtp: '寄信',
   line_messaging: 'LINE 群組推播',
   web_push: '手機推播',
   turnstile: '機器人驗證（Turnstile）',
@@ -58,12 +58,13 @@ export const STEP_LABELS: Record<string, string> = {
   retention: '個資保存清理',
 }
 
-// 後端實際只會回前五種；not_configured 走 409 EMAIL_NOT_CONFIGURED，這裡留著當防呆，兩邊同一句。
+// 後端實際只會回後六種；not_configured 走 409 EMAIL_NOT_CONFIGURED，這裡留著當防呆，兩邊同一句。
 export const TEST_EMAIL_ERROR_TEXT: Record<string, string> = {
   not_configured: '還沒設定寄信',
   auth_failed: '寄信伺服器帳號或密碼錯誤',
   connect_failed: '連不上寄信伺服器，請檢查主機、port 或加密設定',
   rejected: '寄信伺服器拒收（寄件或收件地址被擋）',
+  quota: '寄信服務的額度用完了，或寄得太快，請晚點再試',
   timeout: '寄信伺服器太久沒有回應',
   other: '寄信伺服器回了其他錯誤',
 }
@@ -135,6 +136,8 @@ export function describeItem(item: SystemStatusItem, section: StatusSection): st
   if (section === 'datasets') return describeDataset(item, d)
   switch (item.key) {
     case 'smtp':
+      // 經 Resend 的 HTTPS API 寄（2026-11-11）：沒有主機與 port。
+      if (item.level === 'ok' && d.provider === 'resend') return `寄件地址 ${text(d.sender) || '（未設定）'}，經 Resend 寄出`
       if (item.level === 'ok') return `寄件地址 ${text(d.sender) || '（未設定）'}，主機 ${text(d.host)}:${count(d.port)}（${SECURITY_LABELS[text(d.security)] ?? text(d.security)}）`
       if (d.sink) return '寫入本機資料夾（測試用）'
       return '還沒設定寄信：家長確認信、參觀提醒、停課通知與重設密碼連結都寄不出去'
