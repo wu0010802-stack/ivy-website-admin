@@ -64,8 +64,8 @@ def public_choices(today: date) -> list[dict[str, str]]:
     choices = [{"value": ASAP, "label": "盡快（這學期）"}]
     for offset in range(1, PUBLIC_CHOICE_TERMS + 1):
         term = _term(current + offset)
-        year, month = term_start_month(term)
-        choices.append({"value": format_term(term), "label": f"{year} 年 {month} 月"})
+        # 2026-11-12 選項文字由開學月份改「115 學年下學期」。
+        choices.append({"value": format_term(term), "label": _term_text(term)})
     choices.append({"value": UNSURE, "label": "還不確定"})
     return choices
 

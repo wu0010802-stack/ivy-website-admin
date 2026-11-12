@@ -23,7 +23,7 @@ export const REFERRAL_OPTIONS = [
   { value: 'other', label: '其他' }
 ] as const
 
-// 2026-10-15 預計入學時間（選填）：盡快、接下來四個學期的開學月份、還不確定。學期規則同後端
+// 2026-10-15 預計入學時間（選填）：盡快、接下來四個學期、還不確定。2026-11-12 選項文字由開學月份改「115 學年下學期」。學期規則同後端
 // app/admissions/academic.py 的 current_term（8/1 起上學期、2/1 起下學期、1 月仍屬上學期）；值是「民國學年-學期」，
 // 和後端 app/booking/expected_start.py 讀同一份案例 contracts/expected-start-cases.json。
 export interface ExpectedStartOption { value: string; label: string }
@@ -35,8 +35,8 @@ function currentTerm(today: string): [number, number] {
   return [year - 1912, 1]
 }
 
-function termMonthText(schoolYear: number, semester: number): string {
-  return semester === 1 ? `${schoolYear + 1911} 年 9 月` : `${schoolYear + 1912} 年 2 月`
+function termText(schoolYear: number, semester: number): string {
+  return `${schoolYear} 學年${semester === 1 ? '上' : '下'}學期`
 }
 
 /** today 是台北日期（YYYY-MM-DD，taipeiDate()）。 */
@@ -48,7 +48,7 @@ export function expectedStartOptions(today: string): ExpectedStartOption[] {
     const index = current + offset
     const termYear = Math.floor(index / 2)
     const termSemester = (index % 2) + 1
-    options.push({ value: `${termYear}-${termSemester}`, label: termMonthText(termYear, termSemester) })
+    options.push({ value: `${termYear}-${termSemester}`, label: termText(termYear, termSemester) })
   }
   options.push({ value: 'unsure', label: '還不確定' })
   return options
@@ -59,7 +59,7 @@ export function expectedStartText(value: string): string {
   if (value === 'asap') return '盡快'
   if (value === 'unsure') return '還不確定'
   const match = /^(1\d{2})-([12])$/.exec(value)
-  return match ? termMonthText(Number(match[1]), Number(match[2])) : value
+  return match ? termText(Number(match[1]), Number(match[2])) : value
 }
 
 // 規格 190：方便聯絡時段是固定選項，送代碼、顯示中文。API 也接受舊的
