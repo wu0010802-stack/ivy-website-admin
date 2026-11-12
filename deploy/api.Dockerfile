@@ -1,6 +1,6 @@
-# base image 以 multi-arch index digest 釘版（2026-09-29 讀自 Docker Hub）；tag 留給人看。
-# 更新：換 tag 或定期吃安全更新時，重新讀 digest 後兩個一起改（步驟見 deploy/README.md）。
-FROM python:3.12-slim@sha256:f77ac9e44ae96ef2c90b8053ea08c31f8be030f824196b0ae4db6d462c84e51f
+# base image 以 multi-arch index digest 釘版（2026-11-12 讀自 Docker Hub）；tag 留給人看。
+# 更新：Dependabot（.github/dependabot.yml）每週一會開 PR 換同 tag 的新 digest；換 tag 時重新讀 digest 後兩個一起改。
+FROM python:3.12-slim@sha256:5e2bdb1b0d542d5039cffb8181c65930093949194a65c365dfb1b0fe13a4fa5b
 # 執行期以 uid 10001 跑、又設了 PYTHONDONTWRITEBYTECODE，.pyc 永遠寫不進映像：每次開機（alembic、
 # check-schema、uvicorn 三個行程）都要重新編譯。所以在 build 時就把 bytecode 編好
 # （UV_COMPILE_BYTECODE 編 .venv 的套件，compileall 編 app／migrations；2026-10-20）。
