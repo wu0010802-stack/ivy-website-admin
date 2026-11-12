@@ -21,8 +21,8 @@
 - **帳號**（`backend/app/auth/routes.py`）：總管理者直接設定新密碼時，也解除對方的 Google／LINE 綁定。原本只有寄重設連結會解除，帳號被盜時直接重設，攻擊者綁上的 LINE 還能登回來。後台「使用者」頁的說明與成功訊息跟著改（有綁定才提）。
 - **定期工作的清理**（`workers/maintenance.py`、`operations/audit_service.py`、`auth/service.py`、`auth/password_reset.py`、`booking/access_service.py`）：
   - 操作紀錄的來源 IP 與 User-Agent 超過 `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（預設 365，下限 30）天就清成 NULL，紀錄照留；
-  - 失效超過 30 天的後台 session、重設連結、家長 session 刪除。
-  - 分批、一批一個交易，每輪最多 2 萬筆；系統狀態頁多兩個步驟名稱。沒有 migration。
+  - 失效超過 30 天的後台 session、重設連結、家長 session 刪除。家長修改連結本身（`parent_access_tokens`）刻意不刪：送單重播要靠「這個案件發過幾條連結」判斷能不能拿回連結（2026-10-06 稽核）。
+  - 分批、一批一個交易，每輪最多 2 萬筆；系統狀態頁多兩個步驟名稱。沒有 migration；查過 PostgreSQL 的外鍵，沒有表參照這幾張。
 - **區域分析資料同步**（`admissions/geo/sync.py`）：原本只檢查 https，現在只能連 `SOURCE_HOSTS`（由各資料的固定來源網址推出，加上 `WEBSITE_GEO_*_URL` 設定的主機），轉址到其他主機會在送出前被擋。
 - **依賴**：
   - 新增 `.github/dependabot.yml`：每週一檢查 `deploy/*.Dockerfile` 同 tag 的新 digest，以及 workflow 的 action SHA；忽略 Python／Node 大小版本。
@@ -32,7 +32,12 @@
   - `npm --prefix web run typecheck` 過；web 全套 143 檔 1965 項全過。新測試：`api-proxy`（標頭白名單、engagement、504、閒置斷線）、`script-csp`（本體與 Teleport 的 script 不算雜湊）、`security-headers`、`admin-host`、`cloudflare-client-ip`、`site-fixture-route`。
   - `npm --prefix admin run typecheck` 過；`usersUx`、`auditUx` 30 項過。`npm run contract:check` 一致。
   - `python3 -m unittest discover -s deploy/tests` 48 項過。
-  - 後端：`test_host_cookies`、`test_public_origin`、`test_parent_access`、`test_config_isolation` 49 項過（獨立測試庫）。
+  - 後端（獨立測試庫）：
+    - `test_host_cookies`、`test_public_origin`、`test_parent_access`、`test_config_isolation` 49 項過。
+    - 帳號與重設密碼相關 5 檔 70 項過，含新的「直接設密碼與同時綁定」競態測試。
+    - `-k geo` 1343 項過，含轉址到內網、冒充主機被擋，以及整輪同步 8 台來源都連得到。
+    - `test_maintenance_housekeeping`＋`test_maintenance` 25 項過。
+    - 全套跑了一次，5111 過、1 失敗：`test_audit_coverage`，那時另一邊正在改後端；在最終程式上單獨重跑通過。全套以 CI 為準。
   - `npm run e2e:build` 後跑 stack 的 `public-csp`（11 頁沒有違規，注入的腳本、外站圖片、fetch、iframe 都被擋）、`editor-live-preview`、`booking-flow`、`media`、`password-reset`、`audit-client-info`：38 項全過。
   - PR #73 第一批提交（web、`__Host-`、依賴）的 CI 全綠。
 - **沒驗**：Docker 映像本機建置（這台機器沒有 Docker daemon，新 digest 要等 Railway 建置）；正式站的 `__Host-` cookie 實際登入（測試環境不開，只用包 middleware 的測試驗）；`NUXT_ADMIN_HOST`、`NUXT_CLOUDFLARE_CLIENT_IP` 在真網域上的行為（要先做 deploy/README 的平台設定）；iOS／Android 實機。
