@@ -5,7 +5,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
 import { api } from '../api/client'
-import { CLASS_LABELS, FORM_STEP_LABELS, SECTION_LABELS, SOURCE_LABELS, actionLabel, conversionLabel, formatDelta, formatDuration, formatShare, hourGrid, pathLabel, sectionGroups, type EngagementSummary } from '../api/engagement'
+import type { InterestView } from '../components/analytics/filters'
+import { CLASS_LABELS, FORM_STEP_LABELS, MIN_ENGAGEMENT_SAMPLES, SECTION_LABELS, SOURCE_LABELS, actionLabel, conversionLabel, formatDelta, formatDuration, formatShare, hourGrid, pathLabel, sectionGroups, type EngagementSummary } from '../api/engagement'
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const wrappers: VueWrapper[] = []
@@ -133,18 +134,33 @@ describe('內容興趣的名稱與格式', () => {
 })
 
 describe('內容興趣面板', () => {
-  async function mountPanel(data: EngagementSummary = summary()) {
+  // 2026-11-12 起一份資料分三類顯示（看了什麼／怎麼來、怎麼逛／走到預約），期間與裝置由頁首傳進來。
+  async function mountPanel(data: EngagementSummary = summary(), view: InterestView = 'content') {
     const get = vi.spyOn(api, 'get').mockResolvedValue(data as never)
-    const wrapper = mount(ContentInterestPanel, { global: { plugins: [ElementPlus] } })
+    const wrapper = mount(ContentInterestPanel, { props: { view }, global: { plugins: [ElementPlus] } })
     wrappers.push(wrapper)
     await flushPromises()
     return { wrapper, get }
   }
+  const emptySummary = (): EngagementSummary => ({
+    ...summary(), previous: null, daily: [], stories: [], classes: summary().classes.map((row) => ({ ...row, visits: 0 })), campaigns: [], hours: [],
+    totals: { visits: 0, sessions: 0, booked_sessions: 0, booked_rate: null, median_active_ms: 0, median_session_ms: 0, pages_per_session: null, mobile_sessions: 0 },
+    booking_form: { sessions: 0, no_slots_sessions: 0, invalid_sessions: 0, steps: [] }, journey: { sessions: 0, entries: [], exits: [], paths: [] },
+    campuses: summary().campuses.map((row) => ({ ...row, tab_visits: 0, map_visits: 0, visit_sessions: 0, bookings: null })),
+    pages: [], sections: [], actions: [], news: [], sources: [], conversion: [],
+  })
+  const titles = (wrapper: VueWrapper) => wrapper.findAll('.panel__head h2').map((title) => title.element.firstChild!.textContent)
 
-  it('讀近 28 天，列出各頁停留、區塊、互動、消息與來源', async () => {
+  it('三類各放哪幾張表', async () => {
+    expect(titles((await mountPanel(summary(), 'content')).wrapper)).toEqual(['造訪概況', '各頁停留', '各區塊有多少人看到', '點開了什麼', '單篇消息', '首頁點開的消息', '家長查的是哪個班別'])
+    expect(titles((await mountPanel(summary(), 'journey')).wrapper)).toEqual(['從哪裡來', '哪一則貼文或廣告帶來的', '從哪一頁進來、哪一頁離開', '最常見的瀏覽順序', '什麼時候有人看'])
+    expect(titles((await mountPanel(summary(), 'convert')).wrapper)).toEqual(['預約表單卡在哪一步', '各校的興趣與預約', '看過哪些內容的造訪比較會預約'])
+  })
+
+  it('讀近 28 天，列出各頁停留、區塊、互動與消息', async () => {
     const { wrapper, get } = await mountPanel()
     expect(get).toHaveBeenCalledWith('/admin/analytics/engagement?days=28')
-    expect(wrapper.find('h2').text()).toBe('內容興趣（近 28 天）')
+    expect(wrapper.findComponent({ name: 'ElSelect' }).exists()).toBe(false)
     const pages = wrapper.find('[data-test="interest-pages"]').text()
     expect(pages).toContain('首頁')
     expect(pages).toContain('1 分 5 秒')
@@ -161,37 +177,57 @@ describe('內容興趣面板', () => {
     expect(news).toContain('小小園丁')
     expect(news).toContain('64%')
     expect(news).toContain('已下架或改過代號的消息（gone）')
-    const sources = wrapper.find('[data-test="interest-sources"]').text()
-    expect(sources).toContain('Facebook')
-    expect(sources).toContain('13%')
     // 亂送的代碼不出現在畫面上。
     expect(wrapper.text()).not.toContain('junk')
   })
 
-  it('內容與預約：樣本夠的照比例排前面，不夠的不算比例', async () => {
-    const { wrapper } = await mountPanel()
+  it('來源在「怎麼來、怎麼逛」；這一類開頭寫期間、單位與更新時間', async () => {
+    const { wrapper } = await mountPanel(summary(), 'journey')
+    const sources = wrapper.find('[data-test="interest-sources"]').text()
+    expect(sources).toContain('Facebook')
+    expect(sources).toContain('13%')
+    const context = wrapper.find('[data-test="interest-context"]').text()
+    expect(context).toContain('期間 2026/10/15–2026/11/11')
+    expect(context).toContain('共 100 次造訪')
+    expect(context).toContain('不是人數')
+    // 「看了什麼」的造訪概況已經寫了，不重複一行。
+    expect((await mountPanel()).wrapper.find('[data-test="interest-context"]').exists()).toBe(false)
+  })
+
+  it('內容與預約：樣本夠的照比例排，不夠的收在下面、不排成一整排「樣本太少」', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
     const rows = wrapper.findAll('[data-test="interest-conversion"] tbody tr').map((row) => row.text())
-    expect(rows).toHaveLength(3)
+    expect(rows).toHaveLength(2)
     expect(rows[0]).toContain('首頁：孩子的一天')
     expect(rows[0]).toContain('14%')
     expect(rows[1]).toContain('首頁')
-    expect(rows[2]).toContain('30 週年')
-    expect(rows[2]).toContain('樣本太少')
+    expect(wrapper.text()).not.toContain('樣本太少')
+    const few = wrapper.find('[data-test="interest-conversion-few"]')
+    expect(few.find('summary').text()).toBe(`另外 1 項的造訪不到 ${MIN_ENGAGEMENT_SAMPLES} 次，先不算比例`)
+    const fewRows = few.findAll('tbody tr').map((row) => row.text())
+    expect(fewRows).toHaveLength(1)
+    expect(fewRows[0]).toContain('30 週年')
+  })
+
+  it('內容與預約：每一項都還不到樣本數時寫一句話，不放空表', async () => {
+    const data = summary()
+    data.conversion = data.conversion.map((row) => ({ ...row, sessions: 5, booked_sessions: 0, booked_rate: 0 }))
+    const { wrapper } = await mountPanel(data, 'convert')
+    expect(wrapper.find('[data-test="interest-conversion"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="interest-conversion-pending"]').text()).toContain(`每一項的造訪都還不到 ${MIN_ENGAGEMENT_SAMPLES} 次`)
+    expect(wrapper.findAll('[data-test="interest-conversion-few"] tbody tr')).toHaveLength(3)
   })
 
   it('還沒有紀錄時寫清楚上線日，不顯示一排 0', async () => {
-    const empty: EngagementSummary = {
-      ...summary(), previous: null, daily: [], stories: [], classes: summary().classes.map((row) => ({ ...row, visits: 0 })), campaigns: [], hours: [],
-      totals: { visits: 0, sessions: 0, booked_sessions: 0, booked_rate: null, median_active_ms: 0, median_session_ms: 0, pages_per_session: null, mobile_sessions: 0 },
-      booking_form: { sessions: 0, no_slots_sessions: 0, invalid_sessions: 0, steps: [] }, journey: { sessions: 0, entries: [], exits: [], paths: [] },
-      campuses: summary().campuses.map((row) => ({ ...row, tab_visits: 0, map_visits: 0, visit_sessions: 0, bookings: null })),
-      pages: [], sections: [], actions: [], news: [], sources: [], conversion: [],
-    }
-    const { wrapper } = await mountPanel(empty)
+    const { wrapper } = await mountPanel(emptySummary())
     expect(wrapper.find('[data-test="interest-empty"]').text()).toContain('2026/11/11 上線')
     expect(wrapper.find('.stat').exists()).toBe(false)
-    for (const name of ['form', 'classes', 'stories', 'campuses', 'entries', 'paths', 'hours', 'campaigns']) expect(wrapper.find(`[data-test="interest-${name}"]`).exists()).toBe(false)
-    expect(wrapper.text()).toContain('這段期間沒有帶活動代碼的造訪')
+    for (const name of ['classes', 'stories']) expect(wrapper.find(`[data-test="interest-${name}"]`).exists()).toBe(false)
+    const journey = (await mountPanel(emptySummary(), 'journey')).wrapper
+    for (const name of ['entries', 'paths', 'hours', 'campaigns']) expect(journey.find(`[data-test="interest-${name}"]`).exists()).toBe(false)
+    expect(journey.text()).toContain('這段期間沒有帶活動代碼的造訪')
+    const convert = (await mountPanel(emptySummary(), 'convert')).wrapper
+    for (const name of ['form', 'campuses', 'conversion', 'conversion-few']) expect(convert.find(`[data-test="interest-${name}"]`).exists()).toBe(false)
   })
 
   it('第二輪：和上一期比、每日造訪、只看手機或電腦', async () => {
@@ -205,25 +241,76 @@ describe('內容興趣面板', () => {
     expect(pages).toContain('+50%')
     expect(pages).toContain('上一期沒有')
     expect(wrapper.find('[data-test="interest-news"]').text()).toContain('−50%')
-    wrapper.findAllComponents({ name: 'ElSelect' })[0]!.vm.$emit('update:modelValue', 'mobile')
+    await wrapper.setProps({ device: 'mobile' })
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/engagement?days=28&device=mobile')
     expect(wrapper.text()).toContain('只看手機')
+    await wrapper.setProps({ days: 7 })
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/analytics/engagement?days=7&device=mobile')
+  })
+
+  it('上一期完全沒有紀錄時不放「和上一期比」那一欄', async () => {
+    const data = summary()
+    data.previous = { visits: 0, sessions: 0, booked_sessions: 0, booked_rate: null, median_session_ms: 0, pages_per_session: null }
+    const { wrapper } = await mountPanel(data)
+    expect(wrapper.find('#interest-overview-title').element.closest('section')!.textContent).toContain('上一期沒有紀錄')
+    expect(wrapper.find('[data-test="interest-pages"]').text()).not.toContain('上一期')
+    expect(wrapper.find('[data-test="interest-news"]').text()).not.toContain('上一期')
+  })
+
+  it('換期間時保留舊數字、整塊淡一點，並告訴頁首正在更新', async () => {
+    const { wrapper, get } = await mountPanel()
+    let resolve!: (value: unknown) => void
+    get.mockImplementationOnce(() => new Promise(r => { resolve = r }) as never)
+    await wrapper.setProps({ days: 90 })
+    await flushPromises()
+    expect(wrapper.find('.el-skeleton').exists()).toBe(false)
+    expect(wrapper.find('.interest__view').classes()).toContain('is-updating')
+    expect(wrapper.emitted('updating')!.at(-1)).toEqual([true])
+    resolve(summary())
+    await flushPromises()
+    expect(wrapper.find('.interest__view').classes()).not.toContain('is-updating')
+    expect(wrapper.emitted('updating')!.at(-1)).toEqual([false])
   })
 
   it('第二輪：預約表單標出流失最多的一步', async () => {
-    const { wrapper } = await mountPanel()
+    const { wrapper } = await mountPanel(summary(), 'convert')
     const rows = wrapper.findAll('[data-test="interest-form"] li')
-    expect(rows.map((row) => row.find('.interest__bar-label').text())).toEqual(['1. 進到預約頁', '2. 選好校區', '3. 選了日期', '4. 選了場次', '5. 開始填資料', '6. 按了「確認預約」', '7. 預約成功'])
-    expect(rows[2]!.text()).toContain('比上一步少 17 次（流失最多）')
+    expect(rows.map((row) => row.find('.interest__step-name').text())).toEqual(['1. 進到預約頁', '2. 選好校區', '3. 選了日期', '4. 選了場次', '5. 開始填資料', '6. 按了「確認預約」', '7. 預約成功'])
+    expect(rows[2]!.text()).toContain('比上一步少 17 次')
+    expect(rows[2]!.find('.el-tag').text()).toBe('流失最多')
     expect(rows[2]!.classes()).toContain('is-worst')
     expect(rows.filter((row) => row.classes().includes('is-worst'))).toHaveLength(1)
+    expect(wrapper.findAll('[data-test="interest-form"] .el-tag')).toHaveLength(1)
     const notes = wrapper.find('[data-test="interest-form-notes"]').text()
     expect(notes).toContain('6 次')
     expect(notes).toContain('3 次')
   })
 
-  it('第二輪：班別、首頁消息、各校、瀏覽順序、時段、活動代碼', async () => {
+  it('預約表單：前一步就沒有人走到的步驟不重複寫「0%，比上一步少 0 次」', async () => {
+    const data = summary()
+    data.booking_form = {
+      sessions: 4, no_slots_sessions: 0, invalid_sessions: 0,
+      steps: [
+        { key: 'visit', sessions: 4, rate: 1 }, { key: 'campus', sessions: 2, rate: 0.5 }, { key: 'form_date', sessions: 0, rate: 0 },
+        { key: 'form_slot', sessions: 0, rate: 0 }, { key: 'form_contact', sessions: 0, rate: 0 }, { key: 'form_submit', sessions: 0, rate: 0 }, { key: 'booking_done', sessions: 0, rate: 0 },
+      ],
+    }
+    const { wrapper } = await mountPanel(data, 'convert')
+    const rows = wrapper.findAll('[data-test="interest-form"] li')
+    expect(rows[1]!.find('.interest__bar-note').text()).toBe('50%，比上一步少 2 次')
+    expect(rows[2]!.find('.interest__bar-note').text()).toBe('0%，比上一步少 2 次')
+    for (const row of rows.slice(3)) {
+      expect(row.find('.interest__bar-note').exists()).toBe(false)
+      expect(row.classes()).toContain('is-unreached')
+    }
+    // 兩步各少 2 次：只標前面那一步。
+    expect(rows.filter((row) => row.classes().includes('is-worst'))).toHaveLength(1)
+    expect(rows[1]!.classes()).toContain('is-worst')
+  })
+
+  it('第二輪：班別與首頁消息', async () => {
     const { wrapper } = await mountPanel()
     const classes = wrapper.findAll('[data-test="interest-classes"] li').map((row) => row.text())
     expect(classes[2]).toContain('小班')
@@ -231,9 +318,17 @@ describe('內容興趣面板', () => {
     const stories = wrapper.find('[data-test="interest-stories"]').text()
     expect(stories).toContain('秋季校園開放日')
     expect(stories).toContain('活動')
+  })
+
+  it('第二輪：各校的興趣與預約', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
     const campuses = wrapper.findAll('[data-test="interest-campuses"] tbody tr').map((row) => row.findAll('td').map((cell) => cell.text()))
     // 沒有權限看的校區，實際預約那一格是「—」。
     expect(campuses).toEqual([['12', '5', '20', '6'], ['30', '9', '8', '—']])
+  })
+
+  it('第二輪：瀏覽順序、時段、活動代碼', async () => {
+    const { wrapper } = await mountPanel(summary(), 'journey')
     const entries = wrapper.findAll('[data-test="interest-entries"] tbody tr').map((row) => row.text())
     expect(entries).toHaveLength(3)
     expect(entries[0]).toContain('首頁')
@@ -247,6 +342,10 @@ describe('內容興趣面板', () => {
     const heat = wrapper.findAll('[data-test="interest-hours"] tbody tr')
     expect(heat).toHaveLength(7)
     expect(heat[2]!.findAll('td')[5]!.text()).toBe('50')
+    // 沒有人看的格子數字照寫，只是淡一點，有數字的格子才跳得出來。
+    expect(heat[2]!.findAll('td')[5]!.find('.interest__heat-cell').classes()).not.toContain('is-zero')
+    expect(heat[2]!.findAll('td')[0]!.text()).toBe('0')
+    expect(heat[2]!.findAll('td')[0]!.find('.interest__heat-cell').classes()).toContain('is-zero')
     const campaigns = wrapper.find('[data-test="interest-campaigns"]').text()
     expect(campaigns).toContain('open-day-1122')
     expect(campaigns).toContain('Facebook')
@@ -255,7 +354,7 @@ describe('內容興趣面板', () => {
 
   it('讀取失敗可以重新載入', async () => {
     const get = vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('boom')).mockResolvedValue(summary() as never)
-    const wrapper = mount(ContentInterestPanel, { global: { plugins: [ElementPlus] } })
+    const wrapper = mount(ContentInterestPanel, { props: { view: 'content' }, global: { plugins: [ElementPlus] } })
     wrappers.push(wrapper)
     await flushPromises()
     expect(wrapper.text()).toContain('無法讀取內容興趣統計')

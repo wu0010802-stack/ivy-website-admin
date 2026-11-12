@@ -1,3 +1,15 @@
+## 2026-11-12 成效統計 UI/UX：18 張表分成四類、整頁共用一組期間（`feature/analytics-ux-20261112`）
+
+使用者要優化正式站 `/admin/analytics`。11-11 加了內容興趣後，這一頁是 18 張表排成一長條（正式站 1470 寬約 7,542px），「官網瀏覽與速度」「內容興趣」各有一個期間選單（第二個在 1,400px 以下），「各區塊有多少人看到」旁邊空了約 1,300px，剛上線樣本少時整排都是「上一期沒有」「樣本太少」「0%，比上一步少 0 次」。規則寫在 DESIGN.md 最上方「成效統計：四類、整頁一組期間」。**只動 admin 與 stack 測試清單，後端、契約、資料都沒改；尚未 commit、尚未部署。**
+
+- **四類**：瀏覽與速度／看了什麼／怎麼來、怎麼逛／走到預約，寫在網址 `?tab=`；每一類 1,100～2,900px（原本一頁 7,542px）。舊連結 `?tab=booking` 回到第一類。
+- **期間整頁一組**（近 7／28／90 天），裝置只在後三類出現；兩者也寫在網址（`?days=`、`?device=`）。換分類不重讀資料。
+- **兩欄各自往下疊**，長表旁邊不再空一大塊；「各區塊有多少人看到」「點開了什麼」等清單一列一行（原本兩行），長度少一半。
+- **少一點沒有資訊的字**：上一期沒有紀錄時不放「和上一期比」；預約表單沒人走到的步驟只留 0，流失最多的一步改成名稱旁的小標籤；時段表的 0 淡一點；內容與預約樣本不到 20 次的項目收在表格下面。
+- **順手修掉**：手機上各頁停留、時段、各校三張表可左右捲但鍵盤到不了（axe `scrollable-region-focusable`，11-11 起就有；stack 的 axe 只跑桌機所以沒抓到）。側欄搜尋多認「速度、停留、來源、興趣」。
+- 檔案：`admin/src/views/AnalyticsView.vue`、`components/SiteTrafficPanel.vue`、`components/ContentInterestPanel.vue`、新 `components/analytics/filters.ts`、新 `__tests__/analyticsView.test.ts`；`tests/stack` 的 axe 與溢出清單加三個分類的網址。
+- 驗證：`npm --prefix admin run typecheck` 過、`npm --prefix admin run build` 過；admin 全套 `vitest run --maxWorkers=2 --testTimeout=30000` 175 檔 3385 過、1 紅（`analyticsFunnel.test.ts` 還在比對舊的頁首說明文字，改斷言後和成效統計相關 5 檔 55 項重跑全過；全套沒有再整輪重跑）。畫面用 admin `vite --port 5199`＋Playwright 攔截 API 的假資料（資料多／正式站現況兩組 × 1470／1280／390 × 四類）：水平溢出 0、axe serious／critical 0、無 console 錯誤；截圖與腳本在 Desktop repo `output/analytics-ux-20261112/`。**沒跑** `tests/stack`（本機負載太高），也還沒在正式站看過。
+
 ## 2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡（`feature/day-film-kathy-20261112`）
 
 使用者看過 `design/day-film-kathy-20261111/` 的比稿後說「先做明華幼幼・六鏡（紗不加重）」。首頁「孩子的一天」的背景影片從義華遊藝表演（25 秒 4 鏡的舞台片，一直是暫用的）換成明華校幼幼班的日常：校門口老師抱住孩子 → 小手把形狀放進套盒 → 孩子背著手排隊 → 沒有人的遊戲場與薰衣草 → 紅磚牆前溜下滑梯 → 坐在鞋櫃前自己穿鞋，溶回早上。20.6 秒循環、全部慢動作、每次換鏡都是 1 秒溶接，沒有硬切。深綠紗照舊，沒有加重。

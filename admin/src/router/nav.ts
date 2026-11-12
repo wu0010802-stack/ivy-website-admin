@@ -127,7 +127,7 @@ export const NAV_GROUPS: NavGroup[] = [
     key: 'system',
     label: '系統',
     items: [
-      { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽'] },
+      { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽', '速度', '停留', '來源', '興趣'] },
       { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'Memo', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
       { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
       // 系統狀態（2026-10-15）：寄信、推播、背景排程、公開資料的設定現況與測試信，限總管理者（system.status）。
