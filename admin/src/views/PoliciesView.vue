@@ -478,6 +478,12 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 
+/* 句中的連結（「預約文案」）只靠顏色分辨不夠（WCAG 1.4.1，axe link-in-text-block），同 style.css 的說明文字連結加底線。 */
+.seo-summary dd a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @media (max-width: 600px) {
   .seo-summary > div {
     grid-template-columns: minmax(0, 1fr);

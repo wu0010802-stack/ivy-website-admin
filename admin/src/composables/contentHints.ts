@@ -20,7 +20,6 @@ export const LENGTH_HINTS = {
   eventTitle: { max: 20, why: '活動名稱在手機上會換行' },
   momentTitle: { max: 14, why: '拍立得標題會換成兩行' },
   momentStory: { max: 120, why: '翻面後的卡片放不下，要捲動才看得完' },
-  tourIntro: { max: 80, why: '場景說明會蓋住照片' },
   bookingCta: { max: 6, why: '頁首按鈕放不下' },
   // 各頁搜尋與分享（全站設定，2026-10-12）：Google 搜尋結果只顯示標題與描述的前段，超過會被「…」截掉。
   seoTitle: { max: 32, why: '搜尋結果裡後面的字會被截掉' },
@@ -67,8 +66,6 @@ export const LENGTH_HINTS = {
   aboutFine: { max: 55, why: '補充說明會擠到頁緣' },
   aboutSource: { max: 16, why: '出處的小字會換成兩行' },
   aboutQuote: { max: 40, why: '引言會換成很多行' },
-  aboutOutroTitle: { max: 6, why: '目次最後一格放不下' },
-  aboutOutroText: { max: 45, why: '結尾說明會換成很多行' },
   // 常春藤環境頁前三章（2026-10-12 開放後台編輯）：這些數字就是擋存檔的硬上限（後端 page_schemas.py 的
   // ENVIRONMENT_* 常數＝內建長度的 1.5 倍，實測 390／1440 不破版後再下修；environmentPageDraft.test.ts 逐項比對），
   // 三處一起改：page_schemas.py、這裡、DESIGN.md 上限表。標題是逐行上限（單一數字＝每行同一個）。

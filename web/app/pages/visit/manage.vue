@@ -68,7 +68,9 @@ function consumeLink(initial = false) {
   if (!initial && !token) return
   // fragment 只用來交換 HttpOnly session。用 router.replace 清掉：router 自己記著目前位置（含 token），
   // 只改瀏覽器網址的話，之後任何導覽寫進 history.state 的 back／current 還是帶著 token。
-  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '' })
+  // force：已經開著這頁、又在同一個分頁開連結（同文件的 fragment 導覽）時，router 的目前位置還停在
+  // 沒有 hash 的 /visit/manage，不加會被當成重複導覽而略過，token 留在網址與 history.state（2026-11-12）。
+  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '', force: true })
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
@@ -273,18 +275,18 @@ async function submitEdit() {
             <form v-if="editOpen" ref="editPanel" class="parent-visit-confirm parent-visit-edit" novalidate @submit.prevent="submitEdit" @keydown.enter="focusNextFieldOnEnter($event, editPanel)">
               <h3>修改預約資料</h3>
               <div class="parent-visit-fields">
-                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" enterkeyhint="next" :aria-invalid="Boolean(editErrors.parentName)"></label>
-                <p class="parent-visit-error">{{ editErrors.parentName }}</p>
-                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" :aria-invalid="Boolean(editErrors.phone)"></label>
-                <p class="parent-visit-error">{{ editErrors.phone }}</p>
-                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)"></label>
-                <p class="parent-visit-error">{{ editErrors.email }}</p>
-                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
-                <p class="parent-visit-error">{{ editErrors.childName }}</p>
-                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
-                <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
-                <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
-                <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>
+                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" enterkeyhint="next" :aria-invalid="Boolean(editErrors.parentName)" aria-describedby="parent-edit-name-error"></label>
+                <p id="parent-edit-name-error" class="parent-visit-error">{{ editErrors.parentName }}</p>
+                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" :aria-invalid="Boolean(editErrors.phone)" aria-describedby="parent-edit-phone-error"></label>
+                <p id="parent-edit-phone-error" class="parent-visit-error">{{ editErrors.phone }}</p>
+                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)" aria-describedby="parent-edit-email-error"></label>
+                <p id="parent-edit-email-error" class="parent-visit-error">{{ editErrors.email }}</p>
+                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)" aria-describedby="parent-edit-child-name-error"></label>
+                <p id="parent-edit-child-name-error" class="parent-visit-error">{{ editErrors.childName }}</p>
+                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)" aria-describedby="parent-edit-birthdate-error"></label>
+                <p id="parent-edit-birthdate-error" class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
+                <fieldset class="parent-visit-start" aria-describedby="parent-edit-start-error"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
+                <p id="parent-edit-start-error" class="parent-visit-error">{{ editErrors.expectedStart }}</p>
               </div>
               <div class="parent-visit-actions">
                 <button class="button primary" type="submit" :disabled="busy">{{ busy ? '正在儲存…' : '儲存修改' }}</button>

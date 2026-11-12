@@ -291,6 +291,19 @@ def _public_without_retired(model: type[BaseModel]) -> Callable[[dict, str], dic
     return view
 
 
+def _public_campus_tour(payload: dict, today: str) -> dict:
+    """公開輸出的校園探索：剔除場景裡已拿掉的 intro（2026-11-12）。已發布的舊版本還帶著，不外洩。"""
+    scenes = payload.get("scenes")
+    if not isinstance(scenes, list):
+        return payload
+    return {
+        **payload,
+        "scenes": [
+            {k: v for k, v in scene.items() if k != "intro"} if isinstance(scene, dict) else scene for scene in scenes
+        ],
+    }
+
+
 _PAGE_SEO_EMPTY = {"title": "", "description": "", "share_image": "", "share_image_alt": ""}
 _without_retired_site_meta = _public_without_retired(SiteMetaPayload)
 
@@ -330,6 +343,21 @@ def _campus_profile_publish_blocker(payload: dict) -> str | None:
     return None
 
 
+def _required_text_blocker(fields: tuple[tuple[str, str], ...], consequence: str) -> Callable[[dict], str | None]:
+    """指定的文字欄位清空（含只有空白）時擋發布；存草稿照常放行（排程到期、還原也走同一個檢查）。
+
+    2026-11-12 探索式 E2E：網站標題清空後可以照常發布，首頁就沒有 <title>（瀏覽器分頁、搜尋結果與分享
+    都是空的）；首頁「關於」與五校區塊的大標清空，區塊的 aria-labelledby 指到空白標題。"""
+
+    def blocker(payload: dict) -> str | None:
+        blank = [label for key, label in fields if not str(payload.get(key) or "").strip()]
+        if blank:
+            return f"{'、'.join(blank)}不能空白，{consequence}，請填寫後再發布"
+        return None
+
+    return blocker
+
+
 @dataclass(frozen=True)
 class ContentKindConfig:
     payload_model: type[BaseModel]
@@ -362,7 +390,10 @@ class ContentKindConfig:
 
 CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     "home_about": ContentKindConfig(
-        HomeAboutPayload, shared_only=True, extract_media_refs=_extract_home_about_media_refs
+        HomeAboutPayload,
+        shared_only=True,
+        extract_media_refs=_extract_home_about_media_refs,
+        publish_blocker=_required_text_blocker((("title", "標題"),), "官網首頁的「關於常春藤」區塊會沒有標題"),
     ),
     "home_hero": ContentKindConfig(
         HomeHeroPayload,
@@ -375,9 +406,14 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         SiteMetaPayload,
         shared_only=True,
         extract_media_refs=_extract_site_meta_media_refs,
+        publish_blocker=_required_text_blocker((("title", "網站標題"),), "官網首頁會沒有分頁標題，搜尋結果與分享也會是空白"),
         public_view=_public_site_meta,
     ),
-    "home_campus_board": ContentKindConfig(HomeCampusBoardPayload, shared_only=True),
+    "home_campus_board": ContentKindConfig(
+        HomeCampusBoardPayload,
+        shared_only=True,
+        publish_blocker=_required_text_blocker((("section_title", "區塊標題"),), "官網首頁的五校區塊會沒有標題"),
+    ),
     "booking_content": ContentKindConfig(
         BookingContentPayload,
         shared_only=True,
@@ -406,7 +442,10 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
     ),
     # 關於常春藤頁（2026-10 開放後台編輯）：立體書的章節與五站固定。
     "about_page": ContentKindConfig(
-        AboutPagePayload, shared_only=True, extract_media_refs=_extract_about_page_media_refs
+        AboutPagePayload,
+        shared_only=True,
+        extract_media_refs=_extract_about_page_media_refs,
+        public_view=_public_without_retired(AboutPagePayload),
     ),
     # 常春藤環境頁前三章（2026-10-12 開放後台編輯）：保育、校園環境、餐點三章的文字與照片，
     # 項目數與便條位置固定（page_schemas.py）；第四章場景讀各校 campus_tour。
@@ -433,6 +472,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         shared_only=False,
         hq_managed=True,
         extract_media_refs=_extract_campus_tour_media_refs,
+        public_view=_public_campus_tour,
     ),
 }
 

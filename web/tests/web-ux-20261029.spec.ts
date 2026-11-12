@@ -81,7 +81,7 @@ describe('預約步驟跟著網址走', () => {
     expect(form).toContain("const DRAFT_KEY = 'ivy-visit-draft'")
     expect(form).toContain('sessionStorage.setItem(DRAFT_KEY')
     expect(form).toMatch(/submitted\.value = true\n\s*clearDraft\(\)/)
-    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })')
+    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
   })
 
   it('選好日期後把場次捲進畫面（已經看得到就不動）', () => {

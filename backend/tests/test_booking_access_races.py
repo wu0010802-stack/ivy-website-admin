@@ -174,6 +174,9 @@ async def test_parent_correcting_the_email_cuts_off_the_old_recipient_but_not_th
     old_token = _token_of(booked["manage_path"])
     await open_manage(public_client, booked["manage_path"])  # 真正的家長
     await open_manage(second_public_client, booked["manage_path"])  # 誤寄信箱的持有人
+    # 「誤寄」的前提是有設定寄信；沒設定寄信時連結不動（2026-11-12，見 test_exploratory_e2e_20261112.py）。
+    app.state.settings.smtp_host = "smtp.example.invalid"
+    app.state.settings.smtp_from = "noreply@ivy.example"
 
     response = await public_client.patch(
         f"{BASE}/public/visit-manage/me",

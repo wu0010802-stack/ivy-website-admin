@@ -6,7 +6,7 @@ assertPublishedSite(error)
 
 const policy = computed(() => data.value?.content.privacyPolicy ?? null)
 if (!policy.value) {
-  throw createError({ statusCode: 404, message: '找不到這個頁面' })
+  throw pageNotFound('找不到這個頁面')
 }
 
 usePageSeo(computed(() => data.value?.content), 'privacy')

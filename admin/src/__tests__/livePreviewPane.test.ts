@@ -68,7 +68,7 @@ describe('預覽分頁對照表', () => {
     ])
     expect(previewTargetsFor('campus_profile').find((t) => t.block === 'about-voices')!.fields).toEqual(['testimonials'])
     expect(previewTargetsFor('booking_content').map((t) => t.fields)).toEqual([['privacy_title', 'privacy_sections'], ['cta_label', 'cta_label_en']])
-    expect(previewTargetsFor('site_meta')[0]!.fields).toEqual(['header_phone_number', 'header_phone_note', 'primary_nav'])
+    expect(previewTargetsFor('site_meta')[0]!.fields).toEqual(['header_phone_number', 'primary_nav'])
   })
 
   it('校園探索：環境頁的「五所校園」一章；首頁消息與各校消息多一個消息列表頁分頁', () => {

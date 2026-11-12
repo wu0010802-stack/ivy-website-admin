@@ -263,8 +263,17 @@ describe('parent visit campus', () => {
 
   it('清掉網址 token 時一併改寫 router 的 history.state.current，返回時不會把 token 帶回網址列', () => {
     const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
-    expect(page).toMatch(/router\.replace\(\{ path: route\.path, query: route\.query, hash: '' \}\)/)
+    expect(page).toMatch(/router\.replace\(\{ path: route\.path, query: route\.query, hash: '', force: true \}\)/)
     expect(page).not.toContain('history.replaceState')
+  })
+
+  it('修改資料表單：每個欄位的錯誤訊息用 aria-describedby 接上，報讀器念得出原因（2026-11-12）', () => {
+    const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
+    for (const [field, id] of [['parentName', 'parent-edit-name-error'], ['phone', 'parent-edit-phone-error'], ['email', 'parent-edit-email-error'], ['childName', 'parent-edit-child-name-error'], ['childBirthdate', 'parent-edit-birthdate-error']]) {
+      expect(page).toContain(`:aria-invalid="Boolean(editErrors.${field})" aria-describedby="${id}"`)
+      expect(page).toContain(`<p id="${id}" class="parent-visit-error">{{ editErrors.${field} }}</p>`)
+    }
+    expect(page).toContain('<fieldset class="parent-visit-start" aria-describedby="parent-edit-start-error">')
   })
 
   it('停課日寫「請選擇新的時間，或取消」，不給加入行事曆', () => {

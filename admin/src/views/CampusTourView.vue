@@ -10,7 +10,6 @@ import { mediaFileUrl } from '../api/client'
 import { isMediaId, useMediaThumbs } from '../composables/mediaThumbs'
 import ContentEditor from '../components/ContentEditor.vue'
 import { vReadonlyValues } from '../composables/readonlyValues'
-import LengthHint from '../components/LengthHint.vue'
 import { IMAGE_HINTS } from '../composables/contentHints'
 import CampusSelect from '../components/CampusSelect.vue'
 import MediaRefField from '../components/MediaRefField.vue'
@@ -28,19 +27,21 @@ function previewUrl(image: string): string {
 
 const thumbs = useMediaThumbs()
 
-// 熱點是已拿掉的分校頁用的，官網環境頁只用場景名稱、照片、說明（2026-10-04
-// 拿掉熱點編輯）。新場景不帶熱點；舊場景存著的熱點原樣跟著存回去，不顯示。
+// 熱點是已拿掉的分校頁用的，官網環境頁只用場景名稱與照片（2026-10-04 拿掉熱點編輯；
+// 場景說明 2026-11-12 拿掉，環境頁從來沒顯示）。新場景不帶熱點；舊場景存著的熱點原樣跟著存回去，不顯示。
 function newScene(): TourScenePayload {
   return {
     key: `scene-${Date.now()}`,
     name: '新場景',
     image: '',
-    intro: '',
   }
 }
 
 const campus = ref('')
-const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus)
+const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus, {
+  // 舊版本的場景說明（intro）載入時丟掉，存檔不送。
+  normalize: (payload) => ({ ...payload, scenes: payload.scenes.map(({ intro: _retiredIntro, ...scene }) => scene) }),
+})
 
 const sceneIndex = ref(0)
 const imageBroken = ref(false)
@@ -114,7 +115,7 @@ function onPickMedia(asset: MediaAssetOut) {
     width="wide"
   >
     <template #lead>
-      官網「常春藤環境」頁「五所校園」一章的照片與說明，由總部統一管理。每校最多 {{ MAX_SCENES }} 個場景，每個場景一張照片、一個名稱和一段說明；排第一的場景在官網放大顯示（剛好兩個場景時並排）。
+      官網「常春藤環境」頁「五所校園」一章的照片，由總部統一管理。每校最多 {{ MAX_SCENES }} 個場景，每個場景一張照片和一個名稱；排第一的場景在官網放大顯示（剛好兩個場景時並排）。
       發布後會整組取代該校原本的內容。
     </template>
     <template #toolbar>
@@ -198,18 +199,14 @@ function onPickMedia(asset: MediaAssetOut) {
                   <template #hint><span class="field-help">{{ IMAGE_HINTS.tour }}</span></template>
                 </MediaRefField>
               </el-form-item>
-              <el-form-item label="場景說明">
-                <el-input v-model="currentScene.intro" type="textarea" :autosize="{ minRows: 2, maxRows: 4 }" />
-                <LengthHint :value="currentScene.intro" rule="tourIntro" />
-              </el-form-item>
             </el-form>
           </div>
         </div>
 
         <div class="tour__scene-actions" v-if="scenes.length > 1 && !editor.readOnly.value">
-          <!-- 場景裡有照片和說明，重做很費工：刪除前先問一次（按鈕「先不要／刪除」）。 -->
+          <!-- 場景裡有照片和名稱，重做很費工：刪除前先問一次（按鈕「先不要／刪除」）。 -->
           <el-popconfirm
-            :title="`刪除「${currentScene.name || `場景 ${sceneIndex + 1}`}」？照片和說明會一起拿掉。`"
+            :title="`刪除「${currentScene.name || `場景 ${sceneIndex + 1}`}」？照片和名稱會一起拿掉。`"
             confirm-button-text="刪除"
             cancel-button-text="先不要"
             confirm-button-type="danger"

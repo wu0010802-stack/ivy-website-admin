@@ -635,12 +635,13 @@ test('sticky 的區塊（首屏、關於常春藤、孩子的一天）：預覽�
   await context.close()
 })
 
-test('頁首：改頁首電話備註，預覽停在原地，不會每打一個字就往上捲（手機 78px 與桌機 92px 的固定頁首）', async ({ browser }) => {
+// 2026-11-12 電話備註拿掉（選單改成五校電話並列後官網不顯示）：改用同一個頁首區塊的「選單預設反白的校區電話」。
+test('頁首：改選單預設校區的電話，預覽停在原地，不會每打一個字就往上捲（手機 78px 與桌機 92px 的固定頁首）', async ({ browser }) => {
   test.setTimeout(90_000)
   const { context, page } = await openAs(browser, 'super_admin')
   await gotoAdmin(page, '/content/site-meta', '網站標題與電話')
   await expectLive(page)
-  const note = page.getByRole('textbox', { name: '電話備註' })
+  const note = page.getByRole('textbox', { name: '選單預設反白的校區電話' })
   const inner = await previewFrame(page)
 
   // 預覽頁的頁首固定在上方：手機高 78、桌機高 92，都要停在原地。2026-10-07 之前寫死 88 的留白，
@@ -660,7 +661,7 @@ test('頁首：改頁首電話備註，預覽停在原地，不會每打一個�
     expect(header.height).toBeLessThan(88 + 8)
     await inner.evaluate(() => window.scrollTo(0, 600))
     await expect.poll(() => inner.evaluate(() => Math.round(window.scrollY))).toBe(600)
-    for (const text of ['週一', '週一至', '週一至週五', '週一至週五 9:00']) {
+    for (const text of ['07', '07-3', '07-31', '07-311-']) {
       await note.fill(`${text}${++typed}`)
       // 後台 debounce 300ms、預覽頁回覆與捲動都在一秒內。
       await holdsFor(page, 1_200, `${viewport}：預覽頁被往上捲走了（改「${text}」之後）`, async () => (await inner.evaluate(() => Math.round(window.scrollY))) === 600)

@@ -99,7 +99,8 @@ def normalize_phone(value: str) -> str:
 # 自由文字不收控制字元（換行、歸位、TAB 除外）。PostgreSQL 的 text 不收 NUL，
 # 原本會一路打到 INSERT 才炸成 500，錯誤紀錄還帶出整筆送單的綁定參數；
 # 其他控制字元沒有正當用途，一併擋在 schema，回 422。
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+# 孤立的 UTF-16 surrogate（JSON 的 "\ud800"）也一樣：UTF-8 編不出來，寫進資料庫或回應時才炸成 500（2026-11-12）。
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\ud800-\udfff]")
 
 
 def has_control_chars(value: str) -> bool:

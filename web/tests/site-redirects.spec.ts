@@ -59,6 +59,28 @@ describe('舊 Wix 網址對照', () => {
   })
 })
 
+describe('新站頁面的標準路徑（2026-11-12）', () => {
+  it('結尾斜線與大寫 301 回標準路徑，查詢字串保留', () => {
+    expect(resolve('/about/')).toBe('/about')
+    expect(resolve('/About')).toBe('/about')
+    expect(resolve('/CURRICULUM/?utm_source=fb')).toBe('/curriculum?utm_source=fb')
+    expect(resolve('/visit/manage/')).toBe('/visit/manage')
+    expect(resolve('/Visit/YIHUA/')).toBe('/visit/yihua')
+    expect(resolve('/News/garden/')).toBe('/news/garden')
+  })
+
+  it('消息 id 不改大小寫；已經標準、後台、API 與不是新站頁面的路徑不轉', () => {
+    expect(resolve('/news/Garden')).toBeNull()
+    for (const path of ['/', '/about', '/visit/manage', '/news/garden', '/admin/', '/admin/users', '/api/website/v1/health', '/robots.txt', '/_nuxt/x.js', '/blank-page/']) {
+      expect(resolve(path), path).toBeNull()
+    }
+  })
+
+  it('在要轉主網域的主機上一次轉到底', () => {
+    expect(resolve('/About/?a=1', { host: RAILWAY, redirectHosts: hosts })).toBe(`${ORIGIN}/about?a=1`)
+  })
+})
+
 describe('主網域轉址（NUXT_REDIRECT_HOSTS）', () => {
   it('預設不設＝任何主機都不轉，Railway 暫用網址照常可測', () => {
     expect(resolve('/about', { host: RAILWAY })).toBeNull()

@@ -22,7 +22,10 @@ const RETIRED = {
   dayExperience: ['sourceNote'],
   booking: ['isDemo', 'demoNote', 'steps', 'fields'],
   campus: ['heroPhotoPos'],
-  tourScene: ['spots', 'spots_reviewed']
+  // 2026-11-12 場景說明、關於頁結尾「五所校園」、頁首電話備註隨後台一起拿掉（官網沒有地方顯示）。
+  tourScene: ['spots', 'spots_reviewed', 'intro'],
+  aboutPage: ['outroTitle', 'outroText'],
+  headerPhone: ['note']
 } as const
 
 function omit<T extends object>(value: T, keys: readonly string[]): T {
@@ -47,6 +50,8 @@ function withoutTodoNotes<T>(value: T): T {
 export function withoutRetiredFields(site: SiteContent): SiteContent {
   return withoutTodoNotes({
     ...omit(site, RETIRED.site),
+    siteMeta: { ...site.siteMeta, headerPhone: omit(site.siteMeta.headerPhone, RETIRED.headerPhone) },
+    ...(site.aboutPage && { aboutPage: omit(site.aboutPage, RETIRED.aboutPage) }),
     home: { ...site.home, hero: omit(site.home.hero, RETIRED.hero), campusBoard: omit(site.home.campusBoard, RETIRED.campusBoard) },
     dayExperience: {
       ...omit(site.dayExperience, RETIRED.dayExperience),
@@ -133,8 +138,7 @@ export function withoutRepeatedCopy(site: SiteContent): SiteContent {
       ...about,
       // 圖說和首頁大標同一句；首屏引言已經講了教育理念、專業保育與獨一無二的童年，第一章只留新的那半句
       heroCaption: swap(about.heroCaption, '把每個孩子，放在心上。'),
-      storyText: swap(about.storyText, ABOUT_STORY, '我們不斷精進、嘗試新的教學方式，為孩子營造安心的環境。'),
-      outroText: swap(about.outroText, '三民、左營、鳥松、仁武，五所校園各有自己的樣子。拉一條書籤，看看那所校園。')
+      storyText: swap(about.storyText, ABOUT_STORY, '我們不斷精進、嘗試新的教學方式，為孩子營造安心的環境。')
     },
     curriculumPage: curriculum && {
       ...curriculum,

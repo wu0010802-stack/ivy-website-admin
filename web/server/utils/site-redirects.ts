@@ -115,6 +115,24 @@ export function isCanonicalHost(host: string | undefined, siteOrigin: string): b
   return (host ?? '').trim().toLowerCase().replace(/:\d+$/, '').replace(/\.$/, '') === canonicalHost
 }
 
+// 新站頁面的標準寫法（2026-11-12 探索式 E2E）：Nuxt 的路由不分大小寫、也接受結尾斜線，/about/、/About
+// 照樣回 200，但頁首用 route.path 比對（膠囊頁名單、目前頁 aria-current、預約頁不放預約鈕）全部對不上，
+// 同一頁也多了幾個網址。這些寫法一律 301 回標準路徑；/visit/<校> 的校區代號都是小寫，消息 id 照原樣不動。
+const CANONICAL_PAGES = new Set([
+  '/', '/about', '/admission', '/anniversary', '/curriculum', '/environment', '/news', '/privacy', '/preview', '/visit', '/visit/manage'
+])
+
+/** 是新站頁面但寫法不標準時回標準路徑（不含查詢字串）；已經標準或不是新站頁面回 null。 */
+export function canonicalPagePath(pathname: string): string | null {
+  const trimmed = pathname.replace(/\/+$/, '') || '/'
+  const lower = trimmed.toLowerCase()
+  let canonical: string | null = null
+  if (CANONICAL_PAGES.has(lower)) canonical = lower
+  else if (/^\/visit\/[a-z0-9-]+$/.test(lower)) canonical = lower
+  else if (/^\/news\/[^/]+$/.test(lower)) canonical = `/news/${trimmed.slice('/news/'.length)}`
+  return canonical && canonical !== pathname ? canonical : null
+}
+
 /** 主網域轉址不碰的路徑：API（含 LINE webhook、health）、CI 用來核對版本的 /release.json。 */
 function hostRedirectExempt(pathname: string): boolean {
   const path = pathname.toLowerCase()
@@ -148,6 +166,11 @@ export function resolveSiteRedirect(input: SiteRedirectInput): string | null {
 
   if (legacy) {
     const target = withQuery(legacy, search)
+    return moveHost ? `${input.siteOrigin}${target}` : target
+  }
+  const canonical = canonicalPagePath(pathname)
+  if (canonical) {
+    const target = `${canonical}${search ? `?${search}` : ''}`
     return moveHost ? `${input.siteOrigin}${target}` : target
   }
   if (moveHost) return `${input.siteOrigin}${input.url}`

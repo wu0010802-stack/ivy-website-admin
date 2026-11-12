@@ -24,7 +24,7 @@ from app.auth.permissions import (
 )
 from app.content import notices, service
 from app.content import publish_jobs
-from app.campuses.models import Campus
+from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common.http_cache import etag_matches
 from app.common.timezones import today_local
 from app.content.models import (
@@ -85,6 +85,14 @@ def _campus_key_for(config, campus_key: str | None) -> str | None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "CAMPUS_KEY_REQUIRED", "message": "這項內容是各校各一份，請指定校區"},
+        )
+    # 不存在的校區回 404（2026-11-12 探索式 E2E）：總管理者的 scope 對任何代號都放行、總部管理的
+    # campus_tour 連分校角色也不擋，原本一路寫到 content_items 的外鍵才變成 500。
+    # 讀取、版本、還原、發布、送審、排程都經過這裡。
+    if campus_key not in CAMPUS_KEYS:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "CAMPUS_NOT_FOUND", "message": "找不到這個校區"},
         )
     return campus_key
 

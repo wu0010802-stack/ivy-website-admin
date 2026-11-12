@@ -433,7 +433,8 @@ export function newsArticleSeo(site: SiteContent, siteOrigin: string, article: N
 
 export function pageSeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
-  const title = site.siteMeta.title
+  // 網站標題清空時退回品牌名：沒有後備的話首頁整個沒有 <title>（後台 2026-11-12 起也擋空白發布）。
+  const title = site.siteMeta.title?.trim() || TITLE_BRAND
   const description = site.siteMeta.description
   const canonical = origin ? `${origin}/` : undefined
   // 分享圖用 1200×630 JPG（scripts/optimize-site-images.py 的 OG_IMAGES 產出）；

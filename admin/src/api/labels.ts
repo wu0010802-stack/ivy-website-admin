@@ -835,7 +835,8 @@ export const CONTENT_FIELD_LABELS: Record<string, string> = {
   banner_body: '橫幅內文',
   banner_button_label: '橫幅按鈕文字',
   copyright: '版權文字',
-  header_phone_number: '頁首電話',
+  header_phone_number: '選單預設反白的校區電話',
+  // 2026-11-12 已拿掉；留著讓舊版本的比較看得懂。
   header_phone_note: '頁首電話備註',
   home_display_count: '首頁顯示筆數',
   include_shared: '顯示共用題目',

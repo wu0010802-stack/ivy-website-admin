@@ -59,9 +59,9 @@ export const PREVIEW_TARGETS: Readonly<Record<string, readonly PreviewTarget[]>>
   about_page: [{ id: 'page', label: '關於常春藤頁', page: 'about', block: 'page-top' }],
   environment_page: [{ id: 'page', label: '常春藤環境頁', page: 'environment', block: 'page-top' }],
   site_footer: [{ id: 'footer', label: '頁尾', page: 'home', block: 'site-footer' }],
-  // 網站描述、分享圖、各頁搜尋與分享（page_seo）等只用在搜尋與分享，預覽頁上看不到；只有頁首電話與主選單會框。
+  // 網站描述、分享圖、各頁搜尋與分享（page_seo）等只用在搜尋與分享，預覽頁上看不到；只有選單預設校區的電話與主選單會框。
   // 機構社群（social_links）在頁首選單面板裡，預覽的頁首是收起的選單，框不到，所以不列進 fields。
-  site_meta: [{ id: 'header', label: '頁首', page: 'home', block: 'site-header', fields: ['header_phone_number', 'header_phone_note', 'primary_nav'] }],
+  site_meta: [{ id: 'header', label: '頁首', page: 'home', block: 'site-header', fields: ['header_phone_number', 'primary_nav'] }],
   // 校園探索：官網環境頁的第四章「五所校園」。收到草稿時官網先切到改的那一校的分頁再框選。
   campus_tour: [{ id: 'tour', label: '常春藤環境頁的五所校園', page: 'environment', block: 'environment-tour' }],
 }

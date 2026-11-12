@@ -102,7 +102,8 @@ export interface TourScene {
   key: string
   name: string
   image: string
-  intro: string
+  /** 2026-11-12 已拿掉（環境頁從沒顯示）：fixture 還留著給後端初始化，公開輸出剔除 */
+  intro?: string
   imageMedia?: MediaImage
 }
 
@@ -267,7 +268,8 @@ export interface SiteMetaContent {
   brandNameEn: string
   logo: string
   primaryNav: { label: string; labelEn: string; href: string }[]
-  headerPhone: { number: string; note: string; _todo?: string }
+  /** number：選單「參觀專線」預設反白的那一校；note 2026-11-12 已拿掉（選單改成五校電話並列），公開輸出剔除 */
+  headerPhone: { number: string; note?: string; _todo?: string }
   /** 機構社群：沒有這個欄位＝沿用內建清單；後台設定過就整組取代（空陣列＝不顯示） */
   socialLinks?: SocialLink[]
   /** 後台「全站設定」：社群分享圖（素材庫媒體 UUID），空值沿用首頁大圖 */
@@ -395,9 +397,9 @@ export interface AboutPageContent {
   hopeQuotes: string[]
   hopePhoto?: MediaImage
   hopePhotoAlt?: string
-  /** 也是首屏目次的最後一格 */
-  outroTitle: string
-  outroText: string
+  /** 2026-11-12 已拿掉（10-30 改寫後沒有地方顯示）：fixture 還留著給後端初始化，公開輸出剔除 */
+  outroTitle?: string
+  outroText?: string
 }
 
 /**

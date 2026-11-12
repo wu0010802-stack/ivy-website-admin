@@ -3,7 +3,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router'
+import { createPinia, setActivePinia } from 'pinia'
+import type { UserOut } from '../api/types'
+import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import { testUser } from './fixtures'
 
 // 成效統計（2026-11-12）：18 張表分成四類、整頁共用一組期間與裝置，三個選擇都寫在網址。
 // 兩個面板各自讀資料（traffic.test.ts、engagement.test.ts），這裡換成只顯示收到的 props 的替身。
@@ -35,7 +39,9 @@ const SearchStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
 })
 
-async function mountView(query: LocationQueryRaw = {}) {
+async function mountView(query: LocationQueryRaw = {}, user: UserOut = testUser('super_admin')) {
+  setActivePinia(createPinia())
+  useAuthStore().user = user
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
   await router.isReady()
@@ -56,6 +62,19 @@ async function mountView(query: LocationQueryRaw = {}) {
   const pressed = () => tabs().filter((tab) => tab.attributes('aria-pressed') === 'true').map((tab) => tab.text())
   return { wrapper, router, traffic, interest, crux, search, tabs, pressed }
 }
+
+describe('成效統計：Google 的兩塊只給有 admissions.stats 的角色（2026-11-12）', () => {
+  it('分校角色不掛 Chrome 真實使用者與 Google 搜尋（後端 403，原本變成永遠讀不到的錯誤框），其他照常', async () => {
+    for (const role of ['campus_admin', 'reception', 'editor'] as const) {
+      const { traffic, crux, search, router } = await mountView({}, testUser(role, { campus_keys: ['yihua'] }))
+      expect(traffic().exists(), role).toBe(true)
+      expect(crux().exists(), role).toBe(false)
+      await router.push({ path: '/analytics', query: { tab: 'journey' } })
+      await flushPromises()
+      expect(search().exists(), role).toBe(false)
+    }
+  })
+})
 
 describe('成效統計的分類與條件', () => {
   it('四類寫成家長會問的問題，預設在「瀏覽與速度」、近 28 天', async () => {

@@ -59,6 +59,8 @@ const SHARED_KINDS: SharedKind[] = [
 ]
 type CampusKind = 'campus_profile' | 'campus_tour' | 'campus_news'
 const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_tour', 'campus_news']
+// 後端 content/registry.py 的 hq_managed：權限比照共用內容，所有登入角色都讀得到。
+const HQ_MANAGED_CAMPUS_KINDS: ReadonlySet<CampusKind> = new Set<CampusKind>(['campus_tour'])
 
 interface AdminMediaPage {
   items: AdminMediaAsset[]
@@ -128,9 +130,26 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   }
 
   const campusKeys = content.campuses.map((c) => c.key)
+  // 讀得到哪幾校的草稿（2026-11-12 探索式 E2E）：總管理者全部；其他角色只有自己負責的校區（後端
+  // covers_campus），總部管理的 campus_tour 所有登入角色都讀得到（registry hq_managed）。原本五校都打，
+  // 分校角色每次載入有 8 個 404，讀不到的校區還停在 fixture 的示範資料。讀不到的改疊「已發布」內容
+  // （/public/site，和正式站同一份），預覽看到的是「正式站＋我看得到的草稿」。
+  const allCampuses = me.user.role === 'super_admin'
+  const ownCampuses = new Set(me.user.campus_keys ?? [])
+  const canReadDraft = (kind: CampusKind, campusKey: string) =>
+    allCampuses || HQ_MANAGED_CAMPUS_KINDS.has(kind) || ownCampuses.has(campusKey)
+  let published: Promise<ContentOverlay | null> | null = null
+  const publishedPayload = async (kind: CampusKind, campusKey: string) => {
+    published ??= $fetch<{ content: ContentOverlay }>('/api/website/v1/public/site')
+      .then((site) => site.content)
+      .catch(() => null)
+    const byCampus = (await published)?.[kind] as Record<string, Record<string, unknown>> | undefined
+    return byCampus?.[campusKey] ?? null
+  }
   for (const kind of CAMPUS_KINDS) {
     const perCampus = await Promise.all(
       campusKeys.map(async (campusKey) => {
+        if (!canReadDraft(kind, campusKey)) return [campusKey, await publishedPayload(kind, campusKey)] as const
         const campusItem = await $fetch<ContentItemOut>(
           `/api/website/v1/admin/content-items/${kind}?campus_key=${encodeURIComponent(campusKey)}`
         ).catch(() => null)

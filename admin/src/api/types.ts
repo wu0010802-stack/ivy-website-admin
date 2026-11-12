@@ -121,8 +121,10 @@ export interface SocialLinkPayload {
 export interface SiteMetaPayload {
   title: string
   description: string
+  /** 選單「參觀專線」五校並列，這支電話對到的那一校預設反白（2026-11-12） */
   header_phone_number: string
-  header_phone_note: string
+  /** 2026-11-12 已拿掉（官網不再顯示）：只有舊版本帶著，載入時丟掉、存檔不送 */
+  header_phone_note?: string
   /** 素材庫媒體 UUID；空字串沿用首頁大圖 */
   share_image: string
   share_image_alt: string
@@ -242,8 +244,9 @@ export interface AboutPagePayload {
   hope_quotes: string[]
   hope_photo?: MediaSlotPayload | null
   hope_photo_alt?: string
-  outro_title: string
-  outro_text: string
+  /** 2026-11-12 已拿掉（10-30 關於頁改寫後沒有地方顯示）：只有舊版本帶著，載入時丟掉、存檔不送 */
+  outro_title?: string
+  outro_text?: string
 }
 
 /**
@@ -480,7 +483,8 @@ export interface TourScenePayload {
   key: string
   name: string
   image: string
-  intro: string
+  /** 2026-11-12 已拿掉（環境頁只用場景照片與名稱）：只有舊版本帶著，載入時丟掉、存檔不送 */
+  intro?: string
   /** 舊資料的熱點（2026-10-04 起新場景不帶） */
   spots?: TourSpotPayload[]
   /** 舊的「熱點待複核」旗標，2026-10-04 起不再更動也不擋發布 */

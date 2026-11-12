@@ -150,9 +150,11 @@ describe('特色教學頁的後台內容', () => {
 })
 
 describe('關於常春藤頁的後台內容', () => {
-  it('發布的內容和內建一字不差時，官網內容完全不變', () => {
+  it('發布的內容和內建一字不差時，官網內容完全不變（已拿掉的結尾「五所校園」不帶，2026-11-12）', () => {
     const next = applyContentOverlay(site, { about_page: livePayload<LiveAboutPage>(site.aboutPage) })
-    expect(next.aboutPage).toEqual(site.aboutPage)
+    const { outroTitle: _title, outroText: _text, ...builtin } = site.aboutPage
+    expect(next.aboutPage).toEqual(builtin)
+    expect(next.aboutPage).not.toHaveProperty('outroTitle')
   })
   it('沿革年份可以改；三張照片都能換', () => {
     const live = livePayload<LiveAboutPage>(site.aboutPage)
@@ -198,7 +200,7 @@ describe('關於常春藤頁的後台內容', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     const mutations: ((live: any) => void)[] = [
       (live) => { delete live.hero_title },
-      (live) => { live.outro_text = 5 },
+      (live) => { live.whole_fine = 5 },
       (live) => { live.hope_quotes = 'ab' },
       (live) => { live.hope_quotes[0] = 7 },
       (live) => { live.chapter_names[2] = null },

@@ -6,7 +6,7 @@ import { admissionEnabled } from '~/utils/seo'
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 if (!admissionEnabled(data.value?.content.siteMeta)) {
-  throw createError({ statusCode: 404, message: '找不到這個頁面' })
+  throw pageNotFound('找不到這個頁面')
 }
 
 usePageSeo(computed(() => data.value?.content), 'admission')

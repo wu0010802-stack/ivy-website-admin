@@ -16,6 +16,15 @@ export function usePublishedSite() {
  * fatal error（Nuxt 顯示錯誤頁、SSR 回真的 503/其他狀態碼），不是安靜
  * 吃掉錯誤繼續渲染一個看起來正常但內容是假的頁面。
  */
+/**
+ * 頁面元件找不到內容時丟的 404：一定要 `fatal: true`。不帶的話 SSR 照常顯示錯誤頁，
+ * 但瀏覽器端（站內換頁、上一頁回到這個網址）Nuxt 不會掛 error.vue，畫面整片空白
+ * （2026-11-12 探索式 E2E：從 404 頁離開再按上一頁回 /news/<不存在> 是白畫面）。
+ */
+export function pageNotFound(message: string) {
+  return createError({ statusCode: 404, message, fatal: true })
+}
+
 export function assertPublishedSite(error: Ref<unknown>): void {
   if (!error.value) return
   const nuxtError = error.value as { statusCode?: number; statusMessage?: string }

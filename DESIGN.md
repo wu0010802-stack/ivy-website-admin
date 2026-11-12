@@ -1,3 +1,16 @@
+## 全專案探索式 E2E 定下的規則（2026-11-12，`claude/sharp-hopper-134jz4`）
+
+細節見 README 同日段落。以下之後照著做：
+
+- **頁首與 scroll-padding**：`html` 的 `scroll-padding-top` 一律寫成 `var(--header-scroll-pad)`（桌機 112、760 以下 96，`studio.css`）。頁首（`.header`）裡可聚焦的元素用 `scroll-margin-top: calc(-1 * var(--header-scroll-pad))` 抵銷，否則 sticky 頁首的膠囊被 Tab 聚焦時，整頁會捲回 0。改頁首高度或 padding 時兩處一起改。
+- **頁面的 404 一律 fatal**：頁面元件找不到內容時 `throw pageNotFound('…')`（`usePublishedSite.ts`）。不要直接 `createError({ statusCode: 404 })`：SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面。
+- **新站頁面網址只有一種寫法**：結尾斜線與大寫一律 301 回標準路徑（`site-redirects.ts` 的 `CANONICAL_PAGES`）。新增頁面時加進清單；頁首用 `route.path` 比對的邏輯（膠囊頁、`aria-current`、預約頁不放預約鈕）都靠這個前提。
+- **送出途中重新整理不能重複建單**：預約表單的草稿（sessionStorage）和 idempotency key 一起存、一起還原；成功才換新 key、清草稿。
+- **沒設定寄信時，家長的管理連結是唯一入口**：家長改 Email 不撤銷連結。有設定寄信時才照 2026-10-13 的規則作廢、換發、寄新信箱。後台人員改 Email 的規則不變（後台會提示「舊連結作廢，需要時重新產生」）。
+- **後台頁面掛到的區塊要看權限**：會打只有某些角色能用的 API 的元件（例如成效統計的 CrUX、Google 搜尋要 `admissions.stats`），沒有權限就不掛，不要讓 403 變成「請重新載入」的錯誤框。草稿預覽只讀自己範圍的草稿，讀不到的疊已發布內容。
+- **必填的標題擋發布、不擋存草稿**：網站標題、首頁「關於」標題、五校區塊標題空白時，草稿照存、發布擋下（registry 的 `_required_text_blocker`），排程與還原走同一個檢查。官網的標題空白時退回品牌名。
+- **拿掉的欄位**：「拿掉內容欄位的做法」（後台工程清理一節）這次用在 `site_meta.header_phone_note`、`about_page.outro_title`／`outro_text`、`campus_tour.scenes[].intro`。巢狀欄位（場景）的公開輸出另寫 `public_view`（`_public_campus_tour`），`_public_without_retired` 只看第一層。`header_phone_number` 沒拿掉：選單五校電話並列後，它決定預設反白哪一校，後台標籤改成「選單預設反白的校區電話」。
+
 ## 入學頁只寫五校共通的規定與流程（2026-11-12，`fix/admission-campus-20261112`）
 
 使用者 11-12：「有些分校的規定跟流程有所不同，有爭議的地方幫我改寫」。入學頁內容來自舊機構站，把某一校的做法寫成五校共通。原則：

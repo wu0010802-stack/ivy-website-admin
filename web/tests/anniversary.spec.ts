@@ -148,7 +148,7 @@ describe('30 週年分頁：開場影片與素材', () => {
     expect(isAnniversaryHref('/anniversary/')).toBe(true)
     expect(isAnniversaryHref('/anniversary?x=1')).toBe(true)
     expect(isAnniversaryHref('/anniversary-old')).toBe(false)
-    expect(page).toMatch(/if \(!anniversaryEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw createError\(\{ statusCode: 404/)
+    expect(page).toMatch(/if \(!anniversaryEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw pageNotFound\('找不到這個頁面'\)/)
     const home = read('app/pages/index.vue')
     expect(home).toContain('<EntranceCurtain v-if="curtain" />')
     expect(home).toContain("script: () => (curtain.value ? [{ key: 'entrance-curtain'")

@@ -50,7 +50,5 @@ export function aboutPageDraft(): AboutPagePayload {
     ],
     hope_photo: null,
     hope_photo_alt: '',
-    outro_title: '五所校園',
-    outro_text: '三民、左營、鳥松、仁武，五所校園各有自己的樣子。拉一條書籤，看看那所校園。',
   }
 }

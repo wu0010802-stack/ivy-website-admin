@@ -14,7 +14,7 @@ const article = computed(() => data.value && !hidden ? findArticle(data.value.co
 if (hidden) {
   await navigateTo('/', { redirectCode: 302, replace: true })
 } else if (!article.value) {
-  throw createError({ statusCode: 404, message: '找不到這則消息' })
+  throw pageNotFound('找不到這則消息')
 }
 
 usePageSeo(computed(() => data.value?.content), 'news', article)

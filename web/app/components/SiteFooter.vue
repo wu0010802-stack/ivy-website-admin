@@ -71,6 +71,8 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
 .footer-main .footer-label,
 .footer-bottom { color: var(--footer-text); }
 .footer-bottom { border-color: var(--footer-line); }
+/* 版權與底部備註是後台文字：備註放一串網址時，手機（直排）會把整頁撐出橫向捲動（2026-11-12 探索式 E2E）。 */
+.footer-bottom > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
 .footer a:hover { text-decoration: underline; text-underline-offset: 5px; }
 .footer-privacy-link { text-decoration: underline; text-underline-offset: 5px; }
 .footer a.footer-privacy-link:focus-visible { outline-color: var(--footer-focus); }

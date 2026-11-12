@@ -81,6 +81,26 @@ def _error_response(request: Request, status_code: int, detail, headers: dict | 
     return JSONResponse(status_code=status_code, content=_error_body(detail, request_id), headers=merged)
 
 
+def _encodable(value):
+    """把 JSON 裡 UTF-8 編不出來的字（孤立的 UTF-16 surrogate）換成 U+FFFD，遞迴處理 list／dict。"""
+    if isinstance(value, str):
+        return value.encode("utf-8", "replace").decode("utf-8")
+    if isinstance(value, list):
+        return [_encodable(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _encodable(item) for key, item in value.items()}
+    return value
+
+
+def _validation_detail(errors) -> list:
+    """422 回應的 detail：不回傳 `input`（呼叫端送來的原值）。
+
+    web／admin 只讀 loc、msg、type；原值回傳一來是把家長送出的資料原樣吐回去，二來 JSON 允許
+    `"\\ud800"` 這種孤立 surrogate，pydantic 照收、放進 input，JSONResponse 編 UTF-8 時就炸成 500
+    並寫進 error_groups（2026-11-12 探索式 E2E）。msg、ctx 也可能帶到原值，一併換掉編不出來的字。"""
+    return _encodable(jsonable_encoder([{k: v for k, v in error.items() if k != "input"} for error in errors]))
+
+
 def _error_code(detail) -> str | None:
     return detail.get("code") if isinstance(detail, dict) else None
 
@@ -114,7 +134,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
             "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
         )
         return _error_response(
-            request, status.HTTP_422_UNPROCESSABLE_ENTITY, jsonable_encoder(exc.errors())
+            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _validation_detail(exc.errors())
         )
 
     @app.exception_handler(SQLAlchemyError)

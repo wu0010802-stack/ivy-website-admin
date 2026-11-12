@@ -14,13 +14,15 @@ import {
 } from '~/utils/draft-preview'
 import { createLiveReceiver, type HighlightHit, type LiveDraft, type LiveOverride, type LiveReceiver } from '~/utils/preview-live'
 import { activatePreviewBlock, highlightPreview } from '~/utils/preview-highlight'
-import { admissionEnabled, anniversaryEnabled } from '~/utils/seo'
+import { admissionEnabled, anniversaryEnabled, TITLE_BRAND } from '~/utils/seo'
 
 // 私有草稿預覽殼：整頁 client-only，SSR 完全不輸出任何內容或管理端
 // 資料，避免管理 session cookie／草稿內容混進公開快取或搜尋引擎快照。
 definePageMeta({ ssr: false })
 
+// 標題固定、不帶草稿內容（2026-11-12 探索式 E2E：原本沒有 <title>，axe document-title）。
 useHead({
+  title: `草稿預覽｜${TITLE_BRAND}`,
   meta: [{ name: 'robots', content: 'noindex, nofollow' }]
 })
 
@@ -181,16 +183,17 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="preview-shell">
-    <div v-if="status === 'checking'" class="preview-notice">
+    <!-- 三種提示是 <main id="main">：app.vue 的「跳至主要內容」才有目標（2026-11-12）。 -->
+    <main v-if="status === 'checking'" id="main" class="preview-notice" tabindex="-1">
       <p>正在確認管理身分…</p>
-    </div>
-    <div v-else-if="status === 'denied'" class="preview-notice">
+    </main>
+    <main v-else-if="status === 'denied'" id="main" class="preview-notice" tabindex="-1">
       <p>這個頁面只給已登入的後台管理者看草稿內容。</p>
       <p>請先登入後台管理系統，再重新整理這一頁。</p>
-    </div>
-    <div v-else-if="status === 'failed'" class="preview-notice">
+    </main>
+    <main v-else-if="status === 'failed'" id="main" class="preview-notice" tabindex="-1">
       <p>草稿內容沒有讀到，請重新整理這一頁。</p>
-    </div>
+    </main>
     <template v-else-if="draft">
       <div v-if="!embedded" class="preview-banner" role="note">
         <p>草稿預覽 · 尚未發布的內容，僅管理者可見</p>

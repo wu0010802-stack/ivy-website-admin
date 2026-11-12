@@ -109,7 +109,7 @@ describe('入學資訊分頁開關：sitemap 與 llms.txt', () => {
 
 describe('入學資訊分頁開關：頁面', () => {
   it('隱藏時 /admission 回 404；草稿預覽不看開關', () => {
-    expect(read('app/pages/admission.vue')).toMatch(/if \(!admissionEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw createError\(\{ statusCode: 404/)
+    expect(read('app/pages/admission.vue')).toMatch(/if \(!admissionEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw pageNotFound\('找不到這個頁面'\)/)
     expect(read('app/pages/preview.vue')).toContain('<AdmissionContent v-if="page === \'admission\'" :admission="draft.admission" :campuses="draft.campuses" />')
   })
 

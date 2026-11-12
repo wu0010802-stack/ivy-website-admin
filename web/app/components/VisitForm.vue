@@ -159,9 +159,12 @@ let slotRequest = 0
 // 填到一半的資料暫存在這個分頁（sessionStorage，2026-10-29）：手機切去別的 App 回來被瀏覽器重新載入、
 // 或不小心重新整理，孩子與家長資料、選好的日期場次都還在。關掉分頁就沒了，預約成功立刻清掉。
 // 校區看網址，不從暫存還原；日期場次只在同一校、而且重新讀到的場次裡還有時才放回去。
+// idempotency key 也一起存（2026-11-12 探索式 E2E）：送出途中重新整理，還原的同一份資料要用同一把 key
+// 重送，伺服器才會當成同一筆（回原本的預約），不會再建第二筆、再寄第二封信。
 const DRAFT_KEY = 'ivy-visit-draft'
 type DraftFields = Omit<typeof form, 'campus'>
-interface VisitDraft extends DraftFields { campus: string; visitDate: string; slotId: string }
+interface VisitDraft extends DraftFields { campus: string; visitDate: string; slotId: string; idempotencyKey: string }
+const IDEMPOTENCY_KEY_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 let draftSlot: { campus: string; date: string; slotId: string } | null = null
 let draftReady = false
 function readDraft(): Partial<VisitDraft> | null {
@@ -172,7 +175,13 @@ function readDraft(): Partial<VisitDraft> | null {
 }
 function saveDraft() {
   if (!draftReady || submitted.value) return
-  const draft: VisitDraft = { ...form, referralSources: [...form.referralSources], visitDate: selectedVisitDate.value, slotId: selectedSlotId.value }
+  const draft: VisitDraft = {
+    ...form,
+    referralSources: [...form.referralSources],
+    visitDate: selectedVisitDate.value,
+    slotId: selectedSlotId.value,
+    idempotencyKey: idempotencyKey.value
+  }
   try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
 }
 function clearDraft() {
@@ -190,6 +199,9 @@ function restoreDraft() {
     }
     if (typeof draft.campus === 'string' && typeof draft.visitDate === 'string' && typeof draft.slotId === 'string' && draft.visitDate) {
       draftSlot = { campus: draft.campus, date: draft.visitDate, slotId: draft.slotId }
+    }
+    if (typeof draft.idempotencyKey === 'string' && IDEMPOTENCY_KEY_RE.test(draft.idempotencyKey)) {
+      idempotencyKey.value = draft.idempotencyKey
     }
   }
   draftReady = true
@@ -506,7 +518,7 @@ watch(() => form.campus, () => {
   campusError.value = ''
   fieldErrors.value = {}
 })
-watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
+watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return

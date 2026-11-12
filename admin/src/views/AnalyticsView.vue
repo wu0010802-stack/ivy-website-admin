@@ -6,6 +6,7 @@ import CruxPanel from '../components/CruxPanel.vue'
 import PageHeader from '../components/PageHeader.vue'
 import SearchInsightsPanel from '../components/SearchInsightsPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import { usePermissions } from '../composables/usePermissions'
 import {
   ANALYTICS_DAY_OPTIONS, ANALYTICS_DEVICE_OPTIONS, ANALYTICS_TABS, DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, DEFAULT_ANALYTICS_TAB,
   type AnalyticsDays, type AnalyticsDevice, type AnalyticsTab, type InterestView,
@@ -18,6 +19,10 @@ import {
 // 「各校預約」「預約孩子的班別」2026-10-13 搬到招生統計 → 參觀預約；舊連結的 ?tab=booking 回到第一類。
 const route = useRoute()
 const router = useRouter()
+// Chrome 真實使用者數據與 Google 搜尋只開給有 admissions.stats 的角色（後端 insights/routes.py，目前只有總管理者）。
+// 其他角色不掛這兩塊、也不打 API：原本一律掛上，403 變成永遠按不好的「無法讀取…請重新載入」（2026-11-12）。
+const { can } = usePermissions()
+const canSeeGoogle = computed(() => can('admissions.stats'))
 
 function queryChoice<T extends string | number>(name: string, allowed: readonly T[], fallback: T) {
   return computed<T>({
@@ -91,9 +96,9 @@ const statusText = computed(() => {
     </div>
 
     <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
-    <CruxPanel v-show="tab === 'traffic'" :active="tab === 'traffic'" />
+    <CruxPanel v-if="canSeeGoogle" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
-    <SearchInsightsPanel v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
+    <SearchInsightsPanel v-if="canSeeGoogle" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
   </div>
 </template>
 

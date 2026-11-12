@@ -1,3 +1,32 @@
+## 2026-11-12 全專案 E2E＋探索式測試找到的 18 個問題修正（`claude/sharp-hopper-134jz4`）
+
+使用者要求「全專案 E2E」：`tests/stack`（176＋opt-in 的 admin-tips 30）、`tests/e2e` 四視口（34）、hydration（`nuxt dev`，10）全部通過。另外用 4 組隔離的 stack（各自 DB、埠號、mail sink）做探索式測試，專測 spec 沒涵蓋的路徑。每條發現都由另一個代理重跑並嘗試推翻：21 條候選，19 條成立（2 條是同一件），2 條推翻（兒童生日無下限、全形數字手機號：spec 沒規定）。使用者要求全部處理：
+
+- **公開站**
+  - **頁首膠囊**：sticky 頁首的頁面捲動後 Shift+Tab 進膠囊，瀏覽器為了讓它離開 `scroll-padding` 把整頁捲回 0，頁首切回 hero、膠囊隱藏、焦點掉到 body。`studio.css` 把 padding 放進 `--header-scroll-pad`，頁首內的控制項用負的 `scroll-margin-top` 抵銷。
+  - **上一頁白畫面**：從 404 離開再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary` 同理）整頁空白。原因是 `createError` 沒帶 `fatal: true`，client 端不掛 `error.vue`。改用 `usePublishedSite.ts` 的 `pageNotFound()`，`/visit/<不存在>` 一併補。
+  - **網址寫法**：`/about/`、`/About`、`/visit/manage/` 原本回 200，頁首比對 `route.path` 全部失準。`server/utils/site-redirects.ts` 的 `canonicalPagePath` 改成 301 回標準路徑；消息 id 不改大小寫，後台與 API 不動。
+  - **管理頁 token**：已開著 `/visit/manage` 又在同分頁開修改連結（同文件 fragment 導覽）時，router 判成重複導覽，token 留在網址與 `history.state`。`router.replace` 加 `force: true`。
+  - **未登入的 `/preview`**：沒有 `<title>`，「跳至主要內容」沒有目標。補固定標題，三種提示改成 `<main id="main">`。
+  - **頁尾**：底部備註放長網址時，390／375 會橫向溢出。`SiteFooter.vue` 加 `overflow-wrap:anywhere`。
+- **家長預約**
+  - **孤立 surrogate**：JSON 裡的 `"\ud800"` 讓公開預約 API 回 500、寫進 error_groups。422 回應不再帶 `input`，編不出來的字換成 U+FFFD（`main.py`）；預約欄位的控制字元檢查加上 surrogate 範圍，完整送單也回 422。
+  - **重新整理雙重預約**：送出途中重新整理會建第二筆預約、寄第二封信。草稿（sessionStorage）一起存 idempotency key，還原後重送是同一把 key（`VisitForm.vue`）。
+  - **改 Email 的連結**：沒設定寄信（正式站 10-02 起）時，家長在管理頁改 Email 會撤銷唯一的管理連結，換發的新連結又寄不出去。改成寄信關閉時連結不動（`update_details_by_parent(email_enabled=…)`）；有寄信時照舊作廢、換發、寄新信箱。
+  - **錯誤朗讀**：管理頁修改表單的錯誤訊息補 `aria-describedby`，報讀器念得出原因。
+- **後台與內容**
+  - **成效統計**：Chrome 真實使用者數據與 Google 搜尋只給有 `admissions.stats` 的角色掛（`AnalyticsView.vue`），其他角色不再看到永遠讀不到的紅框。
+  - **草稿預覽**：分校角色只讀自己校區的草稿，原本每次載入有 8 個 404。讀不到的校區改疊已發布內容（`/public/site`），不再停在 fixture 示範資料（`useDraftPreview.ts`）。
+  - **不存在的校區**：content-items 帶不存在的 `campus_key` 原本寫到外鍵才 500（`campus_tour` 連分校角色都打得到），改成回 404 `CAMPUS_NOT_FOUND`。
+  - **空白標題**：網站標題、首頁「關於」標題、五校區塊標題可以存草稿，但擋發布（registry 的 `_required_text_blocker`）。官網 `pageSeo` 的標題空白時退回品牌名。
+  - **連結底線**：個資與搜尋設定頁句中的「預約文案」連結加底線（WCAG 1.4.1）。
+  - **拿掉三個官網不顯示的欄位**（照 DESIGN.md「拿掉內容欄位的做法」：`Field(default="", exclude=True)`、公開輸出剔除、後台 normalize 丟掉、中文欄位名保留）：網站標題與電話的「電話備註」（`header_phone_note`）、關於頁的「結尾：五所校園」（`outro_title`／`outro_text`）、校園探索的「場景說明」（`scenes[].intro`）。「頁首電話」還在用（決定選單預設反白哪一校），改名「選單預設反白的校區電話」並寫明用途。
+- **測試**
+  - 新增 `backend/tests/test_exploratory_e2e_20261112.py`、`tests/stack/exploratory-e2e-20261112.spec.ts`，`web/tests/site-redirects.spec.ts` 加標準路徑。
+  - 既有測試跟著改：寫死舊原始碼的斷言、`analyticsView.test.ts` 補登入角色、`editor-live-preview.spec.ts` 改編輯預設校區電話、`test_booking_access_races.py` 的「誤寄信箱」案例明寫有設定寄信。
+  - 完整報告（每條的重現、根因、`檔案:行號`）在本次 session 的 scratchpad，沒有進 repo。
+- **沒動的**：Nuxt dev 的 `Duplicated imports "MediaImage"` 警告無害（`types/site-content.ts` 轉出同一個型別）。截圖基準只在 macOS 比對，這次在 Linux 跑，沒有比像素。
+
 ## 2026-11-12 環境頁「五所校園」崇德與國際第一張換成校園實景（`feature/env-tour-photos-20261112`）
 
 使用者看線上後要求：國際校美語商店街不要用這個主題、換成真實的操場外觀，騎士堡照片不換；崇德溜滑梯整個換主題、不要溜滑梯，改用學校的廣場。照片都取自各校 FB 粉專（對照頁 `design/env-tour-photos-20261112/`）。
