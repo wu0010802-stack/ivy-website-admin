@@ -1,3 +1,10 @@
+## 2026-11-12 入學頁照片：首屏改回兩個男孩，逆光女孩移到「快樂曲」（`fix/admission-photos-20261112`）
+
+使用者要入學頁首屏照片換回上一版，並把早上換上的逆光女孩改放到「新生準備」02 快樂曲的縮圖：
+
+- 首屏 `ADMISSION_HERO_IMAGE` 由 `admission-hero` 改回 `day-hello`（借孩子的一天「早安」），alt 與圖說改回「早上到校，牽起好朋友的手。」（`9323f075` 以前的寫法）。
+- `AdmissionContent.vue` 的 `PHASE_PHOTOS` 第二張由 `day-home`（爸爸抱女兒）換成 `admission-hero`（逆光女孩），既有響應式檔直接沿用、沒有重產圖檔。
+
 ## 2026-11-12 /about 首屏照片：老師的美甲改自然指甲、頭髮調黑（`fix/about-hero-teacher-20261112`）
 
 使用者要把首屏照片右邊老師的美甲 P 掉、頭髮黑一點。母檔沿用 11-10 修過小孩的無損版（`design/about-hero-retouch-20261110/about-hero-retouched.png`，與正式站同一張）：

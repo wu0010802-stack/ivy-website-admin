@@ -29,11 +29,10 @@ export const HOME_HERO_SIZES = '100vw'
 
 /**
  * 入學資訊頁首屏照片；2026-09-28 入學護照版起不是滿版，見 admissionHeroImage()。
- * 2026-11-12 起不再借孩子的一天「早安」，改用自己的 admission-hero：義華 NAS「2026-01-08 三鳳中街／選／選修／5D4A4519拷貝」
- *（6287×4192，裁 x13%–64%、y22%–79% → 1600×1200）。右後方的大人戴口罩，右邊裁到女孩頭髮外緣就看不到；
- * 臉放在上半部，右下角「歡迎入學」印章才不會蓋到嘴。
+ * 2026-11-12 早上曾換成逆光女孩 admission-hero，同日使用者要改回「早安」兩個男孩手牽手；
+ * 逆光女孩移到「新生準備」02 快樂曲的縮圖（AdmissionContent.vue PHASE_PHOTOS）。
  */
-export const ADMISSION_HERO_IMAGE = 'admission-hero'
+export const ADMISSION_HERO_IMAGE = 'day-hello'
 
 /** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
