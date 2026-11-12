@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 關於頁整頁重做「紅磚上的常春藤」上線（main CI 部署，沒有 migration）
+
+- **內容**：`eafd0c5d`＋合併提交 `64175bc2`（README「2026-11-11 關於頁整頁重做」與「2026-11-12 關於頁：使用者看過後的修改」），分支 `feature/about-new-20261111`。`/about` 整頁換版；首頁、環境頁、預約結果共用的五校墨線版線稿因為補了 1080／1440 兩級而換了雜湊（畫面不變）；義華第一位家長的內建句子收成「老師把孩子放第一。」。使用者說「先幫我實作」，推 `main` 由使用者執行。
+- **推前（本機）**：合併 `origin/main` `18855454`（README／DESIGN.md 頂部兩邊都留、`image-manifest.json` 以 main 為底重加、環境頁快照重產）；`npm --prefix web run typecheck` 過、`npm run test:website` 140 檔 1,885 過；後台相關 13 支 364 過、`vue-tsc` 過；後端讀內建內容的 6 檔 159 過（獨立測試庫，已刪）；`npm run e2e:build` 後 stack e2e 172 過、30 略過（獨立庫 `ivy_website_e2e_aboutnew_test`，已刪）。
+- **CI**：main run 43139775276 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（02:20–02:24Z）；`/release.json` 的 `base_commit` 是 `64175bc2`。
+- **部署後正式站驗證**（只發 GET、擋掉遙測，腳本 `output/about-new-20261111/prod.cjs` 16 項全過）：`/about` SSR 是新結構（年份里程表、整章結尾、六張 `about-whole-*`）、第一位家長的話已收短、沒有「義華校家長」、沒有場景照與結尾連結、首屏預載 `imagesizes` 是 `(max-width: 900px) calc(100vw - 40px), 880px`；1440×900 與 390×844 捲完整頁無橫向溢出、圖片都載到、區塊都出現，首屏照片桌機 6:5、手機 3:2；首頁與環境頁的線稿（新雜湊）各 5 張都載得到，舊雜湊的檔名回 404（HTML 已不引用）；沒有主控台錯誤與 4xx／5xx。結尾「還可以看看這幾頁」線上只有兩項，是入學資訊分頁開關目前關著，不是這次造成的。
+- **還沒做**：iOS／Android 實機沒驗；六張新照片（園方雲端的活動照）的肖像同意待園方確認；`/about` 的後台欄位說明改了字（「我們的期許的照片」、焦點預覽電腦 6:5），沒有登入正式後台實看。
+
 ## 2026-11-12 好奇探索、遊樂區、入學頁首屏換照上線（main CI 部署，沒有 migration）
 
 - **內容**：`9323f075`（README「2026-11-12 ivykids.tw 輪播照換上前台」），分支 `feature/slider-photos-20261112`。孩子的一天「好奇探索」、環境頁「安全歡樂遊樂區」換成義華 NAS 原檔，入學頁首屏改用新代號 `admission-hero`。使用者說「上線」。
