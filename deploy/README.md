@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 好奇探索、遊樂區、入學頁首屏換照上線（main CI 部署，沒有 migration）
+
+- **內容**：`9323f075`（README「2026-11-12 ivykids.tw 輪播照換上前台」），分支 `feature/slider-photos-20261112`。孩子的一天「好奇探索」、環境頁「安全歡樂遊樂區」換成義華 NAS 原檔，入學頁首屏改用新代號 `admission-hero`。使用者說「上線」。
+- **推前（本機）**：rebase 到 `4e121f67`（README 頂部衝突兩段都留）；`npm --prefix web run typecheck` 過、`npm run test:website` 141 檔 1,874 過；後端讀 fixture 的 6 檔 157 過（獨立測試庫，已刪）；`npm run e2e:build` 後 stack e2e 172 過、30 略過（獨立庫 `ivy_website_e2e_test_slider20261112`，已刪）。
+- **CI**：main run 43132857601 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `9323f075`。
+- **部署後正式站驗證**（只發 GET）：`/release.json`、`/api/website/v1/health`、首頁 200；首頁 `day-discover`、`/environment` 的 `env-space-playground` 都是新雜湊；`admission-hero` 衍生檔 200。`/admission` 回 404 是入學資訊分頁開關目前關著（`site_meta.admission_enabled`），不是這次造成的。
+- **還沒做（要本人登入後台）**：「常春藤的一天」的「好奇探索」替代文字存在正式站 CMS，仍是紫高麗菜那句，要改成新照片的描述。
+
 ## 2026-11-12 寄信接上 Resend 上線（main CI 部署，沒有 migration）
 
 - **內容**：`4f4be3e4`（PR #72 squash，README「2026-11-11 寄信接上 Resend」），分支 `feature/resend-20261111`。後端多一條經 Resend HTTPS API 寄信的路（`WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`，和 SMTP 擇一），「有沒有設定寄信」統一看 `Settings.real_email_enabled`；後台系統狀態寄信那列改叫「寄信」、測試信多一種結果 `quota`。使用者要求 commit 並併入 main。
