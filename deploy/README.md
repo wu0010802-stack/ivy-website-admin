@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
+
+- **Cloudflare**：使用者個人帳號建了 Turnstile widget「常春藤官網預約」，Managed 模式、pre-clearance 關（www 是灰雲，用不到）；hostname `ivykidschool.com`（含 www）與 `web-production-04caa.up.railway.app`（Railway 網址轉址之後可以拿掉）。
+- **Railway api**：新增 `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`。兩把 key 用 Cloudflare 的複製按鈕貼進 Railway，兩邊以長度與 SHA-256 前綴比對一致，沒有寫進任何檔案或對話。兩個變數在同一次「Deploy Changes」一起套用（只設一個 api 會拒絕啟動），使用者自己按的部署。
+- **部署後正式站驗證**（只發 GET、未登入）：`/api/website/v1/public/booking-config/yihua`、`/minghua` 的 `turnstile_site_key` 都回 24 字元的 site key；`/api/website/v1/health` `status: ok`。
+- **當時五校預約模式**：義華 `phone`、其他四校 `paused`，沒有一校開線上表單，所以官網畫面上暫時看不到 widget，siteverify 也還沒真的跑過。哪一校開表單之後要驗：表單有 Turnstile、能送出、API log 沒有 `invalid-input-secret`／`missing-input-secret`。
+- **隱私權政策初稿**：分支 `fix/privacy-turnstile-20261112`，只動 `admin/src/composables/privacyPolicyDraft.ts`、一支測試與文件，第 4 段加回 Turnstile 說明（改寫成「表單出現時」）、第 6 段委外清單加 Cloudflare；【待確認】仍是 3 處。正式站政策還沒發布（`/privacy` 404），所以啟用 Turnstile 前不需要重新發布；初稿只在後台從沒存過時載入。
+
 ## 2026-11-12 分校資訊四校補 LINE／IG（後台），「LINE 好友」改叫「Line」上線（main CI 部署，沒有 migration）
 
 - **後台資料**：使用者同意後，用總管理者帳號在正式站後台「五校介紹」把明華、崇德、國際、仁武的 LINE（`https://line.me/R/ti/p/@541hvofc`／`@313cwble`／`@786vupcx`／`@392jltmc`）與 Instagram（`ivyschool_mh`／`ivyschool_chongde`／`ivyinternationalkindergarten`／`ivyschool_2021`）填入並發布（12:42–12:44 台北）。四校發布前「官網顯示的是這一版」、沒有別人的草稿，確認視窗都寫只更新 2 個欄位。來源與新舊帳號的判斷見 README 同日段落。
@@ -2624,7 +2632,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
-| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 正式站沒設；**啟用前先在隱私權政策第 4、6 段加回 Turnstile 說明並重新發布**，文字在 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
+| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 下午正式站已設（widget「常春藤官網預約」在使用者的 Cloudflare 帳號，Managed、hostname `ivykidschool.com`＋Railway 網址），隱私權政策初稿第 4、6 段同日加回；**關掉 Turnstile 時要把政策裡這兩句拿掉並重新發布**，見 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
 | api | `WEBSITE_SESSION_IDLE_MINUTES`（120）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、`WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`（600）／`_DAILY_CAP`（20000）、`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`（120）／`_DAILY_CAP`（5000）（皆選填） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）

@@ -1,3 +1,10 @@
+## 2026-11-12 正式站啟用 Turnstile，隱私權政策初稿加回說明（`fix/privacy-turnstile-20261112`）
+
+使用者說「Turnstile 幫我直接操作 chrome 完成」，之後同意把政策初稿的 Turnstile 說明加回。
+
+- **設定（不是程式）**：Cloudflare 建 widget、Railway api 設兩個 key 並重新部署，細節與驗證在 `deploy/README.md` 同日段落。五校目前都沒有線上表單，畫面上暫時看不到 widget。
+- **程式**：後台隱私權政策初稿第 4 段加回 Turnstile 說明、第 6 段委外清單加 Cloudflare（`admin/src/composables/privacyPolicyDraft.ts`）；第 4 段照前端實際行為寫「表單出現時」連到 Cloudflare，不是規格原本的「送出預約時」。`privacyPolicy.test.ts` 加一條斷言；規格附錄 A、第 8 節、deploy/README 環境變數表同步。
+
 ## 2026-11-12 分校資訊四校補 LINE／IG，「LINE 好友」改叫「Line」（`fix/campus-line-label-20261112`）
 
 使用者說首頁「分校資訊」除了義華只有 FB，要從各校粉專找 LINE@ 和 IG。

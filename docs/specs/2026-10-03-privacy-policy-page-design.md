@@ -163,7 +163,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 | 1 | 適用範圍與蒐集者 | 蒐集者名稱【待確認】；連到外部網站後適用對方的政策 |
 | 2 | 我們蒐集的資料 | 預約表單各欄位與必填情形；修改連結可更新的欄位 |
 | 3 | 蒐集目的與利用方式 | 安排參觀、確認信與修改連結、聯絡確認；參觀後的招生聯繫【待確認】 |
-| 4 | 自動蒐集的資訊 | 第一方統計的內容與 DNT／GPC；限流的雜湊 IP；Turnstile【待確認】；主機存取日誌；YouTube 影片 |
+| 4 | 自動蒐集的資訊 | 第一方統計的內容與 DNT／GPC；限流的雜湊 IP；Turnstile（2026-11-12 正式站已啟用）；主機存取日誌；YouTube 影片 |
 | 5 | Cookie 與類似技術 | 必要 cookie 兩個、sessionStorage 兩個；目前未使用第三方分析或廣告 cookie |
 | 6 | 資料分享與委外處理 | 不出售；Railway、寄信服務【待確認】、Cloudflare；校區權限 |
 | 7 | 保存期間 | 預約與招生訪視【待確認】；統計去識別化；速度樣本 90 天；修改連結到期 |
@@ -187,6 +187,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 **2026-11-12 更新**：依正式站現況先補掉第 2、3、4、7 項，初稿剩 3 處【待確認】（第 1、5、8 項；第 6 項見下方最後一點）。附錄 A 已同步。
 
 - 第 3 項：正式站沒有啟用 Turnstile（公開預約設定的 `turnstile_site_key` 是空的），第 4 段與第 6 段的兩處說明拿掉。**日後啟用 Turnstile 前要先把這兩句加回政策並重新發布**：第 4 段加「送出預約時，本網站使用 Cloudflare Turnstile 判斷是不是自動程式，過程中會把您的 IP 提供給 Cloudflare。」；第 6 段的廠商清單加「Cloudflare：判斷自動程式」。
+  - **同日下午已啟用並加回**：正式站在 Railway 設了 `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（公開預約設定回傳 `turnstile_site_key`），初稿第 4、6 段加回（附錄 A 已同步）。第 4 段改寫成「表單出現時」：`VisitForm.vue` 在表單掛載時就 render widget（Managed 模式一出現就檢查），不是按送出才連 Cloudflare。日後若關掉 Turnstile，這兩句要一起拿掉並重新發布。
 - 第 4 項：寄信服務商是 Resend（2026-11-12 正式站已設定，`parent_email_enabled` 為 true）。
 - 第 2、7 項：正式站招生功能已經開著（`/api/website/v1/admin/admissions/options` 未登入回 401），所以直接寫進初稿，文字取自 `docs/specs/2026-10-04-admissions-follow-up-design.md` 附錄 A.2（第 3、10 段；第 7 段的 730 天見下一點），並照之後的程式調整兩點：參觀紀錄的內容補上住址、英文名、父母職業（10-05 起招生訪視有這些欄位）；拿掉「只有參觀校區的人員看得到」（總管理者看得到全部校區）。
 - 第 6、7 項（保存天數）：使用者查過正式站沒設 `WEBSITE_RETENTION_ALLOW_REAL_RUN`，個資清理是關的，預約資料與招生紀錄都不會到期刪除。使用者決定政策先不寫天數，第 7 段前兩行合成一句「目前沒有設定固定的保存期限，可依第 9 段請求刪除，日後訂出期限會更新」。**日後開清理時**（決定天數 → 後台「個資保存政策」設天數並開自動清理 → Railway 設變數），把那一句換回這兩行並重新發布：
@@ -293,6 +294,8 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 
 為了防止濫用（例如大量自動送出預約），我們會把連線來源 IP 經過不可逆的雜湊處理後，短暫保存，時間到就刪除。
 
+預約表單使用 Cloudflare Turnstile 判斷是不是自動程式：表單出現時，您的瀏覽器會連到 Cloudflare 做檢查，過程中 Cloudflare 會取得您的 IP 與瀏覽器資訊。（2026-11-12 正式站啟用後加回）
+
 本網站的主機服務商會依其作業保存連線紀錄（例如存取時間與網址）。
 
 影片使用 YouTube 的 youtube-nocookie.com 播放器，您按下播放後才會載入；影片縮圖由 YouTube 的伺服器提供。
@@ -316,6 +319,7 @@ Payload（`backend/app/content/schemas.py`，新增 `PrivacyPolicyPayload`，繼
 
 - Railway：網站主機與資料庫【待確認：資料所在地區】
 - Resend：寄送預約確認信與其他預約通知信
+- Cloudflare：判斷預約表單是不是自動程式送出（2026-11-12 加回）
 
 在我們內部，只有負責您預約校區的人員看得到您的預約資料。除了法律規定或主管機關依法要求之外，我們不會提供給其他人。
 
