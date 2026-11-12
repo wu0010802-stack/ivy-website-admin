@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ANNI_FILM } from '~/utils/anniversary/film-media'
-import { FILM_CREDIT, FILM_CUES, FILM_PORTRAIT, FILM_TITLE, cueIndexAt, cueSeconds, durationLabel, formatClock, posterSrcset } from '~/utils/anniversary/film'
+import { FILM_CUES, FILM_PORTRAIT, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, posterSrcset } from '~/utils/anniversary/film'
 import { createAmbient } from '~/utils/anniversary/film-ambient'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 
@@ -16,6 +16,8 @@ const posterDesktop = ANNI_FILM.poster.desktop
 const posterMobile = ANNI_FILM.poster.mobile
 // 句子都很短：只在逗號後換行，不會拆成「長成五所／校園」
 const clauses = (text: string) => text.split(/(?<=，)/)
+// 出處有兩段（配樂、片中地圖）：放不下時先在兩段之間換行，再不夠才在括號前、「・」後換
+const credits = creditParts()
 
 const root = ref<HTMLElement | null>(null)
 const frame = ref<HTMLElement | null>(null)
@@ -184,7 +186,7 @@ defineExpose({ start })
       </div>
       <figcaption class="anni-film-caption">
         <h2 id="anni-film-title"><span class="anni-film-nobr">紀念影片</span><span class="anni-film-nobr">《{{ FILM_TITLE }}》</span></h2>
-        <p>{{ FILM_CREDIT }}</p>
+        <p><span v-for="(credit, i) in credits" :key="i" class="anni-film-part"><span v-for="(bit, k) in credit" :key="k" class="anni-film-part">{{ bit }}</span></span></p>
       </figcaption>
     </figure>
 

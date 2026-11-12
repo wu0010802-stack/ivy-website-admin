@@ -11,8 +11,21 @@ export const FILM_FPS = 30
 export const FILM_UPLOAD_DATE = '2026-11-11'
 /** 視窗比 4:5 還瘦（直拿手機、直放平板）播直式那一版；和 10-04 的開場動畫同一條分界 */
 export const FILM_PORTRAIT = '(max-aspect-ratio: 4/5)'
-/** 鋼琴取樣是 CC BY 3.0：頁面上要留出處 */
-export const FILM_CREDIT = '原創配樂。鋼琴取樣：Salamander Grand Piano V3（Alexander Holm，CC BY 3.0）'
+/**
+ * 頁面上要留的出處：鋼琴取樣是 CC BY 3.0；片中第 18 小節圈裡的高雄地圖（2026-11-12 加的）和下面時間軸那張地圖
+ * 用同一份資料（區界＝內政部國土測繪中心、湖與愛河＝OpenStreetMap，ODbL 要標示），寫法照 AnniversaryMap.vue 的那一行。
+ */
+export const FILM_CREDITS = [
+  '原創配樂。鋼琴取樣：Salamander Grand Piano V3（Alexander Holm，CC BY 3.0）',
+  '片中地圖：© OpenStreetMap 貢獻者・內政部國土測繪中心'
+] as const
+/** 接成一句（給測試與需要整串文字的地方） */
+export const FILM_CREDIT = FILM_CREDITS.join('。')
+
+/** 影片下面那一行怎麼斷：一段出處一組；組內只在括號前、「・」後可以換行（不把「內政部國土測繪中心」「Alexander Holm」拆成兩行） */
+export function creditParts(credits: readonly string[] = FILM_CREDITS): string[][] {
+  return credits.map((c, i) => (i < credits.length - 1 ? `${c}。` : c).split(/(?=（)|(?<=・)/))
+}
 
 export interface FilmCue {
   /** 這一段第一個鏡頭在全片的第幾格（點了從這裡播） */

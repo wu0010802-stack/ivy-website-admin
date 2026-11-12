@@ -46,7 +46,8 @@ AUDIO = ['-c:a', 'aac', '-b:a', '192k', '-ar', '48000']
 TEASER = ['mh-purple-hands', 'mh-run-camera', 'mh-hug-smile', 'gr-gowns', 'mh-look-up', 'mh-boy-laugh', 'gr-arms-raised']
 TEASER_LEN, TEASER_FADE, TEASER_FROM = 54, 10, 8
 
-# 「影片裡的話」六句的縮圖：鏡頭 id＋第幾格；第一句用成片第 1448 格（三十年的星環剛合起來、五顆星一起亮，校名還沒出來），
+# 「影片裡的話」六句的縮圖：鏡頭 id＋第幾格；第一句用成片第 1448 格（三十年的星環剛合起來、五顆星一起亮，
+# 圈裡的高雄地圖鋪開到一半、校名與區名都還沒出來），
 # 只取星環中間那一塊（橫式畫面上星環的圓心在 1300, 540；左邊的字不取）
 FILM_RING_BOX = (750, 196, 1850, 884)
 CUE_THUMBS: list[tuple[str, int]] = [('film', 1448), ('mh-yard-hug', 40), ('mh-basketball', 30), ('mh-look-up', 40), ('gr-hands', 60), ('gr-spotlight', 90)]

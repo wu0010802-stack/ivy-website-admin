@@ -74,6 +74,8 @@
 .anni-film-say { font: 700 var(--fs-md)/1.55 var(--font-head); }
 /* 片名、句子的每一小段不拆開（只在段與段之間換行） */
 .anni-film-nobr { display: inline-block; white-space: nowrap; }
+/* 出處：整段放得下就不拆；放不下先整段換到下一行，比容器還寬才在裡面換行 */
+.anni-film-part { display: inline-block; }
 .anni-film-cues button:hover .anni-film-thumb img { transform: scale(1.05); }
 .anni-film-cues button:hover .anni-film-say { color: var(--leaf); }
 .anni-film-cues button[aria-current] .anni-film-thumb::after { opacity: 1; }

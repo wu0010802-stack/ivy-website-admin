@@ -6,7 +6,7 @@ import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
 import { ANNI_FILM } from '../app/utils/anniversary/film-media'
-import { FILM_CREDIT, FILM_CUES, FILM_FPS, FILM_PORTRAIT, FILM_SECONDS, FILM_TITLE, cueIndexAt, cueSeconds, durationLabel, formatClock, isoDuration, posterSrcset } from '../app/utils/anniversary/film'
+import { FILM_CREDIT, FILM_CREDITS, FILM_CUES, FILM_FPS, FILM_PORTRAIT, FILM_SECONDS, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, isoDuration, posterSrcset } from '../app/utils/anniversary/film'
 import { CLIENT_INLINE_SCRIPTS } from '../server/utils/script-csp'
 import { anniversaryEnabled, anniversarySeo, isAnniversaryHref, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { applyContentOverlay } from '../app/utils/content-overlay'
@@ -302,7 +302,19 @@ describe('30 週年分頁：紀念影片', () => {
   it('鋼琴取樣是 CC BY 3.0：出處留在影片下面', () => {
     expect(FILM_CREDIT).toContain('Salamander Grand Piano')
     expect(FILM_CREDIT).toContain('CC BY 3.0')
-    expect(film).toContain('<p>{{ FILM_CREDIT }}</p>')
+    // 片中圈裡的高雄地圖和時間軸那張地圖同一份資料：出處也要跟著標
+    expect(FILM_CREDIT).toContain('© OpenStreetMap 貢獻者')
+    expect(FILM_CREDIT).toContain('內政部國土測繪中心')
+    // 出處一段一組顯示（換行先落在兩段之間，再不夠才在括號前、「・」後），接起來還是 FILM_CREDIT 那一串
+    expect(FILM_CREDITS).toHaveLength(2)
+    expect(creditParts()).toEqual([
+      ['原創配樂。鋼琴取樣：Salamander Grand Piano V3', '（Alexander Holm，CC BY 3.0）。'],
+      ['片中地圖：© OpenStreetMap 貢獻者・', '內政部國土測繪中心']
+    ])
+    expect(creditParts().flat().join('')).toBe(FILM_CREDIT)
+    expect(film).toContain('const credits = creditParts()')
+    expect(film).toContain('v-for="(credit, i) in credits"')
+    expect(filmCss).toContain('.anni-film-part { display: inline-block; }')
   })
 
   it('首屏：標題、放映區、這一頁的索引；分享連結帶 #film', () => {
