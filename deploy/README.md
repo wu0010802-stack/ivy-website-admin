@@ -38,6 +38,10 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **部署後正式站驗證**（只發 GET、未登入）：`/api/website/v1/public/booking-config/yihua`、`/minghua` 的 `turnstile_site_key` 都回 24 字元的 site key；`/api/website/v1/health` `status: ok`。
 - **當時五校預約模式**：義華 `phone`、其他四校 `paused`，沒有一校開線上表單，所以官網畫面上暫時看不到 widget，siteverify 也還沒真的跑過。哪一校開表單之後要驗：表單有 Turnstile、能送出、API log 沒有 `invalid-input-secret`／`missing-input-secret`。
 - **隱私權政策初稿**：分支 `fix/privacy-turnstile-20261112`，只動 `admin/src/composables/privacyPolicyDraft.ts`、一支測試與文件，第 4 段加回 Turnstile 說明（改寫成「表單出現時」）、第 6 段委外清單加 Cloudflare；【待確認】仍是 3 處。正式站政策還沒發布（`/privacy` 404），所以啟用 Turnstile 前不需要重新發布；初稿只在後台從沒存過時載入。
+- **推前（本機）**：admin 引用初稿或政策頁的 5 檔 118 過、1 略過；`npm --prefix admin run typecheck` 過。rebase 到 `6b89e91a`（deploy/README 頂部衝突，兩段都留）後重跑 `privacyPolicy.test.ts` 6 過。沒跑後端、web 與 stack e2e（沒動到）。使用者用 `!` 推 main（fast-forward `6b89e91a..aa1552e1`）。
+- **CI**：main run 43161362184 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（05:31:44–05:37:55Z）。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `aa1552e1`；`/`、`/visit`、`/admin/` 200，health `status: ok`；CI 重新部署後 `booking-config/yihua`、`/renwu` 的 `turnstile_site_key` 仍是 24 字元（Railway 變數沒被覆蓋）；後台 `PrivacyPolicyView` chunk 有第 4 段「預約表單使用 Cloudflare Turnstile…表單出現時」與第 6 段「- Cloudflare：判斷預約表單是不是自動程式送出」。`/privacy` 仍 404（政策未發布，符合預期）。
+- **沒驗、待使用者**：沒登入後台開「隱私權政策」頁——正式站若以前存過這份內容，載入的是存過的版本，要手動貼這兩句。哪一校開線上表單後，實際送一筆確認 widget 出現、能送出、API log 沒有 secret 錯誤。
 
 ## 2026-11-12 分校資訊四校補 LINE／IG（後台），「LINE 好友」改叫「Line」上線（main CI 部署，沒有 migration）
 
