@@ -1,6 +1,6 @@
 ## 2026-11-11 寄信接上 Resend（`feature/resend-20261111`）
 
-使用者要求接 Resend。正式站一直沒有設定寄信（家長確認信、參觀提醒、停課通知、重設密碼連結都寄不出去），原本只支援 SMTP。**尚未部署，正式站也還沒設定金鑰**：程式併進 `main` 後不設變數行為完全不變。
+使用者要求接 Resend。正式站一直沒有設定寄信（家長確認信、參觀提醒、停課通知、重設密碼連結都寄不出去），原本只支援 SMTP。**程式 2026-11-12 已部署（`4f4be3e4`，PR #72），正式站還沒設定金鑰**：不設變數行為完全不變，部署紀錄見 `deploy/README.md`。
 
 - **做法**：後端多一個走 Resend HTTPS API 的寄信 adapter（`backend/app/notifications/email_adapter.py` 的 `ResendEmailAdapter`，`POST https://api.resend.com/emails`，純文字信）。不走 Resend 的 SMTP 介面：部署平台可能擋對外的 SMTP 連接埠，HTTPS 一定通，也不用多管 port 與加密方式。
 - **設定**：api 新增 `WEBSITE_RESEND_API_KEY`、`WEBSITE_RESEND_FROM`，兩個要一起設；和 `WEBSITE_SMTP_HOST` 只能擇一（同時設會在啟動時擋下，不默默挑一個）。金鑰不進 `repr`、不出現在系統狀態。

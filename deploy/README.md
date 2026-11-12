@@ -14,7 +14,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 寄信：Resend（2026-11-11 程式已備妥，正式站尚未設定）
+## 寄信：Resend（程式 2026-11-12 已上線，正式站尚未設定金鑰）
 
 正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
 
@@ -30,6 +30,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
+## 2026-11-12 寄信接上 Resend 上線（main CI 部署，沒有 migration）
+
+- **內容**：`4f4be3e4`（PR #72 squash，README「2026-11-11 寄信接上 Resend」），分支 `feature/resend-20261111`。後端多一條經 Resend HTTPS API 寄信的路（`WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`，和 SMTP 擇一），「有沒有設定寄信」統一看 `Settings.real_email_enabled`；後台系統狀態寄信那列改叫「寄信」、測試信多一種結果 `quota`。使用者要求 commit 並併入 main。
+- **推前（本機）**：後端全套 5087 過，1 項（`test_google_oauth.py::test_google_login_is_not_blocked_by_the_password_lock`）在機器負載 100 以上時失敗、單獨重跑整檔 54 項過；admin 全套過（sparse worktree 缺 `web/shared` 的一檔與一項 120 秒逾時，補目錄後單獨重跑 76 項過）；admin typecheck、`npm run contract:check` 過。沒有真的打過 Resend（沒有金鑰）。
+- **CI**：PR run 43128101724 全綠（web、admin、後端 3 組、E2E）；main run 43129606038 全綠，Deploy Railway production success；`/release.json` 的 `base_commit` 是 `4f4be3e4`。
+- **部署後正式站驗證**（只發 GET）：`/release.json` 200、`/api/website/v1/health` 200、首頁與 `/admin/` 200、`/api/website/v1/admin/system-status` 未登入回 401；`/api/website/v1/public/booking-config/yihua` 的 `parent_email_enabled` 仍是 `false`（正式站沒設任何寄信變數，行為和部署前相同）。沒有登入正式站後台看系統狀態頁。
+- **還沒做（要本人登入）**：Resend 帳號、網域驗證（Cloudflare DNS）、金鑰與 Railway api 兩個變數，步驟在上面「寄信：Resend」。設好之前所有 Email 照舊不寄。
+
 
 ## 2026-11-12 特色教學手機版只留一條橫滑上線（main CI 部署，沒有 migration）
 
