@@ -20,11 +20,24 @@ import { publicScriptSources } from './script-csp'
 // 讓使用者按了按鈕後對著麥克風吹氣（只在瀏覽器裡算頻譜，不錄音、不上傳）；
 // 瀏覽器照樣會先問使用者，iframe 一樣拿不到。其他頁維持 microphone=()。
 // 不送 Cross-Origin-Opener-Policy：後台 Google 登入若走彈出視窗會被它切斷。
+//
+// 2026-11-12 起公開頁再收三條「資源從哪裡來」（不收 default-src：字型、樣式、影片維持原樣）。
+// 萬一出現 HTML 注入，注入的 <img>／fetch／iframe 不能把頁面上的資料帶到外站：
+// - img-src：同源素材、data:／blob:，加 i.ytimg.com（YouTube 影片沒有自訂封面時的預設縮圖，
+//   app/utils/filmCarousel.ts 的 youtubeThumb）。
+// - connect-src：同源 API、telemetry；Turnstile（公開預約的機器人驗證）。
+// - frame-src：同源（/preview 的手機寬度預覽）、youtube-nocookie（影片按了才插）、Turnstile。
+// 新增外部嵌入或圖片來源時要一起改，tests/stack/public-csp.spec.ts 會抓到違規。
+export const PUBLIC_RESOURCE_CSP = [
+  "img-src 'self' data: blob: https://i.ytimg.com",
+  "connect-src 'self' https://challenges.cloudflare.com",
+  "frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com"
+].join('; ')
 const PUBLIC_CSP_BASE = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 
 /** 公開頁的完整 CSP；pageHashes 是這一頁 SSR inline script 的 hash-source（見 script-csp.ts）。 */
 export function publicCsp(pageHashes: Iterable<string> = []): string {
-  return `script-src ${publicScriptSources(pageHashes)}; script-src-attr 'none'; form-action 'self'; ${PUBLIC_CSP_BASE}`
+  return `script-src ${publicScriptSources(pageHashes)}; script-src-attr 'none'; form-action 'self'; ${PUBLIC_RESOURCE_CSP}; ${PUBLIC_CSP_BASE}`
 }
 
 const PUBLIC_CSP = publicCsp()
@@ -115,8 +128,10 @@ export function securityHeadersFor(
     else if (ADMIN_REVALIDATE.test(pathname) || ADMIN_REVALIDATE.test(decoded)) headers['Cache-Control'] = 'no-cache'
   }
   // HSTS 只在正式環境送；本機是 http，瀏覽器本來就會忽略，但測試環境
-  // 用自簽 https 時送了會讓 localhost 被鎖一年。不加 includeSubDomains：
-  // 目前網域是 railway.app 的子網域，正式網域定案後再評估 preload。
-  if (websiteEnv === 'production') headers['Strict-Transport-Security'] = 'max-age=31536000'
+  // 用自簽 https 時送了會讓 localhost 被鎖一年。includeSubDomains（2026-11-12，正式網域
+  // www.ivykidschool.com 已定案）：只涵蓋 *.www.ivykidschool.com，沒有任何服務在用；整個
+  // ivykidschool.com 要在 Cloudflare 的 apex 開 HSTS 才算（見 deploy/README.md「資安強化 2026-11-12」）。
+  // 不加 preload：送進瀏覽器內建清單幾乎撤不回來，要業主決定。
+  if (websiteEnv === 'production') headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
   return headers
 }

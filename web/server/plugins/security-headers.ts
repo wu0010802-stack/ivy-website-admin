@@ -15,10 +15,16 @@ export default defineNitroPlugin((nitroApp) => {
   // 錯誤頁是 Nuxt 用內部請求 /__nuxt_error 渲染再照抄標頭，同樣經過這裡。
   // 頁面沒有 SWR／ISR 快取（routeRules 只快取靜態資源）；日後若加快取，快取的 HTML 與標頭仍是
   // 同一份內容算出來的雜湊，不會對不上（這也是選雜湊、不選 nonce 的原因）。
+  //
+  // 只算 head 與 bodyAppend（2026-11-12）：這兩段是 head 管理器（useHead）與 Nuxt 自己放的 script
+  // （importmap、window.__NUXT__ 設定）。body 是 app 本體的 HTML、bodyPrepend 含 <Teleport to="body">
+  // 的元件內容，這兩段的 script 若也照算，日後任何欄位在 SSR 漏出 <script>，伺服器會替它算雜湊、
+  // 自己放行，CSP 就擋不住伺服器端的儲存型 XSS。元件裡要用的 inline script 一律登記在
+  // app/utils/inline-scripts.ts（CLIENT_INLINE_SCRIPTS，每頁都帶它們的雜湊），不靠這裡現算。
   nitroApp.hooks.hook('render:html', (html, { event }) => {
     if (import.meta.dev) return
     if (getResponseHeader(event, 'content-security-policy') === ADMIN_CSP) return
-    const markup = [...html.head, ...html.bodyPrepend, ...html.body, ...html.bodyAppend].join('')
+    const markup = [...html.head, ...html.bodyAppend].join('')
     setResponseHeader(event, 'Content-Security-Policy', publicCsp(inlineScriptHashes(markup)))
   })
 

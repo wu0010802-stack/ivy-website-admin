@@ -114,9 +114,16 @@ export default defineNuxtConfig({
     // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
     // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
     trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
+    // www 經過 Cloudflare 代理（橘雲）時設 true：上一跳是 Cloudflare 節點才採信 CF-Connecting-IP
+    // （2026-11-12，server/utils/client-ip.ts）。預設關；灰雲時開著也無害（上一跳不是 Cloudflare）。
+    cloudflareClientIp: parseBoolean(process.env.NUXT_CLOUDFLARE_CLIENT_IP, false),
     // 素材上傳代理的單檔上限（MB），要和 API 的 WEBSITE_MEDIA_MAX_IMAGE_MB／
     // WEBSITE_MEDIA_MAX_VIDEO_MB 較大者一致；見 shared/request-guard.ts。
     mediaMaxUploadMb: Number(process.env.NUXT_MEDIA_MAX_UPLOAD_MB ?? 150),
+    // 代理到 API 的逾時（2026-11-12，server/utils/api-proxy.ts、stream-proxy.ts）：上游多久沒給
+    // 回應標頭就回 504（串流上傳不套用）；素材下載的客戶端多久沒讀走資料就斷線。
+    apiProxyTimeoutSeconds: Number(process.env.NUXT_API_PROXY_TIMEOUT_SECONDS ?? 120),
+    mediaIdleTimeoutSeconds: Number(process.env.NUXT_MEDIA_IDLE_TIMEOUT_SECONDS ?? 120),
     websiteEnv,
     // 前端錯誤回報（2026-11-05，server/api/client-errors.post.ts）：關閉時伺服器直接回 204。預設只有 production 開；
     // NUXT_ERROR_REPORTS_ENABLED 在執行期也能改（Nuxt 依鍵名對應環境變數），可以不重建映像就關掉。
@@ -125,6 +132,9 @@ export default defineNuxtConfig({
     // NUXT_PUBLIC_SITE_ORIGIN，例如 "ivykidschool.com,web-production-04caa.up.railway.app"。
     // 預設空白＝不轉；正式網域接通、驗證過才設（執行期變數，改了重啟即可，不用重建映像）。
     redirectHosts: process.env.NUXT_REDIRECT_HOSTS ?? '',
+    // 後台獨立子網域（2026-11-12，server/utils/admin-host.ts）：例如 "admin.ivykidschool.com"。
+    // 預設空白＝後台照舊在官網同一個網域。啟用前要先照 deploy/README.md「後台獨立子網域」做完設定。
+    adminHost: process.env.NUXT_ADMIN_HOST ?? '',
     public: {
       contentMode,
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',

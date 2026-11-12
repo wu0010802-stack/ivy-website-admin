@@ -2,7 +2,7 @@
 import { createServer, request, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createApp, createError, defineEventHandler, getHeader, proxyRequest, toNodeListener } from 'h3'
+import { createApp, createError, defineEventHandler, getHeader, toNodeListener } from 'h3'
 import { trustedClientIp } from '../server/utils/client-ip'
 
 const servers: Server[] = []
@@ -44,6 +44,8 @@ function rawRequest(port: number, path: string, init: { method?: string; headers
 let upstreamHits: string[] = []
 let upstreamHandler: (req: IncomingMessage, res: ServerResponse) => void = (_req, res) => res.end('{}')
 let proxyPort = 0
+let upstreamBase = ''
+let runtimeOverrides: Record<string, unknown> = {}
 
 beforeEach(async () => {
   upstreamHits = []
@@ -55,8 +57,9 @@ beforeEach(async () => {
   vi.stubGlobal('getHeader', getHeader)
   vi.stubGlobal('createError', createError)
   vi.stubGlobal('trustedClientIp', trustedClientIp)
-  vi.stubGlobal('proxyRequest', proxyRequest)
-  vi.stubGlobal('useRuntimeConfig', () => ({ websiteApiInternalBase: `http://127.0.0.1:${upstreamPort}`, trustedProxyHops: 1, mediaMaxUploadMb: 150 }))
+  upstreamBase = `http://127.0.0.1:${upstreamPort}`
+  runtimeOverrides = {}
+  vi.stubGlobal('useRuntimeConfig', () => ({ websiteApiInternalBase: upstreamBase, trustedProxyHops: 1, mediaMaxUploadMb: 150, ...runtimeOverrides }))
   const { default: handler } = await import('../server/routes/api/website/v1/[...]')
   proxyPort = await listen(createServer(toNodeListener(createApp().use(handler))))
 })
@@ -92,6 +95,14 @@ describe('路徑跳脫一律 404，後端收不到（稽核 proxy-dot-segment-*�
 
 describe('/public/telemetry 只給伺服器內部轉送（稽核 public-telemetry-analytics-storage-flood）', () => {
   it.each(['/api/website/v1/public/telemetry', '/api/website/v1/public/telemetry/', '/api/website/v1/public/%74elemetry'])('%s → 404', async (path) => {
+    const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
+    expect(response.status).toBe(404)
+    expect(upstreamHits).toEqual([])
+  })
+})
+
+describe('/public/engagement 同樣只給 telemetry.post.ts 轉送（2026-11-12）', () => {
+  it.each(['/api/website/v1/public/engagement', '/api/website/v1/public/engagement/', '/api/website/v1/public/%65ngagement', '/api/website/v1//public//engagement'])('%s → 404', async (path) => {
     const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
     expect(response.status).toBe(404)
     expect(upstreamHits).toEqual([])
@@ -239,4 +250,115 @@ describe('其他 API 也在客戶端斷線時中止上游', () => {
     await waitFor(() => state.closedEarly)
     expect(state.finished).toBe(false)
   })
+})
+
+describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12）', () => {
+  it('偽造 IP／Host 的標頭與 Authorization 不轉；後端會讀的標頭照轉', async () => {
+    let seen: IncomingMessage['headers'] = {}
+    upstreamHandler = (req, res) => {
+      seen = req.headers
+      res.writeHead(200, { 'content-type': 'application/json', server: 'uvicorn', 'x-request-id': 'abc12345', 'set-cookie': 'ivy_admin_session=new; HttpOnly' })
+      res.end('{}')
+    }
+    const body = '{"a":1}'
+    const response = await rawRequest(proxyPort, '/api/website/v1/admin/visit-requests/1/confirm', {
+      method: 'POST',
+      body,
+      headers: {
+        'content-type': 'application/json',
+        'content-length': String(body.length),
+        cookie: 'ivy_admin_session=s',
+        origin: 'https://www.ivykidschool.com',
+        'user-agent': 'Mozilla/5.0 test',
+        'sec-fetch-site': 'same-origin',
+        'x-csrf-token': 'csrf',
+        'idempotency-key': 'key-1',
+        'x-ivy-parent': '1',
+        'x-ivy-search': '["a"]',
+        'x-line-signature': 'sig',
+        'x-request-id': 'req-12345678',
+        'x-forwarded-for': '6.6.6.6, 203.0.113.9',
+        'x-forwarded-host': 'evil.example',
+        'x-forwarded-proto': 'http',
+        forwarded: 'for=6.6.6.6;host=evil.example',
+        'x-real-ip': '6.6.6.6',
+        authorization: 'Bearer leak',
+        'x-website-client-ip': 'spoofed',
+        referer: 'https://www.ivykidschool.com/admin/?token=x',
+        'x-other': 'drop',
+      },
+    })
+    expect(response.status).toBe(200)
+    expect(response.headers.server).toBeUndefined()
+    expect(response.headers['x-request-id']).toBe('abc12345')
+    expect(response.headers['set-cookie']).toEqual(['ivy_admin_session=new; HttpOnly'])
+    for (const name of ['content-type', 'cookie', 'origin', 'user-agent', 'sec-fetch-site', 'x-csrf-token', 'idempotency-key', 'x-ivy-parent', 'x-ivy-search', 'x-line-signature', 'x-request-id']) {
+      expect(seen[name], name).toBeDefined()
+    }
+    expect(seen['x-website-client-ip']).toBe('203.0.113.9')
+    for (const name of ['x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'forwarded', 'x-real-ip', 'authorization', 'referer', 'x-other']) {
+      expect(seen[name], name).toBeUndefined()
+    }
+  })
+
+  it('白名單涵蓋後端會讀的標頭（新增後端標頭時要一起加）', async () => {
+    const { API_FORWARD_REQUEST_HEADERS } = await import('../server/utils/api-proxy')
+    expect([...API_FORWARD_REQUEST_HEADERS].sort()).toEqual([
+      'content-length', 'content-type', 'cookie', 'idempotency-key', 'if-modified-since', 'if-none-match', 'if-range',
+      'origin', 'range', 'sec-fetch-site', 'user-agent', 'x-csrf-token', 'x-request-id',
+    ])
+  })
+})
+
+describe('上游逾時（2026-11-12）', () => {
+  it('API 一直不回應標頭就回 504，並關掉上游連線', async () => {
+    runtimeOverrides = { apiProxyTimeoutSeconds: 0.3 }
+    const state = { closed: false }
+    upstreamHandler = (_req, res) => { res.on('close', () => { state.closed = true }) }
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/site')
+    expect(response.status).toBe(504)
+    await waitFor(() => state.closed)
+  })
+
+  it('回應標頭到了之後，本文送很久也不會被逾時切斷', async () => {
+    runtimeOverrides = { apiProxyTimeoutSeconds: 0.2 }
+    upstreamHandler = (_req, res) => {
+      res.writeHead(200, { 'content-type': 'text/csv' })
+      res.write('a,b\n')
+      setTimeout(() => res.end('1,2\n'), 500)
+    }
+    const response = await rawRequest(proxyPort, '/api/website/v1/admin/visit-requests/export')
+    expect(response.status).toBe(200)
+    expect(response.body.toString()).toBe('a,b\n1,2\n')
+  })
+
+  it('素材上游不回應也回 504', async () => {
+    runtimeOverrides = { apiProxyTimeoutSeconds: 0.3 }
+    upstreamHandler = () => undefined
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/media/0b7c3b3e-1a2b-4c5d-8e9f-001122334455/file')
+    expect(response.status).toBe(504)
+  })
+
+  it('素材下載的客戶端停著不讀，閒置逾時後斷線並中止上游', async () => {
+    runtimeOverrides = { mediaIdleTimeoutSeconds: 0.5 }
+    const state = { sent: 0, closedEarly: false }
+    upstreamHandler = (_req, res) => {
+      const chunk = Buffer.alloc(64 * 1024, 1)
+      res.on('close', () => { if (!res.writableFinished) state.closedEarly = true })
+      res.writeHead(200, { 'content-type': 'video/mp4', 'content-length': String(256 * 1024 * 1024) })
+      Readable.from((async function* () {
+        while (state.sent < 256 * 1024 * 1024) { state.sent += chunk.length; yield chunk }
+      })()).pipe(res)
+    }
+    // 停著不讀的客戶端看不到 close（資料還卡在暫停的串流裡），所以只看上游有沒有被中止。
+    const req = request({ host: '127.0.0.1', port: proxyPort, path: '/api/website/v1/public/media/0b7c3b3e-1a2b-4c5d-8e9f-001122334455/file' }, (res) => {
+      res.pause()
+      res.on('error', () => undefined)
+    })
+    req.on('error', () => undefined)
+    req.end()
+    await waitFor(() => state.closedEarly, 8000)
+    expect(state.sent).toBeLessThan(256 * 1024 * 1024)
+    req.destroy()
+  }, 15000)
 })
