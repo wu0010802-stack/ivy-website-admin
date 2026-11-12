@@ -114,6 +114,11 @@ export default defineNuxtConfig({
     // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
     // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
     trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
+    // 平台代理會覆寫、訪客偽造不了的訪客 IP header（2026-11-12）：正式站設 "x-real-ip"。
+    // Railway edge 前面多了一層 CDN（CDN77），會把自己的節點接在 X-Forwarded-For 最後面，
+    // 只靠 trustedProxyHops 會取到 CDN 節點；X-Real-IP 由 Railway 覆寫成真正連線來源（實測）。
+    // 預設空白＝不看任何 header，照舊從 X-Forwarded-For 取（本機與測試環境沒有可信的代理）。
+    clientIpHeader: process.env.NUXT_CLIENT_IP_HEADER ?? '',
     // www 經過 Cloudflare 代理（橘雲）時設 true：上一跳是 Cloudflare 節點才採信 CF-Connecting-IP
     // （2026-11-12，server/utils/client-ip.ts）。預設關；灰雲時開著也無害（上一跳不是 Cloudflare）。
     cloudflareClientIp: parseBoolean(process.env.NUXT_CLOUDFLARE_CLIENT_IP, false),
@@ -135,8 +140,6 @@ export default defineNuxtConfig({
     // 後台獨立子網域（2026-11-12，server/utils/admin-host.ts）：例如 "admin.ivykidschool.com"。
     // 預設空白＝後台照舊在官網同一個網域。啟用前要先照 deploy/README.md「後台獨立子網域」做完設定。
     adminHost: process.env.NUXT_ADMIN_HOST ?? '',
-    // 暫時的訪客 IP 診斷端點 token（2026-11-12，server/api/client-errors/ip-diag.get.ts）；空白＝關閉。
-    ipDiagToken: process.env.NUXT_IP_DIAG_TOKEN ?? '',
     public: {
       contentMode,
       siteOrigin: process.env.NUXT_PUBLIC_SITE_ORIGIN ?? '',
