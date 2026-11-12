@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡上線（main CI 部署，沒有 migration）
+
+- **內容**：`28fa4e09`（README「2026-11-12 孩子的一天背景影片換成明華校幼幼班六鏡」），分支 `feature/day-film-kathy-20261112`。首頁「孩子的一天」背景影片從義華遊藝表演換成明華校幼幼班六鏡（桌機 1440×810、手機另剪直式 720×1280）、封面兩張、左下角圖說改「明華校 · 幼幼班的一天」；橫拿手機改拿桌機那支。紗沒動。使用者說「幫我部署」。
+- **推前（本機）**：rebase 到 `a0625b6c`（README 頂部兩段都留）；`npm --prefix web run typecheck` 過、`npm run test:website` 140 檔 1,886 過；後端讀內建內容的 5 檔 139 過（獨立測試庫，已刪）；後台 `vue-tsc` 過、引用這個畫面的 6 支 180 過。後台全套在本機沒跑出全綠（機器負載 115–150，107 項裡 104 項是逾時，失敗檔與這次改動無關），以 CI 為準。沒跑 stack e2e。
+- **CI**：main run 43144864229 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success；`/release.json` 的 `base_commit` 是 `28fa4e09`（03:04Z）。
+- **部署後正式站驗證**（`https://www.ivykidschool.com/`，只發 GET、擋掉遙測，腳本 `output/day-kathy-20261111/verify-prod.cjs`）：1440×900 播 `day-desktop-46f6644bd22c.mp4`（1440×810、20.60 秒）＋封面 `day-poster-df2e758b42c4-1440.webp`；390×844 播 `day-mobile-b6ec4bd9c4b6.mp4`（720×1280）＋直式封面 `day-poster-mobile-b656363be0e8-720.webp`；844×390（橫拿手機）拿桌機那支與桌機封面；三種視窗圖說都是「明華校 · 幼幼班的一天」、沒有主控台錯誤。兩支影片下載後的 sha256 前 12 碼與檔名相同；舊的 `day-desktop-ce1da5e82d75.mp4` 回 404（HTML 已不引用）；`/api/website/v1/health` 回 ok。
+- **還沒做**：iOS／Android 實機、Firefox、Windows 沒驗；開場大標最亮像素對比 2.44–2.58（舊片 2.50–2.58，既有問題）沒處理；這支片來自明華校粉專，放上首頁是否另外知會明華校與片中家長待園方確認。
+
 ## 2026-11-12 後台 QA 第三輪：成效統計拍立得顯示卡片名稱上線（main CI 部署，沒有 migration）
 
 - **內容**：`cd645c67`（README「2026-11-12 後台 QA 第三輪」），分支 `fix/admin-qa-20261112`。成效統計「點開了什麼」原本把後台新增的拍立得卡顯示成代號（`moment-<時間戳>`），改由後端從發布中的 `day_experience` 帶卡片名稱（`EngagementActionOut.label`），契約重產。使用者說「部署」。
