@@ -210,6 +210,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上驗證**：`/environment` 有學習區教室、紅磚迴廊中庭、騎士堡、木工創作教室，噴水池花園與校門口已不在；`tour-chongde-playground`、`tour-minghua-courtyard`、`tour-international-woodwork` 衍生檔 200。
 - **待使用者**：正式站義華的校園探索是後台發布的內容，仍是舊的戶外廣場／綠色園藝／共創教室；要在後台「全站與素材 → 校園探索 → 義華」刪綠色園藝、新增「生態花園」（照片 `~/Desktop/義華-生態花園-後台上傳用.jpg`），排成戶外廣場 → 共創教室 → 生態花園後發布。
 
+## 2026-11-12 訪客 IP 改採信 X-Real-IP（操作紀錄與限流原本都記成 Railway 的 CDN 節點）
+
+- **問題**：使用者在 admin 網址登入，操作紀錄的 IP 是 `79.127.228.18`（CDN77 香港），Railway HTTP 日誌的 `srcIp` 卻是本人。`trustedClientIp` 從 `X-Forwarded-For` 右邊取 1 層，而 Railway edge 前面多了一層 CDN77，把自己的節點接在最後面。影響：操作紀錄 IP 不可信；限流的「來源」桶以 CDN 節點計（同區訪客共用，較嚴，不會放寬）；`NUXT_CLOUDFLARE_CLIENT_IP` 也沒作用（最後一段永遠不是 Cloudflare）。不是今天 Cloudflare／admin 子網域造成的，10-06 加 IP 紀錄以來可能一直如此。
+- **量測**（PR #75 暫時診斷端點 `c2804fc8`，token 把關；只回請求自己的 header）：
+  - admin（灰雲）：`X-Forwarded-For: 訪客, 79.127.228.17`、`X-Real-IP: 訪客`、`X-Railway-Edge: hkg1`。
+  - www（Cloudflare）：`X-Forwarded-For: 104.22.20.90（Cloudflare）, 84.17.44.229（CDN77 洛杉磯）`、`X-Real-IP: 訪客`、`CF-Connecting-IP: 訪客`、`X-Railway-Edge: lax1`。
+  - Railway 網址：同 admin。
+  - 偽造：自帶 `X-Forwarded-For: 6.6.6.6`、`X-Real-IP: 7.7.7.7` 三條路都被 Railway 整個覆寫；直連自帶的 `CF-Connecting-IP` 會原樣轉進來（所以 Cloudflare 檢查要保留）；經 Cloudflare 自帶 `CF-Connecting-IP` 被 Cloudflare 回 error 1000。
+- **修正**：`web/server/utils/client-ip.ts` 先看 `NUXT_CLIENT_IP_HEADER` 指定的 header（值是 IP 才用），沒有再照舊從 `X-Forwarded-For` 取；Cloudflare 檢查不變。正式站 web 設 `NUXT_CLIENT_IP_HEADER=x-real-ip`。診斷端點與 `NUXT_IP_DIAG_TOKEN` 移除。
+- **順帶發現（沒處理）**：經 Cloudflare 的請求進的是 Railway `lax1`（洛杉磯）edge，灰雲直連是 `hkg1`（香港）；台灣訪客走 www 可能多繞美國一趟，要比較 Cloudflare 前後的載入時間再決定要不要留橘雲。
+
 ## 2026-11-12 平台設定：HSTS、www 走 Cloudflare 代理、後台搬到 admin.ivykidschool.com（只改平台設定，沒有程式提交）
 
 上方「資安強化（2026-11-12）」的平台項目，使用者說「這些幫我做」，15:10–15:40（台北）做完。
@@ -2915,6 +2926,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | web | `NUXT_CLOUDFLARE_CLIENT_IP`（選填，預設 false，2026-11-12；www 改走 Cloudflare 代理時設 true：上一跳是 Cloudflare 節點才採信 `CF-Connecting-IP`，見上方「資安強化（2026-11-12）」） |
+| web | `NUXT_CLIENT_IP_HEADER`（選填，預設空白，2026-11-12；**正式站設 `x-real-ip`**：Railway edge 前面多一層 CDN77，`X-Forwarded-For` 最後一段是 CDN 節點；`X-Real-IP` 由 Railway 覆寫成訪客本人。空白時照舊從 `X-Forwarded-For` 右邊取，見下方「訪客 IP 改採信 X-Real-IP」） |
 | web | `NUXT_ADMIN_HOST`（選填，預設空白，2026-11-12；後台獨立子網域的主機名稱，例如 `admin.ivykidschool.com`。設了之後官網主機的 `/admin`、`/preview` 轉到這裡，後台與登入 API 只在這裡服務；啟用步驟見上方「資安強化（2026-11-12）」） |
 | web | `NUXT_API_PROXY_TIMEOUT_SECONDS`（選填，預設 120，2026-11-12；代理到 API 時上游多久沒給回應標頭就回 504，素材串流上傳不套用）／`NUXT_MEDIA_IDLE_TIMEOUT_SECONDS`（選填，預設 120；素材下載的客戶端多久沒讀走資料就斷線） |
 | api | `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（選填，預設 365，30–3650，2026-11-12；操作紀錄的來源 IP 與裝置保留天數，超過由定期工作清成空白） |
@@ -2949,6 +2961,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 `web/server/routes/api/website/v1/[...].ts` 則把訪客 IP 放進去，並**顯式
 覆寫**該 header（不覆寫的話任何人都能自己帶一個來偽造訪客身分）。
+
+**2026-11-12 起正式站改採信 `X-Real-IP`（`NUXT_CLIENT_IP_HEADER=x-real-ip`）**，下面「從右邊數層數」只在沒設這個變數時使用；原因與實測見頂部同日「訪客 IP 改採信 X-Real-IP」。
 
 2026-09-24 起訪客 IP 由 `web/server/utils/client-ip.ts` 取得：從
 `X-Forwarded-For` **右邊**數 `NUXT_TRUSTED_PROXY_HOPS` 層（Railway edge
