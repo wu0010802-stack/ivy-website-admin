@@ -16,14 +16,17 @@
 'use strict';
 
 /* 五校：年份與區名依官網沿革（web/app/utils/anniversary/timeline.ts）＋門牌投影座標（map-data.ts 的 campuses）。
-   說明原本照抄沿革的五句（像五筆資料），2026-11-12 使用者要「更有故事性、但字不要多」，改成前後接力的一句話：
-   隔了幾年、到了哪一區。間隔由成立年份算出來（1997→2001→2005→2020→2021），不另外編情節。每校只有一行。 */
+   說明原本照抄沿革的五句（像五筆資料），2026-11-12 使用者要「更有故事性」，先改成前後接力的一句話（隔了幾年、
+   到了哪一區；間隔由成立年份算出來 1997→2001→2005→2020→2021）。同一天看過成片再說「內容可以更多一點、更有故事性」
+   「故事直接幫我想，不一定要照正式站內容」，所以每校在接力的那一句後面多一句：開門、孩子喊老師早、在家附近上學、
+   當年的孩子長大了、想做的事沒變。寫的是每一所學校都會有的事，不寫人數、人名、哪一年辦了什麼這類查得出真假的細節。
+   textOut：這一校的字收掉的格數（跟著年份一起收；比光窗晚，字多了要多留一點時間讀）。 */
 const SKY_CAMPUS = {
-  yihua: { name: '義華校', year: 1997, hist: ['從三民區義華路開始。'], map: [711.1, 730], ign: 320, close: [558, 586], crop: [1550, 760, 2500] },
-  minghua: { name: '明華校', year: 2001, hist: ['四年後，走進左營。'], map: [264.7, 462.2], ign: 640, close: [738, 764], crop: [868, 470, 1700] },
-  chongde: { name: '崇德校', year: 2005, hist: ['再四年，左營的第二所。'], map: [275.4, 327.1], ign: 800, close: [904, 932], crop: [868, 480, 1700] },
-  international: { name: '國際校', year: 2020, hist: ['十五年後，到了鳥松。'], map: [622.4, 555], ign: 1120, close: [1226, 1254], crop: [868, 470, 1700] },
-  renwu: { name: '仁武校', year: 2021, hist: ['隔年，第五所在仁武。'], map: [701.9, 209.9], ign: 1280, close: [1386, 1414], crop: [868, 500, 1700] },
+  yihua: { name: '義華校', year: 1997, hist: ['三民區義華路上，', '第一間常春藤開了門。', '故事，從這裡開始。'], textOut: 584, map: [711.1, 730], ign: 320, close: [558, 586], crop: [1550, 760, 2500] },
+  minghua: { name: '明華校', year: 2001, hist: ['四年後，走進左營，', '多了一群孩子喊老師早。'], textOut: 756, map: [264.7, 462.2], ign: 640, close: [738, 764], crop: [868, 470, 1700] },
+  chongde: { name: '崇德校', year: 2005, hist: ['再四年，左營的第二所，', '更多孩子在家附近上學。'], textOut: 926, map: [275.4, 327.1], ign: 800, close: [904, 932], crop: [868, 480, 1700] },
+  international: { name: '國際校', year: 2020, hist: ['十五年後，到了鳥松，', '當年的孩子，都長大了。'], textOut: 1246, map: [622.4, 555], ign: 1120, close: [1226, 1254], crop: [868, 470, 1700] },
+  renwu: { name: '仁武校', year: 2021, hist: ['隔年，第五所在仁武，', '想做的事，一直沒變。'], textOut: 1400, map: [701.9, 209.9], ign: 1280, close: [1386, 1414], crop: [868, 500, 1700] },
 };
 const SKY_ORDER = ['yihua', 'minghua', 'chongde', 'international', 'renwu'];
 for (const k of SKY_ORDER) {
@@ -228,6 +231,8 @@ class Sky {
       this.hists[k] = new KText(this.root, SKY_CAMPUS[k].hist, histStyle);
     }
     this.years = new KText(this.root, ['一年，又一年。'], { ...nameStyle });
+    // 星軌那一段的第二句（「孩子換了一屆又一屆」是官網關於頁已上線的說法）
+    this.yearsSub = new KText(this.root, ['孩子換了一屆又一屆。'], histStyle);
     this.title = new KText(this.root, ['從一間幼兒園，', '長成五所校園。'], {
       size: L.title.size, weight: 700, color: '#FFF6E2', ls: 0.08, lh: 1.4, x: L.title.x, y: L.title.y, align: L.title.align, w: 1000,
       shadow: '0 0 26px rgba(239,188,75,0.25)',
@@ -423,10 +428,12 @@ class Sky {
     this.drawYears(f);
     for (const k of SKY_ORDER) {
       const c = SKY_CAMPUS[k];
-      this.names[k].update(f, c.ign + 12, c.close[0] - 6, { stagger: 1.8, dur: 26, rise: 0.25, blur: 14, outDur: 16 });
-      this.hists[k].update(f, c.ign + 26, c.close[0] - 6, { stagger: 1.0, dur: 24, rise: 0.25, blur: 10, outDur: 16 });
+      // 字比光窗晚收（跟著年份一起），進場也快一點：兩三行字要留夠時間讀
+      this.names[k].update(f, c.ign + 12, c.textOut, { stagger: 1.8, dur: 26, rise: 0.25, blur: 14, outDur: 14 });
+      this.hists[k].update(f, c.ign + 18, c.textOut, { stagger: 0.7, dur: 20, rise: 0.25, blur: 10, outDur: 14 });
     }
     this.years.update(f, 968, 1088, { stagger: 2.2, dur: 26, rise: 0.25, blur: 14, outDur: 14 });
+    this.yearsSub.update(f, 984, 1088, { stagger: 0.8, dur: 22, rise: 0.25, blur: 10, outDur: 14 });
     // 開場的片頭字
     this.openA.update(f, 30, 150, { stagger: 2.6, dur: 32, rise: 0.25, blur: 14, outDur: 22 });
     this.openB.update(f, 54, 150, { stagger: 1.6, dur: 28, rise: 0.25, blur: 10, outDur: 22 });
