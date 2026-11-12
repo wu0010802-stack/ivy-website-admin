@@ -66,7 +66,7 @@ GitHub default branch 已於 2026-09-22 一併改為 `main`：PR 預設開向 `m
 
 - 合併進 `main` 就會在正式 DB 執行，PR 審查要把 migration 當正式資料變更看。
 - 與上一版程式相容（先加欄位／表、之後的版本再移除舊的），因為 API 成功 web 失敗、或回退時，新 schema 都已生效。
-- 刪欄位、刪表、改寫或封存既有資料的 migration，合併前先手動備份正式 DB（Railway Postgres 的 PITR 目前**未開**，沒有自動備份）。
+- 刪欄位、刪表、改寫或封存既有資料的 migration，合併前先手動備份正式 DB（Railway Postgres 的 PITR 目前**未開**）。2026-11-12 起另有每天台北 03:00 加密備份到 Cloudflare R2 的 cron 服務（`deploy/db-backup/README.md`），但最多落後一天，部署前的手動備份照做。
 - 要在 90 秒內跑完（Railway healthcheck 120 秒）。大表回填、`CREATE INDEX CONCURRENTLY` 這類不能放進單一交易或會超時的，改用手動流程另外執行。
 
 本機工具驗證：

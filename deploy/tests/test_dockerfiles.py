@@ -20,7 +20,7 @@ def _source_paths() -> tuple[str, ...]:
 
 class DockerfilePinTests(unittest.TestCase):
     def test_every_base_image_is_pinned_by_digest(self):
-        for name in ("api.Dockerfile", "web.Dockerfile"):
+        for name in ("api.Dockerfile", "web.Dockerfile", "db-backup/Dockerfile"):
             lines = [line for line in (DEPLOY / name).read_text().splitlines() if line.upper().startswith("FROM ")]
             self.assertTrue(lines, name)
             for line in lines:
