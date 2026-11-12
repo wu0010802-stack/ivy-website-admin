@@ -109,6 +109,28 @@ describe('security-headers 外掛的 render:html／render:response', () => {
     expect(csp).not.toContain(scriptHashSource('[]'))
   })
 
+  it('app 本體與 Teleport 裡漏出的 script 不算雜湊（2026-11-12：伺服器端注入不能自己放行）', async () => {
+    const { hooks, headers } = await loadPlugin({ 'Content-Security-Policy': publicCsp() })
+    const injected = 'fetch("/api/website/v1/auth/me")'
+    const html = {
+      head: ['<script type="importmap">{"imports":{}}</script>'],
+      bodyPrepend: [`<div class="curtain"><script>${injected}</script></div>`],
+      body: [`<div id="__nuxt"><p>news</p><script>${injected}</script><img src=x onerror="${injected}"></div>`],
+      bodyAppend: ['<script>window.__NUXT__={}</script>']
+    }
+    await hooks.callHook('render:html', html as never, { event: {} } as never)
+    const csp = headers.get('content-security-policy') ?? ''
+    expect(csp).toBe(publicCsp([scriptHashSource('{"imports":{}}'), scriptHashSource('window.__NUXT__={}')]))
+    expect(csp).not.toContain(scriptHashSource(injected))
+  })
+
+  it('元件 Teleport 用的登記過的 inline script（CLIENT_INLINE_SCRIPTS）照樣放行', async () => {
+    const { hooks, headers } = await loadPlugin({ 'Content-Security-Policy': publicCsp() })
+    const html = { head: [], bodyPrepend: [`<script>${MOTION_LAYOUT_SCRIPT}</script>`], body: [], bodyAppend: [] }
+    await hooks.callHook('render:html', html as never, { event: {} } as never)
+    expect(headers.get('content-security-policy')).toContain(scriptHashSource(MOTION_LAYOUT_SCRIPT))
+  })
+
   it('後台 CSP 不會被公開頁的版本蓋掉', async () => {
     const { hooks, headers } = await loadPlugin({ 'Content-Security-Policy': ADMIN_CSP })
     await hooks.callHook('render:html', { head: ['<script>x()</script>'], bodyPrepend: [], body: [], bodyAppend: [] } as never, { event: {} } as never)

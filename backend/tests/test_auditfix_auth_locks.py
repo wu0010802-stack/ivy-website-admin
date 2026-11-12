@@ -79,3 +79,18 @@ async def test_deactivate_waits_for_a_concurrent_link_and_clears_it(app, admin_c
     assert response.status_code == 200, response.text
     assert response.json()["line_linked"] is False and response.json()["is_active"] is False
     assert await _stored_line_sub(app, user_id) is None, "停權時併發綁上的 LINE 不能留到復權"
+
+
+@pytest.mark.asyncio
+async def test_direct_password_reset_waits_for_a_concurrent_link_and_clears_it(app, admin_client, db_session):
+    """2026-11-12：總管理者直接設新密碼也會解除綁定，一樣要鎖住帳號列再讀，併發綁上的 LINE 不能留下。"""
+    user = await _create_user(db_session, "staff@example.org", "staff-password-123", Role.CAMPUS_ADMIN, ["yihua"])
+    user_id = user.id
+    await db_session.commit()
+
+    response = await _link_while_request_waits(
+        app, user_id, admin_client.post(f"{API}/admin/users/{user_id}/password", json={"password": "new-password-67890"})
+    )
+
+    assert response.status_code == 204, response.text
+    assert await _stored_line_sub(app, user_id) is None, "重設密碼時併發綁上的 LINE 要一起被清掉"

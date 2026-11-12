@@ -10,12 +10,13 @@ type MoreCommand = 'clearLogins' | 'deactivate'
 
 // 停用與解除綁定很少用、又會把人登出：收進每列的「更多」（2026-10-05 第九輪），
 // 不再每一列都排一顆紅色「停用」。選了之後照舊先確認，確認鈕用危險色、不預設聚焦。
+// 重設密碼（直接設定或寄連結）本身也會解除綁定（2026-11-12）；這裡給不必換密碼、只要清掉綁定的情況。
 async function onMore(command: MoreCommand) {
   const who = staffWithEmail(props.user)
   const [message, title, confirmButtonText] =
     command === 'deactivate'
       ? [`停用後 ${who} 就無法登入後台，已建立的內容不受影響。之後可以再恢復。`, '停用這個帳號？', '停用']
-      : [`解除 ${who} 的 Google／LINE 綁定，並登出對方所有裝置？之後 Google 與 LINE 都要本人先用密碼登入，再到「我的帳號」重新綁定；對方沒有密碼的話，請先幫他重設密碼。`, '解除綁定並登出？', '解除並登出']
+      : [`解除 ${who} 的 Google／LINE 綁定，並登出對方所有裝置？之後 Google 與 LINE 都要本人先用密碼登入，再到「我的帳號」重新綁定。對方不記得密碼的話，直接幫他重設密碼就好：重設密碼也會解除綁定並登出所有裝置。`, '解除綁定並登出？', '解除並登出']
   try {
     await ElMessageBox.confirm(message, title, {
       confirmButtonText,

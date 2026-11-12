@@ -54,6 +54,7 @@ describe('入學頁白話改寫（public-copy.ts 的 ADMISSION_TA_COPY）', () =
     expect(page).not.toMatch(/請勿|以免|以便|園所|園方|幼生|受託人|如廁|來電告知/)
     // 同日使用者要更正式：內文對家長說話用「您」，不寫「爸爸媽媽」（「請勿…以免…您的慌亂」那種公文句仍不用）。
     expect(page).not.toMatch(/爸爸媽媽|爸媽/)
-    expect(page.match(/您/g)?.length).toBe(4)
+    // 11-12 各校不同的流程改寫後多一處（適應期「報到時會跟您說明」）
+    expect(page.match(/您/g)?.length).toBe(5)
   })
 })

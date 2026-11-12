@@ -56,7 +56,8 @@ TWCA 中繼憑證驗證（geo/certs/），**不關閉憑證驗證**。
 學年的前一學年就只記確認，否則從最新的下一學年抓到前一學年，還沒公布的學年回 404、不算錯；高雄市的學校少於
 elementary.MIN_ROWS 所就不換版。指定檔案（--elementary-file，學年取檔名）不檢查這個下限。
 
-網址一律 https：客戶端的 request hook 檢查每一跳（含轉址），被導到 http 就在送出前擋下。
+網址一律 https、而且只連已知的資料來源主機（SOURCE_HOSTS，加上 WEBSITE_GEO_*_URL 設定的主機）：客戶端的
+request hook 檢查每一跳（含轉址），被導到 http 或清單以外的主機就在送出前擋下（2026-11-12）。
 
 同一時間只允許一個同步（CLI、背景迴圈、多個副本都一樣）：run_geo_sync 開頭取 session 級
 advisory lock，整個同步期間持有。否則後到的同步開頭清「使用中以外的批次」，會刪掉先到的
@@ -74,13 +75,13 @@ import re
 import ssl
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 from sqlalchemy import delete, func, select, text, update
@@ -224,24 +225,74 @@ class GeoSyncBusy(RuntimeError):
     """另一個公開資料同步正在進行；這一輪什麼都沒做。"""
 
 
-async def _require_https(request: httpx.Request) -> None:
-    """每一個請求（含轉址的每一跳）送出前檢查：不是 https 就不送。設定只驗了起始網址，
-    轉址目的地要靠這裡擋。訊息不含網址（狀態列會顯示）。"""
-    if request.url.scheme != "https":
-        raise GeoSyncError("下載網址不是 https，已拒絕")
+def _host_of(url: str) -> str:
+    """網址的主機（小寫、去掉結尾的點）；沒有主機回空字串。網址可以帶 {year} 這類樣板。"""
+    return (urlsplit(url).hostname or "").lower().rstrip(".")
+
+
+# 同步會連的主機（2026-11-12）：由各資料的固定來源網址推出來，不另外手寫一份，改來源網址時清單跟著變。
+# 轉址只能在這些主機之間跳（比照 booking/holidays.py 的 _allowed_host）：上游被入侵或設錯時，不能把 API
+# 導去打內網或任意網站。國土測繪中心（nlsc.py）只給本機腳本用，這個客戶端不連，不在清單裡。
+SOURCE_HOSTS = frozenset(
+    _host_of(url)
+    for url in (
+        KCG_BASE,  # 高雄市資料開放平台：門牌的搜尋頁、資料集頁、檔案
+        population_io.RIS_BASE,  # 戶政司：各里人口
+        series_io.RIS_ROOT,  # 戶政司：各里出生、遷入遷出
+        income_io.DATASET_API,  # data.gov.tw：各里所得的資料集
+        income_io.FIA_ROOT,  # 財政資訊中心：各里所得檔
+        new_homes_io.PLVR_ROOT,  # 實價登錄：新成屋季檔
+        presale_io.SOURCE_URL,  # 實價登錄：預售屋建案備查
+        penalties_io.LISTING_URL,  # GitHub API：裁罰檔名清單
+        penalties_io.FILE_ROOT,  # kiang：裁罰檔（幼兒園、名單、托嬰、收費的預設網址也在這台）
+        fees_io.SLIP_ROOT,
+        babycare_io.DETAIL_ROOT,
+        evaluations_io.SEARCH_URL,  # 全國教保資訊網：評鑑
+        elementary_io.URL_TEMPLATE,  # 教育部統計處：國小校別
+    )
+)
+
+
+def configured_hosts(settings: Settings) -> frozenset[str]:
+    """部署設定（WEBSITE_GEO_*_URL）指定的來源主機：運維自己設的網址（例如平台改版時的門牌退路）也要能連。"""
+    urls = (
+        settings.geo_doorplate_url,
+        settings.geo_kindergartens_url,
+        settings.geo_kindergartens_registry_url,
+        settings.geo_babycare_url,
+        settings.geo_elementary_url_template,
+    )
+    return frozenset(host for host in (_host_of(url) for url in urls if url) if host)
+
+
+def _source_guard(allowed: frozenset[str]) -> Callable[[httpx.Request], Awaitable[None]]:
+    async def guard(request: httpx.Request) -> None:
+        """每一個請求（含轉址的每一跳）送出前檢查：不是 https、或不是已知的來源主機就不送。設定只驗了起始網址，
+        轉址目的地要靠這裡擋。訊息不含網址（狀態列會顯示）。"""
+        if request.url.scheme != "https":
+            raise GeoSyncError("下載網址不是 https，已拒絕")
+        if request.url.host.lower().rstrip(".") not in allowed:
+            raise GeoSyncError("下載網址不是已知的公開資料來源，已拒絕")
+
+    return guard
 
 
 def new_client(
-    *, transport: httpx.AsyncBaseTransport | None = None, ssl_context: ssl.SSLContext | None = None
+    *,
+    transport: httpx.AsyncBaseTransport | None = None,
+    ssl_context: ssl.SSLContext | None = None,
+    extra_hosts: Iterable[str] = (),
 ) -> httpx.AsyncClient:
-    """同步用的 HTTP 客戶端：會跟轉址，但只跟 https。transport 給測試換成假網站；ssl_context 給需要額外中繼憑證的站台
-    （教保資訊網，evaluations.ssl_context()），不給就用 httpx 預設的 certifi 驗證。兩種都會驗證憑證與主機名稱。"""
+    """同步用的 HTTP 客戶端：會跟轉址，但只跟 https、只連 SOURCE_HOSTS 與 extra_hosts（configured_hosts(settings)）。
+    transport 給測試換成假網站；ssl_context 給需要額外中繼憑證的站台（教保資訊網，evaluations.ssl_context()），
+    不給就用 httpx 預設的 certifi 驗證。兩種都會驗證憑證與主機名稱。"""
+    allowed = SOURCE_HOSTS | {host.lower().rstrip(".") for host in extra_hosts}
     return httpx.AsyncClient(
         verify=ssl_context if ssl_context is not None else True,
         timeout=httpx.Timeout(120.0, connect=15.0),
         headers={"User-Agent": USER_AGENT},
         follow_redirects=True,
-        event_hooks={"request": [_require_https]},
+        event_hooks={"request": [_source_guard(allowed)]},
         transport=transport,
     )
 
@@ -1995,7 +2046,7 @@ async def run_geo_sync(
         )
         own_client = client is None and not file_mode
         if own_client:
-            client = new_client()
+            client = new_client(extra_hosts=configured_hosts(settings))
         network = None if file_mode else client
         try:
             async def discard_unfinished_doorplates() -> None:
@@ -2041,7 +2092,9 @@ async def run_geo_sync(
             if (network is not None and kindergartens != "failed") or kindergarten_evaluations_file is not None:
                 evaluation_client = network
                 if own_client and network is not None:
-                    evaluation_client = new_client(ssl_context=evaluations_io.ssl_context())
+                    evaluation_client = new_client(
+                        ssl_context=evaluations_io.ssl_context(), extra_hosts=configured_hosts(settings)
+                    )
                 try:
                     kindergarten_evaluations, kindergarten_evaluation_rows = await _within_budget(
                         session_factory, "kindergarten_evaluations", EVALUATIONS_TIME_BUDGET + timedelta(minutes=2), now=now,

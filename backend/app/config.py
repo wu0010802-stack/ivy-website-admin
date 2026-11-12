@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # 這些 origin 送來的寫入也接受 Origin 檢查（逗號分隔，例如正式網域接通後把 Railway 暫用網址放這裡）。
     # 信件、LINE、重設密碼連結與 OAuth 同源檢查仍只用 admin_origin。
     admin_extra_origins: str | None = None
+    # 官網的 origin（2026-11-12，後台搬到獨立子網域時才需要設，例如 https://www.ivykidschool.com）。
+    # 家長信裡的改期與重新預約連結、後台「複製家長連結」用它；家長頁的寫入也接受這個 Origin。
+    # 沒設就沿用 admin_origin（後台與官網同一個網域時兩者相同）。
+    public_origin: str | None = None
     google_client_id: str | None = None
     google_client_secret: str | None = Field(default=None, repr=False)
     google_redirect_uri: str | None = None
@@ -114,6 +118,9 @@ class Settings(BaseSettings):
     media_max_video_mb: int = Field(default=150, ge=1, le=2048)
     # 刪除的素材先標記待清理，過這麼多天才由定期工作真的刪檔，期間可以復原。
     media_purge_delay_days: int = Field(default=7, ge=1, le=90)
+    # 操作紀錄（audit_log_entries）的來源 IP 與 User-Agent 保留天數（2026-11-12）：超過就由定期工作清成
+    # NULL，紀錄本身（誰、何時、做了什麼）照留。下限 30 天，免得誤設成很小的值，事後查不到最近的異常登入來源。
+    audit_client_info_retention_days: int = Field(default=365, ge=30, le=3650)
     # 影片上傳後的 poster 與轉檔（app/media/jobs.py）：background＝交給 API 程序內的
     # 背景處理，上傳馬上回應「處理中」；inline＝在上傳請求裡做完。沒設時正式站
     # background、其他環境 inline（測試與本機開發上傳完就能用）。
@@ -162,7 +169,7 @@ class Settings(BaseSettings):
             return None
         return value.strip() or None
 
-    @field_validator("admin_origin")
+    @field_validator("admin_origin", "public_origin")
     @classmethod
     def _normalize_admin_origin(cls, value: str | None) -> str | None:
         """瀏覽器送的 Origin 不帶結尾斜線；設定成 https://host/ 時逐字比對會讓後台所有
@@ -307,6 +314,18 @@ class Settings(BaseSettings):
         if not self.admin_origin or origin is None:
             return True
         return origin in self.allowed_origins
+
+    @property
+    def parent_origin(self) -> str | None:
+        """家長看得到的連結用的官網 origin：public_origin，沒設就是 admin_origin。"""
+        return self.public_origin or self.admin_origin
+
+    def parent_origin_allowed(self, origin: str | None) -> bool:
+        """家長頁（改期連結）寫入時的 Origin 檢查：後台接受的那些，再加上官網的 public_origin。
+        後台搬到獨立子網域後，家長頁仍在官網主機上，Origin 是官網。"""
+        if self.origin_allowed(origin):
+            return True
+        return bool(self.public_origin) and origin == self.public_origin
 
     @property
     def s3_configured(self) -> bool:
@@ -477,6 +496,14 @@ class Settings(BaseSettings):
             )
         if any(not o.startswith("https://") for o in (self.admin_extra_origins or "").split(",") if o):
             raise ValueError("production 的 WEBSITE_ADMIN_EXTRA_ORIGINS 必須都是 HTTPS 網址")
+        if self.public_origin:
+            public = urlsplit(self.public_origin)
+            if (
+                public.scheme != "https" or not public.hostname
+                or public.username or public.password
+                or public.path not in ("", "/") or public.query or public.fragment
+            ):
+                raise ValueError("production 的 WEBSITE_PUBLIC_ORIGIN 必須是不含路徑的 HTTPS 網址（例如 https://官網網域）")
         lowered = self.session_secret.lower()
         if any(marker in lowered for marker in _PLACEHOLDER_SECRET_MARKERS):
             raise ValueError("production 的 WEBSITE_SESSION_SECRET 不能使用範例或佔位值，請改成隨機產生的秘密")

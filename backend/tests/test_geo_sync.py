@@ -755,7 +755,7 @@ async def test_kindergarten_files_must_come_in_pairs(app, kwargs):
 # ---- 延後項目 D2：轉址、年度退回、log、解鎖、解析、檔案讀取 ----
 
 
-def _redirecting_client(location: str, seen: list[str]) -> httpx.AsyncClient:
+def _redirecting_client(location: str, seen: list[str], *, extra_hosts: set[str] | None = None) -> httpx.AsyncClient:
     """用 sync 自己建客戶端的方式（new_client）接上假網站；CSV_URL 轉址到 location。"""
     transport, _ = _site()
 
@@ -765,7 +765,7 @@ def _redirecting_client(location: str, seen: list[str]) -> httpx.AsyncClient:
             return httpx.Response(302, headers={"location": location})
         return transport.handle_request(request)
 
-    return sync.new_client(transport=httpx.MockTransport(handle))
+    return sync.new_client(transport=httpx.MockTransport(handle), extra_hosts=extra_hosts or ())
 
 
 async def test_redirect_to_plain_http_is_refused_before_any_request_is_sent(app, small_minimum):
@@ -779,9 +779,22 @@ async def test_redirect_to_plain_http_is_refused_before_any_request_is_sent(app,
     assert await _counts(app) == (0, 10)  # 幼兒園不受影響
 
 
-async def test_redirect_to_another_https_url_is_followed(app, small_minimum):
+async def test_redirect_to_an_unknown_https_host_is_refused_before_it_is_sent(app, small_minimum):
+    """2026-11-12：轉址只能跳到已知的資料來源主機。上游被入侵或設錯、把門牌檔導去別的 https 網站
+    （或內網）時，那一跳根本不送出；同步失敗、使用中的版本不動，其他資料照常。"""
     seen: list[str] = []
     async with _redirecting_client("https://example.org/doorplates.csv", seen) as client:
+        result = await run_geo_sync(app.state.session_factory, app.state.settings, client=client)
+    assert result.doorplates == "failed"
+    assert CSV_URL in seen and "https://example.org/doorplates.csv" not in seen
+    assert (await _status(app, "doorplates")).last_error == "下載網址不是已知的公開資料來源，已拒絕"
+    assert await _counts(app) == (0, 10)
+
+
+async def test_redirect_to_a_configured_source_host_is_followed(app, small_minimum):
+    """部署設定（WEBSITE_GEO_*_URL）指定的主機也算已知來源，轉址到那裡照常跟。"""
+    seen: list[str] = []
+    async with _redirecting_client("https://example.org/doorplates.csv", seen, extra_hosts={"Example.org."}) as client:
         result = await run_geo_sync(app.state.session_factory, app.state.settings, client=client)
     assert result.doorplates == "updated"
     assert "https://example.org/doorplates.csv" in seen
@@ -789,21 +802,95 @@ async def test_redirect_to_another_https_url_is_followed(app, small_minimum):
 
 
 async def test_new_client_follows_redirects_and_checks_every_hop():
-    """客戶端本身（不經同步流程）：第一跳 https 轉第二跳 http 時，第二跳被擋在送出之前。"""
+    """客戶端本身（不經同步流程）：已知來源之間的轉址照跟；第二跳轉到 http 時，第三跳被擋在送出之前。"""
     seen: list[str] = []
 
     def handle(request: httpx.Request) -> httpx.Response:
         seen.append(str(request.url))
         if request.url.path == "/a":
-            return httpx.Response(302, headers={"location": "https://example.org/b"})
+            return httpx.Response(302, headers={"location": "https://kiang.github.io/b"})
         if request.url.path == "/b":
-            return httpx.Response(302, headers={"location": "http://example.org/c"})
+            return httpx.Response(302, headers={"location": "http://kiang.github.io/c"})
         return httpx.Response(200, text="不該到這裡")
 
     async with sync.new_client(transport=httpx.MockTransport(handle)) as client:
-        with pytest.raises(GeoSyncError):
-            await client.get("https://example.org/a")
-    assert seen == ["https://example.org/a", "https://example.org/b"]
+        with pytest.raises(GeoSyncError, match="https"):
+            await client.get("https://data.kcg.gov.tw/a")
+    assert seen == ["https://data.kcg.gov.tw/a", "https://kiang.github.io/b"]
+
+
+def test_source_hosts_come_from_the_fixed_source_urls_and_the_settings(app):
+    """同步會連的主機就是各資料固定來源網址的主機；部署設定的網址另外加進來（WEBSITE_GEO_*_URL）。"""
+    assert sync.SOURCE_HOSTS == {
+        "data.kcg.gov.tw", "www.ris.gov.tw", "data.gov.tw", "www.fia.gov.tw", "plvr.land.moi.gov.tw",
+        "kiang.github.io", "api.github.com", "ap.ece.moe.edu.tw", "stats.moe.gov.tw",
+    }
+    settings = app.state.settings.model_copy(
+        update={"geo_doorplate_url": "https://Mirror.Example.org./doorplates.csv", "geo_babycare_url": "https://babycare.example.net/b.json"}
+    )
+    assert sync.configured_hosts(settings) == {"mirror.example.org", "babycare.example.net", "kiang.github.io", "stats.moe.gov.tw"}
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.org/x",
+        "https://data.kcg.gov.tw.evil.example/x",  # 只是開頭一樣
+        "https://evil.data.kcg.gov.tw/x",  # 子網域不算：清單是確切的主機
+        "https://kcg.gov.tw/x",
+        "https://169.254.169.254/latest/meta-data/",
+        "https://localhost/x",
+        "https://api.railway.internal/x",
+    ],
+)
+async def test_new_client_refuses_hosts_outside_the_source_list(url):
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(str(request.url))
+        return httpx.Response(200)
+
+    async with sync.new_client(transport=httpx.MockTransport(handle)) as client:
+        with pytest.raises(GeoSyncError, match="不是已知的公開資料來源"):
+            await client.get(url)
+    assert seen == []
+
+
+async def test_new_client_host_check_ignores_case_and_a_trailing_dot():
+    seen: list[str] = []
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        seen.append(request.url.host)
+        return httpx.Response(200)
+
+    async with sync.new_client(transport=httpx.MockTransport(handle)) as client:
+        assert (await client.get("https://DATA.KCG.GOV.TW/x")).status_code == 200
+        assert (await client.get("https://data.kcg.gov.tw./x")).status_code == 200
+    assert len(seen) == 2
+
+
+async def test_the_sync_own_client_reaches_every_source_it_needs(app, small_minimum, monkeypatch):
+    """沒注入客戶端時（正式站的背景同步、CLI）用 new_client 自己建：所有資料的固定來源都在清單裡，一種都不會被
+    來源檢查擋下；設定的門牌網址主機（configured_hosts）也帶進去了，評鑑的專用客戶端也一樣。"""
+    transport, seen = _site()
+    real_new_client = sync.new_client
+    made: list[dict] = []
+
+    def with_fake_sites(**kwargs):
+        made.append(kwargs)
+        return real_new_client(transport=transport, **kwargs)
+
+    monkeypatch.setattr(sync, "new_client", with_fake_sites)
+    settings = app.state.settings.model_copy(update={"geo_doorplate_url": "https://example.org/doorplates.csv"})
+    result = await run_geo_sync(app.state.session_factory, settings, force=True)
+
+    assert (result.doorplates, result.kindergartens) == ("updated", "updated")
+    assert "https://example.org/doorplates.csv" in seen
+    assert {httpx.URL(url).host for url in seen} <= sync.SOURCE_HOSTS | {"example.org"}
+    async with app.state.session_factory() as db:
+        errors = [row.last_error for row in (await db.execute(select(GeoDatasetStatus))).scalars() if row.last_error]
+    assert not [error for error in errors if "已拒絕" in error]
+    assert len(made) == 2 and all("example.org" in kwargs["extra_hosts"] for kwargs in made)
 
 
 async def test_latest_year_page_http_error_falls_back_to_previous_year():

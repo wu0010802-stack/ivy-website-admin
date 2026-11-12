@@ -12,19 +12,19 @@
 // trustedClientIp 從 X-Forwarded-For 右邊取，不採信訪客可自填的最左段。
 import { apiProxyTarget, escapesApiPrefix, isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
 import { boundariesGzip, isBoundariesRequest, jsonGzip } from '../../../../utils/gzip-boundaries'
-import { abortOnClientClose, streamProxy } from '../../../../utils/stream-proxy'
+import { proxyApiRequest } from '../../../../utils/api-proxy'
+import { streamProxy } from '../../../../utils/stream-proxy'
 
 const CLIENT_IP_HEADER = 'x-website-client-ip'
 const PAYLOAD_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 // 素材原檔與衍生檔（含後台）：GET／HEAD 走有背壓的串流，見 utils/stream-proxy.ts。
 const MEDIA_PATH = /^\/(?:public|admin)\/media\//
-// 只有 web/server/api/telemetry.post.ts 會打這支（伺服器對伺服器，不經過這裡）；
-// 從這裡直接打會繞過那邊的來源檢查、本文上限與配額（稽核
-// public-telemetry-analytics-storage-flood）。
-const TELEMETRY_PATH = /^\/+public\/+telemetry\/*$/
-// 前端錯誤回報同理：只有 web/server/api/client-errors.post.ts 會打（伺服器對伺服器），瀏覽器直接打
-// 會繞過那邊的來源檢查、本文上限與配額。
-const CLIENT_ERRORS_PATH = /^\/+public\/+client-errors\/*$/
+// 只給 web 伺服器內部轉送的公開端點（伺服器對伺服器，不經過這裡）：
+// telemetry 與 engagement 只由 web/server/api/telemetry.post.ts 打，前端錯誤回報只由
+// web/server/api/client-errors.post.ts 打。從這裡直接打會繞過那兩支的 Origin／Sec-Fetch-Site
+// 檢查、4 KB 本文上限與每來源配額（稽核 public-telemetry-analytics-storage-flood；
+// engagement 2026-11-12 補上）。
+const SERVER_ONLY_PATH = /^\/+public\/+(?:telemetry|engagement|client-errors)\/*$/
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
@@ -36,18 +36,21 @@ export default defineEventHandler(async (event) => {
   const rawPath = (event.node.req.url ?? '').replace(/^\/api\/website\/v1/, '')
   if (escapesApiPrefix(path) || escapesApiPrefix(rawPath)) throw createError({ statusCode: 404 })
   const target = apiProxyTarget(config.websiteApiInternalBase, path)
-  if (!target || TELEMETRY_PATH.test(target.apiPath) || CLIENT_ERRORS_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
+  if (!target || SERVER_ONLY_PATH.test(target.apiPath)) throw createError({ statusCode: 404 })
 
-  // 一定要顯式覆寫：proxyRequest 預設會把使用者送來的 header 一併轉發，
-  // 不覆寫的話任何人都能自己帶一個 x-website-client-ip 來偽造訪客身分、
-  // 繞過限流。空字串代表「這一跳問不出訪客 IP」，api 端會退回 peer。
+  // 一定要顯式帶：x-website-client-ip 不在轉送白名單裡，訪客自己帶的會被丟掉，
+  // 只有這裡算出來的值會到 API（API 只信這個 header 來限流與記稽核 IP）。
+  // 空字串代表「這一跳問不出訪客 IP」，api 端會退回 peer。
   const clientIpHeader = { [CLIENT_IP_HEADER]: trustedClientIp(event) }
 
   if ((event.method === 'GET' || event.method === 'HEAD') && MEDIA_PATH.test(target.apiPath)) {
-    return streamProxy(event, target.url.href, clientIpHeader)
+    return streamProxy(event, target.url.href, clientIpHeader, {
+      upstreamTimeoutSeconds: Number(config.apiProxyTimeoutSeconds),
+      idleTimeoutSeconds: Number(config.mediaIdleTimeoutSeconds)
+    })
   }
 
-  // 本文上限要在讀取之前擋：proxyRequest 預設會把整個本文讀進記憶體再
+  // 本文上限要在讀取之前擋：代理會把整個本文讀進記憶體再
   // 轉送，匿名訪客送多大就吃多少 web 記憶體（後端的素材大小檢查要等
   // 本文整個到了 API 才執行）。只接受有 Content-Length 的本文——Node 的
   // HTTP parser 保證實際讀到的不會超過這個長度。
@@ -65,20 +68,13 @@ export default defineEventHandler(async (event) => {
     streamRequest = isMediaUploadPath(path)
   }
 
-  // 客戶端斷線就中止上游（含串流上傳），不讓 API 為沒人等的請求做完整份工作。
-  const controller = abortOnClientClose(event)
-  try {
-    return await proxyRequest(event, target.url.href, {
-      streamRequest,
-      // OAuth 302/303 必須交給瀏覽器，否則伺服器會跟到 Google／LINE 並遺失握手 cookie。
-      fetchOptions: { redirect: 'manual', signal: controller.signal },
-      headers: clientIpHeader,
-      // h3 代理不轉 accept-encoding，上游壓不了，由這一層對收 gzip 的客戶端壓縮（見 utils/gzip-boundaries.ts）：
-      // 後台區域分析的里界 GeoJSON（約 600 KB）依 ETag 快取壓好的結果；其他 JSON 回應每次壓（1 KB 以下不壓）。
-      onResponse: isBoundariesRequest(event.method, target.apiPath) ? boundariesGzip : jsonGzip,
-    })
-  } catch (error) {
-    if (controller.signal.aborted) return
-    throw error
-  }
+  // 請求標頭只轉白名單、上游逾時回 504、拿掉 server 標頭（2026-11-12，見 utils/api-proxy.ts）。
+  return proxyApiRequest(event, target.url.href, {
+    streamRequest,
+    overrides: clientIpHeader,
+    timeoutSeconds: Number(config.apiProxyTimeoutSeconds),
+    // h3 代理不轉 accept-encoding，上游壓不了，由這一層對收 gzip 的客戶端壓縮（見 utils/gzip-boundaries.ts）：
+    // 後台區域分析的里界 GeoJSON（約 600 KB）依 ETag 快取壓好的結果；其他 JSON 回應每次壓（1 KB 以下不壓）。
+    onResponse: isBoundariesRequest(event.method, target.apiPath) ? boundariesGzip : jsonGzip
+  })
 })

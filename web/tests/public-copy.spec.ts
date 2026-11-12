@@ -122,7 +122,9 @@ it('關於段、孩子的一天背面、頁尾標題：原文一字不差才換�
   expect(rest).toHaveLength(2)
   expect(result.home.about.bodyText).not.toContain('專業保育與溫暖陪伴')
   const answers = Object.fromEntries(result.dayExperience.moments.map((moment) => [moment.key, moment.answer]))
-  expect(answers.hello).toContain('前三天以半天為主')
+  // 2026-11-12 適應期各校安排不同：不寫「前三天以半天為主」「開學前約一週」
+  expect(answers.hello).toContain('慢慢拉長在校時間')
+  expect(answers.hello).not.toMatch(/前三天|約一週/)
   expect(answers.home).toContain('30 分鐘')
   // 下雨天怎麼調整站上沒有資料，照舊
   expect(answers.outside).toBe(site.dayExperience.moments.find((moment) => moment.key === 'outside')!.answer)

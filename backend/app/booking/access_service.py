@@ -256,6 +256,24 @@ async def _prune_sessions(db: AsyncSession, visit_request_id: uuid.UUID, now: da
         await db.execute(delete(ParentSession).where(ParentSession.id.in_(overflow_ids)))
 
 
+async def purge_stale_parent_sessions(db: AsyncSession, cutoff: datetime, *, limit: int) -> int:
+    """刪掉 cutoff 以前就撤銷或到期的家長受限 session（2026-11-12）。_prune_sessions 只在同一案件再換發時才清，
+    家長沒再回來的案件會一直留著；這種列不會再通過驗證，沒有別的表參照它。
+
+    修改連結（ParentAccessToken）不清：original_manage_path 靠「這個案件發過幾條」判斷送單重播能不能拿回連結，
+    刪掉舊的會讓重新產生過的新連結被重播拿走（2026-10-06 稽核）；它們隨案件刪除一起刪。
+    一次最多 limit 筆，回傳刪了幾筆；由定期工作分批呼叫（app/workers/maintenance.py）。"""
+    due = (
+        select(ParentSession.id)
+        .where(or_(ParentSession.revoked_at < cutoff, ParentSession.expires_at < cutoff))
+        .limit(limit)
+    )
+    result = await db.execute(
+        delete(ParentSession).where(ParentSession.id.in_(due)).execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
+
+
 def session_id_of(raw_session_token: str) -> str:
     return _hash(raw_session_token)
 

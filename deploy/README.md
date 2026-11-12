@@ -31,6 +31,106 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 資安強化（2026-11-12）：上線影響與要在各平台做的設定
+
+程式在 PR #73（分支 `claude/nifty-wozniak-vgwr5s`，README 同日「資安強化」），2026-11-12 合進 main（`ca480573`）並部署，紀錄見下方同日「資安強化上線」。
+
+### 合進 main、部署之後
+
+- **所有後台帳號要重新登入一次**：正式站的 session cookie 改名 `__Host-ivy_admin_session`（`backend/app/common/host_cookies.py`），舊的 `ivy_admin_session` 不再採信、會被清掉。家長改期頁開著的人要重新點信裡的連結。Google／LINE 登入照常。
+- 新的開關 `NUXT_ADMIN_HOST`、`NUXT_CLOUDFLARE_CLIENT_IP`、`WEBSITE_PUBLIC_ORIGIN` 沒設就不作用，行為和現在一樣。
+- 總管理者在「使用者」頁**直接設定新密碼**，也會解除對方的 Google／LINE 綁定並登出所有裝置（原本只有寄重設連結會解除）。對方要用再到「我的帳號」重新綁定。
+- 定期工作多兩步（系統狀態頁的步驟名稱是「清除操作紀錄的舊 IP 與裝置」「清除失效的登入與重設連結」）：
+  - 操作紀錄超過 `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（預設 365）天的來源 IP 與裝置清成空白，紀錄本身照留；
+  - 失效超過 30 天的後台 session、重設連結、家長 session 刪掉。
+  第一次上線時積壓的分批清，每輪最多 2 萬筆，下一輪接著做。
+- 區域分析的公開資料同步只連已知的資料來源主機，轉址到其他主機會被擋。
+- 沒有 migration。
+
+### 要登入各平台確認或設定（程式做不到）
+
+1. **Railway：api 不能有公開網域**。api 服務 → Settings → Networking → Public Networking 底下應該沒有任何網域（只留 private 的 `*.railway.internal`）；有的話刪掉。限流與操作紀錄的 IP 都信任 web 代理帶的 `x-website-client-ip`，api 只要能從外面直接連，任何人都能偽造這個 header（見下方「公開端點限流」）。
+2. **GitHub**：
+   - Settings → Environments → `production`：Deployment branches 只允許 `main`；`RAILWAY_TOKEN` 要是這裡的 environment secret，不是 repository secret（`deploy/CICD.md` 第 2–4 步）。repo 另有一位 write 權限的協作者，token 放錯地方的話，對方推一個改過 workflow 的分支就能讀到。
+   - `main` 的分支保護：要求 PR、CI 通過才能合併，禁止 force push；協作者帳號開兩步驟驗證。push `main` 就是正式部署。
+   - Renovate：`renovate/configure` 是 Renovate 的上線設定分支，一直沒合併。改用 Dependabot（`.github/dependabot.yml`）後，到 GitHub 的 Installed GitHub Apps 解除安裝 Renovate、刪掉那個分支，免得兩邊都開 PR。
+   - Settings → Code security：Dependabot alerts 已開（11-04）；可以順便開 Dependabot security updates。
+3. **Cloudflare：整個網域的 HSTS**。www 送的 `includeSubDomains` 只涵蓋 `*.www.ivykidschool.com`；要保護整個 `ivykidschool.com`（子網域被降級成 http 時塞 cookie），在 Cloudflare → SSL/TLS → Edge Certificates → HTTP Strict Transport Security 開啟：Max Age 先 6 個月、Include subdomains 打勾、Preload 先不勾（進了瀏覽器內建清單幾乎撤不回來）。開之前確認每個會被人用瀏覽器開的子網域都有 https（目前只有 www 與 apex 轉址；`send` 只有寄信用的 DNS 紀錄）。
+4. 稽核報告列的其他設定類項目（個資保存天數與清理開關、正式資料庫與素材備份、後台帳號兩步驟驗證）仍待處理，不在這次程式裡。公開預約的 Turnstile 已在同日啟用（見下方「正式站啟用 Turnstile」）。
+
+### 選做：www 改走 Cloudflare 代理（橘雲）
+
+好處是可以用 Cloudflare 的 WAF、機器人防護與邊緣限流。程式已經準備好（`web/server/utils/client-ip.ts`、`cloudflare-ip.ts`）：
+
+1. Railway web 變數設 `NUXT_CLOUDFLARE_CLIENT_IP=true`（灰雲時開著也無害）。`NUXT_TRUSTED_PROXY_HOPS` **維持 1**，不要改 2：改 2 等於相信 Cloudflare 那一層填的 X-Forwarded-For，繞過 Cloudflare 的人可以自己填。
+2. Cloudflare → SSL/TLS 模式設 **Full**（不是 Full (strict)，也不是 Flexible；理由見 `docs/website-admin/migration-checklist.md` 第 5 節）。
+3. DNS 的 `www` 改成 Proxied。
+4. 驗證：用自己的手機網路開官網、在後台操作一次，操作紀錄的 IP 應是自己的 IP，不是 Cloudflare 節點（`104.16–31.x`、`172.64–71.x`、`162.158–159.x` 等）。
+5. 之後可以在 Cloudflare 開 WAF 受管規則、Bot Fight Mode，以及針對 `/api/website/v1/public/visit-requests` 的限流規則。
+
+限制：Railway 網址（`web-production-04caa.up.railway.app`）與 Railway edge 仍可直接連，繞過 Cloudflare 的請求不經 WAF；程式只保證繞過的人偽造不了訪客 IP（上一跳不是 Cloudflare 就不信 `CF-Connecting-IP`）。Cloudflare 的 IP 段清單是 2026-11-12 從 `https://www.cloudflare.com/ips-v4`、`ips-v6` 抄的，Cloudflare 公告新增時要同步；沒同步只會讓新段的訪客共用 Cloudflare 節點的限流桶（較嚴，不會放寬）。
+
+### 選做：後台搬到獨立子網域（例如 `admin.ivykidschool.com`）
+
+後台與官網同一個 origin 時，官網頁面只要出現一個 XSS 就能同源呼叫後台 API（目前靠公開頁 CSP 擋）。搬到子網域後，後台的 `__Host-` cookie 只屬於後台主機，官網上的腳本拿不到也送不出。程式已經準備好、預設關閉：web 依 Host 分流（`web/server/utils/admin-host.ts`），api 的家長連結改用 `WEBSITE_PUBLIC_ORIGIN`。照這個順序做：
+
+1. **Railway**：web 服務 → Settings → Networking → Custom Domain 加 `admin.ivykidschool.com`（port 3000），照畫面抄 CNAME 目標與驗證 TXT。
+2. **Cloudflare DNS**：加 `admin` CNAME 指到 Railway 給的目標、**DNS only（灰雲）**，加 `_railway-verify.admin` TXT；等 Railway 憑證變 VALID。
+3. **Google Cloud Console**（OAuth 用戶端）加授權重新導向 URI `https://admin.ivykidschool.com/api/website/v1/auth/google/callback`；**LINE Developers**（員工登入的 LINE Login channel）加 Callback URL `https://admin.ivykidschool.com/api/website/v1/auth/line/callback`。舊的 www 網址先留著，回退用。
+4. **Railway api 變數**（一起改）：`WEBSITE_PUBLIC_ORIGIN=https://www.ivykidschool.com`、`WEBSITE_ADMIN_ORIGIN=https://admin.ivykidschool.com`、`WEBSITE_GOOGLE_REDIRECT_URI`、`WEBSITE_LINE_REDIRECT_URI` 換成第 3 步的網址；`WEBSITE_VAPID_SUBJECT` 若填的是後台網址也一起換。
+5. **Railway web 變數**：`NUXT_ADMIN_HOST=admin.ivykidschool.com`。
+6. **驗證**：`https://www.ivykidschool.com/admin/` 會 301 到後台主機；後台用帳密、Google、LINE 各登入一次；在後台改一個草稿看右側預覽；用自己的 Email 在官網預約一次，確認信裡的改期連結是 `www` 開頭、點開能改。`https://www.ivykidschool.com/api/website/v1/auth/me` 應回 404。
+
+搬過去之後同事要知道：要在新網址重新登入；瀏覽器存的密碼是跟著網址的，要重新存；手機通知要在新網址的後台重新開一次（舊網址的訂閱會失效）；加到手機主畫面的後台要刪掉重加。LINE 群組推播與信裡的後台連結會自動改成新網址。
+
+回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
+
+## 2026-11-12 關於頁首屏照片老師美甲改自然指甲、頭髮調黑上線（main CI 部署，沒有 migration）
+
+- **內容**：`9c904a80`（README 同日「/about 首屏照片：老師的美甲改自然指甲、頭髮調黑」），分支 `fix/about-hero-teacher-20261112`。只換 `web/public/assets/about-hero.webp` 與重產的各尺寸 WebP／AVIF、`image-manifest.json`；舊雜湊檔刪掉。使用者看過前後對照說 ok。
+- **推前（本機）**：只動圖片，沒跑 typecheck／測試，交給 CI。
+- **CI**：run 43164800776 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` 的 `base_commit` 是 `9c904a80`；`/about` 200、引用新雜湊 `about-hero-e270248dba64`／`e6332b2f97c9`；`/assets/about-hero.webp` 與 repo 檔案逐位元相同；舊雜湊檔 404。
+- **沒驗、待使用者**：網頁版面裡沒實際看過（只看整張照片的放大對照），實機沒看。
+
+## 2026-11-12 入學頁各校不同的規定與流程改成五校共通說法上線（main CI 部署，沒有 migration）
+
+- **內容**：`11ba3ac3`（README「2026-11-12 入學頁：各校不同的規定與流程改成五校共通說法」），分支 `fix/admission-campus-20261112`。使用者說有些分校的規定與流程不同，要把有爭議的地方改寫：流程第 4–6 步拿掉「開學前約一個月／約一週」「前三天以半天為主」；二部曲標題改「適應期（一開學）」「適應之後（快樂來上學）」；首部曲叮嚀加「必備品各校略有不同，報到時會提供完整清單，請依清單為寶貝準備。」；每天穿什麼星期表拿掉、併入註冊須知；收費袋「次月 5 日前」改由校區通知；收退費公告時點照高雄市收退費辦法第 14 條。常見問題「一直哭」、首頁孩子的一天背面、特色教學「老師好愛我」同步。動了 `web/server/data/site-fixture.json`、兩份 overlay 測試基準、`public-copy.ts`、`admission-faq.ts`、後台 `curriculumPageDraft.ts`（特色教學預設）、後端 `test_admission_content.py`。使用者說「幫我部署」。
+- **推前（本機）**：web `typecheck` 過；`npm run test:website` 140 檔 1888 項過（負載 40–70 時預設逾時有 2 項紅，`--testTimeout=60000` 全過）；admin 相關 54 項、後端讀 fixture 的 273 項過（獨立測試庫）；Playwright 在 fixture dev server 看 1440×900、390×844，無水平溢出。rebase 到 `aa1552e1` 後入學與後台相關 84 項重跑過。
+- **CI**：run 43161894596 全綠（web、admin、後端三組、stack E2E），Deploy 05:52:42Z。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` 的 `base_commit` 是 `11ba3ac3`；`/admission` 200，舊字句「每天穿什麼」「上學前三天」「註冊了」「收費袋」「前三天以半天為主」「開學前約」「結束前一個月」整頁（含資料）0 次，新句子與兩個二部曲標題都在；首頁 200、背面是新句子；`/curriculum` 200、「頭三天以半天為主」0 次；`/visit`、`/admin/`、`/api/website/v1/health` 200。
+- **順帶看到（和這次無關、沒處理）**：`https://www.ivykidschool.com//`（多一條斜線）回 500。
+- **沒驗、待使用者**：實機沒看。設施與餐點描述（套房式衛廁、廚房現煮早餐＋每天兩份蔬果）、導師開學前打電話、名牌、必備品清單內容、入園時家長先陪一下，五校是否一致待確認。
+
+## 2026-11-12 資安強化上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #73 合併 `ca480573`（分支 `claude/nifty-wozniak-vgwr5s`，README 同日「資安強化」）。合併前 main 已前進 6 個提交，README 與 deploy/README 頂部段落衝突，兩邊都保留；同時把文件裡「Turnstile 沒開」改成已啟用（`aa1552e1`）。使用者說「CI 過了就幫我合併部署」。
+- **CI**：PR 最後一輪（`d00dde71`）全綠；main run 43164154320 全綠（web、admin、後端 3 組、E2E 兩組），Deploy Railway production success。合併時 main 上一個 run（`11ba3ac3`）還在跑，這次排在它後面。
+- **部署後正式站驗證**（未登入，只發 GET；另外 POST 一次 `/public/engagement` 確認會被擋）：
+  - `/release.json` 的 `base_commit` 是 `ca480573`（05:59:29Z）；`/api/website/v1/health` 回 ok。
+  - 公開頁 CSP 多了 `img-src`／`connect-src`／`frame-src`，HSTS 是 `max-age=31536000; includeSubDomains`；API 回應的 `server` 是 Railway edge 的 `railway-hikari`，不再是 `uvicorn`。
+  - 直接 POST `/api/website/v1/public/engagement` 回 404；`/api/site-fixture` 沒有 cookie 回 401。
+  - 帶舊的 `ivy_admin_session` 打 `/auth/me` 回 401，並回 `Set-Cookie: ivy_admin_session=; Max-Age=0; Path=/; Secure`；`/auth/google/login` 的握手 cookie 是 `__Host-ivy_google_oauth`（Secure、Path=/、沒有 Domain）。
+  - Playwright 開正式站 1440×900 與 390×844 各 10 頁（擋掉遙測與錯誤回報）：CSP 違規 0、頁面 JS 錯誤 0。`/anniversary` 與 `/privacy` 回 404，是 30 週年開關與隱私權政策還沒發布，和這次無關。
+- **影響**：後台帳號都要重新登入一次（舊 session cookie 不再採信）。
+- **沒驗、待使用者**：
+  - 沒有登入正式後台實際操作，要看新 cookie 下登入、Google／LINE 登入、上傳素材、直接重設密碼是否正常。
+  - 基底映像換了 digest，Railway 這次建置成功，但本機沒有建置過。
+  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目都還沒做：Railway api 公開網域、GitHub production environment 與分支保護、Renovate、Cloudflare HSTS。
+- **回退**：切回上一版映像即可，沒有資料相依。定期工作這次之後刪掉的失效 session、重設連結、清掉的舊 IP 不會回來；網站 2026-09 才上線，一年以上的操作紀錄目前還沒有。
+
+## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
+
+- **Cloudflare**：使用者個人帳號建了 Turnstile widget「常春藤官網預約」，Managed 模式、pre-clearance 關（www 是灰雲，用不到）；hostname `ivykidschool.com`（含 www）與 `web-production-04caa.up.railway.app`（Railway 網址轉址之後可以拿掉）。
+- **Railway api**：新增 `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`。兩把 key 用 Cloudflare 的複製按鈕貼進 Railway，兩邊以長度與 SHA-256 前綴比對一致，沒有寫進任何檔案或對話。兩個變數在同一次「Deploy Changes」一起套用（只設一個 api 會拒絕啟動），使用者自己按的部署。
+- **部署後正式站驗證**（只發 GET、未登入）：`/api/website/v1/public/booking-config/yihua`、`/minghua` 的 `turnstile_site_key` 都回 24 字元的 site key；`/api/website/v1/health` `status: ok`。
+- **當時五校預約模式**：義華 `phone`、其他四校 `paused`，沒有一校開線上表單，所以官網畫面上暫時看不到 widget，siteverify 也還沒真的跑過。哪一校開表單之後要驗：表單有 Turnstile、能送出、API log 沒有 `invalid-input-secret`／`missing-input-secret`。
+- **隱私權政策初稿**：分支 `fix/privacy-turnstile-20261112`，只動 `admin/src/composables/privacyPolicyDraft.ts`、一支測試與文件，第 4 段加回 Turnstile 說明（改寫成「表單出現時」）、第 6 段委外清單加 Cloudflare；【待確認】仍是 3 處。正式站政策還沒發布（`/privacy` 404），所以啟用 Turnstile 前不需要重新發布；初稿只在後台從沒存過時載入。
+- **推前（本機）**：admin 引用初稿或政策頁的 5 檔 118 過、1 略過；`npm --prefix admin run typecheck` 過。rebase 到 `6b89e91a`（deploy/README 頂部衝突，兩段都留）後重跑 `privacyPolicy.test.ts` 6 過。沒跑後端、web 與 stack e2e（沒動到）。使用者用 `!` 推 main（fast-forward `6b89e91a..aa1552e1`）。
+- **CI**：main run 43161362184 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（05:31:44–05:37:55Z）。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `aa1552e1`；`/`、`/visit`、`/admin/` 200，health `status: ok`；CI 重新部署後 `booking-config/yihua`、`/renwu` 的 `turnstile_site_key` 仍是 24 字元（Railway 變數沒被覆蓋）；後台 `PrivacyPolicyView` chunk 有第 4 段「預約表單使用 Cloudflare Turnstile…表單出現時」與第 6 段「- Cloudflare：判斷預約表單是不是自動程式送出」。`/privacy` 仍 404（政策未發布，符合預期）。
+- **沒驗、待使用者**：沒登入後台開「隱私權政策」頁——正式站若以前存過這份內容，載入的是存過的版本，要手動貼這兩句。哪一校開線上表單後，實際送一筆確認 widget 出現、能送出、API log 沒有 secret 錯誤。
+
 ## 2026-11-12 分校資訊四校補 LINE／IG（後台），「LINE 好友」改叫「Line」上線（main CI 部署，沒有 migration）
 
 - **後台資料**：使用者同意後，用總管理者帳號在正式站後台「五校介紹」把明華、崇德、國際、仁武的 LINE（`https://line.me/R/ti/p/@541hvofc`／`@313cwble`／`@786vupcx`／`@392jltmc`）與 Instagram（`ivyschool_mh`／`ivyschool_chongde`／`ivyinternationalkindergarten`／`ivyschool_2021`）填入並發布（12:42–12:44 台北）。四校發布前「官網顯示的是這一版」、沒有別人的草稿，確認視窗都寫只更新 2 個欄位。來源與新舊帳號的判斷見 README 同日段落。
@@ -2611,6 +2711,11 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
+| web | `NUXT_CLOUDFLARE_CLIENT_IP`（選填，預設 false，2026-11-12；www 改走 Cloudflare 代理時設 true：上一跳是 Cloudflare 節點才採信 `CF-Connecting-IP`，見上方「資安強化（2026-11-12）」） |
+| web | `NUXT_ADMIN_HOST`（選填，預設空白，2026-11-12；後台獨立子網域的主機名稱，例如 `admin.ivykidschool.com`。設了之後官網主機的 `/admin`、`/preview` 轉到這裡，後台與登入 API 只在這裡服務；啟用步驟見上方「資安強化（2026-11-12）」） |
+| web | `NUXT_API_PROXY_TIMEOUT_SECONDS`（選填，預設 120，2026-11-12；代理到 API 時上游多久沒給回應標頭就回 504，素材串流上傳不套用）／`NUXT_MEDIA_IDLE_TIMEOUT_SECONDS`（選填，預設 120；素材下載的客戶端多久沒讀走資料就斷線） |
+| api | `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（選填，預設 365，30–3650，2026-11-12；操作紀錄的來源 IP 與裝置保留天數，超過由定期工作清成空白） |
+| api | `WEBSITE_PUBLIC_ORIGIN`（選填，預設等於 `WEBSITE_ADMIN_ORIGIN`，2026-11-12；官網的 origin。家長信裡的改期與重新預約連結用它，家長頁的寫入也接受這個 Origin。後台搬到獨立子網域時才需要設） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
 | api | `WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`（選填，2026-11-11；經 Resend 的 HTTPS API 寄信。兩個要一起設、和 `WEBSITE_SMTP_HOST` 只能擇一；寄件地址的網域要先在 Resend 驗證。步驟見「寄信：Resend」） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
@@ -2624,7 +2729,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
-| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 正式站沒設；**啟用前先在隱私權政策第 4、6 段加回 Turnstile 說明並重新發布**，文字在 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
+| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 下午正式站已設（widget「常春藤官網預約」在使用者的 Cloudflare 帳號，Managed、hostname `ivykidschool.com`＋Railway 網址），隱私權政策初稿第 4、6 段同日加回；**關掉 Turnstile 時要把政策裡這兩句拿掉並重新發布**，見 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
 | api | `WEBSITE_SESSION_IDLE_MINUTES`（120）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、`WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`（600）／`_DAILY_CAP`（20000）、`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`（120）／`_DAILY_CAP`（5000）（皆選填） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
@@ -2666,6 +2771,11 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 **這個 header 只有在 api 不直接對外時才可信任**（目前 api 無公開 domain，
 符合此前提）。若日後把 api 直接暴露到公網，必須先拿掉這個設定或改成解析
 可信任的 `X-Forwarded-For` 尾段，否則任何人都能偽造訪客 IP 繞過限流。
+
+2026-11-12 起 web 代理轉給 api 的請求標頭改成白名單（`web/server/utils/api-proxy.ts`）：
+`X-Forwarded-*`、`Forwarded`、`X-Real-IP`、`Authorization` 等不再轉送，api 端日後就算
+開了 uvicorn 的 proxy headers 也拿不到訪客自己填的值。後端新增要讀的標頭時，要一起加進
+那份白名單（`web/tests/api-proxy.spec.ts` 有清單測試）。
 
 ### 前端錯誤回報與外部存活監測（2026-11-05）
 

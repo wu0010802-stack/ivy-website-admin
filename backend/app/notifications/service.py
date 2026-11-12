@@ -308,7 +308,7 @@ async def _dispatch_parent_email(
     payload: dict,
     adapter: EmailAdapter | None,
     created_at: datetime | None,
-    admin_origin: str | None,
+    public_origin: str | None,
     access_secret: str | None,
 ) -> bool:
     """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
@@ -358,7 +358,8 @@ async def _dispatch_parent_email(
     recipient_key = f"parent:{visit_request.id}"
     if await _already_delivered(db, outbox_message_id, "email", recipient_key):
         return True
-    origin = admin_origin.rstrip("/") if admin_origin else None
+    # 改期與重新預約連結指向官網（2026-11-12 起後台可能在獨立子網域，見 Settings.parent_origin）。
+    origin = public_origin.rstrip("/") if public_origin else None
     deadline_hours = await change_deadline_hours(db, visit_request.campus_key)
     # 線上修改期限還沒過才附連結（提醒信 R7；2026-10-20 稽核起預約成功／已變更信也一樣：最短提前時間
     # 可以短於修改期限，送出當下期限就過了，連結點開也改不了）。停課日沒有期限。取消信不附。
@@ -541,6 +542,7 @@ async def dispatch_outbox_message(
     admin_origin: str | None = None,
     access_secret: str | None = None,
     push: web_push.PushSender | None = None,
+    public_origin: str | None = None,
 ) -> bool:
     """處理一筆 outbox 訊息：寫站內通知 → 推到員工手機（Web Push）→ 推播校區的 LINE 群組 → 寄信。
     任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
@@ -571,7 +573,8 @@ async def dispatch_outbox_message(
             payload=payload,
             adapter=adapter,
             created_at=created_at,
-            admin_origin=admin_origin,
+            # 沒另外設官網 origin（後台與官網同一個網域）就沿用 admin_origin。
+            public_origin=public_origin or admin_origin,
             access_secret=access_secret,
         )
     if kind in reminders.REMINDER_KINDS and not await reminders.still_applies(db, kind, payload):
