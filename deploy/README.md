@@ -31,6 +31,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 分校資訊四校補 LINE／IG（後台），「LINE 好友」改叫「Line」上線（main CI 部署，沒有 migration）
+
+- **後台資料**：使用者同意後，用總管理者帳號在正式站後台「五校介紹」把明華、崇德、國際、仁武的 LINE（`https://line.me/R/ti/p/@541hvofc`／`@313cwble`／`@786vupcx`／`@392jltmc`）與 Instagram（`ivyschool_mh`／`ivyschool_chongde`／`ivyinternationalkindergarten`／`ivyschool_2021`）填入並發布（12:42–12:44 台北）。四校發布前「官網顯示的是這一版」、沒有別人的草稿，確認視窗都寫只更新 2 個欄位。來源與新舊帳號的判斷見 README 同日段落。
+- **程式**：`8ae37692`（README「2026-11-12 分校資訊四校補 LINE／IG，「LINE 好友」改叫「Line」」），分支 `fix/campus-line-label-20261112`。只動 `CampusBoard.vue` 社群列的字與 aria-label；fixture、後台、後端沒改。這次推 main 沒被本機權限擋。
+- **推前（本機）**：web `typecheck` 過、`npm run test:website` 140 檔 1888 項過；Playwright 在 fixture dev server 看 1440×900、390×844。沒跑後端與 `tests/stack`（交給 CI）。
+- **CI**：main run 43157826290 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success（05:01:40–05:05:55Z）。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `8ae37692`；`/`、`/visit`、`/admin/`、`/api/website/v1/health` 200；首頁 HTML 有 `aria-label="Line（另開分頁）"`、「LINE 好友」0 次；公開 API 四校 `line`／`instagram` 都是新值。
+- **沒驗、待使用者**：實機沒看；明華、仁武各有一個較舊的 LINE 帳號（`@316crhph`、`@474kdbpd`），取最近貼文用的那個，園方若說要用舊的再到後台改。明華 YouTube `@ivy_minghua` 沒填。
+
 ## 2026-11-12 入學頁拿掉接送證、拿掉「有美語課嗎？」上線＋入學資訊分頁打開（main CI 部署，沒有 migration）
 
 - **內容**：`0a584b93`＋`a40c8d08`（README「2026-11-12 入學頁：拿掉接送證、「有美語課嗎？」整題拿掉」），分支 `fix/admission-copy-20261112`。使用者說學校沒有接送證：入學頁新生準備、接送安全、常見問題「阿公阿嬤或保母可以來接嗎？」、首頁孩子的一天背面都不再提，代接寫到校前 30 分鐘打電話；「麻煩」改「請」。「有美語課嗎？」先改成融入式（`0a584b93`），使用者再說整段拿掉（`a40c8d08`）。動了 `web/server/data/site-fixture.json`（入學頁兩句）、兩份 overlay 測試基準、`public-copy.ts`、`admission-faq.ts`；後台與後端沒改。使用者說「測完直接部署」；`a40c8d08` 推 main 被本機權限擋下，由使用者自己推。
