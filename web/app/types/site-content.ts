@@ -89,6 +89,8 @@ export interface DayExperienceContent {
   filmSrc: string
   filmSrcMobile: string
   filmPoster: string
+  /** 內建手機直式影片的封面（直式、與那支影片第 0 格同構圖）；後台換過封面（filmPosterMedia）時不用 */
+  filmPosterMobile?: string
   filmPosterMedia?: MediaImage
   filmPosition?: string | null
   filmPositionMobile?: string | null

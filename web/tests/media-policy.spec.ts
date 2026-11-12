@@ -29,11 +29,15 @@ describe('影音流量與響應式圖片', () => {
     expect(backgroundVideoSrc('assets/hero-campus.mp4', true)).toContain('hero-mobile')
     expect(backgroundVideoSrc('assets/custom.mp4', true)).toBe('/assets/custom.mp4')
   })
-  it('桌機素材在橫拿手機（mobile=true）也換成手機編碼，不下載桌機母帶', () => {
-    expect(backgroundVideoSrc('assets/day-film.mp4', true)).toContain('day-mobile')
-    expect(backgroundVideoSrc('assets/day-film.mp4', false)).toContain('day-desktop')
+  it('首屏桌機素材在橫拿手機（mobile=true）也換成手機編碼，不下載桌機母帶', () => {
+    expect(backgroundVideoSrc('assets/hero-campus.mp4', true)).toContain('hero-mobile')
     expect(backgroundVideoSrc('assets/hero-campus.mp4', false)).toContain('hero-desktop')
+  })
+  it('孩子的一天手機檔是另剪的直式：橫拿手機（寬度過 760）仍拿桌機橫式那支，直式只給手機素材', () => {
+    expect(backgroundVideoSrc('assets/day-film.mp4', true)).toContain('day-desktop')
+    expect(backgroundVideoSrc('assets/day-film.mp4', false)).toContain('day-desktop')
     expect(backgroundVideoSrc('assets/day-film-mobile.mp4', true)).toContain('day-mobile')
+    expect(backgroundVideoSrc('assets/day-film-mobile.mp4', false)).toContain('day-mobile')
   })
   it('消息「一起跑向前」用自己的舊首屏片，不跟著首屏換成混剪', () => {
     expect(backgroundVideoSrc('assets/campus-film-run.mp4', true)).toMatch(/campus-run-[0-9a-f]{12}\.mp4$/)

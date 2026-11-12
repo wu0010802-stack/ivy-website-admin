@@ -22,9 +22,11 @@ export function heroMayAutoplay(reducedMotion: boolean, connection?: ConnectionI
 
 // mobile 決定的是編碼版本（手機 CRF 較高、同解析度同構圖），不是素材：橫拿手機雖然寬度過了 760，
 // 仍拿手機編碼；後台另傳的手機影片（可能是直式裁切）要不要用，由呼叫端依寬度決定。
+// 孩子的一天例外（2026-11-12）：內建手機檔是另剪的直式 9:16，不是桌機那支換編碼；橫拿手機拿到它
+// 會被裁掉七成，所以 'assets/day-film.mp4' 一律給桌機檔（7.4 MB，和舊的手機編碼 7.3 MB 相當）。
 export function backgroundVideoSrc(source: string, mobile: boolean): string {
   if (source === 'assets/hero-campus.mp4') return mobile ? videos['hero-mobile'] : videos['hero-desktop']
-  if (source === 'assets/day-film.mp4') return mobile ? videos['day-mobile'] : videos['day-desktop']
+  if (source === 'assets/day-film.mp4') return videos['day-desktop']
   if (source === 'assets/day-film-mobile.mp4') return videos['day-mobile']
   // 2026-10-29 首屏換成混剪後，消息「一起跑向前」留在舊的七鏡戶外片（只有手機編碼一支）。
   if (source === 'assets/campus-film-run.mp4') return videos['campus-run']

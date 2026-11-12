@@ -1,0 +1,4 @@
+/* 孩子的一天背景比稿（2026-11-11）：拍立得上來後深綠紗加重。--focus-p 由 kathy.js 寫在 html 上（0＝開場大標、1＝在讀拍立得）。
+   做法沿用 11-10 第七輪 focus.css 共用的那層：疊在正式站深綠紗上面的一層 --deep，不模糊、不去色。顏色走正式站 token。 */
+html[data-dayveil] { --focus-veil: .46 }
+html[data-dayveil] .day-film-shade::after { content: ''; position: absolute; inset: 0; background: var(--deep); opacity: calc(var(--focus-p, 0) * var(--focus-veil, 0)) }

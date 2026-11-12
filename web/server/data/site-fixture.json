@@ -52,10 +52,11 @@
     "eyebrow": "孩子的一天",
     "eyebrowEn": "A DAY AT IVY",
     "titleParts": { "ivy": "常春藤", "day": "的一天" },
-    "filmCaption": { "zh": "義華校 · 遊藝表演", "en": "LITTLE MOMENTS, BIG GROWTH." },
+    "filmCaption": { "zh": "明華校 · 幼幼班的一天", "en": "LITTLE MOMENTS, BIG GROWTH." },
     "filmSrc": "assets/day-film.mp4",
     "filmSrcMobile": "assets/day-film-mobile.mp4",
     "filmPoster": "day-poster",
+    "filmPosterMobile": "day-poster-mobile",
     "note": "日常情境提案，以義華校素材呈現；時刻取自官網一日流程，各校、各班實際安排請向園所確認。背景取自義華遊藝表演紀錄，與相片非同一天拍攝。",
     "sourceNote": "時刻取自官網一日流程 https://www.ivykidschool.com/一日流程；相片為義華校既有素材，與背景影片非同一天拍攝。",
     "moments": [
