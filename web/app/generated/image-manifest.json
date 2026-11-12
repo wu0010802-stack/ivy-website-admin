@@ -1100,33 +1100,28 @@
     ]
   },
   "env-care-clean": {
-    "width": 2100,
-    "height": 1000,
+    "width": 1477,
+    "height": 738,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-480.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-480.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-800.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-800.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1200.webp",
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1200.avif"
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-1600.webp",
-        "width": 1600,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-1600.avif"
-      },
-      {
-        "src": "/assets/responsive/env-care-clean-f25e6a36a52c-2100.webp",
-        "width": 2100,
-        "avif": "/assets/responsive/env-care-clean-797bb43335ab-2100.avif"
+        "src": "/assets/responsive/env-care-clean-9bd83911d844-1477.webp",
+        "width": 1477,
+        "avif": "/assets/responsive/env-care-clean-af2716a5a715-1477.avif"
       }
     ]
   },
