@@ -248,10 +248,12 @@ const contactCampus = computed(() =>
   campuses.value.find(campus => campus.key === menuCampusKey.value)
   ?? campuses.value.find(campus => campus.phone === headerPhone.value.number)
 )
-const menuPhone = computed(() => contactCampus.value
-  ? { number: contactCampus.value.phone.trim(), note: `${contactCampus.value.name}參觀專線` }
-  : headerPhone.value
-)
+// 2026-11-12 使用者選：選單底部原本只顯示一校（預設義華）的參觀專線，其他四校的家長會以為只有一支電話，
+// 改成「參觀專線」底下五校並列；滑過或聚焦的那校反白，下面的社群跟著那校。
+const campusPhones = computed(() => campuses.value.flatMap((campus) => {
+  const number = campus.phone?.trim()
+  return number ? [{ key: campus.key, name: campus.name, number }] : []
+}))
 const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
 const campusSocialLinks = computed(() => campusSocials.value.filter((social) => social.url))
 
@@ -404,13 +406,26 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
           </a>
         </div>
       </div>
-      <div v-if="menuPhone.number || (contactCampus && campusSocialLinks.length)" class="menu-foot">
+      <div v-if="campusPhones.length || (contactCampus && campusSocialLinks.length)" class="menu-foot">
         <!-- 沒有號碼、沒有社群帳號的就不出現（2026-10-29）：原本寫「待園方提供」「待提供」，是上線前給審稿的字。 -->
-        <a v-if="menuPhone.number" :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${menuPhone.number}`">
-          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
-          <span><small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong></span>
-          <svg class="icon menu-phone-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
-        </a>
+        <template v-if="campusPhones.length">
+          <p id="menu-phones-label" class="menu-phones-title">
+            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>參觀專線
+          </p>
+          <ul class="menu-phones" aria-labelledby="menu-phones-label">
+            <li v-for="phone in campusPhones" :key="phone.key">
+              <a
+                class="menu-phone"
+                :class="{ 'is-active': contactCampus?.key === phone.key }"
+                :data-campus-key="phone.key"
+                :href="`tel:${phone.number}`"
+                :aria-label="`撥打${phone.name}參觀專線 ${phone.number}`"
+              >
+                <small>{{ phone.name }}</small><strong>{{ phone.number }}</strong>
+              </a>
+            </li>
+          </ul>
+        </template>
         <nav v-if="contactCampus && campusSocialLinks.length" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
           <template v-for="social in campusSocialLinks" :key="social.platform">
             <a class="menu-campus-social" :href="social.url!" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">

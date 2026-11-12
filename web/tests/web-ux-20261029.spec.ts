@@ -108,6 +108,14 @@ describe('選單「找到你的校園」', () => {
     expect(header).not.toContain('@click="menuCampusKey = c.key"')
   })
 
+  it('參觀專線五校並列，不再只顯示義華一校（2026-11-12）', () => {
+    expect(template).toContain('參觀專線')
+    expect(template).toContain('v-for="phone in campusPhones"')
+    expect(template).toContain(':href="`tel:${phone.number}`"')
+    expect(template).not.toContain('menuPhone')
+    expect(header).toContain("return number ? [{ key: campus.key, name: campus.name, number }] : []")
+  })
+
   it('沒有的社群帳號與電話不出現，不寫「待提供」', () => {
     expect(template).not.toContain('待提供')
     expect(template).not.toContain('待園方提供')
