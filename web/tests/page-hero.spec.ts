@@ -11,17 +11,19 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.m
 const images = manifest as Record<string, { width: number; height: number }>
 
 describe('內頁 hero 的 sizes', () => {
-  // 2026-09-29 立體書版起關於常春藤 hero 不是滿版照片帶，是首屏的卡紙（object-fit: cover；10-30 換版後在右欄）。
+  // 2026-11-12：關於常春藤 hero 在電腦（901 以上）是標題右邊一個 6:5 的框，只露出照片右邊八成；900 以下在標題底下、和版心同寬。
   it('關於常春藤 hero 的 <img> 與預載共用 ABOUT_HERO_SIZES（sizes 不一致會多下載一張）', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('aboutHeroAttrs(site.value.aboutPage)')
     expect(read('../app/components/AboutContent.vue')).toContain('aboutHeroAttrs(page)')
-    // 2026-11-10 起母檔與照片框都是 4:3（11-03～11-10 是 3:2），不裁，sizes 照框寬寫；母檔換比例時 sizes 要乘上裁掉的倍數
+    // 母檔 3:2（使用者要沒裁過的寬圖當母檔）。6:5 的框比母檔窄：照片照框高畫滿，要畫的寬度＝框寬 × 1.25，sizes 要乘上去
     const { width, height } = images['about-hero']!
-    expect(Math.abs(width / height - 4 / 3)).toBeLessThan(0.01)
-    expect(read('../app/assets/css/about.css')).toMatch(/\.abh-hero-art \.abh-card\{[^}]*--ar:4\/3/)
-    // 桌機照片最寬 (1200 − 72) × 8/13 ≈ 694px；寫小了 DPR 2 會抓到小一級的圖而糊
-    expect(Number(ABOUT_HERO_SIZES.match(/, (\d+)px$/)![1])).toBeGreaterThanOrEqual(694)
-    expect(ABOUT_HERO_SIZES).toMatch(/^\(max-width: 900px\) calc\(100vw - \d+px\), \d+px$/)
+    expect(Math.abs(width / height - 3 / 2)).toBeLessThan(0.01)
+    const css = read('../app/assets/css/about.css')
+    expect(css).toMatch(/\.abh-hero-frame\{aspect-ratio:3\/2;/)
+    expect(css).toContain('.abh-hero-frame{width:min(100%,max(400px,calc((100svh - 190px) * 1.2)));margin-left:auto;aspect-ratio:6/5}')
+    // 右欄最寬約 695px（版心 1280、欄距 88、7/12）× 1.25 ≈ 869px；寫小了 DPR 2 會抓到小一級的圖而糊
+    expect(css).toContain('.abh-hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);column-gap:var(--abh-gap);width:min(100% - 2 * var(--abh-gutter),1280px);margin-inline:auto}')
+    expect(ABOUT_HERO_SIZES).toBe('(max-width: 900px) calc(100vw - 40px), 880px')
   })
 
   // 2026-09-28 入學護照版：照片欄 4:3、object-fit: cover，原圖比 4:3 寬時要畫的寬度再乘上比例。

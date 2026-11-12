@@ -121,6 +121,19 @@ async def _news_content(db: AsyncSession) -> dict[str, dict[str, str]]:
     return content
 
 
+async def _day_moment_labels(db: AsyncSession) -> dict[str, str]:
+    """發布中的「孩子的一天」拍立得：代號 → 卡片名稱。後台新增的卡代號是 moment-<時間戳>，不能直接給人看。"""
+    payload = await content_service.published_payload(db, "day_experience", None) or {}
+    moments = payload.get("moments")
+    if not isinstance(moments, list):
+        return {}
+    return {
+        str(item["key"]): str(item["label"])
+        for item in moments
+        if isinstance(item, dict) and item.get("key") and item.get("label")
+    }
+
+
 def _sessions_subquery(condition, name: str):
     V = EngagementVisit
     return (
@@ -229,6 +242,7 @@ async def get_engagement_summary(
         *ENGAGEMENT_FORM_STEPS, *ENGAGEMENT_CLASS_ACTIONS,
     }
     content = await _news_content(db)
+    moment_labels = await _day_moment_labels(db)
     actions: list[dict] = []
     class_counts = {key: 0 for key in ENGAGEMENT_CLASS_ACTIONS}
     stories: list[dict] = []
@@ -254,7 +268,8 @@ async def get_engagement_summary(
             prefix, _, campus = key.partition("_")
             if prefix in ("campus", "map") and campus in campus_clicks:
                 campus_clicks[campus]["tab" if prefix == "campus" else "map"] += visits
-        actions.append({"page": page, "key": key, "visits": visits, "total": int(total or 0)})
+        label = moment_labels.get(key[len("polaroid_"):]) if key.startswith("polaroid_") else None
+        actions.append({"page": page, "key": key, "label": label, "visits": visits, "total": int(total or 0)})
     actions.sort(key=lambda row: (-row["visits"], row["page"], row["key"]))
     stories.sort(key=lambda row: (-row["visits"], row["kind"], row["id"]))
     classes = [{"key": key, "visits": count} for key, count in class_counts.items()]

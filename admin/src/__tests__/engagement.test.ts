@@ -98,6 +98,10 @@ describe('內容興趣的名稱與格式', () => {
 
   it('互動代碼換成白話；認不得的不顯示', () => {
     expect(actionLabel('polaroid_lunch')).toBe('孩子的一天：翻開「一起用餐」')
+    // 後台新增的卡代號是 moment-<時間戳>：用後端帶來的卡片名稱，不露出代號。
+    expect(actionLabel('polaroid_moment-1793877225050', '戶外寫生')).toBe('孩子的一天：翻開「戶外寫生」')
+    expect(actionLabel('polaroid_hello', null)).toBe('孩子的一天：翻開「早安入園」')
+    expect(actionLabel('polaroid_moment-1793877225050')).toBe('孩子的一天：翻開「已移除的卡」')
     expect(actionLabel('faq_tuition')).toBe('常見問題：學費大概多少？')
     expect(actionLabel('campus_renwu')).toBe('首頁五校：切到仁武校')
     expect(actionLabel('map_yihua')).toBe('首頁五校：點義華校地址（開地圖）')

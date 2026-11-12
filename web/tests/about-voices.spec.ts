@@ -10,6 +10,7 @@ import type { MediaInfoMap } from '../app/utils/media-image'
 import { pickVoices } from '../app/utils/testimonials'
 import AboutContent from '../app/components/AboutContent.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
+import AboutYear from '../app/components/AboutYear.vue'
 
 // 家長怎麼說（關於頁第四章）：選片是純函式，後台自訂的影片經 overlay 疊上來；最後用伺服器渲染
 // 看第四章真的畫出誰、什麼順序（Nuxt 的自動匯入在單元測試裡沒有，這裡補上，同 about-render.spec.ts）。
@@ -173,16 +174,25 @@ describe('第四章渲染', () => {
     const app = createSSRApp({ render: () => h(AboutContent as Component, { campuses, page: site.aboutPage }) })
     app.component('NuxtLink', NuxtLink)
     app.component('ResponsivePicture', ResponsivePicture)
-    app.component('AboutWholePerson', defineComponent({ render: () => null }))
+    app.component('AboutYear', AboutYear)
     return renderToString(app)
   }
   // 第四章的 HTML：拿掉 scoped style 的 data-v 標記與 SSR 註解，方便比對文字
+  // 那句話在畫面上一句一塊（<span class="abh-ph">，換行落在標點後面）：比對文字時把這層拿掉
   const voices = (html: string) => html.slice(html.indexOf('id="voices"')).replace(/ data-v-[0-9a-f]+/g, '').replace(/<!--.*?-->/g, '')
+    .replace(/<span class="abh-ph">(.*?)<\/span>/g, '$1')
 
   it('內建內容：四支都是義華家長，標出校名', async () => {
     const html = voices(await render(site.campuses))
+    // 只有一校有影片：不特別寫校名（2026-11-12）
     for (const item of yihua.testimonials!) expect(html).toContain(`<q>${item.quote}</q><small>${item.speaker}</small>`)
-    expect(html).toContain('樂樂媽咪 · 義華校家長')
+    expect(html).toContain('>家長在學校 YouTube 頻道上的分享。<')
+    expect(html).toMatch(/>到 YouTube 看更多分/)
+    expect(html.slice(0, html.indexOf('</section>'))).not.toContain(yihua.name)
+    // 一位家長一張影片卡，沒有 JS 時是連到 YouTube 的連結
+    expect(html.match(/<figure class="abh-voice"/g)).toHaveLength(4)
+    expect(html.match(/<a class="abh-play" href="https:\/\/www\.youtube\.com\/watch\?v=/g)).toHaveLength(4)
+    expect(html).not.toContain('<iframe')
   })
 
   it('五校輪流取：清單順序是 義1、明1、義2、義3，第 4 支被擠出，並標出各自校名', async () => {
@@ -191,13 +201,13 @@ describe('第四章渲染', () => {
       ? { ...minghua, testimonials: [{ ...voice('minghua', 1) }] }
       : c)
     const html = voices(await render(campuses))
-    const list = html.slice(html.indexOf('<ol class="abh-picks">'), html.indexOf('</ol>'))
+    const list = html.slice(html.indexOf('<ol class="abh-voice-grid">'), html.indexOf('</ol>'))
     const [first, second, third] = yihua.testimonials!
     expect([...list.matchAll(/<q>(.*?)<\/q><small>(.*?)<\/small>/g)].map((m) => [m[1], m[2]])).toEqual([
-      [first!.quote, `${first!.speaker} · ${yihua.name}`],
-      ['minghua1', `minghua家長1 · ${minghua.name}`],
-      [second!.quote, `${second!.speaker} · ${yihua.name}`],
-      [third!.quote, `${third!.speaker} · ${yihua.name}`]
+      [first!.quote, `${first!.speaker} · ${yihua.name}家長`],
+      ['minghua1', `minghua家長1 · ${minghua.name}家長`],
+      [second!.quote, `${second!.speaker} · ${yihua.name}家長`],
+      [third!.quote, `${third!.speaker} · ${yihua.name}家長`]
     ])
     expect(html).not.toContain(yihua.testimonials![3]!.quote)
     expect(html).toContain(`${yihua.name}、${minghua.name}家長在學校 YouTube 頻道上的分享`)

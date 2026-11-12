@@ -11,11 +11,12 @@ export const ABOUT_CHAPTER_HINTS = ['第一章', '第二章', '第三章', '第�
 // 官網內建照片的代號（web/public/assets/<代號>.webp，同 AboutContent.vue）。
 export const ABOUT_BUILTIN_PHOTOS = { hero: 'about-hero', hope: 'about-together' } as const
 
-// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏一張照片 4:3（.abh-hero-art .abh-card 的 --ar；
-// 2026-11-03 拿掉後排小卡，11-10 由 3:2 改 4:3），各寬度一樣。紙房子窗戶（.abh-window img）是 4:3。
+// 官網實際裁切的比例（web/app/assets/css/about.css）：首屏照片在電腦（901px 以上）是右欄一個 6:5 的框
+// （2026-11-12：內建照片只露出右邊八成，左邊的木柱裁掉），平板 701–900px 是 2:1、手機 700px 以下 3:2（.abh-hero-frame）；第三章「我們的期許」深綠底上的照片各寬度都是 3:2
+// （.abh-hope-frame）。2026-11-10 以前首屏是右欄一張 4:3，第三章是蠟筆屋窗戶裡的小照片（4:3）。
 export const ABOUT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
-  hope: [{ label: '官網裁切（4:3）', ratio: '4 / 3' }],
+  hero: [{ label: '電腦（6:5）', ratio: '6 / 5' }, { label: '手機（3:2）', ratio: '3 / 2' }],
+  hope: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
 } as const
 
 export function aboutPageDraft(): AboutPagePayload {

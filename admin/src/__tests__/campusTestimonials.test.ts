@@ -169,7 +169,7 @@ describe('分校資料：家長分享影片段落', () => {
     expect(editorState(wrapper).form.value.testimonials).toEqual(campusTestimonialsDraft('yihua'))
     expect(listItems(wrapper)).toHaveLength(4)
     expect(fieldInput(wrapper, 0, 'YouTube 影片網址').element.value).toBe('https://www.youtube.com/watch?v=oaVMxHvquU0')
-    expect(fieldInput(wrapper, 0, '家長說的話').element.value).toBe('老師把孩子放第一，不是把父母放第一。')
+    expect(fieldInput(wrapper, 0, '家長說的話').element.value).toBe('老師把孩子放第一。')
     expect(fieldInput(wrapper, 0, '稱呼').element.value).toBe('樂樂媽咪')
     expect(wrapper.text()).toContain('草稿有 1 處修改：家長分享影片')
 

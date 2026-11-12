@@ -4,22 +4,19 @@ import { computed, createApp, defineComponent, h, nextTick, onBeforeUnmount, onM
 import fixture from '../server/data/site-fixture.json'
 import type { Campus, SiteContent } from '../app/types/site-content'
 import AboutContent from '../app/components/AboutContent.vue'
+import AboutYear from '../app/components/AboutYear.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
-// 2026-10-12 即時預覽補洞：關於頁第四章選了第 3 支家長影片後，後台把影片刪到只剩 1 支，
-// pickedVoice／shownVoice 還停在第 3 支，voices[shownVoice] 是 undefined，整頁預覽畫不出來。
-// 影片變少或換掉時要回到第 1 支、停止播放。Nuxt 的自動匯入在單元測試裡沒有，這裡補上（同 about-render.spec.ts）；
-// 強制色彩模式讓 onMounted 不掛蠟筆畫的 IntersectionObserver（這個測試只看第四章）。
-// 2026-10-30 換版後選片本來就是直接換（立體書的換片動畫 about-popup 已拿掉）；大卡紙的說明是「說話的人 · 校名家長」。
+// 後台即時預覽（/preview）會在看著的時候刪影片、換順序、改說詞，關於頁第四章不能因此壞掉。
+// 2026-10-12 的原始問題：選了第 3 支後影片刪到只剩 1 支，voices[shownVoice] 是 undefined，整頁預覽畫不出來。
+// 2026-11-11 整頁重做後一位家長一張影片卡、各自原地播（playingId 記正在播的那支影片）：沒有「選中的那一支」了，
+// 要守的是：正在播的那支被刪掉就停、還在就不重設、一次只播一支。
+// Nuxt 的自動匯入在單元測試裡沒有，這裡補上（同 about-render.spec.ts）。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
-const realMatchMedia = window.matchMedia.bind(window)
-vi.stubGlobal('matchMedia', (query: string) => query === '(forced-colors: active)'
-  ? { matches: true, media: query, onchange: null, addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false }
-  : realMatchMedia(query))
 
 const site = fixture as unknown as SiteContent
 const yihua = site.campuses.find((c) => c.key === 'yihua')!
@@ -45,7 +42,7 @@ async function mountAbout() {
   app = createApp({ render: () => h(AboutContent as Component, { campuses: state.campuses, page: site.aboutPage }) })
   app.component('NuxtLink', NuxtLink)
   app.component('ResponsivePicture', ResponsivePicture)
-  app.component('AboutWholePerson', defineComponent({ render: () => null }))
+  app.component('AboutYear', AboutYear)
   app.config.warnHandler = () => {}
   app.config.errorHandler = (error) => { errors.push(error) }
   app.mount(host)
@@ -53,40 +50,45 @@ async function mountAbout() {
   return { state, errors }
 }
 
-const caption = () => document.querySelector('#voices figcaption')?.textContent
-const pressed = () => [...document.querySelectorAll<HTMLElement>('#voices .abh-picks button')].map((b) => b.getAttribute('aria-pressed'))
+const cards = () => [...document.querySelectorAll<HTMLElement>('#voices .abh-voice')]
+const playing = () => cards().map((card) => card.querySelector('iframe') !== null)
+const speakers = () => cards().map((card) => card.querySelector('small')?.textContent)
+const play = (index: number) => cards()[index]!.querySelector<HTMLElement>('.abh-play')!.click()
 
-describe('關於頁第四章：即時預覽把家長影片刪到比選中的少', () => {
-  it('選第 3 支後影片只剩 1 支：不丟錯、大卡紙回到第 1 支、清單也標在第 1 支、停止播放', async () => {
+describe('關於頁第四章：即時預覽改家長影片時', () => {
+  it('一位家長一張影片卡；按了哪一張就在那一張原地播，再按別張，前一張回到封面', async () => {
+    await mountAbout()
+    expect(speakers()).toEqual(yihua.testimonials!.map((t) => t.speaker))
+    expect(playing()).toEqual([false, false, false, false])
+    play(2)
+    await nextTick()
+    expect(playing()).toEqual([false, false, true, false])
+    expect(cards()[2]!.querySelector('iframe')!.getAttribute('src')).toContain(`youtube-nocookie.com/embed/${yihua.testimonials![2]!.youtubeId}`)
+    play(0)
+    await nextTick()
+    expect(playing()).toEqual([true, false, false, false])
+  })
+
+  it('播著第 3 支時影片刪到只剩 1 支：不丟錯、停止播放、剩一張封面', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
-    expect(caption()).toBe(quotes[0])
-
-    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[2]!.click()
+    play(2)
     await nextTick()
-    expect(caption()).toBe(quotes[2])
-    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
-    await nextTick()
-    expect(document.querySelector('#voices iframe')).not.toBeNull()
+    expect(playing()).toEqual([false, false, true, false])
 
     state.campuses = withVoices(1)
     await nextTick()
     await nextTick()
 
     expect(errors).toEqual([])
-    expect(caption()).toBe(quotes[0])
-    expect(pressed()).toEqual(['true'])
-    expect(document.querySelector('#voices iframe')).toBeNull()
-    expect(document.querySelector('#voices .abh-play')).not.toBeNull()
+    expect(playing()).toEqual([false])
+    expect(cards()[0]!.querySelector('.abh-play')).not.toBeNull()
   })
 
-  it('影片還在原位時（改的是別的內容）：選中的那支與播放中的畫面不被重設', async () => {
+  it('正在播的影片還在（改的是別的內容）：播放中的畫面不被重設', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
-    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[1]!.click()
+    play(1)
     await nextTick()
-    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
-    await nextTick()
+    const frame = cards()[1]!.querySelector('iframe')
 
     // 預覽每次更新都會換一份新的 campuses（影片同一批、只是第 1 支的說詞改了）
     state.campuses = site.campuses.map((c) => c.key === 'yihua'
@@ -96,17 +98,15 @@ describe('關於頁第四章：即時預覽把家長影片刪到比選中的少'
     await nextTick()
 
     expect(errors).toEqual([])
-    expect(caption()).toBe(quotes[1])
-    expect(pressed()).toEqual(['false', 'true', 'false', 'false'])
-    expect(document.querySelector('#voices iframe')).not.toBeNull()
+    expect(cards()[0]!.querySelector('q')!.textContent).toBe('預覽時改過的說詞')
+    expect(playing()).toEqual([false, true, false, false])
+    // 同一個 iframe 節點（沒有被拆掉重建，影片不會從頭播）
+    expect(cards()[1]!.querySelector('iframe')).toBe(frame)
   })
 
-  it('選中的那支被刪掉、後面的補上來（同一個位置變成別支影片）：回到第 1 支、停止播放', async () => {
+  it('正在播的那支被刪掉、後面的補上來：停止播放，補上來的那張是封面', async () => {
     const { state, errors } = await mountAbout()
-    const quotes = yihua.testimonials!.map((t) => `${t.speaker} · ${yihua.name}家長`)
-    document.querySelectorAll<HTMLElement>('#voices .abh-picks button')[1]!.click()
-    await nextTick()
-    document.querySelector<HTMLElement>('#voices .abh-play')!.click()
+    play(1)
     await nextTick()
 
     state.campuses = site.campuses.map((c) => c.key === 'yihua'
@@ -116,7 +116,22 @@ describe('關於頁第四章：即時預覽把家長影片刪到比選中的少'
     await nextTick()
 
     expect(errors).toEqual([])
-    expect(caption()).toBe(quotes[0])
-    expect(document.querySelector('#voices iframe')).toBeNull()
+    expect(playing()).toEqual([false, false, false])
+    expect(speakers()[1]).toBe(yihua.testimonials![2]!.speaker)
+  })
+
+  it('正在播的那支換了位置（前面一支被刪掉）：跟著影片走，繼續播', async () => {
+    const { state, errors } = await mountAbout()
+    play(2)
+    await nextTick()
+
+    state.campuses = site.campuses.map((c) => c.key === 'yihua'
+      ? { ...yihua, testimonials: yihua.testimonials!.filter((_, i) => i !== 0) }
+      : c)
+    await nextTick()
+    await nextTick()
+
+    expect(errors).toEqual([])
+    expect(playing()).toEqual([false, true, false])
   })
 })

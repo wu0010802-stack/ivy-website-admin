@@ -61,7 +61,7 @@ const pages = computed(() => (summary.value?.pages ?? []).map((row) => ({ ...row
 const groups = computed(() => sectionGroups(summary.value?.sections ?? []))
 const actions = computed(() =>
   (summary.value?.actions ?? []).flatMap((row) => {
-    const label = actionLabel(row.key)
+    const label = actionLabel(row.key, row.label)
     return label ? [{ ...row, label }] : []
   }),
 )

@@ -98,8 +98,9 @@ def avif_candidate(image: Image.Image, webp: Path, target: Path, quality: int) -
 # 同一條曲線先算進 alpha：v＝clamp(2.304Y − 1.1)，黑線 alpha＝1 − v，疊在任何底色上＝底色 × v，與 multiply 相同，
 # 但不需要混合模式。曲線在每個尺寸縮圖之後才套（瀏覽器也是縮到顯示尺寸才套 filter），細線濃淡才跟原本一樣。
 # 寬度：首頁分頁 48–160px、環境頁 124–170px、預約結果 ≤220px，DPR 1–3。
+# 2026-11-11：關於頁「一路走來」把線稿放大到 560–620px（DPR 2 要 1120–1240px），補 1080、1440 兩級（母檔 1536px）。
 LINE_ART_INK = {f'campus-line-art-{key}' for key in ['yihua', 'minghua', 'chongde', 'international', 'renwu']}
-INK_WIDTHS = [160, 240, 360, 480, 720]
+INK_WIDTHS = [160, 240, 360, 480, 720, 1080, 1440]
 # alpha 有損 q70：與無損的 alpha 最多差 5/255、檔案約減半（240w 約 5.5 KB，與原線稿相當）
 INK_ALPHA_QUALITY = 70
 INK_CURVE = [round(255 * (1 - min(1, max(0, 2.304 * y / 255 - 1.1)))) for y in range(256)]

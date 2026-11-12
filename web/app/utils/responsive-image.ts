@@ -86,15 +86,16 @@ export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1
 export const ABOUT_HERO_IMAGE = 'about-hero'
 
 /**
- * 關於常春藤頁 hero 的 sizes（2026-11-10 起）：首屏右欄一張 4:3 照片，母檔也是 4:3（1600×1200），不裁、照框寬寫。
- * - 901px 以上：版心最寬 1200px、欄寬 5：8、欄距最大 72px，照片最寬 (1200 − 72) × 8/13 ≈ 694px → 700px
- *   （視窗 901–1300px 時照片較窄，算大一點也只差一級）。
- * - 900px 以下：單欄，照片寬＝視窗 − 左右留白 20px × 2（390 寬是 350px）；平板的留白較寬，算大一點也只差一級。
- * 2026-11-03～11-10 是 3:2 卡紙（有卡紙框，母檔 2000×1333），寫成 calc(100vw − 68px), 560px；11-10 改乾淨留白
- * 拿掉卡紙框、欄寬改 5：8 後照片變寬到 694px，sizes 當時沒跟著改，桌機 DPR 2 只抓到 1200w。
- * 2026-10-30～11-02 是 2000×803 創辦人橫幅裁 4:3，寫成 calc((100vw − 60px) × 1.53), 940px。
+ * 關於常春藤頁 hero 的 sizes。母檔 3:2（2000×1333，修圖版）。
+ * - 901px 以上（2026-11-12）：右欄一個 6:5 的框，照片照框高畫滿、只露出右邊八成（左邊裁到木柱為止），
+ *   所以要畫的寬度是框寬 × 1.25。框最寬約 695px（版心 1280、欄距 88、右欄 7/12）→ 869px，寫 880px。
+ * - 900px 以下：標題底下一張和版心同寬的照片（701–900 裁成 2:1、700 以下 3:2，都是照框寬畫滿），寫「視窗 − 40px」。
+ * 2026-11-11 是各寬度都和版心同寬（(max-width: 1408px) calc(100vw − 40px), 1280px）；
+ * 2026-11-10 是右欄一張 4:3（母檔裁成 1600×1200），(max-width: 900px) calc(100vw − 40px), 700px；
+ * 2026-11-03～11-10 是 3:2 卡紙（有卡紙框），calc(100vw − 68px), 560px；
+ * 2026-10-30～11-02 是 2000×803 創辦人橫幅裁 4:3，calc((100vw − 60px) × 1.53), 940px。
  */
-export const ABOUT_HERO_SIZES = '(max-width: 900px) calc(100vw - 40px), 700px'
+export const ABOUT_HERO_SIZES = '(max-width: 900px) calc(100vw - 40px), 880px'
 
 export function responsiveImage(name: string, sizes = '100vw'): ResponsiveImageAttrs {
   // 只查 manifest 自己的鍵：CMS 代號若是 `__proto__`、`constructor`，

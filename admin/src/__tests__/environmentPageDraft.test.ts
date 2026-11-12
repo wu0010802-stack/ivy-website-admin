@@ -235,7 +235,7 @@ describe('側欄、標籤與網址', () => {
     expect(mediaFieldPathLabel('spaces[5].photo.media_id')).toBe('校園環境第 6 個空間的照片')
     // 既有路徑不受影響
     expect(mediaFieldPathLabel('daily[2].photo.media_id')).toBe('五件事第 3 件的照片')
-    expect(mediaFieldPathLabel('hope_photo.media_id')).toBe('紙房子窗戶的照片')
+    expect(mediaFieldPathLabel('hope_photo.media_id')).toBe('我們的期許的照片')
   })
 
   it('錯誤訊息指到第幾項（數字索引 +1）、巢狀的主打區', () => {

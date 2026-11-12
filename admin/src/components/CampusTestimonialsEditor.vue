@@ -104,7 +104,7 @@ const POSTER_PREVIEWS = [{ label: '官網裁切（16:9）', ratio: '16 / 9' }] a
           </el-form-item>
           <div class="field-row">
             <el-form-item label="家長說的話">
-              <el-input v-model="item.quote" placeholder="例如：老師把孩子放第一，不是把父母放第一。" />
+              <el-input v-model="item.quote" placeholder="例如：老師把孩子放第一。" />
               <LengthHint :value="item.quote" rule="voiceQuote" />
             </el-form-item>
             <el-form-item label="稱呼">

@@ -82,14 +82,18 @@ const FAQ_LABELS: Record<string, string> = {
 }
 const CAMPUS_KEYS = ['yihua', 'minghua', 'chongde', 'international', 'renwu']
 
-/** 互動代碼 → 名稱；認不得的代碼回 null（不顯示）。 */
-export function actionLabel(key: string): string | null {
+/** 互動代碼 → 名稱；認不得的代碼回 null（不顯示）。label 是後端帶來的拍立得卡片名稱。 */
+export function actionLabel(key: string, label?: string | null): string | null {
   if (key === 'hero_video') return '首頁影片：播放／暫停'
   if (key === 'story_open') return '首頁最新消息：點開一則（未分篇）'
   if (key === 'class_table') return '入學資訊：看完整班別對照表'
   const [, prefix, rest] = /^([a-z]+)_(.+)$/.exec(key) ?? []
   if (!prefix || !rest) return null
-  if (prefix === 'polaroid') return `孩子的一天：翻開「${POLAROID_LABELS[rest] ?? rest}」`
+  if (prefix === 'polaroid') {
+    // 後台新增的卡代號是 moment-<時間戳>：找不到名稱（卡已移除）也不露出代號。
+    const name = label || POLAROID_LABELS[rest] || (rest.startsWith('moment-') ? '已移除的卡' : rest)
+    return `孩子的一天：翻開「${name}」`
+  }
   if (prefix === 'faq') return `常見問題：${FAQ_LABELS[rest] ?? rest}`
   if (prefix === 'campus' && CAMPUS_KEYS.includes(rest)) return `首頁五校：切到${campusLabel(rest)}校`
   if (prefix === 'map' && CAMPUS_KEYS.includes(rest)) return `首頁五校：點${campusLabel(rest)}校地址（開地圖）`

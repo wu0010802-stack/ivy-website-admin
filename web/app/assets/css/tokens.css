@@ -47,7 +47,13 @@
   --ivy-ivory: #fffdf5;                  /* 首屏揭開前的象牙底 */
   --ivy-gold-glow-rgb: 255 215 94;
 
-  /* 全人教育 A2（2026-10-01 定案）：六張透明圓片，僅用於 /about 右頁 */
+  /* 關於常春藤頁（2026-11-11「紅磚上的常春藤」）：磚紅取自五校的紅磚校舍與手繪線稿 */
+  --ivy-about-brick: oklch(57% .125 40);        /* 磚紅：年份、小磚塊記號（大字與圖形；小字用 -deep） */
+  --ivy-about-brick-deep: oklch(44% .11 38);    /* 深磚紅：米白底上的小字，對比 7:1 */
+  --ivy-about-hope-dim: #8a998f;                /* 深綠上還沒亮起來的引言（米白 46%），大字對比 3.7:1 */
+  --ivy-about-hope-sub: oklch(86% .03 150);     /* 深綠上的次要字 */
+
+  /* 六大領域的六個顏色（2026-10-01 定案；原本是六張透明圓片，2026-11-11 起是 /about 六張照片上的名牌） */
   --ivy-whole-body: #e9975e;
   --ivy-whole-cognition: #82b8ca;
   --ivy-whole-language: #e8c65b;

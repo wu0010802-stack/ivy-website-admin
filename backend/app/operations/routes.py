@@ -543,6 +543,8 @@ class EngagementSectionOut(BaseModel):
 class EngagementActionOut(BaseModel):
     page: str
     key: str
+    # 拍立得的卡片名稱（發布中的「孩子的一天」）；其他互動與已下架的卡為 null，後台用內建對照。
+    label: str | None = None
     visits: int
     total: int
 
