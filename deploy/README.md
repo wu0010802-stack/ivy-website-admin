@@ -196,6 +196,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 平台設定：HSTS、www 走 Cloudflare 代理、後台搬到 admin.ivykidschool.com（只改平台設定，沒有程式提交）
+
+上方「資安強化（2026-11-12）」的平台項目，使用者說「這些幫我做」，15:10–15:40（台北）做完。
+
+- **Railway api 公開網域**：查 `railway status --json`，api 與 Postgres 的 `customDomains`／`serviceDomains` 都是空、沒有 TCP proxy；只有 web 有 `www.ivykidschool.com` 與 `web-production-04caa.up.railway.app`。不需要改。
+- **Cloudflare HSTS**（SSL/TLS → Edge Certificates）：開啟，Max Age 6 個月、Include subdomains 勾、Preload 沒勾、No-Sniff 沒勾。`curl -I https://ivykidschool.com/` 回 `strict-transport-security: max-age=15552000; includeSubDomains`。開之前看過 DNS：會被瀏覽器開的只有 apex（橘雲轉址）與 www、admin，都有 https。
+- **www 改橘雲**：web 先設 `NUXT_CLOUDFLARE_CLIENT_IP=true`（`NUXT_TRUSTED_PROXY_HOPS` 沒設、用預設 1），部署成功後把 DNS `www` 改 Proxied；SSL 模式原本就是 Full。之後 `/`、`/visit`、`/admin/`、health 都 200，`server: cloudflare`。**www 的 HSTS 改由 Cloudflare 發（6 個月）**，蓋掉 web 自己送的 1 年。
+- **admin 子網域**：Railway web 加 custom domain `admin.ivykidschool.com`（port 3000，CLI `railway domain`）；Cloudflare 加 `admin` CNAME → `vk49sacg.up.railway.app`（灰雲）與 `_railway-verify.admin` TXT，憑證 VALID。Google OAuth 用戶端與 LINE Login channel `2011820492` 都**加上** admin 回呼網址，www 的保留供回退。api 變數一次改 `WEBSITE_PUBLIC_ORIGIN`、`WEBSITE_ADMIN_ORIGIN`、兩個 `REDIRECT_URI`；`WEBSITE_VAPID_SUBJECT` 是 Railway 網址、沒改。web 設 `NUXT_ADMIN_HOST`。api、web 15:35 部署成功。
+- **驗證**（未登入，只發 GET）：www `/admin/`、`/preview` 301 到 admin；www `/api/website/v1/auth/me` 404；admin `/admin/` 200、`auth/me` 401；admin 的 Google／LINE 登入轉址 `redirect_uri` 都是 admin 網址；www 首頁、`/visit` 200，health ok。
+- **沒驗、待使用者**：
+  - 操作紀錄的 IP 是不是自己的（不是 Cloudflare 節點）——Railway 日誌沒有逐筆存取紀錄，要登入後台操作一次看。
+  - 後台用帳密、Google、LINE 各登入一次；改草稿看預覽；用自己的 Email 預約一次，確認改期連結是 `www` 開頭。
+  - 同事要在新網址重新登入、重存密碼、重開手機通知、重加主畫面捷徑。
+- **還沒做**：Cloudflare WAF 受管規則、Bot Fight Mode、預約 API 限流規則；GitHub production environment 與分支保護、Renovate。
+
 ## 2026-11-12 外部服務串接五項上線：GA4＋Meta Pixel、Instagram、Search Console、CrUX（main CI 部署，migration `f3b8d2a6c19e`）
 
 - **內容**：`9d692961`（README 同日「外部服務串接五項」），分支 `feature/integrations-20261112`。**全部預設關**，正式站沒設任何新變數，行為和之前相同。migration 只在 `facebook_page_posts` 加 `source`（預設 facebook）、`facebook_page_sync` 加四個 `ig_` 欄位，不改寫資料，沒有先備份。
@@ -251,7 +266,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **沒驗、待使用者**：
   - 沒有登入正式後台實際操作，要看新 cookie 下登入、Google／LINE 登入、上傳素材、直接重設密碼是否正常。
   - 基底映像換了 digest，Railway 這次建置成功，但本機沒有建置過。
-  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目都還沒做：Railway api 公開網域、GitHub production environment 與分支保護、Renovate、Cloudflare HSTS。
+  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目：Railway api 公開網域、Cloudflare HSTS 已在同日做完（見「平台設定」段）；GitHub production environment 與分支保護、Renovate 還沒做。
 - **回退**：切回上一版映像即可，沒有資料相依。定期工作這次之後刪掉的失效 session、重設連結、清掉的舊 IP 不會回來；網站 2026-09 才上線，一年以上的操作紀錄目前還沒有。
 
 ## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
