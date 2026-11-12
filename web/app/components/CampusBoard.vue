@@ -627,9 +627,9 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         </div>
         <div class="contact-row"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg><a class="phone" :href="`tel:${current.phone}`">{{ current.phone }}</a></div>
         <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，
-             10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「LINE 好友」；不要拿義華的 LINE 代填。 -->
+             10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「Line」（2026-11-12 使用者要求由「LINE 好友」改短）；不要拿義華的 LINE 代填。 -->
         <div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">
-          <a v-if="current.line" :href="current.line" aria-label="LINE 好友（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>LINE 好友</a>
+          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
           <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
           <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
           <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
