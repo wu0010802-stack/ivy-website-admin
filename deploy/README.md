@@ -44,7 +44,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 1. **先發布隱私權政策**：後台「全站與素材 → 隱私權政策」。初稿第 5 段已寫入 GA4 與 Meta 像素（用途、預約成功只傳校區、DNT／GPC 不載入、可用瀏覽器設定拒絕）；補完【待確認】、填日期、發布。若只打算開其中一個，發布前把另一個的條列與相關句子刪掉；兩個都不開就不必發布這一版第 5 段。截至 2026-11-12 正式站還沒發布政策（`/privacy` 404）。
 2. **GA4**：建立資源與「網站」資料串流，複製評估 ID。在該串流的「強化評估」（齒輪）：**關掉「頁面變更（根據瀏覽器記錄事件）」**——程式已自己送 `page_view`，開著會讓每次換頁（含首頁章節錨點 `#…`）多算一筆，而且那一筆是 Google 的腳本送的，沒有經過程式的 `page_location` 清洗；建議也關「表單互動」。管理 → 資料收集中的 Google 訊號維持關閉。
-3. **Meta Pixel**：沿用舊站的 Pixel 或新建（由使用者決定；沿用的話新舊網域的事件會進同一個 Pixel，之後可用網域區分）。Events Manager → 該 Pixel → 設定：**關掉「自動進階比對」與「自動事件」**（程式已把 `autoConfig` 關掉，後台也關才雙保險，預約表單有 Email 與電話欄位）。
+   - **新建的 GA4 資源會被 Google 自動升級成代碼管理工具容器（`GTM-…`），一定要做這步**：容器裡的「Google Analytics G-…」代碼預設勾著「略過重複的網頁內設定執行個體」，程式的 `send_page_view:false`、`allow_google_signals:false` 都會被忽略，結果每次進站多一筆**未清洗網址**的 `page_view`（2026-11-12 正式站實測）。處理：串流詳情 → Google 代碼「進行代碼設定」→ 代碼 → 該 GA 代碼 → 配置設定 → 配置參數加 `send_page_view`、`allow_google_signals`、`allow_ad_personalization_signals` 三個，值都填 `false` → 儲存 → 提交並發布版本。發布後約 30 分鐘 gtag.js 的 CDN 才換新；驗證時每頁只該有一筆 `en=page_view`、`dl` 只帶 `utm_*`、`npa=1`。
+3. **Meta Pixel**：沿用舊站的 Pixel 或新建（由使用者決定；沿用的話新舊網域的事件會進同一個 Pixel，之後可用網域區分）。Events Manager → 該 Pixel → 設定：**關掉「自動進階比對」與「自動事件」**（程式已把 `autoConfig` 關掉，後台也關才雙保險，預約表單有 Email 與電話欄位）。新建資料集時：要先有「商家資產管理組合」；建立視窗預設勾的「連結到 Meta 的轉換 API」取消；建好後設定頁還要關「自動包含更詳細的頁面和商品資訊」（AI 抓頁面內容）。Pixel 一定送完整網址（`dl`／`rl` 含所有 query，hash 不送），程式管不到。
 4. **Railway web 服務**設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，等重新部署完成。
 5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `google-analytics.com` 的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
 
@@ -232,6 +233,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **CI**：run 43172898906 測試全綠；Deploy job 紅在 `web deployment cd4fa839…: REMOVED`——同一提交在 Railway 有兩次 web 部署，15:25 的 `64a0bfa9` SUCCESS 取代了 CI 等的那份，不是程式問題。api `8b941d4f` 15:21 SUCCESS（啟動前跑 alembic）。
 - **部署後正式站驗證**（GET、未登入）：`/release.json` base_commit `9d692961`；health ok；`/admin/crux`、`/admin/search-insights` 回 401（路由在）；首頁 CSP 的 img-src／connect-src 與之前一字不差、HTML 沒有 googletagmanager／fbevents、runtimeConfig 兩個 ID 是空字串。
 - **待使用者**：照上方「GA4 與 Meta Pixel」（先發布隱私權政策）、「Instagram 貼文」、「Google Search Console 與 CrUX」、「外部存活監測：UptimeRobot」各段開帳號與設變數；開了之後再做真實驗收。
+
+## 2026-11-12 正式站開通 GA4、Meta Pixel、Search Console、CrUX（只改變數與外部設定，沒有程式部署）
+
+- **Search Console＋CrUX**（api）：GCP 專案 `ivywebsite-510806` 啟用兩支 API；服務帳戶 `website-search-console@ivywebsite-510806.iam.gserviceaccount.com`（JSON 金鑰）在 Search Console `sc-domain:ivykidschool.com` 為「限制」使用者；API 金鑰「官網後台 CrUX」只限 Chrome UX Report API。使用者用 `!` 設三個變數（前兩個 `--skip-deploys`），api `eb859eef` 15:48 SUCCESS；本機金鑰暫存已刪。後台成效統計兩區塊驗過：Search Console 近 28 天點擊 114／曝光 3,996；CrUX 回「資料量不足」（新網域，正常）。
+- **隱私權政策**：第 4 段加「第三方分析工具另見第 5 段」、第 5 段改寫 GA4＋Meta 像素（初稿版本），後台重新發布兩次（先只有 GA4、Pixel 建好後加回 Meta），`/api/public-site` 驗過。
+- **GA4**：帳戶 ivykids 下新資源「常春藤官網 ivykidschool.com」（563982090），評估 ID `G-KERZKPSV2H`，強化評估關「瀏覽器記錄事件」與「表單互動」；舊站 ivykids.tw 的資源沒動。容器 `GTM-KV9ZKW67` 的 GA 代碼加三個 `false` 參數、發布第 2 版（見上方 GA4 步驟 2 的說明）。web 設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`。
+- **Meta Pixel**：使用者新建商家資產管理組合「常春藤義華校」（2094511111952952）並同意條款建資料集「常春藤官網 ivykidschool.com」，Pixel ID `1324144629785264`；轉換 API 連結取消、AI 頁面詳情與自動事件關、自動進階配對本來就關。web 設 `NUXT_PUBLIC_META_PIXEL_ID`。
+- **正式站驗證**（Chrome、沒開 DNT）：CSP 只多放行兩家網域；GA 每頁一筆 `page_view`、`dl` 只留 `utm_*`、`npa=1`；Pixel 每頁一筆 `PageView`、SPA 換頁不重複；`/visit/manage` 兩家都不載入、請求 0。測試時往 GA 送過幾筆 `utm_source=test_claude`、一筆 `example.com` 與 `claude_probe` 事件。
+- **沒驗**：預約成功的 `generate_lead`／`Lead`（沒有實際送預約）；GA4「即時」報表與 Pixel Helper 畫面。
+- **待使用者**：義華 IG 權杖加 `instagram_basic` 後設 `WEBSITE_INSTAGRAM_ENABLED`（粉專已連結 IG）；UptimeRobot。
 
 ## 2026-11-12 選單參觀專線五校並列、孩子的一天午休與戶外回答改寫上線（main CI 部署，沒有 migration）
 
