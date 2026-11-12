@@ -31,6 +31,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
 
+## 2026-11-12 隱私權政策後台初稿補齊上線（main CI 部署，沒有 migration）
+
+- **內容**：`741aaee9`（README「2026-11-12 隱私權政策初稿補三項」），分支 `fix/privacy-draft-20261112`。只動後台的隱私權政策初稿（`admin/src/composables/privacyPolicyDraft.ts`）、一支測試與文件：Turnstile 兩處說明拿掉、寄信服務商填 Resend、第 3 與第 10 段寫明參觀後的招生紀錄、第 7 段不寫保存天數與到期刪除；【待確認】從 9 處剩 3 處（登記名稱、主機地區、聯絡 Email）。官網前台與後端沒有改。使用者說「部署」。
+- **推前（本機）**：admin 全套 174 檔——整套跑時機器負載破百，13 檔 51 項逾時失敗；負載降下後單獨重跑那 13 檔全過（504 項中 503 過、1 略過）；`privacyPolicy.test.ts`＋`expectedStart.test.ts` 39 過；admin `npm run typecheck` 過。推之前接了兩次別的 session 的新提交（成效統計分四類、它的部署紀錄），接完只重跑了那兩支測試與 typecheck。沒跑後端與 stack e2e（沒動到）。
+- **CI**：main run 43150434230 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success。
+- **部署後正式站驗證**（只發 GET、未登入）：`/release.json` 的 `base_commit` 是 `741aaee9`；`/`、`/visit`、`/admin/` 200，`/api/website/v1/health` 200；後台 `PrivacyPolicyView` chunk 有新的三句（Resend、沒有固定保存期限、參觀後的招生聯繫），沒有 Turnstile 說明與 730 天，【待確認】3 處。`/privacy` 仍是 404（政策還沒發布，符合預期）。
+- **沒驗、待使用者**：沒登入後台開「隱私權政策」頁——如果正式站以前存過這份內容，後台載入的是存過的版本，這次的初稿不會出現，要手動貼。政策要園方補完 3 處【待確認】、填最後更新日期並發布，`/privacy` 才會有內容。正式站個資清理仍是關的（`WEBSITE_RETENTION_ALLOW_REAL_RUN` 未設）；後台沒有單筆刪除的按鈕。初稿其餘和程式不符的地方（分頁暫存項目與預約表單草稿、LINE 群組推播帶家長稱呼、得知管道六個選項、總管理者看得到全部校區等）還沒改。
+
 ## 2026-11-12 成效統計分成四類、整頁共用一組期間上線（main CI 部署，沒有 migration）
 
 - **內容**：`5ab7a531`（README「2026-11-12 成效統計 UI/UX」），分支 `feature/analytics-ux-20261112`。後台 `/admin/analytics` 的 18 張表分成四類（瀏覽與速度／看了什麼／怎麼來、怎麼逛／走到預約，`?tab=`），期間整頁一組（`?days=`）、裝置只在後三類（`?device=`），兩欄各自往下疊，拿掉整排沒有資訊的字。只動 admin 與 stack 測試清單，後端、契約、資料都沒改。使用者說「部署」。
