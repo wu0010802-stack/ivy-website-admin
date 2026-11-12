@@ -49,7 +49,8 @@ PARENT_EDIT_PER_CASE = ratelimit.Limit(
 async def require_parent_request(request: Request, parent_header: str | None = Header(default=None, alias="X-Ivy-Parent")) -> None:
     # 非 simple request header：跨來源網頁無法以表單偽造，也不能在沒有
     # CORS 授權下通過 preflight。此 API 不開放跨來源 CORS。
-    origin_ok = request.app.state.settings.origin_allowed(request.headers.get("origin") or None)
+    # 家長頁在官網主機上：後台搬到獨立子網域後 Origin 是 WEBSITE_PUBLIC_ORIGIN（2026-11-12）。
+    origin_ok = request.app.state.settings.parent_origin_allowed(request.headers.get("origin") or None)
     if parent_header != "1" or request.headers.get("sec-fetch-site") == "cross-site" or not origin_ok:
         raise HTTPException(status_code=403, detail={"code": "PARENT_REQUEST_FORBIDDEN", "message": "請從官網管理頁操作"})
     try:
@@ -432,7 +433,8 @@ async def create_parent_access_link(
         await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
     emailed = mail_parent and parent_email_enabled(request)
     fragment = access_service.manage_path(raw_token)
-    origin = request.app.state.settings.admin_origin
+    # 家長點的是官網的改期頁，不是後台（2026-11-12：後台可能在獨立子網域）。
+    origin = request.app.state.settings.parent_origin
     history.record_event(
         db,
         visit_request.id,

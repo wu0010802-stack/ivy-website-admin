@@ -121,6 +121,8 @@ describe('2026-09-28 操作紀錄 UX（H）', () => {
         ['visit_request.create_access_link', { expires_at: '2026-10-12T13:41:57.541646+00:00', replaced_previous: false }, '連結到期：2026/10/12 21:41'],
         ['user.set_active', { is_active: false }, '帳號改為停用'],
         ['user.reset_password', { revoked_sessions: 2 }, '同時登出 2 個已登入的裝置'],
+        // 2026-11-12 起直接設定新密碼也解除綁定，稽核多記兩個旗標（同重設連結）。
+        ['user.reset_password', { revoked_sessions: 1, line_unlinked: true, google_unlinked: false }, '同時登出 1 個已登入的裝置，解除 LINE 登入綁定'],
         ['visit_request.reschedule', { from_slot: slot('2026-10-02', '09:30', '10:30'), to_slot: slot('2026-10-03', '10:00', '11:00'), has_reason: true }, '場次：10/02 09:30–10:30 → 10/03 10:00–11:00，有填寫原因'],
         ['visit_request.export', { row_count: 12, status: 'confirmed', has_search: true }, '匯出 12 筆，篩選狀態：預約正常，有用搜尋字篩選'],
         ['campus.deactivate', { before: true, after: false, reason: '暑假整修', open_requests: 2 }, '分校：啟用 → 停用，原因：暑假整修，尚未結案的案件 2 筆'],

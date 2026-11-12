@@ -2448,9 +2448,9 @@ export interface paths {
         put?: never;
         /**
          * Clear User External Logins
-         * @description 總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用時
-         *     的處置；重設密碼不會動到綁定）。自己的綁定請到「我的帳號」解除，那邊要
-         *     重新驗證。
+         * @description 總管理者替別人解除 LINE／Google 綁定並登出所有裝置（帳號疑似被盜用、
+         *     但不必換密碼時的處置；重設密碼——直接設定或寄連結——本來就會一併解除綁定）。
+         *     自己的綁定請到「我的帳號」解除，那邊要重新驗證。
          */
         post: operations["clear_user_external_logins_api_website_v1_admin_users__user_id__clear_external_logins_post"];
         delete?: never;
@@ -2496,7 +2496,8 @@ export interface paths {
          *     不能拿來改自己的密碼：那會繞過 change-password 的「目前密碼」檢查，
          *     撿到總管理者 session 的人就能直接把密碼改成自己知道的。
          *
-         *     也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03）。
+         *     也會作廢還沒用的重設連結、解除密碼登入暫停（2026-10-03），並比照重設連結
+         *     解除 LINE／Google 綁定（2026-11-12）。
          */
         post: operations["reset_user_password_api_website_v1_admin_users__user_id__password_post"];
         delete?: never;

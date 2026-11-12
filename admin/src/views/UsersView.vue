@@ -58,6 +58,9 @@ const linkResult = ref<PasswordResetLinkOut | null>(null)
 const mailConfigured = computed(() => authStore.features.password_reset_email === true)
 // 停用的帳號寄了也只會收到 409；改成直接設定新密碼，或先恢復帳號。
 const linkEnabled = computed(() => mailConfigured.value && resetTarget.value?.is_active === true)
+// 2026-11-12：兩種重設都會一併解除 Google／LINE 綁定（後端 reset_user_password、complete_password_reset）。
+// 對方有綁定時才提，沒綁的人不必多讀一句。直接重設成功後該列換成新物件，resetTarget 還是重設前的那份。
+const resetTargetLinked = computed(() => Boolean(resetTarget.value?.line_linked || resetTarget.value?.google_linked))
 const togglingId = ref<string | null>(null)
 const clearingId = ref<string | null>(null)
 
@@ -432,11 +435,15 @@ function generateResetPassword() {
 async function submitReset() {
   if (!resetTarget.value || resetDone.value || !passwordOk(resetPassword.value)) return
   resetting.value = true
-  const path = `/admin/users/${resetTarget.value.id}/password`
+  const targetId = resetTarget.value.id
+  const path = `/admin/users/${targetId}/password`
   const password = resetPassword.value
   try {
     await withReauth((fields) => api.post(path, { password, ...fields }))
     resetDone.value = true
+    // 後端回 204 沒有帳號資料；綁定已經解除，該列的 LINE／Google 標示與「解除綁定並登出」跟著拿掉。
+    const row = users.value.find((u) => u.id === targetId)
+    if (row && (row.line_linked || row.google_linked)) replaceUser({ ...row, line_linked: false, google_linked: false })
   } catch (err) {
     // 自己的那一列沒有「重設密碼」（UserActions 只指到「我的帳號」）；後端對自己重設
     // 回 409 USE_CHANGE_PASSWORD 時，訊息本身就指向「我的帳號」。
@@ -713,11 +720,11 @@ onMounted(loadUsers)
       <el-dialog v-model="resetVisible" :title="`重設 ${staffWithEmail(resetTarget)} 的密碼`" width="460px" :show-close="!resetting" :close-on-click-modal="!resetting && !resetDone && !linkResult" :close-on-press-escape="!resetting" @closed="clearReset">
         <div v-if="linkResult" class="password-result" data-test="reset-link-sent">
           <el-alert type="success" :closable="false" show-icon :title="`已寄出重設連結到 ${linkResult.sent_to}`" />
-          <p class="hint">連結在 {{ formatShortDateTime(linkResult.expires_at) }} 前有效，只能用一次。對方設好新密碼後，所有已登入的裝置都會登出。<template v-if="linkResult.replaced_previous">先前寄的連結已經失效。</template></p>
+          <p class="hint">連結在 {{ formatShortDateTime(linkResult.expires_at) }} 前有效，只能用一次。對方設好新密碼後，所有已登入的裝置都會登出<template v-if="resetTargetLinked">，Google／LINE 綁定也會解除</template>。<template v-if="linkResult.replaced_previous">先前寄的連結已經失效。</template></p>
           <p class="hint">對方沒收到信：請他看看垃圾郵件，或再寄一次（前一封的連結會失效）。</p>
         </div>
         <div v-else-if="resetDone" class="password-result" data-test="reset-password">
-          <el-alert type="success" :closable="false" show-icon title="已重設密碼，對方所有裝置都已登出" />
+          <el-alert type="success" :closable="false" show-icon :title="resetTargetLinked ? '已重設密碼，對方所有裝置都已登出，Google／LINE 綁定也已解除' : '已重設密碼，對方所有裝置都已登出'" />
           <p class="hint">系統不會寄信。請用電話或當面把下面的新密碼告訴 {{ staffWithEmail(resetTarget) }}；按「完成」關閉後，這裡不會再顯示。</p>
           <div class="password-row">
             <el-input ref="resetResultInput" :model-value="resetPassword" readonly aria-label="新密碼" class="password-result__value" />
@@ -729,10 +736,10 @@ onMounted(loadUsers)
             <el-radio value="link" :disabled="!linkEnabled">寄重設連結到 {{ resetTarget?.email }}</el-radio>
             <el-radio value="direct">直接設定新密碼</el-radio>
           </el-radio-group>
-          <p v-if="resetMode === 'link'" class="hint">對方會收到一封信，點信裡的連結自己設定新密碼。連結 30 分鐘內有效、只能用一次；設好之後，對方所有已登入的裝置都會登出。對方設好之前，原本的密碼照常可用。</p>
+          <p v-if="resetMode === 'link'" class="hint">對方會收到一封信，點信裡的連結自己設定新密碼。連結 30 分鐘內有效、只能用一次；設好之後，對方所有已登入的裝置都會登出<template v-if="resetTargetLinked">，Google／LINE 綁定也會解除（要用再到「我的帳號」重新綁定）</template>。對方設好之前，原本的密碼照常可用。</p>
           <template v-else>
             <p v-if="!linkEnabled" class="hint" data-test="reset-link-disabled">{{ mailConfigured ? '這個帳號已停用，不能寄重設連結；要寄請先恢復帳號，或直接設定新密碼。' : '尚未設定寄信，不能寄重設連結，只能直接設定新密碼。' }}</p>
-            <p class="hint">重設後對方所有已登入的裝置會被登出。系統不會寄信；重設後會顯示新密碼與複製鈕，請用電話或當面告訴對方。</p>
+            <p class="hint" data-test="reset-direct-hint">重設後對方所有已登入的裝置會被登出<template v-if="resetTargetLinked">，Google／LINE 綁定也會解除（對方用新密碼登入後，要用再到「我的帳號」重新綁定）</template>。系統不會寄信；重設後會顯示新密碼與複製鈕，請用電話或當面告訴對方。</p>
             <div class="password-row">
               <el-input v-model="resetPassword" type="text" autocomplete="new-password" placeholder="12 字以上" aria-label="新密碼" :disabled="resetting" />
               <el-button :disabled="resetting" @click="generateResetPassword">產生密碼</el-button>
