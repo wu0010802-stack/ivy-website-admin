@@ -196,6 +196,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 選單參觀專線五校並列、孩子的一天午休與戶外回答改寫上線（main CI 部署，沒有 migration）
+
+- **內容**：`14ccc94a`（README 同日「選單參觀專線五校並列＋孩子的一天午休／戶外回答改寫」），分支 `fix/day-answers-menu-phone-20261112`。選單底部原本只顯示義華校參觀專線，改成五校電話並列；`DAY_ANSWERS` 改寫 12:30、14:20 兩題回答（待園方確認）。
+- **推前（本機）**：`npm --prefix web run typecheck` 過；web vitest 143 檔 1966 條全綠（rebase 到 `149ad31b` 後重跑）；dev server 截圖看過 1440、390×844、390×664 的選單。
+- **CI**：run 43172113869 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：首頁有 `.menu-phones`，五校 `tel:` 連結與「撥打Ｘ校參觀專線」aria-label 都在；拍立得背面出現「不會強迫閉眼」「改在室內活動」。
+- **沒驗**：實機沒看。
+
 ## 2026-11-12 入學頁首屏照片改回兩個男孩、逆光女孩移到快樂曲縮圖上線（main CI 部署，沒有 migration）
 
 - **內容**：`4c710a01`（README 同日「入學頁照片：首屏改回兩個男孩，逆光女孩移到『快樂曲』」），分支 `fix/admission-photos-20261112`。只改 `ADMISSION_HERO_IMAGE` 與 `PHASE_PHOTOS`、alt 與圖說，沒有新圖檔。
