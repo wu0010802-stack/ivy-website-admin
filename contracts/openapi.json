@@ -7708,6 +7708,17 @@
             "title": "Key",
             "type": "string"
           },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
           "page": {
             "title": "Page",
             "type": "string"

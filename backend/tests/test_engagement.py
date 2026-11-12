@@ -129,7 +129,7 @@ async def test_admin_summary(admin_client, minghua_client, public_client):
     assert sections[("admission", "faq")]["reach_rate"] == 1.0
 
     actions = {(row["page"], row["key"]): row for row in body["actions"]}
-    assert actions[("home", "polaroid_morning")] == {"page": "home", "key": "polaroid_morning", "visits": 1, "total": 2}
+    assert actions[("home", "polaroid_morning")] == {"page": "home", "key": "polaroid_morning", "label": None, "visits": 1, "total": 2}
     # 預約成功與讀完是內部標記，不列在互動表。
     assert not any(key in ("booking_done", "read_end") for _, key in actions)
 
@@ -355,3 +355,25 @@ async def test_campus_news_ids_are_counted_and_titled(admin_client, public_clien
         {"kind": "event", "id": "yihua:fair", "title": "園遊會", "visits": 1},
         {"kind": "news", "id": "yihua:open-day", "title": "義華開放日", "visits": 1},
     ]
+
+
+@pytest.mark.asyncio
+async def test_polaroid_actions_carry_published_card_labels(admin_client, public_client):
+    """11-12 QA：後台新增的拍立得代號是 moment-<時間戳>，互動表要帶發布中的卡片名稱，不能露出代號。"""
+    from app.operations import engagement_service as service
+
+    async def fake_payload(db, kind, campus_key):
+        if kind == "day_experience":
+            return {"moments": [{"key": "hello", "label": "早安入園"}, {"key": "moment-1793877225050", "label": "戶外寫生"}]}
+        return None
+
+    original = service.content_service.published_payload
+    service.content_service.published_payload = fake_payload
+    try:
+        await public_client.post(URL, json=_visit(actions={"polaroid_moment-1793877225050": 1, "polaroid_gone": 1, "campus_yihua": 1}))
+        body = (await admin_client.get(f"{ADMIN_URL}?days=7")).json()
+    finally:
+        service.content_service.published_payload = original
+    labels = {row["key"]: row["label"] for row in body["actions"]}
+    # 下架的卡、非拍立得的互動沒有名稱，後台照舊用內建對照。
+    assert labels == {"polaroid_moment-1793877225050": "戶外寫生", "polaroid_gone": None, "campus_yihua": None}

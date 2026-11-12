@@ -6066,6 +6066,8 @@ export interface components {
         EngagementActionOut: {
             /** Key */
             key: string;
+            /** Label */
+            label?: string | null;
             /** Page */
             page: string;
             /** Total */
