@@ -4,7 +4,7 @@
 
 - **公開站**
   - **頁首膠囊**：sticky 頁首的頁面捲動後 Shift+Tab 進膠囊，瀏覽器為了讓它離開 `scroll-padding` 把整頁捲回 0，頁首切回 hero、膠囊隱藏、焦點掉到 body。`studio.css` 把 padding 放進 `--header-scroll-pad`，頁首內的控制項用負的 `scroll-margin-top` 抵銷。
-  - **上一頁白畫面**：從 404 離開再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary` 同理）整頁空白。原因是 `createError` 沒帶 `fatal: true`，client 端不掛 `error.vue`。改用 `usePublishedSite.ts` 的 `pageNotFound()`，`/visit/<不存在>` 一併補。
+  - **上一頁白畫面**：從 404 離開再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary` 同理）整頁空白。原因是 `createError` 沒帶 `fatal`，client 端不掛 `error.vue`。改用 `usePublishedSite.ts` 的 `pageNotFound()`（只在瀏覽器端 fatal；伺服器端 fatal 會讓每個 404 都印整段堆疊），`/visit/<不存在>` 一併補。
   - **網址寫法**：`/about/`、`/About`、`/visit/manage/` 原本回 200，頁首比對 `route.path` 全部失準。`server/utils/site-redirects.ts` 的 `canonicalPagePath` 改成 301 回標準路徑；消息 id 不改大小寫，後台與 API 不動。
   - **管理頁 token**：已開著 `/visit/manage` 又在同分頁開修改連結（同文件 fragment 導覽）時，router 判成重複導覽，token 留在網址與 `history.state`。`router.replace` 加 `force: true`。
   - **未登入的 `/preview`**：沒有 `<title>`，「跳至主要內容」沒有目標。補固定標題，三種提示改成 `<main id="main">`。

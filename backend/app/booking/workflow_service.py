@@ -439,16 +439,18 @@ async def update_details_by_parent(
     for field in changed:
         setattr(visit_request, field, changes[field])
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
-    if "email" in changed and old_email and email_enabled:
-        await _reset_access_after_email_change(
-            db,
-            visit_request,
-            actor=PARENT,
-            secret=access_secret,
-            slot=await history.load_slot(db, visit_request.slot_id),
-            reissue=True,
-            keep_session_id=keep_session_id,
-        )
+    if "email" in changed and old_email:
+        # 只有連結的作廢與換發看有沒有設定寄信；下面通知舊信箱照舊排進 outbox（沒設定寄信時 worker 標 skipped）。
+        if email_enabled:
+            await _reset_access_after_email_change(
+                db,
+                visit_request,
+                actor=PARENT,
+                secret=access_secret,
+                slot=await history.load_slot(db, visit_request.slot_id),
+                reissue=True,
+                keep_session_id=keep_session_id,
+            )
         # 舊信箱也要知道（2026-10-22 資安稽核）：外流的修改連結能把 Email 改成別人的，之後的信
         # 和新連結都只寄到新信箱，原家長毫無線索。只改大小寫不算換人。後台改 Email 不通知舊信箱
         # （見 update_details_by_staff），那是在更正打錯的信箱。

@@ -9,13 +9,14 @@ import { SLOTS_CAMPUS, WEB_ORIGIN } from './stack-env'
 const EMPTY_STATE = { cookies: [], origins: [] }
 
 test.describe('公開站', () => {
-  test('從 404 頁回首頁再按上一頁：回到的 404 照常顯示，不是白畫面', async ({ page }) => {
+  test('從 404 頁點站內連結離開再按上一頁：回到的 404 照常顯示，不是白畫面', async ({ page }) => {
     for (const path of ['/news/no-such-article-20261112', '/no-such-page-20261112']) {
       const response = await page.goto(path)
       expect(response?.status(), path).toBe(404)
       await expect(page.getByRole('heading', { level: 1, name: '找不到這一頁' })).toBeVisible()
-      await page.getByRole('button', { name: '回到首頁' }).click()
-      await expect(page).toHaveURL(`${WEB_ORIGIN}/`)
+      // 用站內連結（NuxtLink，push 一筆歷程）離開；「回到首頁」是 clearError 的 replace，按上一頁回不到這裡。
+      await page.locator('main.error-page').getByRole('link', { name: /預約參觀/ }).click()
+      await expect(page).toHaveURL(`${WEB_ORIGIN}/visit`)
       await page.goBack()
       await expect(page).toHaveURL(`${WEB_ORIGIN}${path}`)
       await expect(page.getByRole('heading', { level: 1, name: '找不到這一頁' }), path).toBeVisible()

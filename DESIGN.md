@@ -3,7 +3,7 @@
 細節見 README 同日段落。以下之後照著做：
 
 - **頁首與 scroll-padding**：`html` 的 `scroll-padding-top` 一律寫成 `var(--header-scroll-pad)`（桌機 112、760 以下 96，`studio.css`）。頁首（`.header`）裡可聚焦的元素用 `scroll-margin-top: calc(-1 * var(--header-scroll-pad))` 抵銷，否則 sticky 頁首的膠囊被 Tab 聚焦時，整頁會捲回 0。改頁首高度或 padding 時兩處一起改。
-- **頁面的 404 一律 fatal**：頁面元件找不到內容時 `throw pageNotFound('…')`（`usePublishedSite.ts`）。不要直接 `createError({ statusCode: 404 })`：SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面。
+- **頁面的 404 在瀏覽器端要 fatal**：頁面元件找不到內容時 `throw pageNotFound('…')`（`usePublishedSite.ts`，`fatal: import.meta.client`）。不要直接 `createError({ statusCode: 404 })`：SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面。伺服器端也不要寫死 `fatal: true`：Nitro 會把每個 404 當 `[request error] [fatal]` 印整段堆疊。
 - **新站頁面網址只有一種寫法**：結尾斜線與大寫一律 301 回標準路徑（`site-redirects.ts` 的 `CANONICAL_PAGES`）。新增頁面時加進清單；頁首用 `route.path` 比對的邏輯（膠囊頁、`aria-current`、預約頁不放預約鈕）都靠這個前提。
 - **送出途中重新整理不能重複建單**：預約表單的草稿（sessionStorage）和 idempotency key 一起存、一起還原；成功才換新 key、清草稿。
 - **沒設定寄信時，家長的管理連結是唯一入口**：家長改 Email 不撤銷連結。有設定寄信時才照 2026-10-13 的規則作廢、換發、寄新信箱。後台人員改 Email 的規則不變（後台會提示「舊連結作廢，需要時重新產生」）。
