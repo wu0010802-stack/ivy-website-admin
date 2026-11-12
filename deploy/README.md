@@ -14,7 +14,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 寄信：Resend（程式 2026-11-12 已上線，正式站尚未設定金鑰）
+## 寄信：Resend（程式 2026-11-12 已上線；11-12 後台系統狀態已顯示經 Resend 寄出）
 
 正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
 
@@ -30,6 +30,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - Resend 免費方案有每日與每月寄信上限（以 Resend 定價頁為準）；超過時通知會以 `ResendQuotaError` 失敗並自動重試，後台「通知」頁看得到。
 - 寄件地址是不收信的位址時，家長直接回信會被退；信的內文已寫「請勿直接回覆」。
 - 還沒在 Resend 驗證網域就設變數：每封信都會被拒（`ResendRejectedError`），不會寄出也不會漏到別處。
+
+## 2026-11-12 後台 QA 第三輪：成效統計拍立得顯示卡片名稱上線（main CI 部署，沒有 migration）
+
+- **內容**：`cd645c67`（README「2026-11-12 後台 QA 第三輪」），分支 `fix/admin-qa-20261112`。成效統計「點開了什麼」原本把後台新增的拍立得卡顯示成代號（`moment-<時間戳>`），改由後端從發布中的 `day_experience` 帶卡片名稱（`EngagementActionOut.label`），契約重產。使用者說「部署」。
+- **推前（本機）**：後端 `test_engagement.py` 31 過（新測試先紅後綠，獨立測試庫已刪）；admin build 過、全套 174 檔 3,372 過；`npm run contract:check` 過。
+- **CI**：main run 43141187430 全綠（web、admin、後端 3 組、E2E），Deploy Railway production success。
+- **部署後正式站驗證**：登入後台（使用者的 Chrome、總管理者）看成效統計，「點開了什麼」顯示「孩子的一天：翻開「美語時光」」，不再露出代號。
+- 另外看到：系統狀態寄信那列已顯示「寄件地址 常春藤幼兒園 <noreply@send.ivykidschool.com>，經 Resend 寄出」，表示正式站 Resend 變數已設（上面「寄信：Resend」段標題的「尚未設定金鑰」已過時）；沒有按測試信。
 
 ## 2026-11-12 關於頁整頁重做「紅磚上的常春藤」上線（main CI 部署，沒有 migration）
 
