@@ -509,6 +509,7 @@
 - **02 校園環境（照 A）**：六個空間照片與文字左右交錯，**圓點小路**從照片底部彎到下一張頂部，編號圓積木坐在照片頂端、正好是進站的位置；每段圓點用「要去的那一站」的積木側面色。手機改成左邊一條直的圓點串起編號。`utils/environment-route.ts`：純函式算路徑（`mapSegments`／`mapSegmentsNarrow`／`daySegments`，有單元測試），瀏覽器才撒點、捲到視窗 80% 才亮；`<svg>` 放在 `<ol>` 外面的容器裡（`<ol>` 只放 `<li>`）。
 - **03 幼兒餐點（照 A）**：營養餐點書斜靠在赤陶拱上；一天五餐是水平時間軸，五個奶油色積木圓站各放一個幾何小圖示（依序號：吐司、香蕉、碗、蘋果、杯子），一串赤陶色圓點串起；900 以下改直向。太陽弧、餐點淡化都拿掉。
 - **04 五所校園**：方形積木分頁放線稿，選中的「按下去」（往下 5px、側面變薄、深綠框）；第一張場景照片是拱、其餘是圓。場景照片會裁切，位置用素材庫的預設焦點（校園探索後台沒有焦點設定，原圖整張顯示）。
+- **五所校園每校固定三個角落（2026-11-12 使用者定）**：順序一律「校園環境（有操場那張，拱形大圖）→ 教室 → 該校特色」。照片優先用各校 FB 粉專的實拍，不跟其他分頁重複；不用戴口罩、角色印花、校外活動的照片。
 - **照片不放說明或註解**：首屏與保育照片下的一句話、照片上的便條與紅筆箭頭、小腳印與選校提示、餐點書旁的手寫字、校園探索每景的說明句都不畫。**戶外廣場的「明華校」照留**（校別標示，不是照片說明）。後台「常春藤環境頁」不再列 `hero_caption`、`care_caption`、`care_photo_note`、`feature.note`、`spaces[].note`、`trail_hint`、`tour_hint` 七欄，資料與後端欄位照舊；空間照片開放焦點（原本「整張不裁切」所以 `no-focus`）。
 - **動態**：積木由上往下落定（`[data-drop].is-waiting`，**只套一開始不在視窗裡的元素**，首屏與 LCP 照片不先藏起來；換校時新分頁重落一次）、圓點捲到才亮。減少動態時都不做。沒有 GSAP、Rough.js（`roughjs` 套件仍留給 30 週年頁的蛋糕）。
 - **拿掉的程式**：`utils/rough-sketch.ts`、`utils/environment-motion.ts`、`utils/environment-doodles.ts`、`scripts/environment-tour-paint.py`、`public/assets/tour-paint-*.png`，以及 `environment-doodles.spec.ts`。掛鉤照留：`main.renv`、`section.renv-section.renv-tour`、`tour-tab-<校>`、`data-cta-entry="environment"`、各章 id。

@@ -2864,5 +2864,140 @@
         "width": 720
       }
     ]
+  },
+  "tour-yihua-pond": {
+    "width": 2048,
+    "height": 1280,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-yihua-pond-a71f36e88b1b-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-yihua-pond-89d05958515a-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-yihua-pond-a71f36e88b1b-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-yihua-pond-89d05958515a-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-yihua-pond-a71f36e88b1b-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-yihua-pond-89d05958515a-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-yihua-pond-a71f36e88b1b-1600.webp",
+        "width": 1600,
+        "avif": "/assets/responsive/tour-yihua-pond-89d05958515a-1600.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-yihua-pond-a71f36e88b1b-2048.webp",
+        "width": 2048,
+        "avif": "/assets/responsive/tour-yihua-pond-89d05958515a-2048.avif"
+      }
+    ]
+  },
+  "tour-minghua-classroom": {
+    "width": 2048,
+    "height": 1280,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-minghua-classroom-cb1395dc6117-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-minghua-classroom-848b85638744-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-classroom-cb1395dc6117-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-minghua-classroom-848b85638744-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-classroom-cb1395dc6117-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-minghua-classroom-848b85638744-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-classroom-cb1395dc6117-1600.webp",
+        "width": 1600,
+        "avif": "/assets/responsive/tour-minghua-classroom-848b85638744-1600.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-classroom-cb1395dc6117-2048.webp",
+        "width": 2048,
+        "avif": "/assets/responsive/tour-minghua-classroom-848b85638744-2048.avif"
+      }
+    ]
+  },
+  "tour-minghua-courtyard": {
+    "width": 1600,
+    "height": 1000,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-minghua-courtyard-b71849269f29-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-minghua-courtyard-e8fb9d5467d1-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-courtyard-b71849269f29-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-minghua-courtyard-e8fb9d5467d1-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-courtyard-b71849269f29-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-minghua-courtyard-e8fb9d5467d1-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-minghua-courtyard-b71849269f29-1600.webp",
+        "width": 1600,
+        "avif": "/assets/responsive/tour-minghua-courtyard-e8fb9d5467d1-1600.avif"
+      }
+    ]
+  },
+  "tour-international-woodwork": {
+    "width": 1171,
+    "height": 732,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-international-woodwork-76c783214cfc-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-international-woodwork-878bd82173f2-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-international-woodwork-76c783214cfc-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-international-woodwork-878bd82173f2-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-international-woodwork-76c783214cfc-1171.webp",
+        "width": 1171,
+        "avif": "/assets/responsive/tour-international-woodwork-878bd82173f2-1171.avif"
+      }
+    ]
+  },
+  "tour-chongde-playground": {
+    "width": 1477,
+    "height": 923,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-chongde-playground-5234c19703b7-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-chongde-playground-a7f6c30f1893-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-playground-5234c19703b7-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-chongde-playground-a7f6c30f1893-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-playground-5234c19703b7-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-chongde-playground-a7f6c30f1893-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-playground-5234c19703b7-1477.webp",
+        "width": 1477,
+        "avif": "/assets/responsive/tour-chongde-playground-a7f6c30f1893-1477.avif"
+      }
+    ]
   }
 }
