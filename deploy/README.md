@@ -33,7 +33,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 資安強化（2026-11-12）：上線影響與要在各平台做的設定
 
-程式在 PR #73（分支 `claude/nifty-wozniak-vgwr5s`，README 同日「資安強化」），寫這段時還沒合進 main。
+程式在 PR #73（分支 `claude/nifty-wozniak-vgwr5s`，README 同日「資安強化」），2026-11-12 合進 main（`ca480573`）並部署，紀錄見下方同日「資安強化上線」。
 
 ### 合進 main、部署之後
 
@@ -93,6 +93,23 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **部署後正式站驗證**（GET、未登入）：`/release.json` 的 `base_commit` 是 `11ba3ac3`；`/admission` 200，舊字句「每天穿什麼」「上學前三天」「註冊了」「收費袋」「前三天以半天為主」「開學前約」「結束前一個月」整頁（含資料）0 次，新句子與兩個二部曲標題都在；首頁 200、背面是新句子；`/curriculum` 200、「頭三天以半天為主」0 次；`/visit`、`/admin/`、`/api/website/v1/health` 200。
 - **順帶看到（和這次無關、沒處理）**：`https://www.ivykidschool.com//`（多一條斜線）回 500。
 - **沒驗、待使用者**：實機沒看。設施與餐點描述（套房式衛廁、廚房現煮早餐＋每天兩份蔬果）、導師開學前打電話、名牌、必備品清單內容、入園時家長先陪一下，五校是否一致待確認。
+
+## 2026-11-12 資安強化上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #73 合併 `ca480573`（分支 `claude/nifty-wozniak-vgwr5s`，README 同日「資安強化」）。合併前 main 已前進 6 個提交，README 與 deploy/README 頂部段落衝突，兩邊都保留；同時把文件裡「Turnstile 沒開」改成已啟用（`aa1552e1`）。使用者說「CI 過了就幫我合併部署」。
+- **CI**：PR 最後一輪（`d00dde71`）全綠；main run 43164154320 全綠（web、admin、後端 3 組、E2E 兩組），Deploy Railway production success。合併時 main 上一個 run（`11ba3ac3`）還在跑，這次排在它後面。
+- **部署後正式站驗證**（未登入，只發 GET；另外 POST 一次 `/public/engagement` 確認會被擋）：
+  - `/release.json` 的 `base_commit` 是 `ca480573`（05:59:29Z）；`/api/website/v1/health` 回 ok。
+  - 公開頁 CSP 多了 `img-src`／`connect-src`／`frame-src`，HSTS 是 `max-age=31536000; includeSubDomains`；API 回應的 `server` 是 Railway edge 的 `railway-hikari`，不再是 `uvicorn`。
+  - 直接 POST `/api/website/v1/public/engagement` 回 404；`/api/site-fixture` 沒有 cookie 回 401。
+  - 帶舊的 `ivy_admin_session` 打 `/auth/me` 回 401，並回 `Set-Cookie: ivy_admin_session=; Max-Age=0; Path=/; Secure`；`/auth/google/login` 的握手 cookie 是 `__Host-ivy_google_oauth`（Secure、Path=/、沒有 Domain）。
+  - Playwright 開正式站 1440×900 與 390×844 各 10 頁（擋掉遙測與錯誤回報）：CSP 違規 0、頁面 JS 錯誤 0。`/anniversary` 與 `/privacy` 回 404，是 30 週年開關與隱私權政策還沒發布，和這次無關。
+- **影響**：後台帳號都要重新登入一次（舊 session cookie 不再採信）。
+- **沒驗、待使用者**：
+  - 沒有登入正式後台實際操作，要看新 cookie 下登入、Google／LINE 登入、上傳素材、直接重設密碼是否正常。
+  - 基底映像換了 digest，Railway 這次建置成功，但本機沒有建置過。
+  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目都還沒做：Railway api 公開網域、GitHub production environment 與分支保護、Renovate、Cloudflare HSTS。
+- **回退**：切回上一版映像即可，沒有資料相依。定期工作這次之後刪掉的失效 session、重設連結、清掉的舊 IP 不會回來；網站 2026-09 才上線，一年以上的操作紀錄目前還沒有。
 
 ## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
 
