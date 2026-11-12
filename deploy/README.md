@@ -85,6 +85,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 入學頁首屏照片改回兩個男孩、逆光女孩移到快樂曲縮圖上線（main CI 部署，沒有 migration）
+
+- **內容**：`4c710a01`（README 同日「入學頁照片：首屏改回兩個男孩，逆光女孩移到『快樂曲』」），分支 `fix/admission-photos-20261112`。只改 `ADMISSION_HERO_IMAGE` 與 `PHASE_PHOTOS`、alt 與圖說，沒有新圖檔。
+- **推前（本機）**：`npm --prefix web run typecheck` 過；`npm run test:website` 除兩條讀 backend 的測試因 sparse 缺目錄外全綠，補目錄後那兩條重跑也過；dev server 桌機／手機截圖看過首屏與快樂曲縮圖。
+- **CI**：run 43166253748 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：`/admission` 引用 `day-hello` 各尺寸與 `admission-hero` 480 縮圖、圖說是「早上到校，牽起好朋友的手。」。
+- **沒驗**：實機沒看。
+
 ## 2026-11-12 關於頁首屏照片老師美甲改自然指甲、頭髮調黑上線（main CI 部署，沒有 migration）
 
 - **內容**：`9c904a80`（README 同日「/about 首屏照片：老師的美甲改自然指甲、頭髮調黑」），分支 `fix/about-hero-teacher-20261112`。只換 `web/public/assets/about-hero.webp` 與重產的各尺寸 WebP／AVIF、`image-manifest.json`；舊雜湊檔刪掉。使用者看過前後對照說 ok。
