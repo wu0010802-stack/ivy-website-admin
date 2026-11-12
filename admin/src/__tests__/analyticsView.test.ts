@@ -23,21 +23,38 @@ const InterestStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'interest', 'data-days': props.days, 'data-device': props.device, 'data-view': props.view }),
 })
 
+const CruxStub = defineComponent({
+  name: 'CruxPanel',
+  props: { active: Boolean },
+  setup: (props) => () => h('div', { 'data-stub': 'crux', 'data-active': String(props.active) }),
+})
+const SearchStub = defineComponent({
+  name: 'SearchInsightsPanel',
+  props: { days: Number, active: Boolean },
+  emits: ['updating'],
+  setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
+})
+
 async function mountView(query: LocationQueryRaw = {}) {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
   await router.isReady()
   const wrapper = mount(AnalyticsView, {
     attachTo: document.body,
-    global: { plugins: [router, ElementPlus], stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub } },
+    global: {
+      plugins: [router, ElementPlus],
+      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub },
+    },
   })
   wrappers.push(wrapper)
   await flushPromises()
   const traffic = () => wrapper.find('[data-stub="traffic"]')
   const interest = () => wrapper.find('[data-stub="interest"]')
+  const crux = () => wrapper.find('[data-stub="crux"]')
+  const search = () => wrapper.find('[data-stub="search"]')
   const tabs = () => wrapper.findAll('.status-tab')
   const pressed = () => tabs().filter((tab) => tab.attributes('aria-pressed') === 'true').map((tab) => tab.text())
-  return { wrapper, router, traffic, interest, tabs, pressed }
+  return { wrapper, router, traffic, interest, crux, search, tabs, pressed }
 }
 
 describe('成效統計的分類與條件', () => {
@@ -116,5 +133,51 @@ describe('成效統計的分類與條件', () => {
     wrapper.findComponent(InterestStub).vm.$emit('updating', false)
     await flushPromises()
     expect(status()).toBe('')
+  })
+  it('Chrome 真實使用者在「瀏覽與速度」、Google 搜尋在「怎麼來、怎麼逛」，只有切到那一類才叫它們讀', async () => {
+    const { router, crux, search, tabs } = await mountView()
+    expect(crux().isVisible()).toBe(true)
+    expect(crux().attributes('data-active')).toBe('true')
+    expect(search().isVisible()).toBe(false)
+    expect(search().attributes('data-active')).toBe('false')
+
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ tab: 'journey' })
+    expect(crux().isVisible()).toBe(false)
+    expect(crux().attributes('data-active')).toBe('false')
+    expect(search().isVisible()).toBe(true)
+    expect(search().attributes('data-active')).toBe('true')
+
+    // 其他兩類兩個都不顯示。
+    await tabs()[1]!.trigger('click')
+    await flushPromises()
+    expect(crux().isVisible()).toBe(false)
+    expect(search().isVisible()).toBe(false)
+  })
+
+  it('Google 搜尋跟著整頁的期間；Chrome 真實使用者是 28 天滾動，不吃期間', async () => {
+    const { wrapper, search } = await mountView({ tab: 'journey' })
+    expect(search().attributes('data-days')).toBe('28')
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 7)
+    await flushPromises()
+    expect(search().attributes('data-days')).toBe('7')
+    expect(wrapper.findComponent(CruxStub).props()).toEqual({ active: false })
+  })
+
+  it('「更新中…」依目前這一類看：Google 搜尋在「怎麼來、怎麼逛」才算', async () => {
+    const { wrapper } = await mountView({ tab: 'journey' })
+    const status = () => wrapper.find('.analytics__bar [role="status"]').text()
+    wrapper.findComponent(SearchStub).vm.$emit('updating', true)
+    await flushPromises()
+    expect(status()).toBe('更新中…')
+    wrapper.findComponent(SearchStub).vm.$emit('updating', false)
+    await flushPromises()
+    expect(status()).toBe('')
+    // 在別的分類，Google 搜尋在背景更新不用提示。
+    const other = await mountView({ tab: 'content' })
+    other.wrapper.findComponent(SearchStub).vm.$emit('updating', true)
+    await flushPromises()
+    expect(other.wrapper.find('.analytics__bar [role="status"]').text()).toBe('')
   })
 })

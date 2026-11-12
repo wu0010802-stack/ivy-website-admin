@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -17,6 +19,37 @@ _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 # 一看就是範例或佔位的 session secret 字眼（.env.example 的值就是公開的）。
 # production 用這種值等於任何人都能簽出 OAuth 握手 cookie、算出限流 HMAC key。
 _PLACEHOLDER_SECRET_MARKERS = ("change-me", "changeme", "change_me", "example", "placeholder")
+
+
+@dataclass(frozen=True, repr=False)
+class GoogleServiceAccount:
+    """服務帳戶金鑰 JSON 裡用得到的三個欄位。repr 刻意不印任何內容（私鑰）。"""
+
+    client_email: str
+    private_key: str
+    private_key_id: str | None = None
+
+    def __repr__(self) -> str:
+        return "GoogleServiceAccount(…)"
+
+
+def parse_google_service_account(raw: str) -> GoogleServiceAccount | None:
+    """合法就回欄位，任何不合就回 None；呼叫端自己決定訊息，這裡不帶輸入內容。"""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    email, key, key_id = data.get("client_email"), data.get("private_key"), data.get("private_key_id")
+    if not isinstance(email, str) or "@" not in email or not email.strip():
+        return None
+    if not isinstance(key, str) or not re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", key):
+        return None
+    return GoogleServiceAccount(email.strip(), key, key_id if isinstance(key_id, str) and key_id else None)
+
+
+_SEARCH_CONSOLE_PROPERTY = re.compile(r"sc-domain:[A-Za-z0-9.-]+|https?://[^\s/]+(/\S*)?")
 
 
 class Settings(BaseSettings):
@@ -100,6 +133,17 @@ class Settings(BaseSettings):
     facebook_pages: str | None = None
     facebook_graph_version: str = Field(default="v27.0", pattern=r"^v\d{1,2}\.\d$")
     facebook_sync_seconds: int = Field(default=3600, ge=600, le=86400)
+    # 同一把 Page token 再讀粉專連結的 Instagram 專業帳號貼文，進同一個收件匣
+    # （docs/specs/2026-11-12-external-integrations-design.md §2）。預設關；要先有 Facebook 同步，
+    # 而且 Page token 要有 instagram_basic（見 deploy/README.md）。
+    instagram_enabled: bool = False
+    # Google Search Console（2026-11-12，docs/specs/2026-11-12-external-integrations-design.md §3）：
+    # 服務帳戶金鑰整份 JSON ＋ 資源（sc-domain:網域 或 https://網址前置）。兩個都設才啟用、只設一個拒絕啟動。
+    # JSON 在啟動時驗證；任何錯誤訊息都不帶內容。
+    google_sc_service_account_json: str | None = Field(default=None, repr=False)
+    google_sc_property: str | None = None
+    # CrUX（Chrome 使用者體驗報告）API 金鑰（§4）：沒設就不查。查的網站是 public_origin（沒設用 admin_origin）。
+    crux_api_key: str | None = Field(default=None, repr=False)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -249,12 +293,31 @@ class Settings(BaseSettings):
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
+        "google_sc_service_account_json", "google_sc_property", "crux_api_key",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip() or None
+
+    @field_validator("google_sc_service_account_json")
+    @classmethod
+    def _check_service_account_json(cls, value: str | None) -> str | None:
+        # 訊息不帶輸入內容（私鑰）；hide_input_in_errors 也已開。
+        if value is not None and parse_google_service_account(value) is None:
+            raise ValueError(
+                "WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON 必須是服務帳戶金鑰的 JSON，"
+                "要有 client_email 與 private_key"
+            )
+        return value
+
+    @field_validator("google_sc_property")
+    @classmethod
+    def _check_search_console_property(cls, value: str | None) -> str | None:
+        if value is not None and _SEARCH_CONSOLE_PROPERTY.fullmatch(value) is None:
+            raise ValueError("WEBSITE_GOOGLE_SC_PROPERTY 格式是 sc-domain:網域（例 sc-domain:example.com）或 https:// 網址")
+        return value
 
     @field_validator("facebook_pages")
     @classmethod
@@ -360,6 +423,31 @@ class Settings(BaseSettings):
         return bool(self.facebook_access_token and self.facebook_pages)
 
     @property
+    def search_console_enabled(self) -> bool:
+        return bool(self.google_sc_service_account_json and self.google_sc_property)
+
+    @property
+    def google_sc_service_account(self) -> GoogleServiceAccount | None:
+        """啟動時已驗證過格式；沒設定回 None。"""
+        if not self.google_sc_service_account_json:
+            return None
+        return parse_google_service_account(self.google_sc_service_account_json)
+
+    @property
+    def crux_enabled(self) -> bool:
+        return bool(self.crux_api_key)
+
+    @property
+    def crux_origin(self) -> str | None:
+        """CrUX 查哪個網站：家長看得到的官網 origin（public_origin，沒設就是 admin_origin）；都沒設回 None。"""
+        return self.parent_origin
+
+    @property
+    def instagram_sync_enabled(self) -> bool:
+        """開關開著而且 Facebook 同步也啟用（model_validator 保證兩者同時成立）。"""
+        return self.instagram_enabled and self.facebook_enabled
+
+    @property
     def facebook_page_ids(self) -> dict[str, str]:
         """校區 → 粉專 ID（格式已在 _parse_facebook_pages 驗過）。"""
         if not self.facebook_pages:
@@ -454,6 +542,15 @@ class Settings(BaseSettings):
             )
         if bool(self.facebook_access_token) != bool(self.facebook_pages):
             raise ValueError("Facebook 粉專同步必須同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES")
+        if bool(self.google_sc_service_account_json) != bool(self.google_sc_property):
+            raise ValueError(
+                "Search Console 必須同時設定 WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON 與 WEBSITE_GOOGLE_SC_PROPERTY"
+            )
+        if self.instagram_enabled and not self.facebook_enabled:
+            raise ValueError(
+                "WEBSITE_INSTAGRAM_ENABLED 要搭配 Facebook 粉專同步："
+                "請同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES"
+            )
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
             raise ValueError("Turnstile 必須同時設定 WEBSITE_TURNSTILE_SITE_KEY 與 WEBSITE_TURNSTILE_SECRET_KEY")
         if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):

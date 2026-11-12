@@ -33,6 +33,9 @@ from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
 from app.contact_phrases.routes import router as contact_phrases_router
 from app.facebook.routes import router as facebook_router
+from app.insights.crux import CruxHistory
+from app.insights.routes import router as insights_router
+from app.insights.search_console import SearchConsole
 from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -201,6 +204,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.geo_sync = None
     app.state.facebook_sync = None
     app.state.facebook_transport = None
+    # Search Console 與 CrUX（app/insights）：權杖與結果快取各自在這兩個物件裡，測試注入 google_transport。
+    app.state.search_console = SearchConsole()
+    app.state.crux = CruxHistory()
+    app.state.google_transport = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
@@ -263,6 +270,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(operations_router)
     app.include_router(contact_phrases_router)
     app.include_router(facebook_router)
+    app.include_router(insights_router)
     if settings.admissions_enabled:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)

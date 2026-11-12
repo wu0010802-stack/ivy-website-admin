@@ -9,7 +9,8 @@ import { apiFieldErrors, focusFirstInvalidField, focusNextFieldOnEnter, normaliz
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
-import { reportBookingActionClick } from '~/utils/cta-analytics'
+import { ctaEntryOf, reportBookingActionClick } from '~/utils/cta-analytics'
+import { reportBookingLead } from '~/utils/third-party-analytics'
 import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
@@ -564,6 +565,9 @@ async function onSubmit() {
     clearDraft()
     // 內容興趣統計：這次造訪送出了預約（匿名，只用來看「看過什麼內容的造訪比較會預約」）。
     trackEngagementAction(BOOKED_ACTION)
+    // GA4 generate_lead／Meta Pixel Lead（2026-11-12）：只有伺服器回「預約成立」（confirmed）才算，
+    // 待人工確認或其他狀態不送；參數只有白名單的校區代碼與入口代碼（沒設 ID 或 DNT／GPC 時這行什麼都不做）。
+    if (created?.status === 'confirmed') reportBookingLead(form.campus, ctaEntryOf(formRef.value))
     idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。

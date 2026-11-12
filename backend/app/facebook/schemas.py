@@ -7,11 +7,14 @@ from typing import Literal
 from pydantic import BaseModel
 
 PostStatus = Literal["new", "imported", "dismissed"]
+# 貼文從哪裡同步來的：粉專貼文，或粉專連結的 Instagram 專業帳號貼文（同一個收件匣）。
+PostSource = Literal["facebook", "instagram"]
 
 
 class FacebookPostOut(BaseModel):
     id: uuid.UUID
     campus_key: str
+    source: PostSource
     message: str | None
     posted_at: datetime
     permalink_url: str | None
@@ -23,11 +26,22 @@ class FacebookPostOut(BaseModel):
     handled_at: datetime | None
 
 
+class InstagramSyncStatusOut(BaseModel):
+    """同一次同步裡 Instagram 那一段的結果；失敗不影響 Facebook 那一段。"""
+
+    last_attempt_at: datetime | None
+    last_success_at: datetime | None
+    last_error: str | None
+    last_count: int | None
+
+
 class FacebookSyncStatusOut(BaseModel):
     last_attempt_at: datetime | None
     last_success_at: datetime | None
     last_error: str | None
     last_count: int | None
+    # 沒有同步狀態列時整個 sync 是 null；Instagram 沒開（instagram_enabled=false）時這裡是 null。
+    instagram: InstagramSyncStatusOut | None
 
 
 class FacebookPostCounts(BaseModel):
@@ -39,6 +53,8 @@ class FacebookPostCounts(BaseModel):
 class FacebookPostListOut(BaseModel):
     # 這校有沒有設定粉專（WEBSITE_FACEBOOK_PAGES）；沒有時其他欄位都是空的。
     configured: bool
+    # WEBSITE_INSTAGRAM_ENABLED 開著而且這校有設定粉專：收件匣才顯示來源與篩選、Instagram 同步狀態。
+    instagram_enabled: bool
     sync_seconds: int
     sync: FacebookSyncStatusOut | None
     counts: FacebookPostCounts

@@ -1,4 +1,5 @@
-"""後台「Facebook 貼文」收件匣（docs/specs/2026-10-28-facebook-news-sync-design.md §5）。"""
+"""後台「Facebook 貼文」收件匣（docs/specs/2026-10-28-facebook-news-sync-design.md §5）。
+2026-11-12 起同一個收件匣也有 Instagram 貼文（source='instagram'，轉成消息的流程完全共用）。"""
 
 from __future__ import annotations
 
@@ -31,6 +32,8 @@ from app.facebook.schemas import (
     FacebookPostOut,
     FacebookSyncIn,
     FacebookSyncStatusOut,
+    InstagramSyncStatusOut,
+    PostSource,
     PostStatus,
 )
 from app.facebook.service import build_article
@@ -44,6 +47,8 @@ router = APIRouter(prefix="/api/website/v1", tags=["facebook-posts"])
 
 KIND = "campus_news"
 LIST_LIMIT = 100
+# 轉成消息時素材庫「來源說明」寫的字；Instagram 來的貼文不寫成 Facebook。
+SOURCE_ATTRIBUTIONS = {"facebook": "Facebook 粉專貼文", "instagram": "Instagram 貼文"}
 
 
 def _error(code: int, error_code: str, message: str) -> HTTPException:
@@ -54,6 +59,7 @@ def _post_out(post: FacebookPagePost) -> FacebookPostOut:
     return FacebookPostOut(
         id=post.id,
         campus_key=post.campus_key,
+        source=post.source,  # type: ignore[arg-type]
         message=post.message,
         posted_at=post.posted_at,
         permalink_url=post.permalink_url,
@@ -83,31 +89,41 @@ def _transport(request: Request):
     return getattr(request.app.state, "facebook_transport", None)
 
 
-async def _list_out(db: AsyncSession, request: Request, campus_key: str, status_filter: PostStatus) -> FacebookPostListOut:
+async def _list_out(
+    db: AsyncSession, request: Request, campus_key: str, status_filter: PostStatus, source: PostSource | None = None
+) -> FacebookPostListOut:
+    """source 有給就只看那個來源，各狀態的數量也只算那個來源。"""
     settings = request.app.state.settings
     configured = settings.facebook_enabled and campus_key in settings.facebook_page_ids
+    instagram_enabled = configured and settings.instagram_sync_enabled
     sync_row = await db.get(FacebookPageSync, campus_key)
+    scope = [FacebookPagePost.campus_key == campus_key, *([FacebookPagePost.source == source] if source else [])]
     counts = dict(
         (await db.execute(
-            select(FacebookPagePost.status, func.count())
-            .where(FacebookPagePost.campus_key == campus_key)
-            .group_by(FacebookPagePost.status)
+            select(FacebookPagePost.status, func.count()).where(*scope).group_by(FacebookPagePost.status)
         )).all()
     )
     posts = await db.scalars(
         select(FacebookPagePost)
-        .where(FacebookPagePost.campus_key == campus_key, FacebookPagePost.status == status_filter)
+        .where(*scope, FacebookPagePost.status == status_filter)
         .order_by(FacebookPagePost.posted_at.desc())
         .limit(LIST_LIMIT)
     )
     return FacebookPostListOut(
         configured=configured,
+        instagram_enabled=instagram_enabled,
         sync_seconds=settings.facebook_sync_seconds,
         sync=FacebookSyncStatusOut(
             last_attempt_at=sync_row.last_attempt_at,
             last_success_at=sync_row.last_success_at,
             last_error=sync_row.last_error,
             last_count=sync_row.last_count,
+            instagram=InstagramSyncStatusOut(
+                last_attempt_at=sync_row.ig_last_attempt_at,
+                last_success_at=sync_row.ig_last_success_at,
+                last_error=sync_row.ig_last_error,
+                last_count=sync_row.ig_last_count,
+            ) if instagram_enabled else None,
         ) if sync_row else None,
         counts=FacebookPostCounts(**counts),
         posts=[_post_out(post) for post in posts],
@@ -119,12 +135,14 @@ async def list_facebook_posts(
     request: Request,
     campus_key: str = Query(min_length=1, max_length=32),
     status_filter: PostStatus = Query(default="new", alias="status"),
+    source: PostSource | None = Query(default=None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> FacebookPostListOut:
-    """這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。"""
+    """這校粉專（與連結的 Instagram）同步進來的貼文（新到舊，最多 100 則）與同步狀態；
+    source 篩選來源，不給就是全部。"""
     require_scope(current_user, "content.read", campus_keys=[campus_key])
-    return await _list_out(db, request, campus_key, status_filter)
+    return await _list_out(db, request, campus_key, status_filter, source)
 
 
 @router.post("/admin/facebook-posts/sync", response_model=FacebookPostListOut)
@@ -134,7 +152,8 @@ async def sync_facebook_posts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> FacebookPostListOut:
-    """立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。"""
+    """立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error（Instagram 是
+    sync.instagram.last_error），不回錯誤碼。"""
     require_scope(current_user, "content.manage", campus_keys=[payload.campus_key])
     settings = request.app.state.settings
     if not (settings.facebook_enabled and payload.campus_key in settings.facebook_page_ids):
@@ -142,6 +161,8 @@ async def sync_facebook_posts(
     results = await sync_pages(
         request.app.state.session_factory, settings, campus_keys=[payload.campus_key], transport=_transport(request)
     )
+    # Instagram 有跑才記（沒開開關、或沒拿到粉專權杖時沒有這兩個鍵）。
+    instagram_ran = bool(results) and (results[0].instagram_count is not None or results[0].instagram_error is not None)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -152,6 +173,11 @@ async def sync_facebook_posts(
         metadata={
             "synced_posts": results[0].count if results else 0,
             "sync_failed": not results or results[0].error is not None,
+            **(
+                {"instagram_posts": results[0].instagram_count or 0, "instagram_failed": results[0].instagram_error is not None}
+                if instagram_ran
+                else {}
+            ),
         },
     )
     await db.commit()
@@ -230,7 +256,9 @@ async def restore_facebook_post(
     return _post_out(post)
 
 
-async def _store_picture(db: AsyncSession, request: Request, user: User, campus_key: str, content: bytes, content_type: str):
+async def _store_picture(
+    db: AsyncSession, request: Request, user: User, campus_key: str, content: bytes, content_type: str, attribution: str
+):
     """照片進該校素材庫；回 (素材, 這次新寫的檔案 key)。素材庫已有同一張就沿用，不新寫檔。"""
     settings = request.app.state.settings
     storage = media_service.get_storage(settings)
@@ -253,7 +281,7 @@ async def _store_picture(db: AsyncSession, request: Request, user: User, campus_
                 original_filename=f"facebook{suffix}",
                 campus_key=campus_key,
                 created_by=user.id,
-                source_attribution="Facebook 粉專貼文",
+                source_attribution=attribution,
                 quota_bytes=settings.media_quota_bytes_per_campus,
             )
         except media_service.MediaQuotaExceeded:
@@ -304,7 +332,7 @@ async def _fetch_video(client, url: str, max_bytes: int) -> tuple[Path | None, s
     return path, None
 
 
-async def _store_video(db: AsyncSession, request: Request, user: User, campus_key: str, path: Path):
+async def _store_video(db: AsyncSession, request: Request, user: User, campus_key: str, path: Path, attribution: str):
     """影片進該校素材庫；回 (素材, 這次新寫的檔案 key, 沒帶影片的原因)。影片本身不合素材庫的
     規定（太長、不是標準 MP4）一樣不擋轉換。轉檔照一般上傳排背景工作，素材回來時可能還在處理中；
     發布前的檢查會等它處理完（content.publish_jobs 的 MEDIA_NOT_READY）。"""
@@ -320,7 +348,7 @@ async def _store_video(db: AsyncSession, request: Request, user: User, campus_ke
                 original_filename="facebook.mp4",
                 campus_key=campus_key,
                 created_by=user.id,
-                source_attribution="Facebook 粉專貼文",
+                source_attribution=attribution,
                 quota_bytes=settings.media_quota_bytes_per_campus,
                 video_processing=settings.media_video_processing_mode,
             )
@@ -374,10 +402,13 @@ async def import_facebook_post(
         if post.status == "imported":
             raise _error(status.HTTP_409_CONFLICT, "FACEBOOK_POST_STATUS", "這則貼文已經轉成消息了")
         campus_key = post.campus_key
-        asset, new_keys = await _store_picture(db, request, current_user, campus_key, content, content_type)
+        attribution = SOURCE_ATTRIBUTIONS.get(post.source, SOURCE_ATTRIBUTIONS["facebook"])
+        asset, new_keys = await _store_picture(db, request, current_user, campus_key, content, content_type, attribution)
         video_asset = None
         if video_path is not None:
-            video_asset, video_keys, video_skipped = await _store_video(db, request, current_user, campus_key, video_path)
+            video_asset, video_keys, video_skipped = await _store_video(
+                db, request, current_user, campus_key, video_path, attribution
+            )
             new_keys = [*new_keys, *video_keys]
         article = build_article(post, str(asset.id), str(video_asset.id) if video_asset else None)
         item = await content_service.get_or_create_content_item(db, KIND, campus_key)

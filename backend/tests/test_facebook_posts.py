@@ -93,7 +93,8 @@ class FakeMeta:
                         json={"error": {"message": f"Invalid token {PAGE_TOKEN}", "code": 190}},
                     )
                 return httpx.Response(200, json={"data": self.posts.get(parts[1], [])})
-        if host.endswith("fbcdn.net"):
+        # Instagram 貼文的圖片與影片在 cdninstagram.com（test_instagram_posts.py 共用這個假 Meta）。
+        if host.endswith(("fbcdn.net", "cdninstagram.com")):
             assert "access_token" not in request.url.params and "authorization" not in request.headers
             if path.endswith(".mp4"):
                 if self.video_status != 200:
@@ -477,7 +478,7 @@ async def test_import_video_from_unexpected_host_or_format_skips_video(admin_cli
     response = await admin_client.post(f"{API}/{post.id}/import")
     assert response.status_code == 200, response.text
     assert response.json()["video_included"] is False
-    assert response.json()["video_skipped_reason"] == "影片網址不是 Facebook 的影片主機"
+    assert response.json()["video_skipped_reason"] == "影片網址不是 Facebook 或 Instagram 的影片主機"
     assert not any(r.url.host == "evil.example" for r in meta.requests)
 
     # 回來的不是 mp4（FakeMeta 對非 .mp4 的網址回 JPEG）。

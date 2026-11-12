@@ -11,6 +11,8 @@ import { ANNI_INTRO_GATE_SCRIPT, MOTION_LAYOUT_SCRIPT } from '../../app/utils/in
 // 做法：script-src 'self' 加上每支 inline script 的 sha256，不用 'unsafe-inline'。
 // - 外部腳本只有同源的 /_nuxt/*（含 modulepreload）與預約表單的 Turnstile（有設 site key 才載）。
 //   公開頁沒有其他外部腳本（2026-11-04 盤點正式站 8 頁：外部網址全是 <a href> 連結）。
+//   2026-11-12 起 GA4（googletagmanager.com）與 Meta Pixel（connect.facebook.net）：對應的 ID 有設才放行，
+//   來源由 publicCsp 的第二個參數帶進來；兩個都沒設時 script-src 和以前一字不差。
 // - SSR 送出的 inline script（Nuxt 的 importmap 與 window.__NUXT__ 設定、useHead 放的幾支）
 //   由 server/plugins/security-headers.ts 在 render:html 依實際 HTML 逐支算雜湊，內容怎麼變都對得上。
 // - 用戶端換頁時 head 管理器會再插入 useHead 的 script，那時沒有伺服器，所以 CLIENT_INLINE_SCRIPTS
@@ -54,8 +56,12 @@ export function inlineScriptHashes(html: string): string[] {
 
 const CLIENT_HASHES = CLIENT_INLINE_SCRIPTS.map(scriptHashSource)
 
-/** 公開頁 script-src 的來源清單：同源、Turnstile、事先登記的用戶端 inline script，再加這一頁的雜湊。 */
-export function publicScriptSources(pageHashes: Iterable<string> = []): string {
-  const sources = new Set(["'self'", TURNSTILE_ORIGIN, ...CLIENT_HASHES, ...pageHashes])
+/**
+ * 公開頁 script-src 的來源清單：同源、Turnstile、事先登記的用戶端 inline script，再加這一頁的雜湊。
+ * extraOrigins 是有設定才放行的外部腳本來源（GA4／Meta Pixel，見 shared/third-party-analytics.ts），排在最後；
+ * 沒有的話輸出和沒有這個參數時完全相同。
+ */
+export function publicScriptSources(pageHashes: Iterable<string> = [], extraOrigins: Iterable<string> = []): string {
+  const sources = new Set(["'self'", TURNSTILE_ORIGIN, ...CLIENT_HASHES, ...pageHashes, ...extraOrigins])
   return [...sources].join(' ')
 }

@@ -226,6 +226,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 立即同步 Facebook 貼文（facebook_posts.sync）。
   synced_posts: (v) => `讀到 ${countOf(v)} 則貼文`,
   sync_failed: (v) => (v ? '同步失敗' : null),
+  // 同一次同步裡 Instagram 那一段（WEBSITE_INSTAGRAM_ENABLED 開著才有這兩個鍵）。
+  instagram_posts: (v) => `讀到 ${countOf(v)} 則 Instagram 貼文`,
+  instagram_failed: (v) => (v ? 'Instagram 同步失敗' : null),
   status: (v, action) => {
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
     if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`

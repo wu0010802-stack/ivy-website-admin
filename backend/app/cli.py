@@ -1046,7 +1046,8 @@ def generate_vapid_keys_command() -> None:
 
 async def facebook_sync_command(campus_keys: list[str]) -> None:
     """立即同步各校 Facebook 粉專貼文（docs/specs/2026-10-28-facebook-news-sync-design.md）；
-    不給校區＝WEBSITE_FACEBOOK_PAGES 裡全部。有一校失敗就 exit 1。"""
+    不給校區＝WEBSITE_FACEBOOK_PAGES 裡全部。WEBSITE_INSTAGRAM_ENABLED 開著時也同步 Instagram
+    （docs/specs/2026-11-12-external-integrations-design.md §2）。有一校的 Facebook 或 Instagram 失敗就 exit 1。"""
     from app.facebook.sync import sync_pages
 
     settings = get_settings()
@@ -1060,7 +1061,9 @@ async def facebook_sync_command(campus_keys: list[str]) -> None:
     results = await sync_pages(await _session_factory(), settings, campus_keys=campus_keys or None)
     for result in results:
         print(f"{result.campus_key}：{result.error or f'{result.count} 則'}")
-    if any(result.error for result in results):
+        if result.instagram_error or result.instagram_count is not None:
+            print(f"{result.campus_key} Instagram：{result.instagram_error or f'{result.instagram_count} 則'}")
+    if any(result.error or result.instagram_error for result in results):
         raise SystemExit(1)
 
 

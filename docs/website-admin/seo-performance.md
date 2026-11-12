@@ -30,7 +30,11 @@ python3 scripts/optimize-site-fonts.py
 
 ### 量測管道
 
-`NUXT_PUBLIC_TELEMETRY_ENABLED` 預設於 production 開啟、development 關閉，可明確設 false。尊重 DNT 與 Global Privacy Control。未新增 Cookie、localStorage 識別碼或外部分析服務；2026-11-11 起內容興趣統計在 sessionStorage 放一組分頁內的隨機代碼（關掉分頁就消失，見下）。
+`NUXT_PUBLIC_TELEMETRY_ENABLED` 預設於 production 開啟、development 關閉，可明確設 false。尊重 DNT 與 Global Privacy Control。這條第一方量測管道本身不設 Cookie、不用 localStorage 識別碼，也不連外部分析服務；2026-11-11 起內容興趣統計在 sessionStorage 放一組分頁內的隨機代碼（關掉分頁就消失，見下）。
+
+**第三方分析（2026-11-12 起，選用、預設全關）**：GA4（`NUXT_PUBLIC_GA_MEASUREMENT_ID`，格式 `G-XXXXXXXXXX`）與 Meta Pixel（`NUXT_PUBLIC_META_PIXEL_ID`，純數字）。兩個 ID 都沒設（或格式不符）時，頁面不載任何外部腳本、公開頁 CSP 字串與沒有這個功能時一字不差；有設才由 `web/app/plugins/third-party-analytics.client.ts` 用 `createElement` 載入（不用 GTM、不用 inline script）、CSP 才放行該家網域，並會在訪客瀏覽器設第三方 cookie（GA 的 `_ga*`、Pixel 的 `_fbp`）。規則：與第一方量測互相獨立（`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響它們），但同樣尊重 DNT 與 Global Privacy Control；`/visit/manage`、`/admin`、`/preview` 完全不送事件（修改連結的識別碼在網址 hash；第一頁就是這些頁面時連腳本都不載入）；GA 的 `page_location` 自組為 origin＋pathname＋只留 `utm_*`、`gclid`、`fbclid`，不帶 hash；Pixel 關閉自動設定；預約成功只在伺服器回 `confirmed` 時送 GA `generate_lead`、Pixel `Lead`，參數只有白名單的 `campus_key`、`entry`。啟用步驟（要先發布隱私權政策）、GA 與 Meta 後台要關的自動功能見 `deploy/README.md`「GA4 與 Meta Pixel」。
+
+**Google 的真實數據（2026-11-12 起，選用、預設關）**：後台「成效統計」可對照 Google 從 Chrome 使用者蒐集的真實速度（CrUX，`WEBSITE_CRUX_API_KEY`，放在「瀏覽與速度」）與 Search Console 的搜尋成效（`WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON`、`WEBSITE_GOOGLE_SC_PROPERTY`，放在「怎麼來、怎麼逛」）。api 向 Google 唯讀查詢，結果只放程序記憶體快取（Search Console 6 小時、CrUX 12 小時），不存資料庫、不新增 Cookie。CrUX 是 28 天滾動、每週更新，口徑與上面第一方量測（自己量到的近 7～90 天）不同，兩邊不能直接相比；Search Console 約有 2–3 天延遲。設定步驟見 `deploy/README.md`「Google Search Console 與 CrUX」。
 
 - `web-vitals` 標準版收集 LCP、INP、CLS；依 document 進入路徑及 mobile／desktop 分組，SPA 換頁不被誤認為新 CWV。
 - `/api/telemetry` 僅接受固定公開頁型、五校 key、裝置分類、事件、指標數值及暫時隨機 UUID。拒絕多餘欄位、跨站來源、超大請求與超額事件，每程序每分鐘上限 600 次。

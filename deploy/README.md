@@ -14,6 +14,117 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## GA4 與 Meta Pixel（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
+
+依 2026-10-03 裁定（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 1 節。**只動 web**：沒有 migration、api 不用動；Google Ads、LINE Tag 這次不做。
+
+**兩個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_GA_MEASUREMENT_ID` | `G-` 加大寫英數，例如 `G-ABC123DEF4` | GA4 網站資料串流的評估 ID |
+| `NUXT_PUBLIC_META_PIXEL_ID` | 純數字（8–20 碼） | Meta Pixel ID（可沿用舊站 ivykids.tw 的 Pixel，由使用者決定） |
+
+- Nitro 把環境變數灌進設定時會先當 JSON 解析，純數字的 Pixel ID 因此變成數字，程式已處理。**例外**：大於 `9007199254740991` 的 Pixel ID（16 位且開頭 `9007` 以上）解析時就失真了，程式偵測到會視同未設定、**不會載入**；這種 ID 要連雙引號一起填成變數值（例如 `"9876543210987654"`），才會被當字串保留完整。驗證步驟 5 一定要確認 Meta 的請求真的送出。
+
+- 兩個可以只設一個。格式不符（例如貼成舊版 `UA-…` 或 GTM 的 `GTM-…`）視同未設定，什麼都不會載入。
+- 都是執行期讀取的變數（`nuxt.config.ts` 的預設是空字串，不讀建置時的值）：存檔、讓 web 重新部署就生效，程式不用改。**關閉**：刪掉變數並確認 web 有重新部署（用 CLI 刪變數不會自動重新部署）；訪客瀏覽器裡已存的 `_ga*`、`_fbp` cookie 留到各自到期。
+- 兩個都沒設：頁面不載任何外部腳本，公開頁 CSP 字串與現在一字不差（`web/tests/third-party-analytics.spec.ts` 鎖住）。
+
+**程式做了什麼**（`web/app/plugins/third-party-analytics.client.ts`、`web/app/utils/third-party-analytics.ts`、`web/shared/third-party-analytics.ts`）
+
+- 直接載 `gtag.js` 與 `fbevents.js`（`createElement`），**不用 GTM**（GTM 讓有容器權限的人能注入任意腳本到和後台同源的網站）、不用 inline script。
+- 瀏覽器開了「不要追蹤」（DNT）或 Global Privacy Control 就整個不載入。只看自己的 ID 與 DNT／GPC，`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響這兩個。
+- `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
+- GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
+- 預約成功：只有伺服器回 `status === 'confirmed'` 才送 GA `generate_lead`、Pixel `Lead`，參數只有白名單的 `campus_key`（五校之一）與 `entry`（CTA 入口代碼，預約表單是 `visit_page`），不送收據編號、修改連結或任何個資。
+- CSP（`web/server/utils/security-headers.ts`）：哪一個 ID 有設才加哪一家的 `script-src`／`connect-src`／`img-src` 來源，後台 CSP 不動。**沒放行** Google Ads／Google 訊號用的 `stats.g.doubleclick.net`、`www.google.com`：之後要做 Google Ads 或開 Google 訊號，要一起改 CSP。
+
+**上線步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **先發布隱私權政策**：後台「全站與素材 → 隱私權政策」。初稿第 5 段已寫入 GA4 與 Meta 像素（用途、預約成功只傳校區、DNT／GPC 不載入、可用瀏覽器設定拒絕）；補完【待確認】、填日期、發布。若只打算開其中一個，發布前把另一個的條列與相關句子刪掉；兩個都不開就不必發布這一版第 5 段。截至 2026-11-12 正式站還沒發布政策（`/privacy` 404）。
+2. **GA4**：建立資源與「網站」資料串流，複製評估 ID。在該串流的「強化評估」（齒輪）：**關掉「頁面變更（根據瀏覽器記錄事件）」**——程式已自己送 `page_view`，開著會讓每次換頁（含首頁章節錨點 `#…`）多算一筆，而且那一筆是 Google 的腳本送的，沒有經過程式的 `page_location` 清洗；建議也關「表單互動」。管理 → 資料收集中的 Google 訊號維持關閉。
+3. **Meta Pixel**：沿用舊站的 Pixel 或新建（由使用者決定；沿用的話新舊網域的事件會進同一個 Pixel，之後可用網域區分）。Events Manager → 該 Pixel → 設定：**關掉「自動進階比對」與「自動事件」**（程式已把 `autoConfig` 關掉，後台也關才雙保險，預約表單有 Email 與電話欄位）。
+4. **Railway web 服務**設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，等重新部署完成。
+5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `google-analytics.com` 的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
+
+**程式端沒辦法驗證的**：真實 GA4／Meta 後台是否收得到、強化評估與自動比對的設定是否真的關掉，只能在正式站設好變數後照步驟 5 實測。
+
+## Google Search Console 與 CrUX（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
+
+規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 3、4 節。**只動 api 與後台**：沒有 migration、不存任何資料到資料庫（查到的結果只放 api 程序記憶體）、不新增依賴；web 不用動。後台「成效統計」兩處用到：**「瀏覽與速度」多一區「Chrome 真實使用者」**（CrUX：Google 從 Chrome 使用者蒐集的官網速度，手機與電腦的 p75 與好／需要改善／不佳比例，附近 25 週走勢）、**「怎麼來、怎麼逛」多一區「Google 搜尋」**（Search Console：點進官網、出現次數、點進去的比例、平均排名，前 25 個搜尋字詞、前 25 個頁面、裝置別，期間跟著整頁的近 7／28／90 天）。兩者都只有總管理者看得到（權限同成效統計其他全站數據 `admissions.stats`），沒設定時只顯示一行「尚未設定」。
+
+**三個變數（api 服務）**
+
+| 變數 | 內容 | 說明 |
+| --- | --- | --- |
+| `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` | 服務帳戶金鑰**整份 JSON** | 要有 `client_email` 與 `private_key`；啟動時驗證，格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。只放 Railway，不進 repo、不貼進對話或文件 |
+| `WEBSITE_GOOGLE_SC_PROPERTY` | `sc-domain:ivykidschool.com` 或 `https://www.ivykidschool.com/` | Search Console 資源。**要和 Search Console 左上角那個資源的類型一致**：「網域」資源寫 `sc-domain:網域`，「網址前置字元」資源寫完整網址（含結尾斜線）。**和上一個要同時設**，只設一個 api 拒絕啟動 |
+| `WEBSITE_CRUX_API_KEY` | GCP 的 API key | 只用來呼叫 Chrome UX Report API。查的網站是 `WEBSITE_PUBLIC_ORIGIN`（沒設就是 `WEBSITE_ADMIN_ORIGIN`，正式站是 `https://www.ivykidschool.com`） |
+
+三個互相獨立：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
+
+**程式做了什麼**（`backend/app/insights/`）
+
+- **Search Console**：用服務帳戶金鑰簽 RS256 JWT（既有的 `joserfc`，scope `https://www.googleapis.com/auth/webmasters.readonly`）向 `oauth2.googleapis.com/token` 換 access token，記憶體快取到過期前 5 分鐘。`searchAnalytics.query` 一次查四種（總計、搜尋字詞、頁面、裝置，每種最多 25 列、一次只問一個維度），結果依「資源＋期間＋維度」快取 6 小時，同一份同時只向 Google 要一次。頁面只回路徑（不含網域、查詢字串）。期間最長回到 16 個月前、結束日不能是未來。
+- **CrUX**：History API `records:queryHistoryRecord`，origin 層級，PHONE 與 DESKTOP 各查一次，LCP／INP／CLS 的 p75 與好／需要改善／不佳比例，最近 25 個視窗（每週一格、各涵蓋 28 天），每個裝置快取 12 小時。Google 回 404 代表 Chrome 使用者數量不夠，後台顯示「Chrome 使用者數量還不夠，Google 尚未提供這個網站的數據」（不是錯誤）。
+- **金鑰不外洩**：CrUX 的 API key 只放 `X-Goog-Api-Key` 標頭，不放網址（httpx 的 INFO 紀錄會印出完整網址，2026-11-10 Facebook 同步曾因此把 token 寫進 log）。access token、JWT、私鑰都不進網址、log、例外訊息與 API 回應；Google 失敗時後台只看到「<步驟>（HTTP n）」，不帶 Google 的回應內容。外部請求的 User-Agent 是 `Mozilla/5.0 (compatible; ivy-website-search-insights/1.0)` 與 `…ivy-website-crux/1.0`，不帶帳號或 email。
+- **資料延遲**：Search Console 的資料約晚 2–3 天，期間最後兩三天的數字會偏少（後台區塊有一句小字）。CrUX 是 28 天滾動、每週更新；網域 2026-11-11 才從 Wix 換過來，前幾週混有舊站資料（後台也有一句小字）。
+
+**上線步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **GCP 建專案**：<https://console.cloud.google.com/> 建一個新專案（例如 `ivy-website-insights`；沿用 Google 登入用的專案也可以，由使用者決定）。這兩支 API 都不收費，用量遠低於免費額度。
+2. **啟用兩支 API**：APIs & Services → Library，搜尋並啟用「Google Search Console API」與「Chrome UX Report API」。
+3. **建服務帳戶與 JSON 金鑰**：IAM & Admin → Service Accounts → Create（不用授予任何 IAM 角色）→ 建好後進該帳戶 → Keys → Add key → Create new key → JSON，下載到本機（下面叫 `~/Downloads/ivy-sc-key.json`）。記下帳戶的 email（`…@….iam.gserviceaccount.com`）。
+4. **在 Search Console 把服務帳戶加成使用者**：<https://search.google.com/search-console/> 選官網的資源 → 設定 → 使用者和權限 → 新增使用者 → 貼服務帳戶 email → 權限選「**受限**」（唯讀）。沒做這步查詢會回 HTTP 403。
+5. **建 API key 並限制**：APIs & Services → Credentials → Create credentials → API key → 建好後 Edit → API restrictions → Restrict key → **只勾「Chrome UX Report API」**。（Railway 的出口 IP 不固定，不設應用程式限制。）
+6. **Railway api 設三個變數**：三個都要加 `--skip-deploys`，全設完再重新部署一次——只設其中一個再部署會因為成對檢查讓 api 起不來（本檔「2026-10-06 預約方式拿掉 inquiry」那段記過 Google OAuth 變數打錯、重部署後 api 回 502 的前例）。JSON 金鑰從檔案讀入，不要貼在命令列（會留在 shell 歷史）：
+
+   ```bash
+   railway variable set WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON --stdin --skip-deploys -s api -e production < ~/Downloads/ivy-sc-key.json
+   railway variable set 'WEBSITE_GOOGLE_SC_PROPERTY=sc-domain:ivykidschool.com' --skip-deploys -s api -e production
+   railway variable set WEBSITE_CRUX_API_KEY --stdin --skip-deploys -s api -e production   # 貼上 API key 後按 Ctrl-D
+   rm ~/Downloads/ivy-sc-key.json                  # 設完就刪本機檔（金鑰只該留在 Railway）
+   railway redeploy -s api -y                      # 或在 Railway 後台按 Redeploy
+   ```
+
+7. **驗收**：後台「成效統計」。「瀏覽與速度」最下面的「Chrome 真實使用者」有手機與電腦的數字（或寫「Chrome 使用者數量還不夠」）；「怎麼來、怎麼逛」最下面的「Google 搜尋」有四個數字與兩張表。畫面上若寫「暫時讀不到…」，括號內是步驟與 HTTP 狀態：
+
+   | 訊息 | 常見原因 |
+   | --- | --- |
+   | 取得 Google 權杖（HTTP 400／401） | 金鑰 JSON 不對、金鑰已在 GCP 刪除，或服務帳戶被停用 |
+   | 簽署服務帳戶憑證（金鑰無法使用） | JSON 裡的 `private_key` 損壞（例如貼的時候換行被弄壞） |
+   | 查詢 Search Console（HTTP 403） | 服務帳戶沒加成 Search Console 使用者、`WEBSITE_GOOGLE_SC_PROPERTY` 和資源類型不一致，或沒啟用 Search Console API |
+   | 查詢 Search Console（HTTP 400） | 期間超出 Google 保留的 16 個月（正常使用不會遇到） |
+   | 查詢 CrUX（HTTP 400／403） | API key 打錯、沒啟用 Chrome UX Report API，或 key 的 API 限制沒勾它 |
+   | 查詢 CrUX（HTTP 429） | 超過 Google 的每分鐘查詢上限（預設 150；後台頁面有快取，正常用量遠低於此） |
+   | 查詢 CrUX（沒有官網網址…） | api 沒設 `WEBSITE_PUBLIC_ORIGIN`／`WEBSITE_ADMIN_ORIGIN` |
+
+   api log 對應只有一行 `Search Console 查詢失敗：…` 或 `CrUX 查詢失敗：…`（同樣只有步驟與狀態），確認沒有金鑰、token 或 Google 回應內容：`railway logs -s api | grep -E "Search Console|CrUX"`。
+
+**關閉／回退**：刪掉三個變數（用 CLI 刪變數不會自動重新部署，要另外 redeploy）；後台立刻回到「尚未設定」。程式沒有 migration，回退舊版程式不受影響。金鑰外洩或換人時：在 GCP 刪掉該金鑰、重新建一把，再照第 6 步換進 Railway。
+
+**程式端沒辦法驗證的**：測試用 `httpx.MockTransport` 照 Google 文件的回應形狀假造（簽章用測試時現產的 RSA 金鑰，假 Google 會真的驗 JWT 的簽章、`iss`、`scope`、`aud`），**沒有用真實的服務帳戶、Search Console 資源或 CrUX 資料連過 Google**。設好變數後請照第 7 步實測，特別是 `WEBSITE_GOOGLE_SC_PROPERTY` 的資源類型寫法與 CrUX 對新網域（2026-11-11 才換過來）是否已有足夠樣本。
+
+## 外部存活監測：UptimeRobot（2026-11-12 規格第 5 節，不寫程式，帳號與通知收件人由使用者決定）
+
+正式站已有 GitHub Actions 的 `.github/workflows/uptime.yml`（每 10 分鐘，見下方「前端錯誤回報與外部存活監測」）。UptimeRobot 免費方案是**另一條獨立的外部監測**，補它三個不足：5 分鐘一次、通知收件人不用綁在「最後改排程的人」、不依賴 GitHub 的排程（GitHub 負載高時會略過）。兩個可以並存。**這個帳號不能由 agent 代辦**——需要本人註冊並決定誰收通知。
+
+1. 到 <https://uptimerobot.com/> 註冊免費帳號（免費方案：50 個監測、5 分鐘一次、email 通知）。**註冊前請本人看一眼 <https://uptimerobot.com/terms>**：免費方案 2024 年曾限非商業用途，2026-11-12 查到的官方條款已改成任何用途（含商業）都可用，但說明中心與定價頁仍有舊說法；若條款又改回去，改用同類服務（例如 Better Stack 的免費方案），下面三個監測的設定通用。
+2. 建三個監測（Add New Monitor，間隔 5 分鐘）：
+
+   | 名稱 | 類型 | 網址 | 期望 |
+   | --- | --- | --- | --- |
+   | 官網首頁 | HTTP(s) | `https://www.ivykidschool.com/` | 200 |
+   | API 健康 | Keyword | `https://www.ivykidschool.com/api/website/v1/health` | 200，且內容**含**關鍵字 `"status":"ok"`（含引號） |
+   | 後台 | HTTP(s) | `https://www.ivykidschool.com/admin/` | 200 |
+
+   健康檢查實際回應（2026-11-12 實測）是 `{"status":"ok","environment":"production","fixture_enabled":false}`；關鍵字選「Alert when keyword **does not exist**」。只寫 `ok` 太鬆（錯誤頁的文字裡也可能出現），所以連同欄位名稱一起比對。
+3. Alert Contacts 加通知收件人（email 為主；要 LINE 通知得另接 webhook，LINE Notify 已於 2025-03 終止服務）；三個監測都選它。
+4. 驗收：在 UptimeRobot 把其中一個監測的關鍵字暫時改成不存在的字，確認收得到失敗通知，再改回來。
+
+不要把這三個網址之外的路徑加進去（例如 `/api/public-site` 會讀資料庫，GitHub Actions 那條已經在檢查）。
+
 ## 寄信：Resend（程式 2026-11-12 已上線；11-12 後台系統狀態已顯示經 Resend 寄出）
 
 正式站 2026-11-12 已照下面設好並開始寄信：寄件地址 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，Resend 網域 `send.ivykidschool.com`（區域 Tokyo），公開預約設定的 `parent_email_enabled` 為 `true`。下面的步驟留給日後換網域或換金鑰時參考；每一步都要本人登入，程式不會自己做。
@@ -2041,8 +2152,30 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_FACEBOOK_APP_SECRET` | 空 | App 開了「Require App Secret」時要設（請求會帶 `appsecret_proof`） |
 | `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
 | `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
+| `WEBSITE_INSTAGRAM_ENABLED` | `false` | 2026-11-12。`true` 時每校 Facebook 同步完再同步粉專連結的 Instagram 貼文，進同一個收件匣（開通步驟見下方「Instagram 貼文」）。要先有上面的 `WEBSITE_FACEBOOK_ACCESS_TOKEN` 與 `WEBSITE_FACEBOOK_PAGES`，否則 api 拒絕啟動 |
 
 **驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫；挑一則標「影片」的，確認內文第一塊是影片、素材庫多一支「Facebook 粉專貼文」的影片，轉檔完成（約幾分鐘）後才能發布。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
+
+### Instagram 貼文（2026-11-12 程式，`feature/integrations-20261112`；預設關，沒設 `WEBSITE_INSTAGRAM_ENABLED` 就和現在完全一樣）
+
+規格 `docs/specs/2026-11-12-external-integrations-design.md` 第 2 節。開了之後，同一個收件匣多出粉專連結的 Instagram 專業帳號貼文：用同一把 Page token、不另設 IG 帳號 ID（從 `GET /{粉專ID}?fields=instagram_business_account` 找）、轉成消息草稿的流程完全共用。照片貼文取照片、影片（含 Reels）取影片檔與封面、相簿取第一張圖片（相簿裡的影片不取）。
+
+- **migration `f3b8d2a6c19e`**（parent `e7a1c93b5d20`）只加欄位：`facebook_page_posts.source`（預設 `facebook`，CHECK 只收 `facebook`／`instagram`）、`facebook_page_sync` 的四個 `ig_` 欄位。不改、不刪既有資料，照備份閘門不需先備份；舊版程式不讀不寫這些欄位，可直接回退。
+- **Instagram 失敗不影響 Facebook**：Facebook 那一段先寫完、提交，Instagram 才開始；Instagram 的結果與錯誤另記在 `ig_` 欄位，後台頁面多一行「Instagram：上次同步…」，失敗時有自己的警告。錯誤只記步驟、HTTP 狀態與 Meta 錯誤代碼，不含回應內容與 token。
+- **學校常同一篇 Facebook、Instagram 都發**：收件匣會出現兩則，由人略過其中一則，**不做自動去重**。每則有來源標示，可依來源篩選；Instagram 貼文轉成消息時，素材庫的來源說明寫「Instagram 貼文」、內文最後的連結寫「在 Instagram 看原文」。
+
+**開通步驟（每一步都要本人登入，程式不會自己做；義華 IG 是 `ivy.kids.school.ig`）**
+
+1. **Instagram 轉成專業帳號**：Instagram App → 設定 → 帳號類型和工具 → 切換為專業帳號（商家或創作者皆可）。
+2. **連結到粉專**：用粉專管理員身分，Facebook 粉專（Business Suite）→ 設定 → 連結的帳號／Instagram → 連結帳號，登入該 Instagram 帳號。沒連結時同步會記「粉專沒有連結 Instagram 專業帳號」。
+3. **重新授權加 `instagram_basic`**：Graph API Explorer 選同一個 App（「常春藤義華校」），權限在原本的 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content` 之外再勾 `instagram_basic` →「Generate Access Token」，授權對話框裡**同時勾粉專與那個 Instagram 帳號**。沒有這個權限時 Graph 回 code 10 或 200，後台會寫「權杖沒有 Instagram 權限」。
+4. **延長並換 Page token**：照上方 A 的第 3、4 步（偵錯工具延長成約 60 天用戶權杖 → `GET /{粉專ID}?fields=access_token`），把新的 Page token 換進 Railway 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`WEBSITE_FACEBOOK_PAGES` 不用動）。資料存取到期日會跟著重算，順手更新上面 A 第 5 步記的日期。
+5. **Railway api 設 `WEBSITE_INSTAGRAM_ENABLED=true`**（可以和上一步的新 token 同一次設，只會重新部署一次）。Facebook 兩個變數沒設就開這個，api 會拒絕啟動。
+6. **驗收**：後台「Facebook 貼文」選義華按「立即同步」→ 頁面出現「貼文來源」篩選與「Instagram：上次同步…」一行，貼文標出 Facebook／Instagram；挑一則 Instagram 貼文「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、內文最後是「在 Instagram 看原文」、素材庫來源說明是「Instagram 貼文」；挑一則 Reels，確認影片進素材庫。看狀態的 SQL：`select campus_key, ig_last_attempt_at, ig_last_success_at, ig_last_error, ig_last_count from facebook_page_sync;`。
+
+**關閉**：把 `WEBSITE_INSTAGRAM_ENABLED` 刪掉或設 `false`（用 CLI 刪變數要另外重新部署）。已收進收件匣的 Instagram 貼文與已轉成的消息不受影響，頁面仍會標出它們的來源。
+
+**要注意**：Instagram 的影片若含版權音樂，Meta 會省略該則的 `media_url`，這種貼文只會有封面；Reels 配樂的授權問題和 Facebook Reels 一樣（見 `docs/specs/2026-10-28-facebook-news-sync-design.md` §8），搬到官網前請園方確認。**程式端沒用真實 Instagram 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造）；開通後第一次同步請照步驟 6 實測，並看 api log 沒有 token。
 
 ## 公開地理資料同步（招生區域分析）
 
@@ -2726,6 +2859,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_PUBLIC_ORIGIN`（選填，預設等於 `WEBSITE_ADMIN_ORIGIN`，2026-11-12；官網的 origin。家長信裡的改期與重新預約連結用它，家長頁的寫入也接受這個 Origin。後台搬到獨立子網域時才需要設） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
 | api | `WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`（選填，2026-11-11；經 Resend 的 HTTPS API 寄信。兩個要一起設、和 `WEBSITE_SMTP_HOST` 只能擇一；寄件地址的網域要先在 Resend 驗證。步驟見「寄信：Resend」） |
+| api | `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON`／`WEBSITE_GOOGLE_SC_PROPERTY`（選填，預設空白＝關，2026-11-12；Google Search Console：服務帳戶金鑰整份 JSON，加上資源 `sc-domain:網域` 或 `https://網址/`。**兩個要同時設**，只設一個或 JSON 格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。JSON 只放 Railway，用 `railway variable set … --stdin` 從檔案讀入，見上方「Google Search Console 與 CrUX」） |
+| api | `WEBSITE_CRUX_API_KEY`（選填，預設空白＝關，2026-11-12；CrUX（Chrome 真實使用者速度）的 GCP API key，限制成只能呼叫 Chrome UX Report API，只走 `X-Goog-Api-Key` 標頭；查的網站是 `WEBSITE_PUBLIC_ORIGIN`，沒設用 `WEBSITE_ADMIN_ORIGIN`） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
@@ -2734,6 +2869,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
 | web | `NUXT_ERROR_REPORTS_ENABLED`（選填，預設 production 開、其他環境關；官網與後台前端錯誤回報的開關，設 `false` 即停止收錄，伺服器直接回 204，見下方「前端錯誤回報與外部存活監測」） |
+| web | `NUXT_PUBLIC_GA_MEASUREMENT_ID`（選填，預設空白＝關，2026-11-12；GA4 評估 ID，格式 `G-` 加大寫英數，例如 `G-ABC123DEF4`，格式不符視同未設定。執行期變數，改了重新部署即生效；先發布隱私權政策再設，見上方「GA4 與 Meta Pixel」） |
+| web | `NUXT_PUBLIC_META_PIXEL_ID`（選填，預設空白＝關，2026-11-12；Meta Pixel ID，純數字，格式不符視同未設定。可沿用舊站 ivykids.tw 的 Pixel，由使用者決定；步驟同上） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |

@@ -1290,6 +1290,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/crux": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Crux
+         * @description Chrome 真實使用者的 LCP、INP、CLS（官網 origin，手機與電腦各一份，最近 25 週）。
+         */
+        get: operations["get_crux_api_website_v1_admin_crux_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/dashboard": {
         parameters: {
             query?: never;
@@ -1370,7 +1390,8 @@ export interface paths {
         };
         /**
          * List Facebook Posts
-         * @description 這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。
+         * @description 這校粉專（與連結的 Instagram）同步進來的貼文（新到舊，最多 100 則）與同步狀態；
+         *     source 篩選來源，不給就是全部。
          */
         get: operations["list_facebook_posts_api_website_v1_admin_facebook_posts_get"];
         put?: never;
@@ -1392,7 +1413,8 @@ export interface paths {
         put?: never;
         /**
          * Sync Facebook Posts
-         * @description 立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。
+         * @description 立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error（Instagram 是
+         *     sync.instagram.last_error），不回錯誤碼。
          */
         post: operations["sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post"];
         delete?: never;
@@ -2279,6 +2301,26 @@ export interface paths {
          *     天數試算的，確認框開著時別人把天數改短，執行範圍會比確認的大，而匿名化無法復原（2026-10-20 稽核）。
          */
         post: operations["retention_run_api_website_v1_admin_retention_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/search-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Insights
+         * @description Google 搜尋成效：總計、前 25 個搜尋字詞、前 25 個頁面、裝置別。資料有 2–3 天延遲。
+         */
+        get: operations["get_search_insights_api_website_v1_admin_search_insights_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6054,6 +6096,60 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** CruxDeviceOut */
+        CruxDeviceOut: {
+            /**
+             * Form Factor
+             * @enum {string}
+             */
+            form_factor: "phone" | "desktop";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "insufficient";
+            /** Weeks */
+            weeks: components["schemas"]["CruxWeekOut"][];
+        };
+        /** CruxOut */
+        CruxOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Devices */
+            devices?: components["schemas"]["CruxDeviceOut"][];
+            /** Error */
+            error?: string | null;
+            /** Origin */
+            origin?: string | null;
+        };
+        /**
+         * CruxValueOut
+         * @description 一個指標在一個 28 天視窗的 p75（LCP、INP 單位毫秒；CLS 無單位）與好／需要改善／不佳的比例（0～1）。
+         *     那個視窗沒有資料時四個欄位都是 null。
+         */
+        CruxValueOut: {
+            /** Good */
+            good: number | null;
+            /** Needs Improvement */
+            needs_improvement: number | null;
+            /** P75 */
+            p75: number | null;
+            /** Poor */
+            poor: number | null;
+        };
+        /** CruxWeekOut */
+        CruxWeekOut: {
+            cls: components["schemas"]["CruxValueOut"];
+            inp: components["schemas"]["CruxValueOut"];
+            /**
+             * Last Date
+             * Format: date
+             */
+            last_date: string;
+            lcp: components["schemas"]["CruxValueOut"];
+        };
         /**
          * DisplayNameUpdateRequest
          * @description 總管理者改同事的顯示名稱，或本人改自己的。一定要帶這個鍵：傳 null 或
@@ -6810,6 +6906,8 @@ export interface components {
             /** Configured */
             configured: boolean;
             counts: components["schemas"]["FacebookPostCounts"];
+            /** Instagram Enabled */
+            instagram_enabled: boolean;
             /** Posts */
             posts: components["schemas"]["FacebookPostOut"][];
             sync: components["schemas"]["FacebookSyncStatusOut"] | null;
@@ -6843,6 +6941,11 @@ export interface components {
              */
             posted_at: string;
             /**
+             * Source
+             * @enum {string}
+             */
+            source: "facebook" | "instagram";
+            /**
              * Status
              * @enum {string}
              */
@@ -6855,6 +6958,7 @@ export interface components {
         };
         /** FacebookSyncStatusOut */
         FacebookSyncStatusOut: {
+            instagram: components["schemas"]["InstagramSyncStatusOut"] | null;
             /** Last Attempt At */
             last_attempt_at: string | null;
             /** Last Count */
@@ -7258,6 +7362,20 @@ export interface components {
             active_doorplate_version: string | null;
             enrolled: components["schemas"]["EnrolledImportStatusOut"] | null;
             history: components["schemas"]["HistoryImportStatusOut"] | null;
+        };
+        /**
+         * InstagramSyncStatusOut
+         * @description 同一次同步裡 Instagram 那一段的結果；失敗不影響 Facebook 那一段。
+         */
+        InstagramSyncStatusOut: {
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Count */
+            last_count: number | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
         };
         /** IntakePlanOut */
         IntakePlanOut: {
@@ -9366,6 +9484,79 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+        };
+        /** SearchDeviceRowOut */
+        SearchDeviceRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "mobile" | "desktop" | "tablet";
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number;
+        };
+        /** SearchInsightsOut */
+        SearchInsightsOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Devices */
+            devices?: components["schemas"]["SearchDeviceRowOut"][];
+            /** End */
+            end?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Pages */
+            pages?: components["schemas"]["SearchPageRowOut"][];
+            /** Queries */
+            queries?: components["schemas"]["SearchQueryRowOut"][];
+            /** Start */
+            start?: string | null;
+            totals?: components["schemas"]["SearchMetricsOut"] | null;
+        };
+        /** SearchMetricsOut */
+        SearchMetricsOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number | null;
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number | null;
+        };
+        /** SearchPageRowOut */
+        SearchPageRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /** Impressions */
+            impressions: number;
+            /** Page */
+            page: string;
+            /** Position */
+            position: number;
+        };
+        /** SearchQueryRowOut */
+        SearchQueryRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number;
+            /** Query */
+            query: string;
         };
         /**
          * SeatOut
@@ -13324,6 +13515,39 @@ export interface operations {
             };
         };
     };
+    get_crux_api_website_v1_admin_crux_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_api_website_v1_admin_dashboard_get: {
         parameters: {
             query?: never;
@@ -13468,6 +13692,7 @@ export interface operations {
             query: {
                 campus_key: string;
                 status?: "new" | "imported" | "dismissed";
+                source?: ("facebook" | "instagram") | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -15238,6 +15463,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetentionReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_insights_api_website_v1_admin_search_insights_get: {
+        parameters: {
+            query?: {
+                /** @description 台北日期（含），省略＝結束日往前 28 天 */
+                start?: string | null;
+                /** @description 台北日期（含），省略＝今天；不能是未來 */
+                end?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchInsightsOut"];
                 };
             };
             /** @description Validation Error */

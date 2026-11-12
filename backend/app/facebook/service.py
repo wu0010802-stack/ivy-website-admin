@@ -1,4 +1,5 @@
-"""粉專貼文轉成 campus_news 消息的欄位對照（docs/specs/2026-10-28-facebook-news-sync-design.md §5）。"""
+"""粉專貼文轉成 campus_news 消息的欄位對照（docs/specs/2026-10-28-facebook-news-sync-design.md §5）。
+Instagram 貼文共用同一套對照，只有原文連結的字不同。"""
 
 from __future__ import annotations
 
@@ -12,7 +13,8 @@ TITLE_MAX = 40
 DESCRIPTION_MAX = 120
 PARAGRAPH_MAX = 2000
 FALLBACK_TITLE = "粉專貼文"
-LINK_LABEL = "在 Facebook 看原文"
+# 原文連結的字：Instagram 來的貼文寫「在 Instagram 看原文」。
+LINK_LABELS = {"facebook": "在 Facebook 看原文", "instagram": "在 Instagram 看原文"}
 # 內文留一格給最後的原文連結（有影片時開頭再留一格，見 build_article）。
 _MAX_PARAGRAPHS = NEWS_BODY_MAX_BLOCKS - 1
 
@@ -96,7 +98,7 @@ def build_article(post: FacebookPagePost, media_id: str, video_id: str | None = 
         for text in paragraphs[: _MAX_PARAGRAPHS - len(body)]
     ]
     if post.permalink_url:
-        body.append({"type": "link", "label": LINK_LABEL, "url": post.permalink_url})
+        body.append({"type": "link", "label": LINK_LABELS.get(post.source, LINK_LABELS["facebook"]), "url": post.permalink_url})
     return {
         "id": article_id(post.post_id),
         "date": post.posted_at.astimezone(OPERATING_TZ).date().isoformat(),

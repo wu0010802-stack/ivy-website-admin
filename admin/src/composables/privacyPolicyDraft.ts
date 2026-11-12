@@ -6,6 +6,9 @@
 // 第 4、6 段加回。日後若關掉 Turnstile，這兩句要一起拿掉。
 // 同日使用者決定第 7 段先不寫保存天數與到期刪除：正式站的個資清理沒開（WEBSITE_RETENTION_ALLOW_REAL_RUN
 // 未設），寫了不會發生。日後開清理時要換回的兩句在規格第 8 節末。
+// 同日第 5 段寫入 GA4 與 Meta 像素（web/ 的 NUXT_PUBLIC_GA_MEASUREMENT_ID／NUXT_PUBLIC_META_PIXEL_ID，預設都關）：
+// 先發布政策再開 ID。只開其中一個時，發布前把另一個的條列與句子刪掉；兩個都不開就整段第三方工具改回
+// 「本網站目前沒有使用第三方分析或廣告 cookie」。步驟見 deploy/README.md「GA4 與 Meta Pixel」。
 import type { PrivacyPolicyPayload } from '../api/types'
 
 // 與後端 content/schemas.py 的 PRIVACY_POLICY_PENDING_MARKER、PRIVACY_POLICY_SECTIONS_MAX 相同。
@@ -73,7 +76,7 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
           '',
           '為了知道同一次造訪看了哪些頁面，本網站會在您的瀏覽器分頁暫存一組隨機代碼，關閉分頁後就會清除；它不會跨分頁、也不會在您下次造訪時沿用，並且不會和您填寫的預約資料連結。',
           '',
-          '這些統計不記錄您的 IP，也不使用 cookie 識別您。您的瀏覽器若開啟「不要追蹤」（Do Not Track）或 Global Privacy Control，本網站就不會送出這些統計。',
+          '這些統計是本網站自己記錄的，不記錄您的 IP，也不使用 cookie 識別您（第三方分析工具另見第 5 段）。您的瀏覽器若開啟「不要追蹤」（Do Not Track）或 Global Privacy Control，本網站就不會送出這些統計。',
           '',
           '另外，網站發生錯誤時，我們會記錄出錯的頁面路徑、瀏覽器類型與錯誤內容，用來找出並修正問題；這類紀錄不含可識別個人的資料，保存 90 天，不受上述「不要追蹤」設定影響。',
           '',
@@ -89,13 +92,19 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
       {
         heading: '5. Cookie 與類似技術',
         body: [
-          '本網站目前只使用網站運作必要的 cookie：',
+          '本網站使用網站運作必要的 cookie：',
           '- ivy_parent_session：您開啟預約修改連結後設定，讓您在 2 小時內修改預約，只能由本網站的伺服器讀取。',
           '- 員工登入後台時使用的登入 cookie，一般訪客不會收到。',
           '',
           '此外，本網站在您的瀏覽器分頁暫存三項不含個人資料的資料：開場動畫是否看過、首頁「孩子的一天」照片翻面動畫是否播過，以及第 4 節所說、用來統計同一次造訪的隨機代碼。關閉分頁後就會清除。',
           '',
-          '本網站目前沒有使用第三方分析或廣告 cookie。日後若使用，我們會先更新本政策。您可以在瀏覽器設定中封鎖或刪除 cookie；封鎖必要 cookie 時，預約修改連結可能無法使用。',
+          '為了了解網站的使用情形與廣告的成效，本網站使用兩項第三方工具：',
+          '- Google Analytics 4（Google）：統計瀏覽的頁面、使用的裝置與瀏覽器、大致的地區，以及您是從哪裡來到本網站。Google 會在您的瀏覽器設定 cookie（名稱以 _ga 開頭）辨識同一個瀏覽器。',
+          '- Meta 像素（Meta Platforms, Inc.，Facebook 與 Instagram 的經營者）：計算 Facebook、Instagram 廣告帶來多少人造訪與預約。Meta 會在您的瀏覽器設定 cookie（名稱為 _fbp）。',
+          '',
+          '您載入本網站時，Google 與 Meta 會收到您的 IP 與瀏覽器資訊。預約成功時，我們會告訴這兩項工具「有一筆預約成功」與預約的校區，用來計算成效；不會傳送您的姓名、電話、Email、孩子的資料，也不會傳送預約修改連結，預約修改頁面也不會向這兩項工具傳送任何資料。這些資料由 Google、Meta 依其隱私權政策處理，伺服器可能在台灣以外的地區。',
+          '',
+          '您的瀏覽器若開啟「不要追蹤」（Do Not Track）或 Global Privacy Control，本網站就不會載入這兩項工具。您也可以在瀏覽器設定中封鎖或刪除 cookie，或使用瀏覽器的追蹤保護功能；封鎖必要 cookie 時，預約修改連結可能無法使用。',
         ].join('\n'),
       },
       {

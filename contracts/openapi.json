@@ -7681,6 +7681,177 @@
         "title": "ContentRevisionSummaryOut",
         "type": "object"
       },
+      "CruxDeviceOut": {
+        "properties": {
+          "form_factor": {
+            "enum": [
+              "phone",
+              "desktop"
+            ],
+            "title": "Form Factor",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "insufficient"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/CruxWeekOut"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "form_factor",
+          "status",
+          "weeks"
+        ],
+        "title": "CruxDeviceOut",
+        "type": "object"
+      },
+      "CruxOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/CruxDeviceOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "CruxOut",
+        "type": "object"
+      },
+      "CruxValueOut": {
+        "description": "一個指標在一個 28 天視窗的 p75（LCP、INP 單位毫秒；CLS 無單位）與好／需要改善／不佳的比例（0～1）。\n那個視窗沒有資料時四個欄位都是 null。",
+        "properties": {
+          "good": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Good"
+          },
+          "needs_improvement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Improvement"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "poor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poor"
+          }
+        },
+        "required": [
+          "p75",
+          "good",
+          "needs_improvement",
+          "poor"
+        ],
+        "title": "CruxValueOut",
+        "type": "object"
+      },
+      "CruxWeekOut": {
+        "properties": {
+          "cls": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          },
+          "inp": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          },
+          "last_date": {
+            "format": "date",
+            "title": "Last Date",
+            "type": "string"
+          },
+          "lcp": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          }
+        },
+        "required": [
+          "last_date",
+          "lcp",
+          "inp",
+          "cls"
+        ],
+        "title": "CruxWeekOut",
+        "type": "object"
+      },
       "DisplayNameUpdateRequest": {
         "description": "總管理者改同事的顯示名稱，或本人改自己的。一定要帶這個鍵：傳 null 或\n空白是清掉（畫面改用 Email），不會因為漏帶欄位就被清空。",
         "properties": {
@@ -9875,6 +10046,10 @@
           "counts": {
             "$ref": "#/components/schemas/FacebookPostCounts"
           },
+          "instagram_enabled": {
+            "title": "Instagram Enabled",
+            "type": "boolean"
+          },
           "posts": {
             "items": {
               "$ref": "#/components/schemas/FacebookPostOut"
@@ -9899,6 +10074,7 @@
         },
         "required": [
           "configured",
+          "instagram_enabled",
           "sync_seconds",
           "sync",
           "counts",
@@ -9976,6 +10152,14 @@
             "title": "Posted At",
             "type": "string"
           },
+          "source": {
+            "enum": [
+              "facebook",
+              "instagram"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
           "status": {
             "enum": [
               "new",
@@ -9989,6 +10173,7 @@
         "required": [
           "id",
           "campus_key",
+          "source",
           "message",
           "posted_at",
           "permalink_url",
@@ -10016,6 +10201,16 @@
       },
       "FacebookSyncStatusOut": {
         "properties": {
+          "instagram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstagramSyncStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "last_attempt_at": {
             "anyOf": [
               {
@@ -10067,7 +10262,8 @@
           "last_attempt_at",
           "last_success_at",
           "last_error",
-          "last_count"
+          "last_count",
+          "instagram"
         ],
         "title": "FacebookSyncStatusOut",
         "type": "object"
@@ -11220,6 +11416,65 @@
           "history"
         ],
         "title": "ImportStatusOut",
+        "type": "object"
+      },
+      "InstagramSyncStatusOut": {
+        "description": "同一次同步裡 Instagram 那一段的結果；失敗不影響 Facebook 那一段。",
+        "properties": {
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Count"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "last_attempt_at",
+          "last_success_at",
+          "last_error",
+          "last_count"
+        ],
+        "title": "InstagramSyncStatusOut",
         "type": "object"
       },
       "IntakePlanOut": {
@@ -17677,6 +17932,243 @@
           "publish_at"
         ],
         "title": "ScheduleRequest",
+        "type": "object"
+      },
+      "SearchDeviceRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "device": {
+            "enum": [
+              "mobile",
+              "desktop",
+              "tablet"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          }
+        },
+        "required": [
+          "device",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchDeviceRowOut",
+        "type": "object"
+      },
+      "SearchInsightsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/SearchDeviceRowOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/SearchPageRowOut"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/SearchQueryRowOut"
+            },
+            "title": "Queries",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchMetricsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "SearchInsightsOut",
+        "type": "object"
+      },
+      "SearchMetricsOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctr"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "required": [
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchMetricsOut",
+        "type": "object"
+      },
+      "SearchPageRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          }
+        },
+        "required": [
+          "page",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchPageRowOut",
+        "type": "object"
+      },
+      "SearchQueryRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchQueryRowOut",
         "type": "object"
       },
       "SeatOut": {
@@ -28928,6 +29420,72 @@
         ]
       }
     },
+    "/api/website/v1/admin/crux": {
+      "get": {
+        "description": "Chrome 真實使用者的 LCP、INP、CLS（官網 origin，手機與電腦各一份，最近 25 週）。",
+        "operationId": "get_crux_api_website_v1_admin_crux_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CruxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Crux",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/website/v1/admin/dashboard": {
       "get": {
         "operationId": "get_dashboard_api_website_v1_admin_dashboard_get",
@@ -29229,7 +29787,7 @@
     },
     "/api/website/v1/admin/facebook-posts": {
       "get": {
-        "description": "這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。",
+        "description": "這校粉專（與連結的 Instagram）同步進來的貼文（新到舊，最多 100 則）與同步狀態；\nsource 篩選來源，不給就是全部。",
         "operationId": "list_facebook_posts_api_website_v1_admin_facebook_posts_get",
         "parameters": [
           {
@@ -29256,6 +29814,26 @@
               ],
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "facebook",
+                    "instagram"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
             }
           },
           {
@@ -29321,7 +29899,7 @@
     },
     "/api/website/v1/admin/facebook-posts/sync": {
       "post": {
-        "description": "立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。",
+        "description": "立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error（Instagram 是\nsync.instagram.last_error），不回錯誤碼。",
         "operationId": "sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post",
         "parameters": [
           {
@@ -33214,6 +33792,110 @@
         "summary": "Retention Run",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/search-insights": {
+      "get": {
+        "description": "Google 搜尋成效：總計、前 25 個搜尋字詞、前 25 個頁面、裝置別。資料有 2–3 天延遲。",
+        "operationId": "get_search_insights_api_website_v1_admin_search_insights_get",
+        "parameters": [
+          {
+            "description": "台北日期（含），省略＝結束日往前 28 天",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝結束日往前 28 天",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝今天；不能是未來",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝今天；不能是未來",
+              "title": "End"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchInsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Search Insights",
+        "tags": [
+          "insights"
         ]
       }
     },

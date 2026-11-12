@@ -1,19 +1,26 @@
 // 各校 Facebook 貼文收件匣（docs/specs/2026-10-28-facebook-news-sync-design.md）。
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import FacebookPostsView from '../views/FacebookPostsView.vue'
 import viewSource from '../views/FacebookPostsView.vue?raw'
 import type { FacebookImportOut, FacebookPostListOut, FacebookPostOut } from '../api/types'
+import { notifyWarning } from '../composables/notify'
 import { canListNavItem, navItem } from '../router/nav'
 import { campusAdmin, cleanup, mockGet, mockPost, mountWith } from './admissionsTestKit'
 import { testUser } from './fixtures'
 
-afterEach(() => cleanup())
+vi.mock('../composables/notify', () => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
+
+afterEach(() => {
+  cleanup()
+  vi.mocked(notifyWarning).mockClear()
+})
 
 function post(overrides: Partial<FacebookPostOut> = {}): FacebookPostOut {
   return {
     id: 'p1',
     campus_key: 'yihua',
+    source: 'facebook',
     message: '萬聖節變裝遊行\n\n孩子們穿上自己做的服裝。',
     posted_at: '2026-10-27T02:30:00Z',
     permalink_url: 'https://www.facebook.com/1_1',
@@ -29,8 +36,9 @@ function post(overrides: Partial<FacebookPostOut> = {}): FacebookPostOut {
 function list(overrides: Partial<FacebookPostListOut> = {}): FacebookPostListOut {
   return {
     configured: true,
+    instagram_enabled: false,
     sync_seconds: 3600,
-    sync: { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: '2026-10-28T01:00:00Z', last_error: null, last_count: 1 },
+    sync: { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: '2026-10-28T01:00:00Z', last_error: null, last_count: 1, instagram: null },
     counts: { new: 1, imported: 0, dismissed: 0 },
     posts: [post()],
     ...overrides,
@@ -129,7 +137,7 @@ describe('Facebook 貼文', () => {
   })
 
   it('同步失敗把原因顯示出來', async () => {
-    mockGet({ '/admin/facebook-posts': list({ sync: { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: null, last_error: '讀取貼文（HTTP 400、code 190）', last_count: null } }) })
+    mockGet({ '/admin/facebook-posts': list({ sync: { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: null, last_error: '讀取貼文（HTTP 400、code 190）', last_count: null, instagram: null } }) })
     const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
     expect(wrapper.text()).toContain('讀取貼文（HTTP 400、code 190）')
     expect(wrapper.text()).toContain('還沒同步過')
@@ -142,5 +150,146 @@ describe('Facebook 貼文', () => {
     expect(button(wrapper, '轉成消息草稿')).toBeUndefined()
     expect(button(wrapper, '略過')).toBeUndefined()
     expect(canListNavItem(navItem('facebook-posts')!, campusAdmin(), {})).toBe(true)
+  })
+})
+
+// ---- Instagram 貼文進同一個收件匣（docs/specs/2026-11-12-external-integrations-design.md §2）----
+
+type InstagramStatus = NonNullable<NonNullable<FacebookPostListOut['sync']>['instagram']>
+const IG_OK: InstagramStatus = { last_attempt_at: '2026-10-28T01:00:00Z', last_success_at: '2026-10-28T01:00:00Z', last_error: null, last_count: 3 }
+const NO_ACCOUNT = '粉專沒有連結 Instagram 專業帳號'
+const NO_PERMISSION = '權杖沒有 Instagram 權限'
+
+function withInstagram(overrides: Partial<FacebookPostListOut> = {}, instagram: Partial<InstagramStatus> = {}): FacebookPostListOut {
+  const base = list()
+  return list({
+    instagram_enabled: true,
+    sync: { ...base.sync!, instagram: { ...IG_OK, ...instagram } },
+    counts: { new: 2, imported: 0, dismissed: 0 },
+    posts: [post(), post({ id: 'p2', source: 'instagram', permalink_url: 'https://www.instagram.com/p/2/', message: 'Instagram 貼文' })],
+    ...overrides,
+  })
+}
+
+const radioLabels = (wrapper: VueWrapper, label: string) =>
+  wrapper.get(`[aria-label="${label}"]`).findAll('.el-radio-button').map((el) => el.text())
+
+describe('Instagram 貼文', () => {
+  it('沒開 Instagram 時頁面跟以前一樣：沒有來源標示、來源篩選與 Instagram 同步行', async () => {
+    mockGet({ '/admin/facebook-posts': list() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.find('.fb-post__source').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="貼文來源"]').exists()).toBe(false)
+    expect(wrapper.find('.fb-sync-ig').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Instagram')
+    expect(wrapper.get('.fb-post__meta a').text()).toBe('在 Facebook 看 ↗')
+  })
+
+  it('每則貼文標出來源，原文連結寫對平台', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    const posts = wrapper.findAll('.fb-post')
+    expect(posts.map((el) => el.get('.fb-post__source').text())).toEqual(['Facebook', 'Instagram'])
+    expect(posts[0]!.get('.fb-post__meta a').text()).toBe('在 Facebook 看 ↗')
+    expect(posts[1]!.get('.fb-post__meta a').text()).toBe('在 Instagram 看 ↗')
+    expect(posts[1]!.get('.fb-post__meta a').attributes('href')).toBe('https://www.instagram.com/p/2/')
+  })
+
+  it('已經存在的 Instagram 貼文，就算之後關掉開關也照樣標出來源', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram({ instagram_enabled: false }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.findAll('.fb-post__source').map((el) => el.text())).toEqual(['Facebook', 'Instagram'])
+    expect(wrapper.find('[aria-label="貼文來源"]').exists()).toBe(false)
+  })
+
+  it('可依來源篩選：選了才帶 source，選回「全部」就不帶', async () => {
+    const get = mockGet({ '/admin/facebook-posts': withInstagram() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(radioLabels(wrapper, '貼文來源')).toEqual(['全部', 'Facebook', 'Instagram'])
+    expect(get).toHaveBeenLastCalledWith('/admin/facebook-posts?campus_key=yihua&status=new')
+
+    const inputs = wrapper.get('[aria-label="貼文來源"]').findAll('input')
+    await inputs[2]!.setValue(true)
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/facebook-posts?campus_key=yihua&status=new&source=instagram')
+    await inputs[0]!.setValue(true)
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/facebook-posts?campus_key=yihua&status=new')
+  })
+
+  it('同步狀態多一行 Instagram：上次同步時間與讀到幾則', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.fb-sync-ig').text()).toMatch(/^Instagram：上次同步 [^，]+，讀到 3 則貼文。$/)
+    // Facebook 那一行不變。
+    expect(wrapper.get('.fb-sync').text()).toMatch(/^上次同步 [^，]+，之後每 1 小時自動同步一次。$/)
+    expect(wrapper.find('.el-alert--warning').exists()).toBe(false)
+  })
+
+  it('Instagram 還沒同步過', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram({}, { last_attempt_at: null, last_success_at: null, last_count: null }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.fb-sync-ig').text()).toBe('Instagram：還沒同步過。')
+  })
+
+  it('還沒有任何同步紀錄時，Instagram 也寫「還沒同步過」', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram({ sync: null, posts: [], counts: { new: 0, imported: 0, dismissed: 0 } }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.fb-sync-ig').text()).toBe('Instagram：還沒同步過。')
+    expect(wrapper.find('.fb-ig-error').exists()).toBe(false)
+  })
+
+  it.each([
+    [NO_ACCOUNT, '轉成專業帳號並連結'],
+    [NO_PERMISSION, 'instagram_basic'],
+    ['讀取 Instagram 貼文（HTTP 400、code 190）', '檢查 Meta 的設定'],
+  ])('Instagram 同步失敗「%s」：說明原因與怎麼辦，而且講明 Facebook 不受影響', async (error, hint) => {
+    mockGet({ '/admin/facebook-posts': withInstagram({}, { last_error: error, last_success_at: null, last_count: null }) })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    const alert = wrapper.get('.fb-ig-error')
+    expect(alert.text()).toContain('Instagram 最近一次同步失敗')
+    expect(alert.text()).toContain(error)
+    expect(alert.text()).toContain(hint)
+    expect(alert.text()).toContain('Facebook 貼文不受影響')
+  })
+
+  it('Facebook 失敗時只顯示 Facebook 的警告，不把 Instagram 的狀態混進去', async () => {
+    const data = withInstagram()
+    data.sync = { ...data.sync!, last_error: '讀取貼文（HTTP 400、code 190）', last_success_at: null }
+    mockGet({ '/admin/facebook-posts': data })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.text()).toContain('讀取貼文（HTTP 400、code 190）')
+    expect(wrapper.find('.fb-ig-error').exists()).toBe(false)
+  })
+
+  it('立即同步：Instagram 失敗時提醒，Facebook 的結果照樣更新', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram() })
+    const failed = withInstagram({}, { last_error: NO_PERMISSION, last_count: null })
+    const posted = mockPost({ '/admin/facebook-posts/sync': failed })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    await button(wrapper, '立即同步')!.trigger('click')
+    await flushPromises()
+    expect(posted).toHaveBeenCalledWith('/admin/facebook-posts/sync', { campus_key: 'yihua' })
+    expect(notifyWarning).toHaveBeenCalledWith(`Instagram 同步失敗：${NO_PERMISSION}`)
+    expect(wrapper.get('.fb-ig-error').text()).toContain(NO_PERMISSION)
+  })
+
+  it('立即同步成功後回到「全部」來源（同步的回應是全部來源的未處理貼文）', async () => {
+    const get = mockGet({ '/admin/facebook-posts': withInstagram() })
+    mockPost({ '/admin/facebook-posts/sync': withInstagram() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    await wrapper.get('[aria-label="貼文來源"]').findAll('input')[2]!.setValue(true)
+    await flushPromises()
+    await button(wrapper, '立即同步')!.trigger('click')
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/facebook-posts?campus_key=yihua&status=new')
+    expect(wrapper.get('[aria-label="貼文來源"]').find('.el-radio-button.is-active').text()).toBe('全部')
+  })
+
+  it('標題與說明提到 Instagram，轉成消息的按鈕不變', async () => {
+    mockGet({ '/admin/facebook-posts': withInstagram() })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    expect(wrapper.get('.page-header').text()).toContain('Instagram')
+    expect(wrapper.findAll('.fb-post').every((el) => el.findAll('button').some((b) => b.text() === '轉成消息草稿'))).toBe(true)
   })
 })

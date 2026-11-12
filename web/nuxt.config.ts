@@ -141,7 +141,13 @@ export default defineNuxtConfig({
       indexingEnabled,
       telemetryEnabled: parseBoolean(process.env.NUXT_PUBLIC_TELEMETRY_ENABLED, websiteEnv === 'production'),
       // 前端外掛（plugins/error-report.client.ts）讀這個；預設同上，沒開就不掛 window 的錯誤監聽。
-      errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production')
+      errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production'),
+      // GA4 與 Meta Pixel（2026-11-12，plugins/third-party-analytics.client.ts、server/utils/security-headers.ts 的 CSP）。
+      // 預設空白＝全關：不載任何外部腳本、CSP 不變。刻意不讀 process.env：Nuxt 在執行期依鍵名對應
+      // NUXT_PUBLIC_GA_MEASUREMENT_ID／NUXT_PUBLIC_META_PIXEL_ID，改了重啟即生效、刪掉變數重啟即關
+      // （若在這裡讀 build 時的值，刪掉變數還要重建映像）。格式不符（G-XXXXXXXXXX／純數字）視同未設定。
+      gaMeasurementId: '',
+      metaPixelId: ''
     }
   }
 
