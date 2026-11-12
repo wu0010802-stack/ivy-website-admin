@@ -23,13 +23,15 @@
   `railway api 'mutation{ serviceInstanceUpdate(serviceId:"<服務>", environmentId:"<環境>", input:{cronSchedule:"0 19 * * *", restartPolicyType:NEVER}) }'`，
   查 `serviceInstance{ cronSchedule restartPolicyType nextCronRunAt }` 確認。重建服務時要再設一次。
 
-本人要做：
-1. 把桌面的 `ivy-website-backup.key` 整個存進密碼管理器，然後刪掉桌面檔案。私鑰弄丟備份就解不開。
-2. Cloudflare 後台 → R2（第一次要綁付款方式；10 GB 內免費）→ Create bucket `ivy-website-db-backups`，位置 Asia-Pacific。
-3. bucket → Settings：Object lifecycle rules 加 prefix `daily/`、30 天刪除；Bucket lock rules 加 prefix `daily/`、保留 7 天（權杖外洩時最近 7 天的備份刪不掉）。
-4. R2 → Manage API tokens → Create API token：**Object Read & Write**、只套用 `ivy-website-db-backups`。
-5. Railway → `db-backup` → Variables 貼上 `R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`（直接貼在網頁，不要貼到聊天或指令）。選用：`BACKUP_HEARTBEAT_URL`。
-6. 改完變數 Railway 會自動重部署並跑一次；log 要看到 `完成：daily/ivy-website-….dump.age`，bucket 裡要有 `.dump.age` 與 `.json`。之後照「還原」做一次演練。
+Cloudflare（2026-11-12，Claude 經 Chrome 操作、權杖最後一步由本人按）：
+- bucket `ivy-website-db-backups`：Asia-Pacific、Standard、Public Access Disabled。與園務系統的 bucket 同一個 Cloudflare 帳號。
+- lifecycle `expire-daily-30d`：`daily/` 30 天刪除。bucket lock `lock-daily-7d`：`daily/` 7 天（表單預設是 Indefinite，要改成 Days）。
+- R2 權杖 `ivy-website-db-backup (Railway db-backup)`：Object Read & Write、只限這個 bucket、TTL Forever。`R2_ACCOUNT_ID`／`R2_ACCESS_KEY_ID`／`R2_SECRET_ACCESS_KEY` 已在 Railway。
+- age 私鑰已存進本人 Mac「密碼」App（`ivy-website-db-backup`，附註是整份 key 檔）。
+
+第一次執行：2026-11-12 08:27Z `railway cron run`，6 秒 EXITED；72 張表的資料、dump 12,505,934 bytes → `daily/ivy-website-20261112T082710Z.dump.age`（12.51 MB）＋ `.json`，R2 網頁確認兩個物件都在。
+
+**還沒做：還原演練**（本人說之後再做）。做法見下面「還原」；R2 下載可用 Cloudflare 網頁，私鑰從「密碼」App 取出貼成暫時檔，用完刪除。
 
 之後改了本目錄的檔案要手動重新上傳（不在 CD 裡）：
 
