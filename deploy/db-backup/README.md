@@ -13,47 +13,29 @@
 
 不在 CD 裡：`main` 推送不會重新部署這個服務；改了本目錄的檔案要照「部署」手動上傳一次。
 
-## 第一次設定（本人操作）
+## 設定現況（2026-11-12）
 
-1. **產生 age 金鑰**（本機）：
+已完成（Claude）：
+- age 金鑰產生在本人桌面 `ivy-website-backup.key`（權限 600，沒有印出私鑰），公鑰 `age15lyvlg4hv5s2lwhjhfxzhcpyt6rp6dr7gj5uhatvh44dzy0r45ns8qvcaz` 已設成 `BACKUP_AGE_RECIPIENTS`。
+- Railway 服務 `db-backup`（`140dd9df-258f-4d0c-b9ce-d1f491d2700e`）已建立並部署，映像在 Railway build 成功；變數 `DATABASE_URL=${{Postgres.DATABASE_URL}}`（內網）、`BACKUP_AGE_RECIPIENTS`、`R2_BUCKET=ivy-website-db-backups`。
+- 正式 Postgres 是 `postgres-ssl:18`，與備份用的 client 同版。
+- **cron 是用 API 設的**：`railway up` 時 `railway.json` 有被讀到，但 cronSchedule／restartPolicyType 沒套用（服務仍是 ON_FAILURE 重試 10 次）。改用
+  `railway api 'mutation{ serviceInstanceUpdate(serviceId:"<服務>", environmentId:"<環境>", input:{cronSchedule:"0 19 * * *", restartPolicyType:NEVER}) }'`，
+  查 `serviceInstance{ cronSchedule restartPolicyType nextCronRunAt }` 確認。重建服務時要再設一次。
 
-   ```sh
-   age-keygen -o ivy-website-backup.key
-   ```
+本人要做：
+1. 把桌面的 `ivy-website-backup.key` 整個存進密碼管理器，然後刪掉桌面檔案。私鑰弄丟備份就解不開。
+2. Cloudflare 後台 → R2（第一次要綁付款方式；10 GB 內免費）→ Create bucket `ivy-website-db-backups`，位置 Asia-Pacific。
+3. bucket → Settings：Object lifecycle rules 加 prefix `daily/`、30 天刪除；Bucket lock rules 加 prefix `daily/`、保留 7 天（權杖外洩時最近 7 天的備份刪不掉）。
+4. R2 → Manage API tokens → Create API token：**Object Read & Write**、只套用 `ivy-website-db-backups`。
+5. Railway → `db-backup` → Variables 貼上 `R2_ACCOUNT_ID`、`R2_ACCESS_KEY_ID`、`R2_SECRET_ACCESS_KEY`（直接貼在網頁，不要貼到聊天或指令）。選用：`BACKUP_HEARTBEAT_URL`。
+6. 改完變數 Railway 會自動重部署並跑一次；log 要看到 `完成：daily/ivy-website-….dump.age`，bucket 裡要有 `.dump.age` 與 `.json`。之後照「還原」做一次演練。
 
-   把整個檔案存進密碼管理器（例如 1Password 的安全筆記），然後刪除本機檔案。檔案第二行 `# public key: age1…` 是公鑰，等一下要用。想要兩個人都能解，就再產一把，兩把公鑰之後以空白分隔一起設定。
+之後改了本目錄的檔案要手動重新上傳（不在 CD 裡）：
 
-2. **建立 R2 bucket**：Cloudflare 後台 → R2 → Create bucket，名稱 `ivy-website-db-backups`，位置選 Asia-Pacific。第一次開 R2 要綁付款方式；10 GB 內免費，官網 DB 壓縮後遠小於這個量。
-
-3. **保留期與防刪除**：bucket → Settings：
-   - Object lifecycle rules → Add rule：prefix `daily/`、30 天後刪除。
-   - Bucket lock rules → Add rule：prefix `daily/`、保留 7 天。權杖外洩時，最近 7 天的備份也刪不掉或改不掉。
-
-4. **建立 R2 權杖**：R2 → Manage API tokens → Create API token，權限 **Object Read & Write**，只套用到 `ivy-website-db-backups`。記下 Access Key ID、Secret Access Key，以及頁面上的 Account ID。
-
-5. **建立 Railway 服務**：官網專案（production 環境）→ New → Empty Service，命名 `db-backup`。在 Variables 設定：
-
-   | 變數 | 值 |
-   |---|---|
-   | `DATABASE_URL` | `${{Postgres.DATABASE_URL}}`（參照，走內網） |
-   | `BACKUP_AGE_RECIPIENTS` | 第 1 步的公鑰 `age1…`（多把以空白分隔） |
-   | `R2_ACCOUNT_ID` | Cloudflare Account ID |
-   | `R2_ACCESS_KEY_ID` | 第 4 步 |
-   | `R2_SECRET_ACCESS_KEY` | 第 4 步 |
-   | `R2_BUCKET` | `ivy-website-db-backups` |
-   | `BACKUP_HEARTBEAT_URL` | 選用，見「失敗通知」 |
-
-   權杖直接在 Railway 網頁貼上，不要貼到聊天、repo 或指令參數。
-
-6. **部署**（在 repo 根目錄）：
-
-   ```sh
-   railway up deploy/db-backup --path-as-root --project d606df61-445a-4e65-9c5f-7e94a0766572 --environment production --service db-backup --detach
-   ```
-
-   `railway.json` 會把服務設成 cron（`0 19 * * *`）、不自動重啟。到服務的 Settings 確認 Cron Schedule 有出現。
-
-7. **立即跑一次驗證**：服務頁面的 cron 區塊按 Run now，log 要看到 `完成：daily/ivy-website-….dump.age`，R2 bucket 裡要有 `.dump.age` 與 `.json` 兩個檔案。然後照下面「還原演練」做一次。
+```sh
+railway up deploy/db-backup --path-as-root --project d606df61-445a-4e65-9c5f-7e94a0766572 --environment production --service db-backup --detach
+```
 
 ## 失敗通知
 
