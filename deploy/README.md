@@ -16,7 +16,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 ## 寄信：Resend（程式 2026-11-12 已上線；11-12 後台系統狀態已顯示經 Resend 寄出）
 
-正式站目前沒有任何寄信設定。要開始寄真實 Email，照下面做；每一步都要本人登入，程式不會自己做。
+正式站 2026-11-12 已照下面設好並開始寄信：寄件地址 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，Resend 網域 `send.ivykidschool.com`（區域 Tokyo），公開預約設定的 `parent_email_enabled` 為 `true`。下面的步驟留給日後換網域或換金鑰時參考；每一步都要本人登入，程式不會自己做。
 
 1. **Resend 帳號與網域**：在 <https://resend.com> 建帳號，Domains → Add Domain。建議用子網域（例如 `send.ivykidschool.com`），不要直接用根網域：根網域的 MX／SPF 是 Google Workspace 的，分開才不會互相影響寄信信譽。區域選離台灣最近的（Tokyo）。
 2. **DNS（Cloudflare）**：把 Resend 列出的紀錄照抄進 Cloudflare（DKIM 的 TXT、回信路徑的 MX 與 SPF TXT），全部**灰雲（DNS only）**。回 Resend 按 Verify，等狀態變成 Verified。紀錄內容以 Resend 主控台顯示的為準，不要照別處的範例填。
@@ -2581,7 +2581,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
-| api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」） |
+| api | `WEBSITE_ADMISSIONS_ENABLED`（選填，預設 false；招生入學模組開關，規格 §15 Q1 裁定前不可開，見上方「招生入學（未部署）」。正式站實際是開的：2026-10-04 那次部署後與 2026-11-12 未登入打 `/admin/admissions/options` 都回 401；隱私權政策到 11-12 還沒發布，Q1 的告知仍欠著） |
 | api | `WEBSITE_GEO_AUTO_SYNC`（預設 false）／`WEBSITE_GEO_DOORPLATE_URL`／`WEBSITE_GEO_KINDERGARTENS_URL`／`WEBSITE_GEO_KINDERGARTENS_REGISTRY_URL`／`WEBSITE_GEO_BABYCARE_URL`／`WEBSITE_GEO_SYNC_CHECK_SECONDS`（86400）（皆選填；招生區域分析的公開門牌、幼兒園與托嬰資料同步，開之前先看上方「公開地理資料同步（招生區域分析）」） |
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
@@ -2589,7 +2589,7 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
-| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設） |
+| api | `WEBSITE_TURNSTILE_SITE_KEY`／`WEBSITE_TURNSTILE_SECRET_KEY`（選填，兩個一起設才啟用公開預約的 Cloudflare Turnstile；site key 經公開預約設定 API 給官網，web 不必另設。2026-11-12 正式站沒設；**啟用前先在隱私權政策第 4、6 段加回 Turnstile 說明並重新發布**，文字在 `docs/specs/2026-10-03-privacy-policy-page-design.md` 第 8 節末） |
 | api | `WEBSITE_SESSION_IDLE_MINUTES`（120）、`WEBSITE_BOOKING_SLOT_HOLDS_PER_SOURCE_PER_DAY`（5）、`WEBSITE_BOOKING_SUBMISSIONS_PER_CAMPUS_PER_HOUR`（30）、`WEBSITE_TELEMETRY_GLOBAL_PER_MINUTE`（600）／`_DAILY_CAP`（20000）、`WEBSITE_ANALYTICS_CLICKS_GLOBAL_PER_MINUTE`（120）／`_DAILY_CAP`（5000）（皆選填） |
 
 ### 公開端點限流與訪客 IP（2026-09-22）
