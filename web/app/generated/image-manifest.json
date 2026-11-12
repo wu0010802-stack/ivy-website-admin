@@ -2999,5 +2999,57 @@
         "avif": "/assets/responsive/tour-chongde-playground-a7f6c30f1893-1477.avif"
       }
     ]
+  },
+  "tour-chongde-plaza": {
+    "width": 1477,
+    "height": 923,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-chongde-plaza-d10122025475-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-chongde-plaza-841bd3d1043a-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-plaza-d10122025475-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-chongde-plaza-841bd3d1043a-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-plaza-d10122025475-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-chongde-plaza-841bd3d1043a-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-chongde-plaza-d10122025475-1477.webp",
+        "width": 1477,
+        "avif": "/assets/responsive/tour-chongde-plaza-841bd3d1043a-1477.avif"
+      }
+    ]
+  },
+  "tour-international-court": {
+    "width": 1477,
+    "height": 923,
+    "candidates": [
+      {
+        "src": "/assets/responsive/tour-international-court-dab18a4b3d70-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/tour-international-court-589e6c35f298-480.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-international-court-dab18a4b3d70-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/tour-international-court-589e6c35f298-800.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-international-court-dab18a4b3d70-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/tour-international-court-589e6c35f298-1200.avif"
+      },
+      {
+        "src": "/assets/responsive/tour-international-court-dab18a4b3d70-1477.webp",
+        "width": 1477,
+        "avif": "/assets/responsive/tour-international-court-589e6c35f298-1477.avif"
+      }
+    ]
   }
 }
