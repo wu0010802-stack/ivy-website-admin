@@ -85,6 +85,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-12 關於頁首屏照片老師美甲改自然指甲、頭髮調黑上線（main CI 部署，沒有 migration）
+
+- **內容**：`9c904a80`（README 同日「/about 首屏照片：老師的美甲改自然指甲、頭髮調黑」），分支 `fix/about-hero-teacher-20261112`。只換 `web/public/assets/about-hero.webp` 與重產的各尺寸 WebP／AVIF、`image-manifest.json`；舊雜湊檔刪掉。使用者看過前後對照說 ok。
+- **推前（本機）**：只動圖片，沒跑 typecheck／測試，交給 CI。
+- **CI**：run 43164800776 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` 的 `base_commit` 是 `9c904a80`；`/about` 200、引用新雜湊 `about-hero-e270248dba64`／`e6332b2f97c9`；`/assets/about-hero.webp` 與 repo 檔案逐位元相同；舊雜湊檔 404。
+- **沒驗、待使用者**：網頁版面裡沒實際看過（只看整張照片的放大對照），實機沒看。
+
 ## 2026-11-12 入學頁各校不同的規定與流程改成五校共通說法上線（main CI 部署，沒有 migration）
 
 - **內容**：`11ba3ac3`（README「2026-11-12 入學頁：各校不同的規定與流程改成五校共通說法」），分支 `fix/admission-campus-20261112`。使用者說有些分校的規定與流程不同，要把有爭議的地方改寫：流程第 4–6 步拿掉「開學前約一個月／約一週」「前三天以半天為主」；二部曲標題改「適應期（一開學）」「適應之後（快樂來上學）」；首部曲叮嚀加「必備品各校略有不同，報到時會提供完整清單，請依清單為寶貝準備。」；每天穿什麼星期表拿掉、併入註冊須知；收費袋「次月 5 日前」改由校區通知；收退費公告時點照高雄市收退費辦法第 14 條。常見問題「一直哭」、首頁孩子的一天背面、特色教學「老師好愛我」同步。動了 `web/server/data/site-fixture.json`、兩份 overlay 測試基準、`public-copy.ts`、`admission-faq.ts`、後台 `curriculumPageDraft.ts`（特色教學預設）、後端 `test_admission_content.py`。使用者說「幫我部署」。
