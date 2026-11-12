@@ -1,3 +1,11 @@
+## 2026-11-12 分校資訊四校補 LINE／IG，「LINE 好友」改叫「Line」（`fix/campus-line-label-20261112`）
+
+使用者說首頁「分校資訊」除了義華只有 FB，要從各校粉專找 LINE@ 和 IG。
+
+- **後台資料（不是程式）**：從各校 FB 粉專「關於」、站內搜尋貼文與 IG 自介查到明華 `@541hvofc`／`ivyschool_mh`、崇德 `@313cwble`／`ivyschool_chongde`、國際 `@786vupcx`／`ivyinternationalkindergarten`、仁武 `@392jltmc`／`ivyschool_2021`。經使用者同意，在正式站後台「五校介紹」四校的 LINE（`https://line.me/R/ti/p/@ID`）與 Instagram 欄填入並發布（12:42–12:44），發布前四校都沒有未發布草稿、確認框只更新這兩欄。明華、仁武各有一個較舊的帳號（`@316crhph`、`@474kdbpd`），取最近貼文用的那個；明華 YouTube `@ivy_minghua` 沒填。`site-fixture.json` 沒改（正式站讀後台）。
+- **程式**：`CampusBoard.vue` 社群列的「LINE 好友」改成「Line」（aria-label 同步），和旁邊的 Facebook、Instagram 一樣只寫平台名。頁首選單「義華校 LINE」等其他地方沒動。
+- 驗證：web `typecheck` 過、`npm run test:website` 140 檔 1888 項過；dev server（fixture 模式）Playwright 看 1440×900 與 390×844 義華卡片顯示「Line | Facebook | Instagram | YouTube」；正式站 HTML 不輸出模板註解。**沒跑**：後端測試（沒動 fixture）、`tests/stack`、實機。
+
 ## 2026-11-12 環境頁「定時消毒」換照片（`feature/env-care-clean-20261112`）
 
 使用者截了環境頁「五件照顧的小事」第五格說「這張照片幫我換掉」，來源不限義華 NAS，粉專、園方雲端都可以。11-10 換上的那張是女孩背對鏡頭洗手，放進半圓以後頭被圓弧切掉，只剩身體和手。
