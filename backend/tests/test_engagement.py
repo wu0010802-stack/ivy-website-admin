@@ -168,7 +168,8 @@ async def test_booking_form_steps_classes_and_campuses(admin_client, minghua_cli
         _visit(session=done, seq=3, page="visit", campus="yihua",
                actions={"form_date": 1, "form_slot": 1, "form_contact": 1, "form_submit": 2, "form_invalid": 1, "booking_done": 1}),
         # 選了日期和場次就離開。
-        _visit(session=stuck, seq=1, page="admission", actions={"class_small": 1}),
+        # 同一頁查了兩個都是小班的孩子：算兩次（PR #70 審查）。
+        _visit(session=stuck, seq=1, page="admission", actions={"class_small": 2}),
         _visit(session=stuck, seq=2, page="visit", campus="yihua", actions={"form_date": 1, "form_slot": 1}),
         # 進到仁武校預約頁，看到沒有場次。
         _visit(session=no_slots, seq=1, page="visit", campus="renwu", actions={"form_no_slots": 1}),
@@ -196,7 +197,7 @@ async def test_booking_form_steps_classes_and_campuses(admin_client, minghua_cli
     assert form["steps"][1]["rate"] == 0.75
 
     assert body["classes"] == [
-        {"key": "class_young", "visits": 0}, {"key": "class_toddler", "visits": 0}, {"key": "class_small", "visits": 2},
+        {"key": "class_young", "visits": 0}, {"key": "class_toddler", "visits": 0}, {"key": "class_small", "visits": 3},
         {"key": "class_middle", "visits": 0}, {"key": "class_big", "visits": 1}, {"key": "class_school", "visits": 0},
     ]
     # 表單進度與試算班別有自己的統計，不列在互動表。

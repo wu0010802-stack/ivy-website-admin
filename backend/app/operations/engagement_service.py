@@ -236,8 +236,9 @@ async def get_engagement_summary(
     for page, key, visits, total in action_rows:
         visits = int(visits)
         if key in class_counts:
+            # 試算查一次算一次（互動次數的加總），不是做過試算的瀏覽數：同一頁查了兩個同班別的孩子算兩次。
             if page == "admission":
-                class_counts[key] += visits
+                class_counts[key] += int(total or 0)
             continue
         story_kind = ENGAGEMENT_STORY_PREFIXES.get(key[:3])
         if story_kind:

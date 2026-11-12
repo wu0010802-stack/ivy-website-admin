@@ -19,7 +19,7 @@ import { splitTrailingParen } from '~/utils/cjkWrap'
 import { createAdmissionMotion, observeStamps, type AdmissionMotion } from '~/utils/admission-motion'
 import { ADMISSION_FAQ, admissionFaqVisible, type AdmissionFaqItem } from '~/utils/admission-faq'
 import type { AdmissionContent, Campus } from '~/types/site-content'
-import { classActionKey, trackEngagementAction } from '~/utils/engagement'
+import { classActionKey, countEngagementAction } from '~/utils/engagement'
 
 // campuses 給常見問題「怎麼預約參觀」列各校電話；沒傳時那一題只有文字。
 const props = defineProps<{ admission: AdmissionContent; campuses?: Campus[] }>()
@@ -72,11 +72,12 @@ const plan = computed(() => {
 const selected = ref(0)
 watch(plan, (value) => { if (value) selected.value = value.position })
 // 內容興趣統計：試算查到哪個班別（只記班別，不記生日）。打字途中的日期會連續變，停 1.5 秒才記。
+// 查一次算一次：同一頁查了兩個同班別的孩子算兩次（PR #70 審查）。
 let classTimer: ReturnType<typeof setTimeout> | undefined
 watch(plan, (value) => {
   clearTimeout(classTimer)
   const key = value ? classActionKey(value.status, value.position) : null
-  if (key) classTimer = setTimeout(() => trackEngagementAction(key), 1500)
+  if (key) classTimer = setTimeout(() => countEngagementAction(key), 1500)
 })
 onBeforeUnmount(() => clearTimeout(classTimer))
 const selectedStation = computed(() => stations[selected.value]!)

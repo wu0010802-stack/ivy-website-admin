@@ -72,7 +72,7 @@
 .cur-kicker .cur-num { color: var(--cur-accent); }
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
-/* 橫滑清單的張數，只有手機顯示（760px 以下才橫滑） */
+/* 美術館橫滑的張數，只有手機顯示（760px 以下才橫滑） */
 .cur-count { display: none; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
 /* 手機橫滑清單可 Tab 聚焦：沿用全站 3px 焦點環，清單貼齊視窗左右緣，所以畫在框內（2026-10-13；原本是瀏覽器預設 1px 黑框） */
@@ -257,21 +257,39 @@
   .cur-year-age sup { left: calc(50% + 6px + var(--i) * 3px); font-size: var(--fs-xs); }
   .cur-year small { margin-top: 8px; padding-top: 0; }
 
-  /* 課程方向、五件事、美術館：一列橫滑，每張自帶照片與文字；清單本身鋪一片淡顏料 */
-  .cur-dir-grid, .cur-daily-list, .cur-art-wall { display: flex; gap: 16px; margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 20px; overflow-x: auto; scroll-snap-type: x mandatory; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
-  .cur-dir-grid::-webkit-scrollbar, .cur-daily-list::-webkit-scrollbar, .cur-art-wall::-webkit-scrollbar { display: none; }
-  .cur-band .cur-frame { aspect-ratio: 4 / 3; }
-  /* 張數提示（2026-11-11）：清單底下一行「1 / 7　左右滑動」，數字跟著捲動變 */
+  /* 2026-11-11 手機只留美術館一條橫滑（使用者裁定）。原本課程方向、美術館、五件事連著三條橫滑，390 寬 20 張卡只露出 3 張、
+     要滑 17 次才看完，字最多的五件事藏得最深。現在課程方向沿用上面 1100 的兩欄，五件事一列一件，都不用滑。 */
+  /* 課程方向：兩欄照舊（1、2｜3、引言｜5、6｜藝術共創），只把間距和右欄的錯落收小 */
+  .cur-dir-grid { column-gap: 16px; row-gap: 36px; margin-top: 40px; }
+  .cur-dir:nth-child(even) { margin-top: 28px !important; }
+  .cur-dir h3 { font-size: var(--fs-lg); }
+  .cur-dir-copy { margin-top: 12px; }
+  /* 引言在半欄裡：「六歲定八十」五個字排一行（320 寬的欄只有 132px），下面那句兩行平均分 */
+  .cur-dir--quote { min-height: 0; padding: 20px 4px; }
+  .cur-dir--quote .cur-dir-sub { font-size: min(1.75rem, 7vw); }
+  .cur-dir--quote .cur-dir-copy p:last-child { text-wrap: balance; }
+  .cur-dir--art h3 { font-size: var(--fs-2xl); }
+  .cur-dir--art .cur-dir-copy { margin-top: 16px; }
+
+  /* 美術館：唯一的橫滑。作品等高、寬度照原比例（原本同寬，橫幅比直幅矮 127px，底下空一塊）；
+     高度上限 60vw，4:3 的橫幅最寬 80vw，下一件一定露得出來。吸附放鬆，不會一張一張卡住。清單本身鋪一片淡顏料。 */
+  .cur-art-wall { --art-h: min(240px, 60vw); display: flex; align-items: flex-start; gap: 14px; margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 20px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
+  .cur-art-wall::-webkit-scrollbar { display: none; }
+  .cur-art { flex: none; margin: 0 !important; scroll-snap-align: start; }
+  .cur-art .cur-frame, .cur-art img { height: var(--art-h); }
+  .cur-art img { width: auto; }
+  /* 張數提示（2026-11-11）：清單底下一行「1 / 8　左右滑動」，數字跟著捲動變 */
   .cur-count { display: flex; align-items: baseline; gap: 4px; margin: 0; font: 600 var(--fs-sm)/1.4 var(--font-date); letter-spacing: .08em; color: var(--muted); font-variant-numeric: tabular-nums; }
   .cur-count b { font-weight: 700; color: var(--green); }
   .cur-count span { margin-left: 10px; font-family: var(--font); font-weight: 400; letter-spacing: .04em; }
-  .cur-dir, .cur-thing { flex: 0 0 80%; display: block; margin-top: 0 !important; scroll-snap-align: start; }
-  .cur-art-wall { align-items: flex-start; }
-  .cur-art { flex: 0 0 62%; margin: 0 !important; scroll-snap-align: start; }
-  .cur-dir--quote { display: grid; min-height: 0; padding: 28px 20px; align-self: stretch; }
-  .cur-dir--quote .cur-blot { inset: -16% -22%; } /* 橫滑卡片照舊（蓋掉上面 1100 的 -8%） */
-  .cur-dir--art h3 { font-size: var(--fs-2xl); }
-  .cur-dir--art .cur-dir-copy { margin-top: 16px; }
+  .cur-band .cur-frame { aspect-ratio: 4 / 3; }
+
+  /* 五件事：一列一件，左邊方形照片、右邊編號＋標題＋內文（同上面的年段）。nth-child(n) 是為了蓋過桌機、平板指定欄位與錯落的那幾條 */
+  .cur-daily-list { grid-template-columns: minmax(0, 1fr); row-gap: 32px; margin-top: 40px; }
+  .cur-thing:nth-child(n) { grid-column: 1 / -1; display: grid; grid-template-columns: clamp(104px, 31vw, 148px) minmax(0, 1fr); column-gap: 16px; align-items: start; margin-top: 0; }
+  .cur-thing .cur-frame { grid-row: 1 / span 3; aspect-ratio: 1; }
+  .cur-thing-no { margin: 0 0 2px; }
+  .cur-thing h3 { margin-bottom: 6px; font-size: var(--fs-xl); }
   /* 第二行「「生命影響生命」的使命。」12 字：320–390 寬要排得下一行 */
   .cur-belief-title { font-size: min(var(--fs-3xl), 7vw); }
   .cur-belief-list { gap: 10px 14px; }

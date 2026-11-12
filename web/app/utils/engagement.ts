@@ -193,3 +193,5 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
 let current: EngagementVisit | null = null
 export function setCurrentVisit(visit: EngagementVisit | null): void { current = visit }
 export function trackEngagementAction(key: string): void { current?.mark(key) }
+/** 同一頁做了幾次就算幾次（例如入學試算查了兩個孩子）；trackEngagementAction 則是做過就記 1。 */
+export function countEngagementAction(key: string): void { current?.action(key) }
