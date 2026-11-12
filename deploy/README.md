@@ -216,6 +216,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上驗證**：`/environment` 有學習區教室、紅磚迴廊中庭、騎士堡、木工創作教室，噴水池花園與校門口已不在；`tour-chongde-playground`、`tour-minghua-courtyard`、`tour-international-woodwork` 衍生檔 200。
 - **待使用者**：正式站義華的校園探索是後台發布的內容，仍是舊的戶外廣場／綠色園藝／共創教室；要在後台「全站與素材 → 校園探索 → 義華」刪綠色園藝、新增「生態花園」（照片 `~/Desktop/義華-生態花園-後台上傳用.jpg`），排成戶外廣場 → 共創教室 → 生態花園後發布。
 
+## 2026-11-12 www 改回灰雲（Cloudflare 代理讓台灣訪客多繞美國）
+
+- **量測**（同一台電腦、中華電信 HiNet，各 12 次取中位）：www 橘雲時進 Cloudflare **SJC（聖荷西）**、再到 Railway `lax1`；首頁 HTML 總時間 1023 ms、JS 檔（Cloudflare 快取 HIT）763 ms、API health 669 ms，光 TLS 約 300 ms。同一程式直連 Railway（`hkg1`）分別是 320／348／175 ms。改回灰雲後 www 實測 376／337／164 ms。
+- **原因**：社群說法是 Cloudflare 與中華電信在台灣互連要付費，只有企業方案走台北，免費方案導去美國（沒有官方說明，但與實測相符）。Pro／Business 是否改善查無證據；Argo 只優化 Cloudflare→原站那段，解決不了台灣→美國。
+- **做法**：Cloudflare DNS 的 `www` 改回 DNS only（16:5x 台北）。`ivykidschool.com` apex 仍橘雲（轉址＋整個網域的 HSTS `max-age=15552000; includeSubDomains`）；www 改由 web 自己送 HSTS 一年版。
+- **少掉的**：Cloudflare 的「預約送出限流」規則與 Bot Fight Mode 對 www 不再作用（設定留著，切回橘雲即恢復）。改由程式本身的限流（校區＋手機為主、訪客 IP 同日已修正）與 Turnstile 擋。`NUXT_CLOUDFLARE_CLIENT_IP=true` 留著無害。
+- **驗證**：www 解析到 Railway、`x-railway-edge: hkg1`；`/`、`/visit`、`/admission`、`/about` 200；apex 仍 301 到 www。
+- **之後要再開橘雲**：先用 HiNet 與手機網路各量一次 `curl -w '%{time_total}'`，確認不再導去美國。
+
 ## 2026-11-12 訪客 IP 改採信 X-Real-IP（操作紀錄與限流原本都記成 Railway 的 CDN 節點）
 
 - **問題**：使用者在 admin 網址登入，操作紀錄的 IP 是 `79.127.228.18`（CDN77 香港），Railway HTTP 日誌的 `srcIp` 卻是本人。`trustedClientIp` 從 `X-Forwarded-For` 右邊取 1 層，而 Railway edge 前面多了一層 CDN77，把自己的節點接在最後面。影響：操作紀錄 IP 不可信；限流的「來源」桶以 CDN 節點計（同區訪客共用，較嚴，不會放寬）；`NUXT_CLOUDFLARE_CLIENT_IP` 也沒作用（最後一段永遠不是 Cloudflare）。不是今天 Cloudflare／admin 子網域造成的，10-06 加 IP 紀錄以來可能一直如此。
