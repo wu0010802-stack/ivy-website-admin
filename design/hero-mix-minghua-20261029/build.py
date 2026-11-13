@@ -11,12 +11,14 @@
 - 第一版（b4b87b46）舊兩鏡＋明華六鏡、都套 10-24 的 grade.py；第二版（602a2b0d）照原片色調、舊兩鏡用 match.py 對齊；
   第三版不再用舊片，封面（第 0 格）換成第一鏡老師擁抱。
 - 第四版（2026-11-13）：同 13 鏡，循環起點轉到抬頭大笑，封面跟著換；剪接點全部不變。
+- 第五版（2026-11-13）：第 3 鏡抱籃球、第 4 鏡老師擁抱放慢到 1 秒（SLOW）；其餘 11 鏡與封面不變。
 """
 from __future__ import annotations
 
 import argparse
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -57,6 +59,40 @@ SHOTS = [
     (33.45, 34.45, 0, 461, 2160, '紫色手掌'),
 ]
 
+# 第五版（2026-11-13）：使用者覺得第 3、4 鏡切太快（0.60／0.70 秒）。原片這兩鏡前後都沒有畫面可以多取
+# （抱籃球之後孩子跳起來、臉被裁掉；老師擁抱往前是老師的後腦、往後 0.02 秒就換鏡），所以放慢播放：
+# 第幾鏡 → 輸出格數（30fps）。原片 18／20 格 → 30 格，約 0.59／0.66 倍速，中間的格用 minterpolate 補。
+SLOW = {3: 30, 4: 30}
+
+
+def frame_count(path):
+    out = subprocess.run(['ffprobe', '-v', 'error', '-count_frames', '-select_streams', 'v:0', '-show_entries',
+                          'stream=nb_read_frames', '-of', 'csv=p=0', str(path)], check=True, capture_output=True, text=True)
+    return int(out.stdout.strip())
+
+
+def slow_shot(source, index, target):
+    """放慢的鏡頭：先取原片的每一格（不過 fps 濾鏡），再補到 SLOW[index] 格。
+
+    開頭墊 n-1 格靜止再把時間軸乘上 (k-1)/(n-1)：原片第 0 格落在輸出第 k-1 格、最後一格落在第 2(k-1) 格，
+    頭尾都是原片的真實影格，不會補到隔壁鏡頭，也不會在尾巴凍格。
+    """
+    start, end, x, y, width, _ = SHOTS[index - 1]
+    raw = target.with_name(f'{target.stem}-raw.mkv')
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-threads', '2',
+         '-ss', f'{start:.3f}', '-t', f'{end - start:.3f}', '-i', str(source), '-filter_threads', '2', '-vf',
+         f'crop={width}:{round(width * 800 / 1080)}:{x}:{y},'
+         f'scale=1080:800:in_color_matrix=bt601:out_color_matrix=bt601:in_range=tv:out_range=tv:flags={SWS},'
+         'setpts=N/30/TB,format=yuv420p', '-r', '30', '-an', '-c:v', 'ffv1', '-threads', '2', str(raw)])
+    n, k = frame_count(raw), SLOW[index]
+    run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-threads', '2', '-i', str(raw), '-filter_threads', '2', '-vf',
+         f'tpad=start_mode=clone:start={n - 1}:stop_mode=clone:stop=4,setpts=N/30/TB*{k - 1}/{n - 1},'
+         'minterpolate=fps=30:mi_mode=mci:mc_mode=aobmc:me_mode=bidir:vsbmc=1:scd=none,'
+         f'trim=start_frame={k - 1}:end_frame={2 * k - 1},setpts=N/30/TB,format=yuv420p',
+         '-r', '30', '-an', '-c:v', 'ffv1', '-threads', '2', str(target)])
+    assert frame_count(target) == k, f'{target.name} 格數不對'
+    print(f'第 {index} 鏡放慢：原片 {n} 格 → {k} 格（{(n - 1) / (k - 1):.2f} 倍速）', flush=True)
+
 
 def lossless_shots(source):
     out = WORK / 'lossless'
@@ -64,7 +100,10 @@ def lossless_shots(source):
     clips = []
     for index, (start, end, x, y, width, _) in enumerate(SHOTS, 1):
         target = out / f'shot-{index:02d}.mkv'
-        if not target.exists():
+        if index in SLOW:
+            if not target.exists():
+                slow_shot(source, index, target)
+        elif not target.exists():
             run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-y', '-threads', '2',
                  '-ss', f'{start:.3f}', '-t', f'{end - start:.3f}', '-i', str(source), '-filter_threads', '2', '-vf',
                  f'crop={width}:{round(width * 800 / 1080)}:{x}:{y},'
@@ -132,7 +171,8 @@ if __name__ == '__main__':
                 'grade': '不調色：screen-17.cube 燒原片沒標記時的螢幕樣貌',
                 'screen_cube': 'design/day-film-color-20261025/screen-17.cube',
                 'color': 'BT.709 原色與矩陣、sRGB 轉換函數、limited range',
-                'shots': [{'shot': i, 'start': s[0], 'end': s[1], 'crop_x': s[2], 'crop_y': s[3], 'crop_width': s[4], 'note': s[5]}
+                'shots': [{'shot': i, 'start': s[0], 'end': s[1], 'crop_x': s[2], 'crop_y': s[3], 'crop_width': s[4], 'note': s[5],
+                           **({'slow_to_frames': SLOW[i]} if i in SLOW else {})}
                           for i, s in enumerate(SHOTS, 1)],
                 'variants': variants}
     (HERE / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + '\n')

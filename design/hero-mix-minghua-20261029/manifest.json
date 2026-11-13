@@ -33,7 +33,8 @@
       "crop_x": 0,
       "crop_y": 461,
       "crop_width": 2160,
-      "note": "抱籃球"
+      "note": "抱籃球",
+      "slow_to_frames": 30
     },
     {
       "shot": 4,
@@ -42,7 +43,8 @@
       "crop_x": 0,
       "crop_y": 461,
       "crop_width": 2160,
-      "note": "老師擁抱"
+      "note": "老師擁抱",
+      "slow_to_frames": 30
     },
     {
       "shot": 5,
@@ -134,11 +136,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 3832368,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 3866447,
       "crf": 24,
-      "sha256": "04fdac6ecfc11282ceaa31d93b0ea9fc7f567a97215fc217d28dfbbf01b120bd"
+      "sha256": "3c17d1bb474f73049474a79a5c3f42650a2fa359f594fdfa839ad3d33fb8d133"
     },
     {
       "file": "hero-desktop-h264.mp4",
@@ -147,11 +149,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 6236852,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 6414818,
       "crf": 18,
-      "sha256": "e4745fbf64b2bbf929134d50feadada21f2e4552324f9b2c9527fbe6b9e9d5af"
+      "sha256": "74a26dab21e41512048f0120bc5d7d9a15347f6f9dfbca7f7d827ffd82d68748"
     },
     {
       "file": "hero-mobile-av1.mp4",
@@ -160,11 +162,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 1529511,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 1526983,
       "crf": 38,
-      "sha256": "ce80ae847262a7dfd75b94d788b12c676e65489e03878707d3bbc15162008f75"
+      "sha256": "ba49f5af143d28c082c9d2b0e45ad3a06d08f9cbfe90eb386ff9ea2754a52036"
     },
     {
       "file": "hero-mobile-h264.mp4",
@@ -173,11 +175,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 2217176,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 2268416,
       "crf": 26,
-      "sha256": "0fb76986a924ec1beb5af311b3a0d53c857bd27e7048b98196291adf02e76288"
+      "sha256": "9478c8c1e127f80ed1b49a8afb08a960f7e4f1b9d809dc95871d68ccb04c913f"
     }
   ]
 }
