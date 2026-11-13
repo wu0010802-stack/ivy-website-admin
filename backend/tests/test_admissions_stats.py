@@ -512,6 +512,23 @@ async def test_unique_counts_keep_anonymized_rows_apart(db_session):
     assert (after["kpi"]["unique_visit"], after["kpi"]["unique_deposit"]) == (2, 2)
 
 
+async def test_unique_counts_keep_unnamed_children_apart(db_session):
+    """2026-11-12 QA M7：到場時自動建立的訪視，孩子姓名都是同一段「（未填姓名）」、生日為空；
+    不同家庭照「姓名|生日」的鍵會被併成同一個孩子，唯一幼生少算。沒有姓名也沒有生日的一筆算一個；
+    有填生日的照舊用鍵（同一個孩子來兩次仍算一個）。"""
+    from app.admissions.constants import MISSING_CHILD_NAME
+
+    add_visit(db_session, child_name=MISSING_CHILD_NAME, birthday=None, has_deposit=True)
+    add_visit(db_session, child_name=MISSING_CHILD_NAME, birthday=None, has_deposit=True)
+    add_visit(db_session, child_name=MISSING_CHILD_NAME, birthday=date(2022, 3, 1))
+    add_visit(db_session, child_name=MISSING_CHILD_NAME, birthday=date(2022, 3, 1))
+    await db_session.commit()
+
+    result = await stats.query_stats(db_session, "yihua", school_year=115, semester=1, reference_month=None, now=NOW)
+    assert result["kpi"]["visit"] == 4
+    assert (result["kpi"]["unique_visit"], result["kpi"]["unique_deposit"]) == (3, 2)
+
+
 def add_target(db, *, campus_key: str, grade: str, seats: int, school_year: int = 115, semester: int = 1) -> None:
     db.add(GradeIntakeTarget(
         id=uuid.uuid4(), campus_key=campus_key, grade=grade, school_year=school_year, semester=semester,

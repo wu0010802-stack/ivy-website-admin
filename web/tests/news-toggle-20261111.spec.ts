@@ -102,6 +102,6 @@ describe('最新消息開關', () => {
     expect(list).toMatch(/const hidden = !newsEnabled\(data\.value\?\.content\.siteMeta\)\nif \(hidden\) \{\n\s+await navigateTo\('\/', \{ redirectCode: 302, replace: true \}\)/)
     expect(list).toContain('<div v-if="data && !hidden">')
     const article = read('app/pages/news/[id].vue')
-    expect(article).toMatch(/if \(hidden\) \{\n\s+await navigateTo\('\/', \{ redirectCode: 302, replace: true \}\)\n\} else if \(!article\.value\) \{\n\s+throw pageNotFound\('找不到這則消息'\)/)
+    expect(article).toMatch(/if \(hidden\) \{\n\s+await navigateTo\('\/', \{ redirectCode: 302, replace: true \}\)\n\} else if \(!article\.value\) \{\n\s+throw createError\(\{ statusCode: 404/)
   })
 })

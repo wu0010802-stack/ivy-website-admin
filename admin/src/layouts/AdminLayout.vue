@@ -7,7 +7,7 @@ import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
 import { NAV_GROUPS, SEARCH_ONLY_GROUP, canOpenPath } from '../router/nav'
-import { WEBSITE_ASSET_BASE } from '../config'
+import { websitePageUrl } from '../composables/websiteLinks'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import SessionLimitNotice from '../components/SessionLimitNotice.vue'
 
@@ -38,9 +38,10 @@ watch(sidebarCollapsed, value => {
 const main = ref<HTMLElement | null>(null)
 const menuButton = ref<HTMLButtonElement | null>(null)
 const pageTitle = computed(() => route.meta.title ?? '')
-// 官網首頁。正式站的 base 是空字串（後台和官網同網域），直接拿 base 當 href 會變成
-// href=""，新分頁開的是目前這頁後台，所以一定要接上「/」。
-const websiteHome = `${WEBSITE_ASSET_BASE.replace(/\/+$/, '')}/`
+// 官網首頁。同網域部署的 base 是空字串，直接拿 base 當 href 會變成 href=""，新分頁開的是
+// 目前這頁後台，所以一定要接上「/」。後台在獨立子網域時「/」會被轉回 /admin/，
+// 要用登入回應帶來的官網 origin 組絕對網址（composables/websiteLinks.ts）。
+const websiteHome = computed(() => websitePageUrl('/', auth.features.public_site_origin))
 const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
 // 側欄不掛數字；給自己的內容通知未讀時，
 // 改在頁首出現一個連結，任何頁面都看得到、點了直接進去。

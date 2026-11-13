@@ -207,7 +207,7 @@ async function confirmModeSwitch(campusKey: string): Promise<boolean> {
   )
   const message = h('div', { class: 'publish-diff' }, [
     h('p', null, `${campusLabel(campusKey)}校官網的「預約參觀」會從「${modeLabel(saved.mode)}」改成「${modeLabel(to)}」，儲存後立即生效。`),
-    h('ul', { class: 'switch-impact' }, impactLines(fresh?.impact, to).map((line, index) => h('li', { key: index }, line))),
+    h('ul', { class: 'switch-impact' }, impactLines(fresh?.impact, to, saved.mode).map((line, index) => h('li', { key: index }, line))),
     alsoChanged.length ? h('p', { class: 'hint' }, `一起修改：${alsoChanged.join('；')}`) : null,
   ])
   try {

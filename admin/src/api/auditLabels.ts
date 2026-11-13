@@ -13,6 +13,9 @@ import {
   VISIT_SOURCE_LABELS,
   visitSourceLabel,
   mediaStatus,
+  MEDIA_STATUS,
+  PUBLISH_JOB_STATUS,
+  NOTIFICATION_KIND_LABELS,
   BOOKING_MODE_LABELS,
   notificationKindLabel,
   outboxErrorLabel,
@@ -475,10 +478,16 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
 // ---- 操作紀錄的伺服器端搜尋（2026-10-14 規格 §4）----
 // 後端比對動作、對象、校區、操作者、裝置與 metadata 原文（代碼與園方填的字）；中文名稱只存在這份檔案，
 // 所以把搜尋字展開成「原字＋名稱含這個字的代碼」一起送，例如「休假」→ visit_exception.create…。
+// 細節欄用到的每一張「代碼 → 中文」標籤表都要在這裡；少一張，搜那張表裡的字就找不到
+// （2026-11-12 QA L19：家長稱呼、孩子姓名、預計入學時間）。新增標籤表時一併加進來，
+// holidayClosure.test.ts 的「操作紀錄搜尋詞展開」會掃這份檔案比對。
+const statusLabels = (table: Record<string, { label: string }>): Record<string, string> =>
+  Object.fromEntries(Object.entries(table).map(([code, meta]) => [code, meta.label]))
+
 const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   AUDIT_ACTION_LABELS,
   // 案件狀態（狀態：預約正常 → 未到場 這類修改前後值）：「未到場」→ no_show。
-  Object.fromEntries(Object.entries(VISIT_STATUS).map(([code, meta]) => [code, meta.label])),
+  statusLabels(VISIT_STATUS),
   AUDIT_TARGET_LABELS,
   CAMPUS_LABELS,
   ROLE_LABELS,
@@ -493,6 +502,23 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   VISIT_SOURCE_LABELS,
   CANCEL_REASON_LABELS,
   MEDIA_FIELD_LABELS,
+  // 預約案件被改的欄位（家長稱呼、孩子姓名、預計入學時間…）、排除原因與列表篩選。
+  VISIT_DETAIL_FIELD_LABELS,
+  VISIT_EXCLUDE_REASON_LABELS,
+  VISIT_GROUP_LABELS,
+  VISIT_VIEW_LABELS,
+  // 招生訪視：階段、建立方式、被改的欄位；參觀後的聯絡方式。
+  RECRUITMENT_STAGE_LABELS,
+  RECRUITMENT_ORIGIN_LABELS,
+  RECRUITMENT_FIELD_LABELS,
+  CONTACT_CHANNEL_LABELS,
+  // 帳密登入失敗發生的地方、帳號被改的欄位、通知重寄的來源與種類、素材與發布排程的狀態。
+  AUDIT_CONTEXT_LABELS,
+  USER_FIELD_LABELS,
+  OUTBOX_RETRY_SOURCE_LABELS,
+  NOTIFICATION_KIND_LABELS,
+  statusLabels(MEDIA_STATUS),
+  statusLabels(PUBLISH_JOB_STATUS),
 ]
 
 /** 和後端 audit_service.MAX_SEARCH_TERMS 一致。 */

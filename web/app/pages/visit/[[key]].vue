@@ -17,7 +17,9 @@ const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 
 const campus = computed(() => campusKey.value ? data.value?.content.campuses.find((c) => c.key === campusKey.value) : undefined)
-const NOT_FOUND = { statusCode: 404, message: '找不到這個校區', fatal: import.meta.client }
+// 404 的 fatal 只在瀏覽器端帶（2026-11-12）：不帶的話站內換頁、上一頁回到這裡時不會顯示 error.vue、整頁空白；
+// 伺服器端本來就顯示錯誤頁，帶了反而讓每個 404 都被 Nitro 印成 [request error] [fatal] 的整段堆疊。
+const NOT_FOUND = { statusCode: 404, statusMessage: 'Not Found', message: '找不到這個校區', fatal: import.meta.client }
 if (campusKey.value && !campus.value) throw createError(NOT_FOUND)
 // 頁面元件不重掛，setup 只跑一次：在頁內換到不存在的校區（手動改網址）也要回 404。
 watch(campusKey, (key) => { if (key && !campus.value) showError(NOT_FOUND) })

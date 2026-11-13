@@ -3,6 +3,7 @@ import { directionsUrl, googleCalendarUrl, icsContent, icsFileName, visitCalenda
 
 // 預約成立（已確認時段）後：加入行事曆、下載 .ics、Google 地圖導航。
 // 只在「預約成立」時由呼叫端放進來——已收到需求、待園方確認都不能出現（規格 197）。
+// 前一天的提醒只在 .ics（VALARM）；Google 日曆的 render 連結沒有帶提醒的參數，所以下方說明只點名「加入手機行事曆」。
 const props = defineProps<{ campus: VisitCalendarCampus; slot: VisitCalendarSlot; uid: string }>()
 
 const event = computed(() => visitCalendarEvent(props.campus, props.slot))
@@ -38,7 +39,7 @@ function downloadIcs() {
         <svg class="icon" aria-hidden="true"><use href="#i-navigation-arrow" /></svg>Google 地圖導航<span aria-hidden="true"> ↗</span><span class="sr-only">（另開新視窗）</span>
       </a>
     </div>
-    <p class="visit-calendar-note">行程只寫分校、地址與電話，不含孩子與家長資料；前一天會提醒。</p>
+    <p class="visit-calendar-note">行程只寫分校、地址與電話，不含孩子與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>
   </div>
 </template>
 

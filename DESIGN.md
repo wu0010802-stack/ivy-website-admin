@@ -1,15 +1,21 @@
-## 全專案探索式 E2E 定下的規則（2026-11-12，`claude/sharp-hopper-134jz4`）
+## 探索式 E2E 定下的規則（2026-11-13，`claude/sharp-hopper-134jz4`）
 
-細節見 README 同日段落。以下之後照著做：
+細節見 README 11-13 段落。以下之後照著做：
 
 - **頁首與 scroll-padding**：`html` 的 `scroll-padding-top` 一律寫成 `var(--header-scroll-pad)`（桌機 112、760 以下 96，`studio.css`）。頁首（`.header`）裡可聚焦的元素用 `scroll-margin-top: calc(-1 * var(--header-scroll-pad))` 抵銷，否則 sticky 頁首的膠囊被 Tab 聚焦時，整頁會捲回 0。改頁首高度或 padding 時兩處一起改。
-- **頁面的 404 在瀏覽器端要 fatal**：頁面元件找不到內容時 `throw pageNotFound('…')`（`usePublishedSite.ts`，`fatal: import.meta.client`）。不要直接 `createError({ statusCode: 404 })`：SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面。伺服器端也不要寫死 `fatal: true`：Nitro 會把每個 404 當 `[request error] [fatal]` 印整段堆疊。
-- **新站頁面網址只有一種寫法**：結尾斜線與大寫一律 301 回標準路徑（`site-redirects.ts` 的 `CANONICAL_PAGES`）。新增頁面時加進清單；頁首用 `route.path` 比對的邏輯（膠囊頁、`aria-current`、預約頁不放預約鈕）都靠這個前提。
-- **送出途中重新整理不能重複建單**：預約表單的草稿（sessionStorage）和 idempotency key 一起存、一起還原；成功才換新 key、清草稿。
-- **沒設定寄信時，家長的管理連結是唯一入口**：家長改 Email 不撤銷連結。有設定寄信時才照 2026-10-13 的規則作廢、換發、寄新信箱。後台人員改 Email 的規則不變（後台會提示「舊連結作廢，需要時重新產生」）。
-- **後台頁面掛到的區塊要看權限**：會打只有某些角色能用的 API 的元件（例如成效統計的 CrUX、Google 搜尋要 `admissions.stats`），沒有權限就不掛，不要讓 403 變成「請重新載入」的錯誤框。草稿預覽只讀自己範圍的草稿，讀不到的疊已發布內容。
+- **頁面的 404 在瀏覽器端要 fatal**：頁面元件找不到內容時 `createError({ statusCode: 404, statusMessage: 'Not Found', message: '…', fatal: import.meta.client })`。不帶 fatal，SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面；寫死 `fatal: true`，Nitro 會把每個 404 當 `[request error] [fatal]` 印整段堆疊。
+- **後台文字進版面要能斷行**：直接顯示後台文字的窄欄（頁尾版權與備註等）加 `overflow-wrap: anywhere`。測溢出要用沒有任何斷點的長字串，帶「/」的網址瀏覽器自己會斷，測不到。
+- **沒設定寄信時，家長的管理連結是唯一入口**：家長改 Email 不撤銷連結，舊信箱的通知照舊排信。有設定寄信時才照 2026-10-13 的規則作廢、換發、寄新信箱。後台人員改 Email 的規則不變。
 - **必填的標題擋發布、不擋存草稿**：網站標題、首頁「關於」標題、五校區塊標題空白時，草稿照存、發布擋下（registry 的 `_required_text_blocker`），排程與還原走同一個檢查。官網的標題空白時退回品牌名。
 - **拿掉的欄位**：「拿掉內容欄位的做法」（後台工程清理一節）這次用在 `site_meta.header_phone_note`、`about_page.outro_title`／`outro_text`、`campus_tour.scenes[].intro`。巢狀欄位（場景）的公開輸出另寫 `public_view`（`_public_campus_tour`），`_public_without_retired` 只看第一層。`header_phone_number` 沒拿掉：選單五校電話並列後，它決定預設反白哪一校，後台標籤改成「選單預設反白的校區電話」。
+
+## 第三方腳本等整頁載完才載（2026-11-12，`feature/mobile-perf-20261112`）
+
+- GA4、Meta Pixel 這類不影響畫面的外部腳本，一律等整頁 `load` 之後、主執行緒有空才加進文件（`web/app/utils/third-party-analytics.ts` 的 `whenPageSettled`），不在 hydration 當下載。queue stub 可以先建、事件先排。理由：兩家合計約 360 KB，比每頁自家 JS 還大；在慢速手機網路上會跟首屏照片、字型搶頻寬，執行又落在載入後第一秒。
+- 之後要加新的第三方腳本（聊天、熱圖、其他像素）照同一個做法，並確認它「送出時才取網址」還是「排隊時就帶網址」：前者（Pixel）載入前不能排 PageView，只能記著、載入時補送當下那一頁。
+- Pixel 的 `consent revoke／grant` 只在 fbevents.js 加進文件之後才排：它載入後清 queue 遇到 revoke 就停，後面的 grant 與事件會一直卡著（以正式站的 fbevents.js 實測）。
+- 手機首屏照片（LCP）的 `sizes`：DPR 2.5 以上的手機可以把寬度估成七成（預約頁校區卡、特色教學 hero 已這樣做），照片仍有 2 倍以上密度、檔案少約三分之一。新的首屏照片在手機上若挑到 1600w 以上，先檢查能不能套這條。
+- 量測：本機負載高時不要看牆鐘毫秒，看 trace 事件的 `tdur`（執行緒 CPU 時間）與次數；「同步重算幾次」不等於成本，把讀取搬到別處若總 CPU 時間沒變就不算改善（孩子的一天 `scheduleFade` 試過，已還原）。
 
 ## 入學頁只寫五校共通的規定與流程（2026-11-12，`fix/admission-campus-20261112`）
 

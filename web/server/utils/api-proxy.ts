@@ -1,4 +1,4 @@
-import { createError, getRequestHeaders, getRequestWebStream, readRawBody, removeResponseHeader, sendProxy, type H3Event } from 'h3'
+import { createError, getRequestHeaders, getRequestWebStream, readRawBody, removeResponseHeader, sendProxy, setResponseHeader, type H3Event } from 'h3'
 import { abortOnClientClose } from './stream-proxy'
 
 // 一般 API 代理（素材 GET／HEAD 走 stream-proxy.ts）。2026-11-12 起不再用 h3 的 proxyRequest：
@@ -43,6 +43,17 @@ export function apiForwardHeaders(event: H3Event, overrides: Record<string, stri
     if (API_FORWARD_REQUEST_HEADERS.has(lower) || API_FORWARD_REQUEST_PREFIXES.some(prefix => lower.startsWith(prefix))) headers[lower] = value
   }
   return Object.assign(headers, overrides)
+}
+
+// 同源 API 入口接受的請求方法（2026-11-12）。後端只有這幾種路由（沒有 CORS，同源不會有預檢），
+// HEAD 給素材探活。TRACE／PROPFIND 之類 fetch 不收的方法以前直接送進 sendProxy，被當成上游故障回 502。
+export const API_PROXY_METHODS = ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'] as const
+
+/** 方法不在白名單就回 405＋Allow，不往上游送。 */
+export function assertApiProxyMethod(event: H3Event): void {
+  if ((API_PROXY_METHODS as readonly string[]).includes(event.method.toUpperCase())) return
+  setResponseHeader(event, 'Allow', API_PROXY_METHODS.join(', '))
+  throw createError({ statusCode: 405, statusMessage: 'Method Not Allowed' })
 }
 
 export interface ApiProxyOptions {

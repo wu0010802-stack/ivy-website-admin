@@ -110,6 +110,15 @@ export function visitDisplay(row: { status: string; display_status: string; canc
   }
 }
 
+/**
+ * 寫在一句話裡的狀態：和案件頁首、列表同一個說法，時間已過的要帶副標（「預約時間已過・已到場」），
+ * 只寫「預約時間已過」會讓人以為還沒標記到場。取消的副標是取消時間，不放進句子裡。
+ */
+export function visitDisplayLabel(row: Parameters<typeof visitDisplay>[0]): string {
+  const shown = visitDisplay(row)
+  return row.display_status === 'past' && shown.sub ? `${shown.label}・${shown.sub}` : shown.label
+}
+
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
 }

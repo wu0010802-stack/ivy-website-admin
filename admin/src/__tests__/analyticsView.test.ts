@@ -3,8 +3,8 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router'
-import { createPinia, setActivePinia } from 'pinia'
-import type { UserOut } from '../api/types'
+import { createPinia } from 'pinia'
+import type { Role } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
 import { testUser } from './fixtures'
@@ -39,16 +39,16 @@ const SearchStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
 })
 
-async function mountView(query: LocationQueryRaw = {}, user: UserOut = testUser('super_admin')) {
-  setActivePinia(createPinia())
-  useAuthStore().user = user
+async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
   await router.isReady()
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser(role, { campus_keys: role === 'super_admin' ? [] : ['yihua'] })
   const wrapper = mount(AnalyticsView, {
     attachTo: document.body,
     global: {
-      plugins: [router, ElementPlus],
+      plugins: [router, ElementPlus, pinia],
       stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub },
     },
   })
@@ -62,19 +62,6 @@ async function mountView(query: LocationQueryRaw = {}, user: UserOut = testUser(
   const pressed = () => tabs().filter((tab) => tab.attributes('aria-pressed') === 'true').map((tab) => tab.text())
   return { wrapper, router, traffic, interest, crux, search, tabs, pressed }
 }
-
-describe('成效統計：Google 的兩塊只給有 admissions.stats 的角色（2026-11-12）', () => {
-  it('分校角色不掛 Chrome 真實使用者與 Google 搜尋（後端 403，原本變成永遠讀不到的錯誤框），其他照常', async () => {
-    for (const role of ['campus_admin', 'reception', 'editor'] as const) {
-      const { traffic, crux, search, router } = await mountView({}, testUser(role, { campus_keys: ['yihua'] }))
-      expect(traffic().exists(), role).toBe(true)
-      expect(crux().exists(), role).toBe(false)
-      await router.push({ path: '/analytics', query: { tab: 'journey' } })
-      await flushPromises()
-      expect(search().exists(), role).toBe(false)
-    }
-  })
-})
 
 describe('成效統計的分類與條件', () => {
   it('四類寫成家長會問的問題，預設在「瀏覽與速度」、近 28 天', async () => {
@@ -173,6 +160,20 @@ describe('成效統計的分類與條件', () => {
     await flushPromises()
     expect(crux().isVisible()).toBe(false)
     expect(search().isVisible()).toBe(false)
+  })
+
+  // 2026-11-12 QA M3：這兩支 API 要 admissions.stats（只有總管理者有），其他角色一律 403，
+  // 面板會永遠停在紅色的「請重新載入」。沒有這個權限就不放面板。
+  it.each(['campus_admin', 'editor', 'reception', 'readonly'] as const)('%s 看不到 Chrome 真實使用者與 Google 搜尋兩個面板', async (role) => {
+    const { crux, search, traffic, interest, tabs } = await mountView({}, role)
+    expect(traffic().exists()).toBe(true)
+    expect(interest().exists()).toBe(true)
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
   })
 
   it('Google 搜尋跟著整頁的期間；Chrome 真實使用者是 28 天滾動，不吃期間', async () => {

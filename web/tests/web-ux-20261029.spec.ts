@@ -84,6 +84,27 @@ describe('預約步驟跟著網址走', () => {
     expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
   })
 
+  // 2026-11-12 QA M4：伺服器已經建好預約、回應卻在路上斷掉時，家長重新整理（暫存連場次一起放回）再按一次
+  // 「確認預約」，原本是一把新的 key，同一家庭就約了兩次。key 跟著暫存走，重送才會拿回同一張收據。
+  it('送出用的 key 跟著暫存走：重新整理後再送是同一把', async () => {
+    const { newIdempotencyKey, restoredIdempotencyKey } = await import('../app/utils/idempotency-key')
+    const key = newIdempotencyKey()
+    expect(restoredIdempotencyKey(key)).toBe(key)
+    for (const bad of [undefined, null, 42, '', 'admin:1', 'x'.repeat(200), `${key} `]) expect(restoredIdempotencyKey(bad)).toBeNull()
+
+    expect(form).toMatch(/const draft: VisitDraft = \{[^}]*idempotencyKey: idempotencyKey\.value/)
+    expect(form).toContain('const savedKey = restoredIdempotencyKey(draft.idempotencyKey)')
+    expect(form).toContain('if (savedKey) idempotencyKey.value = savedKey')
+    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
+  })
+
+  // 2026-11-12 QA M5：預約成功後表單留著資料（方便再約另一校），按上一頁再送同一場次，後端回 ALREADY_BOOKED。
+  it('同一支電話重複約同一場次：說明已經約過，不寫成送出失敗', () => {
+    const branch = form.slice(form.indexOf("code === 'ALREADY_BOOKED'"), form.indexOf("code === 'BOT_CHECK_FAILED'"))
+    expect(branch).toContain('這支電話已經預約過這個場次')
+    expect(branch).not.toContain('submitRetryHint.value = true')
+  })
+
   it('選好日期後把場次捲進畫面（已經看得到就不動）', () => {
     expect(form).toContain('@update:model-value="revealSlots"')
     expect(form).toContain('ref="slotListRef" class="visit-slot-list"')

@@ -1,4 +1,4 @@
-import { ApiError } from './client'
+import { ApiError, CSRF_INVALID_DETAIL } from './client'
 import { contentPathLabel } from './contentFieldLabels'
 
 // API 錯誤的共用解析。後端錯誤本文是 {detail: {code, message, request_id}}
@@ -79,18 +79,46 @@ export function isVersionConflict(err: unknown): boolean {
   return err instanceof ApiError && err.status === 409 && (apiErrorCode(err) ?? '').endsWith('_VERSION_CONFLICT')
 }
 
+/**
+ * 同一台電腦在別的分頁換了帳號，這個分頁的 CSRF token 就對不上（403「CSRF token 無效」）。
+ * 這個說法和登入頁、接續對話框（router/unauthorized.ts）同一句：client 已經把使用者帶去
+ * 那些地方，頁面的 catch 不能再把後端的原字或另一句相同意思的話 toast 一次（notify.ts 會擋掉）。
+ */
+export const SESSION_CHANGED_MESSAGE = '這台電腦的登入狀態已經改變（多半是換了別的帳號登入），請重新登入。'
+
+export function isSessionChanged(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403 && err.detail === CSRF_INVALID_DETAIL
+}
+
+// 密碼欄位的長度規則由 pydantic 擋（min_length／max_length），訊息是英文；其他欄位的英文訊息
+// 另有各自頁面的說法，這裡只處理密碼，其他照舊。
+const PASSWORD_FIELD_NAMES: Record<string, string> = { password: '密碼', new_password: '新密碼', current_password: '目前的密碼' }
+
+function passwordLengthMessage(entry: { loc?: unknown; type?: unknown; msg?: unknown }): string | null {
+  if (entry.type !== 'string_too_short' && entry.type !== 'string_too_long') return null
+  const field = Array.isArray(entry.loc) ? entry.loc.map(String).find((name) => Object.hasOwn(PASSWORD_FIELD_NAMES, name)) : undefined
+  const n = /(\d+)/.exec(String(entry.msg ?? ''))?.[1]
+  if (!field || !n) return null
+  return `${PASSWORD_FIELD_NAMES[field]}${entry.type === 'string_too_short' ? '至少要' : '最多'} ${n} 個字`
+}
+
+// 422 一筆驗證錯誤給人看的文字；pydantic 會在訊息前面加 "Value error, "，對使用者沒有意義。
+function validationEntryMessage(e: unknown): string {
+  if (!e || typeof e !== 'object') return ''
+  const entry = e as { loc?: unknown; type?: unknown; msg?: unknown }
+  if (!('msg' in entry)) return ''
+  return passwordLengthMessage(entry) ?? String(entry.msg).replace(/^Value error,\s*/, '')
+}
+
 export function apiErrorMessage(err: unknown, fallback: string): string {
   if (!(err instanceof ApiError)) return fallback
+  if (isSessionChanged(err)) return SESSION_CHANGED_MESSAGE
   const d = err.detail
   // 字串 detail 只有後端 JSON 回的才是寫給人看的中文；代理回的 HTML／英文原文改用 fallback。
   if (typeof d === 'string' && d) return err.json ? d : fallback
   // FastAPI 的 422 驗證錯誤是陣列（每筆有 loc/msg/type）。
   if (Array.isArray(d)) {
-    const messages = d
-      .map((e) => (e && typeof e === 'object' && 'msg' in e ? String((e as { msg: unknown }).msg) : ''))
-      .filter(Boolean)
-      // pydantic 會在訊息前面加 "Value error, "，對使用者沒有意義。
-      .map((msg) => msg.replace(/^Value error,\s*/, ''))
+    const messages = d.map(validationEntryMessage).filter(Boolean)
     if (messages.length) return messages.join('；')
     return fallback
   }
@@ -124,7 +152,8 @@ export function apiFieldError(err: unknown, field: string): string {
       const loc = (e as { loc?: unknown } | null)?.loc
       return Array.isArray(loc) && loc.includes(field)
     })
-    .map((e) => String(e.msg).replace(/^Value error,\s*/, ''))
+    .map(validationEntryMessage)
+    .filter(Boolean)
     .join('；')
 }
 

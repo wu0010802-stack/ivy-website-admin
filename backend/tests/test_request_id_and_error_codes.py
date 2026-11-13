@@ -231,3 +231,33 @@ async def test_public_site_etag_and_not_modified(admin_client, public_client):
     assert changed.status_code == 200
     assert changed.headers["ETag"] != etag
     assert changed.json()["content"]["home_about"]["title"] == "新標題"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path, raw_body",
+    [
+        # 孤立的 surrogate：json.loads 收、pydantic 退回（string_unicode），原始輸入卻編不成 UTF-8。
+        ("/auth/login", b'{"email":"\\ud800","password":"x"}'),
+        # 非有限數字：json.loads 收成 inf／nan，JSONResponse（allow_nan=False）寫不出去。
+        ("/auth/login", b'{"email":1e999,"password":"x"}'),
+        ("/public/analytics-events", b'{"event_type":NaN}'),
+        ("/public/client-errors", b'{"message":"boom \\ud83d","source":"web"}'),
+    ],
+)
+async def test_unencodable_json_input_is_a_422_not_a_server_error(public_client, db_session, path, raw_body):
+    """2026-11-12 QA M1：422 的本文會帶回原始輸入，遇到編不出去的值時整個回應炸成 500，
+    匿名訪客就能在系統狀態頁製造錯誤群組、觸發總管理者推播。"""
+    from sqlalchemy import func, select
+
+    from app.operations.models import ErrorGroup
+
+    response = await public_client.post(
+        f"{API}{path}", content=raw_body, headers={"content-type": "application/json"}
+    )
+
+    assert response.status_code == 422, response.text
+    body = response.json()
+    assert isinstance(body["detail"], list) and body["detail"]
+    assert all({"loc", "msg", "type"} <= set(item) for item in body["detail"])
+    assert (await db_session.execute(select(func.count()).select_from(ErrorGroup))).scalar_one() == 0

@@ -34,6 +34,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 **程式做了什麼**（`web/app/plugins/third-party-analytics.client.ts`、`web/app/utils/third-party-analytics.ts`、`web/shared/third-party-analytics.ts`）
 
 - 直接載 `gtag.js` 與 `fbevents.js`（`createElement`），**不用 GTM**（GTM 讓有容器權限的人能注入任意腳本到和後台同源的網站）、不用 inline script。
+- 2026-11-13 起兩支外部腳本等整頁 `load` 之後、主執行緒有空才載入（`whenPageSettled`，手機效能）；事件先排在 queue 裡。進站 2–3 秒內就離開的訪客 GA／Pixel 不會記到。驗證時要等頁面載完再看 Network。
 - 瀏覽器開了「不要追蹤」（DNT）或 Global Privacy Control 就整個不載入。只看自己的 ID 與 DNT／GPC，`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響這兩個。
 - `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
 - GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
@@ -196,6 +197,35 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 搬過去之後同事要知道：要在新網址重新登入；瀏覽器存的密碼是跟著網址的，要重新存；手機通知要在新網址的後台重新開一次（舊網址的訂閱會失效）；加到手機主畫面的後台要刪掉重加。LINE 群組推播與信裡的後台連結會自動改成新網址。
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
+
+## 2026-11-13 素材庫改存 Cloudflare R2（只改 Railway 變數，沒有程式變更、沒有 migration）
+
+- **結果**：正式站 api 自 11:05（台北）起 `WEBSITE_MEDIA_STORAGE=s3`，素材上傳、讀取、刪除都走 R2 bucket `ivy-website-media`（Asia-Pacific、Standard、不公開；與資料庫備份的 `ivy-website-db-backups` 同一個 Cloudflare 帳號，各自獨立）。讀檔仍經 API 串流，網址與快取標頭不變。步驟照下方「素材改存 S3 相容物件儲存」。
+- **Cloudflare**：R2 權杖 `ivy-website-media (Railway api)`，帳號層級、Object Read & Write、只限這個 bucket、TTL Forever。金鑰由使用者自己貼進 Railway，沒有經過對話或 repo。
+- **Railway api 變數**：`WEBSITE_S3_BUCKET`、`WEBSITE_S3_ENDPOINT_URL`（`https://<account id>.r2.cloudflarestorage.com`）、`WEBSITE_S3_REGION=auto`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY`、`WEBSITE_MEDIA_STORAGE=s3`；沒有設 `WEBSITE_S3_PREFIX`。
+- **複製**：`media-copy-to-s3 --dry-run`「將複製 38」→ 實跑「已複製 38、失敗 0」→ 切換後再跑「S3 已有 38」。另在容器內逐檔比對 volume 與 bucket 的 SHA-256：38 個全相同，合計 90.9 MB。
+- **線上驗證**（只發 GET）：`/api/published-site` 引用的 20 個素材網址，切換前後狀態碼、大小、內容雜湊全部相同；影片 `Range: bytes=1000-1999` 回 206 與正確的 `Content-Range`，超出範圍回 416；`Cache-Control: public, max-age=31536000, immutable` 不變。容器內 `get_storage()` 是 `S3MediaStorage`。切換後 8 分鐘 api 沒有 5xx。
+- **代價**：素材首位元組時間中位數 180 ms → 250 ms（多一段 api→R2）；瀏覽器快取一年，只影響第一次載入。
+- **過程中的事故**（詳見下一段 #78 那條）：09:21 先用 CLI 設了 `WEBSITE_S3_BUCKET`（沒有金鑰），剛好撞上 #78 的 CI 部署，api 09:22:56～09:42:53 停機。查 web 的 HTTP 紀錄，這段時間沒有預約送出，五校 `booking-config` 各 12 次 502。**之後這組變數一律在 Railway 後台一次貼完再 Deploy。**
+- **過程中的三次重貼**：金鑰第一次 Access Key ID 只貼到 1 個字元（R2 回 400）、第二次 Secret 不是這把權杖的（`SignatureDoesNotMatch`），第三次才對；每次改變數 api 中斷約 20 秒。驗證方式是在容器內對 bucket 做 `list`（要回 OK）與讀不存在的 key（要回 `NoSuchKey`），不要只看格式。
+- **Cloudflare 後台的坑**：建權杖的表單按送出後卡在灰色、沒有請求也沒有錯誤，是後台的 service worker（`/tether/sw.js`）卡住；在該分頁取消註冊後重新載入就正常（無痕視窗或換瀏覽器也可以）。
+- **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
+- **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
+
+## 2026-11-13 後台「查看官網」修正上線，連同 QA 報告修正（#78）一起部署（main CI 部署，沒有 migration）
+
+- **內容**：`92552b1c`（README「2026-11-13 後台『查看官網』開回後台自己」）。後端 `features` 多一個 `public_site_origin`，後台用它組官網的絕對網址。沒有變數要改（api 的 `WEBSITE_PUBLIC_ORIGIN` 11-12 已設）。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **連同 #78**：`cd2849f8`（QA 報告 9 條中度＋35 條輕度）09:14 併入 main 的那次 run 43343368056 測試全綠，但 Deploy 在 api 失敗：同一時間另一個工作階段用 CLI 先設了 `WEBSITE_S3_BUCKET`（沒有金鑰），`Settings()` 驗證不過；api 掛 volume，舊版已先停，09:22:56～09:42:53 api 停機。復原是刪掉該變數後 `railway redeploy --service api`（重跑的是那次失敗的部署，所以 api 從 09:42 起已是 #78 的後端，web 仍是 `dd2925cd`）。這次部署把 api 與 web 都帶到 `92552b1c`，落差消失。
+- **CI**：run 43347605874 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `92552b1c`，api health 200。
+- **線上驗證**：已登入的瀏覽器開 `https://admin.ivykidschool.com/admin/`，頁首「查看官網」的 `href` 是 `https://www.ivykidschool.com/`（修正前是 `/`，會 302 回 `/admin/`）。
+- **未驗證**：首頁內容與五校介紹編輯頁的「查看官網此頁」、發布成功提示裡的連結沒有在正式站實際點（同一個函式，單元測試有涵蓋）；#78 的各條沒有在正式站逐條驗。
+
+## 2026-11-13 手機效能上線：GA4／Pixel 等整頁載完才載入、特色教學手機首屏圖降一級（main CI 部署，沒有 migration）
+
+- **內容**：`dd2925cd`（README「2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級」）。只動 web，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43336343450 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `dd2925cd`。
+- **線上驗證**（Playwright 手機寬度，GA／Meta 的 beacon 與非 GET 請求全部攔下，沒有寫進統計）：首頁 hydration 完成時 `dataLayer` 已排好 `page_view`、文件裡沒有外部腳本，`load`（2.66 秒）之後約 1.2 秒才請求 `gtag/js` 與 `fbevents.js`；GA `page_view` 的 `dl` 為 `https://www.ivykidschool.com/`。第一頁是 `/visit/manage#…` 時完全不載。`/curriculum` 手機（390 寬、DPR3）首屏圖為 `cur-hero-…-1200.avif`（119 KB，原本 1600w 177 KB）。
+- **未驗證**：headless Chrome 裡 Pixel 不發 `facebook.com/tr`，Pixel 的 PageView 與 Lead 要用真瀏覽器在 Meta 事件管理工具確認；iOS Safari 實機未驗。
 
 ## 2026-11-12 環境頁崇德戶外廣場、國際中庭操場上線（main CI 部署，沒有 migration）
 
@@ -3100,10 +3130,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
 `notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
 
-### 素材改存 S3 相容物件儲存（2026-09-24，尚未切換）
+### 素材改存 S3 相容物件儲存（2026-09-24 程式；**2026-11-13 正式站已切到 Cloudflare R2**，紀錄見上方同日段落）
 
-目前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
-單一實例，repo 裡也沒有備份機制。程式已支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
+切換前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
+單一實例，repo 裡也沒有備份機制。程式支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
 `WEBSITE_MEDIA_STORAGE=s3` 時上傳、讀取、刪除都走 bucket，api 啟動不再要求 volume。
 讀檔仍經 API 串流（網址、權限、快取標頭不變，Range 轉給儲存服務，iOS 影片可播）。
 
@@ -3118,6 +3148,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 切換步驟（bucket 與金鑰由園方自己建，程式不會建任何外部服務）：
 
 1. 先只設 `WEBSITE_S3_*`，**不要**設 `WEBSITE_MEDIA_STORAGE`，部署。此時仍讀寫 volume。
+   `WEBSITE_S3_BUCKET`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY` 三個**要在
+   Railway 後台一次加完再 Deploy**：只設其中一兩個時 `Settings()` 驗證不過，api 掛著 volume
+   會先停舊版，部署失敗就是停機（2026-11-13 發生過）。用 CLI 加 `--skip-deploys` 分次設也不安全，
+   中途任何一次 main 部署都會吃到半套變數。
 2. 預覽：`railway ssh --service api --environment production -- python -m app.cli media-copy-to-s3 --dry-run`
 3. 複製：同上去掉 `--dry-run`。只讀 volume、只寫 bucket、不動 DB；bucket 已有同大小的檔案
    會跳過，可以重跑；上傳後核對大小，失敗的檔案列在最後且指令以非 0 結束。

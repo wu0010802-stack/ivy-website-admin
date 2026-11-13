@@ -711,3 +711,104 @@ async def test_migration_marks_rule_generated_slots(app, admin_client, db_sessio
     assert auto and all(r.from_rule for r in auto)
     on_wed = {r.start_time.strftime("%H:%M"): r.from_rule for r in rows if r.slot_date == wed}
     assert on_wed == {"09:00": True, "09:30": True, "10:00": True, "13:00": False, "14:00": False}
+
+
+@pytest.mark.asyncio
+async def test_exception_for_a_past_date_is_rejected_and_touches_nothing(admin_client, db_session):
+    """2026-11-12 QA L12：過去的日期收進來會把當天已結束的場次關掉，之後畫面只列今天以後的
+    休假日，這筆再也看不到、刪不掉。早於「今天（台北）」的休假日一律 422，什麼都不動。"""
+    import uuid
+    from datetime import datetime, time, timezone
+
+    from sqlalchemy import func, select
+
+    from app.booking.models import VisitException, VisitSlot
+
+    yesterday = today_local() - timedelta(days=1)
+    past_slot = VisitSlot(
+        id=uuid.uuid4(), campus_key="yihua", slot_date=yesterday, start_time=time(10, 0), end_time=time(11, 0),
+        capacity=2, closed=False, created_at=datetime.now(timezone.utc),
+    )
+    past_id = past_slot.id
+    db_session.add(past_slot)
+    await db_session.commit()
+
+    response = await admin_client.post(
+        f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": yesterday.isoformat(), "reason": "補記"}
+    )
+    assert response.status_code == 422, response.text
+    assert response.json()["detail"]["code"] == "INVALID_EXCEPTION_DATE"
+    assert "過去" in response.json()["detail"]["message"]
+
+    db_session.expire_all()
+    assert await db_session.scalar(select(func.count()).select_from(VisitException)) == 0
+    assert (await db_session.get(VisitSlot, past_id)).closed is False
+
+
+@pytest.mark.asyncio
+async def test_exception_for_today_is_still_accepted(admin_client):
+    """颱風假當天才宣布是常態：今天（台北）可以設，只擋更早的日期。"""
+    response = await admin_client.post(
+        f"{API}/admin/visit-schedule/yihua/exceptions", json={"exception_date": today_local().isoformat(), "reason": "颱風"}
+    )
+    assert response.status_code == 201, response.text
+
+
+def _slot_body(day, start="10:00:00", end="11:00:00", capacity=2) -> dict:
+    return {"slot_date": day.isoformat(), "start_time": start, "end_time": end, "capacity": capacity}
+
+
+@pytest.mark.asyncio
+async def test_cannot_create_a_slot_that_already_started(admin_client, db_session, monkeypatch):
+    """2026-11-12 QA L13：後台可以建「過去或已開始」的場次，建出來家長約不到、也沒有任何用處，
+    只會佔著名額表。開始時間（台北）已過就 422；還沒開始的照舊可以建。"""
+    from datetime import datetime
+
+    from sqlalchemy import func, select
+
+    from app.booking import slot_routes
+    from app.booking.models import VisitSlot
+    from app.common.timezones import OPERATING_TZ
+
+    day = today_local() + timedelta(days=2)
+    # 把「現在」固定在台北時間當天 12:00，上午的場次已開始、下午的還沒。
+    monkeypatch.setattr(slot_routes, "now_utc", lambda: datetime(day.year, day.month, day.day, 12, 0, tzinfo=OPERATING_TZ))
+    url = f"{API}/admin/slots?campus_key=yihua"
+
+    for body in (
+        _slot_body(day - timedelta(days=1)),
+        _slot_body(day, "11:59:00", "12:30:00"),
+        _slot_body(day, "12:00:00", "12:30:00"),
+    ):
+        response = await admin_client.post(url, json=body)
+        assert response.status_code == 422, (body, response.text)
+        assert response.json()["detail"]["code"] == "SLOT_START_PASSED"
+        assert "已經過" in response.json()["detail"]["message"]
+    assert await db_session.scalar(select(func.count()).select_from(VisitSlot)) == 0
+
+    ok = await admin_client.post(url, json=_slot_body(day, "12:01:00", "12:30:00"))
+    assert ok.status_code == 201, ok.text
+
+
+@pytest.mark.asyncio
+async def test_an_existing_past_slot_can_still_be_closed_or_resized(admin_client, db_session):
+    """只擋「建立」：已經存在而後來過去的場次，還是要能停止申請、調名額（既有流程不能被擋死）。"""
+    import uuid
+
+    from sqlalchemy import update
+
+    from app.booking.models import VisitSlot
+
+    created = await admin_client.post(f"{API}/admin/slots?campus_key=yihua", json=_slot_body(today_local() + timedelta(days=2)))
+    assert created.status_code == 201, created.text
+    slot = created.json()
+    await db_session.execute(
+        update(VisitSlot).where(VisitSlot.id == uuid.UUID(slot["id"])).values(slot_date=today_local() - timedelta(days=1))
+    )
+    await db_session.commit()
+
+    patched = await admin_client.patch(
+        f"{API}/admin/slots/{slot['id']}", json={"capacity": 5, "closed": True, "expected_version": slot["version"]}
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["capacity"] == 5 and patched.json()["closed"] is True

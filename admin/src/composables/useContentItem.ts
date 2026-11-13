@@ -6,6 +6,7 @@ import type { ContentItemOut } from '../api/types'
 import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath, HQ_MANAGED_KINDS } from '../api/labels'
 import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
+import { websitePageUrl } from './websiteLinks'
 import { useRequestSequence } from './useRequestSequence'
 import { pairItems } from './listAlignment'
 import { pageSeoChangeDetail } from './pageSeoDefaults'
@@ -376,7 +377,9 @@ export function useContentItem<TPayload extends object>(
     return diffPayload(JSON.parse(snapshot.value) as Record<string, unknown>, form.value as Record<string, unknown>, kind)
   })
 
-  const publicUrl = computed(() => `${WEBSITE_ASSET_BASE}${contentPublicPath(kind, unref(campusKey))}`)
+  // 官網頁面的連結用官網的 origin（後台在獨立子網域時「/」會被轉回後台）；草稿預覽 /preview 要帶
+  // 後台的登入狀態，留在後台主機。
+  const publicUrl = computed(() => websitePageUrl(contentPublicPath(kind, unref(campusKey)), useAuthStore().features.public_site_origin))
   const previewUrl = computed(() => {
     const path = contentPreviewPath(kind, unref(campusKey))
     return path ? `${WEBSITE_ASSET_BASE}${path}` : ''

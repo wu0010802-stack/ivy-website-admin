@@ -128,9 +128,27 @@ export function isValidDate(value: string) {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
-/** 接受手機自動填入、複製貼上的空格與連字號，API 仍收到 09 開頭的十碼。 */
+/**
+ * 接受手機自動填入、複製貼上的空格與連字號，以及輸入法在全形狀態打出的數字（０-９），API 仍收到 09 開頭的十碼。
+ * 全形數字只做明確的 U+FF10–FF19 對照，不用 NFKC（它會連圈圈、上標數字都當成數字）。
+ * backend/app/booking/schemas.py 的 normalize_phone 是同一個規則。
+ */
 export function normalizeVisitPhone(phone: string) {
-  return phone.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
+  return phone
+    .replace(/[\uFF10-\uFF19]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
+}
+
+/** 孩子生日的下限：今天（台北）往前 18 年，只擋 1900-01-01 這類明顯打錯的年份。today 是 YYYY-MM-DD。 */
+export const CHILD_BIRTHDATE_MAX_YEARS = 18
+
+/** 今天是 2/29、18 年前沒有 2/29 時，下限落在 2/28。backend 的 earliest_child_birthdate 是同一個規則。 */
+export function earliestChildBirthdate(today: string) {
+  const [year = 0, month = 0, day = 0] = today.split('-').map(Number)
+  const target = year - CHILD_BIRTHDATE_MAX_YEARS
+  const leap = (target % 4 === 0 && target % 100 !== 0) || target % 400 === 0
+  const earliestDay = month === 2 && day === 29 && !leap ? 28 : day
+  return `${String(target).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(earliestDay).padStart(2, '0')}`
 }
 
 export function validateVisitContact(contact: VisitContact, today = taipeiDate()): VisitErrors {
@@ -146,6 +164,7 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
   if (contact.childBirthdate !== undefined) {
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
+    else if (contact.childBirthdate < earliestChildBirthdate(today)) errors.childBirthdate = '請確認孩子的出生日期，年份看起來不太對。'
   }
   // 新版表單一律帶 email 欄位（2026-09-30 起必填）；舊呼叫端不帶。錯誤字不提「確認信會寄到這裡」：
   // 寄信看各校 parent_email_enabled（10-02 正式站是關的），欄位說明才跟著設定換句子（2026-10-12）。
@@ -167,7 +186,7 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
   childName: '請填寫孩子姓名。',
-  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
+  childBirthdate: '請確認孩子的出生年月日是否填寫正確，不能晚於今天。',
   expectedStart: '這個入學時間已過期，請重新選擇。'
 }
 

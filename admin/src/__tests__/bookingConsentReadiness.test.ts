@@ -116,6 +116,22 @@ describe('啟用條件與影響範圍（純函式）', () => {
     expect(impactLines(null, 'phone')[0]).toContain('無法讀取')
   })
 
+  // 2026-11-12 QA L14：目前不是「線上選場次」（已暫停、電話、LINE、外部網址）的校區，家長本來就不能從官網選場次，
+  // 切換確認框不能再說「切換後家長不能再從官網選場次」。
+  it('目前不是線上選場次的校區切換：不說「切換後家長不能再從官網選場次」', () => {
+    for (const from of ['paused', 'phone', 'line', 'external'] as const) {
+      const text = impactLines(impact, from === 'phone' ? 'line' : 'phone', from).join('')
+      expect(text, from).not.toContain('不能再從官網選場次')
+      expect(text, from).not.toContain('官網目前可預約的場次')
+      expect(text, from).toContain('進行中的案件 3 件')
+    }
+    // 從線上選場次切走：照舊說明；沒有可預約場次就不用提。
+    expect(impactLines(impact, 'paused', 'slots').join('')).toContain('官網目前可預約的場次 4 個：切換後家長不能再從官網選場次')
+    expect(impactLines({ ...impact, bookable_slots: 0 }, 'paused', 'slots').join('')).not.toContain('官網目前可預約')
+    // 切換成線上選場次：列出場次與規則數。
+    expect(impactLines({ ...impact, weekly_rules: 2 }, 'slots', 'paused').join('')).toContain('場次 4 個，每週開放規則 2 條')
+  })
+
   it('已過參觀時間、還沒結案的已確認案件另外列，細項加總等於進行中件數（B04-R4）', () => {
     const lines = impactLines({ ...impact, open_requests: 5, upcoming_confirmed: 3, past_confirmed: 2 }, 'phone')
     expect(lines[0]).toBe('進行中的案件 5 件（已確認、還沒參觀 3、已過參觀時間、尚未結案 2）：不會被修改，照常在「參觀案件」處理。')
@@ -217,11 +233,26 @@ describe('各校預約方式：不可啟用原因與切換確認', () => {
     expect(text).toContain('會從「暫停預約」改成「電話洽詢」')
     expect(text).toContain('進行中的案件 3 件')
     expect(text).toContain('洽詢電話：（空白） → 07-000-0000')
+    // 已暫停的校區，家長本來就不能從官網選場次（2026-11-12 QA L14）。
+    expect(text).not.toContain('不能再從官網選場次')
     expect(patch).not.toHaveBeenCalled()
 
     await saveButton(wrapper).trigger('click')
     await flushPromises()
     expect(patch).toHaveBeenCalledWith('/admin/booking-config/yihua', expect.objectContaining({ mode: 'phone', phone: '07-000-0000' }))
+  })
+
+  it('目前是線上選場次的校區改成電話：確認框照舊提醒家長不能再從官網選場次', async () => {
+    mockBookingApi(readiness({ current_mode: 'slots' }), config('slots', null))
+    vi.spyOn(api, 'patch').mockResolvedValue({ ...config('phone'), phone: '07-000-0000', version: 5 } as never)
+    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockRejectedValue('cancel')
+    const wrapper = await mountAt(BookingSettingsView, '/booking')
+    await wrapper.get('input[type="radio"][value="phone"]').setValue(true)
+    await nextTick()
+    await wrapper.get('input[placeholder="07-000-0000"]').setValue('07-000-0000')
+    await saveButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(textOf(confirm.mock.calls[0]![0])).toContain('官網目前可預約的場次 4 個：切換後家長不能再從官網選場次')
   })
 
   it('沒有換方式的存檔不跳切換確認', async () => {

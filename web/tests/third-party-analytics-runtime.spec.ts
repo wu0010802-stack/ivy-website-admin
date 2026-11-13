@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnalyticsIds } from '../shared/third-party-analytics'
-import { createThirdPartyAnalytics, leadEventParams, reportBookingLead } from '../app/utils/third-party-analytics'
+import { createThirdPartyAnalytics, leadEventParams, reportBookingLead, whenPageSettled } from '../app/utils/third-party-analytics'
 
 // GA4＋Meta Pixel 的瀏覽器端（2026-11-12）：載入時機、gtag／fbq 收到什麼、哪些頁面完全不送、預約成功事件的參數。
 // 純函式與 CSP 在 third-party-analytics.spec.ts。外部腳本一律不真的載入（假的 document，或攔下 appendChild）。
@@ -223,6 +223,176 @@ describe('進出預約修改頁（SPA 換頁）', () => {
   })
 })
 
+describe('外部腳本延後載入（2026-11-12 手機效能）', () => {
+  /** defer 由測試控制：inject() 才等於「整頁載完、主執行緒有空」。 */
+  function deferred(ids: AnalyticsIds = BOTH) {
+    const { doc, scripts } = fakeDocument()
+    const requests: (() => void)[] = []
+    const analytics = createThirdPartyAnalytics(ids, win, doc, inject => { requests.push(inject) })
+    return { analytics, scripts, requests, inject: () => requests[0]!() }
+  }
+  const pixelPageViews = () => pixelQueue().filter(entry => entry[0] === 'track' && entry[1] === 'PageView')
+
+  it('第一個可送事件的頁面：stub 與 GA 事件先排進 queue，外部腳本等 defer 叫了才加進文件', () => {
+    const { analytics, scripts, requests, inject } = deferred()
+    analytics.pageView(at('/'), '/', '常春藤幼兒園')
+    expect(requests).toHaveLength(1)
+    expect(scripts).toEqual([])
+    expect(layer().map(entry => entry[0])).toEqual(['js', 'config', 'set', 'event'])
+    expect(events('page_view')).toEqual([{ page_location: at('/'), page_title: '常春藤幼兒園' }])
+    expect(pixelQueue()).toEqual([['set', 'autoConfig', false, PIXEL], ['init', PIXEL]])
+
+    inject()
+    expect(scripts.map(script => script.src)).toEqual([
+      `https://www.googletagmanager.com/gtag/js?id=${GA}`,
+      'https://connect.facebook.net/en_US/fbevents.js'
+    ])
+    // Pixel 的 PageView 在腳本加進文件之前才排進 queue（送出時取當下網址）
+    expect(pixelQueue()).toEqual([['set', 'autoConfig', false, PIXEL], ['init', PIXEL], ['track', 'PageView']])
+  })
+
+  it('載入前換過頁：GA 兩筆 page_view 各帶自己的網址；Pixel 只補送一次；defer 只排一次', () => {
+    const { analytics, scripts, requests, inject } = deferred()
+    analytics.pageView(at('/?utm_source=line'), '/', '首頁')
+    analytics.pageView(at('/about'), '/about', '關於常春藤')
+    expect(requests).toHaveLength(1)
+    expect(pixelPageViews()).toEqual([])
+    inject()
+    expect(events('page_view')).toEqual([
+      { page_location: at('/?utm_source=line'), page_title: '首頁' },
+      { page_location: at('/about'), page_title: '關於常春藤', page_referrer: at('/?utm_source=line') }
+    ])
+    expect(pixelPageViews()).toHaveLength(1)
+    expect(scripts).toHaveLength(2)
+
+    // 載入後照舊：每換一頁各送一次；inject 再被叫也不會重複載入
+    analytics.pageView(at('/environment'), '/environment', '校園環境')
+    inject()
+    expect(pixelPageViews()).toHaveLength(2)
+    expect(scripts).toHaveLength(2)
+  })
+
+  it('輪到載入時人在預約修改頁：不載；離開後才載，Pixel 只送離開後那一頁', () => {
+    const { analytics, scripts, inject } = deferred()
+    analytics.pageView(at('/visit/yihua'), '/visit/yihua', '預約參觀')
+    analytics.hold('/visit/manage')
+    analytics.settle('/visit/manage')
+    analytics.pageView(at('/visit/manage#token=SECRET'), '/visit/manage', '修改預約')
+    inject()
+    expect(scripts).toEqual([])
+    expect(pixelPageViews()).toEqual([])
+    expect((win as unknown as Record<string, unknown>)[`ga-disable-${GA}`]).toBe(true)
+
+    analytics.hold('/')
+    analytics.settle('/')
+    expect(scripts).toHaveLength(2)
+    expect(pixelPageViews()).toEqual([])
+    // 腳本載入前不排 consent：fbevents.js 清 queue 遇到 revoke 就停，後面的 grant 與事件會卡住
+    expect(pixelQueue()).toEqual([['set', 'autoConfig', false, PIXEL], ['init', PIXEL]])
+    analytics.pageView(at('/'), '/', '首頁')
+    expect(pixelPageViews()).toHaveLength(1)
+    expect((win as unknown as Record<string, unknown>)[`ga-disable-${GA}`]).toBe(false)
+    expect(JSON.stringify([layer(), pixelQueue()])).not.toMatch(/SECRET|manage/)
+
+    // 載入之後再進修改頁：照舊用 consent 暫停、離開後恢復
+    analytics.hold('/visit/manage')
+    expect(pixelQueue().at(-1)).toEqual(['consent', 'revoke'])
+    analytics.settle('/')
+    expect(pixelQueue().at(-1)).toEqual(['consent', 'grant'])
+  })
+
+  it('換頁被取消（人還在一般頁面）時輪到載入：照常載', () => {
+    const { analytics, scripts, inject } = deferred()
+    analytics.pageView(at('/'), '/', '首頁')
+    analytics.hold('/visit/manage')
+    inject()
+    expect(scripts).toEqual([])
+    analytics.settle('/')
+    expect(scripts).toHaveLength(2)
+  })
+
+  it('第一頁是預約修改頁：連 defer 都不排', () => {
+    const { analytics, requests } = deferred()
+    analytics.pageView(at('/visit/manage#token=SECRET'), '/visit/manage', '修改預約')
+    expect(requests).toEqual([])
+    expect(win.fbq).toBeUndefined()
+  })
+
+  it('載入前就預約成功：generate_lead 與 Lead 照樣排進 queue，不會漏', () => {
+    const { analytics, inject } = deferred()
+    history.replaceState(null, '', '/visit/yihua')
+    analytics.pageView(at('/visit/yihua'), '/visit/yihua', '預約參觀')
+    reportBookingLead('yihua', 'visit_page')
+    expect(events('generate_lead')).toHaveLength(1)
+    expect(pixelQueue().at(-1)![1]).toBe('Lead')
+    inject()
+    // PageView 補在 Lead 後面也無妨：兩筆都會送出
+    expect(pixelPageViews()).toHaveLength(1)
+  })
+})
+
+describe('whenPageSettled（整頁 load 之後、主執行緒有空才載）', () => {
+  function fakeWindow(readyState: DocumentReadyState, withIdle = true) {
+    const listeners: Record<string, () => void> = {}
+    const idle: { fn: () => void; timeout?: number }[] = []
+    const fake = {
+      setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
+      clearTimeout: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
+      addEventListener: (name: string, fn: () => void) => { listeners[name] = fn },
+      ...(withIdle ? { requestIdleCallback: (fn: () => void, options?: { timeout?: number }) => { idle.push({ fn, timeout: options?.timeout }) } } : {})
+    }
+    return { fake: fake as unknown as Window, doc: { readyState } as Document, listeners, idle }
+  }
+  beforeEach(() => { vi.useFakeTimers() })
+  afterEach(() => { vi.useRealTimers() })
+
+  it('還在載入：等 load，再等 requestIdleCallback（上限 2 秒）', () => {
+    const run = vi.fn()
+    const { fake, doc, listeners, idle } = fakeWindow('interactive')
+    whenPageSettled(run, fake, doc)
+    expect(idle).toEqual([])
+    listeners.load!()
+    expect(run).not.toHaveBeenCalled()
+    expect(idle).toHaveLength(1)
+    expect(idle[0]!.timeout).toBe(2000)
+    idle[0]!.fn()
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('已經載完（SPA 後來才第一次進到可送事件的頁面）：直接等閒置', () => {
+    const run = vi.fn()
+    const { fake, doc, listeners, idle } = fakeWindow('complete')
+    whenPageSettled(run, fake, doc)
+    expect(listeners.load).toBeUndefined()
+    idle[0]!.fn()
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('沒有 requestIdleCallback（Safari）：load 後等 1 秒', () => {
+    const run = vi.fn()
+    const { fake, doc, listeners } = fakeWindow('loading', false)
+    whenPageSettled(run, fake, doc)
+    listeners.load!()
+    vi.advanceTimersByTime(999)
+    expect(run).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+
+  it('load 遲遲不來：8 秒保底照樣載，之後 load 才到也不會再跑一次', () => {
+    const run = vi.fn()
+    const { fake, doc, listeners, idle } = fakeWindow('loading')
+    whenPageSettled(run, fake, doc)
+    vi.advanceTimersByTime(7999)
+    expect(run).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(run).toHaveBeenCalledTimes(1)
+    listeners.load!()
+    idle[0]!.fn()
+    expect(run).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('預約成功事件', () => {
   it('參數只留白名單：campus_key 必須是五校之一、entry 必須是 CTA 入口代碼', () => {
     expect(leadEventParams('yihua', 'visit_page')).toEqual({ campus_key: 'yihua', entry: 'visit_page' })
@@ -285,6 +455,8 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
 
   beforeEach(() => {
     appended = []
+    // 外掛把外部腳本延到整頁載完、主執行緒有空（whenPageSettled）：用假時鐘，settle() 直接走到 8 秒保底。
+    vi.useFakeTimers()
     // 外部腳本不真的載入：攔下 appendChild（script 只在加進文件時才會被 happy-dom 抓取）。
     vi.spyOn(document.head, 'appendChild').mockImplementation(<T extends Node>(node: T): T => {
       appended.push(node as unknown as HTMLScriptElement)
@@ -303,6 +475,8 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     setupPlugin({ hook: (name, fn) => { hooks[name] = fn } })
     return { hooks, before, after }
   }
+  afterEach(() => { vi.useRealTimers() })
+  const settle = () => { vi.advanceTimersByTime(8000) }
   const configured = { gaMeasurementId: GA, metaPixelId: PIXEL, telemetryEnabled: false }
   const go = (path: string) => {
     history.replaceState(null, '', path)
@@ -338,6 +512,10 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     const { hooks } = mount(configured)
     go('/')
     hooks['app:mounted']!()
+    // hydration 完成當下還不載：事件先排在 queue，外部腳本等頁面載完
+    expect(appended).toEqual([])
+    expect(events('page_view')).toHaveLength(1)
+    settle()
     expect(appended.map(script => script.src)).toEqual([
       `https://www.googletagmanager.com/gtag/js?id=${GA}`,
       'https://connect.facebook.net/en_US/fbevents.js'
@@ -365,6 +543,8 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     go('/')
     after[0]!()
     hooks['page:finish']!()
+    expect(appended).toEqual([])
+    settle()
     expect(appended).toHaveLength(2)
     expect(events('page_view')).toHaveLength(1)
     expect(JSON.stringify(layer())).not.toMatch(/SECRET|manage/)
@@ -374,6 +554,8 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     const { hooks, before, after } = mount(configured)
     go('/visit/yihua')
     hooks['app:mounted']!()
+    settle()
+    expect(appended).toHaveLength(2)
     const sent = layer().length
 
     before[0]!({ path: '/visit/manage' })

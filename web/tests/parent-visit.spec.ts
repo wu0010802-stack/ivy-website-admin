@@ -263,6 +263,7 @@ describe('parent visit campus', () => {
 
   it('清掉網址 token 時一併改寫 router 的 history.state.current，返回時不會把 token 帶回網址列', () => {
     const page = readFileSync(fileURLToPath(new URL('../app/pages/visit/manage.vue', import.meta.url)), 'utf8')
+    // force: true（2026-11-12 QA M6）：同分頁開第二條連結時目標和 router 記的位置相同，不加會被略過、token 留在網址列。
     expect(page).toMatch(/router\.replace\(\{ path: route\.path, query: route\.query, hash: '', force: true \}\)/)
     expect(page).not.toContain('history.replaceState')
   })

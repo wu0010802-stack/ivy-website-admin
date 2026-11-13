@@ -478,8 +478,11 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 
-/* 句中的連結（「預約文案」）只靠顏色分辨不夠（WCAG 1.4.1，axe link-in-text-block），同 style.css 的說明文字連結加底線。 */
-.seo-summary dd a {
+/* 夾在句子中間的連結只靠顏色分辨不夠（WCAG 1.4.1，axe 的 link-in-text-block）。
+   style.css 已經替 .page-lead、.hint、.field-help 裡的連結加了底線；下面幾處不在那些容器裡。 */
+.seo-summary dd a,
+.retention__overdue a,
+.site-unpublished a {
   text-decoration: underline;
   text-underline-offset: 2px;
 }

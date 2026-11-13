@@ -105,13 +105,15 @@ const BASE_HEADERS: Readonly<Record<string, string>> = {
   'Permissions-Policy': PERMISSIONS
 }
 
-const ADMIN_PATH = /^\/admin(?:\/|$)/
+// 後台路徑不分大小寫、連續斜線先收成一個再比對（2026-11-12 QA L4）：靜態處理器連 ///admin/ 都找得到後台入口，
+// 以前這種寫法只帶公開頁的 CSP、沒有 no-store 與 noindex。正規寫法另由 plugins/url-canonical.ts 301，這裡是第二道。
+const ADMIN_PATH = /^\/admin(?:\/|$)/i
 // 後台入口 HTML（靜態 index.html）；深層路由由 routes/admin/[...path].get.ts
 // 自己設 no-store。/admin/assets/* 有內容雜湊，照常快取。
-const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/
+const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/i
 // Service worker 與 manifest 的檔名固定（沒有內容雜湊）：no-cache＝可以存、但每次都向伺服器確認有沒有新版，
 // 後台發版後手機上的 worker 與 manifest 才會跟著更新（瀏覽器本來就不讓 worker 腳本吃 HTTP 快取超過 24 小時）。
-const ADMIN_REVALIDATE = /^\/admin\/(?:sw\.js|manifest\.webmanifest)$/
+const ADMIN_REVALIDATE = /^\/admin\/(?:sw\.js|manifest\.webmanifest)$/i
 
 // nitro 的靜態資源處理器先 decodePath 再找檔，/%61dmin/ 一樣拿到後台入口；
 // 判斷是不是後台要用解碼後的路徑，否則會只帶公開頁的寬鬆 CSP（2026-10-22 資安稽核）。
@@ -122,6 +124,10 @@ function decodedPathname(pathname: string): string {
   } catch {
     return pathname
   }
+}
+
+function collapseSlashes(pathname: string): string {
+  return pathname.replace(/\/{2,}/g, '/')
 }
 
 /**
@@ -136,15 +142,18 @@ export function securityHeadersFor(
 ): Record<string, string> {
   const pathname = path.split('?')[0] ?? '/'
   const decoded = decodedPathname(pathname)
+  // 後台判斷用「原字串」與「解碼後」各自收過斜線的版本；麥克風頁維持原寫法（只有 /anniversary 本身開麥克風）。
+  const adminPaths = [pathname, decoded].map(collapseSlashes)
+  const isAdmin = (pattern: RegExp) => adminPaths.some(candidate => pattern.test(candidate))
   const headers: Record<string, string> = { ...BASE_HEADERS }
   if (analytics) headers['Content-Security-Policy'] = publicCsp([], analytics)
   if (!scriptPolicy) headers['Content-Security-Policy'] = PUBLIC_CSP_BASE
   if (MIC_PAGE.test(pathname)) headers['Permissions-Policy'] = PERMISSIONS.replace('microphone=()', 'microphone=(self)')
-  if (ADMIN_PATH.test(pathname) || ADMIN_PATH.test(decoded)) {
+  if (isAdmin(ADMIN_PATH)) {
     headers['Content-Security-Policy'] = ADMIN_CSP
     headers['X-Robots-Tag'] = 'noindex, nofollow'
-    if (ADMIN_ENTRY.test(pathname) || ADMIN_ENTRY.test(decoded)) headers['Cache-Control'] = 'private, no-store'
-    else if (ADMIN_REVALIDATE.test(pathname) || ADMIN_REVALIDATE.test(decoded)) headers['Cache-Control'] = 'no-cache'
+    if (isAdmin(ADMIN_ENTRY)) headers['Cache-Control'] = 'private, no-store'
+    else if (isAdmin(ADMIN_REVALIDATE)) headers['Cache-Control'] = 'no-cache'
   }
   // HSTS 只在正式環境送；本機是 http，瀏覽器本來就會忽略，但測試環境
   // 用自簽 https 時送了會讓 localhost 被鎖一年。includeSubDomains（2026-11-12，正式網域

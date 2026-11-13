@@ -1,31 +1,69 @@
-## 2026-11-12 全專案 E2E＋探索式測試找到的 18 個問題修正（`claude/sharp-hopper-134jz4`）
+## 2026-11-13 探索式 E2E 剩下的 10 條修正（`claude/sharp-hopper-134jz4`）
 
-使用者要求「全專案 E2E」：`tests/stack`（176＋opt-in 的 admin-tips 30）、`tests/e2e` 四視口（34）、hydration（`nuxt dev`，10）全部通過。另外用 4 組隔離的 stack（各自 DB、埠號、mail sink）做探索式測試，專測 spec 沒涵蓋的路徑。每條發現都由另一個代理重跑並嘗試推翻：21 條候選，19 條成立（2 條是同一件），2 條推翻（兒童生日無下限、全形數字手機號：spec 沒規定）。使用者要求全部處理：
+11-12 的全專案 E2E（`tests/stack`、`tests/e2e` 四視口、`nuxt dev` hydration 全部通過）之後，用 4 組隔離 stack 做探索式測試，另一個代理逐條重跑確認，成立 18 條。其中 8 條和同日的 QA 報告重疊，已由 `fix/qa-report-20261112` 修掉：surrogate 500（M1）、成效統計錯誤框（M3）、重新整理重複建單（M4／M5）、管理連結 token（M6）、草稿預覽 8 個 404（M9／L8）、不存在的校區 500（L6）、網址寫法（L4／L5／L27）、句中連結底線（L35）。11-13 在 main `3f34503b` 上重跑確認這 8 條都好了，剩下 10 條在這裡修。沒有 migration，API 契約不變。
 
-- **公開站**
+- **官網**
   - **頁首膠囊**：sticky 頁首的頁面捲動後 Shift+Tab 進膠囊，瀏覽器為了讓它離開 `scroll-padding` 把整頁捲回 0，頁首切回 hero、膠囊隱藏、焦點掉到 body。`studio.css` 把 padding 放進 `--header-scroll-pad`，頁首內的控制項用負的 `scroll-margin-top` 抵銷。
-  - **上一頁白畫面**：從 404 離開再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary` 同理）整頁空白。原因是 `createError` 沒帶 `fatal`，client 端不掛 `error.vue`。改用 `usePublishedSite.ts` 的 `pageNotFound()`（只在瀏覽器端 fatal；伺服器端 fatal 會讓每個 404 都印整段堆疊），`/visit/<不存在>` 一併補。
-  - **網址寫法**：`/about/`、`/About`、`/visit/manage/` 原本回 200，頁首比對 `route.path` 全部失準。`server/utils/site-redirects.ts` 的 `canonicalPagePath` 改成 301 回標準路徑；消息 id 不改大小寫，後台與 API 不動。
-  - **管理頁 token**：已開著 `/visit/manage` 又在同分頁開修改連結（同文件 fragment 導覽）時，router 判成重複導覽，token 留在網址與 `history.state`。`router.replace` 加 `force: true`。
+  - **上一頁白畫面**：從 404 點站內連結離開、再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary`、`/visit/<不存在>` 同理）整頁空白。五頁的 404 `createError` 加 `fatal: import.meta.client`：瀏覽器端沒有 fatal 就不掛 `error.vue`；伺服器端不帶，否則每個 404 都被 Nitro 印成整段堆疊。
   - **未登入的 `/preview`**：沒有 `<title>`，「跳至主要內容」沒有目標。補固定標題，三種提示改成 `<main id="main">`。
-  - **頁尾**：底部備註放長網址時，390／375 會橫向溢出。`SiteFooter.vue` 加 `overflow-wrap:anywhere`。
-- **家長預約**
-  - **孤立 surrogate**：JSON 裡的 `"\ud800"` 讓公開預約 API 回 500、寫進 error_groups。422 回應不再帶 `input`，編不出來的字換成 U+FFFD（`main.py`）；預約欄位的控制字元檢查加上 surrogate 範圍，完整送單也回 422。
-  - **重新整理雙重預約**：送出途中重新整理會建第二筆預約、寄第二封信。草稿（sessionStorage）一起存 idempotency key，還原後重送是同一把 key（`VisitForm.vue`）。
-  - **改 Email 的連結**：沒設定寄信（正式站 10-02 起）時，家長在管理頁改 Email 會撤銷唯一的管理連結，換發的新連結又寄不出去。改成寄信關閉時連結不動（`update_details_by_parent(email_enabled=…)`）；有寄信時照舊作廢、換發、寄新信箱。
-  - **錯誤朗讀**：管理頁修改表單的錯誤訊息補 `aria-describedby`，報讀器念得出原因。
+  - **頁尾**：底部備註放沒有斷點的長字串時，390 寬被撐到 908px。`SiteFooter.vue` 加 `overflow-wrap:anywhere`。
+  - **錯誤朗讀**：家長管理頁修改表單的錯誤訊息補 `aria-describedby`，報讀器念得出原因。
+- **預約**
+  - **改 Email 的連結**：沒設定寄信（正式站 10-02 起）時，家長在管理頁改 Email 會撤銷唯一的管理連結，換發的新連結又寄不出去。改成寄信關閉時連結不動（`update_details_by_parent(email_enabled=…)`）；通知舊信箱照舊排進 outbox。有寄信時照 10-13 的規則作廢、換發、寄新信箱。
 - **後台與內容**
-  - **成效統計**：Chrome 真實使用者數據與 Google 搜尋只給有 `admissions.stats` 的角色掛（`AnalyticsView.vue`），其他角色不再看到永遠讀不到的紅框。
-  - **草稿預覽**：分校角色只讀自己校區的草稿，原本每次載入有 8 個 404。讀不到的校區改疊已發布內容（`/public/site`），不再停在 fixture 示範資料（`useDraftPreview.ts`）。
-  - **不存在的校區**：content-items 帶不存在的 `campus_key` 原本寫到外鍵才 500（`campus_tour` 連分校角色都打得到），改成回 404 `CAMPUS_NOT_FOUND`。
-  - **空白標題**：網站標題、首頁「關於」標題、五校區塊標題可以存草稿，但擋發布（registry 的 `_required_text_blocker`）。官網 `pageSeo` 的標題空白時退回品牌名。
-  - **連結底線**：個資與搜尋設定頁句中的「預約文案」連結加底線（WCAG 1.4.1）。
+  - **空白標題**：網站標題、首頁「關於」標題、五校區塊標題可以存草稿，但擋發布（registry 的 `_required_text_blocker`）；原本清空後照常發布，首頁變成空的 `<title>`。官網 `pageSeo` 的標題空白時退回品牌名。
   - **拿掉三個官網不顯示的欄位**（照 DESIGN.md「拿掉內容欄位的做法」：`Field(default="", exclude=True)`、公開輸出剔除、後台 normalize 丟掉、中文欄位名保留）：網站標題與電話的「電話備註」（`header_phone_note`）、關於頁的「結尾：五所校園」（`outro_title`／`outro_text`）、校園探索的「場景說明」（`scenes[].intro`）。「頁首電話」還在用（決定選單預設反白哪一校），改名「選單預設反白的校區電話」並寫明用途。
-- **測試**
-  - 新增 `backend/tests/test_exploratory_e2e_20261112.py`、`tests/stack/exploratory-e2e-20261112.spec.ts`，`web/tests/site-redirects.spec.ts` 加標準路徑。
-  - 既有測試跟著改：寫死舊原始碼的斷言、`analyticsView.test.ts` 補登入角色、`editor-live-preview.spec.ts` 改編輯預設校區電話、`test_booking_access_races.py` 的「誤寄信箱」案例明寫有設定寄信。
-  - 完整報告（每條的重現、根因、`檔案:行號`）在本次 session 的 scratchpad，沒有進 repo。
-- **沒動的**：Nuxt dev 的 `Duplicated imports "MediaImage"` 警告無害（`types/site-content.ts` 轉出同一個型別）。截圖基準只在 macOS 比對，這次在 Linux 跑，沒有比像素。
+- **測試**：新增 `backend/tests/test_exploratory_e2e_20261112.py`（空白標題、拿掉的欄位、改 Email 的連結）、`tests/stack/exploratory-e2e-20261112.spec.ts`（404 上一頁、膠囊、`/preview`、頁尾）；`qa-fixes-20261112.spec.ts` 的 L1 片段補上 `fatal`；`test_booking_access_races.py` 的「誤寄信箱」案例明寫有設定寄信。頁尾那條 e2e 第一版用帶「/」的網址，瀏覽器自己會斷行、沒修也會過，已改成沒有斷點的長字串。
+- **沒驗證到的**：截圖基準只在 macOS 比對，這次在 Linux 跑，沒有比像素；只測了 Chrome。
+
+## 2026-11-13 後台「查看官網」開回後台自己（`fix/view-site-link-20261113`）
+
+11-12 後台搬到 `admin.ivykidschool.com` 之後，頁首「查看官網」點了仍是後台：連結是相對路徑 `/`，而後台主機的 `/` 會被 web 轉回 `/admin/`（`web/server/utils/admin-host.ts`）。首頁內容與五校介紹的「查看官網此頁」、發布成功提示裡的「查看官網」（`/`、`/#campuses`）同樣受影響；其他頁（`/about` 等）本來就會被 301 回官網，所以沒被發現。
+
+- 後端 `/auth/login`、`/auth/me` 的 `features` 多一個 `public_site_origin`（`WEBSITE_PUBLIC_ORIGIN`，沒設是 `null`）；契約已重新產生，沒有 migration。
+- 後台連到官網頁面的網址改由 `admin/src/composables/websiteLinks.ts` 的 `websitePageUrl` 組：有官網 origin 用絕對網址，沒有（同網域部署、本機開發）照舊。素材與草稿預覽 `/preview` 仍走後台主機。
+- 正式站 api 已設 `WEBSITE_PUBLIC_ORIGIN=https://www.ivykidschool.com`（11-12 部署紀錄），不用加變數。
+
+## 2026-11-12 QA 報告的 9 條中度＋35 條輕度問題（`fix/qa-report-20261112`）
+
+依 11-12 的 QA 測試報告（main `04c0ce2`）逐條修正。沒有 migration、沒有改 API 欄位（契約不變）。
+
+**中度**
+
+- **M1** 不合法 JSON（孤立 surrogate、`1e999`、`NaN`）讓 422 的回應寫不出去、變成 500 並觸發總管理者推播：422 handler 帶回原始輸入前先整理成寫得出去的 JSON（`backend/app/main.py` 的 `_json_safe`）。
+- **M2** 素材標籤、說明、圖說、來源、授權含控制字元一律 422（原本標籤含 NUL 存得進去，之後整個素材庫 500）；上傳表單同樣檢查、校區代碼不存在回 404、檔名裡的控制字元拿掉；列表對更早存進去的壞標籤防呆（那一筆當成沒有標籤）。
+- **M3** 成效統計的 Chrome 真實使用者與 Google 搜尋兩個面板只給有 `admissions.stats` 的人（總管理者），其他角色不再看到永遠失敗的「請重新載入」。
+- **M4／M5** 同校同場次同一支手機已有占名額的預約時，官網送單回 409 `ALREADY_BOOKED`（鎖內檢查，不放進 Turnstile 之前的預檢）；預約表單把送出用的 key 一起存進分頁暫存，回應沒收到、重新整理再送會拿回同一張收據。
+- **M6** 同一分頁開第二條家長管理連結時 token 留在網址列與上一頁：`router.replace` 加 `force`（原本被當成重複導覽略過，還取消了瀏覽器那次換 hash 的導覽）。
+- **M7** 招生統計唯一幼生：姓名是「（未填姓名）」且沒有生日的訪視一筆算一個。
+- **M8** 案件 CSV 匯出的「參觀日期」和列表同一個算法，提早到場的案件不再空白。
+- **M9／L8** 草稿預覽與即時預覽和官網同一條輸出（`publicCopy`、示意消息）；分校帳號讀不到的別校內容不再向後台要（原本 8 個 404），改用官網已發布的。
+
+**輕度**
+
+- 後端：內容 API 帶不存在的校區回 404（L6）；總管理者不能停用自己、改自己的角色（L9）；休假日不能設在過去、不能建立開始時間已過的場次（L12／L13）；聯絡紀錄不收只有空白的內容與沒時區的時間（L17）；影片封面失敗訊息去掉 ffmpeg banner、只留尾段（L20）；消息封面與場景圖只收素材庫 UUID 或內建圖片代號，不收網址（L21）；Resend 寄信帶 Idempotency-Key，同 key 內容不同的 409 視為已寄出（L23）；`test_engagement` 的兩可斷言改成唯一值（L25）；手機號碼收全形數字、孩子生日下限 18 年（L30／L31，前後端同規則）。
+- 官網：頁面 404 的原因片語是 Not Found（L1）；`robots.txt`／`sitemap.xml`／`llms.txt` 收 HEAD（L2）；API 代理只收六種方法，其餘 405（L3）；頁面網址正規化成單一寫法並 301（尾斜線、大小寫、連續斜線；`///admin/`、`/Preview` 也一樣），Host 標頭格式錯誤回 400，後台標頭與分流判斷不分大小寫、先收斜線（L4／L5／L27，`web/server/plugins/url-canonical.ts`）；前端錯誤回報截斷不切斷 emoji（L18）；帶 `fbclid` 的 Instagram 流量算 Instagram（L22）；單校消息結尾的參觀入口跟著那一校的預約方式（L26）；30 週年馬賽克容器寬度 0 時不拋例外（L28）；「前一天會提醒」只描述 .ics（L29）；停用 JS 時預約頁改顯示來電說明、首頁手機版關於段全部展開（L32，`@media (scripting: none)`）。
+- 後台：密碼字數以 code point 計、密碼長度的 422 轉中文（L10）；別的分頁換帳號後只出現一個提示（L11）；加開場次時今天已過的時間不能選（L13）；已不是線上選場次的校區切換預約方式時不再提「家長不能再選場次」（L14）；案件標題長字串可斷行（L15）；409 提示用完整狀態「預約時間已過・已到場」（L16）；操作紀錄搜尋補齊細節欄用到的標籤表（L19）；隱私權政策初稿的 cookie 名改成 `__Host-ivy_parent_session`（L24）；瀏覽平均不到 1 時寫「不到 1 次」（L33）；沒有「實際預約」欄的人不顯示那段說明（L34）；保存政策頁句中連結加底線（L35）。
+
+**沒有改**
+
+- **L7** `/visit/manage` 沒有家長 session 時 console 的 401：session 是 HttpOnly cookie，頁面要問伺服器才知道有沒有；改用瀏覽器端的記號來省掉這次請求，Safari 七天清掉 localStorage 後會把還有效的 session 誤判成過期。401 是正確的回答，畫面正常，維持原狀。
+- **L32** `/about` 全人教育面板：內容本來就在 SSR 的 HTML 裡、停用 JS 也看得到，不需要處理。
+
+**行為改變要留意**：同一支手機同一場次只能有一筆有效預約（取消後可再約）；消息封面與場景圖若舊資料存的是外部網址，之後存檔或還原會被擋（那種圖本來就是破圖）；`/about/`、`/About` 這類網址現在會 301。
+## 2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級（`feature/mobile-perf-20261112`）
+
+使用者要求優化前台手機版的渲染流暢度與效能。先對正式站 7 頁做手機寬度實測（390×844、DPR3；當時本機負載 25–50，所以只採計次數與執行緒 CPU 時間 `tdur`，不採計牆鐘毫秒），再改兩件量得到效益的事。
+
+- **GA4 與 Meta Pixel 的外部腳本延後載入**（`web/app/utils/third-party-analytics.ts`、`plugins/third-party-analytics.client.ts`）：兩家共約 360 KB，比每頁自家 JS（160–270 KB）還大，原本 hydration 完成當下就載。正式站實測：每頁載入時的腳本求值時間約九成是這兩家（桌機 CPU 合計約 190ms，落在載入後第一秒；中階手機約四倍），慢速網路（1.6 Mbps／150ms）下擋掉它們內頁 LCP 快 0.4–0.6 秒。現在 queue stub 照舊先建、事件先排，外部腳本等整頁 `load` 之後主執行緒有空才加進文件（`whenPageSettled`：`requestIdleCallback` 上限 2 秒，Safari 等 1 秒，另有 8 秒保底）。
+  - GA 的 page_view 自帶網址，載入前換過頁也各送各的；Pixel 的 PageView 取送出當下的網址，載入前只記一次、載入時補送。
+  - 輪到載入時人在預約修改頁就不載，離開再載；這段期間不把 `consent revoke／grant` 排進 Pixel 的 queue（實測 fbevents.js 清 queue 遇到 revoke 就停，後面的指令會卡住）。
+  - 代價：進站後 2–3 秒內就離開的訪客，GA／Pixel 不會記到（第一方統計 `/api/telemetry` 不受影響）。
+- **特色教學首屏圖**（`CURRICULUM_HERO_SIZES`）：DPR 2.5 以上的手機把寬度估成七成（做法同預約頁校區卡），390 寬 DPR3 從 1600w（181 KB）改挑 1200w（122 KB），框裡仍有約 2.5 倍密度。這張原本是六頁手機 LCP 圖裡最大的。
+- **本機並排**（同一 commit 的 production build、fixture、1.6 Mbps／150ms、交錯各 3 次，中位數）：`load` 六頁都提早約 1.9–2.4 秒（例：首頁 5.60→3.70、預約 5.54→3.22）；LCP 特色教學 4.47→2.70 秒、預約 3.62→3.21 秒，其餘四頁不變（本機伺服器快，LCP 本來就早於第三方腳本）；/about 最後一片字型 5.59→4.39 秒。
+- **量過、沒改**：捲動時的同步樣式重算——把孩子的一天 scroll 事件裡的 `window.scrollY` 併進共用捲動幀，重算次數少兩成但 CPU 時間不變（工作只是從事件移到 rAF），已還原。環境頁圓點（SVG 轉場每幀要排版）、特色教學水彩單塊 11–20ms、GA 自己的捲動監聽（單次最長 11–14ms，是 GA 後台「加強型評估」的設定）都在可接受範圍，未動。
+- **未驗證**：headless Chrome 裡 Pixel 不發 `facebook.com/tr` 請求（正式站也一樣），Pixel 只驗到 queue 內容與腳本載入時機；部署後要用真瀏覽器在事件管理工具確認 PageView 與 Lead。真機（iOS Safari）未驗。
+- 驗證：`npm --prefix web run typecheck`、`npm run test:website`；延後載入四個情境以 Playwright 在 production build 上跑過（beacon 全部攔下不外送）。
 
 ## 2026-11-12 訪客 IP 改採信 X-Real-IP（`fix/client-ip-real-ip-20261112`）
 

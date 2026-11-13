@@ -10279,6 +10279,17 @@
             "default": false,
             "title": "Password Reset Email",
             "type": "boolean"
+          },
+          "public_site_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Site Origin"
           }
         },
         "required": [

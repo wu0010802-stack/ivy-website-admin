@@ -85,6 +85,12 @@ async def _open(admin_client, campus_key: str = "yihua", *, capacity: int = 50, 
     return await _enable(admin_client, "slots", campus_key), slot_id
 
 
+async def _more_slots(admin_client, count: int, *, capacity: int = 50) -> list[str]:
+    """同一支手機不能把同一個場次約兩次（2026-11-12，回 409 ALREADY_BOOKED）：要測「同一支手機
+    送很多筆」的限流，每筆得約不同場次。"""
+    return [await _slot(admin_client, days_ahead=4 + i, capacity=capacity) for i in range(count)]
+
+
 def _update_settings(app, **changes) -> None:
     app.state.settings = app.state.settings.model_copy(update=changes)
 
@@ -471,8 +477,9 @@ async def test_phone_bucket_holds_under_concurrent_submissions(app, admin_client
     在這裡排隊）核對這支手機近 10 分鐘建立的筆數；同一把 key 的併發重送仍然拿回
     同一張收據（見 test_booking_concurrency）。"""
     version, slot_id = await _open(admin_client)
+    slots = [slot_id, *await _more_slots(admin_client, 7)]
     responses = await asyncio.gather(*[
-        public_client.post(SUBMIT, json=_payload(version, slot_id, phone="0912345730"), headers={"Idempotency-Key": f"phone-{i}"})
+        public_client.post(SUBMIT, json=_payload(version, slots[i], phone="0912345730"), headers={"Idempotency-Key": f"phone-{i}"})
         for i in range(8)
     ])
     codes = sorted(r.status_code for r in responses)
@@ -485,7 +492,9 @@ async def test_phone_bucket_holds_under_concurrent_submissions(app, admin_client
     # 冪等重播在限流之前就回原結果，不吃額度也不會被擋。
     created = next(r for r in responses if r.status_code == 201)
     replay_key = f"phone-{responses.index(created)}"
-    replay = await public_client.post(SUBMIT, json=_payload(version, slot_id, phone="0912345730"), headers={"Idempotency-Key": replay_key})
+    replay = await public_client.post(
+        SUBMIT, json=_payload(version, slots[responses.index(created)], phone="0912345730"), headers={"Idempotency-Key": replay_key}
+    )
     assert replay.status_code == 200, replay.text
 
 
@@ -494,9 +503,9 @@ async def test_concurrent_retry_of_the_last_allowed_submission_is_a_replay(app, 
     """同一支手機已經 4 筆，第 5 筆的同一把 key 併發重送：一個建立，其餘拿回同一張
     收據，不能因為鎖內核對時已經 5 筆就回 429。"""
     version, slot_id = await _open(admin_client)
-    for i in range(4):
+    for i, earlier in enumerate(await _more_slots(admin_client, 4)):
         response = await public_client.post(
-            SUBMIT, json=_payload(version, slot_id, phone="0912345740"), headers={"Idempotency-Key": f"last-{i}"}
+            SUBMIT, json=_payload(version, earlier, phone="0912345740"), headers={"Idempotency-Key": f"last-{i}"}
         )
         assert response.status_code == 201, response.text
     responses = await asyncio.gather(*[
@@ -515,9 +524,9 @@ async def test_retry_that_missed_the_first_replay_lookup_is_not_rate_limited(
     不上鎖的重播查詢時，另一個請求還沒 commit；等它走到手機桶預檢，那筆已經建立、
     手機額度也記滿了。擋下前要再查一次重播，回原收據（200），不是 429。"""
     version, slot_id = await _open(admin_client)
-    for i in range(4):
+    for i, earlier in enumerate(await _more_slots(admin_client, 4)):
         response = await public_client.post(
-            SUBMIT, json=_payload(version, slot_id, phone="0912345741"), headers={"Idempotency-Key": f"miss-{i}"}
+            SUBMIT, json=_payload(version, earlier, phone="0912345741"), headers={"Idempotency-Key": f"miss-{i}"}
         )
         assert response.status_code == 201, response.text
     created = await public_client.post(

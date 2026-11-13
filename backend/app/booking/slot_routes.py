@@ -25,7 +25,7 @@ from app.booking import (
     slot_usage,
 )
 from app.common import ratelimit
-from app.common.timezones import today_local
+from app.common.timezones import now_utc, slot_start_utc, today_local
 from app.operations import audit_service
 from app.booking.models import (
     BookingConfig,
@@ -125,6 +125,13 @@ async def create_admin_slot(
 ) -> VisitSlotOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
     await _campus_or_404(db, campus_key)
+    # 開始時間（台北時間）已過的場次建出來家長約不到、也沒有用處，只會佔著場次表。只擋「建立」：
+    # 已經存在、後來才過去的場次仍可停止申請、調整名額（update_admin_slot 不受影響）。
+    if slot_start_utc(payload.slot_date, payload.start_time) <= now_utc():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "SLOT_START_PASSED", "message": "這個時段的開始時間已經過了，請選之後的時間"},
+        )
     # 同校同一天同一個開始時間只能有一場（連點「加開」曾建出兩場一樣的，官網名額
     # 變兩倍）。鎖住預約設定列再查，兩個同時送出的請求只有一個會建立。
     await service.get_or_create_config(db, campus_key, for_update=True)

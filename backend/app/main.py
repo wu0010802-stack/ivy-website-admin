@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -73,32 +74,30 @@ def _error_body(detail, request_id: str | None) -> dict:
     return body
 
 
+def _json_safe(value):
+    """把 422 要帶回去的原始輸入整理成一定寫得出去的 JSON。
+
+    json.loads 會收孤立的 surrogate（"\\ud800"）與 1e999／NaN／Infinity，pydantic 退回時
+    把原值放進 errors() 的 input；這些值編不成 UTF-8、JSONResponse（allow_nan=False）也
+    寫不出去，回應就從 422 變成 500——匿名訪客能藉此在系統狀態頁製造錯誤群組、觸發
+    總管理者推播（2026-11-12 QA M1）。編不出去的字元換成 U+FFFD，非有限數字換成 None。"""
+    if isinstance(value, str):
+        return value.encode("utf-8", "replace").decode("utf-8", "replace") if not value.isascii() else value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {_json_safe(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _error_response(request: Request, status_code: int, detail, headers: dict | None = None) -> JSONResponse:
     request_id = request_id_of(request)
     merged = dict(headers or {})
     if request_id:
         merged[REQUEST_ID_HEADER] = request_id
     return JSONResponse(status_code=status_code, content=_error_body(detail, request_id), headers=merged)
-
-
-def _encodable(value):
-    """把 JSON 裡 UTF-8 編不出來的字（孤立的 UTF-16 surrogate）換成 U+FFFD，遞迴處理 list／dict。"""
-    if isinstance(value, str):
-        return value.encode("utf-8", "replace").decode("utf-8")
-    if isinstance(value, list):
-        return [_encodable(item) for item in value]
-    if isinstance(value, dict):
-        return {key: _encodable(item) for key, item in value.items()}
-    return value
-
-
-def _validation_detail(errors) -> list:
-    """422 回應的 detail：不回傳 `input`（呼叫端送來的原值）。
-
-    web／admin 只讀 loc、msg、type；原值回傳一來是把家長送出的資料原樣吐回去，二來 JSON 允許
-    `"\\ud800"` 這種孤立 surrogate，pydantic 照收、放進 input，JSONResponse 編 UTF-8 時就炸成 500
-    並寫進 error_groups（2026-11-12 探索式 E2E）。msg、ctx 也可能帶到原值，一併換掉編不出來的字。"""
-    return _encodable(jsonable_encoder([{k: v for k, v in error.items() if k != "input"} for error in errors]))
 
 
 def _error_code(detail) -> str | None:
@@ -134,7 +133,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
             "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
         )
         return _error_response(
-            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _validation_detail(exc.errors())
+            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _json_safe(jsonable_encoder(exc.errors()))
         )
 
     @app.exception_handler(SQLAlchemyError)

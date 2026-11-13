@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import uuid
+
 import httpx
 import pytest
 from sqlalchemy import select
@@ -78,7 +80,12 @@ async def test_deactivation_invalidates_existing_session_immediately(
 
 
 @pytest.mark.asyncio
-async def test_last_super_admin_cannot_be_deactivated(admin_client, db_session):
+async def test_super_admin_cannot_deactivate_self(admin_client, db_session):
+    """UI 把自己的帳號從停用／改角色裡拿掉（UserActions.vue），後端也要擋：
+    只剩「最後一位總管理者」的規則時，還有別的總管理者就能把自己停用。"""
+    from tests.conftest import _create_user
+
+    await _create_user(db_session, "second-admin@ivy.example", "second-admin-password-123", Role.SUPER_ADMIN)
     me = await admin_client.get("/api/website/v1/auth/me")
     admin_id = me.json()["user"]["id"]
 
@@ -86,8 +93,24 @@ async def test_last_super_admin_cannot_be_deactivated(admin_client, db_session):
         f"/api/website/v1/admin/users/{admin_id}/active",
         json={"is_active": False},
     )
-    assert resp.status_code == 409
-    assert "總管理者" in resp.json()["detail"]
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "SELF_DEACTIVATE_FORBIDDEN"
+    assert "自己" in resp.json()["detail"]["message"]
+    # 帳號沒有被停用，登入狀態照舊。
+    assert (await admin_client.get("/api/website/v1/auth/me")).status_code == 200
+    db_session.expire_all()
+    assert (await db_session.get(User, uuid.UUID(admin_id))).is_active is True
+
+
+@pytest.mark.asyncio
+async def test_last_super_admin_cannot_be_deactivated(admin_client, db_session):
+    """最後一位總管理者的保護在 service 層（併發時兩位互相停用，API 的「不能停用自己」
+    擋不到）；API 對自己已經先擋，所以這裡直接測 service。"""
+    from app.auth import service
+
+    admin = (await db_session.execute(select(User).where(User.email == "admin@ivy.example"))).scalar_one()
+    with pytest.raises(service.LastSuperAdminProtected):
+        await service.set_user_active(db_session, admin, False)
 
 
 @pytest.mark.asyncio
@@ -217,8 +240,28 @@ async def test_login_and_me_carry_admissions_feature_flag(app, db_session):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             login = await client.post("/api/website/v1/auth/login", json=creds)
             assert login.status_code == 200, login.text
-            assert login.json()["features"] == {"admissions": enabled, "password_reset_email": False}
+            expected = {"admissions": enabled, "password_reset_email": False, "public_site_origin": None}
+            assert login.json()["features"] == expected
             me = await client.get("/api/website/v1/auth/me")
             assert me.status_code == 200
-            assert me.json()["features"] == {"admissions": enabled, "password_reset_email": False}
+            assert me.json()["features"] == expected
             assert "features" not in me.json()["user"]
+
+
+@pytest.mark.asyncio
+async def test_login_and_me_carry_public_site_origin(app, db_session):
+    """後台在獨立子網域時（WEBSITE_PUBLIC_ORIGIN 有設），登入與 /auth/me 告訴後台官網在哪：
+    後台主機的「/」會轉回 /admin/，頁首「查看官網」不能再用相對路徑（2026-11-13）。"""
+    from app.main import create_app
+    from tests.conftest import _create_user, _test_settings
+
+    await _create_user(db_session, "origin@ivy.example", "origin-password-123", Role.SUPER_ADMIN)
+    creds = {"email": "origin@ivy.example", "password": "origin-password-123"}
+
+    split = create_app(_test_settings().model_copy(update={"public_origin": "https://www.ivy.example"}))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=split), base_url="http://test") as client:
+        login = await client.post("/api/website/v1/auth/login", json=creds)
+        assert login.status_code == 200, login.text
+        assert login.json()["features"]["public_site_origin"] == "https://www.ivy.example"
+        me = await client.get("/api/website/v1/auth/me")
+        assert me.json()["features"]["public_site_origin"] == "https://www.ivy.example"

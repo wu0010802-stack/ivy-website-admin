@@ -116,6 +116,61 @@ test.describe('自選場次（義華）', () => {
   })
 })
 
+// 2026-11-12 QA M4／M5：同一家庭不會把同一個場次約成兩筆。
+test.describe('重複送出', () => {
+  test('回應沒收到就重新整理再送，拿回同一筆預約；成功後再約同一場次會被擋下', async ({ browser }) => {
+    const form = { childName: '重送寶貝', parentName: '重送一次媽媽', phone: '0955000444', email: 'resend-once@example.com' }
+    // 自己的來源（X-Forwarded-For）：這裡的兩次送單不吃掉同一校其他測試的每小時額度。
+    const parent = await openAs(browser, null, { extraHTTPHeaders: { 'X-Forwarded-For': '198.51.100.77' } })
+    const api = await adminApi('super_admin')
+    const { page } = parent
+
+    await page.goto(`/visit/${SLOTS_CAMPUS}`)
+    await expect(page.getByRole('heading', { name: '填寫參觀資料' })).toBeVisible()
+    const day = await pickVisitDate(page)
+    await page.locator('.visit-slot-options input[type="radio"]').first().check()
+    const slotId = await page.locator('.visit-slot-options input[type="radio"]:checked').inputValue()
+    await fillParentForm(page, form)
+
+    await test.step('伺服器建好預約、回應卻在路上斷掉：畫面說送出失敗', async () => {
+      await page.route('**/api/website/v1/public/visit-requests', async (route) => {
+        await route.fetch()
+        await route.abort('connectionreset')
+      }, { times: 1 })
+      await page.getByRole('button', { name: '確認預約' }).click()
+      await expect(page.locator('.visit-submit-error')).toContainText('送出失敗')
+      expect((await findVisit(api, form.parentName)).status).toBe('confirmed')
+    })
+
+    await test.step('重新整理後資料與場次都還在，再按一次拿回同一筆（不是第二筆）', async () => {
+      await page.reload()
+      await expect(page.getByLabel('家長稱呼')).toHaveValue(form.parentName)
+      await expect(page.locator('.visit-slot-options input[type="radio"]:checked')).toHaveValue(slotId)
+      await page.getByRole('button', { name: '確認預約' }).click()
+      await expect(page.locator('#booking-result')).toContainText('預約成功')
+      await expect(page.getByRole('link', { name: '修改或取消預約' })).toHaveAttribute('href', /\/visit\/manage#token=/)
+      // findVisit 要求剛好一筆。
+      expect((await findVisit(api, form.parentName)).status).toBe('confirmed')
+    })
+
+    await test.step('同一支電話再約同一個場次（新的一次送出）：回 409，說明已經約過，仍只有一筆', async () => {
+      const config = await (await page.request.get(`/api/website/v1/public/booking-config/${SLOTS_CAMPUS}`)).json()
+      const again = await page.request.post('/api/website/v1/public/visit-requests', {
+        headers: { 'Idempotency-Key': `resend-again-${Date.now()}` },
+        data: {
+          campus_key: SLOTS_CAMPUS, config_version: config.version, parent_name: form.parentName, phone: form.phone,
+          child_name: form.childName, child_birthdate: '2022-03-15', email: form.email, referral_sources: [], slot_id: slotId,
+        },
+      })
+      expect(again.status()).toBe(409)
+      expect((await again.json()).detail.code).toBe('ALREADY_BOOKED')
+      expect((await findVisit(api, form.parentName)).status).toBe('confirmed')
+      expect(day).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+    })
+    await Promise.all([parent.context.close(), api.dispose()])
+  })
+})
+
 test.describe('填寫中的即時驗證', () => {
   // 2026-09-30 E2E：輸入框 blur 時插入的錯誤訊息把下方版面推下約 31px，按下時還在目標上、
   // 放開時已不在，第一次點擊落空（電話填錯直接點下方的勾選框要點兩次）。錯誤訊息要等點擊完成才出現。
