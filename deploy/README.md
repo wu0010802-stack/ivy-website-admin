@@ -212,6 +212,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
 - **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
 
+## 2026-11-13 入學頁細修上線：生日三個下拉、問答展開補間、列印樣式（main CI 部署，沒有 migration）
+
+- **內容**：`34377036`（README「2026-11-13 入學頁細修」、DESIGN.md 最上面一段）。只動 web 的入學頁元件與樣式，沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43372012443 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `34377036`。
+- **線上驗證**（Playwright，桌機 1440 與手機 390，統計與第三方請求全部攔下，沒有寫進統計）：`/admission` 有 `#birthday-year` 等三個下拉、沒有原生日期欄；選 2022/9/1 回「讀中班」、9/2 回「讀小班」，2022 年 2 月只有 28 天；問答展開高度有補間；`main.ap` 範圍 axe 全規則 0 條、沒有橫向溢出、沒有孤字；新生準備標題括號與首屏那一句的折行跟本機一致。
+- **未驗證**：iOS／Android 實機（只用 WebKit 模擬 iPhone 13 看過本機版）；列印只在本機 Chrome 出過 PDF；Safari、Firefox 沒有問答補間（照舊直接開關，是預期行為）。
+
 ## 2026-11-13 後台「查看官網」修正上線，連同 QA 報告修正（#78）一起部署（main CI 部署，沒有 migration）
 
 - **內容**：`92552b1c`（README「2026-11-13 後台『查看官網』開回後台自己」）。後端 `features` 多一個 `public_site_origin`，後台用它組官網的絕對網址。沒有變數要改（api 的 `WEBSITE_PUBLIC_ORIGIN` 11-12 已設）。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
