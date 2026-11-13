@@ -963,33 +963,33 @@
     ]
   },
   "env-care-teacher": {
-    "width": 2640,
-    "height": 1200,
+    "width": 1880,
+    "height": 803,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-teacher-16f07b099552-480.webp",
+        "src": "/assets/responsive/env-care-teacher-b3f0f42d0c84-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-480.avif"
+        "avif": "/assets/responsive/env-care-teacher-e24ac437f913-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-16f07b099552-800.webp",
+        "src": "/assets/responsive/env-care-teacher-b3f0f42d0c84-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-800.avif"
+        "avif": "/assets/responsive/env-care-teacher-e24ac437f913-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-16f07b099552-1200.webp",
+        "src": "/assets/responsive/env-care-teacher-b3f0f42d0c84-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-1200.avif"
+        "avif": "/assets/responsive/env-care-teacher-e24ac437f913-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-16f07b099552-1600.webp",
+        "src": "/assets/responsive/env-care-teacher-b3f0f42d0c84-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-1600.avif"
+        "avif": "/assets/responsive/env-care-teacher-e24ac437f913-1600.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-16f07b099552-2640.webp",
-        "width": 2640,
-        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-2640.avif"
+        "src": "/assets/responsive/env-care-teacher-b3f0f42d0c84-1880.webp",
+        "width": 1880,
+        "avif": "/assets/responsive/env-care-teacher-e24ac437f913-1880.avif"
       }
     ]
   },
