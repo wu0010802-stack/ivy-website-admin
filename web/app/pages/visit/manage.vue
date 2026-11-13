@@ -218,7 +218,7 @@ async function submitEdit() {
               <div><dt>家長稱呼</dt><dd>{{ visit.parent_name }}</dd></div>
               <div><dt>聯絡手機</dt><dd>{{ visit.phone }}</dd></div>
               <div v-if="visit.email"><dt>Email</dt><dd>{{ visit.email }}</dd></div>
-              <div v-if="visit.child_name"><dt>孩子姓名</dt><dd>{{ visit.child_name }}</dd></div>
+              <div v-if="visit.child_name"><dt>寶貝姓名</dt><dd>{{ visit.child_name }}</dd></div>
               <div v-if="visit.child_birthdate"><dt>出生年月日</dt><dd>{{ visit.child_birthdate }}</dd></div>
               <div v-if="visit.expected_start"><dt>預計入學</dt><dd>{{ expectedStartText(visit.expected_start) }}</dd></div>
               <div v-if="visit.questions"><dt>想了解的事</dt><dd>{{ visit.questions }}</dd></div>
@@ -282,9 +282,9 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.phone }}</p>
                 <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)"></label>
                 <p class="parent-visit-error">{{ editErrors.email }}</p>
-                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
+                <label>寶貝姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
-                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
+                <label>寶貝出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
                 <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
                 <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>

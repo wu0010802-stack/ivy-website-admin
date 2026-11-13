@@ -38,7 +38,13 @@ describe('修改資料只送真正改過的欄位', () => {
     const base = editBaseFrom(record)
     expect(validateEdit(record, { ...base, phone: '0922333444' }, base, '2026-10-01')).toEqual({})
     expect(validateEdit(record, { ...base, phone: '123' }, base, '2026-10-01')).toHaveProperty('phone')
-    expect(validateEdit(record, { ...base, email: '' }, base, '2026-10-01')).toHaveProperty('email')
+    // 預約表單的 Email 選填（2026-11-13），但留過 Email 的家長在管理頁不能清空。
+    expect(validateEdit(record, { ...base, email: '' }, base, '2026-10-01').email).toBe('請填寫 Email。')
+    expect(validateEdit(record, { ...base, email: 'abc' }, base, '2026-10-01')).toHaveProperty('email')
+    // 本來就沒留 Email 的家長只改手機：空白的 Email 不擋。
+    const noEmail = { ...record, email: null }
+    const noEmailBase = editBaseFrom(noEmail)
+    expect(validateEdit(noEmail, { ...noEmailBase, phone: '0922333444' }, noEmailBase, '2026-10-01')).toEqual({})
   })
 
   it('預計入學時間：沒動不送，清空送 null，改了送新值（2026-10-15）', () => {

@@ -1,3 +1,13 @@
+## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」（`feature/visit-email-optional-20261113`）
+
+使用者指定 `/visit` 兩件事：聯絡 Email 不要必填；表單上的「孩子」都改成「寶貝」。
+
+- **Email 選填**（2026-09-30～11-13 是必填）：欄位標「選填」、拿掉 `required`；沒填就不帶 `email` 欄位，有填才驗格式。後端 `VisitRequestCreate` 沿用父類別的 `EmailStr | None`，空字串與空白也當沒填（存 `None`）；`contracts/` 已重產。
+- 沒填 Email 的家長沒有確認信，修改連結只在預約完成頁：欄位說明改成「有填的話，…」，完成頁不列空白的 Email，重複送出（`IDEMPOTENCY_CONFLICT`／`ALREADY_BOOKED`）的提示只有「有開寄信而且有填 Email」才叫他去信裡找連結。
+- **家長管理頁（`/visit/manage`）不變**：已經留過 Email 的不能清空（後端 `ParentDetailsUpdate` 照舊擋），前端檢查從共用驗證搬到 `validateEdit`。
+- **孩子 → 寶貝**：預約表單的區塊標題、欄位名、提示、錯誤訊息、完成頁與管理頁的欄位名、行事曆說明那一句。首圖替代文字、後台與匯出欄位名沒有動。
+- 後台「隱私權政策」初稿範本的蒐集欄位改成「Email（選填）」；**正式站已發布的那一份不會跟著變**，要在後台自己改第 2 段。
+- 驗證：web typecheck、`npm run test:website` 2295 過、`contract:check` 過、後端預約相關 42 支 683 過（獨立測試庫）、Playwright 1440／390 在 dev server 上假 API 實際送出（不帶 `email`、完成頁沒有 Email 列、格式錯誤仍擋）。**未驗證**：admin 整套（機器負載約 200，逾時 15～45 項且每次不同；引用初稿範本的兩支單獨跑過）、後端整套、stack e2e（三支只換了欄位名）。
 ## 2026-11-13 首頁五校卡社群連結等距（`fix/social-row-spacing-20261113`）
 
 使用者截圖指出 Line／Facebook／Instagram 三個間距不一樣，以三個為準、手機尤其要等距（正式站五校目前都是這三個）。

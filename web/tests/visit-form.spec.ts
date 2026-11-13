@@ -117,12 +117,14 @@ describe('slot unavailable messages', () => {
   })
 })
 
-describe('Email 必填與 422 欄位對應', () => {
+describe('Email 選填與 422 欄位對應', () => {
   const base = { parentName: '王媽媽', phone: '0912345678', childName: '小安', childBirthdate: '2022-05-01' }
 
-  it('表單有 Email 欄位時必填', () => {
-    expect(validateVisitContact({ ...base, email: '' }, '2026-09-30')).toHaveProperty('email')
+  it('Email 可以不填（2026-11-13 起選填），有填才驗格式', () => {
+    expect(validateVisitContact({ ...base, email: '' }, '2026-09-30')).toEqual({})
+    expect(validateVisitContact({ ...base, email: '   ' }, '2026-09-30')).toEqual({})
     expect(validateVisitContact({ ...base, email: 'a@b.co' }, '2026-09-30')).toEqual({})
+    expect(validateVisitContact({ ...base, email: 'abc' }, '2026-09-30')).toHaveProperty('email')
     expect(validateVisitContact(base, '2026-09-30')).not.toHaveProperty('email')
   })
 

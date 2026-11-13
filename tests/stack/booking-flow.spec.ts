@@ -15,8 +15,8 @@ interface ParentForm {
 }
 
 async function fillParentForm(page: Page, form: ParentForm): Promise<void> {
-  await page.getByLabel('孩子姓名').fill(form.childName)
-  await page.getByLabel('孩子出生年月日').fill('2022-03-15')
+  await page.getByLabel('寶貝姓名').fill(form.childName)
+  await page.getByLabel('寶貝出生年月日').fill('2022-03-15')
   await page.getByLabel('家長稱呼').fill(form.parentName)
   await page.getByLabel('聯絡電話').fill(form.phone)
   await page.getByLabel('聯絡 Email').fill(form.email)
@@ -69,7 +69,7 @@ test.describe('自選場次（義華）', () => {
 
     await test.step('修改資料', async () => {
       await page.getByRole('button', { name: '修改資料' }).click()
-      await page.getByLabel('孩子姓名').fill('小安安')
+      await page.getByLabel('寶貝姓名').fill('小安安')
       await page.getByRole('button', { name: '儲存修改' }).click()
       await expect(page.locator('.parent-visit-notice')).toContainText('資料已更新')
       // 變更信在案件取消前要先寄出：已排隊還沒寄的變更信，案件取消後會略過。
@@ -183,8 +183,8 @@ test.describe('填寫中的即時驗證', () => {
     await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__))
     await pickVisitDate(page)
     await page.locator('.visit-slot-options input[type="radio"]').first().check()
-    await page.getByLabel('孩子姓名').fill('王小葉')
-    await page.getByLabel('孩子出生年月日').fill('2022-03-15')
+    await page.getByLabel('寶貝姓名').fill('王小葉')
+    await page.getByLabel('寶貝出生年月日').fill('2022-03-15')
     await page.getByLabel('家長稱呼').fill('王驗證家長')
   }
 

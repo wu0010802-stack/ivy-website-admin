@@ -337,8 +337,9 @@ class _VisitRequestFields(BaseModel):
 
 
 class VisitRequestCreate(_VisitRequestFields):
-    # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
-    email: EmailStr = Field(max_length=254)
+    # 2026-09-30 起官網只剩自選場次：場次必填。Email 在 2026-09-30～11-13 也必填，
+    # 2026-11-13 業主裁定改回選填（沿用父類別的 EmailStr | None）：沒填就不寄確認信，
+    # 修改連結照樣顯示在預約完成頁（回應的 manage_path）。
     slot_id: uuid.UUID
     config_version: int
     # party_size（繼承）：2026-10-03 起官網表單不再問參觀人數，維持選填只為了
@@ -349,6 +350,14 @@ class VisitRequestCreate(_VisitRequestFields):
     # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _blank_email_is_none(cls, value):
+        # 選填欄位留白：官網不帶這個欄位，但其他呼叫端可能送空字串，不能回「Email 格式錯誤」。
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @field_validator("expected_start")
     @classmethod

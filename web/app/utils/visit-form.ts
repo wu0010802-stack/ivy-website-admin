@@ -158,21 +158,18 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
   if (!/^09[0-9]{8}$/.test(normalizeVisitPhone(contact.phone))) errors.phone = '請填寫 09 開頭的 10 碼手機號碼。'
   // 舊呼叫端不帶兒童欄位；新版表單帶空字串時才套用必填驗證。
   if (contact.childName !== undefined) {
-    if (!contact.childName.trim()) errors.childName = '請填寫孩子姓名。'
-    else if (contact.childName.trim().length > 64) errors.childName = '孩子姓名請在 64 字以內。'
+    if (!contact.childName.trim()) errors.childName = '請填寫寶貝姓名。'
+    else if (contact.childName.trim().length > 64) errors.childName = '寶貝姓名請在 64 字以內。'
   }
   if (contact.childBirthdate !== undefined) {
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
-    else if (contact.childBirthdate < earliestChildBirthdate(today)) errors.childBirthdate = '請確認孩子的出生日期，年份看起來不太對。'
+    else if (contact.childBirthdate < earliestChildBirthdate(today)) errors.childBirthdate = '請確認寶貝的出生日期，年份看起來不太對。'
   }
-  // 新版表單一律帶 email 欄位（2026-09-30 起必填）；舊呼叫端不帶。錯誤字不提「確認信會寄到這裡」：
-  // 寄信看各校 parent_email_enabled（10-02 正式站是關的），欄位說明才跟著設定換句子（2026-10-12）。
-  if (contact.email !== undefined) {
-    const email = contact.email.trim()
-    if (!email) errors.email = '請填寫 Email。'
-    else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = '請填寫有效的 Email，例如 name@example.com。'
-  }
+  // Email 選填（2026-11-13 業主裁定；2026-09-30～11-13 是必填）：沒填就過，有填才驗格式。
+  // 錯誤字不提「確認信會寄到這裡」：寄信看各校 parent_email_enabled，欄位說明才跟著設定換句子（2026-10-12）。
+  const email = contact.email?.trim()
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) errors.email = '請填寫有效的 Email，例如 name@example.com。'
   return errors
 }
 
@@ -185,8 +182,8 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   email: '請填寫有效的 Email，例如 name@example.com。',
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
-  childName: '請填寫孩子姓名。',
-  childBirthdate: '請確認孩子的出生年月日是否填寫正確，不能晚於今天。',
+  childName: '請填寫寶貝姓名。',
+  childBirthdate: '請確認寶貝的出生年月日是否填寫正確，不能晚於今天。',
   expectedStart: '這個入學時間已過期，請重新選擇。'
 }
 

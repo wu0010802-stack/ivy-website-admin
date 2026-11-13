@@ -56,7 +56,7 @@ describe('L29：「前一天會提醒」只描述有 VALARM 的 .ics', () => {
 
   it('說明文字點名「加入手機行事曆」那顆，不再對整排按鈕說前一天會提醒', () => {
     const component = read('app/components/VisitCalendarActions.vue')
-    expect(component).toContain('<p class="visit-calendar-note">行程只寫分校、地址與電話，不含孩子與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>')
+    expect(component).toContain('<p class="visit-calendar-note">行程只寫分校、地址與電話，不含寶貝與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>')
     expect(component).not.toContain('不含孩子與家長資料；前一天會提醒。')
     // 被點名的按鈕文字要真的存在
     expect(component).toContain('加入手機行事曆<small>iPhone、Outlook</small>')

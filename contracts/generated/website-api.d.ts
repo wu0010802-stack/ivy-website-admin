@@ -10223,11 +10223,8 @@ export interface components {
             consent_given: boolean;
             /** Consent Revision Id */
             consent_revision_id?: string | null;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Email */
+            email?: string | null;
             /** Expected Start */
             expected_start?: string | null;
             /** Parent Name */
