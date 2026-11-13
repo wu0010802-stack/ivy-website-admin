@@ -487,14 +487,14 @@ describe('P4 WebGL 接手後，藏起來的 DOM 照片不跑顯影轉場', () =>
 
 // ---- X2 ----
 
-describe('X2 --word-fade 寫在讀它的 .day-intro 與 .day-film-shade 上，不寫整個 section', () => {
+describe('X2 --word-fade 寫在讀它的 .day-intro 上，不寫整個 section（影片上的紗 2026-11-13 拿掉）', () => {
   let app: App | null = null
   afterEach(() => {
     app?.unmount()
     app = null
   })
 
-  it('捲動淡出時只寫兩個讀者，值沒變不重寫', async () => {
+  it('捲動淡出時只寫讀者，值沒變不重寫', async () => {
     let listTop = 435
     override(Element.prototype, 'getBoundingClientRect', {
       value(this: Element) {
@@ -514,13 +514,12 @@ describe('X2 --word-fade 寫在讀它的 .day-intro 與 .day-film-shade 上，�
     await nextTick()
     const section = host.querySelector<HTMLElement>('section.day-experience')!
     const intro = host.querySelector<HTMLElement>('.day-intro')!
-    const shade = host.querySelector<HTMLElement>('.day-film-shade')!
+    expect(host.querySelector('.day-film-shade')).toBeNull()
     const watcher = observers.find((entry) => entry.targets.includes(section))!
     watcher.callback([{ isIntersecting: true, target: section } as IntersectionObserverEntry], {} as IntersectionObserver)
     runFrame()
     // 閱讀高度 1000：列表頂端 435 在 620→250 的正中間，淡到 1 − .5 × .84
     expect(intro.style.getPropertyValue('--word-fade')).toBe('0.580')
-    expect(shade.style.getPropertyValue('--word-fade')).toBe('0.580')
     expect(section.style.getPropertyValue('--word-fade')).toBe('')
 
     const setProperty = vi.spyOn(CSSStyleDeclaration.prototype, 'setProperty')
@@ -532,18 +531,17 @@ describe('X2 --word-fade 寫在讀它的 .day-intro 與 .day-film-shade 上，�
     window.dispatchEvent(new Event('scroll'))
     runFrame()
     expect(intro.style.getPropertyValue('--word-fade')).toBe('0.160')
-    expect(shade.style.getPropertyValue('--word-fade')).toBe('0.160')
     expect(section.style.getPropertyValue('--word-fade')).toBe('')
   })
 
-  it('讀 --word-fade 的只有這兩條規則（從 .day-film-shade 自己、.day-intro 父層繼承）；新增讀者要一起寫進 paintFade', () => {
+  it('讀 --word-fade 的只有這一條規則（.day-intro 父層繼承）；新增讀者要一起寫進 paintFade', () => {
     // 遞迴掃整個 web/app（含 pages/news、pages/visit 等子目錄與 app.vue、error.vue）
     const appDir = fileURLToPath(import.meta.url).replace(/\/tests\/[^/]+$/, '/app')
     const names = readdirSync(appDir, { recursive: true }) as string[]
     const readers = names
       .filter((name) => /\.(css|vue)$/.test(name))
       .flatMap((name) => [...read(`../app/${name}`).matchAll(/[^{}]*\{[^{}]*var\(--word-fade/g)].map((m) => `${name.split('/').pop()}: ${m[0].trim().split('{')[0]}`))
-    expect(readers).toEqual(['styles.css: .day-film-shade::before', 'styles.css: .day-intro>*'])
+    expect(readers).toEqual(['styles.css: .day-intro>*'])
     expect(read('../app/components/DayExperience.vue')).not.toContain("section.style.setProperty('--word-fade'")
   })
 })

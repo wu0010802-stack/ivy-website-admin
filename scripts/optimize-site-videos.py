@@ -39,11 +39,12 @@ run_target = OUT / f'campus-run-{run_digest[:12]}.mp4'
 shutil.copyfile(run_prepared, run_target)
 manifest['campus-run'] = f'/assets/optimized/{run_target.name}'
 print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,} bytes', flush=True)
-# 孩子的一天 2026-11-12 起換成明華校幼幼班六鏡（design/day-film-kathy-20261111）：桌機 16:9、手機另剪直式 9:16
-# （構圖不同，不是同一支換編碼）。兩支母帶就是確認版成片，直接交付、不再轉碼；雜湊對不上就停，免得放錯檔。
-day_graded = ROOT / 'design/day-film-kathy-20261111'
+# 孩子的一天 2026-11-13 起換成明華＋仁武十五鏡（design/day-film-mix-20261113 的 pick4；11-12 是明華幼幼六鏡
+# design/day-film-kathy-20261111）：桌機 16:9、手機另剪直式 9:16（構圖不同，不是同一支換編碼）。
+# 兩支母帶就是確認版成片，直接交付、不再轉碼；雜湊對不上就停，免得放錯檔。
+day_graded = ROOT / 'design/day-film-mix-20261113'
 day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
-DAY_MASTERS = {'day-film.mp4': 'day-kathy-desktop.mp4', 'day-film-mobile.mp4': 'day-kathy-mobile.mp4'}
+DAY_MASTERS = {'day-film.mp4': 'day-pick4-desktop.mp4', 'day-film-mobile.mp4': 'day-pick4-mobile.mp4'}
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片直接交付母帶（進入視窗才載入）。
 for name, source, width, crf in [
