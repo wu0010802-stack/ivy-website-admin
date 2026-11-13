@@ -32,7 +32,7 @@ const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
 const CARE_PHOTO_ALT = '外籍老師蹲在拿球棒的男孩身邊，一起看著前方的球座，替他加油'
 // 2026-11-12 改用義華 NAS「2024-02-23 車車封面＋吃湯圓reels／IMG_5755」（3984×2656，裁 x7%–93%、y14%–100% → 1600×1067），
 // 就是 ivykids.tw 首頁輪播那張；六個孩子坐在溜滑梯前揮手，取代人很小的遊戲區全景。
-const FEATURE_ALT = '六個孩子坐在黃色溜滑梯前，笑著朝鏡頭揮手'
+const FEATURE_ALT = '孩子們在大型遊具旁溜滑梯、騎小車，一個男孩朝鏡頭走來'
 const CARE = [
   { image: 'env-care-health', alt: '老師幫戴著口罩的孩子確認身體狀況' },
   { image: 'env-care-meal', alt: '男孩拿著湯匙，從紅色碗裡舀飯吃' },
