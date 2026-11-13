@@ -198,6 +198,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫上線（main CI 部署，沒有 migration）
+
+- **內容**：`fece03cc`（PR #89，合併提交 `f12fed0f`；README「2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫」）。使用者丟首頁 Lighthouse 手機報告，判讀後只修「拍立得照片抓太大」一項，使用者說「幫我處理」「部署」。`web/app/utils/responsive-image.ts` 新增 `dayPrintSizes(寬, 高)`，`DayMomentCard.vue` 改用它（原本寫死 `(max-width: 760px) 100vw, 540px`）；相框是正方形、`object-fit: cover`，所以依每張照片的寬高比算。沒有改 API、後台、內容，沒有變數要改。
+- **CI**：開 PR 前 main 有別的合併（#88）造成 README 衝突，把 main 合進分支（`b57e43d9`）、本機重跑 typecheck 與單元測試（2302 過）後才推；PR run 43448326922 全綠；main run 43450204708 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `f12fed0f`。
+- **線上驗證**：首頁 HTML 的拍立得 `sizes` 已是新算式（正方形 3 張 `… * 0.723 … 387px`、4:3 的 5 張 `… * 0.964 … 516px`）。Playwright Chrome 360／390／393／412／430 寬手機與 900／1440 寬桌機共 8 組（遙測與追蹤請求全部攔下）：DPR 3 手機正方形照片選到 800w（素材庫兩張是 960 中圖），原本是 1200w／1600 大圖；4:3 的照舊 1200w；每張選到的檔在相框裡都不低於 1:1（最緊 412 寬 DPR 1.75 的 1.02 倍）。
+- **未驗證**：iOS／Android 實機、Safari；沒有重跑 Lighthouse（本機負載高，量出來不準）。
+
 ## 2026-11-13 健檢報告兩項上線：robots 放行公開素材、轉園題收費說法對齊退費條款（main CI 部署，沒有 migration）
 
 - **內容**：`9ac591f9`（PR #88，合併提交 `4cabe197`；README「2026-11-13 健檢報告兩項」）。外部健檢報告列的兩項「已確認問題」對正式站核對後成立，使用者說「都幫我改」「部署」。`robots.txt` 在 `Disallow: /api/` 前加 `Allow: /api/website/v1/public/media/`（首頁 2 張素材庫照片原本被擋）；入學頁轉園題「按比例收取」改成「分三段收取：全額、2/3 或 1/3」並加「看費用怎麼算」連到 `#faq-refund`。沒有改 API、後台、內容，沒有變數要改。
