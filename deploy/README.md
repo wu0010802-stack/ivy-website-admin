@@ -220,6 +220,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 GA4 的 page_location 多留 gbraid／wbraid 上線（main CI 部署，沒有 migration）
+
+- **內容**：`785f4438`（PR #85，`feature/ads-click-ids-20261113`）。只改 `web/shared/third-party-analytics.ts` 的歸因參數白名單；CSP、cookie、變數都沒動。用途與 Google 後台要做的四步見上方「Google Ads」一節。
+- **推前**：web 2303 過、typecheck 無錯誤；PR 的 CI 全綠（推送自動起的那組被 PR 的 run 取消，`gh run rerun` 後轉綠才能合併）。當晚 main 很擠，PR 因 README 頂部段落衝突重接三次，最後把那段移出 PR、改隨這筆紀錄補上。
+- **CI**：main run 43457075340 全綠，含 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `785f4438`。Playwright（真 Chrome、390 寬）開 `/visit/yihua?wbraid=…&gbraid=…&gclid=…&token=secret&utm_campaign=gads-test#frag`，攔下 GA 的 `collect`（回 204、不真的送出）：`en=page_view` 的 `dl` 是 `…/visit/yihua?wbraid=…&gbraid=…&gclid=…&utm_campaign=gads-test`，`token` 與 hash 都沒帶；Console 沒有 CSP 違規。
+- **驗證時的陷阱**：把 GA 的請求 `abort` 掉，gtag 會改連 `https://www.google.com/g/collect` 當後備，被 CSP 擋下、Console 出現違規；那是測試手法造成的，回 204 就不會出現。
+- **沒驗、待使用者**：GA4 連結 Google Ads、把 `generate_lead` 匯入成轉換（要本人登入）；連結後的真實轉換是否進得了 Ads、Console 有沒有新的 CSP 違規。
+
 ## 2026-11-13 環境頁五顆心主照片換成戴聖誕帽的孩子敲木槌上線（main CI 部署，沒有 migration）
 
 - **內容**：`b509c0e8`（PR #87，合併提交 `44e2b8b9`；README「2026-11-13 環境頁五顆心主照片再換一張」）。使用者指定把 `/environment` 五顆心下面的寬幅主照片換成舊官網 ivykids.tw 首頁輪播第 2 張，看過本機預覽後回「ok」。`env-care-teacher` 母檔換成 1880×803、位置 `60% 50%`、替代文字改寫；後台「幼兒保育照片」的內建照片說明一起改。沒有改 API、內容、變數。

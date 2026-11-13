@@ -1,3 +1,11 @@
+## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
+
+使用者要幫官網打 Google 廣告。盤點後不裝 Google Ads 自己的轉換代碼：GA4 已在正式站運作、預約成立會送 `generate_lead`，連結 GA4 與 Google Ads 再匯入成轉換就夠（步驟與待實測項在 `deploy/README.md`「Google Ads」）。
+
+- 程式只改 `web/shared/third-party-analytics.ts`：`page_location` 保留的參數從 `utm_*`／`gclid`／`fbclid` 多加 `gbraid`、`wbraid`（Google 廣告在 iOS 上拿不到 `gclid` 時用的點擊代碼）。CSP、cookie、載入時機都沒動。
+- 現況：線上預約只有義華校開放，其餘四校暫停，廣告只量得到義華的預約。
+- 驗證：`web/tests/third-party-analytics.spec.ts` 先紅後綠；typecheck；`npm run test:website` 2303 過。沒有畫面變更。已上線（main `785f4438`，PR #85），正式站驗證見 `deploy/README.md`。
+
 ## 2026-11-13 環境頁五顆心主照片再換一張（`feature/env-care-photo-20261113`）
 
 使用者截 `/environment` 五顆心下面那張寬幅主照片（當天下午才換上的明華中秋節「老師扶幼幼」，候選 D4）說「這張照片幫我換掉」。前兩版（義華粉專野餐、仁武粉專老師牽幼幼揮手）使用者都沒要，最後自己截了舊官網 ivykids.tw 首頁輪播第 2 張指定「換這張」。
