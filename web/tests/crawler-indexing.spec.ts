@@ -62,7 +62,8 @@ describe('搜尋引擎收錄的閘門', () => {
     expect(robotsTxt('https://ivy.example', false)).toBe('User-agent: *\nDisallow: /\n')
     expect(robotsTxt('https://ivy.example', true)).toContain('Sitemap: https://ivy.example/sitemap.xml')
     // 預約頁開放收錄（2026-11-11），只擋帶個人連結的修改預約頁
-    expect(robotsTxt('https://ivy.example', true).split('\n')).toEqual(['User-agent: *', 'Disallow: /admin', 'Disallow: /preview', 'Disallow: /visit/manage', 'Disallow: /api/', 'Sitemap: https://ivy.example/sitemap.xml', ''])
+    // 公開素材（後台上傳、官網頁面在用的照片與影片）放行，其餘 API 照舊不給爬（2026-11-13）
+    expect(robotsTxt('https://ivy.example', true).split('\n')).toEqual(['User-agent: *', 'Disallow: /admin', 'Disallow: /preview', 'Disallow: /visit/manage', 'Allow: /api/website/v1/public/media/', 'Disallow: /api/', 'Sitemap: https://ivy.example/sitemap.xml', ''])
     expect(EMPTY_SITEMAP).not.toContain('<url>')
   })
 

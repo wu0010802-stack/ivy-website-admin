@@ -101,6 +101,25 @@ describe('入學頁常見問題（AdmissionContent.vue）', () => {
     expect(html).toContain(`轉園、補助、退費等 ${questionCount(html)} 題`)
   })
 
+  it('轉園題的收費說法和退費那題一致：分三段、不寫「按比例」，並連到退費那題（2026-11-13）', async () => {
+    const transferItem = ADMISSION_FAQ[0]!.items[0]!
+    const answer = transferItem.a.join('')
+    expect(answer).not.toContain('按比例')
+    expect(answer).toContain('分三段收取：全額、2/3 或 1/3')
+    expect(transferItem.link).toEqual({ href: '#faq-refund', label: '看費用怎麼算' })
+    // 三段的數字來自退費那題讀的後台內容（中途入園的學費及雜費），兩邊要對得上
+    const midterm = site.admission.refunds.find((refund) => refund.title.includes('中途入園'))!
+    const lines = midterm.groups.flatMap((group) => group.lines).join('')
+    for (const tier of ['全額收取', '收取 2/3', '收取 1/3']) expect(lines).toContain(tier)
+
+    const html = await render(site.admission, site.campuses)
+    const transfer = html.slice(html.indexOf('id="faq-transfer"'), html.indexOf('id="faq-age"'))
+    expect(transfer).toContain('href="#faq-refund"')
+    // 退費那題被後台清空時，不留點了沒反應的錨點
+    const empty = await render({ ...site.admission, refunds: [] }, site.campuses)
+    expect(empty).not.toContain('href="#faq-refund"')
+  })
+
   it('「怎麼預約參觀」列各校電話（可直接撥），沒有往 /visit 的連結', async () => {
     const html = await render(site.admission, site.campuses)
     for (const campus of site.campuses) expect(html).toContain(`href="tel:${campus.phone}"`)

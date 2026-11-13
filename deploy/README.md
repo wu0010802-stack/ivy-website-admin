@@ -198,6 +198,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 首頁五校卡社群列手機改回靠左上線（main CI 部署，沒有 migration）
+
+- **內容**：`a16e237c`（PR #86，合併提交 `6de4c06f`；README「2026-11-13 首頁五校卡社群列手機改回靠左」）。使用者看過同日上線的「手機三個攤滿整列」後截圖說「手機版幫我往左靠」。只改 `web/app/components/CampusBoard.vue`：拿掉手機單欄剛好三個時的 `justify-content:space-between` 與列寬上限，靠左、間距 20px；340px 以下收成 12px（320 寬 20px 放不下）。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：第一輪 PR run 43439897116 全綠，但期間 main 有別的合併（#83）造成 README 衝突，把 main 合進分支（`8b94a6f5`）、本機重跑 typecheck 與單元測試後重推；第二輪 PR run 43441658278 全綠才合併；main run 43443972587 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、430×844、390×844、320×844（遙測與追蹤請求全部攔下），五校逐一切換：都是 Line／Facebook／Instagram 三個在同一行，列的左緣與地址列左緣相同（手機 24px），`justify-content` 是預設值；兩段間距 390／430／1440 寬 20／20、320 寬 12／12。
+- **未驗證**：iOS／Android 實機、Safari；一、二、四個社群的排法沒有改（正式站目前沒有這種校區）。
+
 ## 2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡、影片上的紗拿掉上線（main CI 部署，沒有 migration）
 
 - **內容**：`663fc05b`（PR #83，合併提交 `93257629`；README「2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡，影片上的紗拿掉」）。使用者逐幕挑鏡排了四輪、遮罩選「紗全部拿掉」，看過本機預覽後說「部署」。只動 web（兩支影片、兩張封面、`styles.css` 拿掉 `.day-film-shade`、圖說）與後台的內建圖說文字；沒有 migration、沒有變數要改。
