@@ -214,7 +214,7 @@ describe('呼叫端', () => {
     expect(offenders).toEqual([])
     const form = read('../app/components/VisitForm.vue')
     expect(form).toContain('const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage(')
-    // 手機那個 media source（1×1 透明圖）要排在 AVIF source 前面，手機才先命中它
+    // 橫拿手機那個 media source（1×1 透明圖）要排在 AVIF source 前面，橫拿手機才先命中它
     expect(form.indexOf('<source media=')).toBeLessThan(form.indexOf('<source v-if="welcomeAvifSrcset" type="image/avif"'))
     expect(form.indexOf('type="image/avif"')).toBeLessThan(form.indexOf('<img v-bind="welcomePhoto"'))
   })

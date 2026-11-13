@@ -16,9 +16,9 @@ import { newIdempotencyKey, restoredIdempotencyKey } from '~/utils/idempotency-k
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
-// 預約頁首圖已經自己包了 <picture>（手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
-// AVIF 的 <source> 排在手機那個 media source 之後、<img> 之前，手機仍先命中透明圖。avifSrcset 不是 <img> 的屬性，要先拆出來。
-const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage('about-curious', '(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')
+// 預約頁首圖已經自己包了 <picture>（橫拿手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
+// AVIF 的 <source> 排在橫拿手機那個 media source 之後、<img> 之前，橫拿手機仍先命中透明圖。avifSrcset 不是 <img> 的屬性，要先拆出來。
+const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage('about-curious', '(max-width: 760px) 50vw, (max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')
 
 // 停用 JS 時（2026-11-12 QA L32）：場次要等瀏覽器載入後才查，SSR 出來的「正在讀取可預約場次」會永遠停在載入中。
 // 這時改藏起它、顯示平常 hidden 的備援說明（請家長來電）——規則在 visit-booking.css 的 @media (scripting: none)。
@@ -669,10 +669,10 @@ async function onSubmit() {
           <h1 id="visit-title" ref="titleRef"><template v-if="isPicking"><span>帶著好奇</span><br><span>來校園走走</span></template><template v-else>預約校園參觀</template></h1>
         </div>
         <figure v-if="isPicking" class="visit-welcome-photo">
-          <!-- 手機與橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖。
+          <!-- 橫拿手機把照片藏起來（visit-booking.css），這時換成 1×1 透明圖，不下載原圖；直拿手機 2026-11-13 起有照片（色帶右半）。
                不用 loading="lazy"：桌機這張是 LCP，lazy 會延後抓取、降低優先權。 -->
           <picture>
-            <source media="(max-width: 760px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
+            <source media="(max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
             <source v-if="welcomeAvifSrcset" type="image/avif" :srcset="welcomeAvifSrcset" :sizes="welcomePhoto.sizes">
             <img v-bind="welcomePhoto" alt="孩子們笑著指向前方" decoding="async">
           </picture>

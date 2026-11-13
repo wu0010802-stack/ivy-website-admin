@@ -19,6 +19,7 @@ describe('預約頁背景大字放得進色帶', () => {
     expect(css).toContain('.visit-ghost span {font-size:min(var(--visit-ghost-size),100cqh / 2.08);letter-spacing:-.075em}')
     // em 字距要寫在 span：寫在外層會以外層字級算成固定 px，縮字後字距不跟著縮。
     expect(css).not.toMatch(/\.visit-ghost \{[^}]*letter-spacing/)
-    expect(css).toMatch(/@media\(max-width:760px\) \{[^@]*\.visit-ghost \{--visit-ghost-size:30vw;opacity:\.4\}/)
+    // 2026-11-13 手機色帶改左文右圖：淡字跟著大標字級走（原本 30vw），仍受上面的 cqh 上限約束。
+    expect(css).toMatch(/@media\(max-width:760px\) \{[^@]*\.visit-ghost \{--visit-ghost-size:calc\(var\(--visit-title-size\) \* 2\.7\);[^}]*opacity:\.4\}/)
   })
 })

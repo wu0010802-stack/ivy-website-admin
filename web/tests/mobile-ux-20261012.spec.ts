@@ -18,10 +18,11 @@ describe('預約第一步：矮手機第一屏看得到選校卡', () => {
     expect(visitForm).toContain('<p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}`')
   })
   // 導言與選校說明 2026-10-30 全站拿掉（使用者要版面乾淨），矮手機只剩眉標要藏。
-  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿），見 visit-mobile-first-screen-20261111.spec.ts。
-  it('矮手機拿掉眉標', () => {
-    const shorter = visitCss.slice(visitCss.indexOf('@media(max-width:760px) and (max-height:760px)'))
-    expect(shorter).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
+  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿）；2026-11-13 起手機一律不顯示（色帶改左文右圖，
+  // 大標欄只有五個字寬），見 visit-mobile-first-screen-20261111.spec.ts。
+  it('手機拿掉眉標', () => {
+    const mobile = visitCss.slice(visitCss.indexOf('@media(max-width:760px) {'))
+    expect(mobile).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
     expect(visitForm).not.toContain('visit-lead')
   })
 })
