@@ -314,7 +314,9 @@ async def visit_request_view_counts(
     return VisitViewCountsOut(upcoming=upcoming, past_unmarked=unmarked)
 
 
-def _export_row(r: VisitRequest) -> list[str]:
+def _export_row(r: VisitRequest, visited_on: date | None) -> list[str]:
+    """visited_on 和列表同一個算法（_visited_on_column）：提早到場釋出了場次的案件沒有場次，
+    只讀 r.slot 的話已到場的家庭就像沒有參觀日期（2026-11-12 QA M8）。開始與結束時間沒有場次仍留空。"""
     return [
         csv_export.safe_cell(export_labels.campus_label(r.campus_key)),
         csv_export.safe_cell(export_labels.status_label(r.status)),
@@ -330,7 +332,7 @@ def _export_row(r: VisitRequest) -> list[str]:
         str(r.party_size) if r.party_size is not None else "",
         # 預計入學時間（2026-10-15）：沒選留空；「盡快」換算送單當時的學期。
         start_rules.display_label(r.expected_start, r.created_at.astimezone(OPERATING_TZ).date()) if r.expected_start else "",
-        r.slot.slot_date.strftime("%Y/%m/%d") if r.slot else "",
+        visited_on.strftime("%Y/%m/%d") if visited_on else "",
         r.slot.start_time.strftime("%H:%M") if r.slot else "",
         r.slot.end_time.strftime("%H:%M") if r.slot else "",
         export_labels.exclude_label(r.exclude_reason),
@@ -352,11 +354,11 @@ async def _stream_export_csv(snapshot: AsyncSession, stmt):
         buffer = io.StringIO()
         writer = csv.writer(buffer)
         writer.writerow(export_labels.EXPORT_HEADERS)
-        rows = await snapshot.stream_scalars(stmt.execution_options(yield_per=_EXPORT_BATCH))
+        rows = await snapshot.stream(stmt.execution_options(yield_per=_EXPORT_BATCH))
         pending = 0
         first = True
-        async for r in rows:
-            writer.writerow(_export_row(r))
+        async for r, visited_on in rows:
+            writer.writerow(_export_row(r, visited_on))
             pending += 1
             if pending >= _EXPORT_BATCH:
                 yield ((csv_export.BOM if first else "") + buffer.getvalue()).encode("utf-8")
@@ -385,7 +387,11 @@ async def export_visit_requests(
     # csv_attachment 排在稽核之前；commit 之後只剩建立回應物件（產生器要到送出 chunk 才會執行）。
     require_scope(current_user, "booking.export")
     base = filters.apply(select(VisitRequest), current_user, "booking.export")
-    stmt = base.options(selectinload(VisitRequest.slot)).order_by(VisitRequest.created_at.desc())
+    stmt = (
+        base.add_columns(_visited_on_column())
+        .options(selectinload(VisitRequest.slot))
+        .order_by(VisitRequest.created_at.desc())
+    )
 
     snapshot = request.app.state.session_factory()
     try:

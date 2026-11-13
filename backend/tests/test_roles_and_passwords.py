@@ -43,12 +43,41 @@ async def test_change_role_and_scope(admin_client, db_session):
 
 
 @pytest.mark.asyncio
-async def test_cannot_demote_last_super_admin(admin_client):
+async def test_super_admin_cannot_change_own_role(admin_client, db_session):
+    """UI 沒有給自己改角色的入口，後端也要擋：還有別的總管理者時，自己降級不該成功。"""
+    await _create_user(db_session, "second-admin@ivy.example", "second-admin-password-123", Role.SUPER_ADMIN)
     me = (await admin_client.get(f"{API}/auth/me")).json()["user"]
     resp = await admin_client.patch(
         f"{API}/admin/users/{me['id']}/role", json={"role": "campus_admin", "campus_keys": ["yihua"]}
     )
-    assert resp.status_code == 409
+    assert resp.status_code == 409, resp.text
+    assert resp.json()["detail"]["code"] == "SELF_ROLE_CHANGE_FORBIDDEN"
+    assert "自己" in resp.json()["detail"]["message"]
+    after = (await admin_client.get(f"{API}/auth/me")).json()["user"]
+    assert after["role"] == "super_admin"
+    # 沒有留下稽核紀錄：這次操作沒有發生。
+    logged = (await db_session.execute(select(AuditLogEntry).where(AuditLogEntry.action == "user.set_role"))).scalars().all()
+    assert logged == []
+
+
+@pytest.mark.asyncio
+async def test_super_admin_may_resubmit_own_role_unchanged(admin_client):
+    """角色沒變（總管理者 → 總管理者）不是降級，維持原本的行為。"""
+    me = (await admin_client.get(f"{API}/auth/me")).json()["user"]
+    resp = await admin_client.patch(f"{API}/admin/users/{me['id']}/role", json={"role": "super_admin"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["role"] == "super_admin"
+
+
+@pytest.mark.asyncio
+async def test_cannot_demote_last_super_admin(admin_client, db_session):
+    """最後一位總管理者的保護在 service 層（併發時兩位互相降級，API 的「不能改自己的角色」
+    擋不到）；API 對自己已經先擋，所以這裡直接測 service。"""
+    from app.auth import service
+
+    admin = (await db_session.execute(select(User).where(User.email == "admin@ivy.example"))).scalar_one()
+    with pytest.raises(service.LastSuperAdminProtected):
+        await service.change_role(db_session, admin, Role.CAMPUS_ADMIN)
 
 
 @pytest.mark.asyncio

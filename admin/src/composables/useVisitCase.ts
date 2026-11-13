@@ -7,7 +7,7 @@ import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../api/errors'
 import { lastHandled } from '../api/visitHistory'
 import { isAnonymizedCase } from '../api/visitDetails'
 import type { AdminDetailsUpdateOut, RecruitmentVisit, VisitContactNoteOut, VisitRequestDetailOut, VisitRequestFullOut, VisitSlotOut } from '../api/types'
-import { formatDateTime, formatSlotWhen, maskEmail, slotStarted, visitDisplay, visitDisplayStatus, visitStatus } from '../api/labels'
+import { formatDateTime, formatSlotWhen, maskEmail, slotStarted, visitDisplay, visitDisplayLabel, visitDisplayStatus, visitStatus } from '../api/labels'
 import { familyLastHandled, latestContact } from '../admissions/family'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -225,7 +225,7 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     // 只有同事有比重讀前更新的動作才點名；狀態是家長（修改連結）或系統改的就用中性說法。
     const latest = handled.value
     const newer = latest !== null && (handledBefore === null || Date.parse(latest.at) > Date.parse(handledBefore))
-    const label = statusDisplay.value?.label ?? visitStatus(current.status).label
+    const label = statusText.value ?? visitStatus(current.status).label
     if (newer && !latest.self) {
       notifyWarning(`這筆案件剛被處理過：${latest.who}在 ${formatDateTime(latest.at)} ${latest.what}，現在是「${label}」。已載入最新內容，請確認後再操作。`)
     } else {
@@ -378,6 +378,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   const statusDisplay = computed(() => {
     const current = detail.value
     return current ? visitDisplay({ ...current, display_status: visitDisplayStatus(current.status, current.slot, clockNow.value) }) : null
+  })
+  // 同一個狀態寫進一句話（狀態轉換被擋的提示）：帶副標，和頁首、列表一致。
+  const statusText = computed(() => {
+    const current = detail.value
+    return current ? visitDisplayLabel({ ...current, display_status: visitDisplayStatus(current.status, current.slot, clockNow.value) }) : null
   })
   // 確認時間和送出時間同一分鐘（官網自選場次送出即成立）時不重複列；舊流程與補登才會不同。
   const confirmedAtShown = computed(() => {

@@ -10,7 +10,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Request, UploadFile, Query, status
 from fastapi.responses import Response
-from sqlalchemy import case, cast, false, func, literal, or_, select, true
+from sqlalchemy import Text, case, cast, false, func, literal, or_, select, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -28,6 +28,7 @@ from app.auth.permissions import (
     require_scope,
 )
 from app.auth.service import get_session_by_token
+from app.booking.route_common import _campus_or_404
 from app.booking.schemas import has_control_chars
 from app.config import Settings
 from app.content.registry import managed_as_shared
@@ -384,8 +385,15 @@ def _tags_jsonb():
     存成 \\uXXXX 跳脫，轉成文字再 ILIKE 永遠比不到中文標籤；轉成 jsonb 才會解回原字。
     PATCH 明寫 `tags: null` 時存的是 JSON 的 null（不是 SQL NULL），展開成列之前
     當成空陣列，一筆這樣的資料不會讓整個列表變成 500。"""
+    empty = cast(literal("[]"), JSONB)
     tags = cast(MediaAsset.tags, JSONB)
-    return case((func.jsonb_typeof(tags) == "array", tags), else_=cast(literal("[]"), JSONB))
+    return case(
+        # 含 \\u0000 的值轉 jsonb 會被 PostgreSQL 拒收（整個列表 500）；schema 已經不收，
+        # 這裡是替更早存進去的資料把關：那一筆當成沒有標籤，其餘照常列出。
+        (cast(MediaAsset.tags, Text).contains("\\u0000", autoescape=True), empty),
+        (func.jsonb_typeof(tags) == "array", tags),
+        else_=empty,
+    )
 
 
 def _like_pattern(text: str) -> str:
@@ -451,7 +459,7 @@ async def list_media(
         filters.append(MediaAsset.status != MediaStatus.FAILED)
     tags = _tags_jsonb()
     if tag and tag.strip():
-        filters.append(cast(MediaAsset.tags, JSONB).contains([tag.strip()]))
+        filters.append(tags.contains([tag.strip()]))
     if q and q.strip():
         pattern = _like_pattern(q.strip())
         tag_text = func.jsonb_array_elements_text(tags).column_valued("tag_text")
@@ -531,6 +539,14 @@ async def upload_media(
     db: AsyncSession = Depends(get_db_session),
 ) -> MediaAssetOut:
     _require_media_manage(current_user, campus_key)
+    # 總管理者的 require_scope 對任何校區代號都放行：不存在的校區要回 404，不能寫到外鍵才變 500。
+    if campus_key is not None:
+        await _campus_or_404(db, campus_key)
+    # 表單欄位不經 pydantic schema：NUL 會打到 PostgreSQL 才變成 500。
+    if any(value is not None and has_control_chars(value) for value in (alt_text, source_attribution)):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="內容含有不允許的控制字元"
+        )
     try:
         declared_kind = MediaKind(kind)
     except ValueError as exc:

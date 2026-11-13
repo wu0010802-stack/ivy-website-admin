@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import { applyContentOverlay } from '../app/utils/content-overlay'
+import { publishedContent } from '../app/utils/published-content'
 import {
   isLivePreview,
   previewDate,
   previewFrameSrc,
+  previewOverlay,
   previewPage,
   previewViewport,
   scheduledVisible,
@@ -89,5 +91,29 @@ describe('草稿預覽套用消息的上下架日期', () => {
     const { payload } = scheduleNewsDraft(news, '2026-09-25')
     const content = applyContentOverlay(site, { home_news: payload as never })
     expect(content.news.articles.map((a) => a.id)).toEqual(['now'])
+  })
+})
+
+// 2026-11-12 QA M9：官網輸出前會過一次 publicCopy（原型來源說明拿掉、原文一字不差的幾段換成正式站的說法），
+// 草稿預覽與編輯器右側的即時預覽原本沒過：頁尾多一行「官網設計提案…」、關於段是舊句、孩子的一天是舊回答。
+describe('草稿預覽和上線後是同一份文字', () => {
+  it('預覽出來的內容和官網用同一份草稿發布後一樣（只差未發布的校區照樣看得到）', () => {
+    const preview = previewOverlay(site, {}, '2026-11-12').content
+    expect(preview.footer.bottomNote).toBe('')
+    expect(preview.home.about.bodyText.startsWith('民國')).toBe(true)
+    expect(preview.dayExperience.moments.map((moment) => moment.answer).join('')).not.toContain('參觀時可')
+    expect(JSON.stringify(preview)).not.toContain('"_todo"')
+
+    const overlay = { campus_profile: Object.fromEntries(site.campuses.map((campus) => [campus.key, {}])) } as never
+    const published = publishedContent(site, { schema_version: '1', release_id: 'r1', content: overlay }).content
+    expect(previewOverlay(site, overlay, '2026-11-12').content).toEqual({ ...published, isDemo: preview.isDemo })
+  })
+
+  it('園方改過的字照園方的，不會被換掉', () => {
+    const about = { ...(site.home.about as unknown as Record<string, unknown>) }
+    const footer = { tagline: '園方的標語', copyright: '©', bottom_note: '園方自己寫的頁尾說明', campus_list_label: '五校聯絡' }
+    const content = previewOverlay(site, { site_footer: footer as never }, '2026-11-12').content
+    expect(content.footer.bottomNote).toBe('園方自己寫的頁尾說明')
+    expect(about.bodyText).toBe(site.home.about.bodyText)
   })
 })

@@ -209,10 +209,12 @@ async def test_booking_form_steps_classes_and_campuses(admin_client, minghua_cli
     assert campuses["minghua"]["bookings"] == 1
     assert list(campuses) == ["yihua", "minghua", "chongde", "international", "renwu"]
 
-    # 校區帳號只看得到自己範圍內校區的實際預約數；瀏覽類的匿名統計照樣看得到。
+    # 各校「實際送出的預約數」比照招生統計，要有 admissions.stats（只有總管理者）：校區帳號沒有這項授權，
+    # 連自己校的預約數也看不到（五校都是 None）；瀏覽類的匿名統計照樣看得到。
     scoped = {row["campus_key"]: row for row in (await minghua_client.get(f"{ADMIN_URL}?days=7")).json()["campuses"]}
     assert scoped["yihua"]["bookings"] is None and scoped["yihua"]["visit_sessions"] == 2
-    assert scoped["minghua"]["bookings"] in (1, None)
+    assert scoped["minghua"]["bookings"] is None
+    assert all(row["bookings"] is None for row in scoped.values())
 
 
 @pytest.mark.asyncio

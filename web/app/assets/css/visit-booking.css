@@ -252,6 +252,13 @@
 .visit-slots-loading {max-width:none}
 .visit-slots-loading::after {content:'';display:block;height:340px;margin-top:12px;border-radius:14px;background:var(--visit-soft);animation:visit-skeleton 1.4s ease-in-out infinite alternate}
 @keyframes visit-skeleton {to{opacity:.45}}
+/* 停用 JS 時（2026-11-12 QA L32）：場次要等瀏覽器載入後才查，SSR 出來的「正在讀取可預約場次」會永遠停在載入中，
+   改藏起它、顯示平常 hidden 的備援說明（VisitForm.vue 的 .visit-slots-nojs，請家長來電）。
+   用 @media (scripting: none)、不用 head 的 noscript 樣式：Chrome 實測 noscript 樣式在這個 container-type 區塊底下有時不產生版面框（見 VisitForm.vue）。 */
+@media (scripting:none) {
+  .visit-slots-loading {display:none!important}
+  .visit-slots-nojs[hidden] {display:block!important}
+}
 .visit-config-note {max-width:none;margin:24px 0;padding:14px 18px;border-radius:12px;background:var(--visit-soft);font-size:var(--fs-sm);line-height:1.8}
 .visit-contact-step {padding-top:6px}
 .visit-contact-kicker {display:block;color:var(--visit-muted);font-size:var(--fs-xs);letter-spacing:.1em;margin-bottom:12px}

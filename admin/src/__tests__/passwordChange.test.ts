@@ -6,7 +6,8 @@ import ElementPlus from 'element-plus'
 import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import AccountView from '../views/AccountView.vue'
 import { api, ApiError } from '../api/client'
-import { passwordBytes, passwordOk } from '../composables/passwordRules'
+import { apiErrorMessage, apiFieldError } from '../api/errors'
+import { passwordBytes, passwordHint, passwordLength, passwordOk } from '../composables/passwordRules'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 
@@ -34,6 +35,35 @@ describe('新密碼長度規則', () => {
     expect(passwordOk('a'.repeat(11))).toBe(false)
     expect(passwordOk('a'.repeat(72))).toBe(true)
     expect(passwordOk('a'.repeat(73))).toBe(false)
+  })
+
+  // 後端 pydantic 的 min_length／max_length 數 code point（Python len），不是 UTF-16 單位：
+  // emoji 一個字在 JS 的 .length 是 2，前端照 .length 算會放行只有 6 個字的密碼，後端再回英文 422。
+  it('字數以 code point 計，和後端一致：emoji 算 1 個字，不是 2 個', () => {
+    expect('😀'.repeat(6).length).toBe(12)
+    expect(passwordLength('😀'.repeat(6))).toBe(6)
+    expect(passwordOk('😀'.repeat(6))).toBe(false)
+    expect(passwordOk('😀'.repeat(11))).toBe(false)
+    expect(passwordOk('😀'.repeat(12))).toBe(true)
+    // bytes 上限照舊：emoji 每個 4 bytes，18 個剛好 72。
+    expect(passwordOk('😀'.repeat(18))).toBe(true)
+    expect(passwordOk('😀'.repeat(19))).toBe(false)
+    expect(passwordHint('😀'.repeat(6))).toContain('目前 6 字')
+  })
+
+  it('後端回 422 的英文長度訊息，密碼欄位改顯示中文；其他欄位的訊息照舊', () => {
+    const tooShort = new ApiError(422, [{ type: 'string_too_short', loc: ['body', 'new_password'], msg: 'String should have at least 12 characters', ctx: { min_length: 12 } }])
+    expect(apiErrorMessage(tooShort, '失敗')).toBe('新密碼至少要 12 個字')
+    expect(apiFieldError(tooShort, 'new_password')).toBe('新密碼至少要 12 個字')
+    const tooLong = new ApiError(422, [{ type: 'string_too_long', loc: ['body', 'password'], msg: 'String should have at most 128 characters', ctx: { max_length: 128 } }])
+    expect(apiErrorMessage(tooLong, '失敗')).toBe('密碼最多 128 個字')
+    const current = new ApiError(422, [{ type: 'string_too_long', loc: ['body', 'current_password'], msg: 'String should have at most 128 characters' }])
+    expect(apiErrorMessage(current, '失敗')).toBe('目前的密碼最多 128 個字')
+    // 後端自己寫的中文（72 bytes 上限）原樣顯示；不是密碼欄位的英文訊息不動。
+    const bytes = new ApiError(422, [{ type: 'password_too_long', loc: ['body', 'password'], msg: '密碼太長：最多 72 個位元組（英數字 72 個、中文約 24 個字），超過的部分不會生效' }])
+    expect(apiErrorMessage(bytes, '失敗')).toBe('密碼太長：最多 72 個位元組（英數字 72 個、中文約 24 個字），超過的部分不會生效')
+    const other = new ApiError(422, [{ type: 'string_too_short', loc: ['body', 'title'], msg: 'String should have at least 1 character' }])
+    expect(apiErrorMessage(other, '失敗')).toBe('String should have at least 1 character')
   })
 })
 

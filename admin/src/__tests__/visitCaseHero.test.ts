@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import { cleanup, mockGet } from './admissionsTestKit'
@@ -48,5 +50,23 @@ describe('案件頁首（2026-10-06 方向 C）', () => {
     expect(call.text()).toBe('撥號')
     expect(call.attributes('aria-label')).toBe('撥號給家長 0912000001')
     expect(wrapper.get('h2.detail__title').text()).toBe('林小姐')
+  })
+
+  // 2026-11-12 QA L15：家長稱呼、孩子姓名是園方或家長自己填的，可能是一長串沒有空格的字，390px 寬會把頁面撐出橫向捲軸。
+  // jsdom 不排版，沒辦法量 scrollWidth；這裡確認字整串照樣顯示（不用省略號吃掉姓名），並且標題、
+  // 送出資訊、最後處理這些會放使用者輸入的行都有 min-width: 0 與 overflow-wrap: anywhere（真正的 scrollWidth 用瀏覽器量過）。
+  it('很長的連續字串整串顯示，樣式讓它在窄螢幕斷行而不是撐出橫向捲軸', async () => {
+    const long = 'Wolfeschlegelsteinhausenbergerdorff'.repeat(2)
+    const wrapper = await mountDetail(visitCase({ parent_name: long, child_name: long }))
+    expect(wrapper.get('h2.detail__title').text()).toBe(`${long}・${long}`)
+    const source = readFileSync(join(__dirname, '../components/visit/VisitCaseHero.vue'), 'utf8')
+    const style = source.slice(source.indexOf('<style'))
+    const ruleOf = (selector: string) => new RegExp(`(?:^|\\n)${selector.replace('.', '\\.')}\\s*\\{([^}]*)\\}`).exec(style)?.[1] ?? ''
+    for (const selector of ['.detail__title', '.case-hero__sub', '.detail__handled']) {
+      const rule = ruleOf(selector)
+      expect(rule, selector).toMatch(/min-width:\s*0\b/)
+      expect(rule, selector).toMatch(/overflow-wrap:\s*anywhere/)
+      expect(rule, selector).not.toMatch(/text-overflow|white-space:\s*nowrap/)
+    }
   })
 })

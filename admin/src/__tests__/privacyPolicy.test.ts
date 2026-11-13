@@ -72,6 +72,14 @@ describe('隱私權政策（privacy_policy）', () => {
     expect(cookies.body).not.toContain('目前只使用')
   })
 
+  // 2026-11-12 QA L24：正式站（production）的登入相關 cookie 一律加 __Host- 前綴
+  // （backend/app/common/host_cookies.py），政策要寫瀏覽器裡實際看到的名稱。
+  it('初稿第 5 段：家長改期連結的 cookie 寫正式站的名稱 __Host-ivy_parent_session', () => {
+    const cookies = privacyPolicyDraft().sections.find((s) => s.heading.startsWith('5.'))!
+    expect(cookies.body).toContain('- __Host-ivy_parent_session：')
+    expect(cookies.body).not.toMatch(/(?<!__Host-)ivy_parent_session/)
+  })
+
   it('待確認計數：標題與各段都算，補完後歸零', () => {
     const draft = privacyPolicyDraft()
     draft.title = `隱私權政策${PRIVACY_POLICY_PENDING_MARKER}：x】`

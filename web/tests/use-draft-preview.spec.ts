@@ -43,6 +43,52 @@ function stubFetch(authorized = true, media: ReturnType<typeof mediaAsset>[] | n
 
 afterEach(() => vi.unstubAllGlobals())
 
+// 2026-11-12 QA L8：分校帳號讀不到別校的 campus_profile／campus_news（後台 API 回 404）。原本照樣逐校去要，
+// 每開一次編輯器就是 8 個 404 與 console 錯誤，別校還退回內建內容、和官網不同。讀不到的校區不去要，改用官網已發布的。
+describe('分校帳號的草稿預覽', () => {
+  const minghuaPublished = { name: '明華校（官網已發布）', district: '左營區', address: '高雄市左營區明華一路 1 號', phone: '07-111-2222' }
+  const yihuaDraft = { name: '義華校（草稿）', district: '三民區', address: '高雄市三民區義華路 68 號', phone: '07-000-1234' }
+
+  function stubCampusUser() {
+    const fetch = vi.fn(async (url: string) => {
+      if (url === '/api/website/v1/auth/me') {
+        return { csrf_token: 't', user: { id: 'u', email: 'a@example.invalid', role: 'campus_admin', is_active: true, campus_keys: ['yihua'] } }
+      }
+      if (url === '/api/site-fixture') return structuredClone(fixture)
+      if (url === '/api/website/v1/public/site') {
+        return { schema_version: '1', release_id: 'r1', content: { campus_profile: { minghua: minghuaPublished, yihua: { ...yihuaDraft, name: '義華校（官網已發布）' } } }, media: {} }
+      }
+      if (url === '/api/website/v1/admin/content-items/campus_profile?campus_key=yihua') {
+        return { id: 'i', kind: 'campus_profile', campus_key: 'yihua', latest_version: 2, current_published_revision_id: 'r1', latest_revision: { id: 'r2', version: 2, payload: yihuaDraft, created_at: '2026-11-12T00:00:00Z' } }
+      }
+      if (url.startsWith('/api/website/v1/admin/media?')) return mediaPage(url, [])
+      throw new Error('404')
+    })
+    vi.stubGlobal('$fetch', fetch)
+    return fetch
+  }
+
+  it('別校的分校介紹與消息不向後台要，改用官網已發布的；自己這一校照舊是最新草稿', async () => {
+    const fetch = stubCampusUser()
+    const result = await useDraftPreview()
+    const asked = fetch.mock.calls.map(([url]) => url).filter((url) => /content-items\/campus_(profile|news)\?/.test(url))
+    expect(asked.sort()).toEqual([
+      '/api/website/v1/admin/content-items/campus_news?campus_key=yihua',
+      '/api/website/v1/admin/content-items/campus_profile?campus_key=yihua'
+    ])
+    const campuses = result.render!('2026-11-12').content.campuses
+    expect(campuses.find((c) => c.key === 'yihua')!.name).toBe('義華校（草稿）')
+    expect(campuses.find((c) => c.key === 'minghua')!.name).toBe('明華校（官網已發布）')
+  })
+
+  it('總管理者照舊五校都向後台要', async () => {
+    const fetch = stubFetch()
+    await useDraftPreview()
+    const asked = fetch.mock.calls.map(([url]) => url).filter((url) => /content-items\/campus_profile\?/.test(url))
+    expect(asked).toHaveLength(5)
+  })
+})
+
 describe('useDraftPreview 的即時內容', () => {
   it('沒帶即時內容時照舊顯示已存草稿；帶了只蓋掉那一項', async () => {
     stubFetch()

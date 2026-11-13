@@ -76,6 +76,32 @@ describe('瀏覽統計面板', () => {
     expect(text).not.toContain('只計算公開頁面')
   })
 
+  // 2026-11-12 QA L33：瀏覽量少時 Math.round(3 / 7) 是 0，畫面變成「這段期間 3、平均每天 0 次」自相矛盾。
+  describe('平均每天', () => {
+    const days = (count: number) => Array.from({ length: count }, (_, i) => ({ day: `2026-09-${String(i + 1).padStart(2, '0')}`, views: 0 }))
+    async function averageHint(total: number, count: number) {
+      vi.spyOn(api, 'get').mockResolvedValue({ ...traffic(), total_views: total, daily: days(count) } as never)
+      const wrapper = mount(SiteTrafficPanel, { global: { plugins: [ElementPlus] } })
+      wrappers.push(wrapper)
+      await flushPromises()
+      return wrapper.get('.traffic__stats .stat__hint').text()
+    }
+
+    it('有瀏覽卻平均不到 1 次：寫「不到 1 次」，不寫 0', async () => {
+      expect(await averageHint(3, 7)).toBe('平均每天不到 1 次')
+      expect(await averageHint(1, 28)).toBe('平均每天不到 1 次')
+      // 0.57 過去四捨五入成 1，也是不到 1。
+      expect(await averageHint(4, 7)).toBe('平均每天不到 1 次')
+    })
+
+    it('1 次以上維持整數；真的沒有瀏覽才寫 0', async () => {
+      expect(await averageHint(7, 7)).toBe('平均每天 1 次')
+      expect(await averageHint(120, 28)).toBe('平均每天 4 次')
+      expect(await averageHint(292, 28)).toBe('平均每天 10 次')
+      expect(await averageHint(0, 7)).toBe('平均每天 0 次')
+    })
+  })
+
   it('速度表用白話，不出現百分位與縮寫；次數太少標「樣本太少」', async () => {
     const { wrapper } = await mountPanel()
     const table = wrapper.find('.traffic__vitals')

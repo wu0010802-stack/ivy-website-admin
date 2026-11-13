@@ -150,6 +150,13 @@ async def add_visit_exception(
 ) -> VisitExceptionCreatedOut:
     require_scope(current_user, "booking.manage", campus_keys=[campus_key])
     await _campus_or_404(db, campus_key)
+    # 過去的日期收進來會把當天已結束的場次關掉，而畫面只列今天以後的休假日（_schedule_out 的
+    # since=today），這筆之後再也看不到、刪不掉。今天（台北）還是可以設：颱風假常在當天才宣布。
+    if payload.exception_date < today_local():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_EXCEPTION_DATE", "message": "休假日不能設在過去的日期，請選今天或之後的日期"},
+        )
     record, closed, affected = await schedule_service.add_exception(
         db, campus_key, payload.exception_date, payload.reason, current_user.id
     )

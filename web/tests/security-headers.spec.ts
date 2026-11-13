@@ -170,3 +170,30 @@ it('靜態資源處理器（排在所有 middleware 之前）回的 /admin/ 也�
   expect(asset.headers.get('x-content-type-options')).toBe('nosniff')
   expect(asset.headers.get('content-security-policy')).toBe(publicCsp())
 })
+
+// 2026-11-12 QA L4：///admin/ 以前套公開頁的 CSP、沒有 no-store／noindex，但靜態處理器照樣送出後台入口。
+describe('後台路徑：多重斜線與大小寫', () => {
+  it.each(['///admin/', '//admin', '/admin//', '/admin//assets/x.js', '/Admin/', '/ADMIN/index.html', '/%61dmin//x', '//%41dmin/'])('%s 套後台 CSP 與 noindex', (path) => {
+    const headers = securityHeadersFor(path, 'test')
+    expect(headers['Content-Security-Policy'], path).toBe(ADMIN_CSP)
+    expect(headers['X-Robots-Tag'], path).toBe('noindex, nofollow')
+  })
+
+  it.each(['///admin/', '//admin', '//admin//index.html', '/Admin/', '/ADMIN/', '/%61dmin//'])('%s 的入口不快取', (path) => {
+    expect(securityHeadersFor(path, 'test')['Cache-Control'], path).toBe('private, no-store')
+  })
+
+  it('Service worker 與 manifest 在多重斜線、大小寫寫法下一樣每次重新驗證', () => {
+    expect(securityHeadersFor('///admin/sw.js', 'test')['Cache-Control']).toBe('no-cache')
+    expect(securityHeadersFor('/Admin/Manifest.webmanifest', 'test')['Cache-Control']).toBe('no-cache')
+  })
+
+  it('有雜湊的後台資源照常快取，其他路徑不受影響', () => {
+    expect(securityHeadersFor('///admin/assets/index-abc.js', 'test')['Cache-Control']).toBeUndefined()
+    for (const path of ['/administrator', '//administrator/', '/about', '//about', '/Adminx/']) {
+      const headers = securityHeadersFor(path, 'test')
+      expect(headers['Content-Security-Policy'], path).not.toBe(ADMIN_CSP)
+      expect(headers['X-Robots-Tag'], path).toBeUndefined()
+    }
+  })
+})

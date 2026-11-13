@@ -478,6 +478,15 @@ onMounted(() => {
   overflow-wrap: anywhere;
 }
 
+/* 夾在句子中間的連結只靠顏色分辨不夠（WCAG 1.4.1，axe 的 link-in-text-block）。
+   style.css 已經替 .page-lead、.hint、.field-help 裡的連結加了底線；下面幾處不在那些容器裡。 */
+.seo-summary dd a,
+.retention__overdue a,
+.site-unpublished a {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 @media (max-width: 600px) {
   .seo-summary > div {
     grid-template-columns: minmax(0, 1fr);

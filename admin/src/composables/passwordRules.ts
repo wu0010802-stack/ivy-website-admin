@@ -10,11 +10,21 @@ export function passwordBytes(value: string): number {
   return new TextEncoder().encode(value).length
 }
 
+/**
+ * 字數。後端 pydantic 的 min_length／max_length 數 code point（Python 的 len），
+ * 不是 JS 的 .length（UTF-16 單位）：emoji 在 .length 是 2、後端只算 1，
+ * 照 .length 算會放行字數不夠的密碼，再被後端回英文 422。
+ */
+export function passwordLength(value: string): number {
+  return Array.from(value).length
+}
+
 export function passwordOk(value: string): boolean {
-  return value.length >= PASSWORD_MIN_LENGTH && value.length <= PASSWORD_MAX_CHARS && passwordBytes(value) <= PASSWORD_MAX_BYTES
+  const length = passwordLength(value)
+  return length >= PASSWORD_MIN_LENGTH && length <= PASSWORD_MAX_CHARS && passwordBytes(value) <= PASSWORD_MAX_BYTES
 }
 
 export function passwordHint(value: string): string {
-  const base = `12 字以上、最多 72 bytes（中文約 24 字）。目前 ${value.length} 字`
+  const base = `12 字以上、最多 72 bytes（中文約 24 字）。目前 ${passwordLength(value)} 字`
   return passwordBytes(value) > PASSWORD_MAX_BYTES ? `${base}，超過 72 bytes，請縮短。` : `${base}。`
 }

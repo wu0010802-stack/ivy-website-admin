@@ -6,6 +6,7 @@ import CruxPanel from '../components/CruxPanel.vue'
 import PageHeader from '../components/PageHeader.vue'
 import SearchInsightsPanel from '../components/SearchInsightsPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import { usePermissions } from '../composables/usePermissions'
 import {
   ANALYTICS_DAY_OPTIONS, ANALYTICS_DEVICE_OPTIONS, ANALYTICS_TABS, DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, DEFAULT_ANALYTICS_TAB,
   type AnalyticsDays, type AnalyticsDevice, type AnalyticsTab, type InterestView,
@@ -50,6 +51,10 @@ watch(tab, (value) => {
 // 2026-11-12 起兩個外部數據各掛在一類底下：Chrome 真實使用者（CrUX）在「瀏覽與速度」、Google 搜尋（Search Console）
 // 在「怎麼來、怎麼逛」，切到那一類才向後端要（後端另有快取）。Google 搜尋跟著整頁的期間；CrUX 是 28 天滾動，
 // 不隨期間變，所以不會有「更新中」。
+// 這兩支外部數據的 API 要 admissions.stats（只有總管理者有，backend/app/insights/routes.py）；
+// 其他角色一律 403，面板會永遠停在「請重新載入」，所以沒有權限就不放（2026-11-12 QA M3）。
+const { can } = usePermissions()
+const showExternal = computed(() => can('admissions.stats'))
 const updating = reactive({ traffic: false, interest: false, search: false })
 const statusText = computed(() => {
   const busy =
@@ -91,9 +96,9 @@ const statusText = computed(() => {
     </div>
 
     <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
-    <CruxPanel v-show="tab === 'traffic'" :active="tab === 'traffic'" />
+    <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
-    <SearchInsightsPanel v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
+    <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
   </div>
 </template>
 

@@ -73,6 +73,7 @@ _SUBMIT_ERRORS = (
     service.IdempotencyConflict,
     service.BookingConfigVersionChanged,
     service.BookingUnavailable,
+    service.DuplicateBooking,
     service.PhoneSubmissionLimit,
     workflow_service.SlotFull,
     slot_service.SlotNotBookable,
@@ -94,6 +95,11 @@ def _submit_error(exc: Exception) -> HTTPException:
         return HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "BOOKING_UNAVAILABLE", "message": "此校區目前不接受線上預約表單"},
+        )
+    if isinstance(exc, service.DuplicateBooking):
+        return HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "ALREADY_BOOKED", "message": "這支電話已經預約過這個場次，不用再送一次"},
         )
     if isinstance(exc, service.PhoneSubmissionLimit):
         return HTTPException(

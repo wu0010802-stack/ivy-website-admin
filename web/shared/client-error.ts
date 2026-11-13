@@ -139,15 +139,26 @@ export interface ClientErrorContext {
   release?: string
 }
 
+/**
+ * 截到最多 max 個 UTF-16 單位（和 validateClientError 的 .length 同一種算法），但不切斷 surrogate pair：
+ * 截斷點若落在 emoji 中間（第 max 個單位是 high surrogate），往前退一格把整個 emoji 拿掉。
+ * 孤立的 surrogate 序列化成 JSON 是 \ud83d 這種跳脫，後端存不進去、整筆回報 422 遺失（2026-11-12）。
+ */
+export function clipClientText(text: string, max: number): string {
+  if (text.length <= max) return text
+  const last = text.charCodeAt(max - 1)
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)
+}
+
 export function buildClientError(raw: RawClientError, context: ClientErrorContext): ClientErrorReport {
-  const stack = raw.stack ? redactClientText(stripOrigin(raw.stack, context.origin)).slice(0, CLIENT_ERROR_LIMITS.stack) : ''
-  const release = context.release?.slice(0, CLIENT_ERROR_LIMITS.release)
+  const stack = raw.stack ? clipClientText(redactClientText(stripOrigin(raw.stack, context.origin)), CLIENT_ERROR_LIMITS.stack) : ''
+  const release = context.release === undefined ? undefined : clipClientText(context.release, CLIENT_ERROR_LIMITS.release)
   return {
     source: context.source,
-    kind: redactClientText(raw.kind, { tokens: false }).slice(0, CLIENT_ERROR_LIMITS.kind) || 'Error',
-    message: redactClientText(raw.message ?? '').slice(0, CLIENT_ERROR_LIMITS.message),
+    kind: clipClientText(redactClientText(raw.kind, { tokens: false }), CLIENT_ERROR_LIMITS.kind) || 'Error',
+    message: clipClientText(redactClientText(raw.message ?? ''), CLIENT_ERROR_LIMITS.message),
     ...(stack ? { stack } : {}),
-    path: redactClientPath(context.pathname).slice(0, CLIENT_ERROR_LIMITS.path),
+    path: clipClientText(redactClientPath(context.pathname), CLIENT_ERROR_LIMITS.path),
     ...(release ? { release } : {}),
   }
 }

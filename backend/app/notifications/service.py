@@ -32,7 +32,7 @@ from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import reminders, web_push
-from app.notifications.email_adapter import EmailAdapter
+from app.notifications.email_adapter import EmailAdapter, outbox_idempotency_key, send_email
 from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
@@ -397,7 +397,14 @@ async def _dispatch_parent_email(
     recipient = _header_safe(visit_request.email)
     # 信組好了：放掉共享鎖再寄，不握著案件列鎖等 SMTP。
     await db.commit()
-    await asyncio.to_thread(adapter.send, to=recipient, subject=_header_safe(subject), body=body)
+    await asyncio.to_thread(
+        send_email,
+        adapter,
+        to=recipient,
+        subject=_header_safe(subject),
+        body=body,
+        idempotency_key=outbox_idempotency_key(outbox_message_id, recipient),
+    )
     _record_delivery(db, outbox_message_id, "email", recipient_key)
     await db.commit()
     return True
@@ -451,7 +458,14 @@ async def _dispatch_email_changed_notice(
         campus_phone=str(profile.get("phone") or "").strip() or None,
     )
     await db.commit()
-    await asyncio.to_thread(adapter.send, to=_header_safe(old_email), subject=_header_safe(subject), body=body)
+    await asyncio.to_thread(
+        send_email,
+        adapter,
+        to=_header_safe(old_email),
+        subject=_header_safe(subject),
+        body=body,
+        idempotency_key=outbox_idempotency_key(outbox_message_id, old_email),
+    )
     _record_delivery(db, outbox_message_id, "email", recipient_key)
     await _forget_old_email(db, outbox_message_id, payload)
     await db.commit()
@@ -679,10 +693,12 @@ async def _send_pending_emails(
         # SMTP 是阻塞 I/O（連線逾時 20 秒）。定期工作跑在 API 的 event loop
         # 上，直接呼叫會讓這段期間所有請求一起卡住。
         await asyncio.to_thread(
-            adapter.send,
+            send_email,
+            adapter,
             to=_header_safe(user.email),
             subject=_header_safe(subject),
             body=body,
+            idempotency_key=outbox_idempotency_key(outbox_message_id, user.email),
         )
         # 寄成功才記，而且立刻 commit——信已經寄出去了，這個事實不能被
         # 後面其他收件人的失敗回滾掉，否則這個人下一輪會再收一封。

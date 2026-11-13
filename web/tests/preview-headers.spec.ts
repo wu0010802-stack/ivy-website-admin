@@ -67,6 +67,16 @@ describe('預覽與家長修改頁的快取與索引標頭', () => {
     }
   })
 
+  // 2026-11-12 QA L4：連續斜線的寫法由 plugins/url-canonical.ts 301 成單一寫法；轉址被繞過時標頭仍要對。
+  it('多重斜線的 /preview、/admin、/visit/manage 一樣不快取、不索引', async () => {
+    const base = await serve()
+    for (const path of ['//preview', '///Preview?embed=1', '//admin/x', '/visit//manage', '//visit/manage/']) {
+      const response = await fetch(`${base}${path}`)
+      expect(response.headers.get('cache-control'), path).toBe('private, no-store')
+      expect(response.headers.get('x-robots-tag'), path).toBe('noindex, nofollow')
+    }
+  })
+
   it('一般頁面不加 no-store 與 noindex', async () => {
     const base = await serve()
     const response = await fetch(`${base}/about`)

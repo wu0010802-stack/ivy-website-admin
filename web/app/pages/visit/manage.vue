@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, expectedStartOptions, expectedStartText, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, earliestChildBirthdate, expectedStartOptions, expectedStartText, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotRange, slotWhen } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
@@ -68,7 +68,10 @@ function consumeLink(initial = false) {
   if (!initial && !token) return
   // fragment 只用來交換 HttpOnly session。用 router.replace 清掉：router 自己記著目前位置（含 token），
   // 只改瀏覽器網址的話，之後任何導覽寫進 history.state 的 back／current 還是帶著 token。
-  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '' })
+  // force：同一個分頁再開第二條連結（或改了 hash）時，router 記的位置還是上次清乾淨的那個，目標和它
+  // 一模一樣；不加 force 會被當成重複導覽直接略過，還順便取消瀏覽器那次換 hash 的導覽——token 就留在
+  // 網址列、history.state 與上一頁裡（2026-11-12 QA M6）。
+  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '', force: true })
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
@@ -281,7 +284,7 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.email }}</p>
                 <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
-                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
+                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
                 <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
                 <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>

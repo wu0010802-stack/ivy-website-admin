@@ -362,3 +362,38 @@ describe('上游逾時（2026-11-12）', () => {
     req.destroy()
   }, 15000)
 })
+
+describe('請求方法白名單（2026-11-12 QA L3）', () => {
+  // 後端只有 GET／POST／PUT／PATCH／DELETE 路由（沒有 CORS，不會有跨站預檢），素材另外會被 HEAD 探活。
+  // TRACE 之類 fetch 不收的方法以前被當成上游故障回 502，現在直接回 405，不往上游送。
+  it.each(['TRACE', 'PROPFIND', 'OPTIONS'])('%s → 405 並附 Allow，不轉給後端', async (method) => {
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/site', { method })
+    expect(response.status).toBe(405)
+    expect(response.headers.allow).toBe('GET, HEAD, POST, PUT, PATCH, DELETE')
+    expect(upstreamHits).toEqual([])
+  })
+
+  it('不合法路徑加上不支援的方法，也是 405（方法先於路徑判斷）', async () => {
+    const response = await rawRequest(proxyPort, '/api/website/v1/%2e%2e/docs', { method: 'TRACE' })
+    expect(response.status).toBe(405)
+    expect(upstreamHits).toEqual([])
+  })
+
+  it.each(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'])('%s 照常轉給後端', async (method) => {
+    const seen: string[] = []
+    upstreamHandler = (req, res) => { seen.push(req.method ?? ''); res.writeHead(200, { 'content-type': 'application/json' }); res.end(req.method === 'HEAD' ? undefined : '{}') }
+    const body = '{}'
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/site', {
+      method,
+      headers: method === 'GET' || method === 'HEAD' ? undefined : { 'content-type': 'application/json', 'content-length': String(body.length) },
+      body: method === 'GET' || method === 'HEAD' ? undefined : body,
+    })
+    expect(response.status).toBe(200)
+    expect(seen).toEqual([method])
+  })
+
+  it('白名單常數就是 Allow 標頭的來源', async () => {
+    const { API_PROXY_METHODS } = await import('../server/utils/api-proxy')
+    expect([...API_PROXY_METHODS]).toEqual(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'])
+  })
+})

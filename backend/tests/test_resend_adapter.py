@@ -221,3 +221,78 @@ async def test_booking_config_turns_parent_mail_on_with_resend(app, admin_client
     assert off["parent_email_enabled"] is False
     assert on["parent_email_enabled"] is True
     assert admin["parent_email_enabled"] is True
+
+
+# --- Idempotency-Key（2026-11-12 QA L23）-----------------------------------------
+
+
+def test_send_passes_the_idempotency_key_header():
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "49a3999c-0ce1-4ea6-ab68-afcd6dc2e794"})
+
+    _adapter(handler).send(to="parent@example.org", subject="s", body="b", idempotency_key="ivy-outbox-abc-123")
+    _adapter(handler).send(to="parent@example.org", subject="s", body="b")
+
+    assert seen[0].headers["idempotency-key"] == "ivy-outbox-abc-123"
+    assert "idempotency-key" not in seen[1].headers
+
+
+def test_send_email_gives_the_key_only_to_adapters_that_support_it():
+    """SMTP、本機 sink 與測試用的假 adapter 的 send 不認 idempotency_key：不能因為多傳一個參數就壞掉。"""
+    from app.notifications.email_adapter import send_email
+
+    class _Plain:
+        def __init__(self) -> None:
+            self.calls: list[dict] = []
+
+        def send(self, *, to: str, subject: str, body: str) -> None:
+            self.calls.append({"to": to, "subject": subject, "body": body})
+
+    plain = _Plain()
+    send_email(plain, to="a@example.org", subject="s", body="b", idempotency_key="ivy-outbox-1")
+    assert plain.calls == [{"to": "a@example.org", "subject": "s", "body": "b"}]
+
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"id": "x"})
+
+    send_email(_adapter(handler), to="a@example.org", subject="s", body="b", idempotency_key="ivy-outbox-1")
+    assert seen[0].headers["idempotency-key"] == "ivy-outbox-1"
+
+
+def test_outbox_idempotency_key_is_stable_and_distinguishes_message_and_recipient():
+    import uuid
+
+    from app.notifications.email_adapter import outbox_idempotency_key
+
+    first, second = uuid.uuid4(), uuid.uuid4()
+    key = outbox_idempotency_key(first, "Parent@Example.org")
+    assert key == outbox_idempotency_key(first, "parent@example.org ")  # 同一封重試：大小寫與前後空白不改變 key
+    assert key.startswith(f"ivy-outbox-{first}-")
+    assert key != outbox_idempotency_key(second, "parent@example.org")  # 另一筆 outbox
+    assert key != outbox_idempotency_key(first, "other@example.org")  # 同一筆 outbox 的另一位收件人（園方通知寄多人）
+    assert "example.org" not in key and len(key) <= 256  # 收件地址不寫進 header；Resend 的上限是 256 字
+
+
+def test_idempotency_conflict_means_the_first_attempt_was_already_accepted():
+    """同一把 key、內容和上次不同（例如重試前案件又改了），Resend 回 409 invalid_idempotent_request：
+    第一封已經被收下了，再重試只會一直 409 到 outbox 過期、狀態變成寄送失敗。當成已寄出。
+    同一把 key 的前一個請求還在處理（concurrent_idempotent_requests）則照常當失敗、下一輪再試。"""
+    def conflict(name: str):
+        return lambda request: httpx.Response(409, json={"statusCode": 409, "name": name, "message": "x"})
+
+    _adapter(conflict("invalid_idempotent_request")).send(
+        to="parent@example.org", subject="s", body="b", idempotency_key="ivy-outbox-abc-123"
+    )
+    with pytest.raises(email_adapter.ResendError):
+        _adapter(conflict("concurrent_idempotent_requests")).send(
+            to="parent@example.org", subject="s", body="b", idempotency_key="ivy-outbox-abc-123"
+        )
+    # 沒帶 key 的請求不可能有這種衝突：照常當錯誤。
+    with pytest.raises(email_adapter.ResendError):
+        _adapter(conflict("invalid_idempotent_request")).send(to="parent@example.org", subject="s", body="b")

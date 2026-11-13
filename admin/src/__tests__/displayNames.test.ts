@@ -13,7 +13,7 @@ import AuditView from '../views/AuditView.vue'
 import VisitDetailView from '../views/VisitDetailView.vue'
 import PublishHistoryView from '../views/PublishHistoryView.vue'
 import AdminSidebar from '../components/AdminSidebar.vue'
-import { api, ApiError } from '../api/client'
+import { api, ApiError, CSRF_INVALID_DETAIL } from '../api/client'
 import {
   auditActionLabel,
   displayNameError,
@@ -346,6 +346,19 @@ describe('我的帳號：自己設定顯示名稱', () => {
     await wrapper.get('[data-test="save-display-name"]').trigger('click')
     await flushPromises()
     expect(staffLabelById('me', staff.value)).toBe('阿芬')
+  })
+
+  // 2026-11-12 QA L11：另一個分頁換了帳號，這個分頁的 token 對不上（403「CSRF token 無效」）。
+  // client 已經交給登入提示處理，頁面不能再跳一則原始字串的 toast。
+  it('另一個分頁換了帳號（403 CSRF）：不跳「CSRF token 無效」的 toast', async () => {
+    const { wrapper } = await mountAccount(me)
+    vi.spyOn(api, 'patch').mockRejectedValue(new ApiError(403, CSRF_INVALID_DETAIL))
+    const error = vi.spyOn(ElMessage, 'error')
+    await wrapper.get('#account-display-name').setValue('阿芬')
+    await wrapper.get('[data-test="save-display-name"]').trigger('click')
+    await flushPromises()
+    expect(error).not.toHaveBeenCalled()
+    expect(document.body.textContent).not.toContain('CSRF')
   })
 })
 

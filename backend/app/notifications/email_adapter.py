@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -22,7 +23,30 @@ class EmailNotConfigured(Exception):
 
 
 class EmailAdapter(Protocol):
+    """寄信管道。send 的簽名只有收件人、主旨、內文；支援冪等的管道（Resend）另外宣告
+    `supports_idempotency_key = True` 並多收 `idempotency_key`，呼叫端一律經 `send_email` 寄，
+    不認識這個參數的管道（SMTP、本機 sink、測試用的假 adapter）不會被多傳的參數弄壞。"""
+
     def send(self, *, to: str, subject: str, body: str) -> None: ...
+
+
+def outbox_idempotency_key(outbox_message_id: uuid.UUID | str, recipient: str) -> str:
+    """outbox 工作寄信的冪等鍵：同一筆工作寄給同一位收件人，每次重試都是同一把 key（Resend 24 小時內
+    不重寄）；同一筆工作寄給多位收件人（園方通知）各有各的 key。收件地址只取雜湊，不寫進 header。
+    Resend 的 key 上限 256 字，這裡約 64 字。"""
+    digest = hashlib.sha256(recipient.strip().lower().encode("utf-8")).hexdigest()[:16]
+    return f"ivy-outbox-{outbox_message_id}-{digest}"
+
+
+def send_email(
+    adapter: EmailAdapter, *, to: str, subject: str, body: str, idempotency_key: str | None = None
+) -> None:
+    """寄一封信。`idempotency_key` 只交給宣告支援的管道（Resend），其他管道照舊三個參數。
+    阻塞 I/O，從事件迴圈呼叫要包 asyncio.to_thread。"""
+    if idempotency_key is not None and getattr(adapter, "supports_idempotency_key", False):
+        adapter.send(to=to, subject=subject, body=body, idempotency_key=idempotency_key)  # type: ignore[call-arg]
+    else:
+        adapter.send(to=to, subject=subject, body=body)
 
 
 class LocalSinkEmailAdapter:
@@ -150,7 +174,12 @@ class ResendEmailAdapter:
     """經 Resend 的 HTTPS API 真實寄信（2026-11-11）。不走 SMTP：部署平台可能擋對外的 SMTP 連接埠，
     HTTPS 一定通。每封信一次請求、純文字內容；失敗直接拋出，由 outbox 記錯誤碼並排下次重試。
 
-    send 是同步呼叫（和 SmtpEmailAdapter 一樣在背景 thread 裡跑），所以用 httpx.Client。"""
+    send 是同步呼叫（和 SmtpEmailAdapter 一樣在背景 thread 裡跑），所以用 httpx.Client。
+
+    帶 `idempotency_key` 時送 Idempotency-Key 標頭：Resend 對同一把 key 24 小時內只寄一次。outbox
+    工作寄出後回應逾時（信其實已送出），下一輪重試用同一把 key，家長才不會收到兩封。"""
+
+    supports_idempotency_key = True
 
     def __init__(
         self,
@@ -167,19 +196,27 @@ class ResendEmailAdapter:
         self._base_url = base_url
         self._timeout = timeout
 
-    def send(self, *, to: str, subject: str, body: str) -> None:
+    def send(self, *, to: str, subject: str, body: str, idempotency_key: str | None = None) -> None:
+        headers = {"Authorization": f"Bearer {self._api_key}"}
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         with httpx.Client(
             base_url=self._base_url,
             transport=self._transport,
             timeout=httpx.Timeout(self._timeout),
-            headers={"Authorization": f"Bearer {self._api_key}"},
+            headers=headers,
         ) as client:
             response = client.post(
                 "/emails",
                 json={"from": self.sender, "to": [to], "subject": subject, "text": body},
             )
         if response.status_code >= 400:
-            raise _resend_error(response)
+            error = _resend_error(response)
+            # 同一把 key、內容和上次不同（重試前案件又改了）：上一次已經被 Resend 收下，信不會再寄一次。
+            # 當成已寄出；繼續重試只會一直 409 到 outbox 過期，狀態變成寄送失敗。
+            if idempotency_key and error.status_code == 409 and error.name == "invalid_idempotent_request":
+                return
+            raise error
 
 
 def get_email_adapter(sink_dir: str | None, settings=None) -> EmailAdapter:

@@ -174,6 +174,7 @@ def probe_video(video_path: Path) -> VideoProbe:
         result = subprocess.run(
             [
                 "ffprobe",
+                "-hide_banner",
                 "-v",
                 "error",
                 *FFMPEG_INPUT_GUARD,
@@ -213,6 +214,18 @@ def probe_video(video_path: Path) -> VideoProbe:
     )
 
 
+# 寫進 processing_error、顯示在後台素材卡片上的 ffmpeg 錯誤文字上限。
+ERROR_TAIL_CHARS = 300
+
+
+def _error_tail(raw: bytes | str, limit: int = ERROR_TAIL_CHARS) -> str:
+    """ffmpeg 的錯誤輸出只留尾端：真正的失敗原因在最後幾行（壞檔可能印出一大串、舊版還會先印版本與
+    編譯設定）。去掉空白行、每行頂多留單一空白、行與行用 " / " 接成一行，後台卡片才不會被長文字撐開。"""
+    text = raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+    lines = (" ".join(line.split()) for line in text.splitlines())
+    return " / ".join(line for line in lines if line)[-limit:]
+
+
 def extract_video_poster_webp(video_path: Path, at_seconds: float = 0.5) -> bytes:
     return extract_video_poster(video_path, at_seconds).data
 
@@ -233,6 +246,10 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
                 [
                     "ffmpeg",
                     "-nostdin",
+                    # 不印版本與編譯設定：錯誤輸出只剩真正的原因（見 _error_tail）。
+                    "-hide_banner",
+                    "-loglevel",
+                    "error",
                     "-y",
                     *FFMPEG_INPUT_GUARD,
                     "-max_pixels",
@@ -255,9 +272,7 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
             raise ProcessingError(f"無法執行 ffmpeg：{exc}", retryable=True) from exc
 
         if result.returncode != 0 or not frame_path.exists():
-            raise ProcessingError(
-                f"ffmpeg 抽幀失敗：{result.stderr.decode('utf-8', errors='replace')[:500]}"
-            )
+            raise ProcessingError(f"ffmpeg 抽幀失敗：{_error_tail(result.stderr)}")
         try:
             # 先只讀 PNG header 比對像素上限，再交給 Pillow 解碼。
             with Image.open(frame_path, formats=("PNG",)) as frame:
@@ -400,7 +415,7 @@ def probe_video_stream(video_path: Path) -> VideoStream:
     try:
         result = subprocess.run(
             [
-                "ffprobe", "-v", "error", *FFMPEG_INPUT_GUARD, "-select_streams", "v:0",
+                "ffprobe", "-hide_banner", "-v", "error", *FFMPEG_INPUT_GUARD, "-select_streams", "v:0",
                 "-show_entries",
                 "stream=codec_name,pix_fmt,width,height,avg_frame_rate,r_frame_rate,color_transfer,color_primaries",
                 "-of", "json", str(video_path),

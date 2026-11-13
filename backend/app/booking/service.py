@@ -46,6 +46,10 @@ class IdempotencyConflict(Exception):
     """同一個 idempotency key 但 body 不同——不能悄悄當成同一筆處理。"""
 
 
+class DuplicateBooking(Exception):
+    """對應 409 ALREADY_BOOKED：同校同場次，這支手機已經有一筆占名額的預約。"""
+
+
 class PhoneSubmissionLimit(Exception):
     """同一校同一支手機在窗口內建立的案件已達上限。對應 429 RATE_LIMITED。"""
 
@@ -339,6 +343,22 @@ async def submit_visit_request(
         now=now,
         lock_slot=True,
     )
+    # 同一支手機不能把同一個場次約兩次（2026-11-12 QA M4／M5）：回應在路上斷掉後重新整理
+    # 再送、成功後按上一頁再送一次，都是新的 Idempotency-Key，重播擋不到，同一家庭就占掉
+    # 兩個名額。只在這裡（鎖內、限流與機器人驗證之後）檢查，不放進不上鎖的預檢：預檢在
+    # Turnstile 之前，放在那裡等於讓人免驗證就能試出「這支手機約了哪一場」。
+    duplicate = await db.scalar(
+        select(VisitRequest.id)
+        .where(
+            VisitRequest.campus_key == campus_key,
+            VisitRequest.slot_id == slot.id,
+            VisitRequest.phone == payload["phone"],
+            slot_service.occupying_condition(),
+        )
+        .limit(1)
+    )
+    if duplicate is not None:
+        raise DuplicateBooking()
     if phone_limit is not None:
         max_per_phone, window = phone_limit
         recent = await db.scalar(

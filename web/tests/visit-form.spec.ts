@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, REFERRAL_OPTIONS, changeDeadlineRule, slotUnavailableMessage, apiFieldErrors } from '../app/utils/visit-form'
+import { normalizeVisitPhone, validateVisitContact, taipeiDate, isValidDate, earliestChildBirthdate, REFERRAL_OPTIONS, changeDeadlineRule, slotUnavailableMessage, apiFieldErrors } from '../app/utils/visit-form'
 
 describe('visit contact input', () => {
   it('accepts phone autofill spacing without changing the API format', () => {
@@ -12,6 +12,23 @@ describe('visit contact input', () => {
     expect(normalizeVisitPhone(phone)).toBe('0999000001')
     expect(validateVisitContact({ parentName: '測試家長', phone })).toEqual({})
   })
+
+  // 2026-11-12 QA L30：輸入法在全形狀態打的數字，要和全形破折號、空白一樣被轉成半形；backend/tests/test_visit_input_normalization.py 有同一組案例。
+  it.each([
+    ['０９１２３４５６７８', '0912345678'],
+    ['０９１２－３４５－６７８', '0912345678'],
+    ['０９１２　３４５　６７８', '0912345678'],
+    ['09１２3４5６7８', '0912345678'],
+  ])('converts fullwidth digits in phone %s', (phone, expected) => {
+    expect(normalizeVisitPhone(phone)).toBe(expected)
+    expect(validateVisitContact({ parentName: '陳媽媽', phone })).toEqual({})
+  })
+
+  it.each(['０８１２３４５６７８', '０９１２３４５６７', '０９１２３４５６７８９', '09１２３４５６７８x', '０９①２３４５６７８', '０９¹２３４５６７８', '٠٩١٢٣٤٥٦٧٨'])(
+    'still rejects phone %s after converting fullwidth digits', phone => {
+      expect(validateVisitContact({ parentName: '陳媽媽', phone }).phone).toBeTruthy()
+    }
+  )
 
   it('rejects an empty or whitespace-only name and malformed phone together (no consent to check since 2026-10-02)', () => {
     expect(Object.keys(validateVisitContact({ parentName: '　 ', phone: '12345678' }))).toEqual(['parentName', 'phone'])
@@ -32,6 +49,36 @@ describe('visit contact input', () => {
     expect(validateVisitContact({ ...parent, childName: '測試孩子', childBirthdate: '2027-01-01' }, '2026-09-22')).toHaveProperty('childBirthdate')
     expect(validateVisitContact({ ...parent, childName: '測試孩子', childBirthdate: '2024-02-29', email: 'parent@example.com' }, '2026-09-22')).toEqual({})
     expect(validateVisitContact({ ...parent, email: 'not-an-email' })).toHaveProperty('email')
+  })
+
+  // 2026-11-12 QA L31：下限是今天（台北）往前 18 年，與 backend 的 earliest_child_birthdate 同一個規則。
+  it.each([
+    ['2008-11-12', true],
+    ['2008-11-11', false],
+    ['1900-01-01', false],
+    ['0001-01-01', false],
+    ['2023-03-02', true],
+    ['2026-11-12', true],
+    ['2026-11-13', false]
+  ])('child birthday %s within the window: %s', (childBirthdate, ok) => {
+    const parent = { parentName: '陳媽媽', phone: '0912345678', childName: '測試孩子', email: 'parent@example.com' }
+    const errors = validateVisitContact({ ...parent, childBirthdate }, '2026-11-12')
+    expect(Boolean(errors.childBirthdate)).toBe(!ok)
+  })
+
+  it('asks the parent to check an implausibly old birthday instead of saying it is in the future', () => {
+    const errors = validateVisitContact({ parentName: '陳媽媽', phone: '0912345678', childName: '測試孩子', childBirthdate: '1900-01-01' }, '2026-11-12')
+    expect(errors.childBirthdate).toContain('請確認')
+  })
+
+  it('puts the lower bound on Feb 28 when today is Feb 29 and 18 years ago has no Feb 29', () => {
+    expect(earliestChildBirthdate('2026-11-12')).toBe('2008-11-12')
+    expect(earliestChildBirthdate('2028-02-29')).toBe('2010-02-28')
+    expect(earliestChildBirthdate('2024-02-29')).toBe('2006-02-28')
+    expect(earliestChildBirthdate('2036-02-29')).toBe('2018-02-28')
+    const parent = { parentName: '陳媽媽', phone: '0912345678', childName: '測試孩子' }
+    expect(validateVisitContact({ ...parent, childBirthdate: '2010-02-28' }, '2028-02-29')).toEqual({})
+    expect(validateVisitContact({ ...parent, childBirthdate: '2010-02-27' }, '2028-02-29')).toHaveProperty('childBirthdate')
   })
 
   it('rejects impossible calendar dates and uses the Taiwan date at midnight', () => {
