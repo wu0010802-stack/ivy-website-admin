@@ -13,9 +13,11 @@ const visitCss = read('../app/assets/css/visit-booking.css')
 const visitForm = read('../app/components/VisitForm.vue')
 
 describe('預約第一步：矮手機第一屏看得到選校卡', () => {
-  it('手機黏底列只留按鈕，狀態字改成只給讀屏', () => {
-    expect(visitCss).toMatch(/@media\(max-width:760px\) \{\n {2}\.visit-next-row>p \{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset\(50%\)/)
-    expect(visitForm).toContain('<p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}`')
+  // 2026-11-13 選校卡改成點一下就進第二步，黏底的「下一步」列與「已選擇○○校」整個拿掉
+  // （原本這裡鎖的是「黏底列只留按鈕，狀態字改成只給讀屏」），見 visit-campus-links-20261113.spec.ts。
+  it('手機沒有黏底列，也沒有「已選擇○○校」', () => {
+    expect(visitCss).not.toContain('visit-next-row')
+    expect(visitForm).not.toContain('已選擇${selectedCampus.name}')
   })
   // 導言與選校說明 2026-10-30 全站拿掉（使用者要版面乾淨），矮手機只剩眉標要藏。
   // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿）；2026-11-13 起手機一律不顯示（色帶改左文右圖，

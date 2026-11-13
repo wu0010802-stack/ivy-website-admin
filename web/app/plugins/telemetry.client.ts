@@ -35,6 +35,9 @@ export default defineNuxtPlugin((app) => {
     document.addEventListener('click', (event) => {
       const anchor = event.target instanceof Element ? event.target.closest('a') : null
       if (!anchor) return
+      // 預約頁選校卡（2026-11-13 起是連到 /visit/<校> 的連結）是同一頁裡換步驟，不算從別處點進預約頁；
+      // 原本的「下一步」按鈕也不記。卡片上的撥號連結是另一個 <a>，照常記。
+      if (anchor.hasAttribute('data-visit-step')) return
       const target = new URL(anchor.href, location.origin)
       // 站內、而且不是連到目前這一頁（例如跳至主要內容的 #main）才算往預約頁。
       const destination = target.origin === location.origin && !isSamePage(target, location.origin, location.pathname) ? publicPage(target.pathname) : null

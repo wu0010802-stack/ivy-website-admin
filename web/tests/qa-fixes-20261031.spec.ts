@@ -43,30 +43,28 @@ describe('30 週年開場：略過就停聲音（C06）', () => {
   })
 })
 
-describe('預約第一步：手機黏底列不蓋住鍵盤聚焦的校區卡與撥號連結（C09）', () => {
+// 2026-11-13 選校卡改成點一下就進第二步，黏底的「下一步」列拿掉：C09 修的「黏底列蓋住鍵盤聚焦的卡片與撥號連結」
+// 已經沒有東西會蓋，原本為它留的 scroll-margin 與 --visit-next-h 一起拿掉（見 visit-campus-links-20261113.spec.ts）。
+describe('預約第一步：手機沒有黏底列，鍵盤聚焦的校區卡與撥號連結不會被蓋住（C09）', () => {
   const css = read('app/assets/css/visit-booking.css')
-  const mobile = css.slice(css.indexOf('@media(max-width:760px) {\n  .visit-page {padding-bottom:56px}'), css.indexOf('@media(max-width:380px)'))
-  it('radio 撐滿整張卡；鍵盤聚焦時讓出黏底列的高度，滑鼠與觸控點卡片不會把頁面捲走', () => {
-    expect(mobile).toContain('.visit-campus-choice>input {inset:0;width:100%;height:100%}')
-    expect(mobile).toContain('.visit-campus-choice>input:focus-visible,.visit-campus-mode.is-call:focus-visible {scroll-margin-bottom:calc(var(--visit-next-h) + 16px)}')
+  it('黏底列與為它留的捲動邊距都拿掉', () => {
+    expect(css).not.toContain('visit-next-row')
+    expect(css).not.toContain('--visit-next-h')
   })
-  it('label 也留一份，「選擇校園」回第一步時 focusPicker 的 scrollIntoView 才不會被黏底列蓋住', () => {
-    expect(mobile).toContain('.visit-campus-choice {scroll-margin-bottom:calc(var(--visit-next-h) + 16px)}')
-    expect(read('app/components/VisitForm.vue')).toContain("checked?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })")
-  })
-  it('黏底列高度跟著瀏覽器字級與 iPhone 底部安全區估算', () => {
-    expect(mobile).toContain('.visit-page {--visit-next-h:calc(67px + max(12px,env(safe-area-inset-bottom)) + max(0px,(1rem - 16px) * 6))}')
+  it('「選擇校園」回第一步時，剛才那張卡補捲到看得見', () => {
+    expect(read('app/components/VisitForm.vue')).toContain("last?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })")
   })
 })
 
 describe('預約第一步：選校卡高度跟著字級長，150% 字級不裁切（C14）', () => {
   const css = read('app/assets/css/visit-booking.css')
-  const mobile = css.slice(css.indexOf('@media(max-width:760px) {\n  .visit-page {padding-bottom:56px}'), css.indexOf('@media(max-width:380px)'))
+  const mobile = css.slice(css.indexOf('@media(max-width:760px) {\n  .visit-page {padding-bottom:56px}'), css.indexOf('@media(max-width:360px)'))
   const landscape = css.slice(css.lastIndexOf('@media(max-width:960px) and (max-height:500px) and (orientation:landscape)'))
   it('手機與橫拿手機的細條卡用 min-height，文字流內排版', () => {
     for (const block of [mobile, landscape]) {
       expect(block).toContain('.visit-campus-card {display:grid;aspect-ratio:auto;min-height:96px;height:auto;border-radius:18px}')
-      expect(block).toContain('.visit-campus-copy {position:relative;inset:auto;justify-self:start;justify-content:center;')
+      // 2026-11-13 起文字塊不定位（卡片連結的 ::after 要以整張卡為基準），仍在流內排版。
+      expect(block).toContain('.visit-campus-copy {align-self:stretch;justify-self:start;justify-content:center;')
       expect(block).toContain('min-height:96px;padding:6px 72px 6px 18px;')
     }
   })

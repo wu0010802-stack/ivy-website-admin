@@ -68,9 +68,10 @@ describe('預約步驟跟著網址走', () => {
     expect(page).toMatch(/watch\(campusKey, \(key\) => \{ if \(key && !campus\.value\) showError\(NOT_FOUND\) \}\)/)
   })
 
-  it('下一步換到 /visit/<校>、更換校區回 /visit，第幾步由網址決定', () => {
+  // 2026-11-13 起進第二步的是選校卡上的連結（原本是「下一步」按鈕呼叫 router.push）。
+  it('選校卡連到 /visit/<校>、更換校區回 /visit，第幾步由網址決定', () => {
     expect(form).toContain("const step = computed<1 | 2>(() => props.routeCampus ? 2 : 1)")
-    expect(form).toContain('await router.push(`/visit/${key}`)')
+    expect(form).toContain('<NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`"')
     expect(form).toContain("await router.push('/visit')")
     expect(form).not.toMatch(/step\.value = [12]/)
     // 同一校的結果頁「重新選擇場次」是按鈕：連到目前網址點了不會動。
