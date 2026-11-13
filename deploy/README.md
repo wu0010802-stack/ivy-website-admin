@@ -37,7 +37,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 2026-11-13 起兩支外部腳本等整頁 `load` 之後、主執行緒有空才載入（`whenPageSettled`，手機效能）；事件先排在 queue 裡。進站 2–3 秒內就離開的訪客 GA／Pixel 不會記到。驗證時要等頁面載完再看 Network。
 - 瀏覽器開了「不要追蹤」（DNT）或 Global Privacy Control 就整個不載入。只看自己的 ID 與 DNT／GPC，`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響這兩個。
 - `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
-- GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
+- GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`gbraid`／`wbraid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
 - 預約成功：只有伺服器回 `status === 'confirmed'` 才送 GA `generate_lead`、Pixel `Lead`，參數只有白名單的 `campus_key`（五校之一）與 `entry`（CTA 入口代碼，預約表單是 `visit_page`），不送收據編號、修改連結或任何個資。
 - CSP（`web/server/utils/security-headers.ts`）：哪一個 ID 有設才加哪一家的 `script-src`／`connect-src`／`img-src` 來源，後台 CSP 不動。**沒放行** Google Ads／Google 訊號用的 `stats.g.doubleclick.net`、`www.google.com`：之後要做 Google Ads 或開 Google 訊號，要一起改 CSP。
 
@@ -51,6 +51,28 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `google-analytics.com` 的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
 
 **程式端沒辦法驗證的**：真實 GA4／Meta 後台是否收得到、強化評估與自動比對的設定是否真的關掉，只能在正式站設好變數後照步驟 5 實測。
+
+## Google Ads：把 GA4 的「預約成立」匯進去當轉換（2026-11-13，`feature/ads-click-ids-20261113`；不加新代碼、不加新變數）
+
+**做法**：不裝 Google Ads 自己的轉換代碼（`AW-…`）。GA4 已在正式站運作，官網每筆線上預約成立都會送 `generate_lead`（官網送單一建立就是 `confirmed`）；把這個事件在 GA4 標成重要事件、連結 GA4 與 Google Ads、再到 Google Ads 匯入成轉換即可。沒選 `AW-` 代碼的理由：要多放行 CSP 網域（`googleadservices.com`、`doubleclick.net`、`www.google.com`）、訪客瀏覽器多一組廣告 cookie、隱私權政策第 5 段要再改，換到的只是回報快一點。
+
+**程式只改一處**：`page_location` 保留的參數多了 `gbraid`、`wbraid`（`web/shared/third-party-analytics.ts`）。Google 廣告在 iOS 上拿不到 `gclid` 時改帶這兩個點擊代碼，原本會被濾掉。
+
+**現況限制**：線上預約只有義華校開放（`slots`），明華、崇德、國際、仁武是 `paused`，那四校的廣告量不到預約，只能看點擊數與電話。廣告的到達頁用 `/visit/yihua`，最終網址可加 `?utm_campaign=<代碼>`（小寫英數、底線、連字號，32 字內），後台「成效統計」會分開算。
+
+**步驟（都要本人登入；選單名稱以當時畫面為準）**
+
+1. **GA4 → 管理 → 重要事件**：把 `generate_lead` 設成重要事件（清單裡還沒有就手動新增這個名稱）。
+2. **GA4 → 管理 → 產品連結 → Google Ads 連結**：連到要投廣告的 Google Ads 帳戶（同一個 Google 帳號要同時是 GA4 的編輯者與 Ads 的管理員）。連結設定裡的「個人化廣告」關掉（程式本來就送非個人化）。舊站 ivykids.tw 上有 `AW-16479438373`，園方可能已有 Ads 帳戶，可以沿用。
+3. **Google Ads → 管理 → 帳戶設定 → 自動標記**：確認是開的（廣告點擊才會帶 `gclid`／`gbraid`／`wbraid`）。
+4. **Google Ads → 目標 → 轉換 → 新增轉換動作 → 匯入 → Google Analytics 4 資源（網站）**：勾 `generate_lead`。計算方式選「一次」（同一位家長重複送不重複算），類別選「提交待開發客戶表單」。
+5. **驗證**：在首頁網址後面加 `?gclid=test123` 進站，Network 裡送往 `google-analytics.com` 的 `collect` 其 `dl` 要帶著 `gclid=test123`；Console 不該有 CSP 違規。廣告開跑後，從真的廣告點進來預約一次（驗完到後台取消），24–48 小時內 Google Ads 的轉換欄應該加一。
+
+**還沒驗、要在正式站實測的**
+
+- `allow_google_signals` 關著時，重要事件仍會匯進 Google Ads（Google 文件只說這個設定關掉個人化與再行銷，沒有明講轉換；匯不進來時再評估要不要打開，打開前要改隱私權政策）。
+- GA4 連上 Ads 之後，`gtag.js` 會不會多連 `stats.g.doubleclick.net`、`www.google.com` 而被 CSP 擋（看 Console；被擋不影響 GA4 自己的事件）。
+- 隱私權政策第 5 段目前寫 GA4 用來「了解網站的使用情形與廣告的成效」、預約成功時只告訴 Google 有一筆預約與校區，已涵蓋這個用法；要不要明寫「Google Ads」由園方決定。
 
 ## Google Search Console 與 CrUX（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
 

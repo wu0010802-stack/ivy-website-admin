@@ -102,6 +102,14 @@ describe('page_location 清洗', () => {
     expect(analyticsPageLocation(`${base}/visit?utm_term=a+b%26c`)).toBe(`${base}/visit?utm_term=a+b%26c`)
   })
 
+  // 2026-11-13：iPhone 上的 Google 廣告點擊常常沒有 gclid，改帶 gbraid／wbraid；濾掉的話 GA4 匯進 Google Ads 的轉換會漏算這些點擊。
+  it('Google 廣告在 iOS 用的點擊代碼 gbraid、wbraid 也保留', () => {
+    expect(analyticsPageLocation(`${base}/visit/yihua?wbraid=WB1&token=zzz&gbraid=GB1&utm_campaign=gads-yihua`))
+      .toBe(`${base}/visit/yihua?wbraid=WB1&gbraid=GB1&utm_campaign=gads-yihua`)
+    expect(analyticsPageLocation(`${base}/?WBRAID=WB2#frag`)).toBe(`${base}/?WBRAID=WB2`)
+    expect(analyticsPageLocation(`${base}/?gbraidx=1&xwbraid=2&braid=3`)).toBe(`${base}/`)
+  })
+
   it('不像歸因的鍵不能夾帶：utm 開頭但沒有底線、gclid 前綴、重複 utm', () => {
     expect(analyticsPageLocation(`${base}/?utmx=1&gclidx=2&xgclid=3&utm=4`)).toBe(`${base}/`)
     expect(analyticsPageLocation(`${base}/?utm_source=a&utm_source=b`)).toBe(`${base}/?utm_source=a&utm_source=b`)

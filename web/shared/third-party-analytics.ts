@@ -90,8 +90,10 @@ export function analyticsSuppressedPath(pathname: string): boolean {
   return SUPPRESSED_PATH.test(comparablePath(pathname))
 }
 
-// query 只留行銷歸因用的：utm_*、gclid、fbclid。其他參數與 hash 一律不送。
-const ATTRIBUTION_PARAM = /^(?:utm_[a-z0-9_]+|gclid|fbclid)$/i
+// query 只留行銷歸因用的：utm_*、gclid、gbraid、wbraid、fbclid。其他參數與 hash 一律不送。
+// gbraid／wbraid（2026-11-13）：Google 廣告在 iOS 上拿不到 gclid 時改帶這兩個點擊代碼；
+// 濾掉的話 GA4 匯進 Google Ads 的轉換會漏算 iPhone 的廣告點擊。
+const ATTRIBUTION_PARAM = /^(?:utm_[a-z0-9_]+|gclid|gbraid|wbraid|fbclid)$/i
 
 /**
  * GA 的 page_location：origin ＋ pathname ＋ 只保留歸因參數的 query，不帶 hash。
