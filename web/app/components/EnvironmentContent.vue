@@ -29,7 +29,7 @@ interface Look { shape: string; ar?: number; color: Block; back?: [string, Block
 const HERO_ALT = '兩個孩子在教室裡緊緊抱在一起'
 // 2026-11-04 保育主照片換成園方雲端「外師戶外課」（2026-01-23，Canon 6090×4060，母檔 2.2:1 → 2640×1200）：
 // 取代 1477px 的絲瓜棚（桌機 Retina 只有 0.56 倍）。老師和孩子在正中，桌機 2.75:1 置中也不會切到頭。
-const CARE_PHOTO_ALT = '外籍老師蹲在拿球棒的男孩身邊，一起看著前方的球座，替他加油'
+const CARE_PHOTO_ALT = '穿園服的老師彎下腰，扶著綁兩個小髮髻的孩子往前走，孩子笑著看鏡頭'
 // 2026-11-12 改用義華 NAS「2024-02-23 車車封面＋吃湯圓reels／IMG_5755」（3984×2656，裁 x7%–93%、y14%–100% → 1600×1067），
 // 就是 ivykids.tw 首頁輪播那張；六個孩子坐在溜滑梯前揮手，取代人很小的遊戲區全景。
 const FEATURE_ALT = '孩子們在大型遊具旁溜滑梯、騎小車，一個男孩朝鏡頭走來'
@@ -244,7 +244,7 @@ watch([() => props.page, () => props.campuses], () => routes?.refresh(), { deep:
           <div class="renv-ph" data-drop>
             <div class="renv-ph-back renv-blk s-d c-sage" aria-hidden="true" />
             <div class="renv-frame s-d c-terra">
-              <ResponsivePicture v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc(100vw - 32px), 1320px')" :style="pagePhotoStyle('50% 50%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy" />
+              <ResponsivePicture v-bind="pagePhotoAttrs('env-care-teacher', page.carePhoto, '(max-width: 900px) calc(100vw - 32px), 1320px')" :style="pagePhotoStyle('50% 0%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy" />
             </div>
           </div>
         </div>
