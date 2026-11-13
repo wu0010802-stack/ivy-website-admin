@@ -198,6 +198,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 素材庫改存 Cloudflare R2（只改 Railway 變數，沒有程式變更、沒有 migration）
+
+- **結果**：正式站 api 自 11:05（台北）起 `WEBSITE_MEDIA_STORAGE=s3`，素材上傳、讀取、刪除都走 R2 bucket `ivy-website-media`（Asia-Pacific、Standard、不公開；與資料庫備份的 `ivy-website-db-backups` 同一個 Cloudflare 帳號，各自獨立）。讀檔仍經 API 串流，網址與快取標頭不變。步驟照下方「素材改存 S3 相容物件儲存」。
+- **Cloudflare**：R2 權杖 `ivy-website-media (Railway api)`，帳號層級、Object Read & Write、只限這個 bucket、TTL Forever。金鑰由使用者自己貼進 Railway，沒有經過對話或 repo。
+- **Railway api 變數**：`WEBSITE_S3_BUCKET`、`WEBSITE_S3_ENDPOINT_URL`（`https://<account id>.r2.cloudflarestorage.com`）、`WEBSITE_S3_REGION=auto`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY`、`WEBSITE_MEDIA_STORAGE=s3`；沒有設 `WEBSITE_S3_PREFIX`。
+- **複製**：`media-copy-to-s3 --dry-run`「將複製 38」→ 實跑「已複製 38、失敗 0」→ 切換後再跑「S3 已有 38」。另在容器內逐檔比對 volume 與 bucket 的 SHA-256：38 個全相同，合計 90.9 MB。
+- **線上驗證**（只發 GET）：`/api/published-site` 引用的 20 個素材網址，切換前後狀態碼、大小、內容雜湊全部相同；影片 `Range: bytes=1000-1999` 回 206 與正確的 `Content-Range`，超出範圍回 416；`Cache-Control: public, max-age=31536000, immutable` 不變。容器內 `get_storage()` 是 `S3MediaStorage`。切換後 8 分鐘 api 沒有 5xx。
+- **代價**：素材首位元組時間中位數 180 ms → 250 ms（多一段 api→R2）；瀏覽器快取一年，只影響第一次載入。
+- **過程中的事故**（詳見下一段 #78 那條）：09:21 先用 CLI 設了 `WEBSITE_S3_BUCKET`（沒有金鑰），剛好撞上 #78 的 CI 部署，api 09:22:56～09:42:53 停機。查 web 的 HTTP 紀錄，這段時間沒有預約送出，五校 `booking-config` 各 12 次 502。**之後這組變數一律在 Railway 後台一次貼完再 Deploy。**
+- **過程中的三次重貼**：金鑰第一次 Access Key ID 只貼到 1 個字元（R2 回 400）、第二次 Secret 不是這把權杖的（`SignatureDoesNotMatch`），第三次才對；每次改變數 api 中斷約 20 秒。驗證方式是在容器內對 bucket 做 `list`（要回 OK）與讀不存在的 key（要回 `NoSuchKey`），不要只看格式。
+- **Cloudflare 後台的坑**：建權杖的表單按送出後卡在灰色、沒有請求也沒有錯誤，是後台的 service worker（`/tether/sw.js`）卡住；在該分頁取消註冊後重新載入就正常（無痕視窗或換瀏覽器也可以）。
+- **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
+- **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
+
 ## 2026-11-13 後台「查看官網」修正上線，連同 QA 報告修正（#78）一起部署（main CI 部署，沒有 migration）
 
 - **內容**：`92552b1c`（README「2026-11-13 後台『查看官網』開回後台自己」）。後端 `features` 多一個 `public_site_origin`，後台用它組官網的絕對網址。沒有變數要改（api 的 `WEBSITE_PUBLIC_ORIGIN` 11-12 已設）。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
@@ -3116,10 +3130,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
 `notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
 
-### 素材改存 S3 相容物件儲存（2026-09-24，尚未切換）
+### 素材改存 S3 相容物件儲存（2026-09-24 程式；**2026-11-13 正式站已切到 Cloudflare R2**，紀錄見上方同日段落）
 
-目前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
-單一實例，repo 裡也沒有備份機制。程式已支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
+切換前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
+單一實例，repo 裡也沒有備份機制。程式支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
 `WEBSITE_MEDIA_STORAGE=s3` 時上傳、讀取、刪除都走 bucket，api 啟動不再要求 volume。
 讀檔仍經 API 串流（網址、權限、快取標頭不變，Range 轉給儲存服務，iOS 影片可播）。
 
@@ -3134,6 +3148,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 切換步驟（bucket 與金鑰由園方自己建，程式不會建任何外部服務）：
 
 1. 先只設 `WEBSITE_S3_*`，**不要**設 `WEBSITE_MEDIA_STORAGE`，部署。此時仍讀寫 volume。
+   `WEBSITE_S3_BUCKET`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY` 三個**要在
+   Railway 後台一次加完再 Deploy**：只設其中一兩個時 `Settings()` 驗證不過，api 掛著 volume
+   會先停舊版，部署失敗就是停機（2026-11-13 發生過）。用 CLI 加 `--skip-deploys` 分次設也不安全，
+   中途任何一次 main 部署都會吃到半套變數。
 2. 預覽：`railway ssh --service api --environment production -- python -m app.cli media-copy-to-s3 --dry-run`
 3. 複製：同上去掉 `--dry-run`。只讀 volume、只寫 bucket、不動 DB；bucket 已有同大小的檔案
    會跳過，可以重跑；上傳後核對大小，失敗的檔案列在最後且指令以非 0 結束。
