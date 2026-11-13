@@ -1,3 +1,12 @@
+## 2026-11-13 健檢報告兩項：公開素材放行爬蟲、轉園題收費說法對齊退費條款（`fix/health-report-20261113`）
+
+外部健檢報告（`常春藤官網健檢報告_20261113.md`）列的兩項「已確認問題」，對正式站核對後都成立，使用者說「都幫我改」。報告其餘建議（首頁標題加地名、補分校介紹頁、首屏加五校捷徑）牴觸先前裁定，沒做。
+
+- **robots.txt 放行公開素材**（`web/app/utils/seo.ts` `robotsTxt`）：`Disallow: /api/` 前加 `Allow: /api/website/v1/public/media/`。素材庫的照片走這個路徑，正式站首頁有 2 張（6 個尺寸網址）被擋；其餘 API、`/admin`、`/preview`、`/visit/manage` 照舊。`scripts/check-public-seo.mjs` 加驗這兩行。
+- **轉園題不再寫「按比例收取」**（`web/app/utils/admission-faq.ts` `faq-transfer`）：改成「學費和雜費依入園時間分三段收取：全額、2/3 或 1/3，越晚入園收得越少」，和同頁退費那題（高雄市收退費辦法：未逾 1/3 全額、逾 1/3 收 2/3、逾 2/3 收 1/3）同一種寫法；題目下加「看費用怎麼算」連到 `#faq-refund`（點了會把那題打開）。頁面、`FAQPage`、`llms.txt` 讀同一份，三處一起變。退費那題被後台清空時連結跟著拿掉（`AdmissionContent.vue`）。
+- 驗證：`npm --prefix web run typecheck`（0 錯）、`npm run test:website` 150 檔 2296 過；fixture dev server 以開放收錄的樣子（`ivy.localhost`）跑 `scripts/check-public-seo.mjs` PASS、`robots.txt`／`llms.txt`／`FAQPage` 三處輸出看過；Playwright 1440×900、390×844 看轉園題與連結（點下去退費題打開、無 console 錯誤、無橫向捲動）。
+- **沒驗／待確認**：三段的說法是照站上已有的退費條款寫的，園方沒有另外確認；admin 測試、e2e、stack、實機沒跑；放行後搜尋引擎實際有沒有抓圖要等部署後在 Search Console 看。
+
 ## 2026-11-13 首頁五校卡社群列手機改回靠左（`fix/social-row-left-20261113`）
 
 使用者看過同日稍早上線的「手機三個攤滿整列」後截圖指定：手機版往左靠。

@@ -42,12 +42,13 @@ const showNewcomer = computed(() => admission.value.phases.length > 0 || hasNewc
 // ---------- 常見問題：讀後台內容的題目，內容清空就整題拿掉 ----------
 const phones = computed(() => (props.campuses ?? []).filter((campus) => campus.phone))
 const faqVisible = (item: AdmissionFaqItem) => admissionFaqVisible(item, admission.value)
+const faqHiddenAnchors = computed(() => new Set(ADMISSION_FAQ.flatMap((group) => group.items).filter((item) => !faqVisible(item)).map((item) => `#${item.id}`)))
 const faqGroups = computed(() => ADMISSION_FAQ.map((group) => ({
   ...group,
   items: group.items.filter(faqVisible).map((item) => ({
     ...item,
-    // 新生準備整章被清空時，「看新生準備」不留點了沒反應的錨點
-    link: item.link?.href === '#newcomer' && !showNewcomer.value ? undefined : item.link
+    // 新生準備整章被清空、或連到的那一題被拿掉時，不留點了沒反應的錨點
+    link: item.link && ((item.link.href === '#newcomer' && !showNewcomer.value) || faqHiddenAnchors.value.has(item.link.href)) ? undefined : item.link
   }))
 })).filter((group) => group.items.length > 0))
 const faqCount = computed(() => faqGroups.value.reduce((sum, group) => sum + group.items.length, 0))

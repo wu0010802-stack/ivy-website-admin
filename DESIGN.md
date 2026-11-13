@@ -203,8 +203,8 @@
 - **預約頁開放收錄**（使用者 2026-11-11 裁定，取代 10-12 的 noindex）：`/visit`、`/visit/<校>` 照全站收錄開關、進 sitemap；`/visit/manage` 一律 noindex。預約頁仍不進後台「各頁搜尋與分享」。
 - **五校節點**：沒有分校頁（10-03 裁定不變），`Preschool` 的 `@id` 是 `/#campus-<校>`、網址是各校預約頁 `/visit/<校>`；首頁列五校，各校預約頁列自己那一校。各校只列自己的社群，和機構社群同網址的不列，不拿別校的代填。
 - **兩個名字各有用途**：品牌名「常春藤教育機構」是結構化資料的 `name`、`og:site_name` 與頁面上的品牌字；「常春藤幼兒園」（`SCHOOL_NAME`）是 `alternateName`，各校節點叫「常春藤幼兒園Ｘ校」，也是 `<title>` 的結尾（`TITLE_BRAND`，使用者 2026-11-11 選定）。**標題不加「高雄」**（同日使用者否決，首頁標題也不動）。改 `TITLE_BRAND` 要同步 `admin/src/composables/pageSeoDefaults.ts`（有測試逐字比對）。
-- **常見問題一份資料三個出口**：頁面 `<details>`、入學頁 `FAQPage`、`llms.txt` 都讀 `utils/admission-faq.ts`；新增或改題目只改那裡，顯示條件用 `admissionFaqVisible`。
-- **robots.txt** 只擋 `/admin`、`/preview`、`/visit/manage`、`/api/`。要讓某頁不被收錄用頁面 noindex，不要在 robots.txt 擋：擋掉以後搜尋引擎讀不到 noindex，被連到的網址仍可能以空白結果出現。
+- **常見問題一份資料三個出口**：頁面 `<details>`、入學頁 `FAQPage`、`llms.txt` 都讀 `utils/admission-faq.ts`；新增或改題目只改那裡，顯示條件用 `admissionFaqVisible`。寫在程式裡的答案提到後台內容管的數字時（轉園題的「全額、2/3 或 1/3」對退費條款），要和那份內容同一種寫法並連到那一題，測試裡比對；不寫「按比例」這種會被讀成按天數算的概括說法（2026-11-13）。
+- **robots.txt** 只擋 `/admin`、`/preview`、`/visit/manage`、`/api/`；`/api/website/v1/public/media/`（素材庫的照片與影片，頁面直接引用）2026-11-13 起用 `Allow` 單獨放行，否則用素材庫的照片搜尋引擎抓不到。新增其他公開素材路徑時比照加 `Allow`，不要把整個 `/api/` 打開。要讓某頁不被收錄用頁面 noindex，不要在 robots.txt 擋：擋掉以後搜尋引擎讀不到 noindex，被連到的網址仍可能以空白結果出現。
 - **頁面資料不帶維護備註**（2026-11-11 正式網域開放收錄後補）：公開資料會整份進每一頁原始碼的 `__NUXT_DATA__`，畫面沒畫的欄位搜尋引擎與 AI 助理照樣讀得到。只給維護者看、官網不讀的欄位（`_todo`、整份的 `_source`、消息區 `note`、拍立得 `caption`）一律在 `utils/public-copy.ts` 的 `withoutRetiredFields` 拿掉；fixture 與後台存的值不動。之後替 fixture 或內容加備註欄位，要一起加進那份清單與 `public-copy.spec.ts`。
 - **不做**：sitemap `lastmod`（沒有可靠的修改時間，維持 10-02 的規則）；個別列出 AI 爬蟲（`User-agent: *` 已放行）；為了關鍵字加頁面上看不到的隱藏文字。
 
