@@ -747,7 +747,7 @@ describe('2026-09-28 內容編輯頁 UX（E）', () => {
       // 各頁搜尋標題的提示字是官網內建的標題（第一頁籤是入學資訊頁），唯讀時也保留。
       const admissionTitle = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '搜尋標題')!
       expect(admissionTitle.get('textarea').attributes('placeholder')).toContain('留空使用預設：入學資訊')
-      const phone = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '選單預設反白的校區電話')!
+      const phone = reader.findAll('.el-form-item').find((i) => i.find('.el-form-item__label').text() === '頁首電話')!
       expect(phone.get('input').attributes('placeholder')).toBe(EMPTY_VALUE_TEXT)
     })
 

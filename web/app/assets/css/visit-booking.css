@@ -348,12 +348,24 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
   .visit-campus-aside {grid-template-columns:minmax(0,1fr)}
   .visit-aside-info {display:flex;flex-wrap:wrap;align-items:center;gap:0 18px}
   .visit-aside-info p {flex-basis:100%;min-height:0;font-size:var(--fs-sm)}
-  .visit-ghost {--visit-ghost-size:30vw;opacity:.4}
-  /* 手機第一屏要看得到選校（2026-09-27）：迎賓區收短、照片拿掉，選校卡本身就是照片。 */
-  .visit-page[data-step='1'] .visit-welcome {padding:28px 0 4px}
-  .visit-welcome-photo {display:none}
-  .visit-page[data-step='1'] .visit-welcome h1 {font-size:var(--fs-4xl)}
-  .visit-welcome-inner {row-gap:28px}
+  /* 2026-11-13 手機迎賓區是桌機的縮小版（使用者要求：手機也要照片與巨大淡字「預約參觀」）：左邊兩行大標、右邊照片，
+     淡字墊在大標後面。取代 09-27「照片拿掉」與 11-11「矮手機收成一行標題」；不照高度分兩種排法
+     （Safari 工具列收合會跨過高度門檻，版面會跳）。眉標手機不顯示：大標欄只有五個字寬，放不下。
+     大標字級 --visit-title-size 取 rem 與 7vw 的較小值（瀏覽器字級放大也不會擠掉照片）；淡字是它的 2.7 倍，
+     兩個字的寬度剛好等於大標五個字，不會伸到照片後面。照片框 3:2，最高 190px（大手機與小平板不讓色帶長太高）。
+     390×664 色帶高 161px（一行標題時 62px），黏底列上方仍看得到 2 張選校卡。
+     淡字的排法同日比過三種（一行放在大標上方、改成小標、放大出血），使用者選回這個兩行墊在大標後面的版本。
+     照片鏡頭往左拉（同日使用者要求右邊的樹叢少一點）：圖放大成框寬的 128%、靠左，右邊 22% 被框裁掉；圓角改畫在框上。
+     框要明寫 width:100%：有 aspect-ratio 的格線項目不會自己撐滿欄寬，max-height 生效時會連寬度一起縮（600 寬右邊空一塊）。 */
+  .visit-welcome {--visit-title-size:min(2.25rem,7vw)}
+  .visit-ghost {--visit-ghost-size:calc(var(--visit-title-size) * 2.7);justify-content:center;padding:4px 0 0 14px;opacity:.4}
+  .visit-ghost span:last-child {padding-left:0}
+  .visit-page[data-step='1'] .visit-eyebrow {display:none}
+  .visit-page[data-step='1'] .visit-welcome {padding:16px 0}
+  .visit-welcome-inner {grid-template-columns:auto minmax(0,1fr);column-gap:18px;align-items:center}
+  .visit-page[data-step='1'] .visit-welcome h1 {font-size:var(--visit-title-size);line-height:1.4}
+  .visit-welcome-photo {width:100%;aspect-ratio:3/2;max-height:190px;overflow:hidden;border-radius:14px}
+  .visit-welcome-photo img {width:128%;max-width:none;height:100%;aspect-ratio:auto;border-radius:0;object-position:left 28%}
   .visit-page[data-step='1'] .visit-content {padding-bottom:56px}
   .visit-page[data-step='1'] .visit-stage {padding-top:24px}
   .visit-campus-list {flex-direction:column;gap:12px;margin-top:22px}
@@ -391,8 +403,16 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
    360 以下按鈕只留「致電○○校」，號碼改成只給讀屏（仍在可及名稱裡）。 */
 @media(max-width:360px) {.visit-call-number {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}}
-/* 橫拿手機（單欄版面 960 以下、高度 500 以下）也拿掉迎賓照片：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
+/* 橫拿手機（單欄版面 960 以下、高度 500 以下）拿掉迎賓照片（直拿手機 2026-11-13 起有照片）：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
 @media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
+/* 橫拿的窄手機（760 以下）沒有照片，色帶照 11-11 收成一行標題：兩行大標加淡字要 130px 以上，可視高度只有 300 多。 */
+@media(max-width:760px) and (max-height:500px) and (orientation:landscape) {
+  .visit-ghost {display:none}
+  .visit-welcome-inner {grid-template-columns:1fr}
+  .visit-page[data-step='1'] .visit-welcome {padding:14px 0}
+  .visit-page[data-step='1'] .visit-welcome h1 {display:flex;flex-wrap:wrap;column-gap:.45em;font-size:min(var(--fs-2xl),6.6vw)}
+  .visit-page[data-step='1'] .visit-welcome h1 br {display:none}
+}
 /* 手機第一屏要看得到選校卡（2026-10-12）：iPhone Safari 扣掉網址列與工具列，可視高度多在 560–700，
    原本頁首、迎賓區、步驟列與標題就占滿第一屏，黏底「下一步」直接蓋在第一張卡起點。
    黏底列只留按鈕（狀態字留給讀屏；選中的卡本身有打勾，按鈕文字也跟著換），矮螢幕再拿掉導言、收迎賓區上距。 */
@@ -403,13 +423,9 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
    黏底列上方只看得到 1 張多，375×553 連一張都不完整。可視高度 760 以下（iPhone Safari 與 LINE 內建瀏覽器多在 550–750）：
    色帶收成一行標題（眉標、巨大淡字拿掉，<br> 藏起來、兩句用 flex 的欄距隔開），步驟列與選校標題的間距收小；
    麵包屑手機一律不顯示（pages/visit/[[key]].vue）。390×664 看得到 3 張完整的選校卡、375×553 看得到 2 張。
-   高度超過 760 的手機色帶照舊（兩行大標＋淡字），只少麵包屑。 */
+   高度超過 760 的手機色帶照舊（兩行大標＋淡字），只少麵包屑。
+   2026-11-13：色帶改成所有手機同一種（左文右圖，見上面 760 以下的區塊），這裡只剩步驟列與選校標題的間距。 */
 @media(max-width:760px) and (max-height:760px) {
-  .visit-ghost {display:none}
-  .visit-page[data-step='1'] .visit-eyebrow {display:none}
-  .visit-page[data-step='1'] .visit-welcome {padding:14px 0}
-  .visit-page[data-step='1'] .visit-welcome h1 {display:flex;flex-wrap:wrap;column-gap:.45em;font-size:min(var(--fs-2xl),6.6vw);line-height:1.4}
-  .visit-page[data-step='1'] .visit-welcome h1 br {display:none}
   .visit-page[data-step='1'] .visit-stage {padding-top:12px}
   .visit-page[data-step='1'] .visit-steps {margin-bottom:10px}
   .visit-campus-list {margin-top:12px}

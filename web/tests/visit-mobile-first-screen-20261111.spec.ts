@@ -23,21 +23,47 @@ describe('手機不顯示麵包屑', () => {
   })
 })
 
-describe('第一步：矮手機色帶收成一行', () => {
+// 2026-11-13 使用者要求手機也要照片與巨大淡字「預約參觀」：色帶改成桌機的縮小版（左文右圖），
+// 取代 11-11「矮手機收成一行標題」與 09-27「手機拿掉照片」。實測數字見 README 2026-11-13 段落。
+describe('第一步：手機色帶是桌機的縮小版（左邊兩行大標、右邊照片、淡字墊在大標後面）', () => {
+  const mobile = block('@media(max-width:760px)')
   const short = block('@media(max-width:760px) and (max-height:760px)')
-  it('兩句標題各包一個 span，中間的 <br> 手機藏起來、用欄距隔開', () => {
+  const narrowLandscape = block('@media(max-width:760px) and (max-height:500px) and (orientation:landscape)')
+  it('直拿手機有照片：樣式不藏、<picture> 也不換成透明圖，sizes 是半個視窗', () => {
+    expect(mobile).not.toContain('.visit-welcome-photo {display:none}')
+    expect(mobile).toContain('.visit-welcome-inner {grid-template-columns:auto minmax(0,1fr);column-gap:18px;align-items:center}')
+    // 框明寫 width:100%：有 aspect-ratio 的格線項目不會自己撐滿欄寬，max-height 生效時寬度會跟著縮。
+    expect(mobile).toContain('.visit-welcome-photo {width:100%;aspect-ratio:3/2;max-height:190px;overflow:hidden;border-radius:14px}')
+    expect(form).toContain('<source media="(max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,')
+    expect(form).not.toContain('<source media="(max-width: 760px),')
+    expect(form).toContain("responsiveImage('about-curious', '(max-width: 760px) 50vw, (max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')")
+  })
+  it('照片鏡頭往左拉：圖放大成框寬的 128%、靠左，右邊被框裁掉', () => {
+    expect(mobile).toContain('.visit-welcome-photo img {width:128%;max-width:none;height:100%;aspect-ratio:auto;border-radius:0;object-position:left 28%}')
+  })
+  it('大標兩行，字級取 rem 與 7vw 的較小值；淡字是大標的 2.7 倍（兩個字等於大標五個字寬，不伸到照片後面）', () => {
     expect(form).toContain('<template v-if="isPicking"><span>帶著好奇</span><br><span>來校園走走</span></template>')
-    expect(short).toContain(".visit-page[data-step='1'] .visit-welcome h1 {display:flex;flex-wrap:wrap;column-gap:.45em;")
-    expect(short).toContain(".visit-page[data-step='1'] .visit-welcome h1 br {display:none}")
+    expect(mobile).toContain('.visit-welcome {--visit-title-size:min(2.25rem,7vw)}')
+    expect(mobile).toContain(".visit-page[data-step='1'] .visit-welcome h1 {font-size:var(--visit-title-size);line-height:1.4}")
+    // 淡字的排法 11-13 比過三種（一行放大標上方、小標、放大出血），使用者選回兩行墊在大標後面。
+    expect(mobile).toContain('.visit-ghost {--visit-ghost-size:calc(var(--visit-title-size) * 2.7);justify-content:center;padding:4px 0 0 14px;opacity:.4}')
+    expect(mobile).toContain('.visit-ghost span:last-child {padding-left:0}')
   })
-  it('一行色帶放不下巨大淡字與眉標', () => {
-    expect(short).toContain('.visit-ghost {display:none}')
-    expect(short).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
+  it('眉標手機不顯示（大標欄只有五個字寬）', () => {
+    expect(mobile).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
   })
-  it('高度超過 760 的手機色帶照舊：收短的規則都寫在帶 max-height 的區塊裡', () => {
-    const rest = css.replace(short, '')
-    expect(rest).not.toContain('.visit-ghost {display:none}')
-    expect(rest).not.toContain('h1 br {display:none}')
+  it('不照高度分兩種色帶（工具列收合時版面會跳）：帶 max-height:760 的區塊只剩步驟列與選校標題的間距', () => {
+    expect(short).not.toContain('.visit-ghost')
+    expect(short).not.toContain('.visit-welcome')
+    expect(short).not.toContain('.visit-eyebrow')
+    expect(short).toContain(".visit-page[data-step='1'] .visit-stage {padding-top:12px}")
+  })
+  it('橫拿的窄手機沒有照片，色帶照舊收成一行標題', () => {
+    expect(css).toContain('@media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}')
+    expect(narrowLandscape).toContain('.visit-ghost {display:none}')
+    expect(narrowLandscape).toContain('.visit-welcome-inner {grid-template-columns:1fr}')
+    expect(narrowLandscape).toContain(".visit-page[data-step='1'] .visit-welcome h1 {display:flex;flex-wrap:wrap;column-gap:.45em;font-size:min(var(--fs-2xl),6.6vw)}")
+    expect(narrowLandscape).toContain(".visit-page[data-step='1'] .visit-welcome h1 br {display:none}")
   })
 })
 

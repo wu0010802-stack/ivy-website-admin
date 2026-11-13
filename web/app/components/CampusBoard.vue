@@ -14,7 +14,8 @@ const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
   .map(key => props.campuses.find(campus => campus.key === key))
   .filter((campus): campus is Campus => Boolean(campus)))
-// 頁首五校選單連到 /?campus=<校>#campuses（2026-10-29；10-12 起原本是關於頁結尾緞帶，10-30 換版拿掉）：從點的那所開始，不是預設校。
+// 網址帶 /?campus=<校>#campuses 就從那所開始，不是預設校（現在的入口是舊站各校介紹網址的轉址，見 site-redirects；
+// 10-12 關於頁結尾緞帶、10-29 頁首五校選單也連過來過，緞帶 10-30 拿掉、選單 2026-11-13 改回只切換）。
 const route = useRoute()
 const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
 const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus) ? requestedCampus : props.board.defaultCampus

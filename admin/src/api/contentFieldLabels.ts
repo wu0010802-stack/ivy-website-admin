@@ -32,7 +32,6 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
   site_meta: {
     title: '網站標題',
     description: '網站描述',
-    // 2026-11-12 已拿掉；留著讓舊版本的比較看得懂。
     header_phone_note: '電話備註',
     share_image: '社群分享預覽圖',
     share_image_alt: '分享圖說明',

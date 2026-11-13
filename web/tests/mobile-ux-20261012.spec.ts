@@ -18,10 +18,11 @@ describe('預約第一步：矮手機第一屏看得到選校卡', () => {
     expect(visitForm).toContain('<p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}`')
   })
   // 導言與選校說明 2026-10-30 全站拿掉（使用者要版面乾淨），矮手機只剩眉標要藏。
-  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿），見 visit-mobile-first-screen-20261111.spec.ts。
-  it('矮手機拿掉眉標', () => {
-    const shorter = visitCss.slice(visitCss.indexOf('@media(max-width:760px) and (max-height:760px)'))
-    expect(shorter).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
+  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿）；2026-11-13 起手機一律不顯示（色帶改左文右圖，
+  // 大標欄只有五個字寬），見 visit-mobile-first-screen-20261111.spec.ts。
+  it('手機拿掉眉標', () => {
+    const mobile = visitCss.slice(visitCss.indexOf('@media(max-width:760px) {'))
+    expect(mobile).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
     expect(visitForm).not.toContain('visit-lead')
   })
 })
@@ -142,9 +143,9 @@ describe('入學頁生日工具', () => {
 })
 
 // 2026-10-30 關於頁換版拿掉結尾緞帶，?campus= 改由頁首五校選單帶（2026-10-29）
-describe('頁首五校選單連到那所校園', () => {
-  it('連結帶 ?campus=，首頁五校從那所開始', () => {
-    expect(read('../app/components/SiteHeader.vue')).toContain(':href="`/?campus=${c.key}#campuses`"')
+describe('網址帶 ?campus= 時首頁五校從那所開始', () => {
+  // 頁首五校選單 2026-11-13 改回只切換、不再連過來（見 web-ux-20261029.spec.ts），首頁讀參數的行為保留。
+  it('首頁五校讀 ?campus=，從那所開始', () => {
     const board = read('../app/components/CampusBoard.vue')
     expect(board).toContain("const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''")
     expect(board).toContain('campus.key === startCampus')

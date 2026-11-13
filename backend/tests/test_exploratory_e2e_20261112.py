@@ -20,7 +20,7 @@ API = "/api/website/v1"
 # ---------------------------------------------------------------------------
 
 _BLANK_TITLE_CASES = [
-    ("site_meta", {"title": "  ", "description": "描述", "header_phone_number": "07-0000000"}, "網站標題不能空白"),
+    ("site_meta", {"title": "  ", "description": "描述", "header_phone_number": "07-0000000", "header_phone_note": "義華"}, "網站標題不能空白"),
     ("home_about", {"title": "", "since_label": "1997", "body_text": "內文", "caption": "圖說"}, "標題不能空白"),
     ("home_campus_board", {"section_title": " ", "eyebrow": "五校", "note": ""}, "區塊標題不能空白"),
 ]
@@ -45,7 +45,8 @@ async def test_blank_titles_save_as_draft_but_cannot_be_published(admin_client, 
 
 
 # ---------------------------------------------------------------------------
-# 2. 已拿掉的欄位（頁首電話備註、關於頁結尾、場景說明）：新版本不帶，已發布的舊版本公開輸出也剔除
+# 2. 已拿掉的欄位（關於頁結尾、場景說明）：新版本不帶，已發布的舊版本公開輸出也剔除。
+#    電話備註不拿掉：11-13 選單改成只顯示一校電話後，頁首電話對不到任何一校時會顯示它。
 # ---------------------------------------------------------------------------
 
 
@@ -61,8 +62,7 @@ async def test_retired_fields_are_dropped_on_save_and_from_old_published_version
     )
 
     content = (await public_client.get(f"{API}/public/site")).json()["content"]
-    assert content["site_meta"]["header_phone_number"] == "07-0000000"
-    assert "header_phone_note" not in content["site_meta"]
+    assert content["site_meta"]["header_phone_note"] == "週一至週五", "電話備註官網還在用，公開輸出要留著"
     [scene] = content["campus_tour"]["yihua"]["scenes"]
     assert scene["name"] == "大廳" and "intro" not in scene
 

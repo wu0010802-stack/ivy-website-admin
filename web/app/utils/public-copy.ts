@@ -22,10 +22,9 @@ const RETIRED = {
   dayExperience: ['sourceNote'],
   booking: ['isDemo', 'demoNote', 'steps', 'fields'],
   campus: ['heroPhotoPos'],
-  // 2026-11-12 場景說明、關於頁結尾「五所校園」、頁首電話備註隨後台一起拿掉（官網沒有地方顯示）。
+  // 2026-11-13 場景說明、關於頁結尾「五所校園」隨後台一起拿掉（官網沒有地方顯示）。
   tourScene: ['spots', 'spots_reviewed', 'intro'],
-  aboutPage: ['outroTitle', 'outroText'],
-  headerPhone: ['note']
+  aboutPage: ['outroTitle', 'outroText']
 } as const
 
 function omit<T extends object>(value: T, keys: readonly string[]): T {
@@ -50,7 +49,6 @@ function withoutTodoNotes<T>(value: T): T {
 export function withoutRetiredFields(site: SiteContent): SiteContent {
   return withoutTodoNotes({
     ...omit(site, RETIRED.site),
-    siteMeta: { ...site.siteMeta, headerPhone: omit(site.siteMeta.headerPhone, RETIRED.headerPhone) },
     ...(site.aboutPage && { aboutPage: omit(site.aboutPage, RETIRED.aboutPage) }),
     home: { ...site.home, hero: omit(site.home.hero, RETIRED.hero), campusBoard: omit(site.home.campusBoard, RETIRED.campusBoard) },
     dayExperience: {

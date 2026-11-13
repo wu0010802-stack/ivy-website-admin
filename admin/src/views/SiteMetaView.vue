@@ -36,6 +36,7 @@ const editor = useContentItem<SiteMetaPayload>(
     title: '',
     description: '',
     header_phone_number: '',
+    header_phone_note: '',
     share_image: '',
     share_image_alt: '',
     allow_indexing: true,
@@ -53,9 +54,8 @@ const editor = useContentItem<SiteMetaPayload>(
     // - page_seo 補成七頁都有；舊版本的入學頁欄位（admission_*）只在 page_seo.admission 對應欄位是空的時候搬進去，
     //   然後丟掉，存檔不再送出（後端同樣不再輸出）。
     // - social_links 維持 null（沿用內建）或清單；清單的每一個照固定的欄位順序整理。
-    // - 電話備註（header_phone_note）2026-11-12 拿掉：官網選單改成五校電話並列後就不顯示了，舊版本的值丟掉。
     normalize: (payload) => {
-      const { admission_title: legacyTitle, admission_description: legacyDescription, header_phone_note: _retiredNote, ...rest } = payload as SiteMetaPayload & LegacyAdmissionFields
+      const { admission_title: legacyTitle, admission_description: legacyDescription, ...rest } = payload as SiteMetaPayload & LegacyAdmissionFields
       const pageSeo = normalizePageSeo(rest.page_seo)
       if (typeof legacyTitle === 'string' && legacyTitle.trim() && !pageSeo.admission.title.trim()) pageSeo.admission.title = legacyTitle
       if (typeof legacyDescription === 'string' && legacyDescription.trim() && !pageSeo.admission.description.trim()) pageSeo.admission.description = legacyDescription
@@ -89,7 +89,7 @@ const customisedPages = computed(() => PAGE_SEO_KEYS.filter((key) => pageSeoCust
 
 // 段落目錄：每段列出它編輯的欄位，和官網不同時目錄打點。
 const navSections = computed<EditorSection[]>(() => [
-  { id: 'section-meta-basic', label: '網站標題與選單電話', fields: ['title', 'description', 'header_phone_number'] },
+  { id: 'section-meta-basic', label: '網站標題與頁首電話', fields: ['title', 'description', 'header_phone_number', 'header_phone_note'] },
   { id: 'section-meta-share', label: '社群分享圖', fields: ['share_image', 'share_image_alt'] },
   {
     id: 'section-meta-seo',
@@ -152,10 +152,10 @@ onMounted(editor.load)
 
 <template>
   <ContentEditor :editor="editor" :sections="navSections">
-    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、選單預設反白的校區與主選單、機構社群連結，以及 30 週年內容、最新消息、入學資訊分頁的開關。</template>
+    <template #lead>瀏覽器分頁與搜尋結果顯示的網站名稱、社群分享圖、各頁的搜尋標題與分享圖、頁首右上角的聯絡電話與主選單、機構社群連結，以及 30 週年內容、最新消息、入學資訊分頁的開關。</template>
 
     <el-form v-readonly-values="editor.readOnly.value" label-position="top" :disabled="editor.readOnly.value" @submit.prevent>
-      <h3 id="section-meta-basic" class="meta-section meta-section--first" data-section-anchor tabindex="-1">網站標題與選單電話</h3>
+      <h3 id="section-meta-basic" class="meta-section meta-section--first" data-section-anchor tabindex="-1">網站標題與頁首電話</h3>
       <el-form-item label="網站標題">
         <el-input v-model="editor.form.value.title" maxlength="40" show-word-limit />
         <span class="field-help">會出現在瀏覽器分頁與 Google 搜尋結果標題。</span>
@@ -165,12 +165,14 @@ onMounted(editor.load)
         <span class="field-help">搜尋結果標題下方那段摘要，建議 60 到 120 字。</span>
         <p v-if="legacyCopyHint('siteDescription', editor.form.value.description)" class="legacy-hint">{{ legacyCopyHint('siteDescription', editor.form.value.description) }}</p>
       </el-form-item>
-      <!-- 2026-11-12：選單「參觀專線」改成五校並列（14ccc94）後，這支電話不再單獨顯示，只決定預設反白哪一校；
-           「電話備註」官網不再顯示，已拿掉。 -->
-      <el-form-item label="選單預設反白的校區電話">
-        <el-input v-model="editor.form.value.header_phone_number" inputmode="tel" placeholder="07-000-0000" />
-        <span class="field-help">頁首選單的「參觀專線」五校並列；跟這支電話相同的那一校預設反白，下面的社群連結也先顯示那一校。填各校介紹裡的參觀專線，對不到任何一校就不預設。</span>
-      </el-form-item>
+      <div class="field-row">
+        <el-form-item label="頁首電話">
+          <el-input v-model="editor.form.value.header_phone_number" inputmode="tel" placeholder="07-000-0000" />
+        </el-form-item>
+        <el-form-item label="電話備註">
+          <el-input v-model="editor.form.value.header_phone_note" placeholder="例如：週一至週五 9:00–17:00" />
+        </el-form-item>
+      </div>
 
       <h3 id="section-meta-share" class="meta-section" data-section-anchor tabindex="-1">社群分享圖</h3>
       <el-form-item label="分享到 LINE、Facebook 時的預覽圖">

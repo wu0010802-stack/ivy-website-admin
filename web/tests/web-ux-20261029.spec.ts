@@ -122,25 +122,37 @@ describe('選單「找到你的校園」', () => {
   const header = read('../app/components/SiteHeader.vue')
   const template = header.replace(/<!--[\s\S]*?-->/g, '')
 
-  it('五校是連到首頁五校區塊那一校的連結，滑過與聚焦仍預覽參觀專線', () => {
-    expect(header).toContain(':href="`/?campus=${c.key}#campuses`"')
+  it('五校只切換下方的參觀專線與社群，不離開選單、不做成按鈕的樣子（2026-11-13）', () => {
+    // 10-29 是連到首頁五校區塊的連結；11-13 使用者：不要做成按鈕，單純切換就好。
+    expect(template).not.toContain('?campus=${c.key}#campuses')
+    expect(template).toMatch(/<div id="menu-campuses" role="group" aria-labelledby="menu-campuses-label">\s*<button\s+v-for="c in campuses"/)
+    expect(header).toContain(':aria-pressed="contactCampus?.key === c.key"')
     expect(header).toContain('@pointerenter="onCampusPointerEnter($event, c.key)"')
     expect(header).toContain('@focus="menuCampusKey = c.key"')
-    expect(header).not.toContain('@click="menuCampusKey = c.key"')
+    // Safari 點按鈕不會給焦點，手機也沒有滑過，要靠 click。
+    expect(header).toContain('@click="menuCampusKey = c.key"')
+    const css = read('../app/assets/css/studio.css')
+    const rules = css.split('\n').filter((line) => line.includes('#menu-campuses'))
+    expect(rules.length).toBeGreaterThan(0)
+    expect(css).not.toContain('#menu-campuses a')
+    // 沒有底盤、沒有滑過／選中的反白方塊：選中只加深字色、校名畫底線。
+    const block = css.slice(css.indexOf('#menu-campuses {display:grid'), css.indexOf('.menu-socials {display:flex'))
+    expect(block).not.toMatch(/background:var\(/)
+    expect(block).toContain('#menu-campuses button.is-active>span {text-decoration:underline')
   })
 
-  it('參觀專線五校並列，不再只顯示義華一校（2026-11-12）', () => {
-    expect(template).toContain('參觀專線')
-    expect(template).toContain('v-for="phone in campusPhones"')
-    expect(template).toContain(':href="`tel:${phone.number}`"')
-    expect(template).not.toContain('menuPhone')
-    expect(header).toContain("return number ? [{ key: campus.key, name: campus.name, number }] : []")
+  it('參觀專線只出現選中那一校的電話，跟著上面五校切換（2026-11-13）', () => {
+    // 11-12 改成五校並列，11-13 使用者要只出現那間分校的電話。
+    expect(template).toContain(':href="`tel:${menuPhone.number}`"')
+    expect(template).toContain('<small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong>')
+    expect(template).not.toContain('campusPhones')
+    expect(header).toContain("? { number: contactCampus.value.phone?.trim() ?? '', note: `${contactCampus.value.name}參觀專線` }")
+    expect(read('../app/assets/css/studio.css')).not.toContain('.menu-phones')
   })
 
   it('沒有的社群帳號與電話不出現，不寫「待提供」', () => {
     expect(template).not.toContain('待提供')
     expect(template).not.toContain('待園方提供')
-    expect(read('../app/assets/css/studio.css')).not.toContain('#menu-campuses button')
   })
 
   it('首頁五校卡也一樣：沒有 LINE 的校區不寫「待園方提供」，整列沒有社群時不留空列（2026-11-04）', () => {

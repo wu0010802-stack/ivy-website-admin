@@ -345,11 +345,8 @@ def _social_url_key(url: str) -> tuple:
 class SiteMetaPayload(_ContentPayload):
     title: str
     description: str
-    # 主選單「參觀專線」五校並列（2026-11-12 14ccc94）後，這支電話只用來決定選單預設反白哪一校。
     header_phone_number: str
-    # 2026-11-12 退役：選單改成五校電話並列後官網不再顯示電話備註。保留欄位只為舊版本可讀；
-    # exclude=True 讓新存的版本不帶，公開輸出剔除（registry 的 _public_site_meta）。沒有 migration。
-    header_phone_note: str = Field(default="", exclude=True)
+    header_phone_note: str
     # 以下為 2026-09-24 新增，預設值讓舊的已發布版本照常通過驗證。
     # 社群分享圖：素材庫媒體 UUID；空字串沿用首頁大圖的分享圖。
     share_image: str = ""

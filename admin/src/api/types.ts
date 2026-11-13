@@ -121,10 +121,8 @@ export interface SocialLinkPayload {
 export interface SiteMetaPayload {
   title: string
   description: string
-  /** 選單「參觀專線」五校並列，這支電話對到的那一校預設反白（2026-11-12） */
   header_phone_number: string
-  /** 2026-11-12 已拿掉（官網不再顯示）：只有舊版本帶著，載入時丟掉、存檔不送 */
-  header_phone_note?: string
+  header_phone_note: string
   /** 素材庫媒體 UUID；空字串沿用首頁大圖 */
   share_image: string
   share_image_alt: string

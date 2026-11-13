@@ -54,8 +54,7 @@ export interface LiveSiteMeta {
   title: string
   description: string
   header_phone_number: string
-  /** 2026-11-12 已拿掉：後端公開輸出不再帶 */
-  header_phone_note?: string
+  header_phone_note: string
   // 2026-09-24 新增，舊的已發布版本沒有這些欄位。
   share_image?: string
   share_image_alt?: string
@@ -776,7 +775,8 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
         description: overlay.site_meta.description,
         headerPhone: {
           ...next.siteMeta.headerPhone,
-          number: overlay.site_meta.header_phone_number
+          number: overlay.site_meta.header_phone_number,
+          note: overlay.site_meta.header_phone_note
         },
         shareImage: overlay.site_meta.share_image || undefined,
         shareImageAlt: overlay.site_meta.share_image_alt || undefined,
