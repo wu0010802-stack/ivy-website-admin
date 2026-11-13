@@ -59,9 +59,9 @@ describe('預約第二步', () => {
 })
 
 describe('Email 錯誤字不承諾寄信（寄信看各校設定，正式站 10-02 起是關的）', () => {
-  it('空白與格式錯誤都不提「確認信與修改連結會寄到這裡」', () => {
+  it('空白不算錯（2026-11-13 起選填）；格式錯誤不提「確認信與修改連結會寄到這裡」', () => {
     const errors = validateVisitContact({ parentName: '陳媽媽', phone: '0912345678', email: '' })
-    expect(errors.email).toBe('請填寫 Email。')
+    expect(errors.email).toBeUndefined()
     expect(validateVisitContact({ parentName: '陳媽媽', phone: '0912345678', email: 'abc' }).email).toBe('請填寫有效的 Email，例如 name@example.com。')
     expect(apiFieldErrors([{ loc: ['body', 'email'] }]).email).toBe('請填寫有效的 Email，例如 name@example.com。')
   })

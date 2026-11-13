@@ -20209,10 +20209,17 @@
             "title": "Consent Revision Id"
           },
           "email": {
-            "format": "email",
-            "maxLength": 254,
-            "title": "Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "expected_start": {
             "anyOf": [
@@ -20319,7 +20326,6 @@
           "campus_key",
           "parent_name",
           "phone",
-          "email",
           "slot_id",
           "config_version"
         ],

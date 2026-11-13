@@ -273,15 +273,15 @@ VISIT_SUBMIT_PATH = "/api/website/v1/public/visit-requests"
 
 
 class ParentClient(httpx.AsyncClient):
-    """官網家長端。官網送參觀需求一定會帶 Email；測試沒寫的就比照官網補上，要驗
-    缺 Email 的測試自己帶 None。2026-10-02 起官網不再帶同意說明版本，2026-10-03
+    """官網家長端。Email 2026-11-13 起選填，但多數測試要驗寄信與修改連結，
+    沒寫的就預設補上一個；要驗沒填 Email 的測試自己帶 None。2026-10-02 起官網不再帶同意說明版本，2026-10-03
     起不再帶參觀人數。"""
 
     async def post(self, url, *args, **kwargs):  # type: ignore[override]
         body = kwargs.get("json")
         if str(url).endswith(VISIT_SUBMIT_PATH) and isinstance(body, dict):
             body = dict(body)
-            # 2026-09-30 起官網送單 Email 必填；要驗缺 Email 的測試自己帶 None。
+            # 預設補上 Email；要驗沒填 Email 的測試自己帶 None（2026-11-13 起選填）。
             body.setdefault("email", "parent@example.com")
             kwargs["json"] = body
         return await super().post(url, *args, **kwargs)

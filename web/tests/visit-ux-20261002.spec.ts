@@ -42,7 +42,7 @@ describe('送出前確認', () => {
   })
 
   it('沒開寄信時，Email 說明不承諾確認信', () => {
-    expect(form).toMatch(/const emailHint = computed\(\(\) => bookingConfig\.value\?\.parent_email_enabled\s*\? '確認信與修改連結會寄到這裡。'/)
+    expect(form).toMatch(/const emailHint = computed\(\(\) => bookingConfig\.value\?\.parent_email_enabled\s*\? '有填的話，確認信與修改連結會寄到這裡。'\s*: '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'\)/)
     expect(form).toContain('<p id="visit-email-hint" class="visit-field-hint">{{ emailHint }}</p>')
   })
 })

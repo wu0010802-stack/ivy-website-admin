@@ -357,10 +357,12 @@ function onlineCall(campus: Campus): { href: string; number: string } | null {
 const bookingSummary = computed(() => selectedSlot.value
   ? [shortDateLabel(selectedSlot.value.slot_date), slotTime(selectedSlot.value)]
   : [])
-// 線上 parent_email_enabled 為 false 時不會寄信：欄位說明不能承諾確認信。
+// 線上 parent_email_enabled 為 false 時不會寄信：欄位說明不能承諾確認信。Email 選填（2026-11-13），兩句都以「有填的話」開頭。
 const emailHint = computed(() => bookingConfig.value?.parent_email_enabled
-  ? '確認信與修改連結會寄到這裡。'
-  : '園所會用這個 Email 聯絡你；修改連結會顯示在預約完成頁。')
+  ? '有填的話，確認信與修改連結會寄到這裡。'
+  : '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。')
+// 這位家長會不會收到確認信：有開寄信、而且他有填 Email（選填）。沒填的人不能叫他去信裡找連結。
+const mailedToParent = computed(() => Boolean(bookingConfig.value?.parent_email_enabled && form.email))
 
 async function focusStage() {
   await nextTick()
@@ -538,7 +540,8 @@ async function onSubmit() {
         phone: form.phone,
         child_name: form.childName,
         child_birthdate: form.childBirthdate,
-        email: form.email,
+        // 選填：沒填就整個欄位不帶（後端是 EmailStr | None，空字串會被當成格式錯誤）。
+        ...(form.email ? { email: form.email } : {}),
         referral_sources: form.referralSources,
         ...(form.expectedStart ? { expected_start: form.expectedStart } : {}),
         slot_id: selectedSlotId.value,
@@ -582,13 +585,13 @@ async function onSubmit() {
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
       idempotencyKey.value = newIdempotencyKey()
       submitError.value =
-        (bookingConfig.value?.parent_email_enabled
+        (mailedToParent.value
           ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'
           : '你先前那一次其實已經預約成功了。要更正內容請直接聯絡園所，不要重複送出。') + callFallback.value
     } else if (code === 'ALREADY_BOOKED') {
       // 同一支電話已經約了這個場次（上一次其實送成功了，或成功後按上一頁又送一次）：不是失敗，不用再送。
       submitError.value =
-        (bookingConfig.value?.parent_email_enabled
+        (mailedToParent.value
           ? '這支電話已經預約過這個場次了，不用再送一次。要改期或取消，請用確認信裡的連結。'
           : '這支電話已經預約過這個場次了，不用再送一次。要改期或取消，請直接聯絡園所。') + callFallback.value
     } else if (code === 'BOT_CHECK_FAILED') {
@@ -611,7 +614,7 @@ async function onSubmit() {
         submitError.value = '有幾個欄位需要修正，請看標示的地方。'
         focusInvalidField = true
       } else {
-        submitError.value = '部分資料格式有誤，請檢查孩子生日、Email、聯絡電話與必填欄位。'
+        submitError.value = '部分資料格式有誤，請檢查寶貝生日、Email、聯絡電話與必填欄位。'
       }
     } else {
       submitError.value = `送出失敗，請稍後再試一次；你填寫的內容還保留著。${callFallback.value}`
@@ -735,7 +738,7 @@ async function onSubmit() {
                 <h2>填寫參觀資料</h2>
                 <p v-if="action.message" class="visit-config-note">{{ action.message }}</p>
                 <fieldset class="visit-form-fields" :disabled="submitting">
-                  <legend class="sr-only">孩子與家長資料</legend>
+                  <legend class="sr-only">寶貝與家長資料</legend>
                   <section v-if="bookingConfig?.mode === 'slots'" class="visit-form-section visit-schedule-section" aria-labelledby="visit-schedule-title">
                     <h3 id="visit-schedule-title">參觀安排</h3>
                     <!-- 停用 JS 時才顯示（visit-booking.css 的 @media (scripting: none)）：沒有 JS 就讀不到場次，請家長直接來電。 -->
@@ -758,10 +761,10 @@ async function onSubmit() {
                   <p v-else class="visit-config-note">{{ selectedCampus.name }}將與你聯繫，另行確認參觀日期與場次。</p>
 
                   <section class="visit-form-section" aria-labelledby="visit-child-title">
-                    <h3 id="visit-child-title">孩子資料</h3>
+                    <h3 id="visit-child-title">寶貝資料</h3>
                     <div class="visit-field-grid">
-                      <div class="visit-field"><label for="child-name">孩子姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" enterkeyhint="next" required placeholder="請填寫孩子姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkFieldOnBlur('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
-                      <div class="visit-field"><label for="child-birthdate">孩子出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :min="earliestChildBirthdate(today)" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkFieldOnBlur('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依孩子生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
+                      <div class="visit-field"><label for="child-name">寶貝姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" enterkeyhint="next" required placeholder="請填寫寶貝姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkFieldOnBlur('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
+                      <div class="visit-field"><label for="child-birthdate">寶貝出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :min="earliestChildBirthdate(today)" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkFieldOnBlur('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依寶貝生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
                     </div>
                     <fieldset class="visit-referrals visit-expected-start" aria-describedby="visit-expected-start-error"><legend>預計入學時間<small>選填</small></legend><div><label v-for="option in expectedStartChoices" :key="option.value"><input type="radio" name="expectedStart" :value="option.value" :checked="form.expectedStart === option.value" @click="toggleExpectedStart(option.value)" @keydown.space.prevent="toggleExpectedStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div><p id="visit-expected-start-error" class="visit-field-error">{{ fieldErrors.expectedStart }}</p></fieldset>
                   </section>
@@ -771,7 +774,7 @@ async function onSubmit() {
                     <div class="visit-field-grid">
                       <div class="visit-field"><label for="parent-name">家長稱呼<small>必填</small></label><input id="parent-name" v-model="form.parentName" name="parentName" autocomplete="section-parent name" maxlength="40" enterkeyhint="next" required placeholder="例如：陳媽媽" :aria-invalid="Boolean(fieldErrors.parentName)" aria-describedby="visit-name-error" @blur="checkFieldOnBlur('parentName')" @input="clearFieldError('parentName')"><p id="visit-name-error" class="visit-field-error">{{ fieldErrors.parentName }}</p></div>
                       <div class="visit-field"><label for="parent-phone">聯絡電話<small>必填</small></label><input id="parent-phone" v-model="form.phone" name="phone" type="tel" inputmode="tel" autocomplete="section-parent tel-national" maxlength="16" enterkeyhint="next" required pattern="09[0-9]{8}" placeholder="09xxxxxxxx" :aria-invalid="Boolean(fieldErrors.phone)" aria-describedby="phone-hint visit-phone-error" @blur="checkFieldOnBlur('phone')" @input="clearFieldError('phone')"><small id="phone-hint" class="visit-field-hint">09 開頭的 10 碼手機號碼</small><p id="visit-phone-error" class="visit-field-error">{{ fieldErrors.phone }}</p></div>
-                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>必填</small></label><input id="parent-email" required v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" enterkeyhint="done" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-hint visit-email-error" @blur="checkFieldOnBlur('email')" @input="clearFieldError('email')"><p id="visit-email-hint" class="visit-field-hint">{{ emailHint }}</p><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
+                      <div class="visit-field visit-full"><label for="parent-email">聯絡 Email<small>選填</small></label><input id="parent-email" v-model="form.email" name="email" type="email" inputmode="email" autocomplete="section-parent email" maxlength="254" enterkeyhint="done" placeholder="name@example.com" :aria-invalid="Boolean(fieldErrors.email)" aria-describedby="visit-email-hint visit-email-error" @blur="checkFieldOnBlur('email')" @input="clearFieldError('email')"><p id="visit-email-hint" class="visit-field-hint">{{ emailHint }}</p><p id="visit-email-error" class="visit-field-error">{{ fieldErrors.email }}</p></div>
                     </div>
                   </section>
 
@@ -822,7 +825,7 @@ async function onSubmit() {
               <div class="visit-contact-actions"><a v-if="selectedCampus?.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}</a><button v-if="selectedCampus" type="button" class="visit-inline-link" @click="bookAgain">重新選擇場次</button></div>
             </div>
             <!-- 填寫內容放在下一步之後：正式站不寄確認信時，修改連結是家長唯一的管理入口，手機上原本要捲近兩屏才看到（2026-10-12）。 -->
-            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>孩子姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.expectedStart"><dt>預計入學</dt><dd>{{ expectedStartChoices.find(option => option.value === form.expectedStart)?.label }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>
+            <dl class="visit-result-list"><div><dt>參觀校區</dt><dd>{{ selectedCampus?.name }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約日期</dt><dd>{{ visitDateLabel(submittedSlot.slot_date) }}</dd></div><div v-if="submittedSlot && resultKind !== 'booked'"><dt>預約場次</dt><dd>{{ slotTime(submittedSlot) }}</dd></div><div><dt>寶貝姓名</dt><dd>{{ form.childName }}</dd></div><div><dt>出生年月日</dt><dd>{{ form.childBirthdate }}</dd></div><div><dt>家長稱呼</dt><dd>{{ form.parentName }}</dd></div><div><dt>聯絡電話</dt><dd>{{ form.phone }}</dd></div><div v-if="form.email"><dt>聯絡 Email</dt><dd>{{ form.email }}</dd></div><div v-if="form.expectedStart"><dt>預計入學</dt><dd>{{ expectedStartChoices.find(option => option.value === form.expectedStart)?.label }}</dd></div><div v-if="form.referralSources.length"><dt>得知管道</dt><dd>{{ REFERRAL_OPTIONS.filter(source => form.referralSources.includes(source.value)).map(source => source.label).join('、') }}</dd></div></dl>
             <NuxtLink class="visit-inline-link visit-home" to="/">回到首頁</NuxtLink>
           </section>
         </div>

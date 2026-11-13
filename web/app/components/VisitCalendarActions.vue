@@ -39,7 +39,7 @@ function downloadIcs() {
         <svg class="icon" aria-hidden="true"><use href="#i-navigation-arrow" /></svg>Google 地圖導航<span aria-hidden="true"> ↗</span><span class="sr-only">（另開新視窗）</span>
       </a>
     </div>
-    <p class="visit-calendar-note">行程只寫分校、地址與電話，不含孩子與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>
+    <p class="visit-calendar-note">行程只寫分校、地址與電話，不含寶貝與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>
   </div>
 </template>
 
