@@ -439,19 +439,20 @@
     "height": 810,
     "candidates": [
       {
-        "src": "/assets/responsive/day-poster-df2e758b42c4-480.webp",
-        "width": 480
+        "src": "/assets/responsive/day-poster-7404a9d16dc8-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/day-poster-416462789898-480.avif"
       },
       {
-        "src": "/assets/responsive/day-poster-df2e758b42c4-800.webp",
+        "src": "/assets/responsive/day-poster-7404a9d16dc8-800.webp",
         "width": 800
       },
       {
-        "src": "/assets/responsive/day-poster-df2e758b42c4-1200.webp",
+        "src": "/assets/responsive/day-poster-7404a9d16dc8-1200.webp",
         "width": 1200
       },
       {
-        "src": "/assets/responsive/day-poster-df2e758b42c4-1440.webp",
+        "src": "/assets/responsive/day-poster-7404a9d16dc8-1440.webp",
         "width": 1440
       }
     ]
@@ -2858,11 +2859,11 @@
     "height": 1280,
     "candidates": [
       {
-        "src": "/assets/responsive/day-poster-mobile-b656363be0e8-480.webp",
+        "src": "/assets/responsive/day-poster-mobile-7dd35db28e66-480.webp",
         "width": 480
       },
       {
-        "src": "/assets/responsive/day-poster-mobile-b656363be0e8-720.webp",
+        "src": "/assets/responsive/day-poster-mobile-7dd35db28e66-720.webp",
         "width": 720
       }
     ]
