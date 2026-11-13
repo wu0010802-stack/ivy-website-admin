@@ -1,3 +1,13 @@
+## 2026-11-13 環境頁五顆心主照片再換一張（`feature/env-care-photo-20261113`）
+
+使用者截 `/environment` 五顆心下面那張寬幅主照片（當天下午才換上的明華中秋節「老師扶幼幼」，候選 D4）說「這張照片幫我換掉」。前兩版（義華粉專野餐、仁武粉專老師牽幼幼揮手）使用者都沒要，最後自己截了舊官網 ivykids.tw 首頁輪播第 2 張指定「換這張」。
+
+- `env-care-teacher` ← ivykids.tw 首頁輪播第 2 張（`upload/fc/4a/fc4ad4ff0065fc81a107a568dccc3ebf.jpg`，2000×803）：戴聖誕帽的孩子握著小木槌敲彩色木樁。裁掉最左邊 120px 的深色人影 → 母檔 1880×803（2.34:1，q96 WebP、無 EXIF；衍生 480／800／1200／1600／1880 都有 AVIF）。本來就是寬橫幅，桌機 2.75:1 只裁上下、手機 2.2:1 只裁左右，**不必像 D4 那樣把背景拉寬**。桌機 Retina 約 0.76 倍。repo 裡的孤兒檔 `cur-visit` 是同一張但只有 1204×803，沒有用它。
+- `EnvironmentContent.vue`：位置 `50% 0%` → `60% 50%`（桌機上下置中：帽子留到帽沿、下緣露出木樁；手機往右偏一點把孩子放中間），替代文字改寫；後台環境頁「幼兒保育照片」的內建照片說明一起改（原本還停在更早的外師照）。代號仍叫 `env-care-teacher`，雖然這張照片裡沒有老師。
+- 10 個舊雜湊檔 `git rm`；`environment-page-overlay.spec.ts` 的替代文字、環境頁兩份渲染快照同步。
+- 前兩版與其他候選（已裁成實際框形）留在 Desktop checkout `output/env-care-photo-20261113/候選對照.jpg`，使用者都沒選。
+- 驗證：web typecheck、`npm run test:website` 過、Playwright 1440／1288×600／820／390 在 dev server（fixture）截圖，無頁面錯誤、無橫向溢出；admin 測試與 stack e2e 交給 CI（PR #87 全綠）。已上線，見 `deploy/README.md`。
+
 ## 2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫（`fix/print-sizes-20261113`）
 
 使用者丟了一份首頁 Lighthouse 手機報告（效能 68、最佳做法 77）。扣分多半來自跑報告的那個 Chrome（擴充功能、登入中的 Facebook、本機負載高），網站這邊值得改的只有「拍立得照片抓太大」這一項，使用者說處理。

@@ -220,6 +220,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 環境頁五顆心主照片換成戴聖誕帽的孩子敲木槌上線（main CI 部署，沒有 migration）
+
+- **內容**：`b509c0e8`（PR #87，合併提交 `44e2b8b9`；README「2026-11-13 環境頁五顆心主照片再換一張」）。使用者指定把 `/environment` 五顆心下面的寬幅主照片換成舊官網 ivykids.tw 首頁輪播第 2 張，看過本機預覽後回「ok」。`env-care-teacher` 母檔換成 1880×803、位置 `60% 50%`、替代文字改寫；後台「幼兒保育照片」的內建照片說明一起改。沒有改 API、內容、變數。
+- **CI**：等 CI 期間 main 被別的合併推進三次（#86、#88、#89／#84），README 衝突兩次；第三次把 README 段落從 PR 抽出來，改跟這筆紀錄一起補。PR run 43447492750 全綠；推送那組 run 43447482290 被 PR 的 run 取代而取消，重跑時 `test_line_oauth.py::test_line_login_is_not_blocked_by_the_password_lock` 失敗一次（`assert 200 == 429`，跑在 15:15:17Z 的 5 分鐘交界，限流窗口的已知偶發），只重跑那個工作後通過。main run 43453033207 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `44e2b8b9`。
+- **線上驗證**：Playwright Chrome 1440×900（DPR 2）與 390×844（DPR 3）開 `https://www.ivykidschool.com/environment`（遙測與追蹤請求全部攔下）：主照片是新檔（桌機 `…-1880.avif`、手機 `…-1200.avif`）、替代文字是新的、頁面裡找不到舊替代文字，無頁面錯誤、無 4xx、無橫向溢出，截圖確認。
+- **未驗證**：iOS／Android 實機、Safari；後台環境頁的內建照片說明沒有登入去看。
+
 ## 2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫上線（main CI 部署，沒有 migration）
 
 - **內容**：`fece03cc`（PR #89，合併提交 `f12fed0f`；README「2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫」）。使用者丟首頁 Lighthouse 手機報告，判讀後只修「拍立得照片抓太大」一項，使用者說「幫我處理」「部署」。`web/app/utils/responsive-image.ts` 新增 `dayPrintSizes(寬, 高)`，`DayMomentCard.vue` 改用它（原本寫死 `(max-width: 760px) 100vw, 540px`）；相框是正方形、`object-fit: cover`，所以依每張照片的寬高比算。沒有改 API、後台、內容，沒有變數要改。
