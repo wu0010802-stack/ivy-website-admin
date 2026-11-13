@@ -135,7 +135,8 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
     await expect(cardCall).toBeVisible()
     await expect(cardCall).toHaveAttribute('href', `tel:${phone}`)
     await expect(card.getByText('來電洽詢', { exact: true })).toHaveCount(0)
-    // 撥號連結沒被卡片連結蓋住：它的中心點命中的是自己。
+    // 撥號連結沒被卡片連結蓋住：它的中心點命中的是自己（先捲進畫面，elementFromPoint 只看得到視窗內的點）。
+    await cardCall.scrollIntoViewIfNeeded()
     expect(await cardCall.evaluate((el) => { const b = el.getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('a') === el })).toBe(true)
     // 點卡片（照片的位置）一下就進第二步，沒有「下一步」按鈕。
     await expect(page.getByRole('button', { name: /下一步/ })).toHaveCount(0)
