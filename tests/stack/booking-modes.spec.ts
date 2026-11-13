@@ -85,9 +85,10 @@ async function expectNoBookingForm(page: Page): Promise<void> {
 /** 選校清單（/visit）上國際校那張卡標出的預約方式；標籤是載入後才補上的，expect 會等。 */
 async function expectCampusModeLabel(page: Page, label: string): Promise<void> {
   await page.goto('/visit')
-  const choices = page.getByRole('group', { name: '想參觀的校區' })
+  // 2026-11-13 起選校卡是連結清單（原本是 radio 群組＋「下一步」）。
+  const choices = page.getByRole('list', { name: '想參觀的校區' })
   await expect(choices).toBeVisible()
-  await expect(choices.locator('label').filter({ hasText: CAMPUS_NAME }).getByText(label, { exact: true })).toBeVisible()
+  await expect(choices.locator('li').filter({ hasText: CAMPUS_NAME }).getByText(label, { exact: true })).toBeVisible()
 }
 
 test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
@@ -126,14 +127,21 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
     await expect(contact.getByRole('link')).toHaveCount(1)
     await expectNoBookingForm(page)
 
-    // 2026-10-29 起來電的校區在選校卡上直接給撥號（號碼用預約設定的），不必選卡、按下一步才看到。
-    // 連結在卡片的 label 裡：點它只撥號，不會選到這張卡。
+    // 2026-10-29 起來電的校區在選校卡上直接給撥號（號碼用預約設定的），不必進第二步才看到。
+    // 2026-11-13 起整張卡是連到第二步的連結，撥號連結疊在它上面：點撥號只撥號，點卡片其他地方進第二步。
     await page.goto('/visit')
-    const card = page.getByRole('group', { name: '想參觀的校區' }).locator('label').filter({ hasText: CAMPUS_NAME })
+    const card = page.getByRole('list', { name: '想參觀的校區' }).locator('li').filter({ hasText: CAMPUS_NAME })
     const cardCall = card.getByRole('link', { name: `致電${CAMPUS_NAME}預約參觀 ${phone}`, exact: true })
     await expect(cardCall).toBeVisible()
     await expect(cardCall).toHaveAttribute('href', `tel:${phone}`)
     await expect(card.getByText('來電洽詢', { exact: true })).toHaveCount(0)
+    // 撥號連結沒被卡片連結蓋住：它的中心點命中的是自己。
+    expect(await cardCall.evaluate((el) => { const b = el.getBoundingClientRect(); return document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)?.closest('a') === el })).toBe(true)
+    // 點卡片（照片的位置）一下就進第二步，沒有「下一步」按鈕。
+    await expect(page.getByRole('button', { name: /下一步/ })).toHaveCount(0)
+    await card.locator('.visit-campus-photo').click({ position: { x: 20, y: 20 }, force: true })
+    await expect(page).toHaveURL(new RegExp(`/visit/${CAMPUS}$`))
+    await expect(page.getByRole('heading', { level: 2, name: `歡迎與${CAMPUS_NAME}聯絡` })).toBeVisible()
   })
 
   test('外部網站：聯絡區只有外開的「前往預約網站」鈕，沒有表單；選校清單標「外部網站預約」', async ({ page }) => {

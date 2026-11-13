@@ -57,8 +57,6 @@ const pickerRef = ref<HTMLElement | null>(null)
 const formRef = ref<HTMLFormElement | null>(null)
 const errorRef = ref<HTMLElement | null>(null)
 const resultRef = ref<HTMLElement | null>(null)
-const campusError = ref('')
-const campusErrorRef = ref<HTMLElement | null>(null)
 const fieldErrors = ref<VisitErrors>({})
 
 const selectedCampusKey = computed(() => form.campus)
@@ -305,7 +303,6 @@ const shortAddress = (campus: Campus) => campus.address?.replace(/^高雄市/, '
 const callFallback = computed(() => selectedCampus.value?.phone ? `也可以直接致電${selectedCampus.value.name} ${selectedCampus.value.phone}。` : '')
 // 第一步是薄荷色帶的迎賓區＋照片卡選校；第二步與送出後收成一行頁名，左側改放所選校園。
 const isPicking = computed(() => step.value === 1 && !submitted.value)
-const nextLabel = computed(() => bookingPending.value ? '正在確認參觀方式…' : action.value.kind === 'form' || !selectedCampus.value ? '下一步：填寫資料' : '下一步：查看參觀方式')
 // 選好的校區不開放線上預約時，第二步是聯絡方式，不是表單。
 const secondStepLabel = computed(() => selectedCampus.value && bookingConfig.value && action.value.kind !== 'form' ? '參觀方式' : '參觀資料')
 
@@ -382,26 +379,9 @@ async function retryBookingConfig() {
   await focusStage()
 }
 
-async function goNext() {
-  if (submitting.value || bookingPending.value) return
-  if (!selectedCampus.value) {
-    campusError.value = '請先選擇想參觀的校區。'
-    await nextTick()
-    // 焦點仍給第一張卡，但捲動對準這一步的標題：直接 focus() 會把卡片頂到頁首正下方，
-    // 錯誤剛好被桌機頁首蓋住；只捲到錯誤本身，上一行說明又會被頁首切一半。標題、說明、錯誤、第一張卡依序往下排。
-    pickerRef.value?.querySelector<HTMLInputElement>('input')?.focus({ preventScroll: true })
-    const stepTitle = campusErrorRef.value?.parentElement?.querySelector('h2') ?? campusErrorRef.value
-    stepTitle?.scrollIntoView({ block: 'start', behavior: 'instant' })
-    return
-  }
-  await openCampus(selectedCampus.value.key)
-}
-
-/** 進第二步＝換到 /visit/<校>；網址一變，下面的 watch 換校區、聚焦第二步。 */
-async function openCampus(key: string) {
-  if (submitting.value) return
-  await router.push(`/visit/${key}`)
-}
+// 進第二步＝換到 /visit/<校>；網址一變，下面的 watch 換校區、聚焦第二步。
+// 2026-11-13 起選校卡本身就是連到 /visit/<校> 的 NuxtLink，點一下就進第二步（原本要先選卡、再按「下一步」），
+// 所以這裡不再有進第二步的函式；同一個頁面元件換網址不重掛，填過的資料留著，沒開 JS 連結也走得到。
 
 async function changeCampus() {
   if (submitting.value) return
@@ -410,10 +390,11 @@ async function changeCampus() {
 
 async function focusPicker() {
   await focusStage()
-  const checked = pickerRef.value?.querySelector<HTMLInputElement>('input:checked')
-  checked?.focus({ preventScroll: true })
-  // 矮螢幕（320x568）捲到 stage 頂端後，已選的卡（例如第三張）還在畫面下方：補捲到看得見為止。
-  checked?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
+  // 從第二步回來（更換校區、上一頁）：焦點回到剛才那所校園的卡片連結，鍵盤與讀屏接著往下比其他校。
+  const last = form.campus ? pickerRef.value?.querySelector<HTMLElement>(`.visit-campus-link[data-key="${form.campus}"]`) : null
+  last?.focus({ preventScroll: true })
+  // 矮螢幕（320x568）捲到 stage 頂端後，剛才那張卡（例如第三張）還在畫面下方：補捲到看得見為止。
+  last?.closest('.visit-campus-choice')?.scrollIntoView({ block: 'nearest', behavior: 'instant' })
 }
 
 // 送出成功後又換了網址（上一頁回選校、下一頁、更換校區）：收起結果、重新讀場次，填過的資料留著，
@@ -513,7 +494,6 @@ watch(() => form.campus, () => {
   submitError.value = null
   selectedSlotId.value = ''
   selectedVisitDate.value = ''
-  campusError.value = ''
   fieldErrors.value = {}
 })
 watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })
@@ -708,10 +688,10 @@ async function onSubmit() {
 
             <section v-if="step === 1" class="visit-pick-step" aria-labelledby="visit-choose-title">
               <h2 id="visit-choose-title">想先認識哪所校園？</h2>
-              <!-- 放在選校清單前面：沒選校按「下一步」會聚焦第一張卡，錯誤要在卡片正上方才看得到。 -->
-              <p id="visit-campus-error" ref="campusErrorRef" class="visit-field-error" role="alert">{{ campusError }}</p>
-              <fieldset ref="pickerRef" class="visit-campus-list" :disabled="submitting" aria-describedby="visit-campus-error">
-                <legend class="sr-only">想參觀的校區</legend>
+              <!-- 2026-11-13 選校卡是連結，點一下就進這所校園的第二步（/visit/<校>）；「下一步」按鈕與「已選擇○○校」拿掉。
+                   校名是連結本體，::after 撐滿整張卡（visit-booking.css）；撥號膠囊疊在它上面，點了只撥號。
+                   data-visit-step：同一頁裡換步驟，telemetry 不算成從別處點進預約頁（telemetry.client.ts）。 -->
+              <ul ref="pickerRef" class="visit-campus-list" role="list" aria-label="想參觀的校區">
                 <!-- 手機版卡片是 96px 高的細條，只露出照片中間約四成，五張都在首屏附近、lazy 也擋不住。
                      DPR 2.5 以上的手機把寬度估成七成（約 2.1 倍密度），挑 800w 不挑 1200w：五張從約 760 KB 降到約
                      400 KB（2026-10-05 效能盤點，手機 LCP 就是第一張）。DPR 2 與桌機照舊。
@@ -721,22 +701,15 @@ async function onSubmit() {
                      原本寫卡寬（260px／30vw），DPR2 桌機只拿到 800w、平板拿到 480w，照片發糊。
                      第一張是 LCP，給 high（其他頁的首圖都有）：預設 Low 時和其他四張同時排隊，手機慢速 4G 量到 3.8 s（2026-10-21）。
                      網址帶校區時直接進第二步、卡片不在首屏，就不搶。 -->
-                <label v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
-                  <input v-model="form.campus" type="radio" name="campus" :value="campus.key" :aria-label="campusChoiceLabel(campus)">
+                <li v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <span class="visit-campus-card">
                     <span class="visit-campus-photo"><ResponsivePicture v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" /></span>
-                    <!-- 來電的校區把「來電洽詢」換成撥號連結：連結在 label 裡，點它只撥號、不會選到這張卡（HTML 規定 label
-                         遇到裡面的互動元素不轉送點擊）。radio 的名稱已含「來電洽詢」，連結另外唸校名與號碼。 -->
-                    <span class="visit-campus-copy"><strong>{{ campus.name }}</strong><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
-                    <span class="visit-campus-check" aria-hidden="true"><svg class="icon"><use href="#i-check" /></svg></span>
+                    <span class="visit-campus-copy"><NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)"><strong>{{ campus.name }}</strong></NuxtLink><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
+                    <span class="visit-campus-go" aria-hidden="true"><svg class="icon"><use href="#i-arrow-right" /></svg></span>
                   </span>
-                </label>
-              </fieldset>
+                </li>
+              </ul>
               <p v-if="!campuses.length" class="visit-status" role="status">目前沒有可供選擇的校區，請稍後再來查看。</p>
-              <div class="visit-next-row">
-                <p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}` : '選好校園後，查看參觀方式。' }}</p>
-                <button class="button primary visit-next" type="button" :disabled="bookingPending || !campuses.length" :aria-busy="bookingPending" @click="goNext">{{ nextLabel }}<span v-if="!bookingPending" aria-hidden="true">→</span></button>
-              </div>
             </section>
 
             <template v-else>
