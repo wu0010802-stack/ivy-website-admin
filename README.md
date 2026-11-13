@@ -239,7 +239,7 @@
 
 使用者問「還可以接什麼外部網站或 API」，從建議表挑五項。規格 `docs/specs/2026-11-12-external-integrations-design.md`。**全部預設關**：沒設環境變數就和現在完全一樣（不載外部腳本、CSP 一字不變、不打外部 API），帳號與金鑰由使用者開，步驟在 `deploy/README.md`。
 
-- **GA4＋Meta Pixel**（web）：`NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，執行期變數。不用 GTM、不用 inline script；DNT／GPC 不載；`/visit/manage`、`/admin`、`/preview` 完全不送事件（第一頁就是這些頁時連腳本都不載）；GA 的 `page_location` 自組（不帶 hash、query 只留 utm_*／gclid／fbclid）；Pixel 關 `autoConfig` 與 pushState 自動 PageView；預約成立（confirmed）才送 `generate_lead`／`Lead`，參數只有校區與入口代碼。CSP 只在對應 ID 有設時放行那一家。隱私權政策初稿第 4、5 段同步改寫。**先發布隱私權政策再開。**
+- **GA4＋Meta Pixel**（web）：`NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，執行期變數。不用 GTM、不用 inline script；DNT／GPC 不載；`/visit/manage`、`/admin`、`/preview` 完全不送事件（第一頁就是這些頁時連腳本都不載）；GA 的 `page_location` 自組（不帶 hash、query 只留 utm_*／gclid／fbclid；2026-11-13 起多留 gbraid／wbraid）；Pixel 關 `autoConfig` 與 pushState 自動 PageView；預約成立（confirmed）才送 `generate_lead`／`Lead`，參數只有校區與入口代碼。CSP 只在對應 ID 有設時放行那一家。隱私權政策初稿第 4、5 段同步改寫。**先發布隱私權政策再開。**
 - **Instagram 貼文 → 粉專收件匣**（api＋後台）：`WEBSITE_INSTAGRAM_ENABLED`，共用 FB 的 Page token，從粉專找連結的 IG 專業帳號；`facebook_page_posts.source`、`facebook_page_sync.ig_*`（migration `f3b8d2a6c19e`，只加欄位）。後台收件匣標來源、可篩選、IG 同步狀態獨立；IG 失敗不影響 FB。先做義華。
 - **Google Search Console**（api＋後台成效統計「怎麼來、怎麼逛」）：服務帳戶 JWT（joserfc，不加依賴），總計／前 25 字詞／前 25 頁／裝置別，記憶體快取 6 小時、不存資料庫。
 - **CrUX 真實使用者速度**（api＋後台「瀏覽與速度」）：History API，手機／電腦 p75 與好壞比例、近 25 週；金鑰走 `X-Goog-Api-Key` 標頭不進網址；快取 12 小時。
