@@ -232,7 +232,7 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     // 2026-10-30 木頭積木版：五件照顧的小事照片裝在積木形狀裡，內建位置跟著形狀調（第一張拱形）
     expect(health).toContain('object-position:33% 50%')
     expect(img(html, '兩個孩子在教室裡緊緊抱在一起')).toContain('/assets/')
-    expect(img(html, '穿園服的老師彎下腰，扶著綁兩個小髮髻的孩子往前走，孩子笑著看鏡頭')).toContain('env-care-teacher')
+    expect(img(html, '戴著聖誕帽的孩子握著小木槌，專心敲著桌上的彩色木樁')).toContain('env-care-teacher')
     expect(html).not.toContain('/api/website/v1/public/media/')
   })
 
