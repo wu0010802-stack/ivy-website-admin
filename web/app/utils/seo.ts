@@ -468,6 +468,9 @@ export function robotsTxt(origin: string, indexable: boolean): string {
     // 預約頁（/visit、/visit/<校>）2026-11-11 起開放收錄，不再整個擋掉：搜尋引擎與 AI 助理要讀得到
     // 這頁的五校地址電話與參觀方式。修改預約頁帶個人連結，照舊不給爬（頁面另有 noindex 標頭）。
     'Disallow: /visit/manage',
+    // 公開素材（後台上傳、頁面 <img>／<video> 直接引用的照片與影片）走 /api/ 底下，2026-11-13 起單獨放行，
+    // 否則首頁用素材庫的照片搜尋引擎抓不到。規則比對取最長路徑，這條比下面的 /api/ 長所以優先；其餘 API 照舊不給爬。
+    'Allow: /api/website/v1/public/media/',
     'Disallow: /api/',
     `Sitemap: ${origin}/sitemap.xml`,
     ''
