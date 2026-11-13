@@ -11,6 +11,7 @@
 // 退費條款變成一題、預設收合；津貼表、補助券、退費條款照樣讀後台內容。
 // 2026-11-10 UI/UX：章節頭改單欄、刪兩句空話；流程「第 N 格」改「第 N 步」；分班工具空狀態不寫操作說明、
 // 還沒滿 2 歲那句不斷在「2／歲」、出生區間標西元；學費那題列各校電話。規則見 DESIGN.md 最上面一段。
+// 2026-11-13 細修：生日改年／月／日三個下拉（民國、西元並列）；問答展開收合有高度補間；列印時整頁攤開。
 import { admissionHeroImage, responsiveImage } from '~/utils/responsive-image'
 import { academicYear, CLASS_BY_OFFSET, classPlan, classRanges, classTable, parseBirthday, taipeiYmd } from '~/utils/admission-classes'
 import { bandPaths, rosettePaths, type RosetteKind } from '~/utils/guilloche'
@@ -26,6 +27,8 @@ const props = defineProps<{ admission: AdmissionContent; campuses?: Campus[] }>(
 const admission = computed(() => props.admission)
 const hero = admissionHeroImage()
 const pad2 = (n: number) => String(n).padStart(2, '0')
+/** 首屏那一句照「；。！？」切成幾段，每段盡量不拆行（樣式 .ap-phrase）；後台改了文字也照同一個規則切。 */
+const noticePhrases = computed(() => admission.value.notice.match(/[^；。！？]+[；。！？]*/g) ?? [admission.value.notice])
 
 // ---------- 目錄：章節＝護照內頁（第 2 頁起） ----------
 const hasNewcomerExtras = computed(() => {
@@ -64,7 +67,19 @@ const years = [currentYear, currentYear + 1]
 const rows = classTable(years)
 // 五格＝幼幼班（offset 3）到小一（offset 7）；age 是當年 9/1 前滿幾歲；順序與 classPlan().rows 相同。
 const stations = [3, 4, 5, 6, 7].map((offset) => ({ offset, name: CLASS_BY_OFFSET[offset]!, age: offset - 1, ranges: classRanges(offset, years) }))
-const birthday = ref('')
+// 生日：年／月／日三個下拉（2026-11-13）。原生日期欄在手機上是月曆，要回推 2～6 年得先知道點月曆標題才能換年，
+// 不然就是一個月一個月往回翻；接送的阿公阿嬤又習慣講民國年。年份只有十個（明年的預產期到已上小學），
+// 民國在前、西元在括號裡，跟整頁「115 學年度（2026 年 8 月）」的寫法一致。三格都選了才出答案，中途不報錯。
+const today = taipeiYmd()
+const birthYears = Array.from({ length: today.year + 1 - (currentYear + 1911 - 8) + 1 }, (_, i) => today.year + 1 - i)
+const birthYear = ref<number | null>(null)
+const birthMonth = ref<number | null>(null)
+const birthDay = ref<number | null>(null)
+/** 那個月有幾天；還沒選年就先當閏年（2 月給到 29，選了平年再收）。 */
+const birthDays = computed(() => (birthMonth.value ? new Date(Date.UTC(birthYear.value ?? 2024, birthMonth.value, 0)).getUTCDate() : 31))
+// 先選了 31 日再把月份換成小月：日那一格清掉重選，不偷偷改成別的日子。
+watch(birthDays, (max) => { if (birthDay.value && birthDay.value > max) birthDay.value = null })
+const birthday = computed(() => (birthYear.value && birthMonth.value && birthDay.value ? `${birthYear.value}-${pad2(birthMonth.value)}-${pad2(birthDay.value)}` : ''))
 const plan = computed(() => {
   const birth = parseBirthday(birthday.value)
   return birth ? classPlan(birth, currentYear) : null
@@ -87,12 +102,10 @@ function slotState(i: number) {
   const row = plan.value?.rows[i]
   return !row ? undefined : row.current ? 'current' : row.past ? 'past' : 'future'
 }
-function slotLabel(i: number) {
-  const station = stations[i]!
-  const p = plan.value
-  // 「今年在這一格」只給已經在讀幼兒園的孩子：還沒到幼幼班（停在第一格）、已到國小年齡（停在小一）都不是今年讀的班。
-  return p ? `${station.name}，寶貝 ${p.rows[i]!.year} 學年度${p.position === i && p.status === 'enrolled' ? '（今年在這一格）' : ''}` : `${station.name}，${station.age} 歲`
-}
+// 班別按鈕的名稱直接用按鈕裡的字（2026-11-13，原本另寫 aria-label，跟畫面上的字對不起來，語音控制念畫面上的字找不到按鈕）：
+// 「幼幼班 2 歲 寶貝 114 學年度」，「寶貝」「（今年在這一格）」是只給報讀軟體的字。「今年在這一格」只給已經在讀幼兒園的孩子：
+// 還沒到幼幼班（停在第一格）、已到國小年齡（停在小一）都不是今年讀的班。
+const isThisYear = (i: number) => plan.value?.position === i && plan.value.status === 'enrolled'
 // 大章：同一個答案不重蓋；換答案時舊章拿起、新章蓋下（key 換了，Transition 各自跑 leave／enter）。
 // 「蓋章＝核准」的誤會：章上只寫「分班對照」，不寫「核定」「錄取」（2026-11-04 起也不寫「預計入學」，見下）。
 const resultStamp = computed(() => {
@@ -183,9 +196,21 @@ function openFaqFromHash() {
   const target = id ? document.getElementById(id) : null
   if (target instanceof HTMLDetailsElement && root.value?.contains(target)) target.open = true
 }
+/** 列印（2026-11-13）：家長會把必備品、須知、退費印出來。印之前把收合的問答與對照表攤開，印完收回原狀；版面在樣式表的 @media print。 */
+let openedForPrint: HTMLDetailsElement[] = []
+function onBeforePrint() {
+  openedForPrint = Array.from(root.value?.querySelectorAll<HTMLDetailsElement>('details:not([open])') ?? [])
+  openedForPrint.forEach((details) => { details.open = true })
+}
+function onAfterPrint() {
+  openedForPrint.forEach((details) => { details.open = false })
+  openedForPrint = []
+}
 onMounted(async () => {
   drawGuilloche()
   window.addEventListener('resize', onResize)
+  window.addEventListener('beforeprint', onBeforePrint)
+  window.addEventListener('afterprint', onAfterPrint)
   openFaqFromHash()
   window.addEventListener('hashchange', openFaqFromHash)
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -213,6 +238,8 @@ onBeforeUnmount(() => {
   window.clearTimeout(welcomeTimer)
   window.clearTimeout(resizeTimer)
   window.removeEventListener('resize', onResize)
+  window.removeEventListener('beforeprint', onBeforePrint)
+  window.removeEventListener('afterprint', onAfterPrint)
   window.removeEventListener('hashchange', openFaqFromHash)
   motion?.destroy()
 })
@@ -262,7 +289,8 @@ onBeforeUnmount(() => {
             <h1 id="admission-title">從參觀到開學<br>一步一步來</h1>
             <p v-if="admission.intro" class="ap-lede">{{ admission.intro }}</p>
             <a class="ap-action" href="#birthday-tool">查寶貝讀哪一班<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg></a>
-            <p v-if="admission.notice" class="ap-notice">{{ admission.notice }}</p>
+            <!-- 一句一段（.ap-phrase，2026-11-13）：折行落在「；」「。」後面，不把「育兒津貼／依最新政策」拆在兩行、也不留「插班。」孤字 -->
+            <p v-if="admission.notice" class="ap-notice"><span><span v-for="(phrase, i) in noticePhrases" :key="i" class="ap-phrase">{{ phrase }}</span></span></p>
           </div>
         </div>
         <p class="ap-cover-mark" aria-hidden="true">常春藤入學護照</p>
@@ -325,10 +353,29 @@ onBeforeUnmount(() => {
             <svg v-if="rosettes.data" class="ap-rosette" :viewBox="`0 0 ${rosettes.data.size} ${rosettes.data.size}`" focusable="false"><path v-for="(d, i) in rosettes.data.paths" :key="i" :d="d" /></svg>
           </div>
           <div class="ap-fields">
-            <div class="ap-field">
-              <label for="birthday">寶貝的生日</label>
-              <input id="birthday" v-model="birthday" type="date" min="2015-01-01" max="2035-12-31">
-            </div>
+            <fieldset class="ap-field ap-birth">
+              <legend>寶貝的生日</legend>
+              <div class="ap-birth-box"><div class="ap-birth-row">
+                <span class="ap-select ap-select-year">
+                  <select id="birthday-year" v-model="birthYear" aria-label="出生年" autocomplete="off">
+                    <option :value="null" disabled>年</option>
+                    <option v-for="year in birthYears" :key="year" :value="year">{{ year - 1911 }} 年（{{ year }}）</option>
+                  </select>
+                </span>
+                <span class="ap-select">
+                  <select id="birthday-month" v-model="birthMonth" aria-label="出生月" autocomplete="off">
+                    <option :value="null" disabled>月</option>
+                    <option v-for="month in 12" :key="month" :value="month">{{ month }} 月</option>
+                  </select>
+                </span>
+                <span class="ap-select">
+                  <select id="birthday-day" v-model="birthDay" aria-label="出生日" autocomplete="off">
+                    <option :value="null" disabled>日</option>
+                    <option v-for="day in birthDays" :key="day" :value="day">{{ day }} 日</option>
+                  </select>
+                </span>
+              </div></div>
+            </fieldset>
             <div class="ap-field ap-field-static">
               <span class="ap-label">今年學年度</span>
               <strong>{{ currentYear }} 學年度</strong>
@@ -358,11 +405,11 @@ onBeforeUnmount(() => {
           </div>
           <ol class="ap-slots" :class="{ empty: !plan }" aria-label="班別">
             <li v-for="(station, i) in stations" :key="station.offset" class="ap-slot" :data-state="slotState(i)">
-              <button type="button" :aria-pressed="selected === i" aria-controls="ap-detail" :aria-label="slotLabel(i)" @click="selected = i">
+              <button type="button" :aria-pressed="selected === i" aria-controls="ap-detail" @click="selected = i">
                 <span class="ap-slot-no" aria-hidden="true">{{ pad2(i + 1) }}</span>
                 <span class="ap-slot-class">{{ station.name }}</span>
                 <span class="ap-slot-age">{{ station.age }} 歲</span>
-                <span class="ap-slot-year"><b>{{ plan ? plan.rows[i]!.year : '' }}</b><small>學年度</small></span>
+                <span class="ap-slot-year" :aria-hidden="plan ? undefined : 'true'"><span v-if="plan" class="ap-sr">寶貝</span><b>{{ plan ? plan.rows[i]!.year : '' }}</b><small>學年度</small><span v-if="isThisYear(i)" class="ap-sr">（今年在這一格）</span></span>
                 <span class="ap-stamp-host ap-slot-mark">
                   <Transition :css="false" @enter="onPress" @leave="onLift">
                     <PassportStamp v-if="stampsOn && plan && plan.position === i" :key="babyTone" kind="round" :lines="['寶貝']" :tone="babyTone" :size="58" :rot="-10" data-delay="0.34" />
@@ -430,7 +477,9 @@ onBeforeUnmount(() => {
               <ResponsivePicture v-bind="responsiveImage(PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.name, '(max-width: 760px) 96px, 132px')" :alt="PHASE_PHOTOS[p % PHASE_PHOTOS.length]!.alt" loading="lazy" />
               <div>
                 <p class="ap-phase-tag"><span lang="en">{{ pad2(p + 1) }}</span>{{ phase.tag || '新生' }}</p>
-                <h3>{{ phaseTitles[p]!.head }}<span v-if="phaseTitles[p]!.paren" class="ap-keep" :style="{ '--ap-keep-chars': Array.from(phaseTitles[p]!.paren).length }">{{ phaseTitles[p]!.paren }}</span></h3>
+                <!-- 括號兩邊各收半個字寬（.ap-paren，2026-11-13）：LINE Seed 的全形括號畫在字框正中間，行首又被 text-spacing-trim 收掉半格，
+                     原本變成「(一開學 )」左緊右鬆。收完之後括號佔半格、左右對稱，整段換行時也貼齊上一行。 -->
+                <h3>{{ phaseTitles[p]!.head }}<span v-if="phaseTitles[p]!.paren" class="ap-keep" :style="{ '--ap-keep-chars': Array.from(phaseTitles[p]!.paren).length - 1 }"><span class="ap-paren">（</span>{{ phaseTitles[p]!.paren.slice(1, -1) }}<span class="ap-paren">）</span></span></h3>
               </div>
             </header>
             <fieldset v-if="phase.items.length" class="ap-bring">

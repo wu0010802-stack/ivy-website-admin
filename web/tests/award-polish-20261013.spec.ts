@@ -87,7 +87,8 @@ describe('入學頁第二批（2026-10-13 逐頁檢查）', () => {
   })
   it('退費條文一組一列、焦點框用葉綠', () => {
     expect(css).toContain('.ap-clause-body > div { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 2px 16px; }')
-    expect(css).toContain('.ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }')
+    // 2026-11-13 生日欄改成三個下拉，焦點框規則跟著換選擇器
+    expect(css).toContain('.ap-select select:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }')
   })
 })
 

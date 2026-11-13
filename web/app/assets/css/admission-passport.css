@@ -68,7 +68,9 @@
 .ap-lede { margin-top: 22px; max-width: 26em; font-size: var(--fs-lg); }
 /* 主要行動：像一格要填的欄位框（雙框線），不用金色（金色全站＝預約） */
 .ap-action { align-self: flex-start; display: inline-flex; align-items: center; gap: 18px; min-height: 56px; margin-top: 32px; padding: 0 22px 0 24px; border: 2px solid var(--green); border-radius: 6px; box-shadow: inset 0 0 0 3px var(--ap-page), inset 0 0 0 4px var(--green); background: var(--ap-page); color: var(--green); font-weight: 700; text-decoration: none; transition: background-color .2s var(--ap-ease), color .2s var(--ap-ease), box-shadow .2s var(--ap-ease); }
-.ap-notice { display: flex; gap: 10px; max-width: 30em; margin-top: 26px; font-size: var(--fs-sm); color: var(--muted); }
+/* 一句一段（2026-11-13）：折行落在句子之間，不留「插班。」兩三個字在第二行；一段比一行還長時（很窄的手機）段內照常折。 */
+.ap .ap-notice { display: flex; gap: 10px; max-width: 39em; margin-top: 26px; font-size: var(--fs-sm); color: var(--muted); text-wrap: balance; }
+.ap-phrase { display: inline-block; max-width: 100%; }
 .ap-notice::before { content: ''; flex: none; width: 8px; height: 8px; margin-top: .6em; border-radius: 50%; background: var(--ap-red); }
 .ap-cover-mark { position: absolute; left: 0; right: 0; bottom: 12px; text-align: center; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .6em; color: var(--gold); }
 @media (hover: hover) {
@@ -117,13 +119,26 @@
 .ap-datapage > .ap-rosette-host { position: absolute; right: -90px; top: -70px; width: 460px; pointer-events: none; }
 .ap-datapage .ap-rosette { stroke: var(--ap-line-soft); }
 .ap-datapage > :not(.ap-rosette-host) { position: relative; }
-.ap-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 20px 32px; align-content: start; }
-.ap-field label, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
-.ap-field input { width: 100%; min-height: 54px; padding: 8px 16px; border: 1.5px solid var(--green); border-radius: 6px; background: var(--white); color: var(--text); font: inherit; font-size: var(--fs-lg); }
+/* 第二欄至少放得下「2026 年 8 月起至隔年 7 月」一行（1101–1180 寬原本被擠成兩行、剩一個「月」）；不夠時生日欄讓寬。 */
+.ap-fields { grid-area: fields; display: grid; grid-template-columns: minmax(0, 360px) minmax(max-content, 1fr); gap: 20px 32px; align-content: start; }
+.ap-field legend, .ap-label { display: block; margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
+/* 生日：年／月／日三個下拉（2026-11-13，原本是原生日期欄）。年份那格最寬（「112 年（2023）」）；欄寬不到 330px
+   （手機 390 以下）年份自己一列、月日並排，每一格都 54px 高。字級 16px 以上，iOS 點了不會放大頁面。 */
+.ap-birth-box { container-type: inline-size; }
+.ap-birth-row { display: grid; grid-template-columns: minmax(0, 1.9fr) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.ap-select { position: relative; display: block; }
+.ap-select::after { content: ''; position: absolute; right: 15px; top: 50%; width: 8px; height: 8px; margin-top: -7px; border-right: 1.5px solid var(--green); border-bottom: 1.5px solid var(--green); transform: rotate(45deg); pointer-events: none; }
+.ap-select select { width: 100%; min-height: 54px; padding: 8px 32px 8px 14px; border: 1.5px solid var(--green); border-radius: 6px; background: var(--white); color: var(--text); font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none; cursor: pointer; transition: background-color .2s var(--ap-ease); }
+/* 還沒選：只有「年」「月」「日」一個字，用次要色，選了才變內文色 */
+.ap-select select:has(option[disabled]:checked) { font-weight: 400; color: var(--muted); }
 /* 焦點框用全站的葉綠（2026-10-13）：紅框像是填錯了。 */
-.ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
+.ap-select select:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
+@container (width < 330px) {
+  .ap-birth-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .ap-select-year { grid-column: 1 / -1; }
+}
 .ap-field-static strong { display: block; font: 700 var(--fs-2xl)/1.3 var(--font-head); color: var(--deep); }
-.ap-field-static small { font-size: var(--fs-xs); color: var(--muted); }
+.ap-field-static small { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
 .ap-answer { grid-column: 1 / -1; min-height: 5.5em; padding-top: 16px; border-top: 1px dashed var(--ap-rule); }
 .ap-answer-lead { font: 700 var(--fs-3xl)/1.45 var(--font-head); color: var(--deep); }
 .ap-answer-lead em { font-style: normal; color: var(--ap-red); }
@@ -134,8 +149,9 @@
 /* 還沒輸入生日：不寫操作說明（2026-11-10），答案區收起來（元素留著，aria-live 才報得出答案）。 */
 .ap-answer.empty { min-height: 0; padding-top: 0; border-top: 0; }
 .ap .ap-answer-next { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: var(--fs-sm); color: var(--muted); }
-.ap-answer-next li { display: flex; align-items: center; gap: 8px; }
-.ap-answer-next li::before { content: ''; width: 6px; height: 6px; border: 1.5px solid var(--green); border-radius: 50%; }
+/* 小圓點對第一行（2026-11-13）：手機上一點寫成兩行時，原本圓點掛在兩行中間 */
+.ap-answer-next li { display: flex; align-items: flex-start; gap: 8px; }
+.ap-answer-next li::before { content: ''; flex: none; width: 6px; height: 6px; margin-top: calc(.9em - 4.5px); border: 1.5px solid var(--green); border-radius: 50%; }
 .ap-stampzone { grid-area: stamp; display: grid; place-items: center; min-height: 260px; }
 .ap-stampzone::before { content: ''; grid-area: 1 / 1; width: 236px; height: 236px; border: 1.5px dashed var(--ap-rule); border-radius: 50%; transition: opacity .3s var(--ap-ease); }
 .ap-stampzone.stamped::before { opacity: 0; }
@@ -160,6 +176,7 @@
 .ap-slot-mark .ap-stamp { position: absolute; inset: 0; }
 @media (hover: hover) {
   .ap-slot button:hover { background: color-mix(in oklch, var(--ap-page-alt) 88%, var(--mint)); }
+  .ap-select select:hover { background: color-mix(in oklch, var(--white) 55%, var(--mint)); }
   /* 其他可點的地方也給滑鼠回饋（2026-10-13）：完整對照表的鈕、退費條文、必備品勾選列原本滑過去沒有變化。 */
   .ap-table summary:hover .ap-pill { border-color: var(--green); }
   .ap-faq summary:hover .ap-faq-q { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 6px; }
@@ -195,7 +212,7 @@
 .ap-table-wrap thead th { font-size: var(--fs-sm); font-weight: 600; color: var(--green); }
 /* 學年度欄頭對齊下面格子裡的字（td 6px＋.ap-cell 10px），不再往左凸 4px（2026-10-13）。 */
 .ap-table-wrap thead th + th { padding-left: 16px; }
-.ap-table-wrap th small { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--muted); }
+.ap-table-wrap th small { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--muted); white-space: nowrap; }
 .ap-table-wrap tbody th { white-space: nowrap; color: var(--deep); }
 .ap-table-wrap td { padding: 6px; font: 400 var(--fs-md) var(--font-date); font-variant-numeric: tabular-nums; }
 .ap-cell { display: block; padding: 6px 10px; border-radius: 6px; transition: background-color .3s var(--ap-ease); }
@@ -217,6 +234,10 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
    變成主標下面的小一號副標；放得下的寬度維持原字級。不支援容器單位的瀏覽器照舊整段換行。 */
 .ap-phase-head > div { container-type: inline-size; }
 .ap-keep { display: inline-block; font-size: min(1em, calc(100cqi / (var(--ap-keep-chars, 8) + .3))); }
+/* LINE Seed 的全形括號畫在字框正中間：兩邊各收 .25em，括號佔半格、左右對稱；不讓瀏覽器再收行首那半格（2026-11-13）。 */
+.ap-keep { text-spacing-trim: space-all; white-space: nowrap; }
+.ap-paren { margin-inline: -.25em; }
+.ap-keep > .ap-paren:first-child { margin-left: -.3em; }
 .ap-bring { margin-top: 20px; }
 .ap-bring legend { margin-bottom: 8px; font: 600 var(--fs-xs)/1.6 var(--font); letter-spacing: .14em; color: var(--muted); }
 .ap-bring label { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) 52px; align-items: center; gap: 12px; min-height: 52px; border-bottom: 1px dashed var(--ap-rule); cursor: pointer; }
@@ -246,6 +267,9 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-notice-page h3 { padding-bottom: 12px; border-bottom: 1px solid var(--ap-rule); font-size: var(--fs-xl); color: var(--deep); }
 .ap-clauses li { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 14px 0; border-bottom: 1px dashed var(--ap-rule); font-size: var(--fs-sm); line-height: 1.85; }
 .ap-clause-mark { font: 600 var(--fs-xs)/1.9 var(--font); color: var(--muted); }
+/* 只有一點時不編號（2026-11-13）：接送安全目前就一句，「第 1 點」後面沒有第 2 點。 */
+.ap .ap-clauses li:only-child { grid-template-columns: minmax(0, 1fr); }
+.ap-clauses li:only-child .ap-clause-mark { display: none; }
 
 /* ── 第 5 頁：常見問題（2026-11-03）──
    原本的「收退費辦法」整章收進來：補助那題預設打開（補助券、津貼表），退費條款收成一題。
@@ -263,6 +287,13 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-faq summary .icon { justify-self: end; color: var(--green); transition: transform .3s var(--ap-ease); }
 .ap-faq details[open] > summary .icon { transform: rotate(45deg); }
 .ap-faq-a { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 16px; padding: 0 44px 28px 0; }
+/* 展開、收合有高度補間（2026-11-13）：答案原本瞬間出現，下面的題目一格跳走，手指正要點的那一題會跑掉。
+   只在支援 ::details-content 的瀏覽器生效，其他瀏覽器照舊直接開關；頁內搜尋、錨點打開都不受影響。 */
+@supports selector(::details-content) {
+  .ap-faq details, .ap-table { interpolate-size: allow-keywords; }
+  .ap-faq details::details-content, .ap-table::details-content { block-size: 0; overflow-y: clip; opacity: 0; transition: block-size .34s var(--ap-ease), opacity .26s var(--ap-ease), content-visibility .34s allow-discrete; }
+  .ap-faq details[open]::details-content, .ap-table[open]::details-content { block-size: auto; opacity: 1; }
+}
 .ap-faq-body { display: grid; justify-items: start; gap: 14px; min-width: 0; max-width: 46em; font-size: var(--fs-md); line-height: 1.85; }
 .ap-faq-body > * { max-width: 100%; }
 .ap-faq-fine { font-size: var(--fs-sm); color: var(--muted); }
@@ -318,6 +349,9 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
 .ap-clause-body ul li { position: relative; padding-left: 14px; }
 .ap-clause-body ul li::before { content: ''; position: absolute; left: 0; top: .8em; width: 5px; height: 5px; border-radius: 50%; background: var(--ap-rule); }
 .ap-clause-note { grid-column: 1 / -1; color: var(--muted); }
+/* 兩三行的短條文、答案下面的小點用 balance（2026-11-13）：pretty 對中文只擋「最後一行一個字」，
+   320–430 寬還是會留「入園」「收取」兩個字在第二行；balance 把兩行拉成差不多長。 */
+.ap .ap-clause-body li, .ap .ap-answer-next li, .ap-faq-clause h4 { text-wrap: balance; }
 
 /* ── 平板 ── */
 @media (max-width: 1100px) {
@@ -332,6 +366,7 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-visa-stamp { grid-row: 2; min-height: 96px; }
   .ap-visa-stamp .ap-stamp svg { width: 92px; height: 92px; }
   .ap-datapage { grid-template-columns: minmax(0, 1fr) 260px; column-gap: 28px; padding: 28px; }
+  .ap-birth { max-width: 420px; }
   /* minmax(0,…)：答案句裡的 ap-nowrap 比欄寬時不撐寬整欄（2026-11-04，320 寬生日框與答案被卡片切掉）。 */
   .ap-fields { grid-template-columns: minmax(0, 1fr); }
   /* 單欄時答案緊接在生日欄下面，「今年學年度」挪到後面：選完生日答案就在眼前（2026-10-12）。 */
@@ -436,8 +471,53 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-wear { display: block; width: 100%; }
   .ap-wear .ap-stamp svg { width: min(62px, 100%); height: auto; margin-inline: auto; }
 }
+/* 視窗很矮的桌機（筆電分割畫面、工具列多的瀏覽器，約 560–640px 高）：首屏的留白收一點，
+   「查寶貝讀哪一班」和下面那一句不用捲就看得到（2026-11-13）。 */
+@media (min-width: 761px) and (max-height: 640px) {
+  .ap-hero { padding-top: 24px; }
+  .ap-page { padding-top: 20px; }
+  .ap-page .ap-runhead { margin-bottom: 18px; }
+  .ap-hero h1 { margin-top: 6px; }
+  .ap-action { margin-top: 24px; }
+  .ap-notice { margin-top: 20px; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .ap-action, .ap-stampzone::before, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-faq summary .icon { transition: none; }
+  .ap-action, .ap-stampzone::before, .ap-slot button, .ap-slot-year, .ap-pill .icon, .ap-cell, .ap-box, .ap-faq summary .icon, .ap-select select { transition: none; }
+  /* 全站的 *、*::before、*::after 選不到 ::details-content，這裡自己關 */
+  .ap-faq details::details-content, .ap-table::details-content { transition: none; }
+}
+/* ── 列印（2026-11-13）──
+   家長會把必備品、須知、退費辦法印出來貼冰箱或帶去報到。不印導覽與裝飾（頁首頁尾、目錄、細紋、封面、印章）、
+   不印要操作才有意義的生日試算（改印完整對照表）；收合的問答由 AdmissionContent.vue 在 beforeprint 攤開。
+   瀏覽器預設不印背景色，所以這裡只管版面與分頁，不另外調顏色。頁首頁尾用兄弟選擇器限定在入學頁旁邊那一組，
+   換頁後樣式表還留著也不會影響其他分頁（不用 body:has(…)，全站規則：它會讓整棵樹重算樣式）。 */
+@media print {
+  .header:has(~ main.ap), main.ap ~ .footer { display: none; }
+  .ap { --ap-gutter: 0px; background: none; }
+  .ap-band-host, .ap-rosette-host, .ap-toc, .ap-action, .ap-cover-mark, .ap-stamp-host, .ap-stampzone, .ap-datapage,
+  .ap-table summary, .ap-faq summary .icon, .ap-faq-link, .ap-runhead span:last-child { display: none; }
+  .ap-hero { padding: 0 0 12pt; }
+  .ap-passport { width: auto; padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .ap-spread { grid-template-columns: 34% minmax(0, 1fr); border-radius: 0; background: none; }
+  .ap-page { padding: 0 16pt 0 0; background: none; }
+  .ap-page-photo .ap-runhead, .ap-photo figcaption { display: none; }
+  .ap-section { padding-bottom: 18pt; background: none; }
+  .ap-section .ap-runhead { margin-top: 0; }
+  .ap-head { margin-bottom: 14pt; }
+  .ap-table { margin-top: 0; }
+  .ap-table-wrap { margin-top: 0; }
+  .ap-faq-a { padding-bottom: 12pt; }
+  .ap-faq summary { min-height: 0; }
+  .ap-visa { min-height: 0; }
+  .ap-phases { overflow: visible; }
+  .ap-notices { margin-top: 18pt; }
+  .ap-head, .ap-faq-group > h3, .ap-notice-page h3, .ap-phase-head, .ap-faq summary, .ap-faq-clause h4 { break-after: avoid; }
+  .ap-visa, .ap-bring label, .ap-tips li, .ap-clauses li, .ap-rate, .ap-faq-phones, .ap-faq-clause, .ap-table-wrap tr { break-inside: avoid; }
+  .ap-faq details::details-content, .ap-table::details-content { block-size: auto; opacity: 1; transition: none; }
+  /* 答案是 grid，退費條款那一題跨頁時 Chrome 會把後面的列排錯位置（最後一條跟下面的小字疊在一起）：列印改一般區塊 */
+  .ap-faq-a, .ap-faq-body { display: block; }
+  .ap-faq-mark-a { display: none; }
+  .ap-faq-body > * + * { margin-top: 10pt; }
 }
 @media (forced-colors: active) {
   .ap-rosette, .ap-band { display: none; }
