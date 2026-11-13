@@ -236,6 +236,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **線上驗證**：Playwright Chrome 1440×900（DPR 2）與 390×844（DPR 3）開 `https://www.ivykidschool.com/environment`（遙測與追蹤請求全部攔下）：主照片是新檔（桌機 `…-1880.avif`、手機 `…-1200.avif`）、替代文字是新的、頁面裡找不到舊替代文字，無頁面錯誤、無 4xx、無橫向溢出，截圖確認。
 - **未驗證**：iOS／Android 實機、Safari；後台環境頁的內建照片說明沒有登入去看。
 
+## 2026-11-13 首屏影片第 3、4 鏡放慢上線（main CI 部署，沒有 migration）
+
+- **內容**：`49e9212a`（PR #84，合併提交 `f8c71c8d`；README「2026-11-13 首屏影片第 3、4 鏡放慢」、`design/hero-mix-minghua-20261029/README.md` 第五版）。使用者請我列出首屏每一幕，看完說第 3 鏡（抱籃球 0.60 秒）、第 4 鏡（老師擁抱 0.70 秒）切太快，看過預覽後說「3、4 放慢 先做這個好了」「部署」。兩鏡放慢到各 1.00 秒（原片前後沒有畫面可多取，中間的格用 `minterpolate` 補），片長 11.73 → 12.43 秒；其餘 11 鏡、色彩、封面不變。只換四支交付檔、母帶與 `video-manifest.json`，沒有改 API、後台、內容，沒有變數要改。同一輪試過加進崇德音樂老師兩鏡，沒有做。
+- **CI**：等 CI 期間 main 被別的合併推進兩次（#83 孩子的一天影片、#86 社群列），`video-manifest.json` 與 README 衝突，各重接一次（對照表用 `optimize-site-videos.py` 重產確認一致、本機重跑 typecheck 與單元測試 2295 過）。每次推送自動起的 push run 都被 PR run 取代成 cancelled、PR 因此 BLOCKED，等 PR run 綠了再 `gh run rerun` 那一組才解開。最後 PR run 43446355169、重跑的 43446347736 全綠；main run 43452338033 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `f8c71c8d`。
+- **線上驗證**：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`；新四支影片 200 且大小與 repo 相同（桌機 AV1 3,866,447／H.264 6,414,818、手機 AV1 1,526,983／H.264 2,268,416），舊 `hero-desktop-av1-04fdac6ecfc1.mp4` 回 404。Playwright Chrome 1440×900、1288×552、390×844（只放行同網域 GET，統計與第三方請求全部攔下）：桌機播 `hero-desktop-av1-3c17d1bb474f.mp4`、手機播 `hero-mobile-9478c8c1e127.mp4`，都在播放、循環、片長 12.43 秒，封面沒換，無頁面錯誤。
+- **未驗證**：iOS／Android 實機、Safari；白字對比沒有在瀏覽器實際播放下重量（模擬值跟上一版相同）。
+
 ## 2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫上線（main CI 部署，沒有 migration）
 
 - **內容**：`fece03cc`（PR #89，合併提交 `f12fed0f`；README「2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫」）。使用者丟首頁 Lighthouse 手機報告，判讀後只修「拍立得照片抓太大」一項，使用者說「幫我處理」「部署」。`web/app/utils/responsive-image.ts` 新增 `dayPrintSizes(寬, 高)`，`DayMomentCard.vue` 改用它（原本寫死 `(max-width: 760px) 100vw, 540px`）；相框是正方形、`object-fit: cover`，所以依每張照片的寬高比算。沒有改 API、後台、內容，沒有變數要改。
