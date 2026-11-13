@@ -255,8 +255,9 @@ export interface LiveAboutPage {
   hope_quotes: string[]
   hope_photo?: LiveMediaSlot | null
   hope_photo_alt?: string
-  outro_title: string
-  outro_text: string
+  /** 2026-11-12 已拿掉：後端公開輸出不再帶 */
+  outro_title?: string
+  outro_text?: string
 }
 
 /** 後端 content/page_schemas.py 的 EnvironmentPagePayload */
@@ -344,7 +345,8 @@ export interface LiveTourScene {
   key: string
   name: string
   image: string
-  intro: string
+  /** 2026-11-12 已拿掉：後端公開輸出不再帶 */
+  intro?: string
 }
 
 export interface LiveCampusTour {
@@ -579,7 +581,7 @@ function curriculumPage(c: LiveCurriculumPage, media: MediaInfoMap): CurriculumP
 
 function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
   assertCounts({ chapterNames: a.chapter_names, milestones: a.milestones, hopeQuotes: a.hope_quotes }, PAGE_COUNTS.about)
-  assertStrings(a, ['hero_title', 'hero_lede', 'hero_caption', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'outro_title', 'outro_text'], 'about_page')
+  assertStrings(a, ['hero_title', 'hero_lede', 'hero_caption', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title'], 'about_page')
   assertItems(a.milestones, ['key', 'text'], 'milestones')
   a.milestones.forEach((m, i) => { if (!Number.isInteger(m.year)) throw new Error(`milestones[${i}].year 應為整數`) })
   a.chapter_names.forEach((x, i) => { if (typeof x !== 'string') throw new Error(`chapter_names[${i}] 應為字串`) })
@@ -603,9 +605,7 @@ function aboutPage(a: LiveAboutPage, media: MediaInfoMap): AboutPageContent {
     hopeTitle: a.hope_title,
     hopeQuotes: [...a.hope_quotes],
     hopePhoto: hope.photo,
-    hopePhotoAlt: hope.photoAlt,
-    outroTitle: a.outro_title,
-    outroText: a.outro_text
+    hopePhotoAlt: hope.photoAlt
   }
 }
 
@@ -1035,11 +1035,11 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
   return next
 }
 
-// 只帶官網環境頁用得到的欄位：舊版本存著的熱點（spots、spots_reviewed）不進頁面資料。
+// 只帶官網環境頁用得到的欄位：舊版本存著的熱點（spots、spots_reviewed）與場景說明（intro，2026-11-12 拿掉）不進頁面資料。
 function tourScene(scene: LiveTourScene, media: MediaInfoMap): TourScene {
-  const { key, name, image, intro } = scene
+  const { key, name, image } = scene
   const imageMedia = legacyImage(image, media)
-  return imageMedia ? { key, name, image, intro, imageMedia } : { key, name, image, intro }
+  return imageMedia ? { key, name, image, imageMedia } : { key, name, image }
 }
 
 /**

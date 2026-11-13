@@ -1,3 +1,14 @@
+## 探索式 E2E 定下的規則（2026-11-13，`claude/sharp-hopper-134jz4`）
+
+細節見 README 11-13 段落。以下之後照著做：
+
+- **頁首與 scroll-padding**：`html` 的 `scroll-padding-top` 一律寫成 `var(--header-scroll-pad)`（桌機 112、760 以下 96，`studio.css`）。頁首（`.header`）裡可聚焦的元素用 `scroll-margin-top: calc(-1 * var(--header-scroll-pad))` 抵銷，否則 sticky 頁首的膠囊被 Tab 聚焦時，整頁會捲回 0。改頁首高度或 padding 時兩處一起改。
+- **頁面的 404 在瀏覽器端要 fatal**：頁面元件找不到內容時 `createError({ statusCode: 404, statusMessage: 'Not Found', message: '…', fatal: import.meta.client })`。不帶 fatal，SSR 照樣顯示錯誤頁，但站內換頁與「上一頁」會是白畫面；寫死 `fatal: true`，Nitro 會把每個 404 當 `[request error] [fatal]` 印整段堆疊。
+- **後台文字進版面要能斷行**：直接顯示後台文字的窄欄（頁尾版權與備註等）加 `overflow-wrap: anywhere`。測溢出要用沒有任何斷點的長字串，帶「/」的網址瀏覽器自己會斷，測不到。
+- **沒設定寄信時，家長的管理連結是唯一入口**：家長改 Email 不撤銷連結，舊信箱的通知照舊排信。有設定寄信時才照 2026-10-13 的規則作廢、換發、寄新信箱。後台人員改 Email 的規則不變。
+- **必填的標題擋發布、不擋存草稿**：網站標題、首頁「關於」標題、五校區塊標題空白時，草稿照存、發布擋下（registry 的 `_required_text_blocker`），排程與還原走同一個檢查。官網的標題空白時退回品牌名。
+- **拿掉的欄位**：「拿掉內容欄位的做法」（後台工程清理一節）這次用在 `about_page.outro_title`／`outro_text`、`campus_tour.scenes[].intro`。巢狀欄位（場景）的公開輸出另寫 `public_view`（`_public_campus_tour`），`_public_without_retired` 只看第一層。拿掉之前要先對最新的 `main` 再確認一次「真的沒有地方顯示」：`site_meta.header_phone_note` 11-12 還沒人用，11-13 選單改版後又用到了，所以沒拿掉。
+
 ## 手機預約頁色帶：照片與淡字回來，左文右圖（2026-11-13，`feature/visit-mobile-photo-20261113`）
 
 使用者 11-13 看手機選校頁（一行標題的色帶）說「還是想要出現照片還有電腦版上有的預約參觀」。**取代 09-27「手機拿掉迎賓照片」與 11-11「矮手機色帶收成一行標題」**；11-11 的其他項目（麵包屑、步驟列間距、表單頁月曆）照舊。

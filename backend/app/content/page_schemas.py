@@ -379,8 +379,10 @@ class AboutPagePayload(_ContentPayload):
     hope_quotes: list[AboutHopeQuote]
     hope_photo: MediaSlotPayload | None = None
     hope_photo_alt: str = Field(default="", max_length=MEDIA_ALT_MAX_LENGTH)
-    outro_title: str
-    outro_text: str
+    # 2026-11-12 退役：10-30 改寫關於頁時拿掉了「五所校園」結尾，這兩欄沒有地方顯示。保留欄位只為
+    # 舊版本可讀（舊值照 _ABOUT_TEXTS 原規則驗證）；exclude=True 讓新存的版本不帶，公開輸出剔除。
+    outro_title: str = Field(default="", exclude=True)
+    outro_text: str = Field(default="", exclude=True)
 
     @field_validator(*_ABOUT_TITLES)
     @classmethod

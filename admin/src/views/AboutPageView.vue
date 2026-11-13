@@ -15,7 +15,10 @@ import { ABOUT_BUILTIN_PHOTOS, ABOUT_CHAPTER_HINTS, ABOUT_PHOTO_PREVIEWS, aboutP
 // 六大領域與核心素養是課綱名詞，不在這裡。第四章「家長怎麼說」的影片也不在這裡：由各校「五校介紹」的「家長分享影片」段
 // 管理（campus_profile.testimonials，null＝沿用內建、[]＝這校不放，每校最多 4 支），官網五校輪流取最多 4 支
 // （web/app/utils/testimonials.ts 的 pickVoices）。
-const editor = useContentItem<AboutPagePayload>('about_page', aboutPageDraft())
+// 「結尾：五所校園」（outro_title、outro_text）2026-11-12 拿掉：10-30 關於頁改寫後官網不再顯示，舊版本的值載入時丟掉。
+const editor = useContentItem<AboutPagePayload>('about_page', aboutPageDraft(), undefined, {
+  normalize: ({ outro_title: _retiredTitle, outro_text: _retiredText, ...rest }) => rest,
+})
 const form = editor.form
 const neverSaved = computed(() => !editor.loading.value && !editor.loadError.value && !editor.item.value?.latest_revision)
 const navSections = computed<EditorSection[]>(() => [
@@ -24,7 +27,6 @@ const navSections = computed<EditorSection[]>(() => [
   { id: 'section-about-story', label: '第一章：一路走來', fields: ['story_title', 'story_text', 'milestones'] },
   { id: 'section-about-whole', label: '第二章：全人教育', fields: ['whole_title', 'whole_text', 'whole_fine', 'whole_fine_source'] },
   { id: 'section-about-hope', label: '第三章：我們的期許', fields: ['hope_title', 'hope_quotes', 'hope_photo', 'hope_photo_alt'] },
-  { id: 'section-about-outro', label: '結尾：五所校園', fields: ['outro_title', 'outro_text'] },
 ])
 
 // 民國年＝西元 − 1911（同官網 utils/page-content.ts 的 rocYear）；年份清空時（null）不顯示。
@@ -132,9 +134,6 @@ onMounted(editor.load)
         :disabled="editor.readOnly.value"
       />
 
-      <h3 id="section-about-outro" class="sub-title" data-section-anchor tabindex="-1">結尾：五所校園</h3>
-      <PageCopyField v-model="form.outro_title" label="五所校園的標題" hint="aboutOutroTitle" help="也是首屏目次的最後一格。" />
-      <PageCopyField v-model="form.outro_text" label="五所校園的說明" hint="aboutOutroText" multiline />
     </el-form>
   </ContentEditor>
 </template>

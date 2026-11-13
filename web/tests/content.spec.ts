@@ -286,12 +286,12 @@ describe('applyContentOverlay：CMS 疊資料到 fixture', () => {
     } as never)
     const yihua = result.campuses.find((c) => c.key === 'yihua')!
     const minghua = result.campuses.find((c) => c.key === 'minghua')!
+    // 場景說明（intro）2026-11-12 拿掉：舊版本帶著也不進頁面資料。
     expect(yihua.tourScenes).toEqual([
       {
         key: 's1',
         name: '新場景',
-        image: 'campus',
-        intro: 'intro'
+        image: 'campus'
       }
     ])
     // 沒給 minghua 的 overlay，維持 fixture 原文（undefined，因為測試 fixture 本來就沒設）

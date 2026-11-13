@@ -276,18 +276,18 @@ async function submitEdit() {
             <form v-if="editOpen" ref="editPanel" class="parent-visit-confirm parent-visit-edit" novalidate @submit.prevent="submitEdit" @keydown.enter="focusNextFieldOnEnter($event, editPanel)">
               <h3>修改預約資料</h3>
               <div class="parent-visit-fields">
-                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" enterkeyhint="next" :aria-invalid="Boolean(editErrors.parentName)"></label>
-                <p class="parent-visit-error">{{ editErrors.parentName }}</p>
-                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" :aria-invalid="Boolean(editErrors.phone)"></label>
-                <p class="parent-visit-error">{{ editErrors.phone }}</p>
-                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)"></label>
-                <p class="parent-visit-error">{{ editErrors.email }}</p>
-                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
-                <p class="parent-visit-error">{{ editErrors.childName }}</p>
-                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
-                <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
-                <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
-                <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>
+                <label>家長稱呼<input v-model="editForm.parentName" autocomplete="name" maxlength="40" enterkeyhint="next" :aria-invalid="Boolean(editErrors.parentName)" aria-describedby="parent-edit-name-error"></label>
+                <p id="parent-edit-name-error" class="parent-visit-error">{{ editErrors.parentName }}</p>
+                <label>聯絡手機<input v-model="editForm.phone" type="tel" inputmode="tel" autocomplete="tel" enterkeyhint="next" :aria-invalid="Boolean(editErrors.phone)" aria-describedby="parent-edit-phone-error"></label>
+                <p id="parent-edit-phone-error" class="parent-visit-error">{{ editErrors.phone }}</p>
+                <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)" aria-describedby="parent-edit-email-error"></label>
+                <p id="parent-edit-email-error" class="parent-visit-error">{{ editErrors.email }}</p>
+                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)" aria-describedby="parent-edit-child-name-error"></label>
+                <p id="parent-edit-child-name-error" class="parent-visit-error">{{ editErrors.childName }}</p>
+                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)" aria-describedby="parent-edit-birthdate-error"></label>
+                <p id="parent-edit-birthdate-error" class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
+                <fieldset class="parent-visit-start" aria-describedby="parent-edit-start-error"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
+                <p id="parent-edit-start-error" class="parent-visit-error">{{ editErrors.expectedStart }}</p>
               </div>
               <div class="parent-visit-actions">
                 <button class="button primary" type="submit" :disabled="busy">{{ busy ? '正在儲存…' : '儲存修改' }}</button>

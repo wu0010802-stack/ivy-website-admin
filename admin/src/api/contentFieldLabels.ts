@@ -151,6 +151,7 @@ const KIND_FIELD_LABELS: Record<string, Record<string, string>> = {
     hope_quotes: '期許',
     hope_photo: '我們的期許的照片',
     hope_photo_alt: '我們的期許的照片說明',
+    // 2026-11-12 已拿掉；留著讓舊版本的比較看得懂。
     outro_title: '五所校園的標題',
     outro_text: '五所校園的說明',
   },

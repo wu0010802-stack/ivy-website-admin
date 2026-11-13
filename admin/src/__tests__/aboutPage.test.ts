@@ -76,7 +76,9 @@ describe('關於常春藤頁（about_page）', () => {
   })
 
   it('內建內容與官網 fixture 一字不差（文字）；照片版位全是 null／空字串，形狀同後端 model_dump', () => {
-    const expected = Object.fromEntries(Object.entries(fixture.aboutPage).map(([k, v]) => [snake(k), v]))
+    // 結尾「五所校園」2026-11-12 拿掉（fixture 還留著給後端初始化讀；後端 model_dump 不帶）。
+    const retired = new Set(['outro_title', 'outro_text'])
+    const expected = Object.fromEntries(Object.entries(fixture.aboutPage).map(([k, v]) => [snake(k), v]).filter(([k]) => !retired.has(k as string)))
     const draft = aboutPageDraft()
     expect(textOnly(draft)).toEqual(expected)
     expect([draft.hero_photo, draft.hero_photo_alt, draft.hero_back_photo, draft.hero_back_photo_alt, draft.hope_photo, draft.hope_photo_alt]).toEqual([null, '', null, '', null, ''])
@@ -249,9 +251,12 @@ describe('關於常春藤頁：段落導覽、清單定位、素材用途標籤'
   const source = readFileSync(resolve(__dirname, '../views/AboutPageView.vue'), 'utf8')
   it('每個段落標題有 id、data-section-anchor、tabindex，並傳 sections', () => {
     expect(source).toMatch(/<ContentEditor :editor="editor" :sections="navSections">/)
-    for (const k of ['hero', 'chapters', 'story', 'whole', 'hope', 'outro']) {
+    for (const k of ['hero', 'chapters', 'story', 'whole', 'hope']) {
       expect(source).toContain(`id="section-about-${k}" class="sub-title" data-section-anchor tabindex="-1"`)
     }
+    // 結尾「五所校園」2026-11-12 拿掉：官網 10-30 改寫後沒有地方顯示。
+    expect(source).not.toContain('section-about-outro')
+    expect(source).not.toContain('form.outro_')
   })
   it('三個清單有 data-list，每項有 data-list-item', () => {
     for (const k of ['chapter_names', 'milestones', 'hope_quotes']) expect(source).toContain(`data-list="${k}"`)
@@ -266,10 +271,12 @@ describe('關於常春藤頁：段落導覽、清單定位、素材用途標籤'
     expect(mediaFieldPathLabel('directions[2].photo.media_id')).toBe('課程方向第 3 項的照片')
   })
   it('欄位名與表單標籤一致', () => {
-    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '五所校園的標題', '五所校園的說明', '首屏照片', '我們的期許的照片']
+    const labels = ['首屏大標', '首屏介紹', '首屏照片上的一句話', '一路走來的標題', '一路走來的說明', '全人教育的標題', '全人教育的說明', '全人教育的補充', '全人教育的出處', '我們的期許的標題', '首屏照片', '我們的期許的照片']
     for (const label of labels) expect(source).toContain(`label="${label}"`)
     expect(source).not.toContain('label="首屏後排照片"')
-    const kindLabels = new Set(['hero_title', 'hero_lede', 'hero_caption', 'hero_photo', 'hero_back_photo', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'hope_photo', 'outro_title', 'outro_text'].map((k) => contentFieldLabelFor('about_page', k)))
+    const kindLabels = new Set(['hero_title', 'hero_lede', 'hero_caption', 'hero_photo', 'hero_back_photo', 'story_title', 'story_text', 'whole_title', 'whole_text', 'whole_fine', 'whole_fine_source', 'hope_title', 'hope_photo'].map((k) => contentFieldLabelFor('about_page', k)))
     for (const label of labels) expect(kindLabels.has(label)).toBe(true)
+    // 已拿掉的欄位仍有中文名：舊版本的比較看得懂。
+    expect(contentFieldLabelFor('about_page', 'outro_title')).toBe('五所校園的標題')
   })
 })

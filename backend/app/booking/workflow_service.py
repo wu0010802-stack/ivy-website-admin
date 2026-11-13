@@ -400,13 +400,18 @@ async def update_details_by_parent(
     expected_version: int,
     access_secret: str | None = None,
     keep_session_id: str | None = None,
+    email_enabled: bool = True,
 ) -> list[str]:
     """家長從修改連結改資料。歷程只記改了哪些欄位，不記內容（歷程不放個資）。
     回傳實際改變的欄位；沒有變化就什麼都不寫。expected_version 是 details_version。
 
     Email 改掉時，原本那條連結與其他 session 作廢，換發新連結寄到新信箱（2026-10-13 審查）：
     原本誤填成別人的信箱時，真正的家長自己更正之後，舊收件人不能還握著同一條連結。
-    keep_session_id 是家長正在用的 session，留著，他不會一改完就被登出。"""
+    keep_session_id 是家長正在用的 session，留著，他不會一改完就被登出。
+
+    沒設定寄信（email_enabled＝False，正式站 10-02 起）時連結不動（2026-11-12 探索式 E2E）：那條連結
+    從沒寄到任何信箱，是送出當下顯示在畫面上、請家長自己收藏的；換發的新連結又只會排進寄不出去的信，
+    家長一改 Email 就失去唯一的管理連結。"""
     await db.refresh(visit_request, attribute_names=["status", "slot_id", *EDITABLE_BY_PARENT], with_for_update=True)
     if visit_request.status != VisitRequestStatus.CONFIRMED.value:
         raise InvalidTransition(f"這筆案件現在是「{status_label(visit_request.status)}」，不能修改資料")
@@ -435,15 +440,17 @@ async def update_details_by_parent(
         setattr(visit_request, field, changes[field])
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
     if "email" in changed and old_email:
-        await _reset_access_after_email_change(
-            db,
-            visit_request,
-            actor=PARENT,
-            secret=access_secret,
-            slot=await history.load_slot(db, visit_request.slot_id),
-            reissue=True,
-            keep_session_id=keep_session_id,
-        )
+        # 只有連結的作廢與換發看有沒有設定寄信；下面通知舊信箱照舊排進 outbox（沒設定寄信時 worker 標 skipped）。
+        if email_enabled:
+            await _reset_access_after_email_change(
+                db,
+                visit_request,
+                actor=PARENT,
+                secret=access_secret,
+                slot=await history.load_slot(db, visit_request.slot_id),
+                reissue=True,
+                keep_session_id=keep_session_id,
+            )
         # 舊信箱也要知道（2026-10-22 資安稽核）：外流的修改連結能把 Email 改成別人的，之後的信
         # 和新連結都只寄到新信箱，原家長毫無線索。只改大小寫不算換人。後台改 Email 不通知舊信箱
         # （見 update_details_by_staff），那是在更正打錯的信箱。

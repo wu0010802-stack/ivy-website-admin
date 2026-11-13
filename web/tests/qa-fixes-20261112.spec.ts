@@ -9,12 +9,14 @@ const read = (path: string) => readFileSync(fileURLToPath(new URL(`../${path}`, 
 
 describe('L1：頁面 404 的 HTTP 原因片語是 Not Found，不是 Server Error', () => {
   // HTTP 原因片語只能是 ASCII；畫面上的中文由 error.vue 自己寫，不讀 statusMessage。
+  // fatal: import.meta.client（2026-11-12 探索式 E2E）：瀏覽器端要 fatal，站內換頁與上一頁才會顯示 error.vue；
+  // 伺服器端不帶，否則每個 404 都被 Nitro 當成 [fatal] 印整段堆疊。
   const pages: Array<[string, string]> = [
-    ['app/pages/admission.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面' })"],
-    ['app/pages/anniversary.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面' })"],
-    ['app/pages/privacy.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面' })"],
-    ['app/pages/news/[id].vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這則消息' })"],
-    ['app/pages/visit/[[key]].vue', "const NOT_FOUND = { statusCode: 404, statusMessage: 'Not Found', message: '找不到這個校區' }"]
+    ['app/pages/admission.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面', fatal: import.meta.client })"],
+    ['app/pages/anniversary.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面', fatal: import.meta.client })"],
+    ['app/pages/privacy.vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這個頁面', fatal: import.meta.client })"],
+    ['app/pages/news/[id].vue', "createError({ statusCode: 404, statusMessage: 'Not Found', message: '找不到這則消息', fatal: import.meta.client })"],
+    ['app/pages/visit/[[key]].vue', "const NOT_FOUND = { statusCode: 404, statusMessage: 'Not Found', message: '找不到這個校區', fatal: import.meta.client }"]
   ]
   it.each(pages)('%s 的 404 帶 statusMessage', (path, snippet) => {
     expect(read(path)).toContain(snippet)

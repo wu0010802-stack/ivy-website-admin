@@ -1,3 +1,21 @@
+## 2026-11-13 探索式 E2E 剩下的 9 條修正（`claude/sharp-hopper-134jz4`）
+
+11-12 的全專案 E2E（`tests/stack`、`tests/e2e` 四視口、`nuxt dev` hydration 全部通過）之後，用 4 組隔離 stack 做探索式測試，另一個代理逐條重跑確認，成立 18 條。其中 8 條和同日的 QA 報告重疊，已由 `fix/qa-report-20261112` 修掉：surrogate 500（M1）、成效統計錯誤框（M3）、重新整理重複建單（M4／M5）、管理連結 token（M6）、草稿預覽 8 個 404（M9／L8）、不存在的校區 500（L6）、網址寫法（L4／L5／L27）、句中連結底線（L35）。11-13 在 main `3f34503b` 上重跑確認這 8 條都好了。剩下 10 條裡，「電話備註沒有地方顯示」這條在同日的選單改版（`e0f304dd`）之後不再成立：頁首電話對不到任何一校時，選單顯示的就是這支電話與備註，所以不動。其餘 9 條在這裡修。沒有 migration，API 契約不變。
+
+- **官網**
+  - **頁首膠囊**：sticky 頁首的頁面捲動後 Shift+Tab 進膠囊，瀏覽器為了讓它離開 `scroll-padding` 把整頁捲回 0，頁首切回 hero、膠囊隱藏、焦點掉到 body。`studio.css` 把 padding 放進 `--header-scroll-pad`，頁首內的控制項用負的 `scroll-margin-top` 抵銷。
+  - **上一頁白畫面**：從 404 點站內連結離開、再按上一頁回 `/news/<不存在>`（未發布的 `/privacy`、隱藏的 `/admission`、`/anniversary`、`/visit/<不存在>` 同理）整頁空白。五頁的 404 `createError` 加 `fatal: import.meta.client`：瀏覽器端沒有 fatal 就不掛 `error.vue`；伺服器端不帶，否則每個 404 都被 Nitro 印成整段堆疊。
+  - **未登入的 `/preview`**：沒有 `<title>`，「跳至主要內容」沒有目標。補固定標題，三種提示改成 `<main id="main">`。
+  - **頁尾**：底部備註放沒有斷點的長字串時，390 寬被撐到 908px。`SiteFooter.vue` 加 `overflow-wrap:anywhere`。
+  - **錯誤朗讀**：家長管理頁修改表單的錯誤訊息補 `aria-describedby`，報讀器念得出原因。
+- **預約**
+  - **改 Email 的連結**：沒設定寄信（正式站 10-02 起）時，家長在管理頁改 Email 會撤銷唯一的管理連結，換發的新連結又寄不出去。改成寄信關閉時連結不動（`update_details_by_parent(email_enabled=…)`）；通知舊信箱照舊排進 outbox。有寄信時照 10-13 的規則作廢、換發、寄新信箱。
+- **後台與內容**
+  - **空白標題**：網站標題、首頁「關於」標題、五校區塊標題可以存草稿，但擋發布（registry 的 `_required_text_blocker`）；原本清空後照常發布，首頁變成空的 `<title>`。官網 `pageSeo` 的標題空白時退回品牌名。
+  - **拿掉兩個官網不顯示的欄位**（照 DESIGN.md「拿掉內容欄位的做法」：`Field(default="", exclude=True)`、公開輸出剔除、後台 normalize 丟掉、中文欄位名保留）：關於頁的「結尾：五所校園」（`outro_title`／`outro_text`）、校園探索的「場景說明」（`scenes[].intro`）。
+- **測試**：新增 `backend/tests/test_exploratory_e2e_20261112.py`（空白標題、拿掉的欄位、改 Email 的連結）、`tests/stack/exploratory-e2e-20261112.spec.ts`（404 上一頁、膠囊、`/preview`、頁尾）；`qa-fixes-20261112.spec.ts` 的 L1 片段補上 `fatal`；`test_booking_access_races.py` 的「誤寄信箱」案例明寫有設定寄信。頁尾那條 e2e 第一版用帶「/」的網址，瀏覽器自己會斷行、沒修也會過，已改成沒有斷點的長字串。
+- **沒驗證到的**：截圖基準只在 macOS 比對，這次在 Linux 跑，沒有比像素；只測了 Chrome。
+
 ## 2026-11-13 手機預約頁色帶：照片與「預約參觀」淡字回來（`feature/visit-mobile-photo-20261113`）
 
 使用者看手機選校頁說還是想要照片和電腦版的「預約參觀」。手機色帶改成桌機的縮小版：左邊兩行大標、右邊照片、淡字墊在大標後面，規則在 DESIGN.md 最上面一段。

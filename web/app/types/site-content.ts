@@ -102,7 +102,8 @@ export interface TourScene {
   key: string
   name: string
   image: string
-  intro: string
+  /** 2026-11-12 已拿掉（環境頁從沒顯示）：fixture 還留著給後端初始化，公開輸出剔除 */
+  intro?: string
   imageMedia?: MediaImage
 }
 
@@ -395,9 +396,9 @@ export interface AboutPageContent {
   hopeQuotes: string[]
   hopePhoto?: MediaImage
   hopePhotoAlt?: string
-  /** 也是首屏目次的最後一格 */
-  outroTitle: string
-  outroText: string
+  /** 2026-11-12 已拿掉（10-30 改寫後沒有地方顯示）：fixture 還留著給後端初始化，公開輸出剔除 */
+  outroTitle?: string
+  outroText?: string
 }
 
 /**

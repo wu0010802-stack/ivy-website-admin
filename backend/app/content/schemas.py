@@ -1424,7 +1424,9 @@ class TourScenePayload(_ContentPayload):
     key: str
     name: str
     image: str
-    intro: str
+    # 2026-11-12 退役：環境頁第四章只用場景照片與名稱（DESIGN.md「五所校園」），場景說明從來沒顯示。
+    # 保留欄位只為舊版本可讀；exclude=True 讓新存的版本不帶，公開輸出剔除（registry 的 _public_campus_tour）。
+    intro: str = Field(default="", exclude=True)
     # 熱點是已拿掉的分校頁校園探索用的；官網環境頁只用場景照片、名稱、說明，
     # 2026-10-04 後台也拿掉熱點編輯。改成選填、新場景不帶，舊版本裡的熱點
     # 原樣保留（仍照原規則驗證，最多 8 個）。

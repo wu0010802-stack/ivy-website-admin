@@ -242,8 +242,9 @@ export interface AboutPagePayload {
   hope_quotes: string[]
   hope_photo?: MediaSlotPayload | null
   hope_photo_alt?: string
-  outro_title: string
-  outro_text: string
+  /** 2026-11-12 已拿掉（10-30 關於頁改寫後沒有地方顯示）：只有舊版本帶著，載入時丟掉、存檔不送 */
+  outro_title?: string
+  outro_text?: string
 }
 
 /**
@@ -480,7 +481,8 @@ export interface TourScenePayload {
   key: string
   name: string
   image: string
-  intro: string
+  /** 2026-11-12 已拿掉（環境頁只用場景照片與名稱）：只有舊版本帶著，載入時丟掉、存檔不送 */
+  intro?: string
   /** 舊資料的熱點（2026-10-04 起新場景不帶） */
   spots?: TourSpotPayload[]
   /** 舊的「熱點待複核」旗標，2026-10-04 起不再更動也不擋發布 */

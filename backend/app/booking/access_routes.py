@@ -339,6 +339,7 @@ async def parent_update_details(
             expected_version=payload.expected_version,
             access_secret=request.app.state.settings.session_secret,
             keep_session_id=access_service.session_id_of(session_token),
+            email_enabled=parent_email_enabled(request),
         )
     except workflow_service.InvalidTransition as exc:
         await db.rollback()
