@@ -248,12 +248,12 @@ const contactCampus = computed(() =>
   campuses.value.find(campus => campus.key === menuCampusKey.value)
   ?? campuses.value.find(campus => campus.phone === headerPhone.value.number)
 )
-// 2026-11-12 使用者選：選單底部原本只顯示一校（預設義華）的參觀專線，其他四校的家長會以為只有一支電話，
-// 改成「參觀專線」底下五校並列；滑過或聚焦的那校反白，下面的社群跟著那校。
-const campusPhones = computed(() => campuses.value.flatMap((campus) => {
-  const number = campus.phone?.trim()
-  return number ? [{ key: campus.key, name: campus.name, number }] : []
-}))
+// 參觀專線只出現選中那一校的電話（2026-11-13 使用者）：上面五校是切換，電話與社群都跟著那一校。
+// 11-12 改過五校並列（怕家長以為只有一支電話），11-13 五校改成一眼看得出是切換之後改回一校一行。
+const menuPhone = computed(() => contactCampus.value
+  ? { number: contactCampus.value.phone?.trim() ?? '', note: `${contactCampus.value.name}參觀專線` }
+  : headerPhone.value
+)
 const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
 const campusSocialLinks = computed(() => campusSocials.value.filter((social) => social.url))
 
@@ -389,43 +389,32 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
         </a>
       </nav>
       <div class="menu-campuses">
-        <p>找到你的校園</p>
-        <!-- 五校是連結（2026-10-29）：滑過、聚焦預覽下方的參觀專線與社群，點下去到首頁五校區塊的那一校。
-             用一般 <a>（同上面的選單卡）：首頁的章節補捲要整頁載入才跑得到。 -->
-        <div id="menu-campuses">
-          <a
+        <p id="menu-campuses-label">找到你的校園</p>
+        <!-- 五校只切換（2026-11-13 使用者：不要做成按鈕，單純切換就好）：滑過、聚焦、點一下都只換下方反白的參觀專線與社群，
+             不再連到首頁五校區塊（10-29 的連結拿掉）。外觀是一列純文字，選中的那校畫底線，沒有底盤與反白方塊。 -->
+        <div id="menu-campuses" role="group" aria-labelledby="menu-campuses-label">
+          <button
             v-for="c in campuses"
             :key="c.key"
-            :href="`/?campus=${c.key}#campuses`"
+            type="button"
             :class="{ 'is-active': contactCampus?.key === c.key }"
+            :aria-pressed="contactCampus?.key === c.key"
             @pointerenter="onCampusPointerEnter($event, c.key)"
             @focus="menuCampusKey = c.key"
+            @click="menuCampusKey = c.key"
           >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>
-          </a>
+          </button>
         </div>
       </div>
-      <div v-if="campusPhones.length || (contactCampus && campusSocialLinks.length)" class="menu-foot">
+      <div v-if="menuPhone.number || (contactCampus && campusSocialLinks.length)" class="menu-foot">
         <!-- 沒有號碼、沒有社群帳號的就不出現（2026-10-29）：原本寫「待園方提供」「待提供」，是上線前給審稿的字。 -->
-        <template v-if="campusPhones.length">
-          <p id="menu-phones-label" class="menu-phones-title">
-            <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>參觀專線
-          </p>
-          <ul class="menu-phones" aria-labelledby="menu-phones-label">
-            <li v-for="phone in campusPhones" :key="phone.key">
-              <a
-                class="menu-phone"
-                :class="{ 'is-active': contactCampus?.key === phone.key }"
-                :data-campus-key="phone.key"
-                :href="`tel:${phone.number}`"
-                :aria-label="`撥打${phone.name}參觀專線 ${phone.number}`"
-              >
-                <small>{{ phone.name }}</small><strong>{{ phone.number }}</strong>
-              </a>
-            </li>
-          </ul>
-        </template>
+        <a v-if="menuPhone.number" :data-campus-key="contactCampus?.key" class="menu-phone" :href="`tel:${menuPhone.number}`">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>
+          <span><small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong></span>
+          <svg class="icon menu-phone-arrow" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
+        </a>
         <nav v-if="contactCampus && campusSocialLinks.length" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
           <template v-for="social in campusSocialLinks" :key="social.platform">
             <a class="menu-campus-social" :href="social.url!" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">

@@ -142,9 +142,9 @@ describe('入學頁生日工具', () => {
 })
 
 // 2026-10-30 關於頁換版拿掉結尾緞帶，?campus= 改由頁首五校選單帶（2026-10-29）
-describe('頁首五校選單連到那所校園', () => {
-  it('連結帶 ?campus=，首頁五校從那所開始', () => {
-    expect(read('../app/components/SiteHeader.vue')).toContain(':href="`/?campus=${c.key}#campuses`"')
+describe('網址帶 ?campus= 時首頁五校從那所開始', () => {
+  // 頁首五校選單 2026-11-13 改回只切換、不再連過來（見 web-ux-20261029.spec.ts），首頁讀參數的行為保留。
+  it('首頁五校讀 ?campus=，從那所開始', () => {
     const board = read('../app/components/CampusBoard.vue')
     expect(board).toContain("const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''")
     expect(board).toContain('campus.key === startCampus')
