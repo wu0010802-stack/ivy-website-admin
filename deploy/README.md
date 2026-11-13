@@ -198,6 +198,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 首頁五校卡社群連結等距上線（main CI 部署，沒有 migration）
+
+- **內容**：`192595ea`（PR #81，合併提交 `f69029d9`；README「2026-11-13 首頁五校卡社群連結等距」）。使用者截圖指出 Line／Facebook／Instagram 間距不一樣，以三個為準、手機尤其要等距。只改 `web/app/components/CampusBoard.vue`：Line／Facebook 兩個滿版品牌圖示縮成 Phosphor 的比例，手機單欄剛好三個時攤滿整列。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：PR run 43425959092 全綠；main run 43428010872 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、430×932、390×844、320×700（非 GET、統計與第三方請求全部攔下），五校逐一切換：都是 Line／Facebook／Instagram 一列、三個圖示都是 16.3px；「字到下一個圖示」兩段相等——桌機 21.9／21.9、430 寬 73.4／73.4、390 寬 53.4／53.4、320 寬 18.4／18.4；手機三種寬度列的右緣與預約鈕右緣相同；沒有 JS 錯誤。
+- **未驗證**：iOS／Android 實機、Safari；一、二、四個社群的排法沒有改（正式站目前沒有這種校區）。
+
 ## 2026-11-13 首屏影片從「抬頭大笑」開始上線（main CI 部署，沒有 migration）
 
 - **內容**：`142e5e6f`（README「2026-11-13 首屏影片從『抬頭大笑』開始」、`design/hero-mix-minghua-20261029/README.md` 第四版）。使用者在矮視窗（約 1288×552）看到首屏第一格幾乎都是老師的後腦。13 鏡的內容、裁切、相鄰順序不變，只把循環起點從老師擁抱轉到抬頭大笑；四支交付檔、封面與衍生圖、分享圖、替代文字（fixture 與 `overlay-baseline`）跟著換。只動 web 的內建素材，沒有改 API、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
