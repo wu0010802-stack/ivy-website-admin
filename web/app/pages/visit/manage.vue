@@ -386,4 +386,6 @@ async function submitEdit() {
 .parent-visit-fields .parent-visit-start label{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;padding:6px 16px 6px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer}
 .parent-visit-fields .parent-visit-start label:has(input:checked){border-color:var(--green);background:var(--cream)}
 .parent-visit-fields .parent-visit-start input[type="radio"]{flex-shrink:0;display:inline-block;width:18px;min-width:0;height:18px;min-height:0;margin:0;padding:0;border:0;accent-color:var(--green)}
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)) { .parent-visit-fields input { border:1px solid var(--leaf); } }
 </style>

@@ -27,6 +27,9 @@
 .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.nav-inner a[aria-current]{color:var(--leaf);text-decoration:underline;text-underline-offset:8px}
 /* Route navigation must settle immediately, including after viewport changes. */
 html{scroll-behavior:auto}
+/* Safari 16.0 以前沒有 overflow:clip（2026-11-13，iOS 15）：各頁用 overflow-x:clip 收住的出血裝飾會把整頁撐寬、可以左右滑。
+   只在不支援的瀏覽器由 html 收（傳到視窗，不讓 body 變成捲動容器，sticky 與捲動監聽照舊）；支援 clip 的瀏覽器這條不成立，畫面不變。 */
+@supports not (overflow:clip){html{overflow-x:hidden}}
 /* 分校 hero 手機（2026-09-29）：上面 @media(max-width:760px) 的 .hero .container padding 改成跟 rem 走，
    預設字級仍是 0／72px，文字放大時小標不貼頂、圖說不壓到按鈕。 */
 @media(min-width:761px) and (max-width:1000px){.visit-layout{grid-template-columns:1fr;gap:36px}.visit-intro{position:static}.visit-intro h1 br{display:none}.visit-intro h1{font-size:var(--fs-4xl)}.visit-intro p br{display:none}.visit-intro p{max-width:none}}
@@ -280,3 +283,26 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
   from{-webkit-mask-size:0 0,0 0,0 0;mask-size:0 0,0 0,0 0;-webkit-mask-position:var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y);mask-position:var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y),var(--cur-enter-x) var(--cur-enter-y)}
   to{-webkit-mask-size:var(--cur-enter-s) var(--cur-enter-s),calc(var(--cur-enter-s)*.86) calc(var(--cur-enter-s)*.86),calc(var(--cur-enter-s)*.74) calc(var(--cur-enter-s)*.74);mask-size:var(--cur-enter-s) var(--cur-enter-s),calc(var(--cur-enter-s)*.86) calc(var(--cur-enter-s)*.86),calc(var(--cur-enter-s)*.74) calc(var(--cur-enter-s)*.74);-webkit-mask-position:calc(var(--cur-enter-x) - var(--cur-enter-s)/2) calc(var(--cur-enter-y) - var(--cur-enter-s)/2),calc(var(--cur-enter-x) - var(--cur-enter-s)*.37) calc(var(--cur-enter-y) - var(--cur-enter-s)*.47),calc(var(--cur-enter-x) - var(--cur-enter-s)*.44) calc(var(--cur-enter-y) - var(--cur-enter-s)*.32);mask-position:calc(var(--cur-enter-x) - var(--cur-enter-s)/2) calc(var(--cur-enter-y) - var(--cur-enter-s)/2),calc(var(--cur-enter-x) - var(--cur-enter-s)*.37) calc(var(--cur-enter-y) - var(--cur-enter-s)*.47),calc(var(--cur-enter-x) - var(--cur-enter-s)*.44) calc(var(--cur-enter-y) - var(--cur-enter-s)*.32)}
 }
+
+/* ── 舊版 Safari（iOS 15，Safari 15.4–15.8）的後備（2026-11-13）──
+   停在 iOS 15 的手機（iPhone 6s／7／初代 SE）沒有 color-mix()、容器查詢與容器單位、subgrid、overflow:clip。
+   沒有後備時，宣告整條被丟掉：拍立得沒有紙底（深色字落在深綠底上）、預約欄位沒有框線、30 週年頁撐寬。
+   做法：每個用到的地方各補一條 @supports not (…)，放在該檔檔尾或元件樣式最後；條件只在不支援的瀏覽器成立，
+   所以支援的瀏覽器（現在絕大多數訪客）畫面與載入的規則完全不變。後備只求看得清楚、排得下，不追求一模一樣：
+   - color-mix(A x%, B) 退回 A 或 B 其中一個現成色票，不另外寫色值。
+   - @container (max-width:N) 改用視窗寬的 @media 近似，只顧手機寬度（iOS 15 的 iPad／Mac 版面可能略有出入）。
+   - overflow:clip（兩軸）退回 hidden；overflow-x:clip（單軸）不能退回 hidden（會讓 y 軸變成捲動容器、sticky 失效），
+     由前面 html 那一條統一收。
+   新增用到這幾個功能的樣式時，同一個檔案補一條後備。打包目標與另外兩個地雷（lookbehind、matchMedia 範圍寫法）
+   見 nuxt.config.ts 與 tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)){
+ .print-tape{--tape-a:var(--print-tint);--tape-b:var(--ivy-white-pure)}
+ .print-wrap{--print-face-bg:var(--ivy-print-face);--print-back-bg:var(--ivy-print-back)}
+ .print-figure.is-blank{background:var(--line)}
+}
+/* 拍立得那一列沿用外層三欄；沒有 subgrid 就自己寫一樣的三欄（760 以下本來就改成 block，不受影響）。 */
+@supports not (grid-template-columns:subgrid){
+ .day-print{grid-template-columns:minmax(0,1fr) 140px minmax(0,1fr)}
+ @media(max-width:1100px){.day-print{grid-template-columns:minmax(0,1fr) 40px minmax(0,1fr)}}
+}
+@supports not (overflow:clip){.day-film{overflow:hidden}}

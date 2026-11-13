@@ -24,9 +24,23 @@ if (indexingEnabled && !normalizeSiteOrigin(process.env.NUXT_PUBLIC_SITE_ORIGIN 
   throw new Error('啟用正式索引時必須設定有效 HTTPS origin（NUXT_PUBLIC_SITE_ORIGIN）')
 }
 
+// 打包目標（2026-11-13）：Vite 預設（chrome111、edge111、firefox114、safari16.4、ios16.4）把 Safari 降到 15.4，
+// 讓停在 iOS 15 的手機（iPhone 6s／7／初代 SE，最高 15.8）看得到網站。改之前這些手機整站是「500 網站暫時無法顯示」：
+// - Nuxt 預設用 import map 把各 chunk 裡的 `#entry` 對到進入點，Safari 16.4 以前沒有 import map，
+//   chunk 全部載入失敗（Module specifier, '#entry' does not start with "/"…），頁面被換成錯誤頁。
+//   目標含 16.4 以前的 Safari 時 Nuxt 會自己關掉，下面 experimental.entryImportMap 再明寫一次，
+//   免得之後有人調整目標又悄悄打開。代價：進入點一變，import 它的 chunk 檔名跟著變，部署後重新下載的檔案變多。
+// - CSS 的 `@media (max-width:760px)` 會被縮寫成 `(width<=760px)`，Safari 16.4 以前不認得，手機版樣式整批不套用。
+// 停在 15.4 不降到 15.0：oklch()、svh、:has() 都是 15.4 才有，全站色票是 oklch，降到 15.0 每個顏色會多一份 rgb 後備。
+// 守在 tests/legacy-safari-20261113.spec.ts。
+const BUILD_TARGET = ['chrome111', 'edge111', 'firefox114', 'safari15.4', 'ios15.4']
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+
+  experimental: { entryImportMap: false },
+  vite: { build: { target: BUILD_TARGET, cssTarget: BUILD_TARGET } },
 
   css: ['~/assets/css/tokens.css', '~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 

@@ -343,3 +343,6 @@
 @media print{
   .abh-meter,.abh-strip,.abh-strip-mask{display:none!important}
 }
+
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (overflow:clip){.abh-line{overflow:hidden}}

@@ -23,7 +23,8 @@ const campusNames = computed(() => ANNI_MILESTONES.map((m) => campusOf(m.key)?.n
 const NOBR = /(常春藤|高雄|三民區|義華路|\d+ 年)/
 const nobr = (text: string) => text.split(NOBR).filter(Boolean).map((t) => ({ t, keep: NOBR.test(t) }))
 // 沿革每句都很短（逗號前後各不到 10 字）：整句不換行，窄欄只在逗號後換行，不會拆成「義／華路」「有／了」
-const clauses = (text: string) => text.split(/(?<=，)/)
+// 切在每個逗號後面、逗號留在前一段。不用 lookbehind 的 split：Safari 16.4 以前沒有 lookbehind，整頁會在這一行丟 SyntaxError（2026-11-13）。
+const clauses = (text: string) => text.match(/[^，]*，|[^，]+/g) ?? [text]
 const HERO_LEAD = nobr('1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。現在高雄有五所常春藤：')
 // 門牌和「號」不拆開（2026-10-13；原本斷成「明華一路176／號」）。地址是後台內容，只把最後一段「數字＋號」包成不換行，字不變。
 const addressParts = (a: string): [string, string] => { const m = /^(.*?)(\d+(?:[-之]\d+)?號.*)$/.exec(a); return m ? [m[1]!, m[2]!] : [a, ''] }

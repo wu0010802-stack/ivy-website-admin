@@ -524,3 +524,21 @@ td.mine .ap-cell { background: color-mix(in oklch, var(--white) 82%, var(--ap-re
   .ap-stamp { mix-blend-mode: normal; }
   .ap-range.mine, td.mine .ap-cell, .ap-slot button[aria-pressed='true'] { outline: 2px solid Highlight; }
 }
+
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)) {
+  .ap { --ap-line: var(--line); --ap-line-alt: var(--line); --ap-line-soft: var(--line); --ap-rule: var(--leaf); }
+  .ap-slot button[aria-pressed='true'] { background: var(--mint); }
+  td.mine .ap-cell { background: var(--white); }
+  .ap-tips li + li { border-top: 1px solid var(--line); }
+  .ap-coupon-stub { background: var(--white); }
+}
+@supports not (container-type:inline-size) {
+  /* 生日三個下拉：容器不到 330px（視窗約 400 以下）時年份自己一列。 */
+  @media (max-width: 400px) {
+    .ap-birth-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .ap-select-year { grid-column: 1 / -1; }
+  }
+  /* 出生區間的章：容器不到 440px（視窗約 520 以下）時排到文字下面。 */
+  @media (max-width: 520px) { .ap-range-mark { position: static; display: block; margin-top: 8px; } }
+}

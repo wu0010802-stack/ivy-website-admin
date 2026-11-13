@@ -78,7 +78,8 @@ const center = (el: HTMLElement, host: HTMLElement): Point => {
 }
 
 export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { reducedMotion: boolean }): EnvironmentRoutes {
-  const narrowQuery = matchMedia('(width <= 900px)')
+  // 不寫成 (width <= 900px)：Safari 16.4 以前不認得範圍寫法，會當成永遠不成立（2026-11-13，tests/legacy-safari-20261113.spec.ts）。
+  const narrowQuery = matchMedia('(max-width: 900px)')
   /** sig：上次撒點用的版面（窄版與否、每段的 d 與顏色）；一樣的話撒出來的圓點逐點相同 */
   interface Route { svg: SVGSVGElement; host: HTMLElement; kind: string; dots: { el: SVGCircleElement; y: number }[]; shown: number; sig: string }
   let routes: Route[] = []

@@ -4,6 +4,7 @@ import {
   buildClientError,
   createClientErrorReporter,
   describeThrown,
+  isAutomatedUserAgent,
   redactClientPath,
   redactClientText,
   shouldIgnoreClientError,
@@ -103,6 +104,41 @@ describe('忽略規則', () => {
     for (const message of ['Failed to fetch dynamically imported module: https://x/_nuxt/a.js', 'Importing a module script failed.', 'error loading dynamically imported module']) {
       expect(ignored({ message }), message).toBe(true)
     }
+  })
+})
+
+describe('自動化瀏覽器與爬蟲的 User-Agent（server/api/client-errors.post.ts 用，不轉送）', () => {
+  it('爬蟲、無畫面瀏覽器、檢測工具', () => {
+    for (const ua of [
+      'Lightpanda/1.0', // 2026-11-13 正式站：/admission 的 Illegal invocation 就是它（DOM 實作不完整）
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 11; moto g power) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse',
+      'Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)',
+      'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)',
+      'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+      'Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.1.1 Safari/538.1',
+    ]) expect(isAutomatedUserAgent(ua), ua).toBe(true)
+  })
+  it('真人的瀏覽器照收：新舊 iPhone、Android、桌機、LINE／FB 內建瀏覽器，沒有 User-Agent 也照收', () => {
+    for (const ua of [
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_8_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.8 Mobile/15E148 Safari/604.1',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1 Line/15.9.0',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22F76 [FBAN/FBIOS;FBAV/512.0.0;FBDV/iPhone15,2]',
+      'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 11; CUBOT NOTE 20 PRO) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36', // 手機品牌名裡剛好有 bot
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+      '',
+      undefined,
+    ]) expect(isAutomatedUserAgent(ua), String(ua)).toBe(false)
   })
 })
 

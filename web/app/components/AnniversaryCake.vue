@@ -183,4 +183,11 @@ onBeforeUnmount(() => { clearTimeout(announceTimer); stopSong(); ctl?.destroy();
 @media (prefers-reduced-motion: reduce) {
   .anni-cake-art, .anni-cake-wish, .anni-blow { transition: none; }
 }
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (container-type:inline-size) {
+  @media (max-width: 408px) {
+    .anni-cake-tools { gap: 8px; }
+    .anni-cake-tools .button { padding-inline: 13px; }
+  }
+}
 </style>

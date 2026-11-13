@@ -107,6 +107,22 @@ describe('擋下什麼', () => {
   })
 })
 
+describe('爬蟲與無畫面瀏覽器（2026-11-13）', () => {
+  it('Lightpanda、Googlebot 之類的回報回 204 但不轉送，也不佔配額', async () => {
+    const { post, forwarded } = await start()
+    for (let i = 0; i < 25; i++) expect((await post(report({ message: `bot ${i}` }), { 'user-agent': 'Lightpanda/1.0' })).status).toBe(204)
+    expect((await post(report(), { 'user-agent': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' })).status).toBe(204)
+    expect(forwarded).toEqual([])
+    // 同一個來源的真人回報照收：前面 26 筆沒有吃掉每分鐘 20 筆的額度
+    expect((await post(report(), { 'user-agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 15_8_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.8 Mobile/15E148 Safari/604.1' })).status).toBe(204)
+    expect(forwarded).toHaveLength(1)
+  })
+  it('格式不對的本文照樣回 400（爬蟲也一樣，先驗證再看 User-Agent）', async () => {
+    const { post } = await start()
+    expect((await post('{nope', { 'user-agent': 'Lightpanda/1.0' })).status).toBe(400)
+  })
+})
+
 describe('配額（獨立於 telemetry）', () => {
   it('預設：每來源每分鐘 20 筆、全站 300 筆，和 telemetry 的 60／3000 是兩組', () => {
     expect(CLIENT_ERROR_QUOTA).toEqual({ perSource: 20, global: 300, windowMs: 60_000, maxSources: 10_000 })

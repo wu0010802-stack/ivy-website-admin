@@ -1,3 +1,16 @@
+## 支援到 iOS 15：打包目標 Safari 15.4，新 CSS 功能要補後備（2026-11-13，`fix/legacy-safari-20261113`）
+
+11-13 一位 iOS 15.8 的訪客整站看到「500 網站暫時無法顯示」（後台錯誤回報）。停在 iOS 15 的機種是 iPhone 6s／7／初代 SE。原因與數字見 README 同日段落。
+
+- **打包目標是 Safari 15.4**（`web/nuxt.config.ts` 的 `BUILD_TARGET`），不用 import map。調整目標或升 Nuxt／Vite 時這兩件事要一起看，守在 `web/tests/legacy-safari-20261113.spec.ts`。
+- **打包工具救不了的三種寫法不要用**：正規式 lookbehind（`(?<=`、`(?<!`）；`matchMedia('(width <= 900px)')` 這種範圍寫法（寫 `max-width`）；樣式表裡的範圍寫法可以照寫，打包時會還原。
+- **用到這四種 CSS 功能，同一個檔案檔尾（元件就放在自己的 `<style>` 最後）補一條後備**：`color-mix()`、`@container` 與 `cqi`／`cqw`／`cqh`、`subgrid`、`overflow:clip`。一律包在 `@supports not (…)` 裡，支援的瀏覽器不會套用，現有畫面不變。
+  - `color-mix(A x%, B)` 退回 A 或 B 其中一個現成色票，不另外寫色值。
+  - `@container (max-width:N)` 用視窗寬的 `@media` 近似，門檻用實際量到的容器寬換算，只顧手機寬度。
+  - `overflow:clip`（兩軸）退回 `hidden`；`overflow-x:clip`（單軸）**不能**退回 `hidden`（y 軸會變成捲動容器，裡面的 sticky 失效），整頁的橫向溢出由 `styles.css` 的 `html{overflow-x:hidden}` 那一條收。
+- **後備只求看得清楚、排得下**，不追求和新瀏覽器一模一樣：拍立得紙底是素色（沒有各卡的淡彩）、問答展開沒有補間、捲動帶動的動畫不跑，都算預期。
+- **沒有後備也沒關係的**：`text-wrap`、`@starting-style`、`::details-content`、`interpolate-size`、`view-transition-*`、`animation-timeline`（已包在 `@supports` 裡）、列高度的 `subgrid`、只在滑鼠滑過才出現的 `color-mix`。
+- **沒有真機驗過**：這輪只有模擬（做法在 README）。之後拿得到 iOS 15 的手機，先看首頁拍立得、預約表單、30 週年頁。
 ## 預約選校卡：點一下就進第二步，金色膠囊在桌機左上角（2026-11-13，`feature/visit-campus-pick-20261113`）
 
 使用者問手機選校要留「下一步：查看參觀方式」還是「選了再雙擊」，並指出桌機上不是線上預約的校區會空一行。兩個都不採用原來的做法。

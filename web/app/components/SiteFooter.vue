@@ -111,4 +111,9 @@ const privacyEntry = computed(() => footerPrivacyEntry(Boolean(props.content.pri
     --footer-focus: Highlight;
   }
 }
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。
+   五校那幾列靠 subgrid 對齊三欄；沒有 subgrid 就照手機的排法（flex 換行），三個字的校名與區域看起來仍然對齊。 */
+@supports not (grid-template-columns:subgrid) {
+  .footer-campuses li { display: flex; flex-wrap: wrap; align-items: center; column-gap: 16px; }
+}
 </style>

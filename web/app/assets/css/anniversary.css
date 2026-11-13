@@ -289,3 +289,12 @@ html[data-ivy-motion] .anni-finale-stage { min-height: max(100svh, 560px); }
   .anni-art-list { gap: 6px; }
   .anni-art-list button { padding-inline: 4px; font-size: 11px; white-space: nowrap; }
 }
+
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (container-type:inline-size) {
+  /* 各校那一格：容器 640px 以下（視窗約 820 以下）改單欄，不然年份與沿革並排會把整頁撐寬。 */
+  @media (max-width: 820px) { .anni-campus-in { grid-template-columns: 1fr; gap: 22px; } }
+  @media (max-width: 470px) { .anni-draw-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 352px) { .anni-crayons { gap: 4px; } }
+}
+@supports not (overflow:clip) { .anni-finale.is-pinned .anni-finale-stage { overflow: hidden; } }

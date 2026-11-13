@@ -235,4 +235,14 @@ defineExpose({ setYear })
 @media (prefers-reduced-motion: reduce) {
   .anni-map-house, .anni-map-campus { transition: none; }
 }
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。
+   地圖上的字與校名位置跟著地圖寬（cqi）；沒有容器單位就用手機寬度下的值（各 clamp 的下限）。 */
+@supports not (color:color-mix(in oklch,red,blue)) { .anni-map-lake-line { stroke: rgb(var(--ivy-paint-sky-rgb)); } }
+@supports not (container-type:inline-size) {
+  .anni-map-district { font: 700 12px/1.2 var(--font-head); }
+  .anni-map-place { font-size: 10px; }
+  .anni-map-campus { transform: translate(9px, calc(-100% - 6px)); }
+  .anni-map-campus:not(.is-on) { transform: translate(9px, -40%); }
+  .anni-map-campus a { font: 700 12px/1.25 var(--font-head); }
+}
 </style>

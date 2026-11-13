@@ -891,5 +891,7 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
 @media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
 @media(forced-colors:active){.photo-card .sketch-canvas{display:none}.photo-card.is-sketch img,.photo-card[data-art=line] img{opacity:1;-webkit-mask:none;mask:none}}
-
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)){.campus-panorama.campus-gallery{--selected:var(--background)}}
+@supports not (container-type:inline-size){@media(max-width:490px){.social-row:has(> :nth-child(4)){display:grid;grid-template-columns:repeat(2,minmax(0,max-content));column-gap:28px}}}
 </style>

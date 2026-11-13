@@ -352,3 +352,11 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-hearts b{font-size:.88rem}
   .renv-heart{width:54px}
 }
+
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (container-type:inline-size){
+  .renv h1{font-size:clamp(1.75rem,1rem + 3.6vw,3.85rem)}
+  /* 901 以上的拱靠容器高度決定大小；沒有容器單位就退回 900 以下的排法（跟著欄寬與長寬比）。 */
+  @media (min-width:901px){.renv-arch{position:relative;right:auto;bottom:auto;width:calc(100% - var(--off));height:auto}}
+}
+@supports not (overflow:clip){.renv-hero{overflow:hidden}}

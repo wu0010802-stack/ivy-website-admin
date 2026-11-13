@@ -1,3 +1,16 @@
+## 2026-11-13 iOS 15 的手機整站 500：打包目標降到 Safari 15.4；錯誤回報不收爬蟲（`fix/legacy-safari-20261113`）
+
+後台「錯誤回報」11-13 中午三筆。兩筆 `Module specifier, '#entry' does not start with "/"…` 是同一位 iOS 15.8（Safari 15.6）的訪客：首頁開兩次、後來開 `/visit/renwu`，三次都被換成「500 網站暫時無法顯示」。一筆 `/admission` 的 `Illegal invocation` 是 `Lightpanda/1.0`（無畫面瀏覽器、DOM 實作不完整），不是真人。
+
+- **原因**：Nuxt 預設用 import map 把各 chunk 的 `#entry` 對到進入點，Safari 16.4 以前沒有 import map，chunk 全部載入失敗、頁面被換成錯誤頁。正式站把 import map 拿掉重現過，首頁、`/visit`、`/admission` 都是 500。
+- **打包目標**（`web/nuxt.config.ts`）：Vite 預設把 Safari 定在 16.4，改成 `safari15.4`／`ios15.4`，並明寫 `experimental.entryImportMap: false`。JS 不再有 `#entry`；CSS 的 `(width<=760px)` 還原成 `(max-width:760px)`（舊 Safari 不認得範圍寫法，手機版樣式會整批不套用）。停在 15.4 不降到 15.0：`oklch()`、`svh`、`:has()` 都是 15.4 才有。
+- **原始碼兩處**：`AnniversaryContent.vue` 的 `split(/(?<=，)/)`（lookbehind，舊 Safari 執行到就丟 SyntaxError）改成 `match`；`environment-route.ts` 的 `matchMedia('(width <= 900px)')` 改 `(max-width: 900px)`。
+- **樣式後備**：`color-mix()`、容器查詢與容器單位、`subgrid`、`overflow:clip` 在 iOS 15 都沒有。各檔檔尾補 `@supports not (…)`：拍立得的紙底、入學頁的格線與選中底色、預約欄位框線、30 週年各校那一格的單欄、頁尾五校列等。條件只在不支援的瀏覽器成立。規則在 DESIGN.md 最上面一段。
+- **錯誤回報不收爬蟲**：`web/server/api/client-errors.post.ts` 看請求的 User-Agent（`isAutomatedUserAgent`，`web/shared/client-error.ts`），Lightpanda、Googlebot、HeadlessChrome 之類照樣回 204，但不佔配額、不轉給 API。
+- **代價**：client JS 1,540→1,542 KB（gzip 495→495 KB）、CSS 295→299 KB（gzip 62.2→62.7 KB，多的是後備規則）。進入點一變，import 它的 chunk 檔名跟著變，部署後訪客要重新下載的檔案變多。
+- **驗證**：`npm --prefix web run typecheck`、`npm run test:website`（149 檔 2,283 條）通過。新舊設定各打包一份、fixture 內容、Playwright Chrome 以 375×667 與 1440×900 截整頁逐列比對：9 頁中 8 頁像素相同，特色教學頁的差異是水彩形狀每次載入本來就不同（同一份截兩次也不同）。另外用「模擬 Safari 15」跑 9 頁（把它不支援的 CSS 改成無效寫法、沒有的 JS API 拿掉）：都接手成功、沒有 JS 錯誤、不能左右滑，`/visit`、`/visit/yihua` 與一般瀏覽器像素相同。
+- **未驗證**：沒有真的 Safari 15 可以跑（Playwright 的 WebKit 15.4 在這台 macOS 26 啟動不了），以上都是模擬；iOS 15 實機、iPadOS 15 與 macOS 的 Safari 15 桌機版面沒看過。30 週年頁的開場影片在 iOS 15 播不播得完沒驗（有「略過開場」）。後台 `admin/` 的打包目標沒動。
+- 測試：`web/tests/legacy-safari-20261113.spec.ts`（打包目標、原始碼不用 lookbehind 與 matchMedia 範圍寫法）、`client-error.spec.ts`、`client-errors-route.spec.ts` 各加一段。
 ## 2026-11-13 預約選校卡點一下就進去、桌機不再空一行（`feature/visit-campus-pick-20261113`）
 
 `/visit` 第一步的兩項（使用者要求），規則在 DESIGN.md 最上面一段。
