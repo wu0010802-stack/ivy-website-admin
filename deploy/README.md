@@ -198,6 +198,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 健檢報告兩項上線：robots 放行公開素材、轉園題收費說法對齊退費條款（main CI 部署，沒有 migration）
+
+- **內容**：`9ac591f9`（PR #88，合併提交 `4cabe197`；README「2026-11-13 健檢報告兩項」）。外部健檢報告列的兩項「已確認問題」對正式站核對後成立，使用者說「都幫我改」「部署」。`robots.txt` 在 `Disallow: /api/` 前加 `Allow: /api/website/v1/public/media/`（首頁 2 張素材庫照片原本被擋）；入學頁轉園題「按比例收取」改成「分三段收取：全額、2/3 或 1/3」並加「看費用怎麼算」連到 `#faq-refund`。沒有改 API、後台、內容，沒有變數要改。
+- **CI**：開 PR 前 main 有別的合併（#86）造成 README 衝突，把 main 合進分支（`8436a212`）、本機重跑單元測試後才推；PR run 43444355600 全綠才合併；main run 43446542569 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `4cabe197`。
+- **線上驗證**：`/robots.txt` 有 `Allow: /api/website/v1/public/media/` 且其餘四條 Disallow 與 Sitemap 不變；`/llms.txt` 轉園題是新句子；`/admission` 原始碼新句子 2 次（頁面＋`FAQPage`）、「按比例收取」0 次、`href="#faq-refund"` 1 次；首頁與素材網址照常 200。
+- **未驗證**：`node scripts/check-public-seo.mjs https://www.ivykidschool.com` 停在 `/news: canonical`——正式站最新消息開關是關的，腳本沒處理這個情況（這次沒改），所以腳本裡 robots 那兩行新斷言沒有在線上跑到，改用上面的手動比對。正式站沒用瀏覽器點連結（本機 Playwright 驗過）。搜尋引擎實際有沒有開始抓圖要之後在 Search Console 看。三段說法照站上退費條款寫，園方沒有另外確認。
+
 ## 2026-11-13 首頁五校卡社群列手機改回靠左上線（main CI 部署，沒有 migration）
 
 - **內容**：`a16e237c`（PR #86，合併提交 `6de4c06f`；README「2026-11-13 首頁五校卡社群列手機改回靠左」）。使用者看過同日上線的「手機三個攤滿整列」後截圖說「手機版幫我往左靠」。只改 `web/app/components/CampusBoard.vue`：拿掉手機單欄剛好三個時的 `justify-content:space-between` 與列寬上限，靠左、間距 20px；340px 以下收成 12px（320 寬 20px 放不下）。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
