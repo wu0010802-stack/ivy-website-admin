@@ -1,0 +1,366 @@
+{
+  "sources": {
+    "mh": "明華校 FB〈幼幼寶貝的快樂生活〉815137417136803（3840×2160 AV1；同園方雲端〈2024幼幼班介紹Kathy.mp4〉）",
+    "rw": "仁武校 FB〈仁武區最快樂的美語幼兒園〉2352105698588693（1440×2560 AV1）"
+  },
+  "cut": "pick4：使用者 2026-11-13 第四輪指定的十五鏡，每鏡各自壓到平均 Y 118",
+  "lut": "design/day-film-color-20261025/screen-17.cube",
+  "decode": "BT.601 limited（瀏覽器對沒標記影片的解法）",
+  "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
+  "shots": [
+    {
+      "key": "hug",
+      "source": "mh",
+      "start": 141.35,
+      "end": 142.45,
+      "speed": 0.42,
+      "crop_desktop": [
+        300,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        1250,
+        0,
+        1084,
+        1926
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.284 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.369 1/0.930",
+      "note": "明華｜校門口，老師蹲下來抱住孩子（背影）"
+    },
+    {
+      "key": "shoes",
+      "source": "mh",
+      "start": 79.0,
+      "end": 79.95,
+      "speed": 0.4,
+      "crop_desktop": [
+        480,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        1300,
+        0,
+        1084,
+        1926
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.442 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.442 1/0.930",
+      "note": "明華｜孩子坐在鞋櫃前自己穿鞋"
+    },
+    {
+      "key": "line",
+      "source": "mh",
+      "start": 23.15,
+      "end": 24.85,
+      "speed": 0.7,
+      "crop_desktop": [
+        480,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        1400,
+        0,
+        1084,
+        1926
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.482 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.500 1/0.930",
+      "note": "明華｜教室裡沿著線走，女孩指著鏡頭笑"
+    },
+    {
+      "key": "sorter",
+      "source": "mh",
+      "start": 134.0,
+      "end": 135.2,
+      "speed": 0.45,
+      "crop_desktop": [
+        300,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        790,
+        300,
+        918,
+        1632
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.348 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.402 1/0.930",
+      "note": "明華｜小手把形狀放進套盒"
+    },
+    {
+      "key": "library",
+      "source": "rw",
+      "start": 3.7,
+      "end": 4.75,
+      "speed": 0.44,
+      "crop_desktop": [
+        0,
+        660,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        300,
+        0,
+        826,
+        1468
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.218 1/0.840",
+      "curve_mobile": "curves=all=0/0 0.5/0.263 1/0.840",
+      "note": "仁武｜圖書室遠景"
+    },
+    {
+      "key": "readtop",
+      "source": "rw",
+      "start": 4.85,
+      "end": 6.1,
+      "speed": 0.52,
+      "crop_desktop": [
+        0,
+        640,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        304,
+        0,
+        826,
+        1468
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.268 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.358 1/0.930",
+      "note": "仁武｜俯拍坐在地毯上看書"
+    },
+    {
+      "key": "readgirl",
+      "source": "rw",
+      "start": 6.4,
+      "end": 8.2,
+      "speed": 0.75,
+      "crop_desktop": [
+        0,
+        540,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        560,
+        300,
+        658,
+        1170
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.385 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.500 1/0.930",
+      "note": "仁武｜小女孩低頭認真看著書"
+    },
+    {
+      "key": "finger",
+      "source": "rw",
+      "start": 9.0,
+      "end": 11.0,
+      "speed": 0.83,
+      "crop_desktop": [
+        0,
+        1100,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        170,
+        300,
+        1100,
+        1956
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.200 1/0.840",
+      "curve_mobile": "curves=all=0/0 0.5/0.200 1/0.840",
+      "note": "仁武｜手指著繪本的字"
+    },
+    {
+      "key": "lavender",
+      "source": "mh",
+      "start": 0.4,
+      "end": 1.5,
+      "speed": 0.42,
+      "crop_desktop": [
+        480,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        1700,
+        0,
+        1084,
+        1926
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.500 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.451 1/0.930",
+      "note": "明華｜沒有人的遊戲場，薰衣草在溜滑梯前晃"
+    },
+    {
+      "key": "aerial",
+      "source": "rw",
+      "start": 39.45,
+      "end": 40.42,
+      "speed": 0.4,
+      "crop_desktop": [
+        0,
+        900,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        160,
+        300,
+        1120,
+        1990
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.400 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.273 1/0.930",
+      "note": "仁武｜空拍校舍與操場"
+    },
+    {
+      "key": "chalk",
+      "source": "rw",
+      "start": 30.55,
+      "end": 32.05,
+      "speed": 0.62,
+      "crop_desktop": [
+        0,
+        660,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        420,
+        470,
+        562,
+        998
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.250 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.273 1/0.930",
+      "note": "仁武｜俯拍操場上的粉筆畫"
+    },
+    {
+      "key": "wave",
+      "source": "mh",
+      "start": 35.9,
+      "end": 37.6,
+      "speed": 0.7,
+      "crop_desktop": [
+        300,
+        300,
+        2880,
+        1620
+      ],
+      "crop_mobile": [
+        1650,
+        0,
+        1084,
+        1926
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.376 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.436 1/0.930",
+      "note": "明華｜攀爬架後面的孩子對鏡頭揮手"
+    },
+    {
+      "key": "slide",
+      "source": "rw",
+      "start": 32.15,
+      "end": 33.9,
+      "speed": 0.73,
+      "crop_desktop": [
+        0,
+        850,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        160,
+        300,
+        1120,
+        1990
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.467 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.495 1/0.930",
+      "note": "仁武｜女孩從溜滑梯出來"
+    },
+    {
+      "key": "girls",
+      "source": "rw",
+      "start": 34.02,
+      "end": 35.4,
+      "speed": 0.57,
+      "crop_desktop": [
+        0,
+        560,
+        1440,
+        810
+      ],
+      "crop_mobile": [
+        440,
+        300,
+        658,
+        1170
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.334 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.500 1/0.930",
+      "note": "仁武｜兩個女孩爬拱橋"
+    },
+    {
+      "key": "hand",
+      "source": "rw",
+      "start": 0.95,
+      "end": 1.7,
+      "speed": 0.31,
+      "crop_desktop": [
+        190,
+        766,
+        1250,
+        702
+      ],
+      "crop_mobile": [
+        190,
+        0,
+        826,
+        1468
+      ],
+      "curve_desktop": "curves=all=0/0 0.5/0.442 1/0.930",
+      "curve_mobile": "curves=all=0/0 0.5/0.316 1/0.930",
+      "note": "仁武｜老師牽著孩子走進走廊"
+    }
+  ],
+  "variants": [
+    {
+      "file": "day-pick4-desktop.mp4",
+      "width": 1440,
+      "height": 810,
+      "fps": "30/1",
+      "frames": "789",
+      "duration": "26.300000",
+      "bytes": 7593774,
+      "crf": 24,
+      "sha256": "0842954b3bac8dd11d98b17b89151b1710139e025e47e11a32decaf2cf35d13c"
+    },
+    {
+      "file": "day-pick4-mobile.mp4",
+      "width": 720,
+      "height": 1280,
+      "fps": "30/1",
+      "frames": "789",
+      "duration": "26.300000",
+      "bytes": 4242115,
+      "crf": 27,
+      "sha256": "33bfbd26308270bf0c4f306cd0d926da01d7bc33fc4eef95b41dd3d3328b9a3a"
+    }
+  ]
+}
