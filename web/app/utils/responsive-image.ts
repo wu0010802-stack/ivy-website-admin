@@ -78,8 +78,10 @@ export const CURRICULUM_HERO_IMAGE = 'cur-hero'
  * - 900px 以下：框改成 4:3、寬 = 視窗減左右留白（20px × 2），需要寬度 = 框寬 × (16/9 ÷ 4/3) ≈ 1.34 × 框寬
  *   （390 寬約 469px）。761–900 寬的留白較寬、橫拿手機的照片改在右欄，這個寫法只會高估、不會變糊。
  *   2026-09-29 以前寫成以視窗寬算的 vw，340–370 寬的 DPR2 手機會多抓一級。
+ * 2026-11-12：DPR 2.5 以上的手機把寬度估成七成（做法同預約頁校區卡，VisitForm.vue），390 寬 DPR3 從 1600w（181 KB）
+ *   改挑 1200w（122 KB）；照片在框裡仍有約 2.5 倍密度。這張是手機的 LCP，六頁裡原本最大。DPR 2 與桌機照舊。
  */
-export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1.34), 1070px'
+export const CURRICULUM_HERO_SIZES = '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .94), (max-width: 900px) calc((100vw - 40px) * 1.34), 1070px'
 
 /** 關於常春藤頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 ABOUT_HERO_SIZES）。 */
 export const ABOUT_HERO_IMAGE = 'about-hero'

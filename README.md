@@ -1,3 +1,17 @@
+## 2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級（`feature/mobile-perf-20261112`）
+
+使用者要求優化前台手機版的渲染流暢度與效能。先對正式站 7 頁做手機寬度實測（390×844、DPR3；當時本機負載 25–50，所以只採計次數與執行緒 CPU 時間 `tdur`，不採計牆鐘毫秒），再改兩件量得到效益的事。
+
+- **GA4 與 Meta Pixel 的外部腳本延後載入**（`web/app/utils/third-party-analytics.ts`、`plugins/third-party-analytics.client.ts`）：兩家共約 360 KB，比每頁自家 JS（160–270 KB）還大，原本 hydration 完成當下就載。正式站實測：每頁載入時的腳本求值時間約九成是這兩家（桌機 CPU 合計約 190ms，落在載入後第一秒；中階手機約四倍），慢速網路（1.6 Mbps／150ms）下擋掉它們內頁 LCP 快 0.4–0.6 秒。現在 queue stub 照舊先建、事件先排，外部腳本等整頁 `load` 之後主執行緒有空才加進文件（`whenPageSettled`：`requestIdleCallback` 上限 2 秒，Safari 等 1 秒，另有 8 秒保底）。
+  - GA 的 page_view 自帶網址，載入前換過頁也各送各的；Pixel 的 PageView 取送出當下的網址，載入前只記一次、載入時補送。
+  - 輪到載入時人在預約修改頁就不載，離開再載；這段期間不把 `consent revoke／grant` 排進 Pixel 的 queue（實測 fbevents.js 清 queue 遇到 revoke 就停，後面的指令會卡住）。
+  - 代價：進站後 2–3 秒內就離開的訪客，GA／Pixel 不會記到（第一方統計 `/api/telemetry` 不受影響）。
+- **特色教學首屏圖**（`CURRICULUM_HERO_SIZES`）：DPR 2.5 以上的手機把寬度估成七成（做法同預約頁校區卡），390 寬 DPR3 從 1600w（181 KB）改挑 1200w（122 KB），框裡仍有約 2.5 倍密度。這張原本是六頁手機 LCP 圖裡最大的。
+- **本機並排**（同一 commit 的 production build、fixture、1.6 Mbps／150ms、交錯各 3 次，中位數）：`load` 六頁都提早約 1.9–2.4 秒（例：首頁 5.60→3.70、預約 5.54→3.22）；LCP 特色教學 4.47→2.70 秒、預約 3.62→3.21 秒，其餘四頁不變（本機伺服器快，LCP 本來就早於第三方腳本）；/about 最後一片字型 5.59→4.39 秒。
+- **量過、沒改**：捲動時的同步樣式重算——把孩子的一天 scroll 事件裡的 `window.scrollY` 併進共用捲動幀，重算次數少兩成但 CPU 時間不變（工作只是從事件移到 rAF），已還原。環境頁圓點（SVG 轉場每幀要排版）、特色教學水彩單塊 11–20ms、GA 自己的捲動監聽（單次最長 11–14ms，是 GA 後台「加強型評估」的設定）都在可接受範圍，未動。
+- **未驗證**：headless Chrome 裡 Pixel 不發 `facebook.com/tr` 請求（正式站也一樣），Pixel 只驗到 queue 內容與腳本載入時機；部署後要用真瀏覽器在事件管理工具確認 PageView 與 Lead。真機（iOS Safari）未驗。
+- 驗證：`npm --prefix web run typecheck`、`npm run test:website`；延後載入四個情境以 Playwright 在 production build 上跑過（beacon 全部攔下不外送）。
+
 ## 2026-11-12 訪客 IP 改採信 X-Real-IP（`fix/client-ip-real-ip-20261112`）
 
 - 操作紀錄與限流的訪客 IP 一直記成 Railway edge 前面那層 CDN77 的節點。實測 Railway 會覆寫 `X-Real-IP` 為真正的連線來源（訪客自帶的蓋掉），`web/server/utils/client-ip.ts` 改成先看 `NUXT_CLIENT_IP_HEADER`（正式站 `x-real-ip`），沒設才照舊從 `X-Forwarded-For` 取。暫時的診斷端點移除。細節見 `deploy/README.md` 同日段落。

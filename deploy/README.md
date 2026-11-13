@@ -34,6 +34,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 **程式做了什麼**（`web/app/plugins/third-party-analytics.client.ts`、`web/app/utils/third-party-analytics.ts`、`web/shared/third-party-analytics.ts`）
 
 - 直接載 `gtag.js` 與 `fbevents.js`（`createElement`），**不用 GTM**（GTM 讓有容器權限的人能注入任意腳本到和後台同源的網站）、不用 inline script。
+- 2026-11-13 起兩支外部腳本等整頁 `load` 之後、主執行緒有空才載入（`whenPageSettled`，手機效能）；事件先排在 queue 裡。進站 2–3 秒內就離開的訪客 GA／Pixel 不會記到。驗證時要等頁面載完再看 Network。
 - 瀏覽器開了「不要追蹤」（DNT）或 Global Privacy Control 就整個不載入。只看自己的 ID 與 DNT／GPC，`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響這兩個。
 - `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
 - GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
