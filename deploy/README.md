@@ -198,6 +198,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 後台「查看官網」修正上線，連同 QA 報告修正（#78）一起部署（main CI 部署，沒有 migration）
+
+- **內容**：`92552b1c`（README「2026-11-13 後台『查看官網』開回後台自己」）。後端 `features` 多一個 `public_site_origin`，後台用它組官網的絕對網址。沒有變數要改（api 的 `WEBSITE_PUBLIC_ORIGIN` 11-12 已設）。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **連同 #78**：`cd2849f8`（QA 報告 9 條中度＋35 條輕度）09:14 併入 main 的那次 run 43343368056 測試全綠，但 Deploy 在 api 失敗：同一時間另一個工作階段用 CLI 先設了 `WEBSITE_S3_BUCKET`（沒有金鑰），`Settings()` 驗證不過；api 掛 volume，舊版已先停，09:22:56～09:42:53 api 停機。復原是刪掉該變數後 `railway redeploy --service api`（重跑的是那次失敗的部署，所以 api 從 09:42 起已是 #78 的後端，web 仍是 `dd2925cd`）。這次部署把 api 與 web 都帶到 `92552b1c`，落差消失。
+- **CI**：run 43347605874 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `92552b1c`，api health 200。
+- **線上驗證**：已登入的瀏覽器開 `https://admin.ivykidschool.com/admin/`，頁首「查看官網」的 `href` 是 `https://www.ivykidschool.com/`（修正前是 `/`，會 302 回 `/admin/`）。
+- **未驗證**：首頁內容與五校介紹編輯頁的「查看官網此頁」、發布成功提示裡的連結沒有在正式站實際點（同一個函式，單元測試有涵蓋）；#78 的各條沒有在正式站逐條驗。
+
 ## 2026-11-13 手機效能上線：GA4／Pixel 等整頁載完才載入、特色教學手機首屏圖降一級（main CI 部署，沒有 migration）
 
 - **內容**：`dd2925cd`（README「2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級」）。只動 web，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
