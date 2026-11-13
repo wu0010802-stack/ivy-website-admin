@@ -70,6 +70,24 @@ export function admissionHeroImage() {
   return responsiveImage(ADMISSION_HERO_IMAGE, `(max-width: 760px) calc((100vw - 86px) * ${factor}), ${Math.round(490 * factor)}px`)
 }
 
+/**
+ * 首頁「孩子的一天」拍立得照片的 sizes（DayMomentCard.vue；2026-11-13 Playwright 實測 320–1920 寬）。
+ * 相框是正方形、object-fit: cover，寬度：
+ * - 760px 以下：卡片佔版心（視窗 − 40px）的 84%、相紙左右各留 7% → 0.7224 ×（視窗 − 40px）（390 寬 253px、760 寬 520px）。
+ * - 761–1100px：兩欄，0.42 ×（視窗 − 104px）（761 寬 276px、1100 寬 418px）。
+ * - 1101px 以上：卡片最寬 460px → 386.4px。
+ * 橫幅照片是照框高畫滿、左右被裁，要畫的寬度＝框寬 × 原圖寬高比（4:3 是 1.33 倍）；正方形與直幅就是框寬。
+ * 原本整段寫 `(max-width: 760px) 100vw, 540px`：手機高估約 1.5 倍、桌機 1.4 倍，正方形照片在 DPR 3 手機抓到
+ * 1200w（素材庫照片抓到 1600 的大圖），其實 800w／960 的中圖就夠。4:3 的照片算出來接近原本的數字，多數寬度選到的檔不變。
+ * WebGL 紙張（paperPrints.ts）的貼圖直接用這張 <img>，所以這裡只能估準、不能低估。
+ */
+export function dayPrintSizes(width: number | undefined, height: number | undefined): string {
+  const aspect = width && height ? Math.max(1, width / height) : 1
+  // 無條件進位到千分位：寧可多估 0.1%，不要因為四捨五入少估。
+  const factor = (frame: number) => Math.ceil(Number((frame * aspect * 1000).toFixed(6))) / 1000
+  return `(max-width: 760px) calc((100vw - 40px) * ${factor(0.7224)}), (max-width: 1100px) calc((100vw - 104px) * ${factor(0.42)}), ${Math.ceil(386.4 * aspect)}px`
+}
+
 /** 特色教學頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 CURRICULUM_HERO_SIZES）。 */
 export const CURRICULUM_HERO_IMAGE = 'cur-hero'
 

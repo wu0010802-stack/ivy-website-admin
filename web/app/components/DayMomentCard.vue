@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { pickImage } from '~/utils/media-image'
+import { dayPrintSizes } from '~/utils/responsive-image'
 import { pageTitleLines } from '~/utils/page-content'
 import type { DayMoment } from '~/types/site-content'
 import type { PaperHandle } from '~/utils/paperPrints'
@@ -13,6 +14,12 @@ import { curlAngle } from '~/utils/cornerCurl'
 import { OPENER_DELAY_MS, markOpenerShown, onScreen, openerShown, seenEnough, startsFaceDown, tapDuringOpen } from '~/utils/printOpener'
 
 const props = defineProps<{ moment: DayMoment; index: number; active?: boolean }>()
+
+// 照片的 sizes 依原圖比例算（相框是正方形，橫幅照片要畫得比框寬，見 dayPrintSizes）。沒有 srcset 時 pickImage 不給 sizes，照舊不輸出。
+const photoAttrs = computed(() => {
+  const attrs = pickImage(props.moment.photo, props.moment.photoMedia)
+  return attrs.sizes ? { ...attrs, sizes: dayPrintSizes(attrs.width, attrs.height) } : attrs
+})
 
 const isFlipped = ref(false)
 // CSS 3D 版的翻面位置（半圈為單位，負值＝右緣掀起往左翻）；WebGL 版自己算連續位置。
@@ -514,7 +521,7 @@ const titleLines = computed(() => pageTitleLines(props.moment.title))
             <figure class="print-figure" :class="{ 'is-blank': !moment.photo && !moment.photoMedia }">
               <ResponsivePicture
                 v-if="moment.photo || moment.photoMedia" class="print-photo"
-                v-bind="pickImage(moment.photo, moment.photoMedia, '(max-width: 760px) 100vw, 540px')"
+                v-bind="photoAttrs"
                 :style="moment.photoMedia?.position ? { objectPosition: moment.photoMedia.position } : undefined"
                 :alt="moment.alt" loading="lazy" fetchpriority="low" decoding="async"
               />
