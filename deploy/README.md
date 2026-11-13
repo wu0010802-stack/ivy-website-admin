@@ -212,6 +212,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
 - **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
 
+## 2026-11-13 選單五校改純文字切換、參觀專線只出現那一校上線（main CI 部署，沒有 migration）
+
+- **內容**：`e0f304dd`（README「2026-11-13 選單五校只切換、參觀專線只出現那一校」、DESIGN.md 最上面一段）。只動 web 的頁首選單（`SiteHeader.vue`、`studio.css`、`styles.css`）與兩支測試，沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`。
+- **CI**：run 43375516167 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `e0f304dd`。
+- **線上驗證**（Playwright，首頁桌機 1440 與手機 390，統計與第三方請求全部攔下）：選單五校是 `<button aria-pressed>`、沒有底色；預設義華，點崇德、鍵盤移到國際後，參觀專線只有一列且換成那一校（`tel:` 連結正確）、社群跟著換，網址不變、選單不關、沒有橫向溢出。
+- **未驗證**：iOS／Android 實機；內頁的選單只在本機看過首頁那一份元件（同一個 `SiteHeader`）。
+
 ## 2026-11-13 入學頁細修上線：生日三個下拉、問答展開補間、列印樣式（main CI 部署，沒有 migration）
 
 - **內容**：`34377036`（README「2026-11-13 入學頁細修」、DESIGN.md 最上面一段）。只動 web 的入學頁元件與樣式，沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
