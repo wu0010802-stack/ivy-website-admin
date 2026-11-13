@@ -212,6 +212,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
 - **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
 
+## 2026-11-13 支援 iOS 15（打包目標 Safari 15.4、不用 import map）與錯誤回報不收爬蟲上線（main CI 部署，沒有 migration）
+
+- **內容**：`218a6442`（README「2026-11-13 iOS 15 的手機整站 500」、DESIGN.md 最上面一段）。只動 web：`nuxt.config.ts` 的打包目標、兩處原始碼、各樣式檔檔尾的 `@supports not` 後備、`/api/client-errors` 擋爬蟲的 User-Agent。沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43384358290 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `218a6442`。
+- **線上驗證**：首頁 HTML 沒有 `<script type="importmap">`，有 `@supports not (overflow:clip)`。Playwright Chrome 以「模擬 Safari 15」（375×667；把它不支援的 CSS 改成無效寫法、沒有的 JS API 拿掉；只發同站 GET，統計、錯誤回報與第三方請求全部攔下）開 `/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/visit`、`/visit/yihua`：都接手成功、沒有 JS 錯誤、不能左右滑、選單打得開；首頁拍立得有紙底，義華預約頁的月曆與欄位框線都在。`/anniversary` 正式站是關的（404，預期）。腳本在本機 `output/legacy-safari-20261113/sim15.cjs`。
+- **未驗證**：沒有真的 Safari 15（舊版 WebKit 在這台 macOS 26 啟動不了），iOS 15 實機、iPadOS 15、macOS Safari 15 都沒看過；爬蟲的回報不入庫只有單元測試，沒有在正式站實際送一筆（會寫進正式資料）。
+- **後續**：後台「錯誤回報」11-13 那三筆（兩筆 `#entry`、一筆 Lightpanda 的 `Illegal invocation`）可以標為已處理。之後如果又出現 `#entry` 的回報，代表 import map 被打開了，先看 `web/tests/legacy-safari-20261113.spec.ts`。
+
 ## 2026-11-13 預約選校卡點一下就進第二步、桌機金色膠囊移到卡片左上角上線（main CI 部署，沒有 migration）
 
 - **內容**：PR #79 合併為 `90bc6139`（README「2026-11-13 預約選校卡點一下就進去、桌機不再空一行」、DESIGN.md 最上面一段）。只動 web 預約頁第一步（`VisitForm.vue`、`visit-booking.css`）、`telemetry.client.ts` 一行與測試，沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「幫我併入 main」後照 PR 合併，沒有用管理者權限：推送時自動起的那組 run 被 PR 的 run 取代而取消，必要檢查算沒過，重跑那一組（43377281990）轉綠後才併。
