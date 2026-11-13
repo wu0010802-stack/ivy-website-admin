@@ -24,6 +24,7 @@ from tests.conftest import (
     set_booking_mode,
     start_visit_slot,
 )
+from tests.slot_helpers import move_slot_to_day
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -53,14 +54,14 @@ async def _slot(client, *, days_ahead=3, start="10:00:00", end="11:00:00", capac
     return response.json()
 
 
-async def _book(public_client, version: int, slot_id: str, key: str, parent_name="陳媽媽") -> str:
+async def _book(public_client, version: int, slot_id: str, key: str, parent_name="陳媽媽", phone="0912345678") -> str:
     response = await public_client.post(
         f"{API}/public/visit-requests",
         json={
             "campus_key": "yihua",
             "config_version": version,
             "parent_name": parent_name,
-            "phone": "0912345678",
+            "phone": phone,
             "consent_given": True,
             "slot_id": slot_id,
         },
@@ -114,10 +115,12 @@ async def test_admin_reschedule_keeps_case_and_records_history(admin_client, pub
 
 
 @pytest.mark.asyncio
-async def test_admin_reschedule_rejects_slot_that_already_started(admin_client, public_client):
+async def test_admin_reschedule_rejects_slot_that_already_started(admin_client, public_client, db_session):
     version = await _set_mode(admin_client, mode="slots")
     slot_a = await _slot(admin_client, days_ahead=3)
-    past = await _slot(admin_client, days_ahead=-1, capacity=3)
+    # 建立場次的 API 不收已開始的場次：先建未來的，再改成昨天。
+    past = await _slot(admin_client, days_ahead=3, start="09:00:00", end="10:00:00", capacity=3)
+    await move_slot_to_day(db_session, past["id"], today_local() - timedelta(days=1))
     receipt_id = await _book(public_client, version, slot_a["id"], "b02-reschedule-past")
 
     moved = await admin_client.post(
@@ -208,7 +211,9 @@ async def test_future_visit_cannot_be_marked_completed_or_no_show(admin_client, 
 
 @pytest.mark.asyncio
 async def test_staff_cannot_confirm_into_a_slot_that_already_started(admin_client, db_session):
-    past = await _slot(admin_client, days_ahead=-1, capacity=5)
+    # 建立場次的 API 不收已開始的場次：先建未來的，再改成昨天。
+    past = await _slot(admin_client, days_ahead=3, capacity=5)
+    await move_slot_to_day(db_session, past["id"], today_local() - timedelta(days=1))
     created = await _manual(admin_client, "b02-past-manual", slot_id=past["id"])
     assert created.status_code == 409
     assert created.json()["detail"]["code"] == "SLOT_NOT_BOOKABLE"
@@ -228,7 +233,8 @@ async def test_exception_day_counts_only_visits_still_to_come(admin_client, publ
     version = await _set_mode(admin_client, mode="slots")
     slot = await _slot(admin_client, days_ahead=5, capacity=3)
     done = await _book(public_client, version, slot["id"], "b02-exc-done")
-    await _book(public_client, version, slot["id"], "b02-exc-coming", parent_name="林爸爸")
+    # 同一支手機不能把同一個場次約兩次（2026-11-12）：第二組用另一支手機。
+    await _book(public_client, version, slot["id"], "b02-exc-coming", parent_name="林爸爸", phone="0922333444")
     # 當天早上宣布颱風假：清晨那一場已經開始，一組沒來、另一組還沒標記。
     today = today_local()
     await db_session.execute(

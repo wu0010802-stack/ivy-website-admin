@@ -16,6 +16,7 @@ from app.booking import workflow_service
 from app.booking.models import VisitRequestStatus
 from app.common.timezones import OPERATING_TZ, today_local
 from tests.conftest import legacy_request, set_booking_mode
+from tests.slot_helpers import move_slot_to_day
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -324,16 +325,15 @@ async def test_content_revision_rejects_unknown_and_cross_campus_media(
 
 # ------------------------------------------------------------ booking
 @pytest.mark.asyncio
-async def test_past_slot_is_not_publicly_listed_or_bookable(admin_client, public_client):
+async def test_past_slot_is_not_publicly_listed_or_bookable(admin_client, public_client, db_session):
     """原本：過去的時段可以被公開查到也可以被預約，名額從此永久被佔住。"""
     version = await _enable_slots(admin_client)
     past = (today_local() - timedelta(days=30)).isoformat()
-    slot = await admin_client.post(
-        "/api/website/v1/admin/slots?campus_key=yihua",
-        json={"slot_date": past, "start_time": "10:00:00", "end_time": "11:00:00", "capacity": 1},
-    )
-    assert slot.status_code == 201  # 後台仍可建立／檢視歷史時段
-    slot_id = slot.json()["id"]
+    # 後台建立場次的 API 不收已開始的場次（2026-11-12 QA L13）：先建未來的，再改成 30 天前，
+    # 模擬已經過去的歷史時段（過去的場次本來就會存在，只是不能再建）。
+    slot = await _create_slot(admin_client, days_ahead=3)
+    slot_id = slot["id"]
+    await move_slot_to_day(db_session, slot_id, date.fromisoformat(past))
 
     listed = await public_client.get(
         f"/api/website/v1/public/slots?campus_key=yihua&date_from={past}&date_to={past}"

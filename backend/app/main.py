@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -73,6 +74,24 @@ def _error_body(detail, request_id: str | None) -> dict:
     return body
 
 
+def _json_safe(value):
+    """把 422 要帶回去的原始輸入整理成一定寫得出去的 JSON。
+
+    json.loads 會收孤立的 surrogate（"\\ud800"）與 1e999／NaN／Infinity，pydantic 退回時
+    把原值放進 errors() 的 input；這些值編不成 UTF-8、JSONResponse（allow_nan=False）也
+    寫不出去，回應就從 422 變成 500——匿名訪客能藉此在系統狀態頁製造錯誤群組、觸發
+    總管理者推播（2026-11-12 QA M1）。編不出去的字元換成 U+FFFD，非有限數字換成 None。"""
+    if isinstance(value, str):
+        return value.encode("utf-8", "replace").decode("utf-8", "replace") if not value.isascii() else value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {_json_safe(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _error_response(request: Request, status_code: int, detail, headers: dict | None = None) -> JSONResponse:
     request_id = request_id_of(request)
     merged = dict(headers or {})
@@ -114,7 +133,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
             "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
         )
         return _error_response(
-            request, status.HTTP_422_UNPROCESSABLE_ENTITY, jsonable_encoder(exc.errors())
+            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _json_safe(jsonable_encoder(exc.errors()))
         )
 
     @app.exception_handler(SQLAlchemyError)

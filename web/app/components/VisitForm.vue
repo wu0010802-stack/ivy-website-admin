@@ -5,20 +5,26 @@ import { campusMapUrl } from '~/utils/site-links'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
 import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
-import { apiFieldErrors, focusFirstInvalidField, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
+import { apiFieldErrors, earliestChildBirthdate, focusFirstInvalidField, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { ctaEntryOf, reportBookingActionClick } from '~/utils/cta-analytics'
 import { reportBookingLead } from '~/utils/third-party-analytics'
 import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
-import { newIdempotencyKey } from '~/utils/idempotency-key'
+import { newIdempotencyKey, restoredIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
 // 預約頁首圖已經自己包了 <picture>（手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
 // AVIF 的 <source> 排在手機那個 media source 之後、<img> 之前，手機仍先命中透明圖。avifSrcset 不是 <img> 的屬性，要先拆出來。
 const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage('about-curious', '(max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')
+
+// 停用 JS 時（2026-11-12 QA L32）：場次要等瀏覽器載入後才查，SSR 出來的「正在讀取可預約場次」會永遠停在載入中。
+// 這時改藏起它、顯示平常 hidden 的備援說明（請家長來電）——規則在 visit-booking.css 的 @media (scripting: none)。
+// 不用 head 的 noscript 樣式：Chrome 實測（390／700 寬）月曆區塊在 container-type 底下，noscript 樣式把 [hidden] 備援說明
+// 改成 display:block 後算得出 display:block 卻沒有版面框，備援說明有時整塊不出現；@media 從第一次算樣式就生效，不會。
+// 不支援 scripting 媒體查詢的舊瀏覽器（Chrome 120、Safari 17、Firefox 113 以前）維持原狀。
 
 const props = defineProps<{
   booking: BookingContent
@@ -159,9 +165,11 @@ let slotRequest = 0
 // 填到一半的資料暫存在這個分頁（sessionStorage，2026-10-29）：手機切去別的 App 回來被瀏覽器重新載入、
 // 或不小心重新整理，孩子與家長資料、選好的日期場次都還在。關掉分頁就沒了，預約成功立刻清掉。
 // 校區看網址，不從暫存還原；日期場次只在同一校、而且重新讀到的場次裡還有時才放回去。
+// 送出用的 key 也一起存（2026-11-12）：伺服器已經建好預約、回應卻在路上斷掉時，家長多半會重新整理再送一次；
+// 沿用同一把 key，伺服器就回原本那張收據，不會約成兩筆。
 const DRAFT_KEY = 'ivy-visit-draft'
 type DraftFields = Omit<typeof form, 'campus'>
-interface VisitDraft extends DraftFields { campus: string; visitDate: string; slotId: string }
+interface VisitDraft extends DraftFields { campus: string; visitDate: string; slotId: string; idempotencyKey: string }
 let draftSlot: { campus: string; date: string; slotId: string } | null = null
 let draftReady = false
 function readDraft(): Partial<VisitDraft> | null {
@@ -172,7 +180,7 @@ function readDraft(): Partial<VisitDraft> | null {
 }
 function saveDraft() {
   if (!draftReady || submitted.value) return
-  const draft: VisitDraft = { ...form, referralSources: [...form.referralSources], visitDate: selectedVisitDate.value, slotId: selectedSlotId.value }
+  const draft: VisitDraft = { ...form, referralSources: [...form.referralSources], visitDate: selectedVisitDate.value, slotId: selectedSlotId.value, idempotencyKey: idempotencyKey.value }
   try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
 }
 function clearDraft() {
@@ -191,6 +199,8 @@ function restoreDraft() {
     if (typeof draft.campus === 'string' && typeof draft.visitDate === 'string' && typeof draft.slotId === 'string' && draft.visitDate) {
       draftSlot = { campus: draft.campus, date: draft.visitDate, slotId: draft.slotId }
     }
+    const savedKey = restoredIdempotencyKey(draft.idempotencyKey)
+    if (savedKey) idempotencyKey.value = savedKey
   }
   draftReady = true
 }
@@ -285,7 +295,7 @@ const submitError = ref<string | null>(null)
 const submitRetryHint = ref(false)
 const submitButtonRef = ref<HTMLButtonElement | null>(null)
 // 同一次填寫用同一個 idempotency key；重送（例如網路重試）會安全地
-// 回到同一筆案件，不會建立第二筆。只有成功後才換新的 key。
+// 回到同一筆案件，不會建立第二筆。只有成功後才換新的 key。重新整理後從分頁暫存拿回同一把（restoreDraft）。
 const idempotencyKey = ref(newIdempotencyKey())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
@@ -506,7 +516,7 @@ watch(() => form.campus, () => {
   campusError.value = ''
   fieldErrors.value = {}
 })
-watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
+watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
@@ -533,6 +543,8 @@ async function onSubmit() {
   }
 
   submitting.value = true
+  // 送出前把暫存寫好（含這次用的 key）：回應沒收到、家長重新整理時才接得回同一筆。
+  saveDraft()
   // 伺服器 422 指出欄位時，等送出中的 fieldset 解除 disabled 再把焦點交給第一個出錯的欄位（比照上面的前端驗證）。
   let focusInvalidField = false
   try {
@@ -593,6 +605,12 @@ async function onSubmit() {
         (bookingConfig.value?.parent_email_enabled
           ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'
           : '你先前那一次其實已經預約成功了。要更正內容請直接聯絡園所，不要重複送出。') + callFallback.value
+    } else if (code === 'ALREADY_BOOKED') {
+      // 同一支電話已經約了這個場次（上一次其實送成功了，或成功後按上一頁又送一次）：不是失敗，不用再送。
+      submitError.value =
+        (bookingConfig.value?.parent_email_enabled
+          ? '這支電話已經預約過這個場次了，不用再送一次。要改期或取消，請用確認信裡的連結。'
+          : '這支電話已經預約過這個場次了，不用再送一次。要改期或取消，請直接聯絡園所。') + callFallback.value
     } else if (code === 'BOT_CHECK_FAILED') {
       submitError.value = serverMessage(detail, '請完成機器人驗證後再送出。')
     } else if (code === 'BOOKING_LIMIT') {
@@ -747,6 +765,11 @@ async function onSubmit() {
                   <legend class="sr-only">孩子與家長資料</legend>
                   <section v-if="bookingConfig?.mode === 'slots'" class="visit-form-section visit-schedule-section" aria-labelledby="visit-schedule-title">
                     <h3 id="visit-schedule-title">參觀安排</h3>
+                    <!-- 停用 JS 時才顯示（visit-booking.css 的 @media (scripting: none)）：沒有 JS 就讀不到場次，請家長直接來電。 -->
+                    <div class="visit-slots-empty visit-slots-nojs" hidden>
+                      <p>目前無法在這個頁面選擇參觀場次，歡迎直接來電安排。</p>
+                      <div v-if="selectedCampus.phone" class="visit-contact-actions"><a class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a></div>
+                    </div>
                     <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
                     <!-- 沒有場次時重新載入幫不上忙：只給寫出號碼的致電主要按鈕；讀取失敗才加「重新載入場次」外框鈕。
                          說明放進和參觀方式步驟同一種淡色底塊（2026-10-13，原本是一行灰字＋大外框鈕＋沒有號碼的小連結）。 -->
@@ -765,7 +788,7 @@ async function onSubmit() {
                     <h3 id="visit-child-title">孩子資料</h3>
                     <div class="visit-field-grid">
                       <div class="visit-field"><label for="child-name">孩子姓名<small>必填</small></label><input id="child-name" v-model="form.childName" name="childName" autocomplete="off" maxlength="64" enterkeyhint="next" required placeholder="請填寫孩子姓名" :aria-invalid="Boolean(fieldErrors.childName)" aria-describedby="visit-child-name-error" @blur="checkFieldOnBlur('childName')" @input="clearFieldError('childName')"><p id="visit-child-name-error" class="visit-field-error">{{ fieldErrors.childName }}</p></div>
-                      <div class="visit-field"><label for="child-birthdate">孩子出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkFieldOnBlur('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依孩子生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
+                      <div class="visit-field"><label for="child-birthdate">孩子出生年月日<small>必填</small></label><input id="child-birthdate" v-model="form.childBirthdate" name="childBirthdate" type="date" autocomplete="off" :min="earliestChildBirthdate(today)" :max="today" required :aria-invalid="Boolean(fieldErrors.childBirthdate)" aria-describedby="visit-birthdate-hint visit-birthdate-error" @blur="checkFieldOnBlur('childBirthdate')" @input="clearFieldError('childBirthdate')"><small id="visit-birthdate-hint" class="visit-field-hint">依孩子生日，協助了解適齡班別。</small><p id="visit-birthdate-error" class="visit-field-error">{{ fieldErrors.childBirthdate }}</p></div>
                     </div>
                     <fieldset class="visit-referrals visit-expected-start" aria-describedby="visit-expected-start-error"><legend>預計入學時間<small>選填</small></legend><div><label v-for="option in expectedStartChoices" :key="option.value"><input type="radio" name="expectedStart" :value="option.value" :checked="form.expectedStart === option.value" @click="toggleExpectedStart(option.value)" @keydown.space.prevent="toggleExpectedStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div><p id="visit-expected-start-error" class="visit-field-error">{{ fieldErrors.expectedStart }}</p></fieldset>
                   </section>

@@ -777,3 +777,71 @@ def test_stored_filename_is_cut_to_the_column_length_keeping_the_extension():
     cut = stored_filename(long)
     assert len(cut) == FILENAME_MAX and cut.endswith(".jpeg")
     assert len(stored_filename("x" * 400)) == FILENAME_MAX
+
+
+# ---------------------------------------------------------------------------
+# 影片 poster 失敗的錯誤訊息（2026-11-12 QA L20）
+# ---------------------------------------------------------------------------
+
+_FFMPEG_BANNER = (
+    "ffmpeg version 7.1.1 Copyright (c) 2000-2025 the FFmpeg developers\n"
+    "  built with Apple clang version 16.0.0 (clang-1600.0.26.6)\n"
+    "  configuration: --prefix=/opt/homebrew/Cellar/ffmpeg/7.1.1 --enable-shared --enable-pthreads "
+    "--enable-version3 --cc=clang --host-cflags= --host-ldflags= --enable-ffplay --enable-gnutls "
+    "--enable-gpl --enable-libaom --enable-libaribb24 --enable-libbluray --enable-libdav1d\n"
+    "  libavutil      59. 39.100 / 59. 39.100\n"
+    "  libavcodec     61. 19.101 / 61. 19.101\n"
+    "  libavformat    61.  7.100 / 61.  7.100\n"
+)
+_REAL_REASON = "[mov,mp4,m4a,3gp,3g2,mj2 @ 0x7f8] moov atom not found\n\nin.mp4: Invalid data found when processing input\n\n"
+
+
+def _failed_poster_error(monkeypatch, tmp_path, stderr: str) -> tuple[processing.ProcessingError, list[list[str]]]:
+    calls: list[list[str]] = []
+
+    def _fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 1, b"", stderr.encode())
+
+    monkeypatch.setattr(processing.subprocess, "run", _fake_run)
+    with pytest.raises(processing.ProcessingError) as caught:
+        processing.extract_video_poster(tmp_path / "in.mp4")
+    return caught.value, calls
+
+
+def test_poster_failure_keeps_the_real_reason_not_the_ffmpeg_banner(monkeypatch, tmp_path):
+    """原本取 stderr 的前 500 字，ffmpeg 的版本與編譯設定把真正的原因擠掉，後台卡片還被長文字撐開。"""
+    error, calls = _failed_poster_error(monkeypatch, tmp_path, _FFMPEG_BANNER + _REAL_REASON)
+
+    message = str(error)
+    assert "Invalid data found when processing input" in message and "moov atom not found" in message
+    assert "configuration:" not in message and "built with" not in message
+    assert "\n" not in message and len(message) <= 360
+    # 指令本身也不再印版本資訊，錯誤輸出只剩真正的訊息。
+    argv = calls[0]
+    assert "-hide_banner" in argv and argv[argv.index("-loglevel") + 1] == "error"
+
+
+def test_poster_failure_message_is_bounded_and_takes_the_tail(monkeypatch, tmp_path):
+    noisy = "".join(f"[h264 @ 0x1] error while decoding MB {i}\n" for i in range(400)) + "Conversion failed!\n"
+    error, _ = _failed_poster_error(monkeypatch, tmp_path, noisy)
+
+    message = str(error)
+    assert message.startswith("ffmpeg 抽幀失敗：") and message.endswith("Conversion failed!")
+    assert len(message) <= 360
+
+
+def test_ffprobe_calls_hide_the_banner_too(monkeypatch, tmp_path):
+    calls: list[list[str]] = []
+
+    def _fake_run(argv, **kwargs):
+        calls.append(list(argv))
+        return subprocess.CompletedProcess(argv, 1, b"", b"")
+
+    monkeypatch.setattr(processing.subprocess, "run", _fake_run)
+    video = tmp_path / "in.mp4"
+    video.write_bytes(b"\x00\x00\x00\x18ftypmp42")
+    processing.probe_video(video)
+    processing.probe_video_stream(video)
+    assert [c[0] for c in calls] == ["ffprobe", "ffprobe"]
+    assert all("-hide_banner" in argv for argv in calls)

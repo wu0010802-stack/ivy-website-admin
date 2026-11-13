@@ -42,9 +42,16 @@ export async function mountMosaic(canvas: HTMLCanvasElement, opts: MosaicOptions
   const layout = () => {
     dpr = Math.min(devicePixelRatio || 1, 2)
     W = box.clientWidth; H = box.clientHeight
+    // 容器收起來（display:none、整頁截圖時寬或高是 0）：沒有東西可取樣也畫不出來。離屏 canvas 高度會是 NaN／0，
+    // getImageData 在瀏覽器裡丟 IndexSizeError（2026-11-12）。清空格子、跳過這次；尺寸恢復時 ResizeObserver 會再呼叫一次。
+    const mw = 400, mh = Math.round(mw * H / W)
+    if (!(W > 0 && H > 0 && mh >= 1)) {
+      cells = []; cols = 0; rows = 0
+      ox = new Float32Array(0); oy = new Float32Array(0); vx = new Float32Array(0); vy = new Float32Array(0)
+      return
+    }
     canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr)
     // 字形遮罩：離屏畫「30」，取每一點的透明度
-    const mw = 400, mh = Math.round(mw * H / W)
     const m = document.createElement('canvas')
     m.width = mw; m.height = mh
     const g = m.getContext('2d', { willReadFrequently: true })!

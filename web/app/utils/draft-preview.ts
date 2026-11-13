@@ -1,6 +1,8 @@
 import type { SiteContent } from '../types/site-content'
 import { applyContentOverlay, type ContentOverlay } from './content-overlay'
 import type { MediaInfoMap, PublicMediaInfo } from './media-image'
+import { withoutSampleNews } from './news-content'
+import { publicCopy } from './public-copy'
 
 // 私有草稿預覽（/preview）的網址參數與消息上下架判斷。
 //
@@ -134,7 +136,12 @@ export function previewOverlay(content: SiteContent, overlay: ContentOverlay, da
       return [key, scheduled.payload as never]
     }))
   }
-  return { content: applyContentOverlay(content, next, media), hiddenNews }
+  // 和官網輸出同一條路（utils/published-content.ts）：沒有全站消息草稿時不沿用內建的示意消息，最後過一次
+  // publicCopy（原型來源說明拿掉、原文一字不差的幾段換成正式站的說法）。原本少了這一步，預覽的頁尾多一行
+  // 「官網設計提案…」、關於段與孩子的一天是舊句，和上線後不同（2026-11-12 QA M9）。
+  const merged = applyContentOverlay(content, next, media)
+  if (!next.home_news) merged.news = withoutSampleNews(merged.news)
+  return { content: publicCopy(merged), hiddenNews }
 }
 
 /** 後台素材清單（/admin/media 的 MediaAssetOut）裡預覽需要的欄位。 */

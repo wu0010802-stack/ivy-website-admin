@@ -190,3 +190,53 @@ describe('每頁最多 5 筆、同一個只送一次', () => {
     expect(sent.map((r) => r.path)).toEqual(['/a', '/b'])
   })
 })
+
+// 2026-11-12 QA L18：String.slice 以 UTF-16 單位截斷，截在 emoji（surrogate pair）中間會留下孤立的 high surrogate，
+// JSON.stringify 會把它寫成 \ud83d，後端存不進去、整筆回報 422 遺失。截斷點若落在 pair 中間就往前退一格。
+describe('截斷不切斷 emoji（surrogate pair）', () => {
+  const context = { source: 'web' as const, origin: 'https://site.example', pathname: '/x', release: 'build-1' }
+  const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/
+  const EMOJI = '😀'
+  /** 不會被遮蔽規則改寫的填充字（短單字加空白），剛好 n 個 UTF-16 單位。 */
+  const filler = (n: number) => 'ab '.repeat(Math.ceil(n / 3)).slice(0, n)
+
+  it('訊息：第 500 個單位剛好是 emoji 的前半，整個 emoji 拿掉', () => {
+    const built = buildClientError({ kind: 'E', message: filler(499) + EMOJI + 'tail' }, context)
+    expect(built.message).toBe(filler(499))
+    expect(built.message.length).toBe(499)
+    expect(LONE_SURROGATE.test(built.message)).toBe(false)
+    expect(validateClientError(built)).not.toBeNull()
+  })
+
+  it('堆疊、類型、路徑、版本都一樣', () => {
+    const built = buildClientError({
+      kind: 'K'.repeat(119) + EMOJI + 'tail',
+      message: 'm',
+      stack: filler(5999) + EMOJI + 'tail'
+    }, { ...context, pathname: '/a'.repeat(149) + 'x' + EMOJI + 'tail', release: 'r'.repeat(63) + EMOJI + 'tail' })
+    expect(built.kind).toBe('K'.repeat(119))
+    expect(built.stack).toBe(filler(5999))
+    expect(built.path).toBe('/a'.repeat(149) + 'x')
+    expect(built.release).toBe('r'.repeat(63))
+    for (const value of [built.kind, built.message, built.stack!, built.path, built.release!]) expect(LONE_SURROGATE.test(value)).toBe(false)
+    expect(validateClientError(built)).not.toBeNull()
+  })
+
+  it('emoji 完整落在上限內就保留，剛好用滿上限也不多切', () => {
+    const exact = filler(498) + EMOJI
+    expect(exact.length).toBe(500)
+    expect(buildClientError({ kind: 'E', message: exact + 'tail' }, context).message).toBe(exact)
+    expect(buildClientError({ kind: 'E', message: filler(498) + EMOJI }, context).message).toBe(exact)
+  })
+
+  it('沒超過上限的字串原樣不動，序列化後是合法 JSON 且還原得回來', () => {
+    const built = buildClientError({ kind: 'E', message: `按鈕壞了 ${EMOJI}${EMOJI}` }, context)
+    expect(built.message).toBe(`按鈕壞了 ${EMOJI}${EMOJI}`)
+    expect(JSON.parse(JSON.stringify(built)).message).toBe(built.message)
+  })
+
+  it('每個欄位的上限不變（純 ASCII 的長度仍等於上限）', () => {
+    const built = buildClientError({ kind: 'K'.repeat(300), message: filler(900), stack: 'at x (/_nuxt/a.js:1:2)\n' + filler(9000) }, { ...context, pathname: '/a'.repeat(400), release: 'r'.repeat(200) })
+    expect([built.kind.length, built.message.length, built.stack!.length, built.path.length, built.release!.length]).toEqual([120, 500, 6000, 300, 64])
+  })
+})

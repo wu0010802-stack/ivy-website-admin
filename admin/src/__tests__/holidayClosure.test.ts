@@ -2,6 +2,8 @@
 // 「寄停課通知」、操作紀錄搜尋詞展開。
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { computed, defineComponent, type Component } from 'vue'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
@@ -237,5 +239,36 @@ describe('操作紀錄搜尋詞展開', () => {
   it('空白回空陣列；最多 30 個詞', () => {
     expect(auditSearchTerms('   ')).toEqual([])
     expect(auditSearchTerms('的').length).toBeLessThanOrEqual(AUDIT_SEARCH_MAX_TERMS)
+  })
+
+  // 2026-11-12 QA L19：細節欄顯示的欄位名（家長稱呼、孩子姓名、預計入學時間…）是前端翻的，
+  // 後端只存代碼（fields: ["parent_name"]）；搜尋表少一張，搜那個詞就找不到。
+  it('細節欄顯示的欄位名、階段、聯絡方式等也能展開成代碼', () => {
+    expect(auditSearchTerms('家長稱呼')).toEqual(expect.arrayContaining(['家長稱呼', 'parent_name']))
+    expect(auditSearchTerms('孩子姓名')).toEqual(expect.arrayContaining(['child_name']))
+    expect(auditSearchTerms('預計入學時間')).toEqual(expect.arrayContaining(['expected_start']))
+    // 招生訪視的欄位、階段、建立方式，以及參觀後聯絡方式、帳密登入發生的地方、排除原因。
+    expect(auditSearchTerms('英文名字')).toEqual(expect.arrayContaining(['english_name']))
+    expect(auditSearchTerms('已預繳')).toEqual(expect.arrayContaining(['deposited']))
+    expect(auditSearchTerms('官網預約到場')).toEqual(expect.arrayContaining(['visit_request']))
+    expect(auditSearchTerms('當面')).toEqual(expect.arrayContaining(['in_person']))
+    expect(auditSearchTerms('重複')).toEqual(expect.arrayContaining(['duplicate']))
+    expect(auditSearchTerms('預約正常')).toEqual(expect.arrayContaining(['upcoming']))
+    expect(auditSearchTerms('顯示名稱')).toEqual(expect.arrayContaining(['display_name']))
+    expect(auditSearchTerms('在後台手動重寄')).toEqual(expect.arrayContaining(['admin']))
+    // 靠函式翻的狀態與通知種類（mediaStatus、publishJobStatus、notificationKindLabel），掃原始碼看不到，這裡直接驗。
+    expect(auditSearchTerms('處理中')).toEqual(expect.arrayContaining(['processing']))
+    expect(auditSearchTerms('已略過')).toEqual(expect.arrayContaining(['skipped']))
+    expect(auditSearchTerms('新的參觀預約')).toEqual(expect.arrayContaining(['visit_request_created']))
+  })
+
+  it('auditLabels.ts 裡細節欄用到的每一張 *_LABELS／*_STATUS 標籤表，都在 AUDIT_SEARCH_TABLES 裡', () => {
+    const source = readFileSync(join(__dirname, '../api/auditLabels.ts'), 'utf8')
+    const block = /const AUDIT_SEARCH_TABLES[\s\S]*?\n\]/.exec(source)?.[0] ?? ''
+    expect(block).toContain('AUDIT_ACTION_LABELS')
+    const body = source.replace(/^import[\s\S]*?\n\} from '\.\/labels'\n/m, '').replace(block, '')
+    const tables = new Set(body.match(/\b[A-Z][A-Z0-9_]*_(?:LABELS|STATUS)\b/g) ?? [])
+    for (const name of tables) expect(block, `${name} 沒進 AUDIT_SEARCH_TABLES`).toContain(name)
+    expect([...tables].length).toBeGreaterThan(10)
   })
 })

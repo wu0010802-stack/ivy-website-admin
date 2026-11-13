@@ -121,3 +121,59 @@ def test_hold_expiry_flow_is_gone():
     """占位逾期取消的流程已整個刪除，不會再有人把案件標成 hold_expired。"""
     assert not hasattr(workflow_service, "expire_holds")
     assert not hasattr(workflow_service, "confirm_with_slot")
+
+
+@pytest.mark.asyncio
+async def test_same_phone_cannot_book_the_same_slot_twice(admin_client, public_client):
+    """2026-11-12 QA M4／M5：回應在路上斷掉後重新整理再送、或成功後按上一頁再送一次，
+    都是新的 Idempotency-Key；同一家庭就占掉同一場次的兩個名額。同校同場次同一支手機
+    已經有一筆占名額的預約時回 409 ALREADY_BOOKED，不建第二筆。"""
+    slot_id = await create_slot(admin_client, capacity=3)
+    version = (await set_booking_mode(admin_client, "yihua", mode="slots")).json()["version"]
+    body = _body(version, slot_id=slot_id)
+
+    first = await public_client.post(f"{API}/public/visit-requests", json=body, headers={"Idempotency-Key": "dup-01"})
+    assert first.status_code == 201, first.text
+
+    # 換一把 key、內容一模一樣（重新整理後再送）；或換了孩子姓名（上一頁改一改再送）。
+    again = await public_client.post(f"{API}/public/visit-requests", json=body, headers={"Idempotency-Key": "dup-02"})
+    edited = await public_client.post(
+        f"{API}/public/visit-requests", json={**body, "child_name": "小安"}, headers={"Idempotency-Key": "dup-03"}
+    )
+    for response in (again, edited):
+        assert response.status_code == 409, response.text
+        assert response.json()["detail"]["code"] == "ALREADY_BOOKED"
+
+    listed = (await admin_client.get(f"{API}/admin/visit-requests?campus_key=yihua")).json()
+    assert [item["id"] for item in listed] == [first.json()["receipt_id"]]
+    # 原本那把 key 照樣重播同一張收據。
+    replay = await public_client.post(f"{API}/public/visit-requests", json=body, headers={"Idempotency-Key": "dup-01"})
+    assert replay.status_code == 200 and replay.json()["receipt_id"] == first.json()["receipt_id"]
+
+
+@pytest.mark.asyncio
+async def test_same_phone_can_book_another_slot_or_rebook_after_cancelling(admin_client, public_client):
+    """只擋「同一場次還占著名額」：別的場次、別支手機、或取消後再約同一場都照常。"""
+    slot_id = await create_slot(admin_client, capacity=3)
+    other_slot = await create_slot(admin_client, days_ahead=4, capacity=3)
+    version = (await set_booking_mode(admin_client, "yihua", mode="slots")).json()["version"]
+    body = _body(version, slot_id=slot_id)
+
+    async def submit(key: str, **changes):
+        return await public_client.post(
+            f"{API}/public/visit-requests", json={**body, **changes}, headers={"Idempotency-Key": key}
+        )
+
+    first = await submit("re-01")
+    assert first.status_code == 201, first.text
+    assert (await submit("re-02", slot_id=other_slot)).status_code == 201
+    assert (await submit("re-03", phone="0922333444")).status_code == 201
+
+    case_id = first.json()["receipt_id"]
+    detail = (await admin_client.get(f"{API}/admin/visit-requests/{case_id}")).json()
+    cancelled = await admin_client.post(
+        f"{API}/admin/visit-requests/{case_id}/cancel",
+        json={"expected_version": detail["version"], "reason": "家長來電取消"},
+    )
+    assert cancelled.status_code == 200, cancelled.text
+    assert (await submit("re-04")).status_code == 201

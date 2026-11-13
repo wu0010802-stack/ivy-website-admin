@@ -12,7 +12,7 @@
 // trustedClientIp 從 X-Forwarded-For 右邊取，不採信訪客可自填的最左段。
 import { apiProxyTarget, escapesApiPrefix, isMediaUploadPath, proxyBodyLimit } from '../../../../../shared/request-guard'
 import { boundariesGzip, isBoundariesRequest, jsonGzip } from '../../../../utils/gzip-boundaries'
-import { proxyApiRequest } from '../../../../utils/api-proxy'
+import { assertApiProxyMethod, proxyApiRequest } from '../../../../utils/api-proxy'
 import { streamProxy } from '../../../../utils/stream-proxy'
 
 const CLIENT_IP_HEADER = 'x-website-client-ip'
@@ -27,6 +27,8 @@ const MEDIA_PATH = /^\/(?:public|admin)\/media\//
 const SERVER_ONLY_PATH = /^\/+public\/+(?:telemetry|engagement|client-errors)\/*$/
 
 export default defineEventHandler(async (event) => {
+  // 方法白名單放最前面：不支援的方法（TRACE…）回 405，不進路徑判斷、不送上游。
+  assertApiProxyMethod(event)
   const config = useRuntimeConfig()
   const path = event.path.replace(/^\/api\/website\/v1/, '')
 

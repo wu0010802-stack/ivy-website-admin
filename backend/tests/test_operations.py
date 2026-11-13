@@ -6,8 +6,10 @@ from uuid import uuid4
 import pytest
 
 from app.booking.models import VisitRequest
+from app.common.timezones import today_local
 from app.operations import retention_service
 from tests.conftest import book_slot, create_slot, freeze_rate_limit_clock, legacy_request
+from tests.slot_helpers import move_slot_to_day
 
 
 # 預約表單要有已發布的同意文字（切 slots、官網送單）。
@@ -199,9 +201,11 @@ async def test_retention_does_not_touch_active_requests(admin_client, public_cli
 async def test_dashboard_lists_today_visits_and_draft_kinds(admin_client, public_client, db_session):
     """總覽要回答「今天誰要來」和「哪幾項內容還沒發布」，不是只給兩個數字。
     數字沒辦法讓櫃台直接打電話，也沒辦法讓編輯知道要點進哪一頁。"""
-    slot_id = await create_slot(admin_client, "yihua", days_ahead=0)
-    # 今天 10:00 的場次過了 10 點就不能再用確認端點排入（已開始的時段會回
-    # 409），這裡直接寫成已確認的案件，測試才不會因為執行時間而失敗。
+    # 建立場次的 API 不收已開始的場次，今天 10:00 的場次過了 10 點就建不起來：先建明天的再改成今天。
+    # 也因為已開始的時段不能再用確認端點排入（409），這裡直接寫成已確認的案件，
+    # 測試才不會因為執行時間而失敗。
+    slot_id = await create_slot(admin_client, "yihua", days_ahead=1)
+    await move_slot_to_day(db_session, slot_id, today_local())
     receipt_id = await legacy_request(
         db_session, status="confirmed", slot_id=slot_id, parent_name="陳媽媽"
     )

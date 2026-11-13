@@ -836,6 +836,27 @@ describe('2026-10-03 第八輪：兩位櫃台同時處理同一案件', () => {
       expect(String((error.mock.calls[0]![0] as { message: string }).message)).toBe('參觀還沒開始，不能標記')
     })
 
+    // 2026-11-12 QA L16：提示裡的「現在是…」和列表、明細頁首同一種寫法（預約時間已過・已到場），
+    // 不能只剩「預約時間已過」讓人以為還沒標記到場。
+    it('同事剛標記已到場、自己再按取消被擋：提示寫「預約時間已過・已到場」，和頁首一致', async () => {
+      const past = { id: 'slot-p', slot_date: '2020-01-01', start_time: '10:00:00', end_time: '11:00:00' }
+      let current = caseOf({ slot: past, slot_id: past.id, display_status: 'past' })
+      const wrapper = await mountDetail(() => current)
+      vi.spyOn(ElMessageBox, 'prompt').mockResolvedValue({ value: '' } as never)
+      vi.spyOn(api, 'post').mockImplementation(async () => {
+        current = caseOf({ slot: past, slot_id: past.id, status: 'completed', display_status: 'past', history: [event({ event_type: 'completed' })] })
+        throw new ApiError(409, { code: 'INVALID_TRANSITION', message: '這筆案件現在是「已到場」，不能取消' })
+      })
+      const warning = vi.spyOn(ElMessage, 'warning').mockImplementation((() => undefined) as never)
+      await wrapper.get('.detail__cancel').trigger('click')
+      await flushPromises()
+      const message = String((warning.mock.calls[0]![0] as { message: string }).message)
+      expect(message).toContain('現在是「預約時間已過・已到場」')
+      // 頁首同一個寫法：標籤「預約時間已過」＋副標「已到場」。
+      expect(wrapper.get('.detail__status .detail__status-sub').text()).toBe('已到場')
+      expect(wrapper.get('.detail__status').text()).toContain('預約時間已過')
+    })
+
     it('切回分頁超過 30 秒靜默重讀；同事剛改過就提示；打到一半的聯絡紀錄不被清掉', async () => {
       vi.useFakeTimers({ toFake: ['Date'] })
       vi.setSystemTime(new Date('2026-10-03T03:00:00Z'))

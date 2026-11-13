@@ -17,7 +17,7 @@ const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
 
 const campus = computed(() => campusKey.value ? data.value?.content.campuses.find((c) => c.key === campusKey.value) : undefined)
-const NOT_FOUND = { statusCode: 404, message: '找不到這個校區' }
+const NOT_FOUND = { statusCode: 404, statusMessage: 'Not Found', message: '找不到這個校區' }
 if (campusKey.value && !campus.value) throw createError(NOT_FOUND)
 // 頁面元件不重掛，setup 只跑一次：在頁內換到不存在的校區（手動改網址）也要回 404。
 watch(campusKey, (key) => { if (key && !campus.value) showError(NOT_FOUND) })

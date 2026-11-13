@@ -11,7 +11,7 @@ import { campusLabel, campusLabels, displayNameError, formatShortDateTime, outbo
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
 import DisplayNameField from '../components/DisplayNameField.vue'
-import { passwordHint, passwordOk, PASSWORD_MIN_LENGTH } from '../composables/passwordRules'
+import { passwordHint, passwordLength, passwordOk, PASSWORD_MIN_LENGTH } from '../composables/passwordRules'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { renameVisitStaff } from '../composables/useVisitStaff'
 import { ReauthCancelled, useRememberedReauth } from '../composables/useRememberedReauth'
@@ -129,7 +129,8 @@ watch(() => [form.role, form.campus_keys.length], () => { createErrors.campus = 
 
 // 密碼規則與後端相同（passwordRules.ts：12 字以上、UTF-8 不超過 72 bytes）。
 function passwordProblem(value: string): string {
-  if (value.length < PASSWORD_MIN_LENGTH) return `密碼至少要 12 個字元（目前 ${value.length} 字），可以按「產生密碼」`
+  const length = passwordLength(value)
+  if (length < PASSWORD_MIN_LENGTH) return `密碼至少要 12 個字元（目前 ${length} 字），可以按「產生密碼」`
   return passwordOk(value) ? '' : passwordHint(value)
 }
 

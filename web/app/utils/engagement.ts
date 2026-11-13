@@ -50,17 +50,18 @@ const SEARCH_HOSTS = /(^|\.)(google\.[a-z.]+|bing\.com|yahoo\.com|duckduckgo\.co
 const PAID_MEDIUM = /^(cpc|ppc|paid|paid_social|paidsocial|ads?|display|banner)$/i
 
 /**
- * 這次造訪從哪裡來，只分成幾種代碼，不保留來源網址。順序：廣告參數 → utm_source → 來源網站 →
- * App 內建瀏覽器（LINE、Facebook、Instagram 常不帶來源網站，從 User-Agent 認）→ 直接進站。
+ * 這次造訪從哪裡來，只分成幾種代碼，不保留來源網址。順序：廣告參數 → utm_source → fbclid（Instagram 的線索先於它）→
+ * 來源網站 → App 內建瀏覽器（LINE、Facebook、Instagram 常不帶來源網站，從 User-Agent 認）→ 直接進站。
  */
 export function classifySource(referrer: string, search: string, origin: string, userAgent = ''): EngagementSource {
   const params = new URLSearchParams(search)
   if (['gclid', 'gbraid', 'wbraid'].some((key) => params.has(key)) || PAID_MEDIUM.test(params.get('utm_medium') ?? '')) return 'ads'
   const named = bySourceName((params.get('utm_source') ?? '').toLowerCase())
   if (named) return named
-  if (params.has('fbclid')) return 'facebook'
   let host = ''
   try { if (referrer) { const url = new URL(referrer); host = url.origin === origin ? '' : url.hostname.toLowerCase() } } catch { /* 來源網址壞掉當作沒有 */ }
+  // Meta 在 Instagram 的外連連結上也會加 fbclid：Instagram 的線索（來源網站、沒有來源網站時的 App 內建瀏覽器）要先於 fbclid。
+  if (params.has('fbclid')) return /(^|\.)instagram\.com$/.test(host) || (!host && /Instagram/.test(userAgent)) ? 'instagram' : 'facebook'
   if (host) {
     if (SEARCH_HOSTS.test(host)) return 'search'
     if (/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(host)) return 'facebook'

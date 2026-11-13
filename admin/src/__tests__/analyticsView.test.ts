@@ -3,7 +3,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router'
+import { createPinia } from 'pinia'
+import type { Role } from '../api/types'
+import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import { testUser } from './fixtures'
 
 // 成效統計（2026-11-12）：18 張表分成四類、整頁共用一組期間與裝置，三個選擇都寫在網址。
 // 兩個面板各自讀資料（traffic.test.ts、engagement.test.ts），這裡換成只顯示收到的 props 的替身。
@@ -35,14 +39,16 @@ const SearchStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
 })
 
-async function mountView(query: LocationQueryRaw = {}) {
+async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
   await router.isReady()
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser(role, { campus_keys: role === 'super_admin' ? [] : ['yihua'] })
   const wrapper = mount(AnalyticsView, {
     attachTo: document.body,
     global: {
-      plugins: [router, ElementPlus],
+      plugins: [router, ElementPlus, pinia],
       stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub },
     },
   })
@@ -154,6 +160,20 @@ describe('成效統計的分類與條件', () => {
     await flushPromises()
     expect(crux().isVisible()).toBe(false)
     expect(search().isVisible()).toBe(false)
+  })
+
+  // 2026-11-12 QA M3：這兩支 API 要 admissions.stats（只有總管理者有），其他角色一律 403，
+  // 面板會永遠停在紅色的「請重新載入」。沒有這個權限就不放面板。
+  it.each(['campus_admin', 'editor', 'reception', 'readonly'] as const)('%s 看不到 Chrome 真實使用者與 Google 搜尋兩個面板', async (role) => {
+    const { crux, search, traffic, interest, tabs } = await mountView({}, role)
+    expect(traffic().exists()).toBe(true)
+    expect(interest().exists()).toBe(true)
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
   })
 
   it('Google 搜尋跟著整頁的期間；Chrome 真實使用者是 28 天滾動，不吃期間', async () => {

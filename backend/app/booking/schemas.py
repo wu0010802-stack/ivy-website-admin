@@ -39,6 +39,9 @@ _REFERRAL_SOURCE_ORDER = (
 )
 
 _PHONE_PATTERN = re.compile(r"09[0-9]{8}")
+# 全形數字（U+FF10–FF19）轉半形。刻意不用 NFKC：它還會把圈圈數字、上標數字也當成數字收進來，
+# 只想補輸入法切到全形時打出的數字。web/app/utils/visit-form.ts 的 normalizeVisitPhone 是同一張對照。
+_FULLWIDTH_DIGITS = {ord("０") + i: str(i) for i in range(10)}
 # 規格 190：「先移除空格與連字號」。含全形空白與各種破折號變體，家長從
 # 通訊錄貼過來的 0912-345-678 或 0912 345 678 都要能通過。
 _PHONE_STRIP_RE = re.compile(r"[\s\-\u2010-\u2015\u2212\uFF0D\u3000]")
@@ -88,12 +91,37 @@ ManualVisitSource = Literal["phone", "line", "walk_in", "external"]
 def normalize_phone(value: str) -> str:
     # 回傳正規化後的值：validator 的回傳值就是實際落庫的內容，這樣
     # DB 裡一律是乾淨的 10 碼，後台搜尋與匯出才不會被空格分岔。
-    normalized = _PHONE_STRIP_RE.sub("", value)
+    normalized = _PHONE_STRIP_RE.sub("", value.translate(_FULLWIDTH_DIGITS))
     # fullmatch 而不是 match：`$` 會允許結尾多一個換行，
     # "0912345678\n" 原本可以通過驗證。
     if not _PHONE_PATTERN.fullmatch(normalized):
         raise ValueError("手機號碼格式錯誤，需為 09 開頭的 10 碼數字")
     return normalized
+
+
+# 孩子生日的下限：今天（台北）往前 18 年。幼兒園 2–6 歲、課後班到國小，18 年很寬鬆，
+# 只擋 1900-01-01、打錯年份這類明顯的錯誤。web/app/utils/visit-form.ts 的 earliestChildBirthdate 是同一個規則。
+CHILD_BIRTHDATE_MAX_YEARS = 18
+
+
+def earliest_child_birthdate(today: date) -> date:
+    year = today.year - CHILD_BIRTHDATE_MAX_YEARS
+    try:
+        return today.replace(year=year)
+    except ValueError:  # 今天是 2/29、18 年前沒有 2/29：下限落在 2/28
+        return date(year, 2, 28)
+
+
+def check_child_birthdate(value: date | None) -> date | None:
+    """四個入口（官網送單、後台補登、家長改資料、後台改家長資料）共用：不能晚於今天，也不能早於 18 年前。"""
+    if value is None:
+        return value
+    today = today_local()
+    if value > today:
+        raise ValueError("寶貝出生日期不能晚於今天")
+    if value < earliest_child_birthdate(today):
+        raise ValueError("請確認寶貝的出生日期，年份看起來不太對")
+    return value
 
 
 # 自由文字不收控制字元（換行、歸位、TAB 除外）。PostgreSQL 的 text 不收 NUL，
@@ -285,10 +313,8 @@ class _VisitRequestFields(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("referral_sources")
     @classmethod
@@ -576,10 +602,8 @@ class ParentDetailsUpdate(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("expected_start", mode="before")
     @classmethod
@@ -659,10 +683,8 @@ class AdminDetailsUpdate(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("expected_start")
     @classmethod
@@ -911,8 +933,21 @@ class VisitContactNoteCreateRequest(BaseModel):
 
     @field_validator("note")
     @classmethod
-    def _note_no_control_chars(cls, value: str) -> str:
-        return _reject_control_chars(value)
+    def _note_not_blank(cls, value: str) -> str:
+        # 回傳值就是落庫的內容：前後空白不留，只有空白（含全形空格）的不收。
+        value = _reject_control_chars(value).strip()
+        if not value:
+            raise ValueError("請填寫聯絡內容")
+        return value
+
+    @field_validator("follow_up_at")
+    @classmethod
+    def _follow_up_has_timezone(cls, value: datetime | None) -> datetime | None:
+        # 沒有時區的時間會被當成 UTC，後台顯示差 8 小時。後台送出一律帶 +08:00，
+        # 缺時區就是送錯了，直接擋下，不猜時區。
+        if value is not None and value.tzinfo is None:
+            raise ValueError("下次聯絡時間需要包含時區，請重新選擇時間")
+        return value
 
     @property
     def clears_follow_up(self) -> bool:

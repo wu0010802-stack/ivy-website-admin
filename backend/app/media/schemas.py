@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.booking.schemas import has_control_chars
 from app.media.models import MediaKind, MediaStatus, VariantKind
 
 
@@ -87,14 +88,27 @@ class MediaUpdateRequest(BaseModel):
     license_note: str | None = Field(default=None, max_length=255)
     tags: list[str] | None = Field(default=None, max_length=20)
 
+    @field_validator("alt_text", "source_attribution", "caption", "license_note")
+    @classmethod
+    def _reject_control_chars(cls, value: str | None) -> str | None:
+        """PostgreSQL 的 text 不收 NUL，不擋會打到 UPDATE 才變成 500（2026-11-12 QA M2）。"""
+        if value is not None and has_control_chars(value):
+            raise ValueError("內容含有不允許的控制字元")
+        return value
+
     @field_validator("tags")
     @classmethod
     def _normalize_tags(cls, value: list[str] | None) -> list[str] | None:
-        """去頭尾空白、去空字串、去重（保留第一次出現的順序），每個最多 30 字。"""
+        """去頭尾空白、去空字串、去重（保留第一次出現的順序），每個最多 30 字。
+
+        不收控制字元：tags 是 JSON 欄，NUL 存得進去（\\u0000），但列表把它轉成 jsonb 時
+        PostgreSQL 拒收，整個素材庫與所有素材挑選器會一起 500（2026-11-12 QA M2）。"""
         if value is None:
             return None
         out: list[str] = []
         for tag in value:
+            if has_control_chars(tag):
+                raise ValueError("標籤含有不允許的控制字元")
             cleaned = tag.strip()
             if not cleaned:
                 continue

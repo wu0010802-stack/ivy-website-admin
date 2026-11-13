@@ -93,7 +93,7 @@ export function privacyPolicyDraft(): PrivacyPolicyPayload {
         heading: '5. Cookie 與類似技術',
         body: [
           '本網站使用網站運作必要的 cookie：',
-          '- ivy_parent_session：您開啟預約修改連結後設定，讓您在 2 小時內修改預約，只能由本網站的伺服器讀取。',
+          '- __Host-ivy_parent_session：您開啟預約修改連結後設定，讓您在 2 小時內修改預約，只能由本網站的伺服器讀取。',
           '- 員工登入後台時使用的登入 cookie，一般訪客不會收到。',
           '',
           '此外，本網站在您的瀏覽器分頁暫存三項不含個人資料的資料：開場動畫是否看過、首頁「孩子的一天」照片翻面動畫是否播過，以及第 4 節所說、用來統計同一次造訪的隨機代碼。關閉分頁後就會清除。',

@@ -336,6 +336,16 @@ async def update_user_active(
     db: AsyncSession = Depends(get_db_session),
 ) -> UserOut:
     require_scope(current_user, "users.manage")
+    if user_id == current_user.id and not payload.is_active:
+        # 後台畫面不給自己停用的入口；還有別的總管理者時「最後一位」的保護擋不到，
+        # 自己把自己停掉會立刻被登出，也沒有人能自助恢復。
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SELF_DEACTIVATE_FORBIDDEN",
+                "message": "不能停用自己的帳號，請另一位總管理者幫您處理",
+            },
+        )
     if payload.is_active:
         # 停用是止血動作，不擋；重新啟用一個帳號（可能是被停掉的後門）要重新驗證。
         await _require_recent_auth(request, db, current_user, session, payload.current_password)
@@ -429,6 +439,15 @@ async def update_user_role(
     require_scope(current_user, "users.manage")
     await _require_recent_auth(request, db, current_user, session, payload.current_password)
     user = await _load_user(db, user_id)
+    if user.id == current_user.id and payload.role != user.role:
+        # 同上：後台畫面不給自己改角色的入口。角色沒變（總管理者送出同一個角色）不是降級，照舊處理。
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "SELF_ROLE_CHANGE_FORBIDDEN",
+                "message": "不能變更自己的角色，請另一位總管理者幫您處理",
+            },
+        )
     _require_scope_for_role(payload.role, payload.campus_keys)
     before = {"role": user.role.value, "campus_keys": sorted(s.campus_key for s in user.campus_scopes)}
     try:
