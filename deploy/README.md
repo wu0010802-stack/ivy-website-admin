@@ -198,6 +198,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 手機效能上線：GA4／Pixel 等整頁載完才載入、特色教學手機首屏圖降一級（main CI 部署，沒有 migration）
+
+- **內容**：`dd2925cd`（README「2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級」）。只動 web，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43336343450 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `dd2925cd`。
+- **線上驗證**（Playwright 手機寬度，GA／Meta 的 beacon 與非 GET 請求全部攔下，沒有寫進統計）：首頁 hydration 完成時 `dataLayer` 已排好 `page_view`、文件裡沒有外部腳本，`load`（2.66 秒）之後約 1.2 秒才請求 `gtag/js` 與 `fbevents.js`；GA `page_view` 的 `dl` 為 `https://www.ivykidschool.com/`。第一頁是 `/visit/manage#…` 時完全不載。`/curriculum` 手機（390 寬、DPR3）首屏圖為 `cur-hero-…-1200.avif`（119 KB，原本 1600w 177 KB）。
+- **未驗證**：headless Chrome 裡 Pixel 不發 `facebook.com/tr`，Pixel 的 PageView 與 Lead 要用真瀏覽器在 Meta 事件管理工具確認；iOS Safari 實機未驗。
+
 ## 2026-11-12 環境頁崇德戶外廣場、國際中庭操場上線（main CI 部署，沒有 migration）
 
 - **內容**：`5eeb47ca`（README「2026-11-12 環境頁『五所校園』崇德與國際第一張換成校園實景」）。崇德溜滑梯換成戶外廣場；國際美語商店街拿掉，第一張改中庭操場、騎士堡移到第三張。
