@@ -198,6 +198,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 首屏影片從「抬頭大笑」開始上線（main CI 部署，沒有 migration）
+
+- **內容**：`142e5e6f`（README「2026-11-13 首屏影片從『抬頭大笑』開始」、`design/hero-mix-minghua-20261029/README.md` 第四版）。使用者在矮視窗（約 1288×552）看到首屏第一格幾乎都是老師的後腦。13 鏡的內容、裁切、相鄰順序不變，只把循環起點從老師擁抱轉到抬頭大笑；四支交付檔、封面與衍生圖、分享圖、替代文字（fixture 與 `overlay-baseline`）跟著換。只動 web 的內建素材，沒有改 API、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43387442516 全綠（web、admin、後端 3 組、E2E），Deploy 成功。之後同日的 `6c3a02e0`（PR #80）也已部署，內容包含這一版。
+- **線上驗證**（`release.json` 的 `base_commit` 為 `6c3a02e0` 時）：Playwright Chrome 1288×552、1440×900、390×844（統計、錯誤回報與第三方請求全部攔下）：桌機播 `hero-desktop-av1-04fdac6ecfc1.mp4`、手機播 `hero-mobile-0fb76986a924.mp4`，都在播放、片長 11.73 秒；封面載入 `hero-campus-restored-v1-still-8101759e1b7b-*.avif`；替代文字與 `og:image:alt` 是「常春藤的孩子抬起頭開心大笑的校園影片畫面」；三種視窗沒有橫向溢出、沒有 JS 錯誤。四支影片、封面母檔與分享圖下載後的 SHA-256 與 repo 相同。
+- **未驗證**：iOS／Android 實機、Safari；白字對比沒有重量（每一格畫面跟原本一樣，只是播放順序轉了）；社群平台對分享圖的快取要等它們自己更新。
+- **沒有一起上線的**：同一輪比稿的「常春藤的一天」背景片重剪（方案三仁武一支，Desktop 工作區 `design/day-film-recut-20261113/`）使用者還沒說要上。另一個 session 的首屏換橫式素材比稿（`design/hero-landscape-20261113/`）若定案，要以這一版的順序為基底。
+
 ## 2026-11-13 首頁早安入園、一起用餐與環境頁五顆心主照片換照上線（main CI 部署，沒有 migration）
 
 - **內容**：PR #80 合併為 `6c3a02e0`（README「2026-11-13 首頁拍立得兩張＋環境頁五顆心主照片換照」、DESIGN.md 同名段落）。只動 web 的內建照片與替代文字：`day-hello`（崇德粉專，娃娃車上兩個黃帽孩子）、`day-lunch`（義華粉專，兩個制服男孩吃粽子，正方形母檔）、`env-care-teacher`（園方雲端中秋節，園服老師扶幼幼班孩子，位置改 `50% 0%`）；入學頁首屏另立代號 `admission-hello`，維持兩個男孩那張。沒有改 API、後台、字表，沒有變數要改。
