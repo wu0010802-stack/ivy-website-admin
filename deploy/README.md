@@ -198,6 +198,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡、影片上的紗拿掉上線（main CI 部署，沒有 migration）
+
+- **內容**：`663fc05b`（PR #83，合併提交 `93257629`；README「2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡，影片上的紗拿掉」）。使用者逐幕挑鏡排了四輪、遮罩選「紗全部拿掉」，看過本機預覽後說「部署」。只動 web（兩支影片、兩張封面、`styles.css` 拿掉 `.day-film-shade`、圖說）與後台的內建圖說文字；沒有 migration、沒有變數要改。
+- **CI**：PR run 43434439283 全綠後 main 有別的合併造成 README 衝突，rebase 重推；第二輪 PR run 43436205583 全綠，推送自動起的 run 43436195322 被 PR 的 run 取代而 cancelled（必要檢查因此算失敗、擋住合併），重跑後全綠才合併，沒有用管理員權限；main run 43440121295 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `93257629`。
+- **線上驗證**：Playwright Chrome 1440×900、1440×560、390×844 開首頁捲到「常春藤的一天」（遙測與追蹤請求全部攔下）：桌機播 `day-desktop-0842954b3bac.mp4`（1440×810、26.30 秒）、手機播 `day-mobile-33bfbd263082.mp4`（720×1280），封面是新的兩張，頁面上沒有 `.day-film-shade`，圖說「明華校 · 仁武校」，沒有橫向捲動，console 只有被攔下的請求。
+- **未驗證／已知**：iOS／Android 實機、Safari、Firefox；紗拿掉後開場大標與圖說的背景對比（不計文字陰影）只有 1.20／1.60，是使用者看過後的選擇，文字陰影加上去之後沒有再量；片源是兩校粉專的 FB 版，不是園方原檔；是否知會明華、仁武校與片中家長待園方。
+- **待使用者**：圖說「明華校 · 仁武校」是我暫定的寫法，要換可以在後台「孩子的一天」改或告訴我。
+
 ## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」上線（main CI 部署，沒有 migration）
 
 - **內容**：`bf45683f`（PR #82，合併提交 `bf992f48`；README「2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」」）。使用者指定 `/visit` 的聯絡 Email 不要必填、表單上的「孩子」都改成「寶貝」。web 與 api 都有動（`VisitRequestCreate` 的 Email 改回選填、契約重產），沒有 migration、沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
