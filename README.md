@@ -1,3 +1,11 @@
+## 2026-11-13 後台「查看官網」開回後台自己（`fix/view-site-link-20261113`）
+
+11-12 後台搬到 `admin.ivykidschool.com` 之後，頁首「查看官網」點了仍是後台：連結是相對路徑 `/`，而後台主機的 `/` 會被 web 轉回 `/admin/`（`web/server/utils/admin-host.ts`）。首頁內容與五校介紹的「查看官網此頁」、發布成功提示裡的「查看官網」（`/`、`/#campuses`）同樣受影響；其他頁（`/about` 等）本來就會被 301 回官網，所以沒被發現。
+
+- 後端 `/auth/login`、`/auth/me` 的 `features` 多一個 `public_site_origin`（`WEBSITE_PUBLIC_ORIGIN`，沒設是 `null`）；契約已重新產生，沒有 migration。
+- 後台連到官網頁面的網址改由 `admin/src/composables/websiteLinks.ts` 的 `websitePageUrl` 組：有官網 origin 用絕對網址，沒有（同網域部署、本機開發）照舊。素材與草稿預覽 `/preview` 仍走後台主機。
+- 正式站 api 已設 `WEBSITE_PUBLIC_ORIGIN=https://www.ivykidschool.com`（11-12 部署紀錄），不用加變數。
+
 ## 2026-11-12 QA 報告的 9 條中度＋35 條輕度問題（`fix/qa-report-20261112`）
 
 依 11-12 的 QA 測試報告（main `04c0ce2`）逐條修正。沒有 migration、沒有改 API 欄位（契約不變）。

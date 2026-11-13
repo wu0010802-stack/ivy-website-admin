@@ -123,6 +123,7 @@ def _features(settings: Settings) -> FeatureFlags:
     return FeatureFlags(
         admissions=settings.admissions_enabled,
         password_reset_email=password_reset.email_enabled(settings),
+        public_site_origin=settings.public_origin,
     )
 
 

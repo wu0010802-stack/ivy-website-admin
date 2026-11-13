@@ -240,8 +240,28 @@ async def test_login_and_me_carry_admissions_feature_flag(app, db_session):
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
             login = await client.post("/api/website/v1/auth/login", json=creds)
             assert login.status_code == 200, login.text
-            assert login.json()["features"] == {"admissions": enabled, "password_reset_email": False}
+            expected = {"admissions": enabled, "password_reset_email": False, "public_site_origin": None}
+            assert login.json()["features"] == expected
             me = await client.get("/api/website/v1/auth/me")
             assert me.status_code == 200
-            assert me.json()["features"] == {"admissions": enabled, "password_reset_email": False}
+            assert me.json()["features"] == expected
             assert "features" not in me.json()["user"]
+
+
+@pytest.mark.asyncio
+async def test_login_and_me_carry_public_site_origin(app, db_session):
+    """後台在獨立子網域時（WEBSITE_PUBLIC_ORIGIN 有設），登入與 /auth/me 告訴後台官網在哪：
+    後台主機的「/」會轉回 /admin/，頁首「查看官網」不能再用相對路徑（2026-11-13）。"""
+    from app.main import create_app
+    from tests.conftest import _create_user, _test_settings
+
+    await _create_user(db_session, "origin@ivy.example", "origin-password-123", Role.SUPER_ADMIN)
+    creds = {"email": "origin@ivy.example", "password": "origin-password-123"}
+
+    split = create_app(_test_settings().model_copy(update={"public_origin": "https://www.ivy.example"}))
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=split), base_url="http://test") as client:
+        login = await client.post("/api/website/v1/auth/login", json=creds)
+        assert login.status_code == 200, login.text
+        assert login.json()["features"]["public_site_origin"] == "https://www.ivy.example"
+        me = await client.get("/api/website/v1/auth/me")
+        assert me.json()["features"]["public_site_origin"] == "https://www.ivy.example"

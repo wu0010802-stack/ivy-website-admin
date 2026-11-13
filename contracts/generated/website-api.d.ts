@@ -6980,6 +6980,8 @@ export interface components {
              * @default false
              */
             password_reset_email: boolean;
+            /** Public Site Origin */
+            public_site_origin?: string | null;
         };
         /** FollowUpListOut */
         FollowUpListOut: {
