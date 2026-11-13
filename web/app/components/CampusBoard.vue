@@ -630,8 +630,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，
              10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「Line」（2026-11-12 使用者要求由「LINE 好友」改短）；不要拿義華的 LINE 代填。 -->
         <div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">
-          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
-          <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
+          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
+          <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
           <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
           <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
         </div>
@@ -813,6 +813,11 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .social-row{display:flex;align-items:center;gap:8px 20px;color:var(--muted);font-size:var(--fs-sm);margin-top:7px;flex-wrap:wrap}
 .social-row a{display:inline-flex;align-items:center;min-height:44px;gap:8px}
 .social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
+/* 社群之間看起來等距（2026-11-13 使用者要求）：Line／Facebook 是畫到邊的品牌圖示（24 格滿版），Instagram／YouTube 是 Phosphor（256 格、
+   四邊各留 24 格）。同樣 20px 的框，前兩個看起來大一圈，Instagram 離前一個字、離自己的字也各多約 2px（量到 20／22、8／10）。
+   滿版的兩個縮成 Phosphor 的比例（208/256＝81.25%）再補回留白，框仍是 20px：三個圖示一樣大，間距都是 21.9／9.9。
+   只改這一列，sprite 不動（首頁故事、消息頁另外用到 Facebook 圖示，尺寸各自調過）。 */
+.social-row .icon-bleed{width:16.25px;height:16.25px;margin:1.875px}
 /* 四個社群連結在 318–423px 寬的欄裡會排成 3＋1，YouTube 單獨掉到第二行（390、760 實測，2026-10-13）：
    欄寬不到一排放得下的寬度時改成 2×2 對齊的兩欄。量的是聯絡欄本身（容器查詢），手機與平板兩欄版都適用；不支援 :has／容器查詢時照舊換行。 */
 .campus-contact{container-type:inline-size}
@@ -870,6 +875,10 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .contact-row{font-size:var(--fs-sm);gap:12px}
   .phone{font-size:var(--fs-2xl)}
   .social-row{font-size:var(--fs-sm);gap:8px 20px;margin-top:5px}
+  /* 手機單欄以三個社群為準（五校現況都是 Line／Facebook／Instagram）：三個攤滿整列、中間兩段留白相等，左緣對地址電話的圖示、右緣對下方預約鈕
+     （2026-11-13 使用者要求；原本靠左擠成一團、右邊空一塊）。column-gap 是下限：320 寬原本 20px 放不下會把 Instagram 擠到第二行。
+     390 是 430 寬手機的欄寬，再寬（橫放、小平板）就不再拉開。一、二、四個時照舊；不支援 :has（iOS 15.0–15.3）也照舊靠左。 */
+  .social-row:has(> :nth-child(3)):not(:has(> :nth-child(4))){justify-content:space-between;column-gap:6px;max-width:390px}
   .campus-actions{grid-column:auto;display:block;padding:0}
   .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm);white-space:normal}
   .booking-note{width:auto;margin-top:10px;text-align:start}
