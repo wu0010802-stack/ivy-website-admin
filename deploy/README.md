@@ -198,6 +198,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」上線（main CI 部署，沒有 migration）
+
+- **內容**：`bf45683f`（PR #82，合併提交 `bf992f48`；README「2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」」）。使用者指定 `/visit` 的聯絡 Email 不要必填、表單上的「孩子」都改成「寶貝」。web 與 api 都有動（`VisitRequestCreate` 的 Email 改回選填、契約重產），沒有 migration、沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：PR run 43430347627 全綠；推送自動起的 run 43430338770 被 PR 的 run 取代而 cancelled，重跑後全綠才合併；main run 43434517166 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、390×844 開 `/visit/yihua`（送單、統計請求全部攔下）：Email 欄位標「選填」、沒有 `required`，說明是「有填的話，確認信與修改連結會寄到這裡。」；區塊標題「寶貝資料」、欄位「寶貝姓名」「寶貝出生年月日」，表單裡沒有殘留「孩子」，沒有 JS 錯誤。API 用一筆必定驗證失敗的請求探測（電話與場次格式錯、不帶 Email）：422 只列 `phone`、`slot_id`，不再列 `email`。
+- **未驗證**：正式站有開 Turnstile，沒有在線上真的送出一筆不帶 Email 的預約（本機以假 API 送過、後端測試與 CI 的 stack E2E 有涵蓋）；iOS／Android 實機。
+- **待使用者**：後台已發布的隱私權政策第 2 段仍寫 Email 必填，要在後台改成選填後重新發布。
+
 ## 2026-11-13 首頁五校卡社群連結等距上線（main CI 部署，沒有 migration）
 
 - **內容**：`192595ea`（PR #81，合併提交 `f69029d9`；README「2026-11-13 首頁五校卡社群連結等距」）。使用者截圖指出 Line／Facebook／Instagram 間距不一樣，以三個為準、手機尤其要等距。只改 `web/app/components/CampusBoard.vue`：Line／Facebook 兩個滿版品牌圖示縮成 Phosphor 的比例，手機單欄剛好三個時攤滿整列。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
