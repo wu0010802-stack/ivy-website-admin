@@ -15,6 +15,15 @@ import { isCampusKey, isCtaEntry } from './cta-analytics'
 //      Pixel 以 fbq('consent','revoke') 暫停，連兩家自動送的事件（GA 的強化評估、Pixel 的自動事件）也擋下；
 //      離開後才恢復。
 // - Pixel 關掉 autoConfig（自動偵測按鈕點擊、頁面 metadata），預約表單有 Email、電話欄位，不讓它自動比對。
+// - 外部腳本延後載入（2026-11-12 手機效能）：gtag／fbq 的 queue stub 照舊在第一個可送事件的頁面就建好，事件先排進 queue，
+//   兩支外部腳本（共約 360 KB）等 defer 叫了才加進文件——外掛給的是 whenPageSettled（整頁 load 之後、主執行緒有空時）。
+//   原本 app:mounted 當下就載：慢速手機網路上和首屏照片、字型搶頻寬（內頁 LCP 晚 0.4–0.6 秒），
+//   執行又剛好落在 hydration 之後的第一秒（桌機 CPU 約 190ms，中階手機約四倍）。
+//   延後期間的規則：
+//   1. GA 的事件自帶 page_location，照常排進 dataLayer，腳本載入後原樣送出（中途換過頁也不會記錯網址）。
+//   2. Pixel 的 PageView 取的是腳本執行當下的網址，所以載入前不排進 queue，只記「有一次要送」，載入時補送一次（當下這一頁）。
+//   3. 輪到要載入時人在不送事件的頁面就不載，等離開（setPaused(false)）再載；這段期間也不把 consent revoke／grant 排進
+//      Pixel 的 queue（理由寫在 setPaused）。GA 的關閉開關只是 window 上的旗標，照常設。
 
 type Gtag = (...args: unknown[]) => void
 interface Fbq {
@@ -48,7 +57,6 @@ function setupGa(win: AnalyticsWindow, doc: Document, id: string): void {
   // send_page_view:false：config 不自動送 page_view，由換頁掛鉤自己送（page_location 已清洗）。
   // 關掉 Google 訊號與廣告個人化：這次不做 Google Ads，也就用不到 doubleclick／google.com 那幾個端點（CSP 沒放行）。
   win.gtag('config', id, { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false })
-  loadScript(doc, `${GA_SCRIPT_ORIGIN}/gtag/js?id=${encodeURIComponent(id)}`)
 }
 
 function setupPixel(win: AnalyticsWindow, doc: Document, id: string): void {
@@ -71,7 +79,32 @@ function setupPixel(win: AnalyticsWindow, doc: Document, id: string): void {
   // 要在 init 之前：關掉自動設定（自動事件、頁面 metadata）。
   win.fbq('set', 'autoConfig', false, id)
   win.fbq('init', id)
-  loadScript(doc, `${META_PIXEL_SCRIPT_ORIGIN}/en_US/fbevents.js`)
+}
+
+/** 什麼時候把外部腳本加進文件；預設馬上（單元測試與沒有特別要求的呼叫端）。 */
+export type DeferScripts = (inject: () => void) => void
+
+/**
+ * 整頁 load 之後、主執行緒有空時才叫 run（外掛用來延後 GA／Pixel 的外部腳本）。
+ * - 等 load：首屏照片、字型、hydration 都先跑完，第三方腳本不跟它們搶頻寬與主執行緒。
+ * - requestIdleCallback 給 2 秒上限：使用者一直在捲動也不會等不到。沒有這個 API 的瀏覽器（Safari）load 後固定等 1 秒。
+ * - 另有 8 秒保底：某個資源卡住讓 load 遲遲不來時照樣載入，不會整個工作階段都沒有統計。
+ */
+export function whenPageSettled(run: () => void, win: Window = window, doc: Document = document): void {
+  let done = false
+  const once = () => {
+    if (done) return
+    done = true
+    win.clearTimeout(fallback)
+    run()
+  }
+  const idle = () => {
+    if (typeof win.requestIdleCallback === 'function') win.requestIdleCallback(once, { timeout: 2000 })
+    else win.setTimeout(once, 1000)
+  }
+  const fallback = win.setTimeout(once, 8000)
+  if (doc.readyState === 'complete') idle()
+  else win.addEventListener('load', idle, { once: true })
 }
 
 export interface ThirdPartyAnalytics {
@@ -84,22 +117,48 @@ export interface ThirdPartyAnalytics {
 }
 
 /**
- * ids 至少有一個 ID。外部腳本等到第一個可送事件的頁面才載入（第一頁是預約修改頁就完全不載）。
+ * ids 至少有一個 ID。queue stub 等到第一個可送事件的頁面才建（第一頁是預約修改頁就完全不建、不載）；
+ * 外部腳本再等 defer 叫了才加進文件（預設馬上，外掛傳 whenPageSettled）。
  * win／doc 可替換，給單元測試用。
  */
-export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindow = window, doc: Document = document): ThirdPartyAnalytics {
+export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindow = window, doc: Document = document, defer: DeferScripts = inject => inject()): ThirdPartyAnalytics {
+  /** stub 已建、事件可以排進 queue。 */
   let loaded = false
+  /** defer 已經叫過 inject：可以載了（人在不送事件的頁面時先不載，離開再載）。 */
+  let due = false
+  /** 外部腳本已加進文件。 */
+  let injected = false
+  /** 外部腳本載入前有 Pixel PageView 要送（載入時補送一次）。 */
+  let pixelPageViewPending = false
   let paused = false
   let lastPath: string | null = null
   let lastLocation: string | null = null
 
+  function inject(): void {
+    due = true
+    if (injected || paused) return
+    injected = true
+    if (ids.gaMeasurementId) loadScript(doc, `${GA_SCRIPT_ORIGIN}/gtag/js?id=${encodeURIComponent(ids.gaMeasurementId)}`)
+    if (ids.metaPixelId) {
+      if (pixelPageViewPending) win.fbq?.('track', 'PageView')
+      pixelPageViewPending = false
+      loadScript(doc, `${META_PIXEL_SCRIPT_ORIGIN}/en_US/fbevents.js`)
+    }
+  }
+
   function setPaused(next: boolean): void {
     if (next === paused) return
     paused = next
+    // 進了不送事件的頁面：還沒送出的 Pixel PageView 作廢（離開後的那一頁自己會再送，不然補送時會算兩次）。
+    if (next) pixelPageViewPending = false
     if (!loaded) return
     // GA 的官方關閉開關：window['ga-disable-<評估 ID>'] 為 true 時不送任何資料。
     if (ids.gaMeasurementId) (win as unknown as Record<string, unknown>)[`ga-disable-${ids.gaMeasurementId}`] = next
-    if (ids.metaPixelId) win.fbq?.('consent', next ? 'revoke' : 'grant')
+    // Pixel 的暫停只在外部腳本加進文件之後才排：還沒載入本來就送不出任何東西，而且 fbevents.js 載入後清 queue 時
+    // 遇到 consent revoke 就停，排在後面的 grant 與事件會一直卡在 queue（2026-11-12 以正式站的 fbevents.js 實測）。
+    if (ids.metaPixelId && injected) win.fbq?.('consent', next ? 'revoke' : 'grant')
+    // 輪到載入時人在不送事件的頁面所以沒載：離開了，現在補載。
+    if (!next && due) inject()
   }
 
   function ensureLoaded(): void {
@@ -107,6 +166,7 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
     loaded = true
     if (ids.gaMeasurementId) setupGa(win, doc, ids.gaMeasurementId)
     if (ids.metaPixelId) setupPixel(win, doc, ids.metaPixelId)
+    defer(inject)
   }
 
   return {
@@ -133,7 +193,11 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
         // 第一次不帶 page_referrer，讓 GA 自己用 document.referrer 判斷來源；之後換頁才帶上一頁。
         win.gtag?.('event', 'page_view', { page_location: pageLocation, page_title: title, ...(lastLocation ? { page_referrer: lastLocation } : {}) })
       }
-      if (ids.metaPixelId) win.fbq?.('track', 'PageView')
+      if (ids.metaPixelId) {
+        // 腳本還沒載入：Pixel 送出時取的是當下網址，先記著，載入時補送一次（見檔頭說明）。
+        if (injected) win.fbq?.('track', 'PageView')
+        else pixelPageViewPending = true
+      }
       lastLocation = pageLocation
     }
   }

@@ -43,7 +43,14 @@ describe('內頁 hero 的 sizes', () => {
     expect(read('../app/composables/usePageSeo.ts')).toContain('curriculumHeroAttrs(site.value.curriculumPage)')
     expect(read('../app/components/CurriculumContent.vue')).toContain('curriculumHeroAttrs(page)')
     // 橫幅照片（2000×803）被裁成直一點的框，需要的寬度是「框高 × 寬高比」，不是框寬
-    expect(CURRICULUM_HERO_SIZES).toMatch(/^\(max-width: 900px\) (\d+vw|calc\(\(100vw - \d+px\) \* [\d.]+\)), \d+px$/)
+    // 2026-11-12：最前面多一條高密度手機（DPR 2.5 以上）的條件，寬度估成七成（1.34 × .7 ≈ .94），390 寬 DPR3 挑 1200w 不挑 1600w
+    const match = CURRICULUM_HERO_SIZES.match(/^\(max-width: 760px\) and \(min-resolution: 2\.5dppx\) calc\(\(100vw - (\d+)px\) \* ([\d.]+)\), \(max-width: 900px\) calc\(\(100vw - (\d+)px\) \* ([\d.]+)\), \d+px$/)
+    expect(match).not.toBeNull()
+    const [, densePad, denseFactor, pad, factor] = match!
+    expect(densePad).toBe(pad)
+    expect(Number(denseFactor)).toBeCloseTo(Number(factor) * 0.7, 2)
+    // 390 寬 DPR3：(390 − 40) × .94 × 3 ≈ 987 → 1200w；DPR2 走原本那條：350 × 1.34 × 2 ≈ 938 → 1200w
+    expect((390 - Number(densePad)) * Number(denseFactor) * 3).toBeLessThanOrEqual(1200)
   })
 
   it('找不到素材時不丟例外（CMS 代號是 __proto__ 也一樣）', () => {
