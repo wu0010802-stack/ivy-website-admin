@@ -212,6 +212,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
 - **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
 
+## 2026-11-13 環境頁「安全歡樂遊樂區」換成整座遊具全景照上線（main CI 部署，沒有 migration）
+
+- **內容**：`b4be838c`（README「2026-11-13 環境頁『安全歡樂遊樂區』換成整座遊具的全景照」）。只動 web：`env-space-playground` 母檔與響應式圖、`EnvironmentContent.vue` 的替代文字、圖片清單與環境頁兩份渲染快照。沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43386468274 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `b4be838c`。
+- **線上驗證**：`/environment` 的 HTML 指向新雜湊（`env-space-playground-7f9eb4d74f60-*.avif`、`-b2f7a461cc7f-*.webp`），替代文字是「孩子們在大型遊具旁溜滑梯、騎小車，一個男孩朝鏡頭走來」，舊雜湊與舊替代文字都不在；1600 寬的 AVIF 回 200（約 105 KB）。
+- **未驗證**：推之前本機沒跑 stack e2e（交給 CI，已過）；沒有在實機手機上看。
+
 ## 2026-11-13 支援 iOS 15（打包目標 Safari 15.4、不用 import map）與錯誤回報不收爬蟲上線（main CI 部署，沒有 migration）
 
 - **內容**：`218a6442`（README「2026-11-13 iOS 15 的手機整站 500」、DESIGN.md 最上面一段）。只動 web：`nuxt.config.ts` 的打包目標、兩處原始碼、各樣式檔檔尾的 `@supports not` 後備、`/api/client-errors` 擋爬蟲的 User-Agent。沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
