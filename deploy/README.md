@@ -198,6 +198,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-13 首頁早安入園、一起用餐與環境頁五顆心主照片換照上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #80 合併為 `6c3a02e0`（README「2026-11-13 首頁拍立得兩張＋環境頁五顆心主照片換照」、DESIGN.md 同名段落）。只動 web 的內建照片與替代文字：`day-hello`（崇德粉專，娃娃車上兩個黃帽孩子）、`day-lunch`（義華粉專，兩個制服男孩吃粽子，正方形母檔）、`env-care-teacher`（園方雲端中秋節，園服老師扶幼幼班孩子，位置改 `50% 0%`）；入學頁首屏另立代號 `admission-hello`，維持兩個男孩那張。沒有改 API、後台、字表，沒有變數要改。
+- **CI**：PR run 43388304273 全綠（含 stack）；合併被「base branch policy」擋住是因為推送自動起的 run 43388298528 被 PR 的 run 取代而 cancelled，`gh run rerun` 跑綠後放行，沒有用 `--admin`。main run 43391991151 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `6c3a02e0`。
+- **線上驗證**：Playwright Chrome 1440×900 與 390×844（統計、錯誤回報與第三方請求全部攔下）：首頁「早安入園」「一起用餐」兩張拍立得是新照片；`/environment` 五顆心主照片是新照片、替代文字已換、`object-position: 50% 0%`，桌機與手機都看得到老師與孩子的臉；`/admission` 首屏載入 `admission-hello-*`（兩個男孩）、「新生準備」首部曲縮圖是吃粽子那張；三頁都沒有 JS 錯誤。舊檔 `day-hello-03d1cd251836-1600.webp` 回 404。
+- **同日在正式站後台發布、不在這次程式裡的兩項**：孩子的一天「美語時光」換成外師拿 snowman 字卡（素材庫 `e919be7f…`，day_experience 第 4 版）；義華校園探索「綠色園藝」換成「生態花園」（內建 `tour-yihua-pond`，campus_tour yihua 第 2 版，順序戶外廣場 → 共創教室 → 生態花園）。舊的美語時光素材 `462a6bc0…` 還在素材庫，沒有刪。
+- **未驗證**：iOS／Safari 實機沒看；粉專來源的兩張拍立得原圖最寬 1477–1536px，高解析螢幕放大看會比其他幾張軟一點。
+- **後續**：帶故事回家（`day-home`）與義華戶外廣場（`campus`）使用者還沒選定替換的照片，候選在本機 `output/photo-swap-20261113/粉專候選.jpg`（C、E 兩排）。三張新照片與美語時光都有孩子或家長、老師的臉，肖像同意與粉專照片的使用要園方確認。
+
 ## 2026-11-13 素材庫改存 Cloudflare R2（只改 Railway 變數，沒有程式變更、沒有 migration）
 
 - **結果**：正式站 api 自 11:05（台北）起 `WEBSITE_MEDIA_STORAGE=s3`，素材上傳、讀取、刪除都走 R2 bucket `ivy-website-media`（Asia-Pacific、Standard、不公開；與資料庫備份的 `ivy-website-db-backups` 同一個 Cloudflare 帳號，各自獨立）。讀檔仍經 API 串流，網址與快取標頭不變。步驟照下方「素材改存 S3 相容物件儲存」。
