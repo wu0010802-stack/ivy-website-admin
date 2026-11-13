@@ -1,3 +1,12 @@
+## 2026-11-13 首頁五校卡社群列手機改回靠左（`fix/social-row-left-20261113`）
+
+使用者看過同日稍早上線的「手機三個攤滿整列」後截圖指定：手機版往左靠。
+
+- `CampusBoard.vue`：拿掉手機單欄（700px 以下）剛好三個時的 `justify-content:space-between` 與 `max-width:390px`。三個社群靠左、左緣對地址電話的圖示，兩段間距都是 20px（360／375／390／414／430 寬量到 20／20）。
+- 320 級窄機 20px 放不下（三個要 279px、欄寬只有 272px）會把 Instagram 擠到第二行，所以 340px 以下且剛好三個時收成 12px（320 寬量到 12／12，仍在同一行）。
+- 圖示等大（`icon-bleed`）與桌機沒動；「手機三個攤滿整列」不要再主動提。
+- 驗證：typecheck、`npm run test:website` 2295 過、Playwright 320／360／375／390／414／430／600／700 量位置與間距並截圖（fixture 的義華有四個社群，三個的情形是腳本移掉 YouTube 後量的）。e2e 未跑、iOS／Android 實機未驗。
+
 ## 2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡，影片上的紗拿掉（`feature/day-film-mix-20261113`）
 
 使用者逐幕挑鏡、排了四輪順序（比稿與每一輪的指示在 `design/day-film-mix-20261113/README.md`）。遮罩在比稿頁先選「紗拿掉＋影片不壓暗」，看過本機預覽後改成「紗全部拿掉」（影片維持壓暗）。
@@ -8,6 +17,7 @@
 - 圖說「明華校 · 仁武校」（fixture、`overlay-baseline`、後台 `DayExperienceView.vue` 三處）。
 - 驗證：`npm --prefix web run typecheck`、`npm run test:website` 150 檔 2292 過、後端 `tests/test_media_slots.py` 21 過（自己的測試庫）、fixture dev server 用 Playwright 看 1440×900／1440×560／390×844（新片有播、沒有紗、沒有 console 錯誤與橫向捲動）。
 - **沒驗／已知**：紗拿掉後開場大標、圖說直接壓在亮的影片上，量到的背景對比（不計文字陰影）大標 1.20、圖說 1.60，遠低於 4.5——使用者看過比稿與本機預覽後的選擇；陰影加上去之後沒有再量。admin 測試、e2e、stack、實機都沒跑。
+
 
 ## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」（`feature/visit-email-optional-20261113`）
 

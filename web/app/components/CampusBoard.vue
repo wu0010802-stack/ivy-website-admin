@@ -875,10 +875,10 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .contact-row{font-size:var(--fs-sm);gap:12px}
   .phone{font-size:var(--fs-2xl)}
   .social-row{font-size:var(--fs-sm);gap:8px 20px;margin-top:5px}
-  /* 手機單欄以三個社群為準（五校現況都是 Line／Facebook／Instagram）：三個攤滿整列、中間兩段留白相等，左緣對地址電話的圖示、右緣對下方預約鈕
-     （2026-11-13 使用者要求；原本靠左擠成一團、右邊空一塊）。column-gap 是下限：320 寬原本 20px 放不下會把 Instagram 擠到第二行。
-     390 是 430 寬手機的欄寬，再寬（橫放、小平板）就不再拉開。一、二、四個時照舊；不支援 :has（iOS 15.0–15.3）也照舊靠左。 */
-  .social-row:has(> :nth-child(3)):not(:has(> :nth-child(4))){justify-content:space-between;column-gap:6px;max-width:390px}
+  /* 手機單欄社群列靠左，和上面地址、電話的左緣對齊，三個之間留一樣的 20px（2026-11-13 使用者要求；同日稍早做過的「三個攤滿整列」拿掉）。
+     剛好三個（五校現況都是 Line／Facebook／Instagram）時 20px 要欄寬 279px 才放得下，也就是視窗 327 以上；
+     320 級的窄機會把 Instagram 擠到第二行，所以 340 以下收成 12px。不支援 :has（iOS 15.0–15.3）就照上一條的 20px。 */
+  @media(max-width:340px){.social-row:has(> :nth-child(3)):not(:has(> :nth-child(4))){column-gap:12px}}
   .campus-actions{grid-column:auto;display:block;padding:0}
   .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm);white-space:normal}
   .booking-note{width:auto;margin-top:10px;text-align:start}
