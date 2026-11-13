@@ -31,8 +31,10 @@ export const HOME_HERO_SIZES = '100vw'
  * 入學資訊頁首屏照片；2026-09-28 入學護照版起不是滿版，見 admissionHeroImage()。
  * 2026-11-12 早上曾換成逆光女孩 admission-hero，同日使用者要改回「早安」兩個男孩手牽手；
  * 逆光女孩移到「新生準備」02 快樂曲的縮圖（AdmissionContent.vue PHASE_PHOTOS）。
+ * 2026-11-13 首頁「早安入園」拍立得換照（day-hello 改成背書包牽手走進校園），這裡要留兩個男孩，
+ * 所以另立代號 admission-hello（母檔就是換照前的 day-hello），兩處不再共用同一張。
  */
-export const ADMISSION_HERO_IMAGE = 'day-hello'
+export const ADMISSION_HERO_IMAGE = 'admission-hello'
 
 /** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'

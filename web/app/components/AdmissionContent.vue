@@ -120,7 +120,7 @@ const babyTone = computed(() => (plan.value?.status === 'young' ? 'red' : 'green
 
 // ---------- 03 新生準備 ----------
 const PHASE_PHOTOS = [
-  { name: 'day-lunch', alt: '兩個女孩坐在樹下，捧著小碗吃點心' },
+  { name: 'day-lunch', alt: '兩個穿制服的男孩並肩坐著，捧著綠色小碗吃粽子' },
   { name: 'admission-hero', alt: '女孩站在逆光裡，抬頭笑開了嘴' }
 ]
 /** 必備品勾選（不存）：勾起來那一行蓋「已備」小方章，取消就拿起。 */

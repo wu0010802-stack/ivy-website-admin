@@ -317,28 +317,29 @@
     "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/day-hello-03d1cd251836-160.webp",
+        "src": "/assets/responsive/day-hello-206c04373992-160.webp",
         "width": 160,
-        "avif": "/assets/responsive/day-hello-eae2adb45865-160.avif"
+        "avif": "/assets/responsive/day-hello-4baeae4871c3-160.avif"
       },
       {
-        "src": "/assets/responsive/day-hello-03d1cd251836-480.webp",
+        "src": "/assets/responsive/day-hello-206c04373992-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/day-hello-eae2adb45865-480.avif"
+        "avif": "/assets/responsive/day-hello-4baeae4871c3-480.avif"
       },
       {
-        "src": "/assets/responsive/day-hello-03d1cd251836-800.webp",
+        "src": "/assets/responsive/day-hello-206c04373992-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/day-hello-eae2adb45865-800.avif"
+        "avif": "/assets/responsive/day-hello-4baeae4871c3-800.avif"
       },
       {
-        "src": "/assets/responsive/day-hello-03d1cd251836-1200.webp",
+        "src": "/assets/responsive/day-hello-206c04373992-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/day-hello-eae2adb45865-1200.avif"
+        "avif": "/assets/responsive/day-hello-4baeae4871c3-1200.avif"
       },
       {
-        "src": "/assets/responsive/day-hello-03d1cd251836-1600.webp",
-        "width": 1600
+        "src": "/assets/responsive/day-hello-206c04373992-1600.webp",
+        "width": 1600,
+        "avif": "/assets/responsive/day-hello-4baeae4871c3-1600.avif"
       }
     ]
   },
@@ -373,32 +374,33 @@
     ]
   },
   "day-lunch": {
-    "width": 1600,
-    "height": 1200,
+    "width": 1536,
+    "height": 1536,
     "candidates": [
       {
-        "src": "/assets/responsive/day-lunch-eca1565bfe20-160.webp",
+        "src": "/assets/responsive/day-lunch-aa66d254ebc9-160.webp",
         "width": 160,
-        "avif": "/assets/responsive/day-lunch-a3d785f11800-160.avif"
+        "avif": "/assets/responsive/day-lunch-567f112b410f-160.avif"
       },
       {
-        "src": "/assets/responsive/day-lunch-eca1565bfe20-480.webp",
+        "src": "/assets/responsive/day-lunch-aa66d254ebc9-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/day-lunch-a3d785f11800-480.avif"
+        "avif": "/assets/responsive/day-lunch-567f112b410f-480.avif"
       },
       {
-        "src": "/assets/responsive/day-lunch-eca1565bfe20-800.webp",
+        "src": "/assets/responsive/day-lunch-aa66d254ebc9-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/day-lunch-a3d785f11800-800.avif"
+        "avif": "/assets/responsive/day-lunch-567f112b410f-800.avif"
       },
       {
-        "src": "/assets/responsive/day-lunch-eca1565bfe20-1200.webp",
+        "src": "/assets/responsive/day-lunch-aa66d254ebc9-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/day-lunch-a3d785f11800-1200.avif"
+        "avif": "/assets/responsive/day-lunch-567f112b410f-1200.avif"
       },
       {
-        "src": "/assets/responsive/day-lunch-eca1565bfe20-1600.webp",
-        "width": 1600
+        "src": "/assets/responsive/day-lunch-aa66d254ebc9-1536.webp",
+        "width": 1536,
+        "avif": "/assets/responsive/day-lunch-567f112b410f-1536.avif"
       }
     ]
   },
@@ -964,29 +966,29 @@
     "height": 1200,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-480.webp",
+        "src": "/assets/responsive/env-care-teacher-16f07b099552-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-teacher-30de790b2503-480.avif"
+        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-800.webp",
+        "src": "/assets/responsive/env-care-teacher-16f07b099552-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-care-teacher-30de790b2503-800.avif"
+        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-800.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-1200.webp",
+        "src": "/assets/responsive/env-care-teacher-16f07b099552-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-care-teacher-30de790b2503-1200.avif"
+        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-1600.webp",
+        "src": "/assets/responsive/env-care-teacher-16f07b099552-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/env-care-teacher-30de790b2503-1600.avif"
+        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-1600.avif"
       },
       {
-        "src": "/assets/responsive/env-care-teacher-e0497f7d0b49-2640.webp",
+        "src": "/assets/responsive/env-care-teacher-16f07b099552-2640.webp",
         "width": 2640,
-        "avif": "/assets/responsive/env-care-teacher-30de790b2503-2640.avif"
+        "avif": "/assets/responsive/env-care-teacher-44632b3d804d-2640.avif"
       }
     ]
   },
@@ -3049,6 +3051,32 @@
         "src": "/assets/responsive/tour-international-court-dab18a4b3d70-1477.webp",
         "width": 1477,
         "avif": "/assets/responsive/tour-international-court-589e6c35f298-1477.avif"
+      }
+    ]
+  },
+  "admission-hello": {
+    "width": 1600,
+    "height": 1200,
+    "candidates": [
+      {
+        "src": "/assets/responsive/admission-hello-01737a8bb7d7-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/admission-hello-47ef0e674e0f-480.avif"
+      },
+      {
+        "src": "/assets/responsive/admission-hello-01737a8bb7d7-800.webp",
+        "width": 800,
+        "avif": "/assets/responsive/admission-hello-47ef0e674e0f-800.avif"
+      },
+      {
+        "src": "/assets/responsive/admission-hello-01737a8bb7d7-1200.webp",
+        "width": 1200,
+        "avif": "/assets/responsive/admission-hello-47ef0e674e0f-1200.avif"
+      },
+      {
+        "src": "/assets/admission-hello.webp",
+        "width": 1600,
+        "avif": "/assets/responsive/admission-hello-47ef0e674e0f-1600.avif"
       }
     ]
   }
