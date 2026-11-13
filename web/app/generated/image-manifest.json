@@ -501,19 +501,19 @@
     "height": 800,
     "candidates": [
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-480.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-98a051914a26-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-480.avif"
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-8101759e1b7b-480.avif"
       },
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-800.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-98a051914a26-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-800.avif"
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-8101759e1b7b-800.avif"
       },
       {
-        "src": "/assets/responsive/hero-campus-restored-v1-still-100a072566f2-1080.webp",
+        "src": "/assets/responsive/hero-campus-restored-v1-still-98a051914a26-1080.webp",
         "width": 1080,
-        "avif": "/assets/responsive/hero-campus-restored-v1-still-37c62c460cbc-1080.avif"
+        "avif": "/assets/responsive/hero-campus-restored-v1-still-8101759e1b7b-1080.avif"
       }
     ]
   },
