@@ -212,6 +212,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
 - **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
 
+## 2026-11-13 預約選校卡點一下就進第二步、桌機金色膠囊移到卡片左上角上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #79 合併為 `90bc6139`（README「2026-11-13 預約選校卡點一下就進去、桌機不再空一行」、DESIGN.md 最上面一段）。只動 web 預約頁第一步（`VisitForm.vue`、`visit-booking.css`）、`telemetry.client.ts` 一行與測試，沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「幫我併入 main」後照 PR 合併，沒有用管理者權限：推送時自動起的那組 run 被 PR 的 run 取代而取消，必要檢查算沒過，重跑那一組（43377281990）轉綠後才併。
+- **CI**：PR run 43377288921 全綠（含 stack）；main run 43381096616 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `90bc6139`。第一輪 PR run 後端第 3 組 `test_rate_limits.py::test_failed_logins_are_counted_even_though_request_rolls_back` 紅過一次，之後三輪都過，這次沒有動後端。
+- **線上驗證**（Playwright，統計、第三方與所有非 GET 請求全部攔下，沒有留資料）：`/visit` 桌機 1440×900 五張卡都是連結、沒有「下一步」；校名同一條線、撥號同一條線（只撥號的四校不再空一行），金色「可線上預約」只在義華、位於卡片左上角 14／14px；點明華撥號只撥號不換頁，點崇德卡片照片進「歡迎與崇德校聯絡」，按「更換校區」回來焦點在崇德；點義華進表單。換步驟沒有送出 `visit_click`／`booking_cta_clicked`，撥號照常送 `cta_click_phone`（被攔下）。手機 390×664 沒有黏底列、沒有橫向溢出，第一屏兩張完整選校卡，點義華卡右側進 `/visit/yihua`。
+- **未驗證**：iOS／Android 實機（觸控點卡片與撥號膠囊的範圍、VoiceOver 讀卡片連結）；LINE、外部網站兩種預約方式的卡片只有 CI 的 stack 測過（正式站五校目前是自選場次與來電）。
+
 ## 2026-11-13 手機預約頁色帶放回照片與「預約參觀」淡字上線（main CI 部署，沒有 migration）
 
 - **內容**：`c3589836`（README「2026-11-13 手機預約頁色帶」、DESIGN.md 最上面一段）。只動 web 預約頁第一步 760px 以下的色帶樣式與歡迎照的 `sizes`，沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
