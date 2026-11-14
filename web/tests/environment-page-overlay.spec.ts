@@ -6,7 +6,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { EnvironmentPageContent, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveEnvironmentPage } from '../app/utils/content-overlay'
 import { environmentHeroAttrs, type MediaInfoMap } from '../app/utils/media-image'
-import { ENVIRONMENT_HERO_IMAGE, environmentHeroImage } from '../app/utils/responsive-image'
+import { ENVIRONMENT_HERO_ARCH_IMAGE, ENVIRONMENT_HERO_IMAGE, environmentHeroImage } from '../app/utils/responsive-image'
 import { PAGE_COUNTS } from '../app/utils/page-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
@@ -21,6 +21,8 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
+// 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
+vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
 
 const site = fixture as unknown as SiteContent
 const HERO = '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c'
@@ -229,8 +231,9 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     const html = await render(overlay(livePayload(), media))
     const health = img(html, '老師幫戴著口罩的孩子確認身體狀況')
     expect(health).toContain('/assets/responsive/env-care-health')
-    // 2026-10-30 木頭積木版：五件照顧的小事照片裝在積木形狀裡，內建位置跟著形狀調（第一張拱形）
-    expect(health).toContain('object-position:33% 50%')
+    // 2026-10-30 木頭積木版：五件照顧的小事照片裝在積木形狀裡，內建位置跟著形狀調（第一張拱形）。
+    // 2026-11-13 母檔重裁成 4:5、拱框看到的那一段落在正中，位置從 33% 改成 50%（取景不變）
+    expect(health).toContain('object-position:50% 50%')
     expect(img(html, '兩個孩子在教室裡緊緊抱在一起')).toContain('/assets/')
     expect(img(html, '戴著聖誕帽的孩子握著小木槌，專心敲著桌上的彩色木樁')).toContain('env-care-teacher')
     expect(html).not.toContain('/api/website/v1/public/media/')
@@ -255,7 +258,9 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     expect(html).not.toContain('老師幫戴著口罩的孩子確認身體狀況')
     expect(img(html, '男孩拿著湯匙，從紅色碗裡舀飯吃')).toContain('object-position:58% 30%')
     // 首屏換了照片：內建首屏圖不再出現
+    // 內建照片（橫幅原圖，以及 2026-11-13 起官網實際載入的那張裁好的直幅）都不再出現
     expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_IMAGE}.webp`)
+    expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_ARCH_IMAGE}.webp`)
     expect(img(html, '素材庫的首屏說明')).toContain(`/media/${HERO}/file`)
     // 素材沒設焦點：置中，不沿用內建首屏圖的 CSS 位置
     expect(img(html, '素材庫的首屏說明')).toContain('object-position:50% 50%')
@@ -269,9 +274,9 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     // 2400×1200 的 2:1 照片塞進約 4:5 的赤陶拱窗，左右被裁，要畫的寬度是框寬 × (2 ÷ 0.8)
     expect(attrs.width).toBe(2400)
     const wide = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 2400, height: 1200, variants: [{ kind: 'thumbnail', width: 480, height: 240 }, { kind: 'large', width: 1600, height: 800 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 2.5), 1200px')
+    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 640px) calc((100vw - 74px) * 2.5), (max-width: 900px) calc(42vw * 2.5), 1200px')
     // 不比 4:5 寬的照片不放大
     const tall = overlay({ ...livePayload(), hero_photo: { media_id: CARE } }, { ...media, [CARE]: info(CARE, { width: 1200, height: 1600, variants: [{ kind: 'thumbnail', width: 360, height: 480 }, { kind: 'large', width: 900, height: 1200 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 1), 480px')
+    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 640px) calc((100vw - 74px) * 1), (max-width: 900px) calc(42vw * 1), 480px')
   })
 })

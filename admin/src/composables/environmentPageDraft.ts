@@ -27,7 +27,7 @@ export const ENVIRONMENT_BUILTIN_PHOTOS = {
 // 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，這裡給最接近的矩形比例預覽裁切（形狀的圓角另外再裁掉一點邊緣）
 export const ENVIRONMENT_PHOTO_PREVIEWS = {
   hero: [{ label: '官網裁切（赤陶拱窗，約 4:5）', ratio: '4 / 5' }],
-  care: [{ label: '官網裁切（桌機 2.75:1）', ratio: '2.75 / 1' }, { label: '手機（2.2:1）', ratio: '2.2 / 1' }],
+  care: [{ label: '官網裁切（桌機 2.75:1）', ratio: '2.75 / 1' }, { label: '手機（1.7:1）', ratio: '1.7 / 1' }],
   feature: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
   careItem: [{ label: '官網裁切（約 4:5）', ratio: '4 / 5' }],
   space: [{ label: '官網裁切（約 1:1）', ratio: '1 / 1' }],

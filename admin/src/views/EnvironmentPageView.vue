@@ -48,7 +48,7 @@ const navSections = computed<EditorSection[]>(() => [
 // 其餘內文類欄位是系統字，不需要缺字提示。「大標裡畫螢光的字」是大標的一段，不另外檢查。
 const ENV_HEAD_FONTS: TitleFontSubset[] = ['bd']
 
-const CARE_PHOTO_HELP = '五張照片各裝在一種積木形狀裡（拱、圓、四分之一圓、倒拱、半圓），會裁掉邊緣；重點放在中間，或在下面點選焦點。留空就用官網內建的照片。'
+const CARE_PHOTO_HELP = '五張照片各裝在一種積木形狀裡（拱、圓、四分之一圓、倒拱；第五張是比較寬的四分之一圓），會裁掉邊緣；重點放在中間，或在下面點選焦點。留空就用官網內建的照片。'
 
 // 餐點時間：格式（兩位數的時:分）與由早到晚。後端擋存檔時只講整個清單，這裡先在那一個餐點提醒。
 function timeError(index: number): string {
@@ -129,7 +129,7 @@ onMounted(editor.load)
         builtin="官網內建的戴聖誕帽的孩子敲木槌的照片"
         :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.care)"
         :previews="ENVIRONMENT_PHOTO_PREVIEWS.care"
-        help="橫幅積木，右端是半圓，桌機約 2.75:1、手機約 2.2:1；請用寬 2000 以上的照片。官網內建照片的重點在中間，換成自己的照片後沒設焦點也取中間，請在下面點選焦點。"
+        help="橫幅積木，右端是半圓，桌機約 2.75:1、手機約 1.7:1（左右會多裁一些）；請用寬 2000 以上的照片。官網內建照片的重點在中間，換成自己的照片後沒設焦點也取中間，請在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 

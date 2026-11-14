@@ -17,6 +17,8 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
+// 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
+vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
 
 const routes = vi.hoisted(() => ({ refresh: vi.fn(), destroy: vi.fn(), create: vi.fn() }))
 vi.mock('../app/utils/environment-route', () => ({
