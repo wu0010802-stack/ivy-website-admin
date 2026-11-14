@@ -18,6 +18,9 @@
  * - 共用 context 遺失（2026-11-11）：手機切到背景、記憶體吃緊時系統會把 WebGL context 收走，three 的 render 什麼都不畫。
  *   那一刻起這個 renderer 不再用：掛著的紙各自通知卡片（initial.onLost）退回 CSS 3D 版，之後掛的紙另建 context；
  *   同一頁遺失第二次就整頁停用。見下方 handleContextLost 與 render() 裡的檢查。
+ * - 平放時跟 CSS 版逐像素接近（2026-11-14，DESIGN.md「CSS 版與 WebGL 紙平放時要一模一樣」）：手機是卡片已在畫面上才換手。
+ *   紙面純漫射、照片不另疊亮面與外框線、字的基線照 CSS 行框算、背面照 DOM 實際的斷行畫（linesOf）、
+ *   紙底下的陰影平放時畫 CSS 的 --print-shadow（drawRestShadow），抬起來才交叉淡到光源投的影子。
  */
 import type * as ThreeNS from 'three'
 import { FLIP_MS, cantilever, flipEase, restTurn, stepFlex, turnTarget, type FlexState } from './printFlip'
@@ -56,6 +59,10 @@ const FLEX_GAIN = 0.024 // 每秒半圈的轉速 → 遠端落後紙寬的比例
 const FLEX_MAX = 0.09
 const SHADOW_OPACITY = 0.28
 const SHADOW_RADIUS = 6
+// 平放時紙底下畫的是 CSS 版那道 box-shadow（--print-shadow），抬到這個高度（佔 LIFT 的比例）才完全換成光源投的影子。
+const ALOFT_AT = 0.3
+// 柔邊陰影先畫在縮小的畫布上再放大貼：模糊半徑 46px，半解析度看不出差別，每張卡少存四分之三。
+const REST_SHADOW_SCALE = 0.5
 const KEY_LIGHT = 1.6
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
@@ -202,7 +209,7 @@ function buildWarmScene(three: Three) {
   const tex = new three.CanvasTexture(canvas)
   tex.colorSpace = three.SRGBColorSpace
   const scene = new three.Scene()
-  const paper = new three.Mesh(new three.PlaneGeometry(1, 1, 1, 1), new three.MeshStandardMaterial({ map: tex, roughness: 0.62, metalness: 0, alphaTest: 0.5 }))
+  const paper = new three.Mesh(new three.PlaneGeometry(1, 1, 1, 1), new three.MeshLambertMaterial({ map: tex, alphaTest: 0.5 }))
   paper.castShadow = true
   scene.add(paper)
   // buildScene 的地板另設 CustomBlending、不比深度：那些是 GL 狀態，program 的 opaque 旗標兩邊都是 false，快取照樣命中。
@@ -232,7 +239,7 @@ function destroyRenderer(pool: SharedRenderer) {
     const mesh = obj as ThreeNS.Mesh
     if (mesh.isMesh) {
       mesh.geometry.dispose()
-      const material = mesh.material as ThreeNS.MeshStandardMaterial
+      const material = mesh.material as ThreeNS.MeshLambertMaterial
       material.map?.dispose()
       material.dispose()
     }
@@ -395,10 +402,110 @@ export function resolveColorOn(probe: HTMLElement, value: string): string {
   return color
 }
 
+const COLOR_RE = /(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-f]{3,8}\b/i
+
 // 第一個 box-shadow 的顏色；讀不到才解析 fallback（多半用不到，不要先算好再傳進來）。
 function shadowColorOf(el: Element, fallback: () => string): string {
-  const match = /(?:rgba?|hsla?|oklch|oklab|lab|lch|color)\([^()]*\)|#[0-9a-f]{3,8}\b/i.exec(getComputedStyle(el).boxShadow)
+  const match = COLOR_RE.exec(getComputedStyle(el).boxShadow)
   return match?.[0] ?? fallback()
+}
+
+export interface BoxShadow {
+  color: string
+  x: number
+  y: number
+  blur: number
+  spread: number
+}
+
+// computed 的 box-shadow／text-shadow 拆成一道道（各家順序不同：顏色可能在前或在後；顏色函式裡也有逗號，只切最外層的）。
+// inset 的不要：畫在紙底下的只有外側陰影。
+export function parseShadows(value: string): BoxShadow[] {
+  if (!value || value === 'none') return []
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i <= value.length; i++) {
+    const ch = value[i]
+    if (ch === '(') depth++
+    else if (ch === ')') depth--
+    else if (i === value.length || (ch === ',' && depth === 0)) {
+      parts.push(value.slice(start, i))
+      start = i + 1
+    }
+  }
+  const shadows: BoxShadow[] = []
+  for (const part of parts) {
+    if (/\binset\b/.test(part)) continue
+    const color = COLOR_RE.exec(part)?.[0]
+    const lengths = (part.replace(COLOR_RE, '').match(/-?[\d.]+px/g) ?? []).map((length) => Number.parseFloat(length))
+    if (!color || lengths.length < 2) continue
+    shadows.push({ color, x: lengths[0]!, y: lengths[1]!, blur: lengths[2] ?? 0, spread: lengths[3] ?? 0 })
+  }
+  return shadows
+}
+
+// 把 CSS 的陰影式（var(--print-shadow)）解析成計算值再拆開；跟 resolveColorOn 一樣借卡片裡的探針，同一個同步工作內還原。
+function resolveShadowsOn(probe: HTMLElement, value: string): BoxShadow[] {
+  const prev = probe.style.getPropertyValue('box-shadow')
+  probe.style.setProperty('box-shadow', value)
+  const shadows = parseShadows(getComputedStyle(probe).boxShadow)
+  if (prev) probe.style.setProperty('box-shadow', prev)
+  else probe.style.removeProperty('box-shadow')
+  return shadows
+}
+
+/**
+ * DOM 實際排出來的每一行字（2026-11-14）：逐字量 Range 的框，往下跳了半個字高就是換行。
+ * 背面段落是 text-wrap:pretty，各家瀏覽器斷法不同（Safari 26 會整段重新平均，Chromium 只救孤字），
+ * 貼圖自己折行（cjkWrap 的 wrapLines）對不上：手機換成 WebGL 紙那一刻整段字重排。量不到（沒有版面的環境）回 null，呼叫端退回 wrapLines。
+ * 要在 measureFlatPrint 裡呼叫：紙還帶著旋轉時同一行的字 top 不一樣。
+ */
+export function linesOf(el: Element | null): string[] | null {
+  if (!el || typeof document.createRange !== 'function') return null
+  const range = document.createRange()
+  if (typeof range.getClientRects !== 'function') return null
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  const lines: string[] = []
+  let line = ''
+  let top = Number.NaN
+  let measured = false
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    let offset = 0
+    for (const ch of node.textContent ?? '') {
+      range.setStart(node, offset)
+      range.setEnd(node, offset + ch.length)
+      offset += ch.length
+      // 行尾被收掉的空白沒有框：留在原本那一行
+      const rect = range.getClientRects()[0]
+      if (rect && rect.height > 0) {
+        measured = true
+        if (line && rect.top - top > rect.height / 2) {
+          lines.push(line)
+          line = ''
+        }
+        if (!line) top = rect.top
+      }
+      line += ch
+    }
+  }
+  if (line) lines.push(line)
+  return measured ? lines : null
+}
+
+// 時間戳的 CSS transform（skewX）取 matrix(a, b, c, d, e, f) 的 c；沒有 transform 回 0，讀不懂退回 CSS 現行的 -6°。
+function skewOf(el: Element | null): number {
+  if (!el) return 0
+  const value = getComputedStyle(el).transform
+  if (!value || value === 'none') return 0
+  const c = Number.parseFloat(/^matrix\(([^)]+)\)$/.exec(value)?.[1]?.split(',')[2] ?? '')
+  return Number.isFinite(c) ? c : -Math.tan(Math.PI / 30)
+}
+
+// 第一道 text-shadow 的顏色與模糊半徑（px）；讀不到才解析 fallback、半徑退回 CSS 現行的 6px。
+function glowOf(el: Element | null, fallback: () => string): { color: string; blur: number } {
+  const glow = el ? parseShadows(getComputedStyle(el).textShadow)[0] : undefined
+  return glow ? { color: glow.color, blur: glow.blur } : { color: fallback(), blur: 6 }
 }
 
 // 可能在 CSS 已翻到背面後才初始化。量測紙面局部位置時先排除所有旋轉：紙張的翻轉
@@ -412,7 +519,9 @@ function measureFlatPrint<T>(wrap: HTMLElement, read: () => T): T {
     [wrap.querySelector<HTMLElement>('.print-back'), unturn],
     [wrap.closest<HTMLElement>('.print-card'), unrotate],
     [wrap.querySelector<HTMLElement>('.print-tape'), unrotate],
-    [wrap.querySelector<HTMLElement>('.print-foot h3'), unrotate]
+    [wrap.querySelector<HTMLElement>('.print-foot h3'), unrotate],
+    // 時間戳的 skewX 會把外框撐寬（每邊多半個字高 × tan 6°），要量的是斜切前的版面框
+    [wrap.querySelector<HTMLElement>('.print-stamp'), { transform: 'none' }]
   ]
   const saved = targets.flatMap(([element, props]) => element ? [{ element, props, style: element.getAttribute('style') }] : [])
   try {
@@ -522,7 +631,9 @@ export async function mountPaper(
     // 旋轉角要在 measureFlatPrint 拿掉 rotate 之前讀
     const tapeAngle = angleOf(tapeEl)
     const titleAngle = angleOf(front!.querySelector('.print-foot h3'))
-    const { W, H, style, box } = measureFlatPrint(wrap, () => {
+    // 斜切也要在 measureFlatPrint 拿掉 transform 之前讀
+    const stampSkew = skewOf(front!.querySelector('.print-stamp'))
+    const { W, H, style, box, lines } = measureFlatPrint(wrap, () => {
       const frontRect = front!.getBoundingClientRect()
       // 用版面尺寸，不用外框：外框會吃進祖先的 rotate／scale
       const W = front!.offsetWidth
@@ -551,6 +662,7 @@ export async function mountPaper(
         stampFont: fontOf(stamp, "400 22px 'Source Sans 3', sans-serif"),
         stampColor: colorOf(stamp, 'color', view, 'var(--ivy-print-spark)'),
         stampSpacing: spacingOf(stamp),
+        stampGlow: glowOf(stamp, () => resolveColorOn(view, 'var(--ivy-print-spark-glow)')),
         kickerFont: fontOf(kickerEl, "400 10px 'PingFang TC', sans-serif"),
         kickerColor: colorOf(kickerEl, 'color', view, 'var(--muted)'),
         kickerSpacing: spacingOf(kickerEl),
@@ -569,9 +681,13 @@ export async function mountPaper(
         answerLine: pxOf(answerEl, 'lineHeight', 25),
         tapeA: tapeEl ? resolveColorOn(view, tapeVar('--tape-a')) : '',
         tapeB: tapeEl ? resolveColorOn(view, tapeVar('--tape-b')) : '',
-        tapeShadow: tapeEl ? shadowColorOf(tapeEl, () => resolveColorOn(view, 'rgb(var(--ink) / .15)')) : ''
+        tapeShadow: tapeEl ? shadowColorOf(tapeEl, () => resolveColorOn(view, 'rgb(var(--ink) / .15)')) : '',
+        // 不直接讀 .print::after：游標停在卡片上時那裡是 hover 的加深版，接手後又被 display:none
+        restShadows: resolveShadowsOn(view, 'var(--print-shadow)')
       }
       const tapeBox = boxIn(tapeEl, frontRect, k)
+      // 背面三段照 DOM 實際的斷行畫（見 linesOf）
+      const lines = { story: linesOf(storyEl), question: linesOf(questionEl), answer: linesOf(answerEl) }
       const box = {
         figure: boxIn(figure, frontRect, k) ?? { x: W * 0.08, y: W * 0.08, w: W * 0.84, h: W * 0.84 },
         stamp: boxIn(stamp, frontRect, k),
@@ -585,7 +701,7 @@ export async function mountPaper(
         tape: tapeBox && tapeEl ? { ...tapeBox, poly: polygonOf(tapeEl, tapeBox.w, tapeBox.h) } : null
       }
 
-      return { W, H, style, box }
+      return { W, H, style, box, lines }
     })
     if (!W || !H) return null
     // 紙膠帶有一截超出紙的上緣：網格與貼圖往上多留一條透明帶（TOP），
@@ -616,6 +732,47 @@ export async function mountPaper(
       view.style.top = `${-MARGIN}px`
     }
 
+    // 平放時的陰影照 CSS 版的 box-shadow 畫（2026-11-14）：手機是卡片已在畫面上才換成 WebGL 紙，原本光源投的影子又小又偏左下，
+    // 換手那一刻卡片右側與下方的背景亮 15～20 階。柔邊的幾道先畫成一張縮小的圖（畫在畫布外的矩形只留下陰影），
+    // 沒有模糊的（紙緣那道 2px）每次直接填色才不會被縮放抹開。陰影也鋪在紙底下：紙角掀起時露出來的就是它。
+    const softShadows = style.restShadows.filter((shadow) => shadow.blur > 0)
+    const hardShadows = style.restShadows.filter((shadow) => shadow.blur <= 0)
+    let restShadow: HTMLCanvasElement | null = null
+    if (softShadows.length) {
+      const q = REST_SHADOW_SCALE
+      restShadow = document.createElement('canvas')
+      restShadow.width = Math.ceil(VW * q)
+      restShadow.height = Math.ceil(VH * q)
+      const sctx = restShadow.getContext('2d')
+      if (sctx) {
+        // shadowOffset／shadowBlur 的單位是畫布像素、不吃 transform：矩形畫在畫布左邊外面，陰影位移回原位
+        const far = restShadow.width + 64
+        sctx.fillStyle = '#000'
+        for (const shadow of softShadows) {
+          sctx.shadowColor = shadow.color
+          sctx.shadowBlur = shadow.blur * q
+          sctx.shadowOffsetX = shadow.x * q + far
+          sctx.shadowOffsetY = shadow.y * q
+          sctx.fillRect((MARGIN - shadow.spread) * q - far, (MARGIN - shadow.spread) * q, (W + shadow.spread * 2) * q, (H + shadow.spread * 2) * q)
+        }
+      } else {
+        restShadow = null
+      }
+    }
+    // 紙平放（aloft 0）畫 CSS 的陰影，抬起來就淡出、交給光源投的影子。CSS 版翻到背面時 .print::after 跟著紙轉了半圈，陰影左右相反。
+    function drawRestShadow(alpha: number, mirrored: boolean) {
+      const ctx = viewCtx!
+      if (mirrored) ctx.setTransform(-1, 0, 0, 1, view.width, 0)
+      ctx.globalAlpha = alpha
+      if (restShadow) ctx.drawImage(restShadow, 0, 0, view.width, view.height)
+      for (const shadow of hardShadows) {
+        setFill(ctx, shadow.color, 'transparent')
+        ctx.fillRect((MARGIN + shadow.x - shadow.spread) * DPR, (MARGIN + shadow.y - shadow.spread) * DPR, (W + shadow.spread * 2) * DPR, (H + shadow.spread * 2) * DPR)
+      }
+      ctx.globalAlpha = 1
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+    }
+
     const frontCanvas = document.createElement('canvas')
     const backCanvas = document.createElement('canvas')
     frontCanvas.width = backCanvas.width = Math.round(W * DPR)
@@ -644,7 +801,7 @@ export async function mountPaper(
       if (k) {
         setFill(ctx, style.kickerColor, '#7a8570')
         ctx.font = style.kickerFont
-        fillSpaced(ctx, copy.kicker, k.x, k.y + k.h * 0.78, style.kickerSpacing)
+        fillSpaced(ctx, copy.kicker, k.x, baselineIn(ctx, k.y, k.h), style.kickerSpacing)
       }
       const t = box.title
       if (t) {
@@ -655,7 +812,7 @@ export async function mountPaper(
         ctx.translate(-t.w / 2, -t.h / 2)
         setFill(ctx, style.titleColor, '#203f32')
         ctx.font = style.titleFont
-        let y = style.titleLine * 0.76
+        let y = baselineIn(ctx, 0, style.titleLine)
         for (const line of copy.titleLines) {
           fillTitleLine(ctx, line, y, style.titleSpacing)
           y += style.titleLine
@@ -787,11 +944,6 @@ export async function mountPaper(
           ctx.globalAlpha = 1
         }
       }
-      const gloss = ctx.createLinearGradient(f.x, f.y, f.x + f.w * 0.6, f.y + f.h)
-      gloss.addColorStop(0, 'rgba(255,255,255,.18)')
-      gloss.addColorStop(0.4, 'rgba(255,255,255,0)')
-      ctx.fillStyle = gloss
-      ctx.fillRect(f.x, f.y, f.w, f.h)
       // 橘色時間戳：顯影到六成後浮現，停在該段時再亮一階
       const stampAlpha = Math.max(0, (d - 0.6) / 0.4) * (isActive ? 1 : 0.85)
       const st = box.stamp
@@ -802,17 +954,17 @@ export async function mountPaper(
         ctx.textAlign = 'right'
         ctx.textBaseline = 'alphabetic'
         setFill(ctx, style.stampColor, '#ffb347')
-        ctx.shadowColor = 'rgba(255,138,0,.75)'
-        ctx.shadowBlur = 6
-        ctx.transform(1, 0, -0.105, 1, 0, 0)
-        const baseline = st.y + st.h * 0.82
-        fillSpaced(ctx, copy.time, st.x + st.w + baseline * 0.105, baseline, style.stampSpacing)
+        // 光暈照 CSS 的 text-shadow；shadowBlur 的單位是畫布像素、不吃 transform，要自己乘 DPR
+        ctx.shadowColor = style.stampGlow.color
+        ctx.shadowBlur = style.stampGlow.blur * DPR
+        // 跟 CSS 一樣繞時間戳的中心斜切（transform-origin 預設在框中心），字靠版面框右緣、基線照行框算
+        ctx.translate(st.x + st.w / 2, st.y + st.h / 2)
+        ctx.transform(1, 0, stampSkew, 1, 0, 0)
+        ctx.translate(-(st.x + st.w / 2), -(st.y + st.h / 2))
+        fillSpaced(ctx, copy.time, st.x + st.w, baselineIn(ctx, st.y, st.h), style.stampSpacing)
         ctx.restore()
       }
       ctx.restore()
-      ctx.strokeStyle = 'rgba(0,0,0,.08)'
-      ctx.lineWidth = 1
-      ctx.strokeRect(f.x + 0.5, f.y + 0.5, f.w - 1, f.h - 1)
     }
 
     function drawBack() {
@@ -844,7 +996,7 @@ export async function mountPaper(
         setFill(ctx, style.storyColor, '#3f5045')
         ctx.font = style.storyFont
         let y = baselineIn(ctx, s.y, style.storyLine)
-        for (const line of wrapLines(ctx, copy.story, s.w)) {
+        for (const line of lines.story ?? wrapLines(ctx, copy.story, s.w)) {
           ctx.fillText(line, s.x, y)
           y += style.storyLine
         }
@@ -864,7 +1016,7 @@ export async function mountPaper(
         setFill(ctx, style.questionColor, '#203f32')
         ctx.font = style.questionFont
         let y = baselineIn(ctx, q.y, style.questionLine)
-        for (const line of wrapLines(ctx, copy.question, q.w)) {
+        for (const line of lines.question ?? wrapLines(ctx, copy.question, q.w)) {
           ctx.fillText(line, q.x, y)
           y += style.questionLine
         }
@@ -874,7 +1026,7 @@ export async function mountPaper(
         setFill(ctx, style.answerColor, '#6e7c5b')
         ctx.font = style.answerFont
         let y = baselineIn(ctx, an.y, style.answerLine)
-        for (const line of wrapLines(ctx, copy.answer, an.w)) {
+        for (const line of lines.answer ?? wrapLines(ctx, copy.answer, an.w)) {
           ctx.fillText(line, an.x, y)
           y += style.answerLine
         }
@@ -904,9 +1056,12 @@ export async function mountPaper(
     const geoB = new three.PlaneGeometry(W, H + TOP, SEGMENTS_X, SEGMENTS_Y)
     geoF.translate(0, TOP / 2, 0)
     geoB.translate(0, TOP / 2, 0)
-    // alphaTest 讓膠帶外緣硬邊透空，不走透明排序
-    const matF = new three.MeshStandardMaterial({ map: frontTex, roughness: 0.62, metalness: 0, alphaTest: 0.5 })
-    const matB = new three.MeshStandardMaterial({ map: backTex, roughness: 0.8, metalness: 0, alphaTest: 0.5 })
+    // alphaTest 讓膠帶外緣硬邊透空，不走透明排序。
+    // 純漫射材質（2026-11-14）：原本的 MeshStandardMaterial 有鏡面反射，主光在平放的紙上加一層固定的亮度（線性約 +0.025），
+    // 淺色的紙看不出來，照片暗部卻整片亮 15～30 階——手機換成 WebGL 紙那一刻照片像蒙一層霧。翻面、掀角的明暗靠漫射的 N·L 就有。
+    // 暖身場景（buildWarmScene）要用同一種材質，program 才會命中快取。
+    const matF = new three.MeshLambertMaterial({ map: frontTex, alphaTest: 0.5 })
+    const matB = new three.MeshLambertMaterial({ map: backTex, alphaTest: 0.5 })
     const meshF = new three.Mesh(geoF, matF)
     const meshB = new three.Mesh(geoB, matB)
     meshB.rotation.y = Math.PI
@@ -1084,7 +1239,10 @@ export async function mountPaper(
       paper.rotation.set(tiltX - open * FLIP_TILT, tiltY + rot * Math.PI, 0)
       paper.position.z = lift + hover
       const height = Math.min(1, (lift + hover) / LIFT)
-      shadowMat.opacity = SHADOW_OPACITY * (1 - 0.35 * height)
+      // 平放時不畫光源投的影子（由 drawRestShadow 畫 CSS 那道），抬起的頭三成高度交叉淡過來
+      const rise = Math.min(1, height / ALOFT_AT)
+      const aloft = rise * rise * (3 - 2 * rise)
+      shadowMat.opacity = SHADOW_OPACITY * (1 - 0.35 * height) * aloft
       key.shadow.radius = SHADOW_RADIUS + 8 * height
       if (!busy && turn === turnGoal) {
         // 停穩後收回 0／-1，數字不會越翻越大（旋轉等價，看不出跳動）
@@ -1130,6 +1288,7 @@ export async function mountPaper(
         renderer.render(sceneObj, camera)
         viewCtx!.setTransform(1, 0, 0, 1, 0, 0)
         viewCtx!.clearRect(0, 0, view.width, view.height)
+        if (aloft < 1) drawRestShadow(1 - aloft, isBackTurn(Math.round(rot)))
         viewCtx!.drawImage(renderer.domElement, 0, 0, view.width, view.height)
         drawn.shape = shapeVersion
         drawn.rx = paper.rotation.x

@@ -1,3 +1,21 @@
+## 2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳（`fix/day-card-jump-20261114`）
+
+使用者用 iPhone 錄影回報：首頁「常春藤的一天」的拍立得，卡片的顏色和文字有時候會跳一下。逐格看錄影，跳的都是同一刻——手機停止滑動後，已經在畫面上的 CSS 版卡片換成 WebGL 紙（`paperPrints.ts`）。本機 WebKit 與 Chromium 手機模擬都重現（同一頁先拍 CSS 版、再放行 WebGL 版逐像素比），差在五個地方：
+
+| 哪裡跳 | 原因 | 修正前 → 修正後 |
+|---|---|---|
+| 照片像蒙一層霧 | 紙面材質有鏡面反射（主光在平放的紙上加一層固定亮度），貼圖又在照片左上疊一道亮面漸層 | 暗部 +15～32 階 → 0 |
+| 紙色略暗 | 同上（材質的漫射不是剛好等於貼圖原色） | −2 階 → 0 |
+| 正面小標往下掉 | 基線用「行高 × 0.78」估，不是照 CSS 行框算；時間戳的斜切基準點與外框也量錯 | 小標往下 1.5～2px、時間戳右偏 1.5px → 1 個實體像素內 |
+| 背面整段字重排 | 背面段落是 `text-wrap:pretty`，iPhone（Safari 26）會整段重新平均斷行，貼圖卻自己用貪婪法折行 | 每段斷行不同 → 照 DOM 實際的行畫 |
+| 卡片周圍亮一下 | CSS 版是大而柔的 `box-shadow`，WebGL 版是光源投的小影子；點過的卡還黏著 `:hover` 的加深陰影 | 右側與下方 +15～20 階 → 1 階內 |
+
+- `web/app/utils/paperPrints.ts`：紙面改純漫射材質（`MeshLambertMaterial`，暖身場景同步）；拿掉照片上的亮面漸層與外框線；小標、標題、時間戳的基線改用 `baselineIn`；時間戳量斜切前的版面框、繞中心斜切、光暈讀 CSS 的 `text-shadow`；背面三段用新的 `linesOf` 讀 DOM 實際斷行；平放時在自己的畫布上畫 CSS 的 `--print-shadow`（`drawRestShadow`），抬起的頭三成高度交叉淡到光源投的影子。
+- `web/app/assets/css/styles.css`：相紙陰影值搬到 `--print-shadow`（數值沒變）；懸停加深的陰影包進 `@media(hover:hover) and (pointer:fine)`。
+- `web/app/utils/three-lite.ts`：補匯出 `MeshLambertMaterial`。
+- **桌機也看得到的改變**：WebGL 紙上的照片不再偏霧（與 CSS 版、原圖同色）；平放時的陰影變成 CSS 版那道（較大較柔、落在右下），懸停與翻面時照舊是光源投的影子。翻面、掀角、懸停的動作都沒改。
+- 驗證：`web/tests/day-print-handoff-20261114.spec.ts`（新）；typecheck；`npm run test:website` 152 檔 2319 過。畫面：WebKit／Chrome 手機模擬 402×874@3、360×740@2、320×568@2，第 1、2、3、5 張正面與第 2、3、4 張背面換手前後比對；桌機 1440×900 截進場、懸停、翻面途中。**iPhone 實機還沒驗**（本機 Mac 的 canvas 文字比 DOM 略粗是 macOS 字體平滑造成的，錄影裡的 iPhone 沒有這個差）。未 commit、未部署。
+
 ## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
 
 使用者要幫官網打 Google 廣告。盤點後不裝 Google Ads 自己的轉換代碼：GA4 已在正式站運作、預約成立會送 `generate_lead`，連結 GA4 與 Google Ads 再匯入成轉換就夠（步驟與待實測項在 `deploy/README.md`「Google Ads」）。
