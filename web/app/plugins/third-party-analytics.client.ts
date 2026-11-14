@@ -4,7 +4,8 @@ import { createThirdPartyAnalytics, whenPageSettled } from '../utils/third-party
 
 // GA4 與 Meta Pixel（2026-11-12，規格 docs/specs/2026-11-12-external-integrations-design.md 第 1 節）。
 // 依 2026-10-03 裁定：有 cookie、不做同意橫幅、尊重 DNT／GPC，揭露寫在隱私權政策第 5 段。
-// 全部預設關：兩個 ID（NUXT_PUBLIC_GA_MEASUREMENT_ID、NUXT_PUBLIC_META_PIXEL_ID）都沒設或格式不符，這支外掛什麼都不做。
+// 2026-11-15 加 ChatGPT 廣告的 OpenAI 評估像素（NUXT_PUBLIC_OPENAI_PIXEL_ID），只回報預約成功。
+// 全部預設關：三個 ID（NUXT_PUBLIC_GA_MEASUREMENT_ID、NUXT_PUBLIC_META_PIXEL_ID、NUXT_PUBLIC_OPENAI_PIXEL_ID）都沒設或格式不符，這支外掛什麼都不做。
 // 載入、暫停與清洗網址的細節見 utils/third-party-analytics.ts。
 // 外部腳本等整頁 load 之後、主執行緒有空才載（whenPageSettled，2026-11-12 手機效能）；事件先排在 queue 裡，不會漏。
 export default defineNuxtPlugin((app) => {
