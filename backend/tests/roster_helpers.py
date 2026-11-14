@@ -71,3 +71,69 @@ async def act(client, student: dict, action: str, **body):
     return await client.post(
         f"{ROSTER}/students/{student['id']}/{action}", json={"expected_version": student["version"], **body}
     )
+
+
+async def seed_baseline(db, campus_key: str = "renwu") -> None:
+    """規格 §6.3 驗算基準（仁武 115.11.11，姓名虛構）：直接寫資料庫，省掉兩百多次 API 呼叫。
+    在籍 60／59／40／45（幼幼班 10 位 113/9/2 之後出生、9 月入園）；預繳 (115,1) 幼幼 8、
+    (115,2) 中 1＋幼幼 23（幼幼 31 位不足齡）、(116,1) 小 4＋幼幼 20。"""
+    import uuid
+    from datetime import date, datetime, timezone
+
+    from app.admissions.roster.models import RosterClass, RosterStudent
+
+    now = datetime.now(timezone.utc)
+    rooms: dict[str, RosterClass] = {}
+    for order, (grade, code) in enumerate((("大班", "大1"), ("中班", "中1"), ("小班", "小1"), ("幼幼班", "幼1"))):
+        rooms[grade] = RosterClass(
+            id=uuid.uuid4(), campus_key=campus_key, school_year=115, grade=grade, name=f"{code}班", class_code=code,
+            sort_order=0, version=1, created_at=now, updated_at=now,
+        )
+    db.add_all(rooms.values())
+    await db.flush()
+    counter = 0
+
+    def kid(**fields) -> RosterStudent:
+        nonlocal counter
+        counter += 1
+        values = dict(
+            id=uuid.uuid4(), campus_key=campus_key, school_year=115, child_name=f"測試{counter}", status="enrolled",
+            created_at=now, updated_at=now,
+        )
+        values.update(fields)
+        return RosterStudent(**values)
+
+    def in_class(grade: str, count: int, **fields):
+        return [kid(class_id=rooms[grade].id, grade=grade, position=index, **fields) for index in range(count)]
+
+    rows = []
+    rows += in_class("大班", 60)
+    rows += in_class("中班", 59)
+    rows += in_class("小班", 40)
+    toddlers = [
+        kid(class_id=rooms["幼幼班"].id, grade="幼幼班", position=index, birthday=date(2023, 5, 1)) for index in range(35)
+    ] + [
+        kid(
+            class_id=rooms["幼幼班"].id, grade="幼幼班", position=35 + index, birthday=date(2024, 10, 1),
+            enrollment_date=date(2026, 9, 14),
+        )
+        for index in range(10)
+    ]
+    rows += toddlers
+
+    def pend(grade: str, year: int, semester: int, count: int, **fields):
+        return [
+            kid(
+                status="pending", grade=grade, school_year=year, target_school_year=year, target_semester=semester,
+                deposit_date=date(2026, 9, 1), **fields,
+            )
+            for _ in range(count)
+        ]
+
+    rows += pend("幼幼班", 115, 1, 8, birthday=date(2024, 10, 1))
+    rows += pend("中班", 115, 2, 1)
+    rows += pend("幼幼班", 115, 2, 23, birthday=date(2024, 10, 1))
+    rows += pend("小班", 116, 1, 4)
+    rows += pend("幼幼班", 116, 1, 20)
+    db.add_all(rows)
+    await db.commit()

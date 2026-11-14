@@ -6,7 +6,7 @@ request 一律 extra="forbid"；文字去頭尾空白、空字串當沒填。PAT
 from __future__ import annotations
 
 import uuid
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -194,3 +194,85 @@ class RestoreRequest(_Request):
 
     class_id: uuid.UUID | None = None
     expected_version: int = Field(ge=1)
+
+
+# ---- 讀取整張編班表、三段目標、結算紀錄 ------------------------------------------
+
+
+class TierOut(BaseModel):
+    base: int | None
+    boost: int | None
+    top: int | None
+    reached: Literal["base", "boost", "top"] | None
+    next: Literal["base", "boost", "top"] | None
+    short: int | None
+
+
+class GapBlockOut(BaseModel):
+    rows: dict[str, dict[str, int]]  # 列鍵 → 年級 → 人數，另含 "total" 鍵
+    targets: dict[str, int | None]  # 年級 → 目標；另含 "total"（有設定的年級加總，都沒設定是 None）
+    achievement: dict[str, int | None]  # 另含 "total"（四個年級都有目標才有值）
+    gap: dict[str, int | None]  # 預估－目標；正的是超額；另含 "total"
+    tier: TierOut
+
+
+class GradeTotalOut(BaseModel):
+    count: int
+    returning: int
+    new: int
+    pending: int
+
+
+class ClassWithStudentsOut(ClassOut):
+    students: list[StudentOut]
+    count: int
+    gap: int | None
+
+
+class SnapshotOut(BaseModel):
+    id: uuid.UUID
+    as_of: date
+    enrolled: dict[str, int]
+    total_enrolled: int
+    estimate_total: int
+    created_at: datetime
+
+
+class RosterOut(BaseModel):
+    campus_key: str
+    school_year: int
+    today: date
+    as_of: date
+    classes: list[ClassWithStudentsOut]
+    unassigned: list[StudentOut]
+    next_year: list[StudentOut]
+    gone: list[StudentOut]
+    grade_totals: dict[str, GradeTotalOut]
+    current: GapBlockOut
+    next: GapBlockOut
+    underage_enrolled: int
+    underage_pending: int
+    missing_birthday: int
+    incomplete: int
+    snapshots: list[SnapshotOut]
+
+
+class TierTargetsRequest(_Request):
+    school_year: SchoolYear
+    semester: Semester
+    base: int | None = Field(default=None, ge=0, le=9999)
+    boost: int | None = Field(default=None, ge=0, le=9999)
+    top: int | None = Field(default=None, ge=0, le=9999)
+
+    @model_validator(mode="after")
+    def _ascending(self) -> "TierTargetsRequest":
+        given = [v for v in (self.base, self.boost, self.top) if v is not None]
+        if given != sorted(given):
+            raise ValueError("三段目標要由低到高：基礎 ≤ 激勵 ≤ 超越")
+        return self
+
+
+class SnapshotRequest(_Request):
+    school_year: SchoolYear
+    as_of: date
+    overwrite: bool = False

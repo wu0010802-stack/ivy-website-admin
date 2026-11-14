@@ -4,26 +4,36 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions.models import GradeIntakeTarget
 from app.admissions.roster import calc
 from app.admissions.roster.errors import RosterError, version_conflict
-from app.admissions.roster.models import RosterClass, RosterStudent
+from app.admissions.roster.models import RosterClass, RosterSnapshot, RosterStudent, RosterTierTarget
 from app.admissions.schemas.roster import (
     ClassCreate,
+    ClassOut,
     ClassUpdate,
+    ClassWithStudentsOut,
     EnterRequest,
+    GapBlockOut,
+    GradeTotalOut,
     LeaveRequest,
     RefundRequest,
     RestoreRequest,
+    RosterOut,
+    SnapshotOut,
+    SnapshotRequest,
     StudentMove,
     StudentOut,
     StudentsCreate,
     StudentUpdate,
+    TierOut,
+    TierTargetsRequest,
 )
 from app.booking.schemas import has_control_chars
 from app.common.timezones import today_local
@@ -602,3 +612,250 @@ async def restore_student(
     _touch(student, user_id)
     await db.flush()
     return student
+
+
+# ---- 讀取整張編班表、三段目標、結算紀錄 ------------------------------------------
+
+def check_as_of(school_year: int, as_of: date) -> None:
+    """統計日期不能晚於今天，也不能早於該學年 8/1。"""
+    if as_of > today_local() or as_of < date(school_year + 1911, 8, 1):
+        raise RosterError(422, "ROSTER_AS_OF_OUT_OF_RANGE", "統計日期要在這個學年開學（8/1）到今天之間")
+
+
+def _with_total(values: dict[str, int]) -> dict[str, int]:
+    return {**values, "total": sum(values.values())}
+
+
+def _tier(row: RosterTierTarget | None, total: int) -> TierOut:
+    base, boost, top = (row.base, row.boost, row.top) if row else (None, None, None)
+    status = calc.tier_status(total, base, boost, top)
+    return TierOut(base=base, boost=boost, top=top, reached=status.reached, next=status.next, short=status.short)
+
+
+def _block(
+    rows: dict[str, dict[str, int]], targets: dict[str, int | None], estimate_key: str, tier_row: RosterTierTarget | None
+) -> GapBlockOut:
+    estimate = rows[estimate_key]
+    defined = [value for value in targets.values() if value is not None]
+    all_four = len(defined) == len(calc.GRADE_ORDER)
+    targets = {**targets, "total": sum(defined) if defined else None}
+    achievement = {g: calc.achievement(estimate[g], targets[g]) for g in calc.GRADE_ORDER}
+    gap = {g: calc.signed_gap(estimate[g], targets[g]) for g in calc.GRADE_ORDER}
+    achievement["total"] = calc.achievement(estimate["total"], targets["total"]) if all_four else None
+    gap["total"] = calc.signed_gap(estimate["total"], targets["total"]) if all_four else None
+    return GapBlockOut(
+        rows=rows, targets=targets, achievement=achievement, gap=gap, tier=_tier(tier_row, estimate["total"])
+    )
+
+
+async def _tier_row(db: AsyncSession, campus_key: str, school_year: int, semester: int) -> RosterTierTarget | None:
+    return await db.get(RosterTierTarget, (campus_key, school_year, semester))
+
+
+def _snapshot_out(snapshot: RosterSnapshot) -> SnapshotOut:
+    payload = snapshot.payload
+    return SnapshotOut(
+        id=snapshot.id,
+        as_of=snapshot.as_of,
+        enrolled=payload["enrolled"],
+        total_enrolled=sum(payload["enrolled"].values()),
+        estimate_total=payload["estimate_total"],
+        created_at=snapshot.created_at,
+    )
+
+
+async def _load_for_year(
+    db: AsyncSession, campus_key: str, school_year: int
+) -> tuple[list[RosterClass], list[RosterStudent]]:
+    rooms = list(
+        await db.scalars(
+            select(RosterClass).where(RosterClass.campus_key == campus_key, RosterClass.school_year == school_year)
+        )
+    )
+    order = {grade: index for index, grade in enumerate(calc.GRADE_ORDER)}
+    rooms.sort(key=lambda r: (order[r.grade], r.sort_order, r.class_code))
+    students = list(
+        await db.scalars(
+            select(RosterStudent).where(
+                RosterStudent.campus_key == campus_key, RosterStudent.school_year.in_((school_year, school_year + 1))
+            )
+        )
+    )
+    return rooms, students
+
+
+def _gap_for(students: list[RosterStudent], school_year: int, as_of: date) -> calc.Gap:
+    return calc.compute_gap((facts_of(s, None) for s in students), school_year=school_year, as_of=as_of)
+
+
+async def build_roster(db: AsyncSession, campus_key: str, school_year: int, as_of: date | None) -> RosterOut:
+    today = today_local()
+    as_of = as_of or today
+    check_as_of(school_year, as_of)
+    rooms, students = await _load_for_year(db, campus_key, school_year)
+    gap = _gap_for(students, school_year, as_of)
+    year_class_ids = {r.id for r in rooms}
+
+    in_class: dict[uuid.UUID, list[RosterStudent]] = {r.id: [] for r in rooms}
+    unassigned: list[RosterStudent] = []
+    next_year: list[RosterStudent] = []
+    gone: list[RosterStudent] = []
+    for student in students:
+        if student.status == "pending" and (student.target_school_year, student.target_semester) == (school_year + 1, 1):
+            next_year.append(student)
+        elif student.school_year != school_year:
+            continue
+        elif student.status in ("left", "refunded"):
+            gone.append(student)
+        elif student.class_id in year_class_ids:
+            in_class[student.class_id].append(student)
+        elif student.status == "pending" and student.class_id is None:
+            unassigned.append(student)
+    for members in in_class.values():
+        members.sort(key=lambda m: (m.position if m.position is not None else 0, str(m.id)))
+    gone.sort(key=lambda m: m.left_date or m.refunded_date or date.min, reverse=True)
+
+    def out(student: RosterStudent) -> StudentOut:
+        return student_out(student, None, ctx_year=school_year)
+
+    class_outs: list[ClassWithStudentsOut] = []
+    grade_totals = {g: {"count": 0, "returning": 0, "new": 0, "pending": 0} for g in calc.GRADE_ORDER}
+    class_targets: dict[str, int | None] = {g: None for g in calc.GRADE_ORDER}
+    for room in rooms:
+        members = in_class[room.id]
+        class_outs.append(
+            ClassWithStudentsOut(
+                **ClassOut.model_validate(room).model_dump(),
+                students=[out(m) for m in members],
+                count=len(members),
+                gap=None if room.target_seats is None else len(members) - room.target_seats,
+            )
+        )
+        if room.target_seats is not None:
+            class_targets[room.grade] = (class_targets[room.grade] or 0) + room.target_seats
+        totals = grade_totals[room.grade]
+        for member in members:
+            totals["count"] += 1
+            totals["pending"] += member.status == "pending"
+            totals["new" if calc.is_new(facts_of(member, room.grade), school_year) else "returning"] += 1
+
+    intake = {
+        row.grade: row.target_seats
+        for row in await db.scalars(
+            select(GradeIntakeTarget).where(
+                GradeIntakeTarget.campus_key == campus_key,
+                GradeIntakeTarget.school_year == school_year + 1,
+                GradeIntakeTarget.semester == 1,
+            )
+        )
+    }
+    current_rows = {
+        "enrolled": _with_total(gap.enrolled),
+        "pending_s1": _with_total(gap.pending_s1),
+        "pending_s2": _with_total(gap.pending_s2),
+        "estimate": _with_total(gap.estimate),
+    }
+    next_rows = {
+        "promoted": _with_total(gap.promoted),
+        "leaving": _with_total(gap.leaving),
+        "repeating": _with_total(gap.repeating),
+        "pending_next": _with_total(gap.pending_next),
+        "estimate_next": _with_total(gap.estimate_next),
+    }
+    snapshots = await db.scalars(
+        select(RosterSnapshot)
+        .where(RosterSnapshot.campus_key == campus_key, RosterSnapshot.school_year == school_year)
+        .order_by(RosterSnapshot.as_of.desc())
+    )
+    return RosterOut(
+        campus_key=campus_key,
+        school_year=school_year,
+        today=today,
+        as_of=as_of,
+        classes=class_outs,
+        unassigned=[out(s) for s in unassigned],
+        next_year=[out(s) for s in next_year],
+        gone=[out(s) for s in gone],
+        grade_totals={g: GradeTotalOut(**v) for g, v in grade_totals.items()},
+        current=_block(current_rows, class_targets, "estimate", await _tier_row(db, campus_key, school_year, 2)),
+        next=_block(
+            next_rows,
+            {g: intake.get(g) for g in calc.GRADE_ORDER},
+            "estimate_next",
+            await _tier_row(db, campus_key, school_year + 1, 1),
+        ),
+        underage_enrolled=gap.underage_enrolled,
+        underage_pending=gap.underage_pending,
+        missing_birthday=gap.missing_birthday,
+        incomplete=gap.incomplete,
+        snapshots=[_snapshot_out(s) for s in snapshots],
+    )
+
+
+async def save_tier_targets(
+    db: AsyncSession, campus_key: str, data: TierTargetsRequest, user_id: uuid.UUID
+) -> TierOut:
+    row = await _tier_row(db, campus_key, data.school_year, data.semester)
+    if row is None:
+        row = RosterTierTarget(campus_key=campus_key, school_year=data.school_year, semester=data.semester)
+        db.add(row)
+    row.base, row.boost, row.top = data.base, data.boost, data.top
+    row.updated_at = _now()
+    row.updated_by = user_id
+    await db.flush()
+    # 達成狀況比的是對應區塊現在的預估：(Y,2) 比這學期預估，(Y,1) 比上一學年的下學年預估。
+    today = today_local()
+    roster_year = data.school_year if data.semester == 2 else data.school_year - 1
+    _, students = await _load_for_year(db, campus_key, roster_year)
+    gap = _gap_for(students, roster_year, today)
+    total = sum((gap.estimate if data.semester == 2 else gap.estimate_next).values())
+    return _tier(row, total)
+
+
+async def create_snapshot(
+    db: AsyncSession, campus_key: str, data: SnapshotRequest, user_id: uuid.UUID
+) -> RosterSnapshot:
+    check_as_of(data.school_year, data.as_of)
+    _, students = await _load_for_year(db, campus_key, data.school_year)
+    gap = _gap_for(students, data.school_year, data.as_of)
+    payload = {
+        "enrolled": gap.enrolled,
+        "pending_s1": gap.pending_s1,
+        "pending_s2": gap.pending_s2,
+        "estimate_total": sum(gap.estimate.values()),
+    }
+    existing = await db.scalar(
+        select(RosterSnapshot)
+        .where(
+            RosterSnapshot.campus_key == campus_key,
+            RosterSnapshot.school_year == data.school_year,
+            RosterSnapshot.as_of == data.as_of,
+        )
+        .with_for_update()
+    )
+    exists_error = RosterError(409, "ROSTER_SNAPSHOT_EXISTS", "這一天已經有結算紀錄")
+    if existing is not None:
+        if not data.overwrite:
+            raise exists_error
+        await db.delete(existing)
+        await db.flush()
+    snapshot = RosterSnapshot(
+        id=uuid.uuid4(),
+        campus_key=campus_key,
+        school_year=data.school_year,
+        as_of=data.as_of,
+        payload=payload,
+        created_at=_now(),
+        created_by=user_id,
+    )
+    db.add(snapshot)
+    try:
+        await db.flush()
+    except IntegrityError as exc:  # 兩人同時存同一天
+        await db.rollback()
+        raise exists_error from exc
+    return snapshot
+
+
+def snapshot_out(snapshot: RosterSnapshot) -> SnapshotOut:
+    return _snapshot_out(snapshot)

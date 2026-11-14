@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,11 +23,16 @@ from app.admissions.schemas.roster import (
     LeaveRequest,
     RefundRequest,
     RestoreRequest,
+    RosterOut,
+    SnapshotOut,
+    SnapshotRequest,
     StudentMove,
     StudentOut,
     StudentsCreate,
     StudentsCreated,
     StudentUpdate,
+    TierOut,
+    TierTargetsRequest,
 )
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
@@ -298,3 +304,67 @@ async def restore_student(
     db: AsyncSession = Depends(get_db_session),
 ) -> StudentOut:
     return await _run_action(db, current_user, student_id, "roster_student.restore", service.restore_student, payload)
+
+
+@router.get("", response_model=RosterOut)
+async def get_roster(
+    campus_key: str,
+    school_year: int = Query(ge=1, le=999),
+    as_of: date | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> RosterOut:
+    """整張編班表、預繳名單與缺額統計。名單永遠是現在的狀態；統計數字跟著 as_of 回算。"""
+    _require_campus(current_user, "admissions.read", campus_key)
+    try:
+        return await service.build_roster(db, campus_key, school_year, as_of)
+    except RosterError as exc:
+        raise exc.to_http() from exc
+
+
+@router.put("/tier-targets", response_model=TierOut)
+async def save_tier_targets(
+    campus_key: str,
+    payload: TierTargetsRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> TierOut:
+    _require_campus(current_user, "admissions.write", campus_key)
+    out = await service.save_tier_targets(db, campus_key, payload, current_user.id)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="roster_tier.update",
+        target_type="roster_tier",
+        target_id=f"{campus_key}:{payload.school_year}:{payload.semester}",
+        campus_key=campus_key,
+        metadata={"school_year": payload.school_year, "semester": payload.semester},
+    )
+    await db.commit()
+    return out
+
+
+@router.post("/snapshots", response_model=SnapshotOut, status_code=status.HTTP_201_CREATED)
+async def create_snapshot(
+    campus_key: str,
+    payload: SnapshotRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> SnapshotOut:
+    _require_campus(current_user, "admissions.write", campus_key)
+    try:
+        snapshot = await service.create_snapshot(db, campus_key, payload, current_user.id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="roster_snapshot.create",
+        target_type="roster_snapshot",
+        target_id=str(snapshot.id),
+        campus_key=campus_key,
+        metadata={"school_year": payload.school_year, "as_of": payload.as_of.isoformat()},
+    )
+    out = service.snapshot_out(snapshot)
+    await db.commit()
+    return out
