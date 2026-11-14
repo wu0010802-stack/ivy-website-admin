@@ -104,6 +104,8 @@ CUTS = {
     'pick4': ['hug', 'shoes', 'line', 'sorter', 'library', 'readtop', 'readgirl', 'finger', 'lavender', 'aerial', 'chalk', 'wave', 'slide', 'girls', 'hand'],
     # 同第四輪，但影片本身不壓暗（使用者想看拿掉遮罩的樣子；見 RAW）
     'pick4raw': ['hug', 'shoes', 'line', 'sorter', 'library', 'readtop', 'readgirl', 'finger', 'lavender', 'aerial', 'chalk', 'wave', 'slide', 'girls', 'hand'],
+    # 2026-11-14：使用者「有一幕是穿鞋的可以幫我拿掉嗎」＝第四輪拿掉穿鞋，其餘十四鏡順序不變（擁抱直接溶到沿線走）
+    'pick5': ['hug', 'line', 'sorter', 'library', 'readtop', 'readgirl', 'finger', 'lavender', 'aerial', 'chalk', 'wave', 'slide', 'girls', 'hand'],
 }
 CLIPS = [BY_KEY[k] for k in CUTS['mix']]
 RAW = {'day-pick4raw'}   # 這幾支成片不套亮度曲線（原片在螢幕上的亮度）
