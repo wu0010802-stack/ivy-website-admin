@@ -28,6 +28,7 @@ from app.auth.line import configure_line_oauth, router as line_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.import_routes import router as admissions_import_router
+from app.admissions.roster.routes import router as admissions_roster_router
 from app.admissions.routes import router as admissions_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
@@ -294,6 +295,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)
         app.include_router(admissions_import_router)
+        app.include_router(admissions_roster_router)
 
     return app
 
