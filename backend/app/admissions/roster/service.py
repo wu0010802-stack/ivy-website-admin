@@ -11,7 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.models import GradeIntakeTarget
-from app.admissions.roster import calc
+from app.admissions.roster import calc, sync
 from app.admissions.roster.errors import RosterError, version_conflict
 from app.admissions.roster.models import RosterClass, RosterSnapshot, RosterStudent, RosterTierTarget
 from app.admissions.schemas.roster import (
@@ -216,7 +216,8 @@ async def student_outs(db: AsyncSession, students: list[RosterStudent]) -> list[
     grades: dict[uuid.UUID, str] = {}
     if ids:
         grades = dict((await db.execute(select(RosterClass.id, RosterClass.grade).where(RosterClass.id.in_(ids)))).all())
-    return [student_out(s, grades.get(s.class_id)) for s in students]
+    notices = await sync.board_notices(db, students)
+    return [student_out(s, grades.get(s.class_id), board_notice=notices.get(s.id)) for s in students]
 
 
 def _class_not_found() -> RosterError:
@@ -715,8 +716,11 @@ async def build_roster(db: AsyncSession, campus_key: str, school_year: int, as_o
         members.sort(key=lambda m: (m.position if m.position is not None else 0, str(m.id)))
     gone.sort(key=lambda m: m.left_date or m.refunded_date or date.min, reverse=True)
 
+    shown = [*unassigned, *next_year, *(m for members in in_class.values() for m in members)]
+    notices = await sync.board_notices(db, shown)
+
     def out(student: RosterStudent) -> StudentOut:
-        return student_out(student, None, ctx_year=school_year)
+        return student_out(student, None, ctx_year=school_year, board_notice=notices.get(student.id))
 
     class_outs: list[ClassWithStudentsOut] = []
     grade_totals = {g: {"count": 0, "returning": 0, "new": 0, "pending": 0} for g in calc.GRADE_ORDER}
