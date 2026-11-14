@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import type { Roster, RosterClassWithStudents, RosterStudent } from '../../../api/roster'
 import { GRADE_ORDER, gapText, markOf, planText, sideParts } from '../../../admissions/roster'
 
@@ -11,6 +11,10 @@ const emit = defineEmits<{
   'edit-student': [id: string]
   'edit-class': [id: string]
   'set-class-target': [classId: string, value: number | null]
+  // 拖拉：classId 是 null＝拖回還沒編班；position 是目的班的第幾位（0 起算，超過就排最後）。
+  move: [id: string, classId: string | null, position: number]
+  // 格內新增（貼上多行＝多位）。
+  add: [classId: string, names: string[]]
 }>()
 
 const MIN_ROWS = 31
@@ -57,6 +61,76 @@ function termText(student: RosterStudent): string {
   return `${year} 學年${semester === 1 ? '上' : '下'}學期`
 }
 
+// ---- 格內新增：點班級最後一格空白，Enter 新增並停在下一格，貼上多行一次新增多位 ----
+const adding = ref<string | null>(null)
+const draft = ref('')
+// 送出後輸入框會隨重讀搬到下一格；瀏覽器在移除舊輸入框時可能先送 blur，那一次不該收起。
+let justSubmitted = false
+const vFocus = { mounted: (el: HTMLElement) => { justSubmitted = false; el.focus() } }
+const splitNames = (text: string) => text.split(/[\r\n\t]+/).map((name) => name.trim()).filter(Boolean)
+
+function startAdd(room: RosterClassWithStudents) {
+  if (!props.canWrite) return
+  adding.value = room.id
+  draft.value = ''
+}
+function submitDraft(room: RosterClassWithStudents) {
+  const names = splitNames(draft.value)
+  draft.value = ''
+  if (!names.length) return
+  justSubmitted = true
+  emit('add', room.id, names)
+}
+function pasteInto(room: RosterClassWithStudents, event: ClipboardEvent) {
+  const text = event.clipboardData?.getData('text') ?? ''
+  if (!/[\r\n\t]/.test(text.trim())) return
+  event.preventDefault()
+  const names = splitNames(text)
+  if (!names.length) return
+  justSubmitted = true
+  emit('add', room.id, names)
+}
+function leaveAdd(room: RosterClassWithStudents) {
+  if (justSubmitted) {
+    justSubmitted = false
+    return
+  }
+  if (draft.value.trim()) submitDraft(room)
+  adding.value = null
+}
+function cancelAdd() {
+  draft.value = ''
+  adding.value = null
+}
+
+// ---- 拖拉（原生 HTML5 drag and drop，沿用 FunnelBoard 的寫法）----
+const dragging = ref<string | null>(null)
+const dropKey = ref<string | null>(null)
+
+function startDrag(event: DragEvent, student: RosterStudent) {
+  if (!props.canWrite) return
+  dragging.value = student.id
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', student.id)
+  }
+}
+function endDrag() {
+  dragging.value = null
+  dropKey.value = null
+}
+function overDrop(key: string, event: DragEvent) {
+  if (!dragging.value) return
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  dropKey.value = key
+}
+function dropOn(classId: string | null, position: number) {
+  const id = dragging.value
+  endDrag()
+  if (id) emit('move', id, classId, position)
+}
+
 function openStudent(event: MouseEvent, student: RosterStudent) {
   emit('open-student', student.id, event.currentTarget as HTMLElement)
 }
@@ -76,7 +150,14 @@ function changeTarget(room: RosterClassWithStudents, event: Event) {
       <span><i class="roster-swatch" aria-hidden="true"></i>已預繳、還沒入園</span>
     </p>
 
-    <div class="roster-tray" data-roster-tray>
+    <div
+      class="roster-tray"
+      :class="{ 'is-drop': dropKey === 'tray' }"
+      data-roster-tray
+      @dragover="overDrop('tray', $event)"
+      @dragleave="dropKey = null"
+      @drop.prevent="dropOn(null, 0)"
+    >
       <b>還沒編班的預繳生</b>
       <template v-if="roster.unassigned.length">
         <button
@@ -88,6 +169,8 @@ function changeTarget(room: RosterClassWithStudents, event: Event) {
           :draggable="canWrite"
           :data-student-id="student.id"
           @click="openStudent($event, student)"
+          @dragstart="startDrag($event, student)"
+          @dragend="endDrag"
         >{{ student.child_name }}<small>{{ student.grade ?? '缺班別' }}・{{ termText(student) }}</small></button>
       </template>
       <span v-else class="roster-muted">目前沒有。看板新增的預繳生會先出現在這裡，再拖進班級。</span>
@@ -108,9 +191,12 @@ function changeTarget(room: RosterClassWithStudents, event: Event) {
               :key="room.id"
               colspan="2"
               class="roster-ch"
-              :class="[`is-grade-${gradeIndex(room.grade)}`, { 'is-grade-start': startsGrade(room, index), 'is-editable': canWrite }]"
+              :class="[`is-grade-${gradeIndex(room.grade)}`, { 'is-grade-start': startsGrade(room, index), 'is-editable': canWrite, 'is-drop': dropKey === `head:${room.id}` }]"
               :data-class-id="room.id"
               @click="canWrite && emit('edit-class', room.id)"
+              @dragover="overDrop(`head:${room.id}`, $event)"
+              @dragleave="dropKey = null"
+              @drop.prevent="dropOn(room.id, room.count)"
             >{{ classLabel(room) }}<small v-if="room.english_name">{{ room.english_name }}</small></th>
             <th class="roster-next-head is-grade-next is-grade-start">{{ nextHead }}</th>
           </tr>
@@ -137,31 +223,72 @@ function changeTarget(room: RosterClassWithStudents, event: Event) {
               <template v-if="room.students[row - 1]">
                 <td
                   class="roster-name"
-                  :class="{ 'is-pending': room.students[row - 1]!.status === 'pending', 'is-grade-start': startsGrade(room, index) }"
+                  :class="{ 'is-pending': room.students[row - 1]!.status === 'pending', 'is-grade-start': startsGrade(room, index), 'is-drop': dropKey === `${room.id}:${row - 1}` }"
                   :data-class-id="room.id"
                   :data-index="row - 1"
+                  @dragover="overDrop(`${room.id}:${row - 1}`, $event)"
+                  @dragleave="dropKey = null"
+                  @drop.prevent="dropOn(room.id, row - 1)"
                 >
                   <button
                     type="button"
                     class="roster-kid"
-                    :class="markClass(room.students[row - 1]!)"
+                    :class="[markClass(room.students[row - 1]!), { 'is-dragging': dragging === room.students[row - 1]!.id }]"
                     :draggable="canWrite"
                     :data-student-id="room.students[row - 1]!.id"
                     @click="openStudent($event, room.students[row - 1]!)"
+                    @dragstart="startDrag($event, room.students[row - 1]!)"
+                    @dragend="endDrag"
                   >{{ room.students[row - 1]!.child_name }}</button>
                 </td>
                 <td
                   class="roster-note"
-                  :class="{ 'is-pending': room.students[row - 1]!.status === 'pending' }"
+                  :class="{ 'is-pending': room.students[row - 1]!.status === 'pending', 'is-drop': dropKey === `${room.id}:${row - 1}` }"
                   :data-class-id="room.id"
                   :data-index="row - 1"
                   :title="canWrite ? '點一下編輯資料' : undefined"
                   @click="canWrite && emit('edit-student', room.students[row - 1]!.id)"
+                  @dragover="overDrop(`${room.id}:${row - 1}`, $event)"
+                  @dragleave="dropKey = null"
+                  @drop.prevent="dropOn(room.id, row - 1)"
                 ><template v-for="parts in [side(room.students[row - 1]!, room.grade)]" :key="0">{{ parts.text }}<span v-for="label in parts.labels" :key="label" class="roster-label">{{ label }}</span></template></td>
               </template>
+              <template v-else-if="adding === room.id && row - 1 === room.students.length">
+                <td class="roster-name" :class="{ 'is-grade-start': startsGrade(room, index) }" colspan="2" :data-class-id="room.id" :data-index="row - 1">
+                  <input
+                    v-model="draft"
+                    v-focus
+                    class="roster-cell-input"
+                    placeholder="輸入姓名按 Enter，可貼上整欄"
+                    aria-label="新增幼生姓名"
+                    @keydown.enter.prevent="submitDraft(room)"
+                    @keydown.esc="cancelAdd"
+                    @paste="pasteInto(room, $event)"
+                    @blur="leaveAdd(room)"
+                  />
+                </td>
+              </template>
               <template v-else>
-                <td class="roster-name" :class="{ 'is-grade-start': startsGrade(room, index) }" :data-class-id="room.id" :data-index="row - 1"></td>
-                <td class="roster-note" :data-class-id="room.id" :data-index="row - 1"></td>
+                <td
+                  class="roster-name"
+                  :class="{ 'is-grade-start': startsGrade(room, index), 'is-add': canWrite && row - 1 === room.students.length, 'is-drop': dropKey === `${room.id}:${row - 1}` }"
+                  :data-class-id="room.id"
+                  :data-index="row - 1"
+                  :title="canWrite && row - 1 === room.students.length ? '點一下新增幼生' : undefined"
+                  @click="row - 1 === room.students.length && startAdd(room)"
+                  @dragover="overDrop(`${room.id}:${row - 1}`, $event)"
+                  @dragleave="dropKey = null"
+                  @drop.prevent="dropOn(room.id, row - 1)"
+                ></td>
+                <td
+                  class="roster-note"
+                  :class="{ 'is-drop': dropKey === `${room.id}:${row - 1}` }"
+                  :data-class-id="room.id"
+                  :data-index="row - 1"
+                  @dragover="overDrop(`${room.id}:${row - 1}`, $event)"
+                  @dragleave="dropKey = null"
+                  @drop.prevent="dropOn(room.id, row - 1)"
+                ></td>
               </template>
             </template>
             <td class="roster-next is-grade-start">
@@ -417,6 +544,45 @@ thead .roster-rn {
 
 .roster-kid[draggable='true'] {
   cursor: grab;
+}
+
+.roster-kid.is-dragging {
+  opacity: 0.35;
+}
+
+.roster-table th.is-drop {
+  box-shadow: inset 0 -3px 0 var(--admin-accent);
+}
+
+.roster-table td.is-drop {
+  box-shadow: inset 0 3px 0 var(--admin-accent);
+}
+
+.roster-name.is-add {
+  cursor: cell;
+}
+
+.roster-name.is-add:hover {
+  background: var(--accent-bg);
+}
+
+.roster-name.is-add:hover::after {
+  padding-left: 8px;
+  color: var(--admin-accent-hover);
+  content: '＋ 新增';
+  font-size: var(--text-xs);
+}
+
+.roster-cell-input {
+  width: 100%;
+  height: 29px;
+  padding: 0 6px;
+  border: 0;
+  outline: 2px solid var(--admin-accent);
+  outline-offset: -2px;
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--text-base);
 }
 
 .roster-kid:hover,
