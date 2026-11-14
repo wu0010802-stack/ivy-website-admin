@@ -220,6 +220,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-14 手機拍立得換成 WebGL 紙不再跳＋依賴稽核升級上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #93，合併提交 `43acc27a`，三個提交。
+  - `d737f83b` 拍立得修正（README「2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳」）。使用者用 iPhone 錄影回報卡片的顏色和文字會跳一下，查出是 CSS 版換成 WebGL 紙那一刻兩版畫得不一樣，修完後說「上線」。只改 `web/`，沒有改 API、後台、內容，沒有變數要改。
+  - `d050c739`、`98d1faaa` 依賴升級（README「2026-11-14 依賴稽核閘門擋下部署」）：當天新公告讓稽核閘門擋下所有 PR，`nuxt` 4.6.3 → 4.6.4、overrides 補 `readdir-glob → minimatch ^11.0.1`、後端 dnspython 2.9.0 → 2.9.2。放行清單維持空的。
+- **CI**：第一輪 PR run 43543254007 被稽核閘門擋（Frontend (web) 的 npm audit、Backend 1/3 的 pip-audit），同時間的 #92、#94 也一樣。第二輪 lock 檔用 npm 11 產生，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」；改用 CI 同版的 npm 10 從 main 的 lock 重裝後第三輪全綠。main run 43546820449 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `43acc27a`。
+- **線上驗證**：`/api/website/v1/health` `status: ok`；首頁與 `/about`、`/environment`、`/curriculum`、`/admission`、`/visit` 200，`//admin/` 回 301（nuxt 公告講的 `//` 開頭路徑沒有繞過轉址）。Playwright 手機模擬 402×874@3（非 GET 的 API、遙測、GA／Pixel 全部攔下；含 WebGL 紙程式的 chunk 先扣住，拍完 CSS 版再放行）：WebKit 第 2 張正面換手前後照片與紙色差 0、小標／標題／時間戳位移在 1 個實體像素內、卡片右側與下方陰影差 1 階內；WebKit 第 4 張背面兩版斷行相同；Chrome 第 3 張正面照片與紙色差 0。
+- **未驗證**：iPhone／Android 實機（回報的那支 iPhone 要請使用者再看一次）；桌機沒有在正式站重截（本機 dev 截過懸停與翻面途中）。
+
 ## 2026-11-13 GA4 的 page_location 多留 gbraid／wbraid 上線（main CI 部署，沒有 migration）
 
 - **內容**：`785f4438`（PR #85，`feature/ads-click-ids-20261113`）。只改 `web/shared/third-party-analytics.ts` 的歸因參數白名單；CSP、cookie、變數都沒動。用途與 Google 後台要做的四步見上方「Google Ads」一節。

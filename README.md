@@ -24,7 +24,7 @@
 - `web/app/assets/css/styles.css`：相紙陰影值搬到 `--print-shadow`（數值沒變）；懸停加深的陰影包進 `@media(hover:hover) and (pointer:fine)`。
 - `web/app/utils/three-lite.ts`：補匯出 `MeshLambertMaterial`。
 - **桌機也看得到的改變**：WebGL 紙上的照片不再偏霧（與 CSS 版、原圖同色）；平放時的陰影變成 CSS 版那道（較大較柔、落在右下），懸停與翻面時照舊是光源投的影子。翻面、掀角、懸停的動作都沒改。
-- 驗證：`web/tests/day-print-handoff-20261114.spec.ts`（新）；typecheck；`npm run test:website` 152 檔 2319 過。畫面：WebKit／Chrome 手機模擬 402×874@3、360×740@2、320×568@2，第 1、2、3、5 張正面與第 2、3、4 張背面換手前後比對；桌機 1440×900 截進場、懸停、翻面途中。**iPhone 實機還沒驗**（本機 Mac 的 canvas 文字比 DOM 略粗是 macOS 字體平滑造成的，錄影裡的 iPhone 沒有這個差）。未 commit、未部署。
+- 驗證：`web/tests/day-print-handoff-20261114.spec.ts`（新）；typecheck；`npm run test:website` 152 檔 2319 過。畫面：WebKit／Chrome 手機模擬 402×874@3、360×740@2、320×568@2，第 1、2、3、5 張正面與第 2、3、4 張背面換手前後比對；桌機 1440×900 截進場、懸停、翻面途中。**iPhone 實機還沒驗**（本機 Mac 的 canvas 文字比 DOM 略粗是 macOS 字體平滑造成的，錄影裡的 iPhone 沒有這個差）。已上線（main `43acc27a`，PR #93），正式站驗證見 `deploy/README.md`。
 
 ## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
 
