@@ -220,6 +220,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡上線（main CI 部署，沒有 migration）
+
+- **內容**：`9fb2f19b`（PR #92，合併提交 `a5e681f7`；README「2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡」）。使用者說「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」，看過本機預覽後說「部署」。11-13 的十五鏡拿掉第 2 鏡，其餘順序、裁切、亮度不變；只換 web 的兩支影片與 `video-manifest.json`，封面、樣式、圖說都沒動；沒有 migration、沒有變數要改。
+- **CI**：第一輪 PR run 43543169135 被當天的依賴稽核閘門擋下（見下一節，跟這個改動無關）。等 #93 的升級併進 main 後把分支接上 `43acc27a`，第二輪 PR run 43547008365 全綠；推送自動起的 run 43547001804 被 PR 的 run 取代而 cancelled（必要檢查因此算失敗、擋住合併），重跑後全綠才合併，沒有用管理員權限。main run 43549113503 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `a5e681f7`。同時間等著上線的 #94 與這個 PR 錯開，等這輪部署跑完才接 main。
+- **線上驗證**：Playwright Chrome 1440×900、1440×560、390×844 開首頁捲到「常春藤的一天」（遙測、錯誤回報、GA／Pixel 全部攔下）：桌機播 `day-desktop-dc6f6f951ae7.mp4`（1440×810、24.67 秒）、手機播 `day-mobile-494ca1502ee8.mp4`（720×1280、24.67 秒），封面照舊，圖說「明華校 · 仁武校」，沒有橫向捲動，console 沒有錯誤。桌機把影片每 1.5 秒截一格共 17 格，擁抱之後直接是沿線走，沒有穿鞋那一鏡。
+- **未驗證**：iOS／Android 實機、Safari、Firefox。
+
 ## 2026-11-14 手機拍立得換成 WebGL 紙不再跳＋依賴稽核升級上線（main CI 部署，沒有 migration）
 
 - **內容**：PR #93，合併提交 `43acc27a`，三個提交。
