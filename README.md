@@ -5,7 +5,7 @@
 - web：`GHSA-mjrq-cffv-q4qc`（@nuxt/schema）、`GHSA-r99w-jh2x-3mg9`（@nuxt/nitro-server，請求路徑開頭 `//` 可繞過 server middleware 與 route rules）。`nuxt` 4.6.3 → 4.6.4。
 - 升完多出一則 `GHSA-g3hv-75wg-m249`（minimatch 7～11.0.0）：nitropack 2.13.6 的 archiver 8 → readdir-glob 3 帶進 minimatch 10.2.6。`web/package.json` 的 overrides 補 `readdir-glob → minimatch ^11.0.1`（解到 11.0.8，跟既有 glob 那條同一份）；放行清單維持空的。
 - 後端：dnspython 2.9.0 的 `CVE-2026-128089`，`uv lock --upgrade-package dnspython` 升到 2.9.2（`uv.lock` 只動 3 行）。
-- lock 檔用 npm 11 重裝（`npx -y npm@11.6.2 install`；npm 10 會重解一大批套件還解不掉 minimatch），diff 大是因為 npm 11 補了 `peer` 等欄位。vue 仍是單一份 3.5.44。
+- lock 檔要用 **CI 同版的 npm 10**（Node 22 內附的 10.9.x）產生：第一次用 npm 11 重裝，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」（npm 11 不寫進非本機平台 wasm 綁定的選用依賴，npm 10 卻要它們在 lock 裡）。推之前用同版 npm 跑 `npm ci --dry-run` 就能在本機重現。vue 仍是單一份 3.5.44。
 - 驗證：`python3 deploy/npm_audit_gate.py --project web` 通過；`uvx pip-audit@2.10.1` 無公告；web typecheck、`test:website` 2319 過；`nuxt build` 成功，啟動後首頁與各內頁 200；readdir-glob 搭 minimatch 11 實際列檔正常。
 
 ## 2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳（`fix/day-card-jump-20261114`）
