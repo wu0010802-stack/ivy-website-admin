@@ -13,6 +13,7 @@ import { isAdmissionsTab, useAdmissionsFilters } from '../admissions/useAdmissio
 // 只掛載目前分頁，切回來時重新讀資料；各分頁自己用 useRequestSequence 擋舊回應。
 // 預設是漏斗看板：訪視明細切過去才下載。
 const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
+const RosterTab = lazyComponent(() => import('../components/admissions/roster/RosterTab.vue'))
 const {
   campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
@@ -49,12 +50,14 @@ function showUnscoped() {
         :campus="campus"
         :campus-keys="visibleCampusKeys"
         :default-year="defaultYear"
+        :hide-semester="tab === 'roster'"
         @update:campus="setCampus"
       />
 
       <el-tabs :model-value="tab" class="admissions__tabs" @update:model-value="setTab">
         <el-tab-pane label="漏斗看板" name="funnel" />
         <el-tab-pane label="訪視明細" name="records" />
+        <el-tab-pane label="編班與缺額" name="roster" />
       </el-tabs>
 
       <div class="admissions__body">
@@ -76,6 +79,7 @@ function showUnscoped() {
           :semester="semester"
           @clear-term="clearTerm"
         />
+        <RosterTab v-if="tab === 'roster'" :campus-key="campus" :school-year="schoolYear" />
       </div>
     </template>
   </div>
