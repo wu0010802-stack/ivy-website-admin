@@ -771,6 +771,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roster
+         * @description 整張編班表、預繳名單與缺額統計。名單永遠是現在的狀態；統計數字跟著 as_of 回算。
+         */
+        get: operations["get_roster_api_website_v1_admin_admissions_roster_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Class */
+        post: operations["create_class_api_website_v1_admin_admissions_roster_classes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/classes/{class_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Class */
+        delete: operations["delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Class */
+        patch: operations["update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Snapshot */
+        post: operations["create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Students */
+        post: operations["create_students_api_website_v1_admin_admissions_roster_students_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Student */
+        patch: operations["update_student_api_website_v1_admin_admissions_roster_students__student_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/enter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enter Student */
+        post: operations["enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave Student */
+        post: operations["leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move Student */
+        post: operations["move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund Student */
+        post: operations["refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Student */
+        post: operations["restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/tier-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Tier Targets */
+        put: operations["save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/staff": {
         parameters: {
             query?: never;
@@ -5791,6 +5999,30 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** ClassCreate */
+        ClassCreate: {
+            /** Assistant Teacher */
+            assistant_teacher?: string | null;
+            /** Class Code */
+            class_code: string;
+            /** English Name */
+            english_name?: string | null;
+            /** English Teacher */
+            english_teacher?: string | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班";
+            /** Head Teacher */
+            head_teacher?: string | null;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Target Seats */
+            target_seats?: number | null;
+        };
         /** ClassDistributionOut */
         ClassDistributionOut: {
             /**
@@ -5824,6 +6056,98 @@ export interface components {
             unit: "visit_request";
             /** Unrecorded */
             unrecorded: number;
+        };
+        /** ClassOut */
+        ClassOut: {
+            /** Assistant Teacher */
+            assistant_teacher: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Class Code */
+            class_code: string;
+            /** English Name */
+            english_name: string | null;
+            /** English Teacher */
+            english_teacher: string | null;
+            /** Grade */
+            grade: string;
+            /** Head Teacher */
+            head_teacher: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Target Seats */
+            target_seats: number | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * ClassUpdate
+         * @description 年級不能改（不收 grade 欄位，送了是 422）；只送要改的欄位。
+         */
+        ClassUpdate: {
+            /** Assistant Teacher */
+            assistant_teacher?: string | null;
+            /** Class Code */
+            class_code?: string | null;
+            /** English Name */
+            english_name?: string | null;
+            /** English Teacher */
+            english_teacher?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Head Teacher */
+            head_teacher?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Target Seats */
+            target_seats?: number | null;
+        };
+        /** ClassWithStudentsOut */
+        ClassWithStudentsOut: {
+            /** Assistant Teacher */
+            assistant_teacher: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Class Code */
+            class_code: string;
+            /** Count */
+            count: number;
+            /** English Name */
+            english_name: string | null;
+            /** English Teacher */
+            english_teacher: string | null;
+            /** Gap */
+            gap: number | null;
+            /** Grade */
+            grade: string;
+            /** Head Teacher */
+            head_teacher: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Students */
+            students: components["schemas"]["StudentOut"][];
+            /** Target Seats */
+            target_seats: number | null;
+            /** Version */
+            version: number;
         };
         /**
          * ClientErrorIn
@@ -6769,6 +7093,13 @@ export interface components {
             /** Target */
             target: number | null;
         };
+        /** EnterRequest */
+        EnterRequest: {
+            /** Enrollment Date */
+            enrollment_date?: string | null;
+            /** Expected Version */
+            expected_version: number;
+        };
         /** ErrorGroupListOut */
         ErrorGroupListOut: {
             /** Items */
@@ -7171,6 +7502,28 @@ export interface components {
             /** Source */
             source: string;
         };
+        /** GapBlockOut */
+        GapBlockOut: {
+            /** Achievement */
+            achievement: {
+                [key: string]: number | null;
+            };
+            /** Gap */
+            gap: {
+                [key: string]: number | null;
+            };
+            /** Rows */
+            rows: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Targets */
+            targets: {
+                [key: string]: number | null;
+            };
+            tier: components["schemas"]["TierOut"];
+        };
         /** GoogleLinkStart */
         GoogleLinkStart: {
             /** Authorize Url */
@@ -7182,6 +7535,17 @@ export interface components {
             count: number;
             /** Grade */
             grade: string;
+        };
+        /** GradeTotalOut */
+        GradeTotalOut: {
+            /** Count */
+            count: number;
+            /** New */
+            new: number;
+            /** Pending */
+            pending: number;
+            /** Returning */
+            returning: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -7620,6 +7984,13 @@ export interface components {
             from_enrolled: number;
             /** Total */
             total: number;
+        };
+        /** LeaveRequest */
+        LeaveRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Left Date */
+            left_date?: string | null;
         };
         /** LineCampusTargetOut */
         LineCampusTargetOut: {
@@ -8446,6 +8817,30 @@ export interface components {
             expires_at: string;
         };
         /**
+         * PendingFields
+         * @description 補登預繳未入園時共用的欄位（一次貼多個姓名共用同一組）。
+         */
+        PendingFields: {
+            /** Birthday */
+            birthday?: string | null;
+            /**
+             * Deposit Date
+             * Format: date
+             */
+            deposit_date: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班";
+            /** Planned Entry Date */
+            planned_entry_date?: string | null;
+            /** Target School Year */
+            target_school_year: number;
+            /** Target Semester */
+            target_semester: number;
+        };
+        /**
          * PendingNowOut
          * @description 現在的待處理兩種（booking/pending_kinds.py），不受期間影響。
          */
@@ -9260,6 +9655,13 @@ export interface components {
             /** Withdraw Reason Category */
             withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上") | null;
         };
+        /** RefundRequest */
+        RefundRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Refunded Date */
+            refunded_date?: string | null;
+        };
         /** ReleaseChangeOut */
         ReleaseChangeOut: {
             /** Campus Key */
@@ -9333,6 +9735,16 @@ export interface components {
         ResendConfirmationOut: {
             /** Queued */
             queued: boolean;
+        };
+        /**
+         * RestoreRequest
+         * @description 已退預繳的恢復成還沒編班（忽略 class_id）；已離園的恢復成在籍，要選一個班。
+         */
+        RestoreRequest: {
+            /** Class Id */
+            class_id?: string | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /** RetentionCountsOut */
         RetentionCountsOut: {
@@ -9474,6 +9886,47 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "campus_admin" | "editor" | "reception" | "readonly";
+        /** RosterOut */
+        RosterOut: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Classes */
+            classes: components["schemas"]["ClassWithStudentsOut"][];
+            current: components["schemas"]["GapBlockOut"];
+            /** Gone */
+            gone: components["schemas"]["StudentOut"][];
+            /** Grade Totals */
+            grade_totals: {
+                [key: string]: components["schemas"]["GradeTotalOut"];
+            };
+            /** Incomplete */
+            incomplete: number;
+            /** Missing Birthday */
+            missing_birthday: number;
+            next: components["schemas"]["GapBlockOut"];
+            /** Next Year */
+            next_year: components["schemas"]["StudentOut"][];
+            /** School Year */
+            school_year: number;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotOut"][];
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /** Unassigned */
+            unassigned: components["schemas"]["StudentOut"][];
+            /** Underage Enrolled */
+            underage_enrolled: number;
+            /** Underage Pending */
+            underage_pending: number;
+        };
         /** ScheduleRequest */
         ScheduleRequest: {
             /**
@@ -9690,6 +10143,169 @@ export interface components {
             /** Rarely Booked Rate */
             rarely_booked_rate: number;
         };
+        /** SnapshotOut */
+        SnapshotOut: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Enrolled */
+            enrolled: {
+                [key: string]: number;
+            };
+            /** Estimate Total */
+            estimate_total: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Total Enrolled */
+            total_enrolled: number;
+        };
+        /** SnapshotRequest */
+        SnapshotRequest: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite: boolean;
+            /** School Year */
+            school_year: number;
+        };
+        /** StudentMove */
+        StudentMove: {
+            /** Class Id */
+            class_id: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Position */
+            position: number;
+        };
+        /** StudentOut */
+        StudentOut: {
+            /** Birthday */
+            birthday: string | null;
+            /** Board Notice */
+            board_notice: ("deposit_removed" | "enrolled") | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Child Name */
+            child_name: string;
+            /** Class Id */
+            class_id: string | null;
+            /** Deposit Date */
+            deposit_date: string | null;
+            /** Enrollment Date */
+            enrollment_date: string | null;
+            /** From Funnel */
+            from_funnel: boolean;
+            /** Grade */
+            grade: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Indigenous */
+            is_indigenous: boolean;
+            /** Is New */
+            is_new: boolean;
+            /** Is New Manual */
+            is_new_manual: boolean;
+            /** Is Special Education */
+            is_special_education: boolean;
+            /** Is Underage */
+            is_underage: boolean | null;
+            /** Left Date */
+            left_date: string | null;
+            /** Next Year */
+            next_year: string;
+            /** Note */
+            note: string | null;
+            /** Planned Entry Date */
+            planned_entry_date: string | null;
+            /** Position */
+            position: number | null;
+            /** Refunded Date */
+            refunded_date: string | null;
+            /** School Year */
+            school_year: number;
+            /** Status */
+            status: string;
+            /** Target School Year */
+            target_school_year: number | null;
+            /** Target Semester */
+            target_semester: number | null;
+            /** Underage Manual */
+            underage_manual: boolean;
+            /** Version */
+            version: number;
+        };
+        /**
+         * StudentUpdate
+         * @description 只送要改的欄位。可以清空的只有 birthday、note、enrollment_date、planned_entry_date。
+         */
+        StudentUpdate: {
+            /** Birthday */
+            birthday?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Deposit Date */
+            deposit_date?: string | null;
+            /** Enrollment Date */
+            enrollment_date?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Grade */
+            grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Is Indigenous */
+            is_indigenous?: boolean | null;
+            /** Is New Manual */
+            is_new_manual?: boolean | null;
+            /** Is Special Education */
+            is_special_education?: boolean | null;
+            /** Next Year */
+            next_year?: ("continue" | "leave" | "repeat") | null;
+            /** Note */
+            note?: string | null;
+            /** Planned Entry Date */
+            planned_entry_date?: string | null;
+            /** Target School Year */
+            target_school_year?: number | null;
+            /** Target Semester */
+            target_semester?: number | null;
+            /** Underage Manual */
+            underage_manual?: boolean | null;
+        };
+        /** StudentsCreate */
+        StudentsCreate: {
+            /** Class Id */
+            class_id?: string | null;
+            /** Names */
+            names: string[];
+            pending?: components["schemas"]["PendingFields"] | null;
+            /** School Year */
+            school_year: number;
+        };
+        /** StudentsCreated */
+        StudentsCreated: {
+            /** Duplicates */
+            duplicates: string[];
+            /** Students */
+            students: components["schemas"]["StudentOut"][];
+        };
         /** SubmitReviewRequest */
         SubmitReviewRequest: {
             /**
@@ -9806,6 +10422,34 @@ export interface components {
             semester: 1 | 2;
             /** Target */
             target?: number | null;
+        };
+        /** TierOut */
+        TierOut: {
+            /** Base */
+            base: number | null;
+            /** Boost */
+            boost: number | null;
+            /** Next */
+            next: ("base" | "boost" | "top") | null;
+            /** Reached */
+            reached: ("base" | "boost" | "top") | null;
+            /** Short */
+            short: number | null;
+            /** Top */
+            top: number | null;
+        };
+        /** TierTargetsRequest */
+        TierTargetsRequest: {
+            /** Base */
+            base?: number | null;
+            /** Boost */
+            boost?: number | null;
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+            /** Top */
+            top?: number | null;
         };
         /** TokenExchangeRequest */
         TokenExchangeRequest: {
@@ -12317,6 +12961,507 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecruitmentVisitOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_roster_api_website_v1_admin_admissions_roster_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year: number;
+                as_of?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_class_api_website_v1_admin_admissions_roster_classes_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete: {
+        parameters: {
+            query: {
+                expected_version: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                class_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                class_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_students_api_website_v1_admin_admissions_roster_students_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentsCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentsCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_student_api_website_v1_admin_admissions_roster_students__student_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierOut"];
                 };
             };
             /** @description Validation Error */
