@@ -285,3 +285,4 @@ class GradeIntakeTarget(Base):
 from app.admissions.geo import models as _geo_models  # noqa: E402,F401
 from app.admissions.enrolled import models as _enrolled_models  # noqa: E402,F401
 from app.admissions.history import models as _history_models  # noqa: E402,F401
+from app.admissions.roster import models as _roster_models  # noqa: E402,F401
