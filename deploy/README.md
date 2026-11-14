@@ -14,6 +14,33 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 編班與缺額（2026-11-15，`feature/admissions-roster-20261114`；**未合併、未部署**，合併與部署等業主開口）
+
+招生入學多第三個分頁「編班與缺額」，設計見 `docs/specs/2026-11-14-admissions-roster-gap-design.md`。
+
+- **migration `d4b7e1a95c26`**：只新增四張表（`roster_classes`、`roster_students`、`roster_tier_targets`、`roster_snapshots`），不改既有資料，上一版程式不讀新表，**不需要部署前備份閘門**。可逆（downgrade 刪四張表）。
+- **功能開關**：跟著 `WEBSITE_ADMISSIONS_ENABLED`，關閉時路由不掛、分頁不出現。**2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，合併上線後分頁會直接出現給有 `admissions.read` 的人；要先確認是否要等園方準備好再合併。
+- **沒有新環境變數、沒有新排程、沒有新外部服務。**
+- **個資**：新增在籍幼生的姓名、生日與特教生、原住民標記（比姓名生日更敏感），可見範圍與編班表相同（該校分校管理者、接待、總管理者）；稽核紀錄不放這些值。隱私權政策目前沒有寫在籍幼生資料的用途與保存，上線前請業主確認要不要補。
+- **上線前只查、不改**（唯讀；正式庫沒有對外位址，請使用者用 `!` 在已 `railway link` 的目錄跑）：下學年年級目標會直接讀 `grade_intake_targets` 的 (下一學年, 上學期)，正式站若留有 10-05 以前設定的名額會直接顯示成「目標人數」。查詢：
+
+  ```sh
+  cd ~/Desktop/ivy-website-admin
+  cat > /tmp/roster-intake-check.sql <<'SQL'
+  SELECT campus_key, school_year, semester, grade, target_seats
+  FROM grade_intake_targets
+  WHERE school_year >= 116
+  ORDER BY campus_key, school_year, semester, grade;
+  SQL
+  B64=$(base64 < /tmp/roster-intake-check.sql | tr -d '\n')
+  railway ssh --service Postgres --environment production -- \
+    "echo $B64 | base64 -d | PGOPTIONS='-c default_transaction_read_only=on' psql \"\${DATABASE_URL:-postgresql:///railway?user=postgres}\" -X -P pager=off"
+  ```
+
+  有 (116, 1) 的列：列給業主，不要自行刪。沒有列就不用處理。
+- **規格 §13 待業主回覆**：已離園、已退預繳的紀錄要留多久（目前一直留著、只在收合的清單裡看得到）。
+- **正式站的看板目前是測試資料**：上線時不回補既有的已預繳卡片（規格 §7），編班表一開始是空的，要請各校自己建班與貼上名單。
+
 ## GA4 與 Meta Pixel（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
 
 依 2026-10-03 裁定（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 1 節。**只動 web**：沒有 migration、api 不用動；Google Ads、LINE Tag 這次不做。

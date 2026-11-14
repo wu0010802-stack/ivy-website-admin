@@ -787,3 +787,10 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 - 預計入學時間：官網送單（選填、範圍）、補登、後台與家長修改、明細、CSV、到場帶進入學學期——後端 `test_expected_start.py`、`test_visit_expected_start.py`、`test_visit_expected_start_edit.py`（資料庫約束另在 `test_visit_expected_start_schema.py`）；web `visit-expected-start.spec.ts`、`visit-edit.spec.ts`；admin `expectedStart.test.ts`；stack `visit-expected-start.spec.ts`（含 1440／390 截圖）。
 - 排除標記：權限、時間線、操作紀錄、匿名化——`test_visit_exclusion.py`（資料庫約束另在 `test_visit_exclusion_schema.py`）；§3.3 每一處——`test_visit_exclusion_scope.py`；列表篩選與總覽連結——`visitListQuery.test.ts` 等；明細入口與橫幅——`visitExclusion.test.ts`；stack `visit-exclusion.spec.ts`。
 - 未驗證：正式站登入後的畫面；正式資料上的排除操作。
+
+## 招生入學：編班與缺額（2026-11-15，`feature/admissions-roster-20261114`，未合併、未部署）
+
+- 資料表與約束：`test_admissions_roster_models.py`；算法（驗算基準仁武 115.11.11、113/9/1 邊界、不讀與重讀歸欄、回算）：`test_admissions_roster_calc.py`；班級、幼生、狀態動作、讀取與統計、看板同步各有 `test_admissions_roster_{classes,students,status,view,sync}.py`（含同班並發移動、髒資料貼上、統計日期範圍、看板來回拖不重複新增、樂觀鎖衝突）。
+- 前端：`admissionsRoster{Helpers,Api,Table,Actions,Dialogs,Gap}.test.ts`；stack e2e `tests/stack/admissions-roster.spec.ts`（新增班級 → 貼上名單 → 看板轉預繳 → 拖進班級 → 已入園 → 回算 → 結算紀錄 → 手機版）。
+- 未驗證：正式站登入後的畫面；正式資料上的操作；iPad／觸控裝置實機；正式站是否留有 (下一學年, 上學期) 的舊計畫名額（查詢指令在 `deploy/README.md`「編班與缺額」）。
+- 待業主：已離園、已退預繳的紀錄要留多久（規格 §13）；隱私權政策要不要補在籍幼生資料。
