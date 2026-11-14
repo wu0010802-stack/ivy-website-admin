@@ -13,8 +13,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.roster import service
 from app.admissions.roster.errors import RosterError
-from app.admissions.roster.models import RosterClass
-from app.admissions.schemas.roster import ClassCreate, ClassOut, ClassUpdate
+from app.admissions.roster.models import RosterClass, RosterStudent
+from app.admissions.schemas.roster import (
+    ClassCreate,
+    ClassOut,
+    ClassUpdate,
+    StudentMove,
+    StudentOut,
+    StudentsCreate,
+    StudentsCreated,
+    StudentUpdate,
+)
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import ScopeDenied, require_scope
@@ -121,3 +130,105 @@ async def delete_class(
     )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+async def _scoped_student(db: AsyncSession, user: User, student_id: uuid.UUID) -> uuid.UUID | None:
+    """不加鎖先確認幼生存在、有寫入權限，回傳它目前的班級（要先鎖班級再鎖幼生）。"""
+    peeked = await service.peek_student(db, student_id)
+    if peeked is None:
+        raise ScopeDenied()
+    class_id, campus_key = peeked
+    require_scope(user, "admissions.write", campus_keys=[campus_key])
+    return class_id
+
+
+async def _locked_student(db: AsyncSession, user: User, student_id: uuid.UUID) -> RosterStudent:
+    """不重排班內順序的寫入用：鎖幼生列後再檢查權限。"""
+    class_id = await _scoped_student(db, user, student_id)
+    try:
+        student, _ = await service.lock_student(db, student_id, set(), class_id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    if student is None:
+        await db.rollback()
+        raise ScopeDenied()
+    return student
+
+
+@router.post("/students", response_model=StudentsCreated, status_code=status.HTTP_201_CREATED)
+async def create_students(
+    campus_key: str,
+    payload: StudentsCreate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentsCreated:
+    _require_campus(current_user, "admissions.write", campus_key)
+    try:
+        created, duplicates = await service.create_students(db, campus_key, payload, current_user.id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="roster_student.create",
+        target_type="roster_student",
+        target_id=str(created[0].id),
+        campus_key=campus_key,
+        metadata={"count": len(created), "status": created[0].status},
+    )
+    outs = await service.student_outs(db, created)
+    await db.commit()
+    return StudentsCreated(students=outs, duplicates=duplicates)
+
+
+@router.patch("/students/{student_id}", response_model=StudentOut)
+async def update_student(
+    student_id: uuid.UUID,
+    payload: StudentUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    student = await _locked_student(db, current_user, student_id)
+    try:
+        changed = await service.update_student(db, student, payload, current_user.id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    if changed:
+        await audit_service.log_action(
+            db,
+            actor_user_id=current_user.id,
+            action="roster_student.update",
+            target_type="roster_student",
+            target_id=str(student.id),
+            campus_key=student.campus_key,
+            metadata={"fields": changed},
+        )
+    [out] = await service.student_outs(db, [student])
+    await db.commit()
+    return out
+
+
+@router.post("/students/{student_id}/move", response_model=StudentOut)
+async def move_student(
+    student_id: uuid.UUID,
+    payload: StudentMove,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    class_id = await _scoped_student(db, current_user, student_id)
+    try:
+        student = await service.move_student(db, student_id, class_id, payload, current_user.id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="roster_student.move",
+        target_type="roster_student",
+        target_id=str(student.id),
+        campus_key=student.campus_key,
+        metadata={"class_changed": class_id != student.class_id},
+    )
+    [out] = await service.student_outs(db, [student])
+    await db.commit()
+    return out

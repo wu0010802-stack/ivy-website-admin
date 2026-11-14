@@ -10,9 +10,11 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.admissions.roster import calc
 from app.admissions.roster.errors import RosterError, version_conflict
 from app.admissions.roster.models import RosterClass, RosterStudent
-from app.admissions.schemas.roster import ClassCreate, ClassUpdate
+from app.admissions.schemas.roster import ClassCreate, ClassUpdate, StudentMove, StudentOut, StudentsCreate, StudentUpdate
+from app.booking.schemas import has_control_chars
 
 
 def _now() -> datetime:
@@ -116,3 +118,356 @@ async def delete_class(db: AsyncSession, room: RosterClass, expected_version: in
         raise RosterError(409, "ROSTER_CLASS_NOT_EMPTY", "班上還有幼生，請先移走再刪除班級")
     await db.delete(room)
     await db.flush()
+
+
+# ---- 幼生 -------------------------------------------------------------------
+
+
+NAME_MAX = 50
+
+
+def facts_of(student: RosterStudent, class_grade: str | None) -> calc.Facts:
+    """算統計用的事實：排進班級的看班級的年級，沒編班的看幼生自己的年級。"""
+    return calc.Facts(
+        grade=class_grade or student.grade,
+        status=student.status,
+        enrollment_date=student.enrollment_date,
+        deposit_date=student.deposit_date,
+        left_date=student.left_date,
+        refunded_date=student.refunded_date,
+        target_school_year=student.target_school_year,
+        target_semester=student.target_semester,
+        birthday=student.birthday,
+        underage_manual=student.underage_manual,
+        is_new_manual=student.is_new_manual,
+        next_year=student.next_year,
+    )
+
+
+def student_out(
+    student: RosterStudent,
+    class_grade: str | None,
+    *,
+    ctx_year: int | None = None,
+    board_notice: str | None = None,
+) -> StudentOut:
+    """ctx_year＝正在看哪一學年的編班表（預設幼生自己的學年）；不足齡只對那一學年內的幼幼班有值。"""
+    year = ctx_year if ctx_year is not None else student.school_year
+    facts = facts_of(student, class_grade)
+    in_year = student.status == "enrolled" or (
+        student.status == "pending" and (student.target_school_year, student.target_semester) in ((year, 1), (year, 2))
+    )
+    underage = calc.is_underage(facts, year) if in_year and facts.grade == "幼幼班" else None
+    return StudentOut(
+        id=student.id,
+        campus_key=student.campus_key,
+        school_year=student.school_year,
+        class_id=student.class_id,
+        position=student.position,
+        grade=facts.grade,
+        child_name=student.child_name,
+        birthday=student.birthday,
+        note=student.note,
+        status=student.status,
+        enrollment_date=student.enrollment_date,
+        planned_entry_date=student.planned_entry_date,
+        deposit_date=student.deposit_date,
+        left_date=student.left_date,
+        refunded_date=student.refunded_date,
+        target_school_year=student.target_school_year,
+        target_semester=student.target_semester,
+        is_special_education=student.is_special_education,
+        is_indigenous=student.is_indigenous,
+        is_new_manual=student.is_new_manual,
+        underage_manual=student.underage_manual,
+        next_year=student.next_year,
+        from_funnel=student.from_funnel,
+        version=student.version,
+        is_new=calc.is_new(facts, year),
+        is_underage=underage,
+        board_notice=board_notice,  # type: ignore[arg-type]
+    )
+
+
+async def student_outs(db: AsyncSession, students: list[RosterStudent]) -> list[StudentOut]:
+    ids = {s.class_id for s in students if s.class_id is not None}
+    grades: dict[uuid.UUID, str] = {}
+    if ids:
+        grades = dict((await db.execute(select(RosterClass.id, RosterClass.grade).where(RosterClass.id.in_(ids)))).all())
+    return [student_out(s, grades.get(s.class_id)) for s in students]
+
+
+def _class_not_found() -> RosterError:
+    return RosterError(404, "ROSTER_CLASS_NOT_FOUND", "找不到這個班級，可能剛被刪除，請重新載入")
+
+
+def _year_mismatch() -> RosterError:
+    return RosterError(422, "ROSTER_CLASS_YEAR_MISMATCH", "班級的學年要和幼生的所屬學年相同")
+
+
+def _status_invalid(message: str = "這位幼生目前的狀態不能做這個動作") -> RosterError:
+    return RosterError(409, "ROSTER_STATUS_INVALID", message)
+
+
+async def lock_classes(db: AsyncSession, class_ids: set[uuid.UUID]) -> dict[uuid.UUID, RosterClass]:
+    """一次鎖多個班級列，依 id 排序避免死結；所有會改變班內成員或順序的動作都要先鎖班級、再鎖幼生。"""
+    if not class_ids:
+        return {}
+    rows = await db.scalars(
+        select(RosterClass)
+        .where(RosterClass.id.in_(class_ids))
+        .order_by(RosterClass.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    return {room.id: room for room in rows}
+
+
+async def peek_student(db: AsyncSession, student_id: uuid.UUID) -> tuple[uuid.UUID | None, str] | None:
+    """不加鎖先讀出幼生所在班級與校區（路由用來檢查權限、決定要先鎖哪些班級）。"""
+    row = (
+        await db.execute(select(RosterStudent.class_id, RosterStudent.campus_key).where(RosterStudent.id == student_id))
+    ).first()
+    return None if row is None else (row[0], row[1])
+
+
+async def lock_student(
+    db: AsyncSession, student_id: uuid.UUID, class_ids: set[uuid.UUID], expected_class_id: uuid.UUID | None
+) -> tuple[RosterStudent | None, dict[uuid.UUID, RosterClass]]:
+    """先鎖班級、再鎖幼生（固定順序）。鎖到時幼生已不在原本的班級＝剛被別人搬走。"""
+    classes = await lock_classes(db, class_ids)
+    student = await db.scalar(
+        select(RosterStudent)
+        .where(RosterStudent.id == student_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if student is not None and student.class_id != expected_class_id:
+        raise version_conflict(student.version, "位幼生")
+    return student, classes
+
+
+async def members_of(db: AsyncSession, class_id: uuid.UUID, *, exclude: uuid.UUID | None = None) -> list[RosterStudent]:
+    query = select(RosterStudent).where(RosterStudent.class_id == class_id)
+    if exclude is not None:
+        query = query.where(RosterStudent.id != exclude)
+    rows = await db.scalars(
+        query.order_by(RosterStudent.position, RosterStudent.id).execution_options(populate_existing=True)
+    )
+    return list(rows)
+
+
+def densify(members: list[RosterStudent]) -> None:
+    """班內順序重新編成 0..n-1（只改位置有變的列；位置變動不算改了幼生資料，不加版本號）。"""
+    for index, member in enumerate(members):
+        if member.position != index:
+            member.position = index
+
+
+async def close_gap(db: AsyncSession, class_id: uuid.UUID, *, exclude: uuid.UUID) -> None:
+    densify(await members_of(db, class_id, exclude=exclude))
+
+
+def clean_names(raw: list[str]) -> list[str]:
+    names: list[str] = []
+    for line, value in enumerate(raw, start=1):
+        name = value.strip()
+        if not name:
+            continue
+        if len(name) > NAME_MAX:
+            raise RosterError(422, "ROSTER_NAME_TOO_LONG", f"第 {line} 行的姓名超過 {NAME_MAX} 個字", line=line)
+        if has_control_chars(name):
+            raise RosterError(422, "ROSTER_NAME_INVALID", f"第 {line} 行的姓名含有不允許的字元", line=line)
+        names.append(name)
+    if not names:
+        raise RosterError(422, "ROSTER_NAMES_EMPTY", "請至少填一位幼生的姓名")
+    return names
+
+
+async def create_students(
+    db: AsyncSession, campus_key: str, data: StudentsCreate, user_id: uuid.UUID
+) -> tuple[list[RosterStudent], list[str]]:
+    names = clean_names(data.names)
+    pending = data.pending
+    if data.class_id is None and pending is None:
+        raise RosterError(422, "ROSTER_TARGET_REQUIRED", "請指定要排進的班級，或補登預繳資料")
+    school_year = data.school_year
+    deposit_date = planned = target_year = target_semester = None
+    if pending is not None:
+        if pending.birthday is not None and len(names) > 1:
+            raise RosterError(422, "ROSTER_BIRTHDAY_SINGLE_ONLY", "一次貼上多位時不能填生日，請之後逐位補")
+        target_year, target_semester = pending.target_school_year, pending.target_semester
+        planned = pending.planned_entry_date
+        if planned is not None:
+            target_year, target_semester = calc.term_for_date(planned)
+        if target_year not in (data.school_year, data.school_year + 1) or (
+            target_year == data.school_year + 1 and target_semester != 1
+        ):
+            raise RosterError(422, "ROSTER_TARGET_TERM_INVALID", "入學學期只能是這學年的上學期、下學期，或下學年的上學期")
+        school_year = target_year
+        deposit_date = pending.deposit_date
+    room = None
+    if data.class_id is not None:
+        room = (await lock_classes(db, {data.class_id})).get(data.class_id)
+        if room is None or room.campus_key != campus_key:
+            raise _class_not_found()
+        if room.school_year != school_year:
+            raise _year_mismatch()
+
+    existing = set(
+        await db.scalars(
+            select(RosterStudent.child_name).where(
+                RosterStudent.campus_key == campus_key,
+                RosterStudent.school_year == school_year,
+                RosterStudent.status.in_(("pending", "enrolled")),
+                RosterStudent.child_name.in_(names),
+            )
+        )
+    )
+    duplicates: list[str] = []
+    seen = set(existing)
+    for name in names:
+        if name in seen and name not in duplicates:
+            duplicates.append(name)
+        seen.add(name)
+
+    next_position = 0
+    if room is not None:
+        last = await db.scalar(select(func.max(RosterStudent.position)).where(RosterStudent.class_id == room.id))
+        next_position = 0 if last is None else last + 1
+    now = _now()
+    created: list[RosterStudent] = []
+    for name in names:
+        student = RosterStudent(
+            id=uuid.uuid4(),
+            campus_key=campus_key,
+            school_year=school_year,
+            class_id=room.id if room else None,
+            position=None,
+            grade=room.grade if room else pending.grade,  # type: ignore[union-attr]
+            child_name=name,
+            birthday=pending.birthday if pending else None,
+            status="pending" if pending else "enrolled",
+            planned_entry_date=planned,
+            deposit_date=deposit_date,
+            target_school_year=target_year,
+            target_semester=target_semester,
+            is_special_education=False,
+            is_indigenous=False,
+            is_new_manual=False,
+            underage_manual=False,
+            next_year="continue",
+            from_funnel=False,
+            version=1,
+            created_at=now,
+            updated_at=now,
+            updated_by=user_id,
+        )
+        if room is not None:
+            student.position = next_position
+            next_position += 1
+        db.add(student)
+        created.append(student)
+    await db.flush()
+    return created, duplicates
+
+
+async def update_student(db: AsyncSession, student: RosterStudent, data: StudentUpdate, user_id: uuid.UUID) -> list[str]:
+    """回傳實際改了哪些欄位名（稽核只記欄位名，不記值）。"""
+    if student.version != data.expected_version:
+        raise version_conflict(student.version, "位幼生")
+    fields = set(data.model_fields_set) - {"expected_version"}
+    values = {name: getattr(data, name) for name in fields}
+    room = await db.get(RosterClass, student.class_id) if student.class_id else None
+    pending = student.status == "pending"
+
+    def refuse(message: str) -> RosterError:
+        return RosterError(422, "ROSTER_FIELD_NOT_EDITABLE", message)
+
+    if "grade" in fields and student.class_id is not None:
+        raise refuse("已編班的幼生年級跟著班級走，要改請先移到別班")
+    if "enrollment_date" in fields and student.status != "enrolled":
+        raise refuse("只有在籍的幼生有入園日")
+    for name in ("planned_entry_date", "deposit_date", "target_school_year", "target_semester"):
+        if name in fields and not pending:
+            raise refuse("只有預繳未入園的幼生能改預繳日期、預定入園日與入學學期")
+    if values.get("planned_entry_date") is not None:
+        values["target_school_year"], values["target_semester"] = calc.term_for_date(values["planned_entry_date"])
+        fields |= {"target_school_year", "target_semester"}
+    new_year = values.get("target_school_year")
+    if new_year is not None and new_year != student.school_year:
+        if room is not None and room.school_year != new_year:
+            raise _year_mismatch()
+        values["school_year"] = new_year
+        fields.add("school_year")
+    if "next_year" in fields:
+        grade = room.grade if room else values.get("grade", student.grade)
+        if values["next_year"] == "repeat" and grade != "大班":
+            raise refuse("只有大班可以標重讀")
+        if values["next_year"] == "leave" and grade == "大班":
+            raise refuse("大班下學年畢業，不能標不讀")
+    if values.get("birthday") is not None:
+        values["underage_manual"] = False
+        fields.add("underage_manual")
+
+    changed = [name for name in sorted(fields) if getattr(student, name) != values[name]]
+    for name in changed:
+        setattr(student, name, values[name])
+    if changed:
+        student.version += 1
+        student.updated_at = _now()
+        student.updated_by = user_id
+    await db.flush()
+    return [name for name in changed if name != "school_year"]
+
+
+async def move_student(
+    db: AsyncSession,
+    student_id: uuid.UUID,
+    peeked_class_id: uuid.UUID | None,
+    payload: StudentMove,
+    user_id: uuid.UUID,
+) -> RosterStudent:
+    ids = {c for c in (peeked_class_id, payload.class_id) if c is not None}
+    student, classes = await lock_student(db, student_id, ids, peeked_class_id)
+    if student is None:
+        raise _class_not_found()  # 路由已確認過存在；這裡只會是剛被刪
+    if student.version != payload.expected_version:
+        raise version_conflict(student.version, "位幼生")
+    if student.status not in ("pending", "enrolled"):
+        raise _status_invalid("已離園或已退預繳的幼生不能移動，請先恢復")
+    target = None
+    if payload.class_id is None:
+        if student.status == "enrolled":
+            raise RosterError(409, "ROSTER_ENROLLED_NEEDS_CLASS", "在籍幼生不能放回還沒編班，要離園請點姓名")
+    else:
+        target = classes.get(payload.class_id)
+        if target is None or target.campus_key != student.campus_key:
+            raise _class_not_found()
+        if target.school_year != student.school_year:
+            raise _year_mismatch()
+
+    old_class_id = student.class_id
+    old_grade = student.grade
+    if old_class_id is not None and old_class_id != payload.class_id:
+        await close_gap(db, old_class_id, exclude=student.id)
+    if target is None:
+        student.class_id = None
+        student.position = None
+    else:
+        others = await members_of(db, target.id, exclude=student.id)
+        index = min(payload.position, len(others))
+        student.class_id = target.id
+        student.grade = target.grade
+        student.position = index
+        others.insert(index, student)
+        densify(others)
+        if old_grade != target.grade:
+            student.next_year = "continue"
+            if old_grade == "幼幼班":
+                student.underage_manual = False
+    student.version += 1
+    student.updated_at = _now()
+    student.updated_by = user_id
+    await db.flush()
+    return student
