@@ -89,7 +89,7 @@ describe('編班表', () => {
   it('備註欄顯示 sideParts 的文字與小標記', async () => {
     const data = roster({
       classes: [klass({ grade: '幼幼班', students: [
-        student({ child_name: '甲', status: 'pending', planned_entry_date: '2026-12-01', is_underage: true, is_special_education: true }),
+        student({ child_name: '甲', status: 'pending', planned_entry_date: '2026-12-01', target_school_year: 115, target_semester: 1, is_underage: true, is_special_education: true }),
         student({ child_name: '乙', birthday: null, is_underage: false }),
       ] })],
     })

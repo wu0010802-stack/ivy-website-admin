@@ -29,7 +29,7 @@ export function rocDate(iso: string): string {
 
 /**
  * 備註欄：text 是預繳未入園的預定入園日（沒有就備註，都沒有「未定」）或開學後才入園的入園日；
- * labels 是小標記，依序不足齡／缺生日、特教、原民、不讀／重讀、看板提醒。
+ * labels 是小標記，依序不足齡／缺生日、特教、原民、不讀／重讀、缺入學學期、看板提醒。
  */
 export function sideParts(student: RosterStudent, grade: string, today: string, schoolYear: number): { text: string; labels: string[] } {
   let text = ''
@@ -47,6 +47,7 @@ export function sideParts(student: RosterStudent, grade: string, today: string, 
   if (student.is_indigenous) labels.push('原民')
   if (student.next_year === 'leave' && grade !== '大班') labels.push('不讀')
   if (student.next_year === 'repeat' && grade === '大班') labels.push('重讀')
+  if (student.status === 'pending' && (student.target_school_year === null || student.target_semester === null)) labels.push('缺入學學期')
   if (student.board_notice === 'deposit_removed') labels.push('看板已退預繳')
   else if (student.board_notice === 'enrolled') labels.push('看板已註冊')
   return { text, labels }

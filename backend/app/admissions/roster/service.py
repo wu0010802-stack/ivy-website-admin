@@ -418,6 +418,16 @@ async def update_student(db: AsyncSession, student: RosterStudent, data: Student
         values["target_school_year"], values["target_semester"] = calc.term_for_date(values["planned_entry_date"])
         fields |= {"target_school_year", "target_semester"}
     new_year = values.get("target_school_year")
+    if pending and new_year is not None:
+        new_semester = values.get("target_semester", student.target_semester)
+        planned_day = values.get("planned_entry_date")
+        deposited = values.get("deposit_date", student.deposit_date)
+        if (
+            not student.school_year - 1 <= new_year <= student.school_year + 1
+            or (new_year == student.school_year + 1 and new_semester != 1)
+            or (planned_day is not None and deposited is not None and planned_day < deposited)
+        ):
+            raise RosterError(422, "ROSTER_TARGET_TERM_INVALID", "入學學期或預定入園日不合理：只能是這學年的上、下學期，或下學年的上學期，而且不能早於預繳日期")
     if new_year is not None and new_year != student.school_year:
         if room is not None and room.school_year != new_year:
             raise _year_mismatch()
@@ -591,6 +601,19 @@ async def restore_student(
         db, student_id, peeked_class_id, data.expected_version,
         extra_class_ids={data.class_id} if data.class_id else None,
     )
+    if student.status in ("refunded", "left") and student.recruitment_visit_id is not None:
+        # 看板在這位被退掉之後又重新建了一位（部分唯一索引：一筆看板紀錄最多一位預繳未入園或在籍）。
+        active = await db.scalar(
+            select(RosterStudent.id)
+            .where(
+                RosterStudent.recruitment_visit_id == student.recruitment_visit_id,
+                RosterStudent.id != student.id,
+                RosterStudent.status.in_(("pending", "enrolled")),
+            )
+            .limit(1)
+        )
+        if active is not None:
+            raise RosterError(409, "ROSTER_VISIT_ALREADY_ACTIVE", "看板已經為這筆訪視重新建了一位預繳生，不能再恢復這一位")
     if student.status == "refunded":
         student.status = "pending"
         student.refunded_date = None
@@ -611,15 +634,27 @@ async def restore_student(
     else:
         raise _status_invalid("只有已離園或已退預繳的幼生能恢復")
     _touch(student, user_id)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:  # 兩邊同時動作：部分唯一索引擋下
+        await db.rollback()
+        raise RosterError(409, "ROSTER_VISIT_ALREADY_ACTIVE", "看板已經為這筆訪視重新建了一位預繳生，不能再恢復這一位") from exc
     return student
 
 
 # ---- 讀取整張編班表、三段目標、結算紀錄 ------------------------------------------
 
+def as_of_window(school_year: int) -> tuple[date, date]:
+    """可選的統計日期：學年開學（8/1）到今天，但不超過學年最後一天（隔年 7/31）。
+    還沒開學的學年只能選開學那天（先看、先建班用）。"""
+    start = date(school_year + 1911, 8, 1)
+    end = date(school_year + 1912, 7, 31)
+    return start, max(min(today_local(), end), start)
+
+
 def check_as_of(school_year: int, as_of: date) -> None:
-    """統計日期不能晚於今天，也不能早於該學年 8/1。"""
-    if as_of > today_local() or as_of < date(school_year + 1911, 8, 1):
+    start, latest = as_of_window(school_year)
+    if not start <= as_of <= latest:
         raise RosterError(422, "ROSTER_AS_OF_OUT_OF_RANGE", "統計日期要在這個學年開學（8/1）到今天之間")
 
 
@@ -686,12 +721,18 @@ async def _load_for_year(
 
 
 def _gap_for(students: list[RosterStudent], school_year: int, as_of: date) -> calc.Gap:
-    return calc.compute_gap((facts_of(s, None) for s in students), school_year=school_year, as_of=as_of)
+    # 只算這一學年的幼生，加上入學 (Y+1, 上) 的預繳生；下一學年自己的在籍不能算進來（同一人不算兩次）。
+    counted = (
+        s for s in students
+        if s.school_year == school_year
+        or (s.status == "pending" and (s.target_school_year, s.target_semester) == (school_year + 1, 1))
+    )
+    return calc.compute_gap((facts_of(s, None) for s in counted), school_year=school_year, as_of=as_of)
 
 
 async def build_roster(db: AsyncSession, campus_key: str, school_year: int, as_of: date | None) -> RosterOut:
     today = today_local()
-    as_of = as_of or today
+    as_of = as_of or as_of_window(school_year)[1]
     check_as_of(school_year, as_of)
     rooms, students = await _load_for_year(db, campus_key, school_year)
     gap = _gap_for(students, school_year, as_of)
@@ -704,6 +745,8 @@ async def build_roster(db: AsyncSession, campus_key: str, school_year: int, as_o
     for student in students:
         if student.status == "pending" and (student.target_school_year, student.target_semester) == (school_year + 1, 1):
             next_year.append(student)
+        elif student.status == "refunded" and (student.target_school_year, student.target_semester) == (school_year + 1, 1):
+            gone.append(student)  # 在這一頁把下學年 8 月入園的預繳生退掉：要在這裡才救得回來
         elif student.school_year != school_year:
             continue
         elif student.status in ("left", "refunded"):

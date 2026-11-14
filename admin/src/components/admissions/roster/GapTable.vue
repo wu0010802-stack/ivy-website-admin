@@ -19,6 +19,13 @@ const year = computed(() => props.roster.school_year)
 const past = computed(() => props.roster.as_of !== props.roster.today)
 const asOfText = computed(() => monthDayText(props.roster.as_of))
 const minDate = computed(() => `${year.value + 1911}-08-01`)
+// 最晚能選的統計日期：今天，但不超過學年最後一天；還沒開學的學年只能選開學日（後端 as_of_window 同一套）。
+const latest = computed(() => {
+  const end = `${year.value + 1912}-07-31`
+  const capped = props.roster.today < end ? props.roster.today : end
+  return capped > minDate.value ? capped : minDate.value
+})
+const latestLabel = computed(() => (latest.value === props.roster.today ? '今天' : latest.value === minDate.value ? '開學日' : '學年最後一天'))
 const showSept = computed(() => props.roster.today >= `${year.value + 1911}-09-15`)
 const showMarch = computed(() => props.roster.today >= `${year.value + 1912}-03-15`)
 
@@ -60,9 +67,9 @@ const TIERS = [['base', '基礎'], ['boost', '激勵'], ['top', '超越']] as co
   <div class="roster-gap">
     <div class="roster-asof">
       <label>統計日期
-        <input type="date" :value="roster.as_of" :min="minDate" :max="roster.today" @change="changeDate" />
+        <input type="date" :value="roster.as_of" :min="minDate" :max="latest" @change="changeDate" />
       </label>
-      <button type="button" @click="emit('change-as-of', roster.today)">今天</button>
+      <button type="button" @click="emit('change-as-of', latest)">{{ latestLabel }}</button>
       <button v-if="showSept" type="button" @click="emit('change-as-of', `${year + 1911}-09-15`)">9/15 結算日</button>
       <button v-if="showMarch" type="button" @click="emit('change-as-of', `${year + 1912}-03-15`)">3/15 結算日</button>
       <button v-if="canWrite" type="button" class="roster-asof__save" @click="emit('snapshot')">存成結算紀錄</button>

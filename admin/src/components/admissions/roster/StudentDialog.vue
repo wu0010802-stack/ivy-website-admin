@@ -75,7 +75,7 @@ function submit() {
     }
   }
   if (unassigned.value && form.grade && form.grade !== s.grade) body.grade = form.grade as StudentUpdate['grade']
-  if (pending.value && unassigned.value && form.term && form.term !== termOf(s)) {
+  if (pending.value && form.term && form.term !== termOf(s)) {
     const [year, semester] = form.term.split('-').map(Number)
     if (year !== s.target_school_year) body.target_school_year = year
     if (semester !== s.target_semester) body.target_semester = semester
@@ -107,8 +107,8 @@ function submit() {
         </div>
         <p class="roster-form__hint">填了預定入園日，入學學期就由日期決定。</p>
       </template>
-      <div v-if="unassigned" class="roster-form__row">
-        <label>{{ gradeLabel }}
+      <div v-if="unassigned || (pending && !nextYearTerm)" class="roster-form__row">
+        <label v-if="unassigned">{{ gradeLabel }}
           <select v-model="form.grade">
             <option v-if="!form.grade" value="">請選擇</option>
             <option v-for="g in GRADE_ORDER" :key="g" :value="g">{{ g }}</option>

@@ -45,7 +45,9 @@ async function load(options: { keep?: boolean } = {}) {
   } catch (err) {
     if (!requests.isCurrent(request)) return
     if (options.keep && roster.value) {
-      // 動作後重讀、或改統計日期失敗：畫面維持原狀，只提示原因。
+      // 動作後重讀、或改統計日期失敗：畫面維持原狀，只提示原因；統計日期還原成畫面上這一份的，
+      // 不然之後每次重讀都帶著被擋下的日期。
+      asOf.value = roster.value.as_of === roster.value.today ? null : roster.value.as_of
       notifyError(apiErrorMessage(err, '無法讀取編班表，請重新載入。'))
     } else {
       roster.value = null
@@ -245,14 +247,16 @@ async function removeClass() {
 
 const depositOpen = ref(false)
 async function saveDeposit(body: StudentsCreate) {
-  depositOpen.value = false
   menu.value = null
   try {
     const result = await createStudents(props.campusKey, body)
+    depositOpen.value = false
     if (result.duplicates?.length) notifyWarning(`已有同名幼生：${result.duplicates.join('、')}`, { duration: 6000 })
     await load({ keep: true })
   } catch (err) {
-    await onActionError(err, '無法補登預繳。')
+    // 失敗時對話框留著，貼上的整份名單不用重貼；版本衝突之類才需要重讀。
+    if (isVersionConflict(err) || (err as { status?: number } | null)?.status === 404) await onActionError(err, '無法補登預繳。')
+    else notifyError(apiErrorMessage(err, '無法補登預繳。'))
   }
 }
 function restore(student: RosterStudent, classId: string | null) {

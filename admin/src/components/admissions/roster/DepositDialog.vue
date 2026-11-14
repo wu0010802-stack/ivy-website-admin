@@ -16,7 +16,10 @@ const terms = computed(() => [
   { value: `${props.schoolYear}-2`, label: `${props.schoolYear}下預繳（2–7月入園）` },
   { value: `${props.schoolYear + 1}-1`, label: `${props.schoolYear + 1}上預繳（8月入園）` },
 ])
-const names = computed(() => form.names.split(/[\r\n]+/).map((name) => name.trim()).filter(Boolean))
+// 送出的是原始每一行（含空白行），後端回報「第 N 行」才對得上貼上的內容。
+const MAX_LINES = 60
+const lines = computed(() => form.names.replace(/\r/g, '').replace(/\n+$/, '').split('\n'))
+const names = computed(() => lines.value.map((name) => name.trim()).filter(Boolean))
 const gradeLabel = computed(() => (form.term === `${props.schoolYear + 1}-1` ? `${props.schoolYear + 1} 學年的班別` : '班別'))
 
 watch(() => props.modelValue, (open) => {
@@ -27,6 +30,7 @@ watch(() => props.modelValue, (open) => {
 
 function submit() {
   if (!names.value.length) return void (error.value = '請至少填一位幼生的姓名')
+  if (lines.value.length > MAX_LINES) return void (error.value = `一次最多 ${MAX_LINES} 行，請分批補登`)
   if (!form.grade) return void (error.value = '請選班別')
   if (!form.deposit_date) return void (error.value = '請填預繳日期')
   const [year, semester] = form.term.split('-').map(Number)
@@ -38,7 +42,7 @@ function submit() {
   }
   if (form.planned_entry_date) pending.planned_entry_date = form.planned_entry_date
   if (names.value.length === 1 && form.birthday) pending.birthday = form.birthday
-  emit('save', { school_year: props.schoolYear, names: names.value, pending })
+  emit('save', { school_year: props.schoolYear, names: lines.value, pending })
 }
 </script>
 
