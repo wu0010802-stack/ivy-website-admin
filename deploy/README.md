@@ -220,6 +220,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-14 常春藤環境頁調亮＋11-13 版面精修上線（main CI 部署，沒有 migration）
+
+- **內容**：`3f7325e6`（PR #94，`feature/env-bright-20261114`）。環境頁的積木色整組換成乾淨的高明度色、頁面底接近純白、章節底色從四條滿版色帶改成三塊圓角底板；同一個 PR 帶著 11-13 還沒上線的版面精修（原 `feature/env-polish-20261113`）。只動 `web/` 的環境頁樣式、元件、兩張內建照片與後台環境頁編輯畫面的兩句說明；沒有改 API、變數與資料庫。細節見 `README.md` 同日兩段與 `DESIGN.md`「環境頁調亮」「環境頁精修」。
+- **推前**：web typecheck、`test:website` 153 檔 2341 項；admin typecheck 與 177 檔 3461 項；正式建置上 18 種寬度 × 2 種高度的版面檢查、axe 三種寬度 0 違規、字數壓力測試六種寬度、舊版 Safari 模擬。PR 的 CI 全綠（含 E2E）。當天依賴稽核閘門因新公告全紅，等 #93 升級套件併入後才接上 main 重跑；之後又讓 #92 先部署，前後 rebase 兩次，README 頂部各衝突一次（兩邊段落都留）。推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun` 那組跑綠後才合併。
+- **CI**：main run 43555620835 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `3f7325e6`。Playwright（真 Chrome，1440 與 390 寬，遙測與第三方分析一律攔下回 204、只發 GET）開 `/environment` 共 29 項全過：01 章是粉色圓角底板、02 章白底、積木色是新色票、章節編號深綠底白字、手機目次排成一列、圓點小路有畫、沒有水平溢出、圖片都載得到（教室照片是提亮後的新雜湊、首屏載裁好的直幅）、主控台沒有錯誤。`/`、`/about`、`/curriculum`、`/admission`、`/visit` 都回 200（`/anniversary` 回 404 是後台開關關著，與這次無關）。
+- **沒驗**：iOS／Safari 實機（這一頁用到容器單位、`svh`、`:has()`、`subgrid`，舊版 Safari 只做過模擬）。
+
 ## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡上線（main CI 部署，沒有 migration）
 
 - **內容**：`9fb2f19b`（PR #92，合併提交 `a5e681f7`；README「2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡」）。使用者說「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」，看過本機預覽後說「部署」。11-13 的十五鏡拿掉第 2 鏡，其餘順序、裁切、亮度不變；只換 web 的兩支影片與 `video-manifest.json`，封面、樣式、圖說都沒動；沒有 migration、沒有變數要改。
