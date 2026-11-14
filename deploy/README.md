@@ -256,6 +256,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-15 ChatGPT 廣告的 OpenAI 評估像素上線並開啟（main CI 部署＋Railway web 變數，沒有 migration）
+
+- **內容**：`143fc9c8`（PR #96，`feature/openai-ads-pixel-20261115`）。只動 `web/`：GA4／Meta Pixel 的架構加第三家，預約成功時送 `appointment_scheduled`。做法與規則見上面「ChatGPT 廣告：OpenAI 評估像素」一節與 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 154 檔 2375 項；本機用真的 `oaiq.min.js` 跑四支驗證腳本（事件在本機攔下）。分支連推三次，前兩組 run 被新的取代而取消，PR 顯示 BLOCKED；重跑被取消的 push 那組（43620292360）全綠後轉 CLEAN 才合併。
+- **CI**：main run 43622853729 全綠，含 E2E 與 Deploy Railway production。部署當下變數還沒設，官網行為與 CSP 不變。
+- **隱私權政策**：合併後、main 部署進行中，在後台改第 5 段（兩項工具改三項、加 OpenAI 評估像素的條列、三處句子涵蓋三家）與最後更新日期（2026-11-15），發布。正式站 `/api/website/v1/public/site` 的第 5 段與備好的新版逐字相同，其餘十一段字數不變。
+- **變數**：政策發布、main 部署完成後，`railway variable set NUXT_PUBLIC_OPENAI_PIXEL_ID=H3LXGVGDAfgHkdJ1svTjbe`（web、production）。web 重新部署 01:57:12 開始、約 40 秒完成，期間首頁一直 200。
+- **廣告管理平台**（同一晚）：資料來源「常春藤官網」、轉換事件「官網預約參觀成功」（已排定預約）並掛到行銷活動「常春藤幼兒園｜認識高雄五所校園」；行銷活動層的廣告素材強化關掉、追蹤參數與情境提示填好、每日預算 NT$360 → NT$1,000（使用者指定）。
+- **部署後正式站驗證**（Playwright 真 Chrome；第一方統計與 GA／Meta 的請求在本機回 204，送往 OpenAI 的照常送）：首頁與 `/visit` 的 CSP 多了 `script-src https://bzrcdn.openai.com`、`connect-src`／`img-src https://bzr.openai.com`；`oaiq.min.js` 有載入；送往 `bzr.openai.com` 的內容帶這顆 Pixel ID、`"automatic_advanced_matching":"disabled"`、`source_url` 只有 origin＋pathname、沒有 `user` 欄位（在 `/visit` 插了填好 Email 與電話的欄位也一樣）；沒有任何 `pixel-config` 請求出去；主控台沒有 CSP 違規。`/visit/manage` 當第一頁：沒有載 SDK、沒有 `oaiq`、沒有送往 OpenAI 的請求。
+- **沒驗**：真的預約成功那一筆有沒有進平台（要用測試資料預約一次再到後台取消，會發通知，留給園方做，步驟見上一節第 6 步）；轉換有沒有歸到行銷活動（要等廣告 11-16 開跑後有真的點擊）；iOS／Safari 實機。
+
 ## 2026-11-15 特色教學美術創作換成戶外滾筒畫上線（main CI 部署，沒有 migration）
 
 - **內容**：`a61af11d`（PR #95，`feature/curriculum-art-20261114`）。`/curriculum` 五件事・美術創作的內建照片 `cur-daily-art` 從男孩剪紙換成兩個幼幼在草地上用滾筒刷畫畫（Drive「官網」資料夾義華校原檔，母檔去 EXIF），替代文字同步改。只動 `web/` 的一張照片、衍生檔、manifest 與元件一行；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。

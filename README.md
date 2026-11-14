@@ -1,3 +1,15 @@
+## 2026-11-15 ChatGPT 廣告的轉換追蹤：OpenAI 評估像素（`feature/openai-ads-pixel-20261115`）
+
+園方在 ChatGPT 廣告管理平台開了第一檔廣告，平台只看得到點擊。使用者要把「點進來的家長有沒有預約」接起來。規格 `docs/specs/2026-11-15-openai-ads-pixel-design.md`，上線步驟 `deploy/README.md`「ChatGPT 廣告」。沒有 migration、沒有改 API。
+
+- **做法**：GA4／Meta Pixel 的同一組檔案加第三家。新變數 `NUXT_PUBLIC_OPENAI_PIXEL_ID`，預設空白＝關；設了才載 `oaiq.min.js`、CSP 才放行 `bzrcdn.openai.com`（腳本）與 `bzr.openai.com`（事件）。DNT／GPC 不載。
+- **只回報預約成功**：伺服器回 `confirmed` 時送標準事件 `appointment_scheduled`，不送頁面瀏覽，不帶校區、入口或任何個資。
+- **廣告點擊代碼**：落地頁網址上的 `oppref` 進站當下就傳給 SDK 的 `init`（SDK 等整頁載完才載入，家長先站內換頁的話網址上已經沒有它）。
+- **「自動進階比對」由官網關掉**：這個功能會掃頁面上的 Email／電話／姓名欄位，雜湊後跟事件一起送。平台上沒有開關（網頁像素一律啟用）。官網在載入 SDK 前攔下它取設定檔的請求、直接回「關」，CSP 也不放行 bzrcdn 的 `connect-src` 當第二道。用真的 SDK 做過對照：沒攔時事件帶 Email、電話、名字的雜湊；有攔時 SDK 回報 disabled、事件沒有使用者欄位。
+- **預約修改頁、後台、草稿預覽完全不送**：第一頁是這些頁面就不載；載入後換頁進去先暫停（`consent(false)`），離開時恢復並把點擊代碼帶回去。
+- **隱私權政策**第 5 段補上第三項工具（後台內容，已發布）。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix web run test:unit`（154 檔 2375 項，新增 `web/tests/openai-ads-pixel.spec.ts` 34 項）；真的 SDK 的四支驗證腳本與正式站驗證腳本在 `output/openai-ads-pixel/`（事件在本機攔下）。正式站結果見 `deploy/README.md` 同日段落。
+
 ## 2026-11-15 特色教學「美術創作」換成戶外滾筒畫（`feature/curriculum-art-20261114`）
 
 使用者截了五件事・美術創作那張（男孩拿剪刀剪紙）說換掉，從候選板（`output/curriculum-art-photo-20261114/候選板.jpg`，A1–A5）選 A2。
