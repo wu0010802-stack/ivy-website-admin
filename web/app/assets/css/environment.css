@@ -5,7 +5,13 @@
    字型跟全站一致（2026-11-03 字型統一）：標題與積木上的名稱、數字用 LINE Seed TW 700（--font-head），
    內文、小標籤、按鈕用系統字（--font）。原本的圓體與手寫字已退場。
    顏色一律走下方 token（站內 token 或本頁的 --renv-* 別名，色值在 tokens.css 第 15 節），規則裡不寫色彩字面值。
-   這支不是 scoped：圓點小路的 circle 是 JS 建的，沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。 */
+   這支不是 scoped：圓點小路的 circle 是 JS 建的，沒有 Vue 的 data-v 屬性，所以每條規則都掛在 .renv 底下。
+
+   2026-11-13 精修（DESIGN.md「環境頁精修」）：版面分三級——901 以上桌機、641–900 平板（兩欄構圖縮小，不再是放大的手機版）、
+   640 以下手機單欄；章節留白與首屏目次跟著視窗高度收（筆電常見的 650–780px 高也看得到完整首屏）。
+
+   2026-11-14 調亮（DESIGN.md「環境頁調亮」）：積木色整組換成乾淨的高明度色（色值在 tokens.css，這裡的規則沒動），
+   頁面底接近純白；章節底色從四條滿版色帶改成三塊內縮的圓角底板，02 校園環境不鋪底色。 */
 
 .renv{
   --renv-paper:var(--ivy-env-paper);
@@ -25,11 +31,20 @@
   --renv-forest-side:var(--ivy-env-forest-side);
   --renv-cream-side:var(--ivy-env-cream-side);
   --renv-ease:cubic-bezier(.22,1,.36,1);
-  --renv-gutter:clamp(16px,4vw,56px);
-  /* 積木的厚度（側面往下錯開）與兩種圓角 */
+  --renv-gutter-page:clamp(16px,4vw,56px);
+  --renv-gutter:var(--renv-gutter-page);
+  /* 章節底板（見下方 .renv-care 那一段）：左右內縮的量與圓角。640 以下不內縮（版心只有 358px，再縮字會貼邊），只留圓角 */
+  --renv-inset:clamp(10px,1.5vw,24px);
+  --renv-board-r:clamp(32px,4vw,56px);
+  /* 章節上下留白、章節裡大區塊的間距：取「視窗寬換算」與「視窗高換算」較小的那個。
+     只看寬度時，1440×650 的筆電一屏有四分之一是留白；svh 不跟著手機網址列伸縮，捲動時不會跳。 */
+  --renv-pad:clamp(68px,min(9vw,15svh),128px);
+  --renv-gap:clamp(48px,min(7.2vw,12svh),104px);
+  /* 積木的厚度（側面往下錯開）與兩種圓角；--bk 是後面墊的積木錯開量的倍率（平板、手機收小） */
   --side:7px;
   --rs:14px;
   --rm:28px;
+  --bk:1;
   position:relative;isolation:isolate;overflow-x:clip;
   font-family:var(--font);color:var(--renv-ink);background:var(--renv-paper);
 }
@@ -43,11 +58,17 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv :where(p,ul,ol){margin:0}
 .renv :where(ul,ol){padding:0;list-style:none}
 .renv-wrap{width:min(100% - 2*var(--renv-gutter),1240px);margin-inline:auto;position:relative}
-.renv-section{position:relative;padding-block:clamp(80px,9vw,136px);background:var(--renv-bg,var(--renv-paper));scroll-margin-top:72px}
+.renv-section{position:relative;padding-block:var(--renv-pad);background:var(--renv-bg,var(--renv-paper));scroll-margin-top:72px}
+/* 章節底色（2026-11-14 調亮）：有底色的三章各是一塊圓角「底板」，左右內縮、四角圓，白底從四周露出來；
+   取代原本四條滿版、直線相接的淡色帶（整頁沒有一塊白，讀起來悶）。02 校園環境是整頁最長的一章，不鋪底色。
+   底板內縮多少，裡面的版心留白就少多少（--renv-gutter 扣掉 --renv-inset）：版心的寬度與位置和沒有底板時一模一樣，
+   11-13 精修照版心寬調過的版面（目次、五顆心、小照片的 sizes）都不用跟著改。 */
 .renv-care{--renv-bg:var(--ivy-env-tint-pink)}
-.renv-spaces{--renv-bg:var(--ivy-env-tint-sage)}
 .renv-meals{--renv-bg:var(--ivy-env-tint-mustard)}
 .renv-tour{--renv-bg:var(--ivy-env-tint-mist)}
+.renv :is(.renv-care,.renv-meals,.renv-tour){--renv-gutter:calc(var(--renv-gutter-page) - var(--renv-inset));margin-inline:var(--renv-inset);border-radius:var(--renv-board-r)}
+/* 兩塊底板上下相鄰時，中間露出 24px 的白（和桌機左右內縮的最大值一樣；手機底板是滿版，縫太窄會像破圖） */
+.renv :is(.renv-care,.renv-meals,.renv-tour)+:is(.renv-care,.renv-meals,.renv-tour){margin-top:24px}
 
 /* ---------- 積木：顏色（正面＋側面）與形狀 ---------- */
 .renv .c-terra{--c:var(--renv-terra);--s:var(--renv-terra-side)}
@@ -73,7 +94,9 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-ph{position:relative;isolation:isolate}
 .renv-frame{position:relative;width:100%;overflow:hidden;background:var(--s);box-shadow:0 var(--side) 0 var(--s)}
 .renv-frame>img,.renv-frame>:where(picture)>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.renv-ph-back{position:absolute;z-index:-1;left:0;top:0;width:100%;translate:var(--bx,22px) var(--by,22px)}
+/* 照片外緣一圈極淡的墨綠線（2026-11-14）：白底上，背景很淺的照片（操作教具那張的白牆）邊緣會和頁面融在一起、形狀缺一角 */
+.renv-frame::after{content:"";position:absolute;inset:0;border-radius:inherit;box-shadow:inset 0 0 0 1px rgb(var(--ink) / .08);pointer-events:none}
+.renv-ph-back{position:absolute;z-index:-1;left:0;top:0;width:100%;translate:calc(var(--bx,22px) * var(--bk)) calc(var(--by,22px) * var(--bk))}
 
 /* 小圓積木裡的編號 */
 .renv-dot{display:inline-grid;place-items:center;flex:none;width:2.6em;height:2.6em;border-radius:50%;background:var(--c);box-shadow:0 4px 0 var(--s);color:var(--renv-ink);font-weight:700;font-size:.95rem;line-height:1;font-variant-numeric:tabular-nums}
@@ -81,22 +104,36 @@ body:has(.renv){background:var(--ivy-env-paper)}
 /* ---------- 字 ---------- */
 .renv h1,.renv-title,.renv-feature-copy h3,.renv-day-title{font-weight:700;letter-spacing:.02em;color:var(--renv-ink);text-wrap:balance}
 .renv h1>span,.renv-title>span,.renv-feature-copy h3>span{display:block}
-/* 大標字級上限＝字欄寬 ÷ 9.6（一行 9 字＋螢光塊的內外距）：901–1100 兩欄時字欄只剩約 350px，原本會擠成「…安心長／大。」 */
+/* 大標字級上限＝字欄寬 ÷ 9.6（一行 9 字＋螢光塊的內外距）：兩欄時字欄窄（1024 寬約 470px、768 寬約 350px），不設上限會擠成「…安心長／大」 */
 .renv h1{font-size:clamp(1.75rem,min(1rem + 3.6vw,10.4cqi),3.85rem);line-height:1.2}
 .renv-title{font-size:clamp(1.95rem,1.05rem + 2.7vw,3.2rem);line-height:1.22}
 .renv-kicker{display:flex;align-items:center;gap:14px;margin-bottom:22px;font-weight:700;font-size:1.05rem;line-height:1.2;color:var(--renv-ink)}
+/* 四章的編號一律深綠底白字（2026-11-14）：原本各用一個積木色，黃色編號在黃底板上、粉色在粉底板上幾乎看不見；深綠也是整頁壓得住的品牌色 */
+.renv-kicker .renv-dot{color:var(--renv-paper)}
 .renv-text{max-width:34em;font-size:var(--fs-md);line-height:1.9;color:var(--renv-ink-soft)}
+/* 短說明不從詞中間斷行（utils/phrase.ts 把句子切成小段、中間放 <wbr>）：keep-all 讓中文只在 <wbr> 與標點後換行；
+   萬一有一段比整行還長，anywhere 讓它照舊能斷，不會撐破版面。這個 class 只在真的切出小段時才有。 */
+.renv-phr{word-break:keep-all;overflow-wrap:anywhere}
 
-/* ---------- 進場：積木由上往下落定（JS 只替一開始不在視窗裡的元素加 .is-waiting） ---------- */
+/* ---------- 進場：積木由上往下落定 ----------
+   往下捲才看到的：JS 只替一開始不在視窗裡的元素加 .is-waiting（沒有 JS 就不藏）。
+   首屏的四塊目次與拱後面的墊塊：純 CSS 動畫，第一次繪製就開始、不等 JS；backwards 只管開始前，落定後不留 transform，
+   滑過、按下的位移才接得上。首屏照片（LCP）所在的赤陶拱不動。 */
 .renv [data-drop].is-waiting{opacity:0;transform:translateY(-46px)}
 .renv [data-drop].is-waiting.is-in{opacity:1;transform:none;transition:transform .85s var(--renv-ease) calc(var(--i,0) * 90ms),opacity .45s var(--renv-ease) calc(var(--i,0) * 90ms)}
+@keyframes renv-land{from{opacity:0;transform:translateY(-40px)}}
+@keyframes renv-slip{from{translate:0 0}}
+@media (prefers-reduced-motion:no-preference){
+  .renv-index a{animation:renv-land .8s var(--renv-ease) calc(var(--n,0) * 80ms + 80ms) backwards}
+  .renv-arch-back{animation:renv-slip .9s var(--renv-ease) .2s backwards}
+}
 @media (prefers-reduced-motion:reduce){
   .renv [data-drop].is-waiting{opacity:1;transform:none}
   .renv *,.renv *::before,.renv *::after{transition:none !important}
 }
 
 /* ---------- 首屏：大標、赤陶拱積木、四塊積木目次 ---------- */
-.renv-hero{padding:clamp(28px,3.4vw,48px) 0 clamp(72px,8vw,112px);overflow:clip}
+.renv-hero{padding:clamp(28px,3.4vw,48px) 0 calc(var(--renv-pad) * .84);overflow:clip}
 .renv-hero-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,540px);grid-template-areas:"txt fig" "toc fig";column-gap:clamp(40px,5vw,72px);align-items:start}
 .renv-hero-txt{grid-area:txt;padding-top:clamp(8px,2.8vw,40px);container-type:inline-size}
 .renv-mark{display:inline-block;margin:0 .06em;padding:.02em .12em .04em;border-radius:.16em;background:var(--renv-mustard);box-shadow:0 .09em 0 var(--renv-mustard-side);color:var(--renv-ink);line-height:1.1}
@@ -106,94 +143,110 @@ body:has(.renv){background:var(--ivy-env-paper)}
 /* 首屏照片框：一塊赤陶拱積木（2026-11-04 比稿 design/environment-hero-frame-directions-20261104/ 選 A，取代五道的彩虹疊疊樂）。
    拱的四邊留 --t 的積木邊，照片是中間的拱窗；窗頂露出一道赤陶側面（照片坐低一點）；後面錯開 --off 墊一塊同形的芥末拱。
    赤陶是四塊目次沒用到的顏色：鼠尾草拱會像放大的「02 校園環境」，芥末圓環會撞「01 幼兒保育」。
-   901 以上「站在地上」：照片欄是尺寸容器（container-type: size，自己不撐高，高度＝大標＋目次那兩列），拱貼右下角，
+   641 以上「站在地上」：照片欄是尺寸容器（container-type: size，自己不撐高，高度＝大標＋目次那兩列），拱貼右下角，
    正面底緣和目次積木的底緣切齊；高度取「到大標頂」（字欄內距＋8px）和「欄寬換算」較小的那個。
    首屏照片的 sizes 依這裡算（utils/responsive-image.ts 的 environmentHeroSizes）：桌機照片最寬 (540 − 26) − 2×20 = 474 → 480px；
-   900 以下拱寬＝版心 − 13px、照片＝視窗 − 2×16 − 13 − 2×14 ≈ 視窗 − 74px。照片窗約 4:5（ENVIRONMENT_HERO_ASPECT）。 */
+   641–900 照片欄是版心的 44%（不到視窗的 42%）；640 以下拱寬＝版心 − 13px、照片＝視窗 − 2×16 − 13 − 2×14 ≈ 視窗 − 74px。
+   照片窗約 4:5（ENVIRONMENT_HERO_ASPECT）。 */
 .renv-arch{--ar:.8;--t:20px;--off:26px;--r:999px 999px var(--rs) var(--rs);position:relative;isolation:isolate;width:calc(100% - var(--off));aspect-ratio:var(--ar)}
 .renv-arch-back,.renv-arch-face{position:absolute;inset:0;border-radius:var(--r)}
 .renv-arch-back{z-index:-1;translate:var(--off) var(--off)}
 .renv-arch-face{display:flex;flex-direction:column;padding:var(--t);background:var(--c);box-shadow:0 var(--side) 0 var(--s)}
 .renv-arch-photo{flex:1;min-width:0;min-height:0;width:100%;object-fit:cover;object-position:70% 38%;border-radius:999px 999px 6px 6px;background:var(--renv-forest-side);box-shadow:0 calc(-1 * var(--side)) 0 var(--s)}
-@media (width>900px){
+@media (width>640px){
   .renv-hero-fig{position:relative;align-self:stretch;container-type:size}
   .renv-arch{position:absolute;right:var(--off);bottom:0;width:auto;height:min(100cqh - clamp(8px,2.8vw,40px) - 8px,(100cqw - var(--off)) / var(--ar))}
 }
 
-.renv-index{grid-area:toc;align-self:end}
-.renv-index ul{display:grid;grid-template-columns:auto auto;justify-content:start;align-items:end;gap:30px 22px;margin-top:44px}
+/* 目次四塊積木（圓、拱、方、半圓）的大小全部照 --b 等比例：圓、拱、方同寬（＝--b），半圓 1.56 倍。
+   2026-10-30 定案時是圓 192、拱 188、方 180：左欄的圓和方差 12px，上下兩列的間距也跟著不一樣（22 對 34），讀起來像沒對齊，11-13 統一。
+   --b 取「視窗高換算」與「字欄寬換算」較小的那個，最大 192px。
+   高度：大標兩行＋目次兩列＋頁首要放進一屏，900px 高剛好是 192，每矮 100px 縮 30px；
+   寬度：最寬的一列（方＋間距＋半圓）是 2.675 × --b，不能超過字欄（37cqi）。2026-11-04 前目次用固定寬，901–1100 會蓋到首屏照片。 */
+.renv-index{grid-area:toc;align-self:end;container-type:inline-size}
+.renv-index ul{--b:clamp(120px,min(30svh - 78px,37cqi),192px);display:grid;grid-template-columns:auto auto;justify-content:start;align-items:end;gap:calc(var(--b) * .156) calc(var(--b) * .115);margin-top:clamp(28px,5svh,44px)}
 .renv-index a{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
-.renv-index-no{font-weight:700;font-size:1.55rem;line-height:1;font-variant-numeric:tabular-nums;margin-bottom:6px}
-.renv-index-name{font-weight:700;font-size:1.2rem;line-height:1.3}
-.renv-index-hint{font-size:.86rem;line-height:1.5}
-.renv-index li:nth-child(1) a{width:192px}
-.renv-index li:nth-child(2) a{--ar:.84;width:188px;padding-top:34px}
-.renv-index li:nth-child(3) a{--rm:24px;width:180px}
-.renv-index li:nth-child(4) a{width:300px;justify-content:flex-end;padding-bottom:18px}
+.renv-index-no{font-weight:700;font-size:clamp(1.2rem,calc(var(--b) * .129),1.55rem);line-height:1;font-variant-numeric:tabular-nums;margin-bottom:calc(var(--b) * .03)}
+.renv-index-name{font-weight:700;font-size:clamp(1rem,calc(var(--b) * .1),1.2rem);line-height:1.3}
+.renv-index-hint{font-size:clamp(.8rem,calc(var(--b) * .075),.9rem);line-height:1.5}
+.renv-index li:nth-child(1) a{width:var(--b)}
+.renv-index li:nth-child(2) a{--ar:.84;--n:1;width:var(--b);padding-top:calc(var(--b) * .177)}
+.renv-index li:nth-child(3) a{--rm:calc(var(--b) * .125);--n:2;width:var(--b)}
+.renv-index li:nth-child(4) a{--n:3;width:calc(var(--b) * 1.56);justify-content:flex-end;padding-bottom:calc(var(--b) * .094)}
 
-/* 1180 以下目次積木縮到字欄寬：桌機的固定寬（最寬一列 03＋04 共 502px）在 901–1180 兩欄時比字欄寬，
-   2026-11-04 前在 901–1100 會蓋到首屏照片。改用六欄排法（01、02 各三欄，03 兩欄、04 四欄），照片欄同時收到 46%。 */
-@media (width<=1180px){
-  .renv-index ul{grid-template-columns:repeat(6,minmax(0,1fr));gap:24px 14px}
-  .renv-index li:nth-child(1),.renv-index li:nth-child(2){grid-column:span 3}
-  .renv-index li:nth-child(3){grid-column:span 2}
-  .renv-index li:nth-child(4){grid-column:span 4}
-  .renv-index li a{width:100% !important}
-  .renv-index li:nth-child(2) a{padding-top:28px}
-  .renv-index li:nth-child(4) a{padding-bottom:14px}
-  .renv-index-no{font-size:1.35rem;margin-bottom:4px}
-  .renv-index-name{font-size:1.08rem}
-  .renv-index-hint{font-size:.8rem}
-  .renv-index li:nth-child(3) .renv-index-hint{display:none}
+/* 841 以上、視窗不到 700px 高（筆電開著開發者工具、橫拿的手機與平板）：目次排成一列、不放小字，
+   大標在上、目次在下、拱站在右邊，一屏看得完；--b 改由字欄寬決定（四塊加間距共 4.905 × --b，所以是 20.3cqi）。
+   641–840 的字欄放不下一列（最小的 72px 也要 348px），照舊排兩列。 */
+@media (width>840px) and (height<700px){
+  .renv-hero-grid{min-height:min(100svh - 200px,440px)}
+  .renv-index ul{--b:clamp(72px,20.3cqi,128px);grid-template-columns:repeat(4,auto);gap:calc(var(--b) * .115);margin-top:28px}
+  .renv-index-no{font-size:clamp(1.05rem,calc(var(--b) * .23),1.2rem);margin-bottom:2px}
+  .renv-index-name{font-size:clamp(.88rem,calc(var(--b) * .185),1rem)}
+  .renv-index-hint{display:none}
+  .renv-index li:nth-child(4) a{padding-bottom:calc(var(--b) * .07)}
 }
-@media (900px<width<=1180px){.renv-hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,46%)}}
+@media (640px<width<=1180px){.renv-hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,46%)}}
 
 /* 可以按的積木：滑過浮起一點、按下去側面變薄 */
 @media (hover:hover){.renv :is(.renv-index a,.renv-next-link,.renv-btn):hover{transform:translateY(-3px);box-shadow:0 calc(var(--side) + 3px) 0 var(--s)}}
 .renv :is(.renv-index a,.renv-next-link,.renv-btn):active{transform:translateY(5px);box-shadow:0 2px 0 var(--s)}
+/* 鍵盤焦點：積木外面再套一圈墨綠線（跟著積木的外形走），不靠顏色變化 */
+.renv :is(.renv-index a,.renv-next-link,.renv-btn,.renv-tour-tab):focus-visible{outline:3px solid var(--renv-ink);outline-offset:4px}
 
 /* ---------- 01 幼兒保育 ---------- */
-.renv-care-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px 64px;align-items:end}
+/* 兩欄頂端對齊：右欄引言那一行的中線對左欄章節標籤的中線（標籤圓 41px 高、引言行高約 32px，所以右欄往下 4px），
+   五顆心的頂就落在大標第一行的頂。 */
+.renv-care-head{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:40px clamp(32px,5vw,64px);align-items:start}
+.renv-hearts-box{padding-top:4px}
+/* 641–1100：左欄只佔標題需要的寬度（最多 56%），其餘留給五顆心。
+   對半分的話，後台把標題寫到一行 9 個字的上限時，左欄放不下、每行會斷成兩行。 */
+@media (640px<width<=1100px){.renv-care-head{grid-template-columns:fit-content(56%) minmax(0,1fr)}}
 .renv-hearts-box .renv-text{margin-bottom:26px}
 .renv-hearts-box .renv-hearts+.renv-text{margin:26px 0 0}
-.renv-hearts{display:flex;flex-wrap:wrap;gap:18px 26px}
-.renv-hearts li{display:grid;justify-items:center;gap:10px}
-.renv-hearts b{font-weight:700;font-size:1.08rem;line-height:1.3}
-.renv-heart{width:82px;height:auto;overflow:visible}
+/* 五顆心固定排一列、兩端貼齊右欄（第一顆的左緣對引言、第五顆的右緣對版心，和下面橫幅照片的右緣同一條線）；
+   不換行（原本是會換行的 flex，901–1150 寬第五顆掉到第二列），欄窄時心跟著縮。 */
+.renv-hearts{display:flex;justify-content:space-between;gap:clamp(6px,2vw,26px)}
+.renv-hearts li{flex:0 1 82px;min-width:0;display:grid;justify-items:center;gap:10px;text-align:center}
+.renv-hearts b{font-weight:700;font-size:clamp(.9rem,.72rem + .45vw,1.08rem);line-height:1.3}
+.renv-heart{width:100%;height:auto;overflow:visible}
 .renv-heart .is-side{fill:var(--s);stroke:var(--s)}
 .renv-heart .is-face{fill:var(--c);stroke:var(--c)}
 .renv-heart path{stroke-width:5;stroke-linejoin:round}
-.renv-care-main{margin-top:clamp(84px,9vw,120px)}
-/* 寬高比設在外層：照片框與後面墊的積木要同一個比例 */
-.renv-care-main .renv-ph{--ar:2.75;--bx:24px;--by:24px}
-.renv-cares{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:clamp(20px,2.4vw,34px);row-gap:0;margin-top:clamp(80px,8vw,112px)}
+.renv-care-main{margin-top:var(--renv-gap)}
+/* 寬高比設在外層：照片框與後面墊的積木要同一個比例。
+   墊塊往右下錯開，照片讓出同樣的寬度：整組（照片＋墊塊）的右緣落在版心上，手機不會貼到螢幕邊。 */
+.renv-care-main .renv-ph{--ar:2.75;--bx:24px;--by:24px;margin-right:calc(var(--bx) * var(--bk))}
+.renv-cares{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));column-gap:clamp(20px,2.4vw,34px);row-gap:0;margin-top:var(--renv-gap)}
 .renv-cares>li{display:grid;grid-row:span 2;grid-template-rows:subgrid}
-.renv-care-ph{align-self:end;display:flex;flex-direction:column}
-.renv-care-ped{height:38px;margin-top:14px;border-radius:var(--rs)}
-.renv-care-txt{padding-top:34px}
+.renv-care-ph{align-self:end}
+.renv-care-txt{padding-top:30px}
 .renv-care-txt h3{display:flex;align-items:center;gap:12px;margin-bottom:8px;font-weight:700;font-size:1.16rem;line-height:1.45}
 .renv-care-txt .renv-dot{width:2.4em;height:2.4em;font-size:.82rem}
 .renv-care-txt p{color:var(--renv-ink-soft);font-size:.96rem;line-height:1.8}
 
 /* ---------- 02 校園環境 ---------- */
 .renv-spaces>.renv-wrap>.renv-text{margin-top:20px}
-.renv-feature{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:48px clamp(48px,6vw,88px);align-items:center;margin-top:clamp(56px,6vw,80px)}
-.renv-feature .renv-ph{--ar:1.5;--q:40%;--bx:26px;--by:26px}
+.renv-feature{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:48px clamp(32px,6vw,88px);align-items:center;margin-top:calc(var(--renv-gap) * .72)}
+.renv-feature .renv-ph{--ar:1.5;--q:32%;--bx:26px;--by:26px}
 .renv-feature-copy h3{margin-bottom:18px;font-size:clamp(1.6rem,1rem + 1.5vw,2.3rem);line-height:1.25}
-.renv-tag{display:inline-block;margin-bottom:22px;padding:.35em .9em .4em;border-radius:12px;font-weight:700;font-size:1rem;line-height:1.3}
-/* 六個空間：照片與文字左右交錯，圓點小路從照片底部彎到下一張的頂部（比稿 A 的串法）；編號圓積木坐在照片頂端，正好是小路進站的位置 */
-.renv-stops{position:relative;margin-top:clamp(112px,11vw,160px);padding-bottom:96px}
-.renv-stop-list{display:grid;gap:clamp(64px,6vw,88px)}
-.renv-stop{position:relative;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr);gap:clamp(40px,6vw,96px);align-items:center}
+/* 小標籤是平的：側面（厚度）留給可以按的積木與照片 */
+.renv-tag{display:inline-block;margin-bottom:22px;padding:.35em .9em .4em;border-radius:12px;box-shadow:none;font-weight:700;font-size:1rem;line-height:1.3}
+/* 六個空間：照片與文字左右交錯，圓點小路從照片底部彎到下一張的頂部（比稿 A 的串法）；編號圓積木坐在照片頂端，正好是小路進站的位置。
+   小路從第 1 站走到第 6 站，頭尾不多走（2026-11-13 前起點是主打區下方憑空冒出的幾顆圓點、終點多走一小段懸在留白裡）。 */
+.renv-stops{position:relative;margin-top:calc(var(--renv-gap) + 28px);padding-bottom:calc(var(--side) + 8px)}
+.renv-stop-list{display:grid;gap:clamp(56px,min(6vw,10svh),88px)}
+.renv-stop{position:relative;display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1fr);gap:clamp(28px,6vw,96px);align-items:center}
 .renv-stop:nth-child(odd){grid-template-columns:minmax(0,1fr) minmax(0,.9fr)}
 .renv-stop:nth-child(odd) .renv-stop-ph{order:2}
 .renv-stop:nth-child(odd) .renv-stop-copy{justify-self:end}
-.renv-stop .renv-ph{margin-inline:auto}
+/* 墊塊往上或往下錯開的量算進照片的上下外距：每一站「照片＋墊塊」整組之間的距離才會一樣（原本第 3、4 站的墊塊一個往下一個往上，中間只剩 32px） */
+.renv-stop .renv-ph{margin:max(0px,calc(var(--by,22px) * -1 * var(--bk))) auto max(0px,calc(var(--by,22px) * var(--bk)))}
 .renv-stop-no{position:absolute;z-index:4;top:0;left:50%;translate:-50% -50%;width:3em;height:3em;font-size:1.05rem}
-.renv-stop-copy{max-width:25em}
-.renv-stop-copy h3{margin-bottom:10px;font-weight:700;font-size:clamp(1.3rem,1rem + .7vw,1.6rem);line-height:1.45}
-.renv-stop-copy p{color:var(--renv-ink-soft);line-height:1.85}
-.renv-campus{position:absolute;z-index:3;left:6%;bottom:8%;padding:.32em .85em .38em;border-radius:12px;font-weight:700;font-size:.98rem;line-height:1.3}
+/* 字比照片小太多的話，白底上每一站會顯得空：標題最大 1.8rem、內文 1.06rem（2026-11-14 各放大一級） */
+.renv-stop-copy{max-width:24em}
+.renv-stop-copy h3{margin-bottom:10px;font-weight:700;font-size:clamp(1.3rem,.95rem + .95vw,1.8rem);line-height:1.4}
+.renv-stop-copy p{color:var(--renv-ink-soft);font-size:clamp(1rem,.94rem + .16vw,1.06rem);line-height:1.85}
+.renv-campus{position:absolute;z-index:3;left:6%;bottom:8%;padding:.32em .85em .38em;border-radius:12px;box-shadow:none;font-weight:700;font-size:.98rem;line-height:1.3}
 
 /* 圓點小路（utils/environment-route.ts）：一顆顆小木珠，捲到才亮 */
 .renv-route{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
@@ -205,114 +258,171 @@ body:has(.renv){background:var(--ivy-env-paper)}
 @media (forced-colors:active){.renv-route{display:none}}
 
 /* ---------- 03 幼兒餐點 ---------- */
-.renv-meals-top{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,470px);gap:56px clamp(48px,7vw,112px);align-items:end}
+/* 兩欄頂端對齊（章節標籤離色塊頂的距離和其他三章一樣）；書那一組的高度約等於左欄文字的高度，底也大致切齊 */
+.renv-meals-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:48px clamp(32px,7vw,112px);align-items:start}
 .renv-meals-top .renv-text{margin-top:22px}
 .renv-btn{display:inline-flex;align-items:center;gap:10px;min-height:56px;margin-top:34px;padding:0 28px;border-radius:16px;background:var(--c);box-shadow:0 6px 0 var(--s);color:var(--renv-paper);font-weight:700;font-size:1.08rem;line-height:1;text-decoration:none;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease)}
 .renv-btn .icon{width:18px;height:18px}
-/* 營養餐點書斜靠在一塊赤陶拱上，旁邊一塊半圓 */
-.renv-book{--k:1;position:relative;display:block;height:calc(var(--k) * 400px)}
+/* 營養餐點書斜靠在一塊赤陶拱上，旁邊一塊半圓；整組照 --u 等比例縮放（設計稿 470×400 的 1 單位：桌機 .86px、手機 .72px；
+   平板跟著視窗寬從 .56px 長到 .8px——左欄要留得下一行 9 個字的標題） */
+.renv-book{--u:.86px;position:relative;display:block;width:calc(var(--u) * 470);height:calc(var(--u) * 400)}
 .renv-book>*,.renv-book>:where(picture)>:where(img){position:absolute;bottom:var(--side)}
-.renv-book-arch{left:calc(var(--k) * 24px);width:calc(var(--k) * 184px);--ar:.86}
-.renv-book-cover{left:calc(var(--k) * 214px);width:calc(var(--k) * 224px);height:auto;aspect-ratio:1359/1920;border-radius:3px 8px 8px 3px;transform-origin:0 100%;rotate:-8deg;box-shadow:0 6px 0 var(--renv-cream-side)}
-.renv-book-semi{left:calc(var(--k) * 372px);width:calc(var(--k) * 96px)}
-/* 一天五餐：水平時間軸，五個積木圓站（比稿 A 的時間軸）；900px 以下改直向 */
-.renv-day{margin-top:clamp(96px,10vw,136px)}
+.renv-book-arch{left:calc(var(--u) * 24);width:calc(var(--u) * 184);--ar:.86}
+.renv-book-cover{left:calc(var(--u) * 214);width:calc(var(--u) * 224);height:auto;aspect-ratio:1359/1920;border-radius:3px 8px 8px 3px;transform-origin:0 100%;rotate:-8deg;box-shadow:0 6px 0 var(--renv-cream-side)}
+.renv-book-semi{left:calc(var(--u) * 372);width:calc(var(--u) * 96)}
+/* 一天五餐：水平時間軸，五個積木圓站（比稿 A 的時間軸）；640px 以下改直向 */
+.renv-day{margin-top:var(--renv-gap)}
 .renv-day-title{text-align:center;font-size:clamp(1.5rem,.9rem + 1.1vw,2.1rem);line-height:1.3}
-.renv-day-track{position:relative;margin-top:44px}
+.renv-day-track{position:relative;margin-top:clamp(28px,5svh,44px)}
 .renv-day-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:16px}
 .renv-day-list li{position:relative;display:grid;justify-items:center;align-content:start;text-align:center}
 .renv-day-list time{font-weight:700;font-size:1.1rem;line-height:1.4;font-variant-numeric:tabular-nums;color:var(--renv-ink-soft);letter-spacing:.02em}
 .renv-stn{position:relative;z-index:1;display:grid;place-items:center;width:112px;aspect-ratio:1;margin-top:12px;border-radius:50%}
-.renv-stn svg{width:52px;height:52px;overflow:visible}
+.renv-stn svg{width:58px;height:58px;overflow:visible}
 .renv-day-list b{margin-top:20px;font-weight:700;font-size:1.3rem;line-height:1.4}
 .renv-day-list small{display:block;margin-top:2px;color:var(--renv-ink-soft);font-size:.95rem;line-height:1.6}
 .renv-day-list p{margin-top:6px;max-width:12em;color:var(--renv-ink-soft);font-size:var(--fs-sm);line-height:1.7}
 
 /* ---------- 04 五所校園：方形積木分頁（放線稿），選中的「按下去」 ---------- */
 .renv-tour-head .renv-text{margin-top:20px}
-.renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:22px;margin-top:52px;padding-bottom:var(--side)}
-.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.94;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:700;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
+.renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);margin-top:clamp(32px,6svh,52px);padding-bottom:var(--side)}
+.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.86;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:700;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
 .renv-tour-art{position:relative;display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
 /* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊。
    2026-11-03 起墊一層透明底淡彩 `-wash`（建築上色），兩層都有定位、照 DOM 順序疊，墨線在上；object-fit 相同才對位。 */
 .renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:contain;object-position:50% 62%}
 .renv-tour-tab .renv-tour-wash{position:absolute;inset:0}
 @media (hover:hover){.renv-tour-tab:hover{transform:translateY(-2px);box-shadow:0 calc(var(--side) + 2px) 0 var(--s)}}
-.renv-tour-tab b{display:flex;align-items:center;gap:8px;font-weight:700}
+/* 選中的小圓點掛在校名左邊、不佔位置：校名在五塊積木裡都對齊正中，換分頁時字不會左右跳 */
+.renv-tour-tab b{position:relative;font-weight:700}
 .renv-tour-tab[aria-selected="true"]{transform:translateY(5px);box-shadow:0 2px 0 var(--s),inset 0 0 0 3px var(--renv-ink)}
-.renv-tour-tab[aria-selected="true"] b::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--renv-ink)}
-.renv-tour-panel{margin-top:64px;outline-offset:12px}
+.renv-tour-tab[aria-selected="true"] b::before{content:"";position:absolute;right:100%;top:50%;width:.5em;height:.5em;margin:-.25em .45em 0 0;border-radius:50%;background:var(--renv-ink)}
+.renv-tour-panel{margin-top:clamp(36px,7svh,60px);outline-offset:12px}
 .renv :is(.renv-tour-panel):focus-visible{outline:3px solid var(--leaf);border-radius:8px}
-.renv-tour-panel-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;margin-bottom:40px}
+.renv-tour-panel-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;margin-bottom:clamp(24px,5svh,40px)}
 .renv-tour-panel-head h3{font-weight:700;font-size:clamp(1.6rem,1.1rem + 1.2vw,2.2rem);line-height:1.25}
 .renv-tour-panel-head p{color:var(--renv-ink-soft)}
-.renv-scenes{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:56px clamp(48px,6vw,88px);align-items:start}
-.renv-scene h4{font-weight:700;font-size:1.25rem;line-height:1.45}
-.renv-scene-lead .renv-ph{--ar:1.28;--bx:-22px;--by:22px;margin-bottom:34px}
-.renv-scene-list{display:grid;gap:48px;padding-top:24px}
-.renv-scene-list .renv-scene{display:grid;grid-template-columns:200px minmax(0,1fr);gap:32px;align-items:center}
-.renv-scene-list .renv-ph{--bx:14px;--by:-14px}
+/* 每校的角落：第一張是拱形大圖，其餘的照片積木在右欄一左一右錯開往下疊，兩張正好和大圖等高。
+   每張的名稱都在自己那張照片的正下方、靠照片左緣（三張同一種關係）；大圖的墊塊往右下、小照片的墊塊往上錯開，都不會壓到名稱。
+   大圖那一欄最寬佔 52%，矮視窗時照高度收（筆電 650px 高也看得到整張大圖）；
+   --ph 是小照片的邊長＝右欄寬的 46%（左右兩張加起來不到欄寬，上下咬合時不會互壓），同樣跟著視窗高度收，最大 250px；
+   超過兩張（一校四個角落以上）時收小、不再上下咬合。 */
+.renv-scenes{display:grid;grid-template-columns:min(52%,max(300px,calc((100svh - 250px) * 1.28))) minmax(0,1fr);gap:48px clamp(32px,6vw,88px);align-items:center}
+.renv-scene h4{font-weight:700;font-size:clamp(1.1rem,.95rem + .4vw,1.3rem);line-height:1.45}
+.renv-scene-lead .renv-ph{--ar:1.28;--bx:22px;--by:22px;margin-bottom:calc(22px * var(--bk) + var(--side) + 16px)}
+.renv-scene-list{display:grid;align-content:center;container-type:inline-size}
+.renv-scene-list .renv-scene{--ph:clamp(104px,min(46cqi,32svh),250px);width:var(--ph)}
+.renv-scene-list .renv-scene:nth-child(even){margin-left:auto}
+.renv-scene-list .renv-scene+.renv-scene{margin-top:calc(var(--ph) * -.12)}
+.renv-scene-list .renv-ph{--bx:14px;--by:-14px;margin-bottom:calc(var(--side) + 12px)}
+.renv-scene-list .renv-scene:nth-child(even) .renv-ph{--bx:-14px}
+.renv-scene-list:has(>:nth-child(3)){gap:clamp(24px,3vw,40px)}
+.renv-scene-list:has(>:nth-child(3)) .renv-scene{--ph:clamp(96px,min(36cqi,26svh),180px)}
+.renv-scene-list:has(>:nth-child(3)) .renv-scene+.renv-scene{margin-top:0}
 
 /* ---------- 結尾：三塊積木連結（不放預約） ---------- */
-.renv-next{padding-block:clamp(72px,8vw,112px) clamp(88px,9vw,128px)}
+.renv-next{padding-block:calc(var(--renv-pad) * .84) var(--renv-pad)}
 .renv-next-title{font-weight:700;font-size:clamp(1.5rem,1.1rem + 1vw,2rem);line-height:1.3;text-align:center;letter-spacing:.02em}
-.renv-next-list{display:flex;justify-content:center;align-items:flex-end;gap:clamp(20px,3vw,40px);margin-top:48px}
+.renv-next-list{display:flex;justify-content:center;align-items:flex-end;gap:clamp(16px,3vw,40px);margin-top:clamp(32px,6svh,48px)}
 .renv-next-link{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;text-align:center;text-decoration:none;color:var(--renv-ink);background:var(--c);box-shadow:0 var(--side) 0 var(--s);transition:transform .3s var(--renv-ease),box-shadow .3s var(--renv-ease)}
-.renv-next-link b{font-weight:700;font-size:1.35rem;line-height:1.3}
-.renv-next-link small{font-size:.93rem}
-.renv-next-list li:nth-child(1) .renv-next-link{--ar:.95;width:250px;padding-top:40px}
-.renv-next-list li:nth-child(2) .renv-next-link{width:222px}
-.renv-next-list li:nth-child(3) .renv-next-link{--ar:1.35;width:270px}
+.renv-next-link b{font-weight:700;font-size:clamp(1.12rem,.8rem + .9vw,1.35rem);line-height:1.3}
+.renv-next-link small{font-size:clamp(.82rem,.7rem + .35vw,.93rem)}
+.renv-next-list li:nth-child(1) .renv-next-link{--ar:.95;width:min(250px,29vw);padding-top:16%}
+.renv-next-list li:nth-child(2) .renv-next-link{width:min(222px,26vw)}
+/* 方塊的高度配成和圓一樣（寬 ÷ 1.2）：三塊底緣切齊，三個標題也落在同一條線上（原本方塊比較扁，「入學資訊」低了 11px） */
+.renv-next-list li:nth-child(3) .renv-next-link{--ar:1.2;width:min(270px,31vw)}
+
+/* 桌機、視窗不到 760px 高：五塊分頁積木壓扁一點，換校之後整張大圖才看得到 */
+@media (width>900px) and (height<760px){.renv-tour-tab{aspect-ratio:1/.66}}
 
 @media (forced-colors:active){.renv :is(.renv-blk,.renv-frame,.renv-arch-face,.renv-index a,.renv-next-link,.renv-tour-tab){border:2px solid CanvasText}}
 
-/* ---------- 900px 以下 ---------- */
+/* ---------- 900px 以下（平板與手機共用）：積木邊、墊塊錯開量、字級收一級 ---------- */
 @media (width<=900px){
-  .renv-hero-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"txt" "fig" "toc"}
-  .renv-hero-txt{padding-top:8px;margin-bottom:36px}
-  /* 拱在版心裡靠左，芥末拱往右下錯開 13px；照片框寬＝視窗 − 74px（同 environmentHeroSizes） */
+  .renv{--bk:.62}
+  /* 芥末拱往右下錯開 13px、積木邊 14px（手機的照片框寬＝視窗 − 74px，同 environmentHeroSizes） */
   .renv-arch{--t:14px;--off:13px}
-  /* 目次六欄排法在上面 1180 以下那段，這裡只把字再縮一級 */
-  .renv-index li:nth-child(2) a{padding-top:26px}
-  .renv-index li:nth-child(4) a{padding-bottom:12px}
-  .renv-index-no{font-size:1.25rem}
-  .renv-index-name{font-size:1.02rem}
-  .renv-index-hint{font-size:.76rem}
-
-  .renv-care-head{grid-template-columns:minmax(0,1fr);gap:32px}
-  .renv-hearts{gap:14px 0;justify-content:space-between;flex-wrap:nowrap}
-  .renv-hearts b{font-size:.95rem}
-  .renv-hearts li{gap:8px}
-  .renv-heart{width:58px}
-  .renv-care-main .renv-ph{--ar:2.2;--bx:12px;--by:14px}
-  .renv-cares{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:44px}
-  .renv-cares>li{row-gap:0}
-  .renv-cares>li:nth-child(5){grid-column:1/-1}
-  .renv-cares>li:nth-child(5) .renv-care-ph{width:74%}
-  .renv-care-ped{height:28px;margin-top:10px}
   .renv-care-txt{padding-top:24px}
   .renv-care-txt h3{font-size:1.04rem}
   .renv-care-txt .renv-dot{font-size:var(--fs-xs)}
   .renv-care-txt p{font-size:.9rem;line-height:1.75}
-
-  .renv-feature{grid-template-columns:minmax(0,1fr)}
-  .renv-feature .renv-ph{--q:34%;--bx:12px;--by:14px}
-  /* 手機：一條直的圓點小路沿左邊串起編號，照片與文字疊在右邊 */
-  .renv-stops{margin-top:88px;padding-bottom:40px}
-  .renv-stop-list{gap:64px}
-  .renv-stop,.renv-stop:nth-child(odd){grid-template-columns:minmax(0,1fr);gap:22px;padding-left:50px}
-  .renv-stop:nth-child(odd) .renv-stop-ph{order:0}
-  .renv-stop:nth-child(odd) .renv-stop-copy{justify-self:stretch}
-  .renv-stop .renv-ph{width:88% !important;margin-inline:0;--bx:12px !important;--by:12px !important}
-  .renv-stop-no{top:10px;left:-50px;translate:0 0;width:2.5em;height:2.5em;font-size:.9rem}
   .renv-stop-copy h3{font-size:1.2rem;margin-bottom:6px}
   .renv-stop-copy p{font-size:.95rem}
+}
 
-  .renv-meals-top{grid-template-columns:minmax(0,1fr)}
-  .renv-book{--k:.72;width:calc(var(--k) * 470px);margin-inline:auto}
+/* ---------- 641–900 平板：沿用桌機的兩欄構圖，尺寸縮小 ---------- */
+@media (640px<width<=900px){
+  .renv-hero-grid{grid-template-columns:minmax(0,1fr) minmax(0,44%);column-gap:clamp(28px,4vw,40px)}
+  .renv-care-main .renv-ph{--ar:2.4}
+  /* 五件照顧的小事排成 3＋2，第二列往右錯半格（像疊積木） */
+  .renv-cares{grid-template-columns:repeat(6,minmax(0,1fr));column-gap:20px;row-gap:44px}
+  .renv-cares>li{grid-column:span 2;row-gap:0}
+  .renv-cares>li:nth-child(4){grid-column:2/span 2}
+  .renv-cares>li:nth-child(5){grid-column:4/span 2}
+  .renv-stop-no{width:2.7em;height:2.7em;font-size:.95rem}
+  /* 最瘦的那一站（拱）在窄欄裡不小於 250px */
+  .renv-stop .renv-ph{min-width:min(100%,250px)}
+  .renv-book{--u:clamp(.56px,.1vw - .1px,.8px)}
+  .renv-stn{width:84px}
+  .renv-stn svg{width:40px;height:40px}
+  .renv-day-list{gap:10px}
+  .renv-day-list time{font-size:1rem}
+  .renv-day-list b{margin-top:16px;font-size:1.15rem}
+  .renv-day-list small{font-size:.86rem}
+  .renv-tour-tab{padding:8px 8px 10px;gap:6px;border-radius:18px;font-size:.98rem}
+  .renv-tour-art{border-radius:11px}
+}
+
+/* ---------- 640px 以下手機：單欄 ---------- */
+@media (width<=640px){
+  .renv{--renv-inset:0px;--renv-board-r:28px}
+  /* 單欄的版心最寬 440px（大一點的手機到 640 之間置中）：照版面寬度放大的話，600 寬時目次的圓有 270px、首屏的拱比一個螢幕還高 */
+  .renv-wrap{width:min(100% - 2*var(--renv-gutter),440px)}
+  .renv-hero-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"txt" "fig" "toc"}
+  .renv-hero-txt{padding-top:8px;margin-bottom:32px}
+  /* 目次排成一列、撐滿版心（2026-11-14）：圓、拱、方同寬（--b），半圓 1.4 倍（桌機是 1.56 倍；手機收一點，把寬度讓給圓，
+     不然 320 寬時「幼兒保育」四個字會貼到圓的邊），加三個 8px 的間距共 4.4 × --b ＋ 24px：390 寬時 --b 約 76px、320 寬約 60px。
+     原本是兩列的大積木（合計約 420px 高），手機要捲過一整屏才看到第一章；一列之後大標、照片、目次差不多在同一屏。
+     放不下小字（五顆心的照顧…），同桌機矮視窗的一列排法，只留編號與章名。 */
+  .renv-index ul{--b:calc((100cqi - 24px) / 4.4);grid-template-columns:repeat(4,auto);justify-content:space-between;gap:8px;margin-top:30px}
+  .renv-index-no{font-size:clamp(1rem,calc(var(--b) * .23),1.2rem);margin-bottom:2px}
+  /* 章名後台最多 6 個字：一行放不下時平均折成兩行（3＋3），不要 5＋1 */
+  .renv-index-name{font-size:clamp(.76rem,calc(var(--b) * .18),1rem);line-height:1.22;text-wrap:balance}
+  .renv-index-hint{display:none}
+  .renv-index li:nth-child(3) a{--rm:calc(var(--b) * .22)}
+  .renv-index li:nth-child(4) a{width:calc(var(--b) * 1.4);padding-bottom:calc(var(--b) * .06)}
+
+  .renv-care-head{grid-template-columns:minmax(0,1fr);gap:28px}
+  .renv-hearts-box{padding-top:0}
+  .renv-hearts li{flex-basis:60px;gap:8px}
+  /* 手機的橫幅太扁、人太小：框改 1.7:1（母檔 2.2:1，左右各裁一點，老師和孩子在正中） */
+  .renv-care-main .renv-ph{--ar:1.7}
+  .renv-cares{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:40px}
+  .renv-cares>li{row-gap:0}
+  /* 第五件單獨一列：照片在左、文字在右，沿用上面兩欄的欄線 */
+  .renv-cares>li:nth-child(5){grid-column:1/-1;grid-row:auto;grid-template-rows:none;grid-template-columns:subgrid;align-items:center}
+  .renv-cares>li:nth-child(5) .renv-care-txt{padding-top:0}
+
+  .renv-feature{grid-template-columns:minmax(0,1fr);gap:32px}
+  .renv-feature .renv-ph{--q:28%;margin-right:calc(var(--bx) * var(--bk))}
+  /* 一條直的圓點小路沿左邊串起編號，照片與文字疊在右邊 */
+  .renv-stops{margin-top:88px}
+  .renv-stop-list{gap:56px}
+  .renv-stop,.renv-stop:nth-child(odd){grid-template-columns:minmax(0,1fr);gap:20px;padding-left:50px}
+  .renv-stop:nth-child(odd) .renv-stop-ph{order:0}
+  .renv-stop:nth-child(odd) .renv-stop-copy{justify-self:stretch}
+  /* 照片撐到和下面的文字同寬（扣掉墊塊往右錯開的 12px）；墊塊一律往右錯開（左邊是小路與編號），上下照各張原本的方向 */
+  .renv-stop .renv-ph{width:calc(100% - 12px) !important;margin:max(0px,calc(var(--by,22px) * -.5)) 0 max(0px,calc(var(--by,22px) * .5))}
+  .renv-stop .renv-ph-back{translate:12px calc(var(--by,22px) * .5)}
+  .renv-stop-no{top:10px;left:-50px;translate:0 0;width:2.5em;height:2.5em;font-size:.9rem}
+
+  .renv-meals-top{grid-template-columns:minmax(0,1fr);gap:40px}
+  /* 360 以下的手機版心不到 338px（470 × .72）：書那一組跟著版心縮，不然會偏右、320 寬時半圓被螢幕切掉 */
+  .renv-book{--u:min(.72px,calc((100vw - 2*var(--renv-gutter-page)) / 470));margin-inline:auto}
   .renv-day-title{text-align:left}
-  .renv-day-track{margin-top:30px}
-  .renv-day-list{grid-template-columns:minmax(0,1fr);gap:22px}
+  .renv-day-track{margin-top:28px}
+  /* 盤子之間留得下三顆圓點 */
+  .renv-day-list{grid-template-columns:minmax(0,1fr);gap:40px}
   .renv-day-list li{grid-template-columns:84px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:20px;justify-items:start;align-items:center;text-align:left}
   .renv-stn{grid-column:1;grid-row:1/span 3;width:84px;margin-top:0}
   .renv-stn svg{width:40px;height:40px}
@@ -321,42 +431,50 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-day-list small{grid-column:2;grid-row:3;align-self:start;font-size:.9rem}
   .renv-day-list p{grid-column:2;max-width:none}
 
-  .renv-tour-tabs{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px 12px;margin-top:36px}
+  .renv-tour-tabs{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px 12px;margin-top:32px}
   .renv-tour-tab{grid-column:span 2;aspect-ratio:auto;height:116px;padding:8px 8px 10px;gap:6px;border-radius:18px;font-size:.98rem}
   .renv-tour-tab:nth-child(4){grid-column:2/span 2}
   .renv-tour-art{border-radius:11px}
-  .renv-tour-tab[aria-selected="true"] b::before{width:8px;height:8px}
-  .renv-tour-panel{margin-top:44px}
-  .renv-tour-panel-head{margin-bottom:28px}
-  .renv-scenes{grid-template-columns:minmax(0,1fr);gap:44px}
-  .renv-scene-lead .renv-ph{--ar:1.05;--bx:-12px;--by:14px;margin-bottom:26px}
-  .renv-scene-list{gap:32px;padding-top:0}
-  .renv-scene-list .renv-scene{grid-template-columns:124px minmax(0,1fr);gap:20px}
-  .renv-scene-list .renv-ph{--bx:9px;--by:-9px}
+  .renv-tour-panel{margin-top:40px}
+  .renv-tour-panel-head{margin-bottom:26px}
+  .renv-scenes{grid-template-columns:minmax(0,1fr);gap:36px}
+  .renv-scene-lead .renv-ph{--ar:1.05;margin-right:calc(var(--bx) * var(--bk))}
+  .renv-scene-list .renv-scene{--ph:clamp(104px,44cqi,176px)}
+  .renv-scene-list .renv-scene:nth-child(odd){margin-left:0}
+  .renv-scene-list .renv-scene:nth-child(even){margin-right:9px}
+  .renv-scene-list:has(>:nth-child(3)) .renv-scene{--ph:124px}
 
-  .renv-next-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:26px 14px;margin-top:36px}
+  .renv-next-list{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:26px 14px;margin-top:32px}
   .renv-next-list li:nth-child(1),.renv-next-list li:nth-child(2){grid-column:span 3}
   .renv-next-list li:nth-child(3){grid-column:1/-1}
   .renv-next-list .renv-next-link{width:100% !important}
   .renv-next-list li:nth-child(1) .renv-next-link{--ar:.86;padding-top:30px}
   .renv-next-list li:nth-child(3) .renv-next-link{--ar:2.4}
-  .renv-next-link b{font-size:1.12rem}
-  .renv-next-link small{font-size:.82rem}
 }
-/* 平板（601–900）單欄時拱收到 480px 置中：照版心寬會比一個螢幕還高（sizes 仍照版心算，只會多抓不會糊） */
-@media (600px<width<=900px){
-  .renv-arch{max-width:480px;margin-inline:auto}
-}
-/* 380 以下五顆心排不下一列：心與字縮一級 */
+/* 400 以下：心的名稱縮一級 */
 @media (width<400px){
-  .renv-hearts b{font-size:.88rem}
-  .renv-heart{width:54px}
+  .renv-hearts b{font-size:.86rem}
 }
 
-/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。
+   容器單位（cqi／cqh）在舊 Safari 會讓整條宣告失效，連帶用到那個變數的寬度、間距都不成立，所以每一處都用視窗寬近似補一個值：
+   目次的 --b（37cqi ≈ 字欄寬的 37% ≈ 17vw；一列排法 20.3cqi ≈ 9.3vw；手機一列＝版心扣掉間距 ÷ 4.4）、五所校園小照片的 --ph（46cqi ≈ 16.5vw、手機 44cqi ≈ 40vw）。 */
 @supports not (container-type:inline-size){
   .renv h1{font-size:clamp(1.75rem,1rem + 3.6vw,3.85rem)}
-  /* 901 以上的拱靠容器高度決定大小；沒有容器單位就退回 900 以下的排法（跟著欄寬與長寬比）。 */
-  @media (min-width:901px){.renv-arch{position:relative;right:auto;bottom:auto;width:calc(100% - var(--off));height:auto}}
+  .renv-index ul{--b:clamp(120px,min(30svh - 78px,17vw),192px)}
+  .renv-scene-list .renv-scene{--ph:clamp(104px,min(16.5vw,32svh),250px)}
+  .renv-scene-list:has(>:nth-child(3)) .renv-scene{--ph:clamp(96px,min(13vw,26svh),180px)}
+  @media (width>840px) and (height<700px){.renv-index ul{--b:clamp(72px,9.3vw,128px)}}
+  /* 641 以上的拱靠容器高度決定大小；沒有容器單位就退回手機的排法（跟著欄寬與長寬比）。 */
+  @media (width>640px){.renv-arch{position:relative;right:auto;bottom:auto;width:calc(100% - var(--off));height:auto}}
+  @media (width<=640px){
+    .renv-index ul{--b:min((100vw - 56px) / 4.4,94.5px)}
+    .renv-scene-list .renv-scene{--ph:clamp(104px,40vw,176px)}
+    .renv-scene-list:has(>:nth-child(3)) .renv-scene{--ph:124px}
+  }
+}
+/* 手機的第五件照顧小事靠欄的 subgrid 排成左圖右字；不支援時自己切兩欄（欄距同 .renv-cares） */
+@supports not (grid-template-columns:subgrid){
+  @media (width<=640px){.renv-cares>li:nth-child(5){grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px}}
 }
 @supports not (overflow:clip){.renv-hero{overflow:hidden}}

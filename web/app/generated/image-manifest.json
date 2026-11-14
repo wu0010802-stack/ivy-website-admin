@@ -994,33 +994,18 @@
     ]
   },
   "env-care-health": {
-    "width": 1961,
+    "width": 747,
     "height": 934,
     "candidates": [
       {
-        "src": "/assets/responsive/env-care-health-83b6353cb164-480.webp",
+        "src": "/assets/responsive/env-care-health-5d63565fc75a-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-480.avif"
+        "avif": "/assets/responsive/env-care-health-39777e4514f2-480.avif"
       },
       {
-        "src": "/assets/responsive/env-care-health-83b6353cb164-800.webp",
-        "width": 800,
-        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-800.avif"
-      },
-      {
-        "src": "/assets/responsive/env-care-health-83b6353cb164-1200.webp",
-        "width": 1200,
-        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1200.avif"
-      },
-      {
-        "src": "/assets/responsive/env-care-health-83b6353cb164-1600.webp",
-        "width": 1600,
-        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1600.avif"
-      },
-      {
-        "src": "/assets/responsive/env-care-health-83b6353cb164-1961.webp",
-        "width": 1961,
-        "avif": "/assets/responsive/env-care-health-0f9d3b951c42-1961.avif"
+        "src": "/assets/responsive/env-care-health-5d63565fc75a-747.webp",
+        "width": 747,
+        "avif": "/assets/responsive/env-care-health-39777e4514f2-747.avif"
       }
     ]
   },
@@ -1159,24 +1144,24 @@
     "height": 908,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-480.webp",
+        "src": "/assets/responsive/env-space-classroom-596dc41065a7-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-480.avif"
+        "avif": "/assets/responsive/env-space-classroom-7e9bd4a0d20b-480.avif"
       },
       {
-        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-800.webp",
+        "src": "/assets/responsive/env-space-classroom-596dc41065a7-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-800.avif"
+        "avif": "/assets/responsive/env-space-classroom-7e9bd4a0d20b-800.avif"
       },
       {
-        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1200.webp",
+        "src": "/assets/responsive/env-space-classroom-596dc41065a7-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-1200.avif"
+        "avif": "/assets/responsive/env-space-classroom-7e9bd4a0d20b-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-space-classroom-f71b0e7b9042-1213.webp",
+        "src": "/assets/responsive/env-space-classroom-596dc41065a7-1213.webp",
         "width": 1213,
-        "avif": "/assets/responsive/env-space-classroom-e665b9b0955a-1213.avif"
+        "avif": "/assets/responsive/env-space-classroom-7e9bd4a0d20b-1213.avif"
       }
     ]
   },
@@ -1289,24 +1274,24 @@
     "height": 1067,
     "candidates": [
       {
-        "src": "/assets/responsive/env-space-animals-590f2a835605-480.webp",
+        "src": "/assets/responsive/env-space-animals-e45f948da07f-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/env-space-animals-a72716994123-480.avif"
+        "avif": "/assets/responsive/env-space-animals-4021e6a79c8e-480.avif"
       },
       {
-        "src": "/assets/responsive/env-space-animals-590f2a835605-800.webp",
+        "src": "/assets/responsive/env-space-animals-e45f948da07f-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/env-space-animals-a72716994123-800.avif"
+        "avif": "/assets/responsive/env-space-animals-4021e6a79c8e-800.avif"
       },
       {
-        "src": "/assets/responsive/env-space-animals-590f2a835605-1200.webp",
+        "src": "/assets/responsive/env-space-animals-e45f948da07f-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/env-space-animals-a72716994123-1200.avif"
+        "avif": "/assets/responsive/env-space-animals-4021e6a79c8e-1200.avif"
       },
       {
-        "src": "/assets/responsive/env-space-animals-590f2a835605-1600.webp",
+        "src": "/assets/responsive/env-space-animals-e45f948da07f-1600.webp",
         "width": 1600,
-        "avif": "/assets/responsive/env-space-animals-a72716994123-1600.avif"
+        "avif": "/assets/responsive/env-space-animals-4021e6a79c8e-1600.avif"
       }
     ]
   },
@@ -3078,6 +3063,32 @@
         "src": "/assets/admission-hello.webp",
         "width": 1600,
         "avif": "/assets/responsive/admission-hello-47ef0e674e0f-1600.avif"
+      }
+    ]
+  },
+  "env-hero-hug-arch": {
+    "width": 747,
+    "height": 934,
+    "candidates": [
+      {
+        "src": "/assets/responsive/env-hero-hug-arch-35a2b846dba9-360.webp",
+        "width": 360,
+        "avif": "/assets/responsive/env-hero-hug-arch-72a01b031527-360.avif"
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-arch-35a2b846dba9-480.webp",
+        "width": 480,
+        "avif": "/assets/responsive/env-hero-hug-arch-72a01b031527-480.avif"
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-arch-35a2b846dba9-600.webp",
+        "width": 600,
+        "avif": "/assets/responsive/env-hero-hug-arch-72a01b031527-600.avif"
+      },
+      {
+        "src": "/assets/responsive/env-hero-hug-arch-35a2b846dba9-747.webp",
+        "width": 747,
+        "avif": "/assets/responsive/env-hero-hug-arch-72a01b031527-747.avif"
       }
     ]
   }

@@ -20,6 +20,8 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
+// 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
+vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
 
 const site = fixture as unknown as SiteContent
 const NuxtLink = defineComponent({
@@ -48,6 +50,8 @@ async function renderMain(): Promise<string> {
  */
 const normalize = (html: string) => html
   .replace(/<!--[\s\S]*?-->/g, '')
+  // 2026-11-13 短說明包了一層 <span class="renv-phr">、小段之間放 <wbr>（不從詞中間斷行）：拿掉這層再比，證明文字本身一字不差
+  .replace(/<span class="renv-phr">(.*?)<\/span>/g, (_all, inner: string) => inner.replace(/<wbr>/g, ''))
   .replace(/>\s+</g, '><')
   .replace(/<picture class="responsive-picture"><source type="image\/avif" [^>]*>/g, '')
   .replace(/<\/picture>/g, '')

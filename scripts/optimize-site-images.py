@@ -53,6 +53,10 @@ OVERRIDES = {
     'campus-line-art-international': {'widths': [240, 480, 800, 1200]},
     'campus-line-art-renwu': {'widths': [240, 480, 800, 1200]},
     'yihua-exterior-v2': {'widths': [480, 800, 1200, 1600, 2000, 2400]},
+    # 2026-11-13：環境頁首屏的拱窗只看得到橫幅 env-hero-hug 中間偏右的 38%，另存一張裁好的直幅（747×934）當母檔，
+    # 裁法見 web/app/utils/responsive-image.ts 的 ENVIRONMENT_HERO_ARCH_IMAGE。
+    # 母檔只有 747 寬：桌機 DPR1 約 474px、平板 DPR2 約 560px，手機 DPR2／3 與桌機 DPR2 用原尺寸。
+    'env-hero-hug-arch': {'widths': [360, 480, 600]},
 }
 FULL_REENCODE_MIN_SAVING = 0.2
 # 日常照片保留影片原生解析度，衍生小圖也降低再壓縮的細節損失。

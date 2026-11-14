@@ -102,10 +102,11 @@ describe('內建照片與官網裁切', () => {
   it('照片焦點預覽的比例和官網 environment.css 一致', () => {
     expect(css).toContain('.renv-arch{--ar:.8;')
     expect(css).toContain('.renv-care-main .renv-ph{--ar:2.75;')
-    expect(css).toContain('.renv-care-main .renv-ph{--ar:2.2;')
+    // 2026-11-13 手機的橫幅從 2.2:1 改成 1.7:1（太扁、人太小）；平板 2.4:1 夾在桌機與手機之間，不另外給預覽
+    expect(css).toContain('.renv-care-main .renv-ph{--ar:1.7}')
     expect(css).toContain('.renv-feature .renv-ph{--ar:1.5;')
     expect(ENVIRONMENT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 5'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2.75 / 1', '2.2 / 1'])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2.75 / 1', '1.7 / 1'])
     expect(ENVIRONMENT_PHOTO_PREVIEWS.feature.map((p) => p.ratio)).toEqual(['3 / 2'])
     expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem.map((p) => p.ratio)).toEqual(['4 / 5'])
     expect(ENVIRONMENT_PHOTO_PREVIEWS.space.map((p) => p.ratio)).toEqual(['1 / 1'])

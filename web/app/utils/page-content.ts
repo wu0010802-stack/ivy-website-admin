@@ -74,6 +74,18 @@ export function pagePhotoAttrs(builtin: string, photo: MediaImage | undefined, s
   return pickImage(builtin, photo, sizes)
 }
 
+/**
+ * 照片被 object-fit: cover 裁進比它「瘦」的框（拱、圓、四分之一圓）時，瀏覽器實際要畫的寬度＝框寬 × (照片寬高比 ÷ 框寬高比)。
+ * sizes 只寫框寬的話，橫幅照片會挑到太小的候選檔：環境頁「健康把關」2.1:1 的照片放在 0.78 的拱裡，
+ * 2026-11-13 前 Retina 桌機只拿到需要的 0.67 倍。frameAspect＝框的寬 ÷ 高；sizes 收到倍率（至少 1）後回傳完整的 sizes 字串。
+ * 後台換了照片就照新照片的寬高比算。
+ */
+export function pageCoverPhotoAttrs(builtin: string, photo: MediaImage | undefined, frameAspect: number, sizes: (factor: number) => string) {
+  const { width, height } = pickImage(builtin, photo)
+  const factor = width && height && frameAspect > 0 ? Number(Math.max(1, width / height / frameAspect).toFixed(2)) : 1
+  return pickImage(builtin, photo, sizes(factor))
+}
+
 export function pagePhotoAlt(builtinAlt: string, photo: MediaImage | undefined, alt: string | undefined): string {
   return photo ? (alt || photo.alt) : builtinAlt
 }
