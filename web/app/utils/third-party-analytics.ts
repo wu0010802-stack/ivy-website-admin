@@ -1,4 +1,4 @@
-import { analyticsPageLocation, analyticsSuppressedPath, GA_SCRIPT_ORIGIN, META_PIXEL_SCRIPT_ORIGIN, type AnalyticsIds } from '#shared/third-party-analytics'
+import { analyticsPageLocation, analyticsSuppressedPath, GA_SCRIPT_ORIGIN, META_PIXEL_SCRIPT_ORIGIN, OPENAI_PIXEL_SCRIPT_ORIGIN, type AnalyticsIds } from '#shared/third-party-analytics'
 import { isCampusKey, isCtaEntry } from './cta-analytics'
 
 // GA4 與 Meta Pixel 的瀏覽器端（2026-11-12，規格 docs/specs/2026-11-12-external-integrations-design.md 第 1 節）。
@@ -24,6 +24,18 @@ import { isCampusKey, isCtaEntry } from './cta-analytics'
 //   2. Pixel 的 PageView 取的是腳本執行當下的網址，所以載入前不排進 queue，只記「有一次要送」，載入時補送一次（當下這一頁）。
 //   3. 輪到要載入時人在不送事件的頁面就不載，等離開（setPaused(false)）再載；這段期間也不把 consent revoke／grant 排進
 //      Pixel 的 queue（理由寫在 setPaused）。GA 的關閉開關只是 window 上的旗標，照常設。
+//
+// OpenAI 評估像素（ChatGPT 廣告，2026-11-15，規格 docs/specs/2026-11-15-openai-ads-pixel-design.md）：
+// - 只用來回報「預約成功」（appointment_scheduled）這一個轉換，不送 page_viewed：SDK（oaiq.min.js）不掛 pushState／popstate，
+//   init 之後只有我們呼叫 measure 才送事件，事件帶的網址只有 origin＋pathname（2026-11-15 讀當時的 SDK 原始碼確認），
+//   所以換頁不必通知它，也沒有 hash 裡的識別碼被送出去的問題。
+// - 不送事件的頁面沒有暫停動作：SDK 唯一的開關是 oaiq('consent', false)，會連 __oppref（廣告點擊代碼）cookie 一起刪掉，
+//   家長之後的預約就歸因不到廣告。改成和另外兩家一樣「第一頁是不送事件的頁面就不建 stub、不載」，其餘靠 reportBookingLead
+//   在這些頁面不送。
+// - 廣告點擊代碼（網址的 oppref）在建 stub 當下就讀出來傳給 init：外部腳本延後載入，家長在載入前就站內換頁的話
+//   網址上已經沒有 oppref，SDK 自己讀不到。
+// - SDK 的「自動進階比對」會掃頁面上的 Email／電話欄位、雜湊後跟事件一起送；開不開由廣告管理平台上這顆像素的設定決定，
+//   瀏覽器端沒有開關。預約表單有這些欄位，隱私權政策寫明不傳送，所以平台上要關（上線檢查見 deploy/README.md）。
 
 type Gtag = (...args: unknown[]) => void
 interface Fbq {
@@ -35,7 +47,11 @@ interface Fbq {
   version: string
   disablePushState?: boolean
 }
-type AnalyticsWindow = Window & { dataLayer?: unknown[]; gtag?: Gtag; fbq?: Fbq; _fbq?: Fbq }
+interface Oaiq {
+  (...args: unknown[]): void
+  q: unknown[]
+}
+type AnalyticsWindow = Window & { dataLayer?: unknown[]; gtag?: Gtag; fbq?: Fbq; _fbq?: Fbq; oaiq?: Oaiq }
 
 function loadScript(doc: Document, src: string): void {
   const script = doc.createElement('script')
@@ -79,6 +95,24 @@ function setupPixel(win: AnalyticsWindow, doc: Document, id: string): void {
   // 要在 init 之前：關掉自動設定（自動事件、頁面 metadata）。
   win.fbq('set', 'autoConfig', false, id)
   win.fbq('init', id)
+}
+
+/** 網址上的 ChatGPT 廣告點擊代碼（oppref）；沒有或長得不合理就不傳。 */
+export function openaiClickId(search: string): string | undefined {
+  const value = new URLSearchParams(search).get('oppref')?.trim()
+  return value && value.length <= 512 ? value : undefined
+}
+
+function setupOpenaiPixel(win: AnalyticsWindow, id: string): void {
+  if (!win.oaiq) {
+    // 與官方 snippet 相同的 queue stub：oaiq.min.js 載入後會接手，並把 q 裡的 arguments 依序處理。
+    const queue: unknown[] = []
+    const oaiq = function oaiq() { queue.push(arguments) } as unknown as Oaiq
+    oaiq.q = queue
+    win.oaiq = oaiq
+  }
+  const oppref = openaiClickId(win.location.search)
+  win.oaiq('init', { pixelId: id, ...(oppref ? { oppref } : {}) })
 }
 
 /** 什麼時候把外部腳本加進文件；預設馬上（單元測試與沒有特別要求的呼叫端）。 */
@@ -144,6 +178,7 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
       pixelPageViewPending = false
       loadScript(doc, `${META_PIXEL_SCRIPT_ORIGIN}/en_US/fbevents.js`)
     }
+    if (ids.openaiPixelId) loadScript(doc, `${OPENAI_PIXEL_SCRIPT_ORIGIN}/sdk/oaiq.min.js`)
   }
 
   function setPaused(next: boolean): void {
@@ -166,6 +201,7 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
     loaded = true
     if (ids.gaMeasurementId) setupGa(win, doc, ids.gaMeasurementId)
     if (ids.metaPixelId) setupPixel(win, doc, ids.metaPixelId)
+    if (ids.openaiPixelId) setupOpenaiPixel(win, ids.openaiPixelId)
     defer(inject)
   }
 
@@ -212,9 +248,10 @@ export function leadEventParams(campusKey: unknown, entry: unknown): { campus_ke
 }
 
 /**
- * 預約成功（伺服器回 status === 'confirmed'）時呼叫：GA generate_lead、Pixel Lead。
- * 沒載入（沒設 ID、DNT／GPC、被擋）時 window 上沒有 gtag／fbq，什麼都不會發生。
+ * 預約成功（伺服器回 status === 'confirmed'）時呼叫：GA generate_lead、Pixel Lead、OpenAI appointment_scheduled。
+ * 沒載入（沒設 ID、DNT／GPC、被擋）時 window 上沒有 gtag／fbq／oaiq，什麼都不會發生。
  * 不帶 receipt、修改連結或任何個資；GA 事件另帶清洗過的 page_location，不取 document.location。
+ * OpenAI 的事件只有事件名稱（標準事件 appointment_scheduled 的資料格式不收自訂欄位），校區與入口代碼不送。
  */
 export function reportBookingLead(campusKey: unknown, entry: unknown, win: AnalyticsWindow = window): void {
   if (analyticsSuppressedPath(win.location.pathname)) return
@@ -224,5 +261,10 @@ export function reportBookingLead(campusKey: unknown, entry: unknown, win: Analy
     win.fbq?.('track', 'Lead', params)
   } catch {
     // 第三方腳本出錯不能影響家長看到「預約成功」。
+  }
+  try {
+    win.oaiq?.('measure', 'appointment_scheduled', { type: 'customer_action' })
+  } catch {
+    // 同上；另外包一層，前面兩家出錯也不會讓這一筆漏掉。
   }
 }
