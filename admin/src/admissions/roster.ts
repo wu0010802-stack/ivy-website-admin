@@ -78,3 +78,15 @@ export function pendingStudents(roster: Roster): RosterStudent[] {
   }
   return [...seen.values()]
 }
+
+/** 存檔時間「115.11.14 11:30」（台北時間）。 */
+export function taipeiStamp(iso: string): string {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(new Date(iso))
+  const get = (type: string) => parts.find((part) => part.type === type)!.value
+  return `${rocDate(`${get('year')}-${get('month')}-${get('day')}`)} ${get('hour')}:${get('minute')}`
+}
+
+/** 「9/15」這種月日。 */
+export const monthDayText = monthDay

@@ -2,17 +2,19 @@
 import { computed, h, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  createClass, createStudents, deleteClass, enterStudent, getRoster, leaveStudent, moveStudent, refundStudent, restoreStudent, updateClass, updateStudent,
+  createClass, createSnapshot, createStudents, deleteClass, enterStudent, getRoster, leaveStudent, moveStudent, refundStudent, restoreStudent, saveNextYearTargets, saveTierTargets, updateClass, updateStudent,
   type ClassCreate, type ClassUpdate, type Roster, type RosterStudent, type StudentsCreate, type StudentUpdate,
 } from '../../../api/roster'
 import { pendingStudents } from '../../../admissions/roster'
-import { apiErrorMessage, isVersionConflict } from '../../../api/errors'
+import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../../api/errors'
 import { notifyError, notifyWarning } from '../../../composables/notify'
 import { usePermissions } from '../../../composables/usePermissions'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import ClassDialog from './ClassDialog.vue'
 import DepositDialog from './DepositDialog.vue'
 import DepositList from './DepositList.vue'
+import GapTable from './GapTable.vue'
+import SnapshotList from './SnapshotList.vue'
 import RosterTable from './RosterTable.vue'
 import StudentDialog from './StudentDialog.vue'
 import StudentMenu from './StudentMenu.vue'
@@ -42,8 +44,13 @@ async function load(options: { keep?: boolean } = {}) {
     roster.value = result
   } catch (err) {
     if (!requests.isCurrent(request)) return
-    roster.value = null
-    error.value = apiErrorMessage(err, '無法讀取編班表，請重新載入。')
+    if (options.keep && roster.value) {
+      // 動作後重讀、或改統計日期失敗：畫面維持原狀，只提示原因。
+      notifyError(apiErrorMessage(err, '無法讀取編班表，請重新載入。'))
+    } else {
+      roster.value = null
+      error.value = apiErrorMessage(err, '無法讀取編班表，請重新載入。')
+    }
   } finally {
     if (requests.isCurrent(request)) loading.value = false
   }
@@ -252,6 +259,53 @@ function restore(student: RosterStudent, classId: string | null) {
   return runAction(() => restoreStudent(student.id, student.version, classId), '無法恢復。')
 }
 
+// ---- 缺額統計：統計日期、三段目標、下學年年級目標、結算紀錄 ----
+async function changeAsOf(date: string) {
+  const data = roster.value
+  if (!data) return
+  asOf.value = date === data.today ? null : date
+  await load({ keep: true })
+}
+async function saveNextTarget(grade: string, value: number | null) {
+  const data = roster.value
+  if (!data) return
+  await runAction(() => saveNextYearTargets(props.campusKey, data.school_year, { [grade]: value }), '無法儲存下學年的目標人數。')
+}
+async function saveTier(block: 'current' | 'next', tiers: { base: number | null; boost: number | null; top: number | null }) {
+  const data = roster.value
+  if (!data) return
+  const body = block === 'current' ? { school_year: data.school_year, semester: 2 } : { school_year: data.school_year + 1, semester: 1 }
+  await runAction(() => saveTierTargets(props.campusKey, { ...body, ...tiers }), '無法儲存三段目標。')
+}
+async function saveSnapshot() {
+  const data = roster.value
+  if (!data) return
+  const body = { school_year: data.school_year, as_of: data.as_of }
+  try {
+    try {
+      await createSnapshot(props.campusKey, body)
+    } catch (err) {
+      if (apiErrorCode(err) !== 'ROSTER_SNAPSHOT_EXISTS') throw err
+      try {
+        await ElMessageBox.confirm('這一天已經有結算紀錄，要用現在算出來的數字覆蓋嗎？', '覆蓋結算紀錄？', {
+          confirmButtonText: '覆蓋',
+          cancelButtonText: '先不要',
+          confirmButtonClass: 'el-button--danger',
+          type: 'warning',
+          autofocus: false,
+        })
+      } catch {
+        return
+      }
+      await createSnapshot(props.campusKey, { ...body, overwrite: true })
+    }
+    ElMessage.success('已存成結算紀錄')
+    await load({ keep: true })
+  } catch (err) {
+    await onActionError(err, '無法存成結算紀錄。')
+  }
+}
+
 defineExpose({ reload: () => load({ keep: true }) })
 </script>
 
@@ -289,6 +343,13 @@ defineExpose({ reload: () => load({ keep: true }) })
         @add-deposit="depositOpen = true"
         @restore="restore"
       />
+    </section>
+    <section v-if="roster" class="roster-tab__card roster-tab__stats">
+      <div class="roster-tab__head"><h3>缺額統計</h3></div>
+      <GapTable :roster="roster" :can-write="canWrite" @change-as-of="changeAsOf" @save-next-target="saveNextTarget" @save-tier="saveTier" @snapshot="saveSnapshot" />
+      <SnapshotList :snapshots="roster.snapshots" />
+    </section>
+    <template v-if="roster">
       <StudentMenu
         v-if="menu && menuStudent && canWrite"
         :student="menuStudent"
@@ -313,7 +374,7 @@ defineExpose({ reload: () => load({ keep: true }) })
         @delete="removeClass"
       />
       <DepositDialog v-model="depositOpen" :school-year="roster.school_year" :today="roster.today" @save="saveDeposit" />
-    </section>
+    </template>
   </div>
 </template>
 
@@ -375,6 +436,15 @@ defineExpose({ reload: () => load({ keep: true }) })
   font: inherit;
   font-size: var(--text-base);
   cursor: pointer;
+}
+
+.roster-tab__head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+}
+
+.roster-tab__stats {
+  margin-top: 16px;
 }
 
 .roster-tab__card {

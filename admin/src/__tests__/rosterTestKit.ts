@@ -59,3 +59,17 @@ export function roster(over: Partial<Roster> = {}): Roster {
     underage_enrolled: 0, underage_pending: 0, missing_birthday: 0, incomplete: 0, snapshots: [], ...over,
   }
 }
+
+/** 缺額統計用的區塊：rows 給各列的年級人數（total 自動加總）。 */
+export function block(
+  rows: Record<string, Partial<Record<string, number>>>,
+  over: Partial<GapBlock> = {},
+): GapBlock {
+  const base = emptyBlock(Object.keys(rows))
+  for (const [key, values] of Object.entries(rows)) {
+    const row = { ...zeroRow(), ...values } as Record<string, number>
+    row.total = GRADES.reduce((sum, g) => sum + (row[g] ?? 0), 0)
+    base.rows[key] = row
+  }
+  return { ...base, ...over }
+}
