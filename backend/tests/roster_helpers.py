@@ -64,3 +64,10 @@ async def move_student(client, student: dict, class_id: str | None, position: in
         f"{ROSTER}/students/{student['id']}/move",
         json={"class_id": class_id, "position": position, "expected_version": student["version"]},
     )
+
+
+async def act(client, student: dict, action: str, **body):
+    """已入園（enter）、離園（leave）、退預繳（refund）、恢復（restore）。"""
+    return await client.post(
+        f"{ROSTER}/students/{student['id']}/{action}", json={"expected_version": student["version"], **body}
+    )

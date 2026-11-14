@@ -172,3 +172,25 @@ class StudentOut(BaseModel):
 class StudentsCreated(BaseModel):
     students: list[StudentOut]
     duplicates: list[str]
+
+
+class EnterRequest(_Request):
+    enrollment_date: date | None = None
+    expected_version: int = Field(ge=1)
+
+
+class LeaveRequest(_Request):
+    left_date: date | None = None
+    expected_version: int = Field(ge=1)
+
+
+class RefundRequest(_Request):
+    refunded_date: date | None = None
+    expected_version: int = Field(ge=1)
+
+
+class RestoreRequest(_Request):
+    """已退預繳的恢復成還沒編班（忽略 class_id）；已離園的恢復成在籍，要選一個班。"""
+
+    class_id: uuid.UUID | None = None
+    expected_version: int = Field(ge=1)

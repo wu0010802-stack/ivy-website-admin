@@ -13,8 +13,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.roster import calc
 from app.admissions.roster.errors import RosterError, version_conflict
 from app.admissions.roster.models import RosterClass, RosterStudent
-from app.admissions.schemas.roster import ClassCreate, ClassUpdate, StudentMove, StudentOut, StudentsCreate, StudentUpdate
+from app.admissions.schemas.roster import (
+    ClassCreate,
+    ClassUpdate,
+    EnterRequest,
+    LeaveRequest,
+    RefundRequest,
+    RestoreRequest,
+    StudentMove,
+    StudentOut,
+    StudentsCreate,
+    StudentUpdate,
+)
 from app.booking.schemas import has_control_chars
+from app.common.timezones import today_local
 
 
 def _now() -> datetime:
@@ -469,5 +481,124 @@ async def move_student(
     student.version += 1
     student.updated_at = _now()
     student.updated_by = user_id
+    await db.flush()
+    return student
+
+
+# ---- 狀態動作：已入園、離園、退預繳、恢復 --------------------------------------
+
+
+def _action_date(value: date | None) -> date:
+    """動作日期預設台北今天，不能晚於今天。"""
+    today = today_local()
+    if value is None:
+        return today
+    if value > today:
+        raise RosterError(422, "ROSTER_DATE_IN_FUTURE", "日期不能晚於今天")
+    return value
+
+
+async def _locked_for_action(
+    db: AsyncSession,
+    student_id: uuid.UUID,
+    peeked_class_id: uuid.UUID | None,
+    expected_version: int,
+    *,
+    extra_class_ids: set[uuid.UUID] | None = None,
+) -> tuple[RosterStudent, dict[uuid.UUID, RosterClass]]:
+    ids = ({peeked_class_id} if peeked_class_id else set()) | (extra_class_ids or set())
+    student, classes = await lock_student(db, student_id, ids, peeked_class_id)
+    if student is None:
+        raise _class_not_found()
+    if student.version != expected_version:
+        raise version_conflict(student.version, "位幼生")
+    return student, classes
+
+
+def _touch(student: RosterStudent, user_id: uuid.UUID) -> None:
+    student.version += 1
+    student.updated_at = _now()
+    student.updated_by = user_id
+
+
+async def enter_student(
+    db: AsyncSession, student_id: uuid.UUID, peeked_class_id: uuid.UUID | None, data: EnterRequest, user_id: uuid.UUID
+) -> RosterStudent:
+    student, _ = await _locked_for_action(db, student_id, peeked_class_id, data.expected_version)
+    if student.status != "pending":
+        raise _status_invalid("只有預繳未入園的幼生能標已入園")
+    if student.class_id is None:
+        raise RosterError(409, "ROSTER_NEEDS_CLASS", "請先把這位幼生排進班級，再標已入園")
+    student.enrollment_date = _action_date(data.enrollment_date)
+    student.status = "enrolled"
+    _touch(student, user_id)
+    await db.flush()
+    return student
+
+
+async def _leave_class(db: AsyncSession, student: RosterStudent) -> None:
+    """離園、退預繳：清掉班級與班內順序（年級已經存在幼生上），原班其餘幼生補位。"""
+    old_class_id = student.class_id
+    student.class_id = None
+    student.position = None
+    if old_class_id is not None:
+        await close_gap(db, old_class_id, exclude=student.id)
+
+
+async def leave_student(
+    db: AsyncSession, student_id: uuid.UUID, peeked_class_id: uuid.UUID | None, data: LeaveRequest, user_id: uuid.UUID
+) -> RosterStudent:
+    student, _ = await _locked_for_action(db, student_id, peeked_class_id, data.expected_version)
+    if student.status != "enrolled":
+        raise _status_invalid("只有在籍的幼生能離園")
+    student.left_date = _action_date(data.left_date)
+    student.status = "left"
+    await _leave_class(db, student)
+    _touch(student, user_id)
+    await db.flush()
+    return student
+
+
+async def refund_student(
+    db: AsyncSession, student_id: uuid.UUID, peeked_class_id: uuid.UUID | None, data: RefundRequest, user_id: uuid.UUID
+) -> RosterStudent:
+    student, _ = await _locked_for_action(db, student_id, peeked_class_id, data.expected_version)
+    if student.status != "pending":
+        raise _status_invalid("只有預繳未入園的幼生能退預繳")
+    student.refunded_date = _action_date(data.refunded_date)
+    student.status = "refunded"
+    await _leave_class(db, student)
+    _touch(student, user_id)
+    await db.flush()
+    return student
+
+
+async def restore_student(
+    db: AsyncSession, student_id: uuid.UUID, peeked_class_id: uuid.UUID | None, data: RestoreRequest, user_id: uuid.UUID
+) -> RosterStudent:
+    student, classes = await _locked_for_action(
+        db, student_id, peeked_class_id, data.expected_version,
+        extra_class_ids={data.class_id} if data.class_id else None,
+    )
+    if student.status == "refunded":
+        student.status = "pending"
+        student.refunded_date = None
+    elif student.status == "left":
+        if data.class_id is None:
+            raise RosterError(422, "ROSTER_CLASS_REQUIRED", "已離園的幼生恢復時要選一個班級")
+        room = classes.get(data.class_id)
+        if room is None or room.campus_key != student.campus_key:
+            raise _class_not_found()
+        if room.school_year != student.school_year:
+            raise _year_mismatch()
+        last = await db.scalar(select(func.max(RosterStudent.position)).where(RosterStudent.class_id == room.id))
+        student.status = "enrolled"
+        student.left_date = None
+        student.class_id = room.id
+        student.grade = room.grade
+        student.position = 0 if last is None else last + 1
+    else:
+        raise _status_invalid("只有已離園或已退預繳的幼生能恢復")
+    _touch(student, user_id)
     await db.flush()
     return student

@@ -18,6 +18,10 @@ from app.admissions.schemas.roster import (
     ClassCreate,
     ClassOut,
     ClassUpdate,
+    EnterRequest,
+    LeaveRequest,
+    RefundRequest,
+    RestoreRequest,
     StudentMove,
     StudentOut,
     StudentsCreate,
@@ -232,3 +236,65 @@ async def move_student(
     [out] = await service.student_outs(db, [student])
     await db.commit()
     return out
+
+
+async def _run_action(
+    db: AsyncSession, user: User, student_id: uuid.UUID, action: str, handler, payload
+) -> StudentOut:
+    class_id = await _scoped_student(db, user, student_id)
+    try:
+        student = await handler(db, student_id, class_id, payload, user.id)
+    except RosterError as exc:
+        await _fail(db, exc)
+    await audit_service.log_action(
+        db,
+        actor_user_id=user.id,
+        action=action,
+        target_type="roster_student",
+        target_id=str(student.id),
+        campus_key=student.campus_key,
+        metadata={"status": student.status},
+    )
+    [out] = await service.student_outs(db, [student])
+    await db.commit()
+    return out
+
+
+@router.post("/students/{student_id}/enter", response_model=StudentOut)
+async def enter_student(
+    student_id: uuid.UUID,
+    payload: EnterRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    return await _run_action(db, current_user, student_id, "roster_student.enter", service.enter_student, payload)
+
+
+@router.post("/students/{student_id}/leave", response_model=StudentOut)
+async def leave_student(
+    student_id: uuid.UUID,
+    payload: LeaveRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    return await _run_action(db, current_user, student_id, "roster_student.leave", service.leave_student, payload)
+
+
+@router.post("/students/{student_id}/refund", response_model=StudentOut)
+async def refund_student(
+    student_id: uuid.UUID,
+    payload: RefundRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    return await _run_action(db, current_user, student_id, "roster_student.refund", service.refund_student, payload)
+
+
+@router.post("/students/{student_id}/restore", response_model=StudentOut)
+async def restore_student(
+    student_id: uuid.UUID,
+    payload: RestoreRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> StudentOut:
+    return await _run_action(db, current_user, student_id, "roster_student.restore", service.restore_student, payload)
