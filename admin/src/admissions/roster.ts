@@ -1,5 +1,5 @@
 // 編班與缺額分頁的顯示用純函式（2026-11-15；用字照規格 §8.4）。統計數字全由後端算，這裡只管怎麼寫出來。
-import type { RosterStudent, Tier } from '../api/roster'
+import type { Roster, RosterStudent, Tier } from '../api/roster'
 
 export const GRADE_ORDER = ['大班', '中班', '小班', '幼幼班'] as const
 
@@ -68,4 +68,13 @@ export function tierText(tier: Tier): string {
   const next = tier.next ? `離${TIER_NAMES[tier.next]}目標還差 ${tier.short} 人` : ''
   if (tier.reached) return next ? `已達${TIER_NAMES[tier.reached]}目標，${next}` : `已達${TIER_NAMES[tier.reached]}目標`
   return next ? `還沒到基礎目標，${next}` : ''
+}
+
+/** 所有預繳未入園的幼生（編班表裡的、還沒編班的、下學年的），每位只算一次。 */
+export function pendingStudents(roster: Roster): RosterStudent[] {
+  const seen = new Map<string, RosterStudent>()
+  for (const student of [...roster.classes.flatMap((room) => room.students), ...roster.unassigned, ...roster.next_year]) {
+    if (student.status === 'pending') seen.set(student.id, student)
+  }
+  return [...seen.values()]
 }

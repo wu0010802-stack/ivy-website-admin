@@ -2,14 +2,19 @@
 import { computed, h, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  createStudents, enterStudent, getRoster, leaveStudent, moveStudent, refundStudent, updateClass,
-  type Roster, type RosterStudent,
+  createClass, createStudents, deleteClass, enterStudent, getRoster, leaveStudent, moveStudent, refundStudent, restoreStudent, updateClass, updateStudent,
+  type ClassCreate, type ClassUpdate, type Roster, type RosterStudent, type StudentsCreate, type StudentUpdate,
 } from '../../../api/roster'
+import { pendingStudents } from '../../../admissions/roster'
 import { apiErrorMessage, isVersionConflict } from '../../../api/errors'
 import { notifyError, notifyWarning } from '../../../composables/notify'
 import { usePermissions } from '../../../composables/usePermissions'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
+import ClassDialog from './ClassDialog.vue'
+import DepositDialog from './DepositDialog.vue'
+import DepositList from './DepositList.vue'
 import RosterTable from './RosterTable.vue'
+import StudentDialog from './StudentDialog.vue'
 import StudentMenu from './StudentMenu.vue'
 
 // 編班與缺額分頁（2026-11-15，規格 §8）：持有整張編班表與統計日期，動作交給子元件回報，
@@ -136,6 +141,7 @@ async function undoMove(id: string, origin: { classId: string | null; position: 
 const menu = ref<{ id: string; anchor: HTMLElement } | null>(null)
 const menuStudent = computed(() => (menu.value ? findStudent(menu.value.id) ?? null : null))
 const editingStudentId = ref<string | null>(null)
+const editingStudent = computed(() => (editingStudentId.value ? findStudent(editingStudentId.value) ?? null : null))
 function openMenu(id: string, anchor: HTMLElement) {
   menu.value = { id, anchor }
 }
@@ -183,6 +189,69 @@ function moveToClass(student: RosterStudent, classId: string) {
   return runAction(() => moveStudent(student.id, { class_id: classId, position: room.count, expected_version: student.version }), '無法移動幼生。')
 }
 
+// ---- 編輯資料、班級、補登預繳、恢復 ----
+const view = ref<'roster' | 'deps'>('roster')
+const pendingCount = computed(() => (roster.value ? pendingStudents(roster.value).length : 0))
+
+const studentOpen = computed({
+  get: () => editingStudent.value !== null,
+  set: (open: boolean) => { if (!open) editingStudentId.value = null },
+})
+async function saveStudent(body: Omit<StudentUpdate, 'expected_version'>) {
+  const student = editingStudent.value
+  if (!student) return
+  editingStudentId.value = null
+  if (!Object.keys(body).length) return
+  await runAction(() => updateStudent(student.id, { ...body, expected_version: student.version }), '無法儲存幼生資料。')
+}
+
+const classDialog = ref<{ id: string | null } | null>(null)
+const classRoom = computed(() => roster.value?.classes.find((room) => room.id === classDialog.value?.id) ?? null)
+const classOpen = computed({
+  get: () => classDialog.value !== null,
+  set: (open: boolean) => { if (!open) classDialog.value = null },
+})
+async function saveClass(body: ClassCreate | Omit<ClassUpdate, 'expected_version'>) {
+  const room = classRoom.value
+  classDialog.value = null
+  if (!room) return runAction(() => createClass(props.campusKey, body as ClassCreate), '無法新增班級。')
+  if (!Object.keys(body).length) return
+  await runAction(() => updateClass(room.id, { ...body, expected_version: room.version }), '無法儲存班級。')
+}
+async function removeClass() {
+  const room = classRoom.value
+  if (!room) return
+  try {
+    await ElMessageBox.confirm(`刪除「${room.name}」？班上沒有幼生，刪除後無法復原。`, `刪除 ${room.name}？`, {
+      confirmButtonText: '刪除班級',
+      cancelButtonText: '先不要',
+      confirmButtonClass: 'el-button--danger',
+      type: 'warning',
+      autofocus: false,
+    })
+  } catch {
+    return
+  }
+  classDialog.value = null
+  await runAction(() => deleteClass(room.id, room.version), '無法刪除班級。')
+}
+
+const depositOpen = ref(false)
+async function saveDeposit(body: StudentsCreate) {
+  depositOpen.value = false
+  menu.value = null
+  try {
+    const result = await createStudents(props.campusKey, body)
+    if (result.duplicates?.length) notifyWarning(`已有同名幼生：${result.duplicates.join('、')}`, { duration: 6000 })
+    await load({ keep: true })
+  } catch (err) {
+    await onActionError(err, '無法補登預繳。')
+  }
+}
+function restore(student: RosterStudent, classId: string | null) {
+  return runAction(() => restoreStudent(student.id, student.version, classId), '無法恢復。')
+}
+
 defineExpose({ reload: () => load({ keep: true }) })
 </script>
 
@@ -194,7 +263,15 @@ defineExpose({ reload: () => load({ keep: true }) })
     </el-alert>
     <div v-else-if="!roster" v-loading="loading" class="roster-tab__loading" />
     <section v-else class="roster-tab__card">
+      <div class="roster-tab__head">
+        <div class="roster-switch" role="group" aria-label="切換檢視">
+          <button type="button" :class="{ 'is-on': view === 'roster' }" :aria-pressed="view === 'roster'" @click="view = 'roster'">編班表</button>
+          <button type="button" :class="{ 'is-on': view === 'deps' }" :aria-pressed="view === 'deps'" @click="view = 'deps'">預繳名單 <span>{{ pendingCount }}</span></button>
+        </div>
+        <button v-if="canWrite && view === 'roster'" type="button" class="roster-tab__tool" @click="classDialog = { id: null }">新增班級</button>
+      </div>
       <RosterTable
+        v-if="view === 'roster'"
         :roster="roster"
         :can-write="canWrite"
         @set-class-target="saveClassTarget"
@@ -202,6 +279,15 @@ defineExpose({ reload: () => load({ keep: true }) })
         @move="move"
         @open-student="openMenu"
         @edit-student="editStudent"
+        @edit-class="classDialog = { id: $event }"
+      />
+      <DepositList
+        v-else
+        :roster="roster"
+        :can-write="canWrite"
+        @open-student="openMenu"
+        @add-deposit="depositOpen = true"
+        @restore="restore"
       />
       <StudentMenu
         v-if="menu && menuStudent && canWrite"
@@ -217,6 +303,16 @@ defineExpose({ reload: () => load({ keep: true }) })
         @leave="leave(menuStudent)"
         @refund="refund(menuStudent)"
       />
+      <StudentDialog v-if="editingStudent" v-model="studentOpen" :student="editingStudent" :school-year="roster.school_year" @save="saveStudent" />
+      <ClassDialog
+        v-model="classOpen"
+        :school-year="roster.school_year"
+        :room="classRoom"
+        :member-count="classRoom?.count ?? 0"
+        @save="saveClass"
+        @delete="removeClass"
+      />
+      <DepositDialog v-model="depositOpen" :school-year="roster.school_year" :today="roster.today" @save="saveDeposit" />
     </section>
   </div>
 </template>
@@ -224,6 +320,61 @@ defineExpose({ reload: () => load({ keep: true }) })
 <style scoped>
 .roster-tab__loading {
   min-height: 160px;
+}
+
+.roster-tab__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.roster-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.roster-switch button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.roster-switch button.is-on {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+}
+
+.roster-switch span {
+  margin-left: 2px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.roster-tab__tool {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
 }
 
 .roster-tab__card {

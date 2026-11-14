@@ -1,0 +1,104 @@
+/* 編班與缺額各對話框共用的表單版型（2026-11-15）。字級與顏色一律走 token。 */
+.roster-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.roster-form label {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 4px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.roster-form input:not([type='checkbox']):not([type='radio']),
+.roster-form select,
+.roster-form textarea {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+}
+
+.roster-form textarea {
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.roster-form input:disabled,
+.roster-form select:disabled,
+.roster-form textarea:disabled {
+  background: var(--surface-2);
+  color: var(--ink-3);
+}
+
+.roster-form__row {
+  display: flex;
+  gap: 12px;
+}
+
+.roster-form__checks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.roster-form__terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+}
+
+.roster-form__terms label {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.roster-form__error {
+  margin: 0;
+  color: var(--danger-ink);
+  font-size: var(--text-sm);
+}
+
+.roster-form__hint {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.roster-form__cancel,
+.roster-form__delete,
+.roster-form__primary {
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--text-base);
+  cursor: pointer;
+}
+
+.roster-form__primary {
+  border-color: var(--admin-accent-strong);
+  background: var(--admin-accent-strong);
+  color: var(--surface);
+}
+
+.roster-form__delete {
+  float: left;
+  border-color: var(--danger-ink);
+  color: var(--danger-ink);
+}
