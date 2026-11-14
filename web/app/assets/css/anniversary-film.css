@@ -1,0 +1,158 @@
+/* 30 週年分頁首屏的放映區（components/AnniversaryFilm.vue）。顏色一律引用 tokens.css。
+   影片像一張貼在圖畫紙上的大照片（白邊＋紙膠帶）；按了播放整頁關燈，白邊收掉、四周透出畫面的顏色。 */
+.anni-film {
+  /* 影片以外要留的高度：頁首＋首屏標題列＋留白。影片盡量整個放進第一個畫面，但寬度不小於 640px */
+  --film-chrome: 372px;
+  --film-fade: .7s;
+  position: relative; display: grid; gap: clamp(22px, 2.6vw, 36px); min-width: 0; scroll-margin-top: 104px;
+}
+
+/* 關燈：蓋住整頁（含頁首），影片與「影片裡的話」浮在上面。平常透明、不擋點擊 */
+.anni-film-dim { position: fixed; inset: 0; z-index: 60; background: rgb(var(--ink) / .95); opacity: 0; pointer-events: none; transition: opacity var(--film-fade) ease; }
+.anni-film.is-dark .anni-film-dim { opacity: 1; }
+/* 開燈時等那層深色淡完才把層級放回去，不然影片會先被蓋住閃一下 */
+.anni-film-stage, .anni-film-side { position: relative; z-index: 0; transition: z-index 0s linear var(--film-fade); }
+.anni-film.is-dark .anni-film-stage, .anni-film.is-dark .anni-film-side { z-index: 61; transition-delay: 0s; }
+
+.anni-film-stage { display: grid; gap: 14px; margin: 0 auto; width: min(100%, max(640px, calc((100svh - var(--film-chrome)) * 16 / 9))); }
+.anni-film-mat { position: relative; padding: 10px; background: var(--white); isolation: isolate;
+  box-shadow: 0 2px 3px rgb(var(--shadow-rgb) / .08), 0 26px 52px -22px rgb(var(--ink) / .5);
+  transition: background-color var(--film-fade) ease, box-shadow var(--film-fade) ease; }
+.anni-film.is-dark .anni-film-mat { background: transparent; box-shadow: none; }
+.anni-film-tape { position: absolute; z-index: 2; left: 50%; top: -15px; width: 148px; height: 30px; transform: translateX(-50%) rotate(-1.5deg);
+  background: rgb(var(--ivy-paint-sun-rgb) / .6); mask: var(--anni-paper-tile) 0 0 / 120px luminance; box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / .08);
+  transition: opacity calc(var(--film-fade) / 2) ease; }
+.anni-film.is-dark .anni-film-tape { opacity: 0; }
+
+/* 四周的光：一張 32px 寬的畫面放大再模糊，只有關燈時看得到 */
+.anni-film-glow { position: absolute; z-index: -1; left: -7%; top: -9%; width: 114%; height: 118%; filter: blur(56px) saturate(1.3); opacity: 0; pointer-events: none;
+  transition: opacity 1.2s ease; }
+.anni-film.is-dark .anni-film-glow { opacity: .85; }
+
+.anni-film-frame { position: relative; aspect-ratio: 16 / 9; overflow: hidden; background: rgb(var(--ink)); border-radius: 2px; container-type: inline-size; }
+.anni-film-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: rgb(var(--ink)); visibility: hidden; }
+.anni-film.is-started .anni-film-video { visibility: visible; }
+.anni-film-video:focus-visible { outline: 3px solid var(--yellow); outline-offset: 4px; }
+
+/* 封面：照片＋（條件允許時）無聲預告＋左下角的片名 */
+.anni-film-cover { position: absolute; inset: 0; display: block; color: rgb(var(--on-dark)); }
+.anni-film-cover picture { display: contents; }
+.anni-film-cover img, .anni-film-teaser { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.anni-film-teaser { opacity: 0; transition: opacity .8s ease; }
+.anni-film.is-teasing .anni-film-teaser { opacity: 1; }
+/* 壓字的漸層：左下角片名那一帶（畫面高度的下三成）對白字、金字都要夠深，數字是對封面與預告七個鏡頭的實際像素量的 */
+.anni-film-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgb(var(--ink) / .92), rgb(var(--ink) / .74) 22%, rgb(var(--ink) / 0) 56%); }
+.anni-film-card { position: absolute; left: clamp(18px, 3vw, 40px); right: clamp(18px, 3vw, 40px); bottom: clamp(18px, 3vw, 36px); display: flex; align-items: center; gap: clamp(14px, 1.6vw, 22px); }
+.anni-film-play { flex: none; display: grid; place-items: center; width: clamp(60px, 6vw, 84px); aspect-ratio: 1; border-radius: 50%; background: var(--white); color: var(--green);
+  box-shadow: 0 8px 28px rgb(var(--ink) / .4); transition: transform .25s cubic-bezier(.16, 1, .3, 1), background-color .2s; }
+.anni-film-play .icon { width: 44%; height: 44%; margin-left: 6%; }
+.anni-film-label { display: grid; gap: 2px; min-width: 0; line-height: 1.35; text-shadow: 0 1px 12px rgb(var(--ink) / .55); }
+.anni-film-label small { font-size: var(--fs-sm); font-weight: 600; letter-spacing: .14em; }
+.anni-film-label b { font: 700 clamp(var(--fs-2xl), 2.6vw, var(--fs-4xl))/1.3 var(--font-head); letter-spacing: .04em; }
+.anni-film-label span { font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.anni-film-cover:hover .anni-film-play, .anni-film-cover:focus-visible .anni-film-play { transform: scale(1.07); background: var(--yellow); }
+.anni-film-cover:focus-visible { outline: 3px solid var(--leaf); outline-offset: 6px; }
+
+.anni-film-caption { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px; padding-inline: 10px; }
+.anni-film-caption h2 { font: 700 var(--fs-lg)/1.5 var(--font-head); color: var(--deep); transition: color var(--film-fade) ease; }
+.anni-film-caption p { max-width: none; font-size: var(--fs-xs); line-height: 1.6; color: var(--muted); transition: color var(--film-fade) ease; }
+.anni-film.is-dark .anni-film-caption h2 { color: rgb(var(--on-dark) / .94); }
+.anni-film.is-dark .anni-film-caption p { color: rgb(var(--on-dark) / .7); }
+
+/* 影片裡的話：播到哪一句、哪一句亮。這裡是基本款（縮圖在上、字在下的卡片），各寬度的排法在下面 */
+.anni-film-side { display: grid; gap: 12px; min-width: 0; }
+.anni-film-side h3 { font: 700 var(--fs-sm)/1.4 var(--font-head); letter-spacing: .14em; color: var(--leaf); transition: color var(--film-fade) ease; }
+.anni-film-cues { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px clamp(12px, 1.6vw, 20px); margin: 0; padding: 0; list-style: none; }
+.anni-film-cues li { display: grid; min-width: 0; }
+.anni-film-cues button { display: grid; align-content: start; gap: 10px; min-width: 0; padding: 0; border: 0; border-radius: 3px; background: none; text-align: left; color: var(--text);
+  transition: color var(--film-fade) ease, background-color .3s ease; }
+.anni-film-thumb { position: relative; display: block; aspect-ratio: 16 / 10; overflow: hidden; border-radius: 2px; background: var(--cream); }
+.anni-film-thumb img { width: 100%; height: 100%; object-fit: cover; transition: transform .5s cubic-bezier(.16, 1, .3, 1), opacity var(--film-fade) ease; }
+.anni-film-thumb::after { content: ""; position: absolute; inset: 0; border: 3px solid var(--gold); opacity: 0; transition: opacity .3s ease; }
+.anni-film-line { display: grid; gap: 4px; min-width: 0; }
+.anni-film-at { font: 700 var(--fs-xs)/1 var(--font-head); font-variant-numeric: tabular-nums; letter-spacing: .06em; color: var(--muted); transition: color var(--film-fade) ease; }
+.anni-film-say { font: 700 var(--fs-md)/1.55 var(--font-head); }
+/* 片名、句子的每一小段不拆開（只在段與段之間換行） */
+.anni-film-nobr { display: inline-block; white-space: nowrap; }
+/* 出處：整段放得下就不拆；放不下先整段換到下一行，比容器還寬才在裡面換行 */
+.anni-film-part { display: inline-block; }
+.anni-film-cues button:hover .anni-film-thumb img { transform: scale(1.05); }
+.anni-film-cues button:hover .anni-film-say { color: var(--leaf); }
+.anni-film-cues button[aria-current] .anni-film-thumb::after { opacity: 1; }
+.anni-film-cues button[aria-current] .anni-film-say { color: var(--green); }
+.anni-film-cues button[aria-current] .anni-film-at { color: var(--leaf); }
+.anni-film-cues button:focus-visible { outline-offset: 6px; }
+/* 關燈時：沒輪到的句子退後，輪到的那一句亮起來 */
+.anni-film.is-dark .anni-film-side h3 { color: rgb(var(--on-dark) / .7); }
+.anni-film.is-dark .anni-film-cues button { color: rgb(var(--on-dark) / .62); }
+.anni-film.is-dark .anni-film-cues .anni-film-at { color: rgb(var(--on-dark) / .5); }
+.anni-film.is-dark .anni-film-cues button:not([aria-current]) .anni-film-thumb img { opacity: .5; }
+.anni-film.is-dark .anni-film-cues button[aria-current], .anni-film.is-dark .anni-film-cues button[aria-current] .anni-film-say { color: rgb(var(--on-dark)); }
+.anni-film.is-dark .anni-film-cues button[aria-current] .anni-film-at { color: var(--yellow); }
+.anni-film.is-dark .anni-film-cues button:hover .anni-film-say { color: var(--yellow); }
+
+/* 桌機：影片在左、六句在右，一個畫面裡看得到全部。影片寬度看視窗高度決定，右欄拿剩下的寬度 */
+@media (min-width: 1101px) {
+  .anni-film { --film-chrome: 384px; --film-gap: clamp(28px, 3vw, 44px); display: flex; align-items: flex-start; gap: var(--film-gap); }
+  .anni-film-stage { flex: none; margin: 0; width: min(calc(100% - 300px - var(--film-gap)), max(560px, calc((100svh - var(--film-chrome)) * 16 / 9))); }
+  .anni-film-side { flex: 1 1 0; container-type: inline-size; padding-top: 10px; }
+  /* 一句一列：小縮圖在左、時間與句子在右；輪到的那一列浮起來 */
+  .anni-film-cues { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .anni-film-cues button { grid-template-columns: 92px minmax(0, 1fr); align-items: center; gap: 14px; padding: 8px 10px 8px 8px; }
+  .anni-film-say { font-size: var(--fs-sm); line-height: 1.5; }
+  .anni-film-cues button:hover { background: rgb(var(--on-dark) / .55); }
+  .anni-film-cues button[aria-current] { background: var(--white); box-shadow: 0 1px 2px rgb(var(--shadow-rgb) / .06), 0 10px 22px -14px rgb(var(--ink) / .5); }
+  .anni-film-thumb::after { border-width: 2px; }
+  .anni-film.is-dark .anni-film-cues button:hover { background: rgb(var(--on-dark) / .08); }
+  .anni-film.is-dark .anni-film-cues button[aria-current] { background: rgb(var(--on-dark) / .12); box-shadow: none; }
+  /* 視窗矮、影片窄的時候右欄很寬：改兩欄 */
+  @container (min-width: 560px) {
+    .anni-film-cues { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 12px; }
+  }
+}
+@media (max-width: 1100px) {
+  .anni-film { --film-chrome: 330px; }
+}
+@media (max-width: 760px) {
+  .anni-film-stage { width: 100%; }
+  .anni-film-caption { padding-inline: 2px; }
+  /* 六句改成橫向滑動的一排（每張約六成寬），左右貼到螢幕邊 */
+  .anni-film-cues { display: flex; gap: 12px; margin-inline: -20px; padding: 4px 20px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: 20px; scrollbar-width: none; }
+  .anni-film-cues::-webkit-scrollbar { display: none; }
+  .anni-film-cues li { flex: 0 0 min(62%, 260px); scroll-snap-align: start; }
+}
+@media (max-width: 400px) {
+  .anni-film-cues { margin-inline: -16px; padding-inline: 16px; scroll-padding-inline: 16px; }
+}
+/* 直拿（視窗比 4:5 還瘦）：播直式那一版，影片高度盡量放進一個畫面 */
+@media (max-aspect-ratio: 4/5) {
+  .anni-film { --film-chrome: 210px; }
+  .anni-film-stage { width: min(100%, max(240px, calc((100svh - var(--film-chrome)) * 9 / 16))); }
+  .anni-film-frame { aspect-ratio: 9 / 16; }
+  .anni-film-mat { padding: 8px; }
+  .anni-film-shade { background: linear-gradient(to top, rgb(var(--ink) / .92), rgb(var(--ink) / .74) 15%, rgb(var(--ink) / 0) 40%); }
+  .anni-film-card { left: 16px; right: 16px; bottom: 18px; gap: 14px; }
+  .anni-film-play { width: 60px; }
+  .anni-film-label b { font-size: var(--fs-2xl); }
+  .anni-film-glow { filter: blur(40px) saturate(1.3); }
+}
+/* 影片框很窄的時候（矮的直式螢幕，例如 320×568）：片名縮小、排成一行 */
+@container (max-width: 300px) {
+  .anni-film-card { left: 12px; right: 12px; bottom: 14px; gap: 10px; }
+  .anni-film-play { width: 48px; }
+  .anni-film-label small { font-size: var(--fs-xs); }
+  .anni-film-label b { font-size: var(--fs-md); letter-spacing: 0; white-space: nowrap; }
+  .anni-film-label span { font-size: var(--fs-xs); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .anni-film { --film-fade: 0s; }
+  .anni-film-glow, .anni-film-teaser, .anni-film-play, .anni-film-thumb img { transition: none; }
+  .anni-film-cues button:hover .anni-film-thumb img { transform: none; }
+}
+@media (forced-colors: active) {
+  .anni-film-dim, .anni-film-glow, .anni-film-shade { display: none; }
+  .anni-film-thumb::after { border-color: Highlight; }
+}
+@media print {
+  .anni-film-dim, .anni-film-glow, .anni-film-teaser, .anni-film-tape { display: none; }
+}

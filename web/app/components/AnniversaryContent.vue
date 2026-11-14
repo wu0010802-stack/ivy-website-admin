@@ -5,10 +5,13 @@ import { ANNI_MILESTONES, ANNI_YEARS, anniversaryYearMeta, campusCountAt, milest
 import { campusMapUrl } from '~/utils/site-links'
 import { ANNI_ARTWORKS } from '~/utils/anniversary/gallery'
 import { responsiveImage } from '~/utils/responsive-image'
+import { FILM_TITLE } from '~/utils/anniversary/film'
 import type { CrayonPad } from '~/utils/anniversary/crayonPad'
 
-// 30 週年分頁：開場影片 → 首屏海報 → 1997–2027 時間軸（旁邊的高雄地圖跟著長）→ 線畫成 30、校徽印進 0
-// → 30 支蠟筆蠟燭 → 作品拼成的 30 → 換你畫一個 30。
+// 30 週年分頁：首屏放映區（紀念影片《長成自己喜歡的樣子》＋影片裡的話）→ 1997–2027 時間軸（旁邊的高雄地圖跟著長）
+// → 線畫成 30、校徽印進 0 → 30 支蠟筆蠟燭 → 作品拼成的 30 → 換你畫一個 30。
+// 2026-11-11：10-04 的 30 秒開場動畫《手牽手，走到 30》（一進頁面自動播、飛進首屏海報相框）拿掉，換成 2 分 24 秒的紀念影片；
+// 新片有配樂、長度也不適合當擋在頁面前面的開場，改成首屏的放映區，按了才播（components/AnniversaryFilm.vue）。
 // 伺服器端先輸出完整可讀的內容；蠟筆線、紙偶、立體卡片、地圖動畫、蠟燭、拼圖、畫板都在 onMounted 之後才載入。
 const props = defineProps<{ campuses: Campus[] }>()
 
@@ -71,11 +74,30 @@ const padStrokes = ref(0)
 const padReplaying = ref(false)
 const padShare = ref<File | null>(null)
 
+// ── 首屏：分享影片、這一頁的內容 ──
+// 手機用系統的分享面板（可以直接傳到 LINE）；沒有分享面板就把連結複製起來。連結帶 #film，打開就停在影片。
+const shareNote = ref('')
+let shareTimer = 0
+const shareFilm = async () => {
+  const data = { title: `常春藤 30 週年紀念影片《${FILM_TITLE}》`, url: `${location.origin}/anniversary#film` }
+  if (typeof navigator.share === 'function' && navigator.canShare?.(data) !== false) {
+    try { await navigator.share(data) } catch { /* 使用者取消分享 */ }
+    return
+  }
+  try { await navigator.clipboard.writeText(data.url); shareNote.value = '連結已複製' } catch { shareNote.value = data.url }
+  clearTimeout(shareTimer)
+  shareTimer = window.setTimeout(() => { shareNote.value = '' }, 4000)
+}
+// 首屏下方的索引（同關於、特色教學、環境、入學頁都有的那一排）：這一頁很長，蠟燭、作品、畫板一點就到
+const INDEX = [
+  { href: '#anni-line', name: '三十年', note: '1997 到 2027', color: 'var(--anni-crayon)' },
+  { href: '#anni-cake', name: '吹蠟燭', note: '30 支蠟筆蠟燭', color: 'rgb(var(--ivy-paint-sun-rgb))' },
+  { href: '#anni-art', name: '孩子的作品', note: `${ANNI_ARTWORKS.length} 件作品`, color: 'rgb(var(--ivy-paint-orange-rgb))' },
+  { href: '#anni-draw', name: '換你畫', note: '畫一個 30', color: 'rgb(var(--ivy-paint-sky-rgb))' }
+]
+
 // ── 元素 ──
 const root = ref<HTMLElement | null>(null)
-const printImg = ref<HTMLImageElement | null>(null)
-const intro = ref<{ replay: () => void } | null>(null)
-const heroTitle = ref<HTMLElement | null>(null)
 const track = ref<HTMLElement | null>(null)
 const mapCard = ref<{ setYear: (y: number) => void } | null>(null)
 const mosaicCanvas = ref<HTMLCanvasElement | null>(null)
@@ -118,8 +140,6 @@ const sharePad = async () => {
 const onPadKey = (e: KeyboardEvent) => {
   if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undoPad() }
 }
-const replayIntro = () => intro.value?.replay()
-const introDone = () => heroTitle.value?.focus({ preventScroll: true })
 
 onMounted(async () => {
   if (!root.value) return
@@ -155,41 +175,37 @@ onMounted(async () => {
     return () => { p.destroy(); pad = null }
   })
 })
-onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
+onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = []; clearTimeout(shareTimer) })
 </script>
 
 <template>
   <main id="main" ref="root" tabindex="-1" class="anni" data-cta-entry="anniversary" :style="{ '--anni-paper-tile': `url(${ANNI_MEDIA.paper})` }">
-    <AnniversaryIntro ref="intro" :target="() => printImg" @done="introDone" />
-
-    <!-- 首屏：開場影片最後一格變成右邊這張海報 -->
+    <!-- 首屏：標題、紀念影片（放映區）、這一頁的內容。手機的順序是標題 → 影片 → 介紹 → 索引 -->
     <section class="anni-hero" data-track-section="hero" aria-labelledby="anni-title">
-      <div class="container anni-hero-grid">
-        <div class="anni-hero-copy">
-          <h1 id="anni-title" ref="heroTitle" tabindex="-1">常春藤 30 週年</h1>
+      <div class="container anni-hero-in">
+        <div class="anni-hero-title">
+          <h1 id="anni-title">常春藤 30 週年</h1>
           <p class="anni-hero-years"><span>1997</span><span class="anni-hero-dash" aria-hidden="true" /><span>2027</span></p>
+        </div>
+        <div class="anni-hero-copy">
           <p class="anni-hero-lead">
             <template v-for="(part, i) in HERO_LEAD" :key="i"><span v-if="part.keep" class="anni-nobr">{{ part.t }}</span><template v-else>{{ part.t }}</template></template><template v-for="(n, i) in campusNames" :key="n">{{ i ? '、' : '' }}<span class="anni-nobr">{{ n }}</span></template>。
           </p>
           <div class="anni-hero-actions">
-            <button type="button" class="button primary" @click="replayIntro">重看開場影片</button>
+            <button type="button" class="button outline" @click="shareFilm">
+              <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>分享影片
+            </button>
             <NuxtLink class="button outline" to="/visit">預約參觀</NuxtLink>
+            <p class="anni-hero-note" aria-live="polite">{{ shareNote }}</p>
           </div>
         </div>
-        <figure class="anni-print">
-          <span class="anni-tape" aria-hidden="true" />
-          <picture>
-            <source media="(max-aspect-ratio: 4/5)" :srcset="ANNI_MEDIA.posterMobile" width="900" height="1600">
-            <img
-              ref="printImg"
-              :src="ANNI_MEDIA.posterDesktop"
-              width="1600"
-              height="900"
-              alt="紙上用綠色蠟筆畫出的大大的 30，旁邊貼著五所校園的水彩卡片，0 的中間印著 30 週年校徽"
-              fetchpriority="high"
-            >
-          </picture>
-        </figure>
+        <AnniversaryFilm />
+        <nav class="anni-index" aria-label="這一頁的內容">
+          <a v-for="item in INDEX" :key="item.href" :href="item.href" :style="{ '--dot': item.color }">
+            <span class="anni-index-dot" aria-hidden="true" />
+            <span><b>{{ item.name }}</b><small>{{ item.note }}</small></span>
+          </a>
+        </nav>
       </div>
     </section>
 
@@ -273,7 +289,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
           </li>
         </ol>
       </div>
-      <!-- 結尾：線接進來畫出 30，孩子跳進 0 的中間，校徽印上去（呼應開場影片的最後一格） -->
+      <!-- 結尾：線接進來畫出 30，孩子跳進 0 的中間，校徽印上去 -->
       <div class="anni-finale" role="group" aria-label="2027 年，滿 30 年">
         <div class="anni-finale-stage">
           <div class="container anni-finale-box">
@@ -293,7 +309,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
     <AnniversaryCake :colors="PAD_COLORS.map((c) => c.css)" />
 
     <!-- 作品拼成的 30 -->
-    <section class="anni-art" data-track-section="art" aria-labelledby="anni-art-title">
+    <section id="anni-art" class="anni-art" data-track-section="art" aria-labelledby="anni-art-title">
       <div class="container anni-art-grid">
         <div class="anni-art-copy">
           <h2 id="anni-art-title">孩子的作品拼成的 30</h2>
@@ -339,7 +355,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
     </section>
 
     <!-- 換你畫一個 30 -->
-    <section class="anni-draw" data-track-section="draw" aria-labelledby="anni-draw-title" @keydown="onPadKey">
+    <section id="anni-draw" class="anni-draw" data-track-section="draw" aria-labelledby="anni-draw-title" @keydown="onPadKey">
       <div class="container anni-draw-grid">
         <div class="anni-draw-copy">
           <h2 id="anni-draw-title">換你畫一個 30</h2>

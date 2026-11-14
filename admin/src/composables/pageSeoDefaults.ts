@@ -57,7 +57,7 @@ export const PAGE_SEO_DEFAULTS: Readonly<Record<PageSeoKey, { title: string; des
   },
   anniversary: {
     title: `常春藤 30 週年｜1997—2027｜${BRAND}`,
-    description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。',
+    description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看紀念影片《長成自己喜歡的樣子》和五所校園一年一年長出來的時間軸，也換你用蠟筆畫一個 30。',
   },
   privacy: {
     title: `隱私權政策｜${BRAND}`,

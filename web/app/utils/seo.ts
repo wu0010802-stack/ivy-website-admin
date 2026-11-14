@@ -2,6 +2,8 @@ import { indexableArticles, NEWS_PATH, newsPath } from './news-content'
 import { mediaFileUrl, isMediaId } from './media-image'
 import { campusMapUrl, httpsUrl } from './site-links'
 import { admissionFaqEntries } from './admission-faq'
+import { ANNI_FILM } from './anniversary/film-media'
+import { FILM_CUES, FILM_TITLE, FILM_UPLOAD_DATE, durationLabel, isoDuration } from './anniversary/film'
 import type { Campus, NewsArticle, NewsContent, PageSeoKey, SiteContent, SiteMetaContent } from '../types/site-content'
 
 /** 固定部署 origin；不從不可信 Host 或 CMS 文字組 canonical。 */
@@ -262,12 +264,12 @@ export function environmentSeo(site: SiteContent, siteOrigin: string) {
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }
 }
 
-/** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：預設內建、後台可覆寫（2026-10-12），麵包屑兩層。 */
+/** 30 週年分頁的 SEO（2026-10-04 使用者同意做成正式分頁）：預設內建、後台可覆寫（2026-10-12），麵包屑兩層；2026-11-11 起多一個紀念影片的 VideoObject。 */
 export function anniversarySeo(site: SiteContent, siteOrigin: string) {
   const origin = normalizeSiteOrigin(siteOrigin)
   const { title, description, share } = pageOverride(site, 'anniversary', {
     title: `常春藤 30 週年｜1997—2027｜${TITLE_BRAND}`,
-    description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看義華、明華、崇德、國際、仁武五所校園一年一年長出來，也換你用蠟筆畫一個 30。'
+    description: '1997 年，第一間常春藤在高雄三民區義華路成立，到 2027 年滿 30 年。看紀念影片《長成自己喜歡的樣子》和五所校園一年一年長出來的時間軸，也換你用蠟筆畫一個 30。'
   })
   const canonical = origin ? `${origin}${ANNIVERSARY_PATH}` : undefined
   const image = origin ? `${origin}${share.path}` : undefined
@@ -277,6 +279,13 @@ export function anniversarySeo(site: SiteContent, siteOrigin: string) {
       { '@type': 'ListItem', position: 1, name: '首頁', item: `${origin}/` },
       { '@type': 'ListItem', position: 2, name: '常春藤 30 週年', item: canonical }
     ] },
+    // 首屏的紀念影片（2026-11-11）：沒有旁白，片中打出來的句子寫進描述，搜尋與 AI 助理才讀得到影片在說什麼
+    {
+      '@type': 'VideoObject', '@id': `${canonical}#film`, name: `常春藤 30 週年紀念影片《${FILM_TITLE}》`,
+      description: `常春藤 30 週年紀念影片，${durationLabel()}，只有配樂、沒有旁白。片中的句子：${FILM_CUES.map((c) => c.text).join('')}`,
+      thumbnailUrl: ANNI_FILM.poster.desktop.map((p) => `${origin}${p.src}`), uploadDate: `${FILM_UPLOAD_DATE}T00:00:00+08:00`, duration: isoDuration(),
+      contentUrl: `${origin}${ANNI_FILM.film.desktop}`, inLanguage: 'zh-Hant-TW', isFamilyFriendly: true, isPartOf: { '@id': `${canonical}#page` }
+    },
     ...siteNodes(site, origin)
   ] : []
   return { title, description, canonical, image, imagePath: share.path, imageAlt: share.alt, graph }

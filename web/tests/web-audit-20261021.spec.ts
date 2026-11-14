@@ -1,8 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { runInNewContext } from 'node:vm'
 import { beforeAll, describe, expect, it } from 'vitest'
-import { ANNI_INTRO_GATE_SCRIPT } from '../app/utils/inline-scripts'
 
 // 2026-10-21 正式站效能與畫面掃描的前五條修正（README 同日段落）。
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -30,37 +28,8 @@ describe('three 不進任何頁面的 SSR prefetch', () => {
   })
 })
 
-describe('30 週年開場影片的連線閘門', () => {
-  // 閘門本文 2026-11-04 起放在 utils/inline-scripts.ts（公開頁 CSP 要登記它的 sha256），元件直接引用。
-  const gate = ANNI_INTRO_GATE_SCRIPT
-  it('元件放進 head 的就是這支閘門', () => {
-    expect(read('../app/components/AnniversaryIntro.vue')).toContain('innerHTML: ANNI_INTRO_GATE_SCRIPT')
-  })
-
-  function run(connection?: object) {
-    const dataset: Record<string, string> = {}
-    runInNewContext(gate, {
-      document: { documentElement: { dataset } },
-      location: { hash: '' },
-      matchMedia: () => ({ matches: false }),
-      sessionStorage: { getItem: () => null },
-      navigator: { connection },
-      setTimeout: () => 0
-    })
-    return dataset.anniIntro
-  }
-
-  it('沒有連線資訊（Safari／Firefox）或快速網路照常自動播', () => {
-    expect(run()).toBe('pending')
-    expect(run({ effectiveType: '4g', downlink: 10 })).toBe('pending')
-  })
-  it.each([
-    { saveData: true }, { effectiveType: '3g' }, { effectiveType: '2g' }, { effectiveType: 'slow-2g' },
-    { effectiveType: '4g', downlink: 1.6 }
-  ])('慢速或省流量不自動播：%j', (connection) => {
-    expect(run(connection)).toBeUndefined()
-  })
-})
+// 2026-11-11：「30 週年開場影片的連線閘門」隨 30 秒開場動畫一起拿掉。新的紀念影片的無聲預告用 media-policy 的 mayAutoplay 判斷
+// （省流量、2G／3G、偏好減少動態都不播），正片按了才下載（tests/anniversary.spec.ts）。
 
 describe('鍵盤焦點看得見', () => {
   it('米白膠囊裡的焦點框用膠囊字色，不是米白', () => {
