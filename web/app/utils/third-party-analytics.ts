@@ -1,4 +1,4 @@
-import { analyticsPageLocation, analyticsSuppressedPath, GA_SCRIPT_ORIGIN, META_PIXEL_SCRIPT_ORIGIN, OPENAI_PIXEL_SCRIPT_ORIGIN, type AnalyticsIds } from '#shared/third-party-analytics'
+import { analyticsPageLocation, analyticsSuppressedPath, GA_SCRIPT_ORIGIN, META_PIXEL_SCRIPT_ORIGIN, OPENAI_PIXEL_CONFIG_PREFIX, OPENAI_PIXEL_SCRIPT_ORIGIN, type AnalyticsIds } from '#shared/third-party-analytics'
 import { isCampusKey, isCtaEntry } from './cta-analytics'
 
 // GA4 與 Meta Pixel 的瀏覽器端（2026-11-12，規格 docs/specs/2026-11-12-external-integrations-design.md 第 1 節）。
@@ -34,8 +34,10 @@ import { isCampusKey, isCtaEntry } from './cta-analytics'
 //   在這些頁面不送。
 // - 廣告點擊代碼（網址的 oppref）在建 stub 當下就讀出來傳給 init：外部腳本延後載入，家長在載入前就站內換頁的話
 //   網址上已經沒有 oppref，SDK 自己讀不到。
-// - SDK 的「自動進階比對」會掃頁面上的 Email／電話欄位、雜湊後跟事件一起送；開不開由廣告管理平台上這顆像素的設定決定，
-//   瀏覽器端沒有開關。預約表單有這些欄位，隱私權政策寫明不傳送，所以平台上要關（上線檢查見 deploy/README.md）。
+// - SDK 的「自動進階比對」會掃頁面上的 Email／電話欄位、雜湊後跟事件一起送。開不開看 SDK 向 bzrcdn 取的設定檔
+//   （pixel-config/v1/<Pixel ID>.json），平台上沒有開關、網頁像素一律啟用（2026-11-15 建好像素後實測設定檔回 true）。
+//   預約表單有這些欄位，隱私權政策寫明不傳送，所以官網自己把它關掉：keepOpenaiAutoMatchingOff 攔下那個請求、
+//   直接回「關」；CSP 也不放行 bzrcdn 的 connect-src 當第二道（shared/third-party-analytics.ts）。
 
 type Gtag = (...args: unknown[]) => void
 interface Fbq {
@@ -103,7 +105,35 @@ export function openaiClickId(search: string): string | undefined {
   return value && value.length <= 512 ? value : undefined
 }
 
+const AUTO_MATCHING_OFF = '{"automatic_advanced_matching_enabled":false}'
+const FETCH_GUARD = '__ivyOpenaiAutoMatchingOff'
+
+/**
+ * 讓 OpenAI 的 SDK 永遠拿到「自動進階比對：關」：包一層 fetch，只攔它取設定檔的那個網址（不連外、直接回固定內容），
+ * 其他請求原封不動交給原本的 fetch。SDK 每次都從 window.fetch 取用（讀 2026-11-15 的 oaiq.min.js 確認），
+ * 所以要在載入 SDK 之前裝好；重複呼叫只裝一次。
+ */
+export function keepOpenaiAutoMatchingOff(win: Window): void {
+  const native = win.fetch as (typeof fetch & { [FETCH_GUARD]?: true }) | undefined
+  if (typeof native !== 'function' || native[FETCH_GUARD]) return
+  const guarded = function fetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+    let url = ''
+    try {
+      url = typeof input === 'string' ? input : input instanceof URL ? input.href : String((input as Request).url ?? '')
+    } catch {
+      // 讀不出網址就當一般請求
+    }
+    if (url.startsWith(OPENAI_PIXEL_CONFIG_PREFIX)) {
+      return Promise.resolve(new Response(AUTO_MATCHING_OFF, { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    }
+    return native.call(win, input, init)
+  } as typeof fetch & { [FETCH_GUARD]?: true }
+  guarded[FETCH_GUARD] = true
+  win.fetch = guarded
+}
+
 function setupOpenaiPixel(win: AnalyticsWindow, id: string): void {
+  keepOpenaiAutoMatchingOff(win)
   if (!win.oaiq) {
     // 與官方 snippet 相同的 queue stub：oaiq.min.js 載入後會接手，並把 q 裡的 arguments 依序處理。
     const queue: unknown[] = []

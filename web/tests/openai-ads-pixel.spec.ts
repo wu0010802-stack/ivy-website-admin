@@ -5,10 +5,10 @@ import {
 } from '../shared/third-party-analytics'
 import { publicScriptSources } from '../server/utils/script-csp'
 import { ADMIN_CSP, publicCsp, securityHeadersFor } from '../server/utils/security-headers'
-import { createThirdPartyAnalytics, openaiClickId, reportBookingLead } from '../app/utils/third-party-analytics'
+import { createThirdPartyAnalytics, keepOpenaiAutoMatchingOff, openaiClickId, reportBookingLead } from '../app/utils/third-party-analytics'
 
 // ChatGPT 廣告的 OpenAI 評估像素（2026-11-15，規格 docs/specs/2026-11-15-openai-ads-pixel-design.md）：
-// ID 驗證、CSP、載入時機、廣告點擊代碼、預約成功事件。GA4／Meta Pixel 的測試在 third-party-analytics*.spec.ts。
+// ID 驗證、CSP、載入時機、廣告點擊代碼、預約成功事件、把「自動進階比對」關掉的攔截。GA4／Meta Pixel 的測試在 third-party-analytics*.spec.ts。
 // 外部腳本一律不真的載入（假的 document，或攔下 appendChild）。
 
 const ORIGIN = 'http://localhost:3000'
@@ -23,7 +23,10 @@ const SDK = 'https://bzrcdn.openai.com/sdk/oaiq.min.js'
 type Win = Window & { dataLayer?: unknown[]; gtag?: unknown; fbq?: unknown; _fbq?: unknown; oaiq?: { q: unknown[] } & ((...args: unknown[]) => void) }
 const win = window as unknown as Win
 
+const nativeFetch = window.fetch
+
 function resetWindow() {
+  window.fetch = nativeFetch
   delete win.dataLayer
   delete win.gtag
   delete win.fbq
@@ -86,21 +89,29 @@ describe('Pixel ID 驗證（不符視同未設定）', () => {
 describe('CSP', () => {
   const parts = (csp: string) => Object.fromEntries(csp.split('; ').map(part => [part.split(' ')[0]!, part.split(' ').slice(1)]))
 
-  it('只設 OpenAI：只加 bzrcdn（腳本、設定檔）與 bzr（事件）', () => {
+  it('只設 OpenAI：只加 bzrcdn（腳本）與 bzr（事件）', () => {
     expect(analyticsCspSources(OPENAI_ONLY)).toEqual({
       script: ['https://bzrcdn.openai.com'],
-      connect: ['https://bzr.openai.com', 'https://bzrcdn.openai.com'],
+      connect: ['https://bzr.openai.com'],
       img: ['https://bzr.openai.com']
     })
     const csp = publicCsp([], OPENAI_ONLY)
     const p = parts(csp)
     expect(p['script-src']).toEqual([...publicScriptSources().split(' '), 'https://bzrcdn.openai.com'])
-    expect(p['connect-src']).toEqual(["'self'", 'https://challenges.cloudflare.com', 'https://bzr.openai.com', 'https://bzrcdn.openai.com'])
+    expect(p['connect-src']).toEqual(["'self'", 'https://challenges.cloudflare.com', 'https://bzr.openai.com'])
     expect(p['img-src']).toEqual(["'self'", 'data:', 'blob:', 'https://i.ytimg.com', 'https://bzr.openai.com'])
     expect(csp).not.toMatch(/google|facebook/)
     expect(csp).not.toContain('unsafe-inline')
     expect(csp).not.toContain('unsafe-eval')
     expect(p['script-src']!.filter(source => source.includes('*'))).toEqual([])
+  })
+
+  // 官方文件要 connect-src 也放行 bzrcdn，用途只有取「自動進階比對」的設定檔；不放行，SDK 取不到就維持關閉。
+  it('connect-src 刻意不放行 bzrcdn（自動進階比對的設定檔），三家都設也一樣', () => {
+    for (const ids of [OPENAI_ONLY, ALL]) {
+      expect(parts(publicCsp([], ids))['connect-src']).not.toContain('https://bzrcdn.openai.com')
+      expect(parts(publicCsp([], ids))['img-src']).not.toContain('https://bzrcdn.openai.com')
+    }
   })
 
   it('沒設：和沒有這個功能時一字不差；三家都設：各家來源都在', () => {
@@ -115,6 +126,76 @@ describe('CSP', () => {
     expect(securityHeadersFor('/', 'production', { analytics: OPENAI_ONLY })['Content-Security-Policy']).toBe(publicCsp([], OPENAI_ONLY))
     expect(securityHeadersFor('/admin/', 'production', { analytics: ALL })['Content-Security-Policy']).toBe(ADMIN_CSP)
     expect(ADMIN_CSP).not.toContain('openai')
+  })
+})
+
+describe('自動進階比對一律關（攔下 SDK 取設定檔的請求）', () => {
+  const CONFIG = `https://bzrcdn.openai.com/pixel-config/v1/${OPENAI}.json`
+
+  function install() {
+    const native = vi.fn(async () => new Response('native'))
+    window.fetch = native as unknown as typeof fetch
+    keepOpenaiAutoMatchingOff(window)
+    return native
+  }
+
+  it('設定檔網址：不連外，直接回「關」；字串、URL、Request 三種寫法都攔', async () => {
+    const native = install()
+    for (const input of [CONFIG, new URL(CONFIG), new Request(CONFIG), 'https://bzrcdn.openai.com/pixel-config/v2/other.json']) {
+      const response = await window.fetch(input, { method: 'GET', credentials: 'omit', mode: 'cors' })
+      expect(response.ok).toBe(true)
+      expect(response.status).toBe(200)
+      expect(await response.json()).toEqual({ automatic_advanced_matching_enabled: false })
+    }
+    expect(native).not.toHaveBeenCalled()
+  })
+
+  it('其他請求原封不動交給原本的 fetch（含同一個網域的 SDK 腳本、事件端點、站內 API）', async () => {
+    const native = install()
+    const init = { method: 'POST', body: 'x' }
+    const inputs = ['https://bzrcdn.openai.com/sdk/oaiq.min.js', 'https://bzr.openai.com/v1/sdk/events?pid=x', '/api/website/v1/public/site', new URL('https://example.test/pixel-config/v1/x.json')] as const
+    for (const input of inputs) expect(await (await window.fetch(input, init)).text()).toBe('native')
+    expect(native.mock.calls).toEqual(inputs.map(input => [input, init]))
+    expect(native.mock.contexts.every(context => context === window)).toBe(true)
+  })
+
+  it('重複呼叫只包一層；沒有 fetch 的環境不丟例外', async () => {
+    const native = install()
+    const once = window.fetch
+    keepOpenaiAutoMatchingOff(window)
+    keepOpenaiAutoMatchingOff(window)
+    expect(window.fetch).toBe(once)
+    await window.fetch('/x')
+    expect(native).toHaveBeenCalledTimes(1)
+    expect(() => keepOpenaiAutoMatchingOff({} as Window)).not.toThrow()
+  })
+
+  it('有設 OpenAI 的 ID 才裝，而且在 SDK 加進文件之前就裝好；只設另外兩家不動 fetch', async () => {
+    const native = vi.fn(async () => new Response('native'))
+    window.fetch = native as unknown as typeof fetch
+    const other = fakeDocument()
+    createThirdPartyAnalytics({ gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: null }, win, other.doc).pageView(at('/'), '/', 'x')
+    expect(window.fetch).toBe(native)
+
+    resetWindow()
+    window.fetch = native as unknown as typeof fetch
+    let guardedWhenInjected = false
+    const doc = {
+      createElement: () => ({ src: '', async: false, addEventListener: vi.fn(), remove: vi.fn() }),
+      head: { appendChild: () => { guardedWhenInjected = window.fetch !== native } }
+    } as unknown as Document
+    createThirdPartyAnalytics(OPENAI_ONLY, win, doc).pageView(at('/'), '/', 'x')
+    expect(guardedWhenInjected).toBe(true)
+    expect(await (await window.fetch(CONFIG)).json()).toEqual({ automatic_advanced_matching_enabled: false })
+    expect(native).not.toHaveBeenCalled()
+  })
+
+  it('第一頁是不送事件的頁面（不載 SDK）就不動 fetch', () => {
+    const native = vi.fn()
+    window.fetch = native as unknown as typeof fetch
+    const { doc } = fakeDocument()
+    createThirdPartyAnalytics(OPENAI_ONLY, win, doc).pageView(at('/visit/manage'), '/visit/manage', 'x')
+    expect(window.fetch).toBe(native)
   })
 })
 

@@ -20,6 +20,8 @@ export const META_PIXEL_SCRIPT_ORIGIN = 'https://connect.facebook.net'
 /** OpenAI 評估像素的 SDK 來源（oaiq.min.js）；事件送到 OPENAI_PIXEL_EVENT_ORIGIN。 */
 export const OPENAI_PIXEL_SCRIPT_ORIGIN = 'https://bzrcdn.openai.com'
 export const OPENAI_PIXEL_EVENT_ORIGIN = 'https://bzr.openai.com'
+/** SDK 取「自動進階比對」設定檔的網址開頭（後面接 v1/<Pixel ID>.json）。 */
+export const OPENAI_PIXEL_CONFIG_PREFIX = `${OPENAI_PIXEL_SCRIPT_ORIGIN}/pixel-config/`
 
 export function normalizeGaMeasurementId(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -86,10 +88,15 @@ export function analyticsCspSources(ids: AnalyticsIds): AnalyticsCspSources {
     sources.img.push('https://www.facebook.com')
   }
   if (ids.openaiPixelId) {
-    // 官方文件「Configure a content security policy」：SDK 從 bzrcdn 載入、也向 bzrcdn 取這顆像素的設定檔；
-    // 事件以 fetch／sendBeacon 送到 bzr，失敗時退回圖片請求。
+    // 官方文件「Configure a content security policy」：SDK 從 bzrcdn 載入；事件以 fetch／sendBeacon 送到 bzr，
+    // 失敗時退回圖片請求。
+    // 文件另外要求 connect-src 放行 bzrcdn，用途只有一個：取這顆像素的設定檔，內容是「自動進階比對」開不開。
+    // **刻意不放行**：那個功能會掃頁面上的 Email／電話欄位、雜湊後跟事件一起送，平台上沒有開關可關（網頁像素一律啟用），
+    // 而預約表單有這些欄位、隱私權政策寫明不傳送。SDK 取不到設定檔就維持關閉。平常由瀏覽器端攔下這個請求直接回「關」
+    // （app/utils/third-party-analytics.ts 的 keepOpenaiAutoMatchingOff，主控台不會有錯誤）；這裡是第二道：
+    // 哪天攔截失效，請求會被 CSP 擋掉（主控台會出現 CSP 違規，功能仍然是關的）。
     sources.script.push(OPENAI_PIXEL_SCRIPT_ORIGIN)
-    sources.connect.push(OPENAI_PIXEL_EVENT_ORIGIN, OPENAI_PIXEL_SCRIPT_ORIGIN)
+    sources.connect.push(OPENAI_PIXEL_EVENT_ORIGIN)
     sources.img.push(OPENAI_PIXEL_EVENT_ORIGIN)
   }
   return sources

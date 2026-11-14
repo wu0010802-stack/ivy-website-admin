@@ -29,12 +29,28 @@
 - 事件的 `source_url`、`referrer_url` 只取 `origin＋pathname`，不含 query 與 hash。
 - 沒有 `pushState`／`popstate` 掛鉤，不自動送頁面瀏覽。
 - `init` 接受 `oppref`，會寫進 `__oppref` cookie（30 天）。
-- 「自動進階比對」由 `https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 的 `automatic_advanced_matching_enabled` 決定，瀏覽器端沒有開關；開著會掃 `input, select, textarea`（Email、電話、姓名），雜湊後跟事件一起送。
+- 「自動進階比對」由 `https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 的 `automatic_advanced_matching_enabled` 決定，SDK 沒有提供瀏覽器端的開關；開著會掃 `input, select, textarea`（Email、電話、姓名），雜湊後跟事件一起送。SDK 以 `window.fetch` 取這份設定檔；取不到（逾時 3 秒、失敗重試一次）就當作關，五分鐘後再試。
 - `opt_out: true` 會改變傳送路徑的判斷，所以不設（文件說它只影響未來的個人化，但程式裡還牽涉傳送方式）。
+
+## 自動進階比對：平台關不掉，官網擋
+
+原本的計畫是在平台上關。2026-11-15 建好像素後發現沒有這個開關：編輯像素的視窗只有名稱，API 文件寫「Web pixels created by this endpoint automatically use automatic advanced matching」，設定檔回 `true`。預約表單有手機與 Email，隱私權政策寫「不會傳送您的姓名、電話、Email」，所以改成官網自己擋，兩道：
+
+1. `keepOpenaiAutoMatchingOff`：載入 SDK 前包一層 `window.fetch`，只攔 `https://bzrcdn.openai.com/pixel-config/` 開頭的請求，直接回 `{"automatic_advanced_matching_enabled":false}`，不連外；其他請求原封不動。只有設了 OpenAI 的 ID、而且真的要載 SDK 時才裝。
+2. CSP 的 `connect-src` 不放行 `bzrcdn.openai.com`（官方文件要求放行，用途只有取這份設定檔）。第一道失效時請求被 CSP 擋掉，SDK 一樣當作關，但主控台會有違規訊息。
+
+只靠第二道也能關，但每次載入頁面主控台會有兩則 CSP 違規（失敗後重試一次），之後每五分鐘再兩則；所以平常由第一道安靜地回「關」。
+
+對照實驗（真的 SDK、假資料、事件在本機攔下，`output/openai-ads-pixel/verify-aam.cjs`）：
+
+| | 設定檔請求有沒有出去 | SDK 回報的狀態 | 預約成功那筆事件 |
+| --- | --- | --- | --- |
+| 官方 snippet、沒有攔截 | 有 | `enabled` | 帶 `user`：Email、電話（兩種寫法）、名字的雜湊 |
+| 官網（有攔截），設定檔就算會回 `true` | 沒有 | `disabled` | 沒有 `user` 欄位 |
 
 ## 沒做、要使用者決定的
 
-- 平台上建立資料來源（要同意《轉換條款》）、關自動進階比對、建轉換事件、掛到行銷活動。
+- 平台上建立資料來源（要同意《轉換條款》）、建轉換事件、掛到行銷活動。（2026-11-15 使用者同意後前兩項已建。）
 - 隱私權政策第 5 段補第三項工具並發布。
 - Railway 設變數。
 
@@ -42,4 +58,4 @@
 
 ## 驗證
 
-`web/tests/openai-ads-pixel.spec.ts`（24 項）：ID 驗證、CSP、載入時機、廣告點擊代碼、預約成功事件、外掛掛載條件。暫時拿掉 init 的 oppref、SDK 載入、measure 三處時 12 項會紅。平台是否收得到事件要在正式站實測。
+`web/tests/openai-ads-pixel.spec.ts`（30 項）：ID 驗證、CSP、自動進階比對的攔截、載入時機、廣告點擊代碼、預約成功事件、外掛掛載條件。暫時拿掉 init 的 oppref、SDK 載入、measure 三處時 12 項會紅。平台是否收得到事件要在正式站實測。
