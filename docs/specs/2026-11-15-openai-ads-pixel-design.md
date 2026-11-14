@@ -21,7 +21,7 @@
 | --- | --- | --- | --- |
 | 頁面瀏覽 | 每次換頁送 | 不送 | 只需要轉換；少送一種資料 |
 | 預約成功的參數 | `campus_key`、`entry` | 沒有 | 標準事件的資料格式不收自訂欄位 |
-| 進不送事件的頁面 | 先暫停再進去 | 沒有暫停動作 | SDK 只有程式呼叫才送，事件網址只有 origin＋pathname；唯一的開關 `consent(false)` 會刪掉廣告點擊代碼 cookie |
+| 進不送事件的頁面 | 先暫停再進去 | 一樣先暫停（`consent(false)`），但恢復時要重新 `init` 帶回點擊代碼 | SDK 會自己送診斷事件，暫停後完全不送；`consent(false)` 會刪掉廣告點擊代碼 cookie，所以暫停前記在記憶體 |
 | 廣告點擊代碼 | GA 從清洗過的 `page_location` 讀 | 進站當下讀網址的 `oppref` 傳給 `init` | SDK 延後載入，之前站內換頁就讀不到 |
 
 ## 查證過的 SDK 行為（2026-11-15 的 `oaiq.min.js`）
@@ -29,6 +29,8 @@
 - 事件的 `source_url`、`referrer_url` 只取 `origin＋pathname`，不含 query 與 hash。
 - 沒有 `pushState`／`popstate` 掛鉤，不自動送頁面瀏覽。
 - `init` 接受 `oppref`，會寫進 `__oppref` cookie（30 天）。
+- `consent(false)`：之後不送任何請求（含診斷事件；實測暫停期間 0 筆）、刪掉 `__oppref` 與 `__obref`、在 localStorage 記 `oaiq_consent=false`（下次造訪仍是拒絕，直到有人送 `consent(true)`）。`consent(true)` 後重新 `init` 帶 `oppref`，之後的事件又帶得到點擊代碼。這些呼叫在 SDK 載入前排進 queue 也照順序生效（`output/openai-ads-pixel/probe-consent.cjs`、`probe-queue.cjs`）。
+- 除了文件列的兩個 cookie，還會設 `__oaiq_consent`。
 - 「自動進階比對」由 `https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 的 `automatic_advanced_matching_enabled` 決定，SDK 沒有提供瀏覽器端的開關；開著會掃 `input, select, textarea`（Email、電話、姓名），雜湊後跟事件一起送。SDK 以 `window.fetch` 取這份設定檔；取不到（逾時 3 秒、失敗重試一次）就當作關，五分鐘後再試。
 - `opt_out: true` 會改變傳送路徑的判斷，所以不設（文件說它只影響未來的個人化，但程式裡還牽涉傳送方式）。
 
@@ -58,4 +60,4 @@
 
 ## 驗證
 
-`web/tests/openai-ads-pixel.spec.ts`（30 項）：ID 驗證、CSP、自動進階比對的攔截、載入時機、廣告點擊代碼、預約成功事件、外掛掛載條件。暫時拿掉 init 的 oppref、SDK 載入、measure 三處時 12 項會紅。平台是否收得到事件要在正式站實測。
+`web/tests/openai-ads-pixel.spec.ts`（34 項）：ID 驗證、CSP、自動進階比對的攔截、載入時機、廣告點擊代碼、預約成功事件、外掛掛載條件。暫時拿掉 init 的 oppref、SDK 載入、measure 三處時 12 項會紅。平台是否收得到事件要在正式站實測。

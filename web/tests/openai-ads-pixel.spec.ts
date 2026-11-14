@@ -221,7 +221,7 @@ describe('載入', () => {
     analytics.pageView(at('/'), '/', '常春藤幼兒園')
     expect(scripts.map(script => script.src)).toEqual([SDK])
     expect(scripts[0]!.async).toBe(true)
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
     expect(Object.prototype.toString.call(win.oaiq!.q[0])).toBe('[object Arguments]')
     // 只設這一家：沒有 gtag／fbq，也不載 Google、Meta
     expect(win.gtag).toBeUndefined()
@@ -235,7 +235,7 @@ describe('載入', () => {
     analytics.pageView(at('/'), '/', 'a')
     analytics.pageView(at('/about'), '/about', 'b')
     analytics.pageView(at('/visit'), '/visit', 'c')
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
     expect(scripts.length).toBe(1)
   })
 
@@ -248,7 +248,7 @@ describe('載入', () => {
     history.replaceState(null, '', '/visit')
     analytics.pageView(location.href, location.pathname, 'y')
     inject!()
-    expect(queue()).toEqual([['init', { pixelId: OPENAI, oppref: 'click-123' }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI, oppref: 'click-123' }]])
   })
 
   it('三家都設：三支腳本都載，各自的 stub 都在', () => {
@@ -264,13 +264,20 @@ describe('載入', () => {
     expect(win.oaiq).toBeTypeOf('function')
   })
 
+  it('每次建 stub 都先 consent(true) 再 init：上次造訪停在不送事件的頁面時 SDK 會記著「拒絕」', () => {
+    const { doc } = fakeDocument()
+    createThirdPartyAnalytics(OPENAI_ONLY, win, doc).pageView(at('/about'), '/about', 'x')
+    expect(queue().map(entry => entry[0])).toEqual(['consent', 'init'])
+    expect(queue()[0]).toEqual(['consent', true])
+  })
+
   it('已經有 oaiq（別處先建了 stub）就沿用，不蓋掉既有的 queue', () => {
     const existing = Object.assign(function oaiq() { existing.q.push(arguments) }, { q: [] as unknown[] })
     win.oaiq = existing as unknown as Win['oaiq']
     const { doc } = fakeDocument()
     createThirdPartyAnalytics(OPENAI_ONLY, win, doc).pageView(at('/'), '/', 'x')
     expect(win.oaiq).toBe(existing)
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
   })
 
   it('第一頁是預約修改頁、後台、草稿預覽：不建 stub、不載；之後換到一般頁面才載，而且只載一次', () => {
@@ -300,17 +307,50 @@ describe('載入', () => {
     expect(scripts.map(script => script.src)).toEqual([SDK])
   })
 
-  it('進出預約修改頁不呼叫 consent（會刪掉廣告點擊代碼的 cookie），queue 只有 init', () => {
+  it('進預約修改頁先 consent(false)（SDK 完全不送），離開後 consent(true) 並重新 init', () => {
     const { doc } = fakeDocument()
     const analytics = createThirdPartyAnalytics(OPENAI_ONLY, win, doc)
     analytics.pageView(at('/'), '/', 'x')
     analytics.hold('/visit/manage')
+    expect(queue().at(-1)).toEqual(['consent', false])
     analytics.settle('/visit/manage')
     analytics.pageView(at('/visit/manage'), '/visit/manage', 'x')
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }], ['consent', false]])
     analytics.settle('/')
     analytics.pageView(at('/'), '/', 'x')
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
-    expect(JSON.stringify(queue())).not.toContain('consent')
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }], ['consent', false], ['consent', true], ['init', { pixelId: OPENAI }]])
+  })
+
+  it('暫停會刪掉點擊代碼的 cookie：進站網址上的代碼記在記憶體，恢復時帶回 init', () => {
+    const { doc } = fakeDocument()
+    history.replaceState(null, '', '/?oppref=click-123')
+    const analytics = createThirdPartyAnalytics(OPENAI_ONLY, win, doc)
+    analytics.pageView(location.href, location.pathname, 'x')
+    analytics.hold('/visit/manage')
+    analytics.settle('/')
+    expect(queue().slice(-2)).toEqual([['consent', true], ['init', { pixelId: OPENAI, oppref: 'click-123' }]])
+  })
+
+  it('回訪（網址沒有代碼、cookie 裡有）：暫停前從 __oppref 讀出來，恢復時帶回去', () => {
+    const { doc } = fakeDocument()
+    ;(doc as unknown as { cookie: string }).cookie = '_ga=GA1.1.1; __oppref=click%2Bfrom-cookie; __obref=abc'
+    const analytics = createThirdPartyAnalytics(OPENAI_ONLY, win, doc)
+    analytics.pageView(at('/'), '/', 'x')
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
+    analytics.hold('/admin/')
+    analytics.settle('/')
+    expect(queue().slice(-2)).toEqual([['consent', true], ['init', { pixelId: OPENAI, oppref: 'click+from-cookie' }]])
+  })
+
+  it('換頁被取消（人還在一般頁面）：暫停解除，之後的預約成功照送', () => {
+    const { doc } = fakeDocument()
+    const analytics = createThirdPartyAnalytics(OPENAI_ONLY, win, doc)
+    history.replaceState(null, '', '/visit')
+    analytics.pageView(location.href, location.pathname, 'x')
+    analytics.hold('/visit/manage')
+    analytics.settle('/visit')
+    reportBookingLead('yihua', 'visit_page')
+    expect(queue().slice(-3)).toEqual([['consent', true], ['init', { pixelId: OPENAI }], ['measure', 'appointment_scheduled', { type: 'customer_action' }]])
   })
 
   it('SDK 載入失敗（廣告攔截器）會把自己移掉', () => {
@@ -332,6 +372,7 @@ describe('預約成功事件', () => {
     analytics.pageView(location.href, location.pathname, '預約參觀')
     reportBookingLead('yihua', 'visit_page')
     expect(queue()).toEqual([
+      ['consent', true],
       ['init', { pixelId: OPENAI }],
       ['measure', 'appointment_scheduled', { type: 'customer_action' }]
     ])
@@ -370,7 +411,7 @@ describe('預約成功事件', () => {
     createThirdPartyAnalytics(OPENAI_ONLY, win, doc).pageView(at('/'), '/', 'x')
     history.replaceState(null, '', '/visit/manage')
     reportBookingLead('yihua', 'visit_page')
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
   })
 
   it('前兩家丟例外也不會讓 OpenAI 那一筆漏掉；OpenAI 丟例外不影響預約成功畫面', () => {
@@ -419,7 +460,7 @@ describe('外掛', () => {
     const hooks = mount({ gaMeasurementId: '', metaPixelId: '', openaiPixelId: OPENAI })
     expect(Object.keys(hooks).sort()).toEqual(['app:mounted', 'page:finish'])
     hooks['app:mounted']!()
-    expect(queue()).toEqual([['init', { pixelId: OPENAI }]])
+    expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
     expect(appended).toEqual([])
     vi.advanceTimersByTime(8000)
     expect(appended.map(script => script.src)).toEqual([SDK])

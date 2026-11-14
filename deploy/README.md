@@ -85,21 +85,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `NUXT_PUBLIC_OPENAI_PIXEL_ID` | 英數、底線、連字號，6–64 字 | 廣告管理平台（ads.openai.com）「轉換 → 資料來源」那顆 Web Pixel 的 Pixel ID |
 
 - 執行期變數：設好、web 重新部署就生效；刪掉並重新部署就關。格式不符視同未設定。沒設時不載任何 OpenAI 的腳本，公開頁 CSP 一字不變（`web/tests/openai-ads-pixel.spec.ts` 鎖住）。
-- 設了之後 CSP 多放行 `script-src https://bzrcdn.openai.com`、`connect-src https://bzr.openai.com`、`img-src https://bzr.openai.com`；後台 CSP 不動。官方文件另外要求的 `connect-src https://bzrcdn.openai.com` **刻意不放行**（見下面「自動進階比對」）。訪客瀏覽器多兩個第一方 cookie：`__oppref`（廣告點擊代碼，30 天）、`__obref`（隨機瀏覽器代碼，365 天）。
+- 設了之後 CSP 多放行 `script-src https://bzrcdn.openai.com`、`connect-src https://bzr.openai.com`、`img-src https://bzr.openai.com`；後台 CSP 不動。官方文件另外要求的 `connect-src https://bzrcdn.openai.com` **刻意不放行**（見下面「自動進階比對」）。訪客瀏覽器多三個第一方 cookie：`__oppref`（廣告點擊代碼，30 天）、`__obref`（隨機瀏覽器代碼，365 天）、`__oaiq_consent`（SDK 記目前是不是暫停中；官方文件沒列，2026-11-15 實測看到）。
 
 **程式做了什麼**（和 GA4／Pixel 同一組檔案）
 
 - 用 `createElement` 載 `https://bzrcdn.openai.com/sdk/oaiq.min.js`，和另外兩家一樣等整頁 `load` 之後、主執行緒有空才載；DNT 或 Global Privacy Control 開著就不載。
 - **只回報一件事**：伺服器回 `status === 'confirmed'` 時送標準事件 `appointment_scheduled`（`{ type: 'customer_action' }`），不帶校區、入口、收據編號、修改連結或任何個資。不送 `page_viewed`。
 - 廣告點擊代碼（落地頁網址上的 `oppref`，平台在廣告點擊時自動加）在進站當下就讀出來傳給 SDK 的 `init`：SDK 延後載入，家長在那之前站內換頁的話網址上已經沒有它。
-- `/visit/manage`、`/admin`、`/preview`：第一頁就是這些頁面時不載；在這些頁面不送事件。和 GA4／Pixel 不同的是沒有「換頁進去先暫停」的動作——SDK 不掛換頁事件、只有程式呼叫才送，事件帶的網址只有 origin＋pathname（不含 query 與 hash；2026-11-15 讀當時的 `oaiq.min.js` 確認）；它唯一的開關 `oaiq('consent', false)` 會把 `__oppref` 刪掉，之後的預約就歸因不到廣告。
+- `/visit/manage`、`/admin`、`/preview` 完全不送：第一頁就是這些頁面時不載；載入後 SPA 換頁進去，換頁前先 `oaiq('consent', false)` 暫停，離開再 `consent(true)`。SDK 平常會自己送診斷事件（載入、分頁切到背景），暫停後一筆都不送（2026-11-15 以真的 SDK 實測）。暫停會把 `__oppref` 刪掉，所以程式先把廣告點擊代碼記在記憶體，離開時重新 `init` 帶回去，同一次造訪的歸因不會斷；家長若就在修改頁關掉分頁，下次回來的預約就歸因不到廣告（那時通常已經預約過了）。事件帶的網址本來就只有 origin＋pathname，不含 query 與 hash。
 - **「自動進階比對」由官網關掉**：這個功能會掃頁面上的 Email／電話／姓名欄位，雜湊後跟事件一起送。平台上沒有開關——網頁像素一律啟用，`https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 回的是 `"automatic_advanced_matching_enabled":true`（2026-11-15 建好像素後實測；編輯像素的視窗裡也沒有這個選項）。預約表單有這些欄位、隱私權政策寫明不傳送，所以官網在載入 SDK 前包一層 `fetch`（`keepOpenaiAutoMatchingOff`），只攔 SDK 取那份設定檔的請求、直接回「關」，不連外；CSP 不放行 bzrcdn 的 `connect-src` 當第二道（攔截失效時請求會被 CSP 擋掉，主控台會出現違規，功能仍然是關的）。對照實驗（`output/openai-ads-pixel/verify-aam.cjs`，真的 SDK、假資料、事件在本機攔下）：沒有攔截時事件帶著 Email、電話、名字的雜湊；有攔截時 SDK 自己回報 `automatic_advanced_matching: disabled`，事件裡沒有任何使用者欄位。
 - 廣告的追蹤參數（行銷活動層已填）：`utm_source=chatgpt&utm_medium=cpc&utm_campaign=chatgpt-five-campuses&utm_id={campaign_id}&utm_content={ad_id}`。`utm_medium=cpc` 讓後台「成效統計」把這些造訪歸在「廣告」，`utm_campaign` 是後台看得到的活動代碼（小寫英數、底線、連字號，32 字內）。`oppref` 是平台的保留參數，不能自己寫進範本。
 
 **上線步驟（都要本人登入）**
 
 1. **隱私權政策第 5 段補上第三項工具**再開變數（規則同 GA4／Pixel：先發布政策再開）。建議的條列與句子：
-   - 「OpenAI 評估像素（OpenAI）：計算 ChatGPT 廣告帶來多少人預約。它會在您的瀏覽器設定兩個 cookie（`__oppref`、`__obref`），用來辨識這次造訪是不是從廣告來的。」
+   - 「OpenAI 評估像素（OpenAI，ChatGPT 的經營者）：計算 ChatGPT 廣告帶來多少人預約。OpenAI 會在您的瀏覽器設定 cookie（名稱以 `__o` 開頭），用來辨識這次造訪是不是從 ChatGPT 的廣告來的。」
    - 原本「Google 與 Meta 會收到您的 IP 與瀏覽器資訊」「這兩項工具」等句子要改成涵蓋三家；對 OpenAI 只告知「有一筆預約成功」，不含校區。
 2. **廣告管理平台 → 轉換 → 建立資料來源**（Web Pixel）。按「建立」等於同意 OpenAI 的《轉換條款》。2026-11-15 已建：名稱「常春藤官網」，Pixel ID `H3LXGVGDAfgHkdJ1svTjbe`（Pixel ID 會出現在公開頁面裡，不是機密）。
 3. 「自動進階比對」平台上關不掉，由官網擋（見上）。上線後要確認它真的沒開：見步驟 6。

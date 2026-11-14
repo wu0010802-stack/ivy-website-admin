@@ -29,9 +29,10 @@ import { isCampusKey, isCtaEntry } from './cta-analytics'
 // - 只用來回報「預約成功」（appointment_scheduled）這一個轉換，不送 page_viewed：SDK（oaiq.min.js）不掛 pushState／popstate，
 //   init 之後只有我們呼叫 measure 才送事件，事件帶的網址只有 origin＋pathname（2026-11-15 讀當時的 SDK 原始碼確認），
 //   所以換頁不必通知它，也沒有 hash 裡的識別碼被送出去的問題。
-// - 不送事件的頁面沒有暫停動作：SDK 唯一的開關是 oaiq('consent', false)，會連 __oppref（廣告點擊代碼）cookie 一起刪掉，
-//   家長之後的預約就歸因不到廣告。改成和另外兩家一樣「第一頁是不送事件的頁面就不建 stub、不載」，其餘靠 reportBookingLead
-//   在這些頁面不送。
+// - 進不送事件的頁面一樣先暫停：oaiq('consent', false)。SDK 自己還會送診斷事件（載入、分頁切到背景時），暫停後完全不送
+//   （2026-11-15 以真的 SDK 實測：暫停期間送往 bzr 的請求 0 筆）。副作用是它會把 __oppref（廣告點擊代碼）等 cookie 刪掉，
+//   所以暫停前先把點擊代碼記在記憶體，離開時 consent(true) 之後重新 init 帶回去，同一次造訪的歸因不會斷。
+//   暫停會在 localStorage 留一筆「拒絕」，所以每次建 stub 都先送 consent(true) 再 init（只有這裡會設拒絕）。
 // - 廣告點擊代碼（網址的 oppref）在建 stub 當下就讀出來傳給 init：外部腳本延後載入，家長在載入前就站內換頁的話
 //   網址上已經沒有 oppref，SDK 自己讀不到。
 // - SDK 的「自動進階比對」會掃頁面上的 Email／電話欄位、雜湊後跟事件一起送。開不開看 SDK 向 bzrcdn 取的設定檔
@@ -132,7 +133,23 @@ export function keepOpenaiAutoMatchingOff(win: Window): void {
   win.fetch = guarded
 }
 
-function setupOpenaiPixel(win: AnalyticsWindow, id: string): void {
+/** SDK 存廣告點擊代碼的第一方 cookie（暫停前讀出來，恢復時帶回去）。 */
+function storedOpenaiClickId(doc: Document): string | undefined {
+  try {
+    const match = /(?:^|;\s*)__oppref=([^;]*)/.exec(doc.cookie ?? '')
+    const value = match ? decodeURIComponent(match[1]!).trim() : ''
+    return value && value.length <= 512 ? value : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function initOpenaiPixel(win: AnalyticsWindow, id: string, oppref: string | undefined): void {
+  win.oaiq?.('init', { pixelId: id, ...(oppref ? { oppref } : {}) })
+}
+
+/** 回傳進站網址上的廣告點擊代碼（沒有就是 undefined），給暫停／恢復用。 */
+function setupOpenaiPixel(win: AnalyticsWindow, id: string): string | undefined {
   keepOpenaiAutoMatchingOff(win)
   if (!win.oaiq) {
     // 與官方 snippet 相同的 queue stub：oaiq.min.js 載入後會接手，並把 q 裡的 arguments 依序處理。
@@ -142,7 +159,10 @@ function setupOpenaiPixel(win: AnalyticsWindow, id: string): void {
     win.oaiq = oaiq
   }
   const oppref = openaiClickId(win.location.search)
-  win.oaiq('init', { pixelId: id, ...(oppref ? { oppref } : {}) })
+  // 先 consent(true)：上次造訪若停在不送事件的頁面，SDK 會記著「拒絕」，不清掉的話這次什麼都不送。
+  win.oaiq('consent', true)
+  initOpenaiPixel(win, id, oppref)
+  return oppref
 }
 
 /** 什麼時候把外部腳本加進文件；預設馬上（單元測試與沒有特別要求的呼叫端）。 */
@@ -197,6 +217,8 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
   let paused = false
   let lastPath: string | null = null
   let lastLocation: string | null = null
+  /** OpenAI 的廣告點擊代碼：進站網址上的，或暫停前從 cookie 讀到的；恢復時帶回 init。 */
+  let openaiClick: string | undefined
 
   function inject(): void {
     due = true
@@ -222,6 +244,16 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
     // Pixel 的暫停只在外部腳本加進文件之後才排：還沒載入本來就送不出任何東西，而且 fbevents.js 載入後清 queue 時
     // 遇到 consent revoke 就停，排在後面的 grant 與事件會一直卡在 queue（2026-11-12 以正式站的 fbevents.js 實測）。
     if (ids.metaPixelId && injected) win.fbq?.('consent', next ? 'revoke' : 'grant')
+    // OpenAI：暫停會刪掉點擊代碼的 cookie，先記下來；恢復後重新 init 帶回去（理由見檔頭）。
+    if (ids.openaiPixelId) {
+      if (next) {
+        openaiClick = storedOpenaiClickId(doc) ?? openaiClick
+        win.oaiq?.('consent', false)
+      } else {
+        win.oaiq?.('consent', true)
+        initOpenaiPixel(win, ids.openaiPixelId, openaiClick)
+      }
+    }
     // 輪到載入時人在不送事件的頁面所以沒載：離開了，現在補載。
     if (!next && due) inject()
   }
@@ -231,7 +263,7 @@ export function createThirdPartyAnalytics(ids: AnalyticsIds, win: AnalyticsWindo
     loaded = true
     if (ids.gaMeasurementId) setupGa(win, doc, ids.gaMeasurementId)
     if (ids.metaPixelId) setupPixel(win, doc, ids.metaPixelId)
-    if (ids.openaiPixelId) setupOpenaiPixel(win, ids.openaiPixelId)
+    if (ids.openaiPixelId) openaiClick = setupOpenaiPixel(win, ids.openaiPixelId)
     defer(inject)
   }
 
