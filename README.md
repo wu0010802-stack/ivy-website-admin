@@ -1,3 +1,13 @@
+## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡（`feature/day-no-shoes-20261114`）
+
+使用者：「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」。11-13 的十五鏡拿掉第 2 鏡（明華｜孩子坐在鞋櫃前自己穿鞋），其餘順序不變，擁抱直接溶到沿線走。
+
+- 影片：擁抱 → 沿線走 → 套盒 → 圖書室 → 俯拍看書 → 小女孩看書 → 手指繪本 → 薰衣草 → 空拍校舍 → 粉筆畫 → 揮手 → 溜滑梯 → 兩個女孩 → 牽手（溶回擁抱）。十四鏡 24.67 秒（原本十五鏡 26.3 秒）；桌機 1440×810 6.72 MB、手機 720×1280 3.86 MB（原本 7.24／4.05 MB）。每秒平均 Y 桌機 121.3／最亮一秒 125.1、手機 120.9／130.5。
+- 做法：`design/day-film-mix-20261113/build.py` 加 `pick5`，沿用 11-13 的各鏡中間檔重新接片，其餘十四鏡的裁切框與亮度曲線都沒變（`manifest.json` 逐鏡核對過）。母帶 `web/media-src/day-film*.mp4`、`optimize-site-videos.py` 的 `DAY_MASTERS`、`video-manifest.json` 跟著換；比稿目錄裡的 `day-pick4-*.mp4` 換成 `day-pick5-*.mp4`。
+- 封面沒換：第一鏡還是擁抱，新片第 0 格跟現有的 `day-poster*.webp` 只差重新壓縮的雜訊（每個像素平均差 1.5／255）。
+- 樣式、元件、圖說都沒動。
+- 驗證：`npm --prefix web run typecheck`、`npm run test:website` 151 檔 2303 過、後端 `tests/test_media_slots.py` 21 過（自己的測試庫）；fixture dev server 用 Playwright 看 1440×900／1440×560／390×844：播的是新檔（24.67 秒）、逐格截圖沒有穿鞋那一鏡、沒有 console 錯誤與橫向捲動。admin 測試、e2e、stack、實機沒跑（沒動到）。
+
 ## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
 
 使用者要幫官網打 Google 廣告。盤點後不裝 Google Ads 自己的轉換代碼：GA4 已在正式站運作、預約成立會送 `generate_lead`，連結 GA4 與 Google Ads 再匯入成轉換就夠（步驟與待實測項在 `deploy/README.md`「Google Ads」）。
