@@ -220,6 +220,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-15 特色教學美術創作換成戶外滾筒畫上線（main CI 部署，沒有 migration）
+
+- **內容**：`a61af11d`（PR #95，`feature/curriculum-art-20261114`）。`/curriculum` 五件事・美術創作的內建照片 `cur-daily-art` 從男孩剪紙換成兩個幼幼在草地上用滾筒刷畫畫（Drive「官網」資料夾義華校原檔，母檔去 EXIF），替代文字同步改。只動 `web/` 的一張照片、衍生檔、manifest 與元件一行；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 153 檔 2341 項；fixture dev 上 Playwright 1440／390 截圖。推送自動起的那組 run 被取消、PR 顯示 BLOCKED，重跑後 PR 那組的 E2E 反被取消；`gh run rerun --failed` 後其餘 job 全綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43616736526 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `a61af11d`。Playwright（真 Chrome，1440 與 390 寬）開 `/curriculum`，美術創作那格載入新雜湊 `cur-daily-art-1bed1e9e63e9-*.avif`、畫面是新照片。正式站特色教學頁沒有後台覆寫這張照片。
+- **沒驗**：iOS／Safari 實機。
+
 ## 2026-11-14 常春藤環境頁調亮＋11-13 版面精修上線（main CI 部署，沒有 migration）
 
 - **內容**：`3f7325e6`（PR #94，`feature/env-bright-20261114`）。環境頁的積木色整組換成乾淨的高明度色、頁面底接近純白、章節底色從四條滿版色帶改成三塊圓角底板；同一個 PR 帶著 11-13 還沒上線的版面精修（原 `feature/env-polish-20261113`）。只動 `web/` 的環境頁樣式、元件、兩張內建照片與後台環境頁編輯畫面的兩句說明；沒有改 API、變數與資料庫。細節見 `README.md` 同日兩段與 `DESIGN.md`「環境頁調亮」「環境頁精修」。

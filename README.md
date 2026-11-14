@@ -1,3 +1,11 @@
+## 2026-11-15 特色教學「美術創作」換成戶外滾筒畫（`feature/curriculum-art-20261114`）
+
+使用者截了五件事・美術創作那張（男孩拿剪刀剪紙）說換掉，從候選板（`output/curriculum-art-photo-20261114/候選板.jpg`，A1–A5）選 A2。
+
+- **`cur-daily-art`**：Drive「官網」資料夾幼幼主題的手機原檔（盤點編號 460，5712×4284，判斷是義華校），兩個穿罩衣的幼幼在草地上拿滾筒刷塗顏色；置中偏上裁 8:5 → 1600×1000，**母檔去 EXIF**（原檔帶 GPS）。代號不變，替代文字改成「兩個穿罩衣的小小孩站在草地上，拿滾筒刷在紙板上塗顏色」。
+- `optimize-site-images.py --only cur-daily-art` 重產衍生檔，舊雜湊檔刪除。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix web run test:unit`（153 檔 2341 項）通過；fixture dev server 上 Playwright 截桌機 1440／手機 390。
+
 ## 2026-11-14 常春藤環境頁調亮（`feature/env-bright-20261114`）
 
 使用者看正式站 `/environment` 說「背景配色有點舊舊的」，舉諾貝爾、吉的堡當明亮的參考。積木的視覺語言、內容、照片都沒換，這一輪換的是整組顏色與章節底色的鋪法；同一個分支也帶著 11-13 還沒上線的精修（下一段）。設計規則在 `DESIGN.md`「環境頁調亮」。沒有 migration、沒有改 API。
