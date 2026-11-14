@@ -8,6 +8,34 @@
 - 樣式、元件、圖說都沒動。
 - 驗證：`npm --prefix web run typecheck`、`npm run test:website` 151 檔 2303 過、後端 `tests/test_media_slots.py` 21 過（自己的測試庫）；fixture dev server 用 Playwright 看 1440×900／1440×560／390×844：播的是新檔（24.67 秒）、逐格截圖沒有穿鞋那一鏡、沒有 console 錯誤與橫向捲動。admin 測試、e2e、stack、實機沒跑（沒動到）。
 
+## 2026-11-14 依賴稽核閘門擋下部署：升 nuxt 4.6.4、dnspython 2.9.2（隨 `fix/day-card-jump-20261114` 一起上）
+
+11-14 早上新公告三則，CI 的稽核閘門把所有 PR 都擋下（跟各 PR 自己的改動無關）：
+
+- web：`GHSA-mjrq-cffv-q4qc`（@nuxt/schema）、`GHSA-r99w-jh2x-3mg9`（@nuxt/nitro-server，請求路徑開頭 `//` 可繞過 server middleware 與 route rules）。`nuxt` 4.6.3 → 4.6.4。
+- 升完多出一則 `GHSA-g3hv-75wg-m249`（minimatch 7～11.0.0）：nitropack 2.13.6 的 archiver 8 → readdir-glob 3 帶進 minimatch 10.2.6。`web/package.json` 的 overrides 補 `readdir-glob → minimatch ^11.0.1`（解到 11.0.8，跟既有 glob 那條同一份）；放行清單維持空的。
+- 後端：dnspython 2.9.0 的 `CVE-2026-128089`，`uv lock --upgrade-package dnspython` 升到 2.9.2（`uv.lock` 只動 3 行）。
+- lock 檔要用 **CI 同版的 npm 10**（Node 22 內附的 10.9.x）產生：第一次用 npm 11 重裝，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」（npm 11 不寫進非本機平台 wasm 綁定的選用依賴，npm 10 卻要它們在 lock 裡）。推之前用同版 npm 跑 `npm ci --dry-run` 就能在本機重現。vue 仍是單一份 3.5.44。
+- 驗證：`python3 deploy/npm_audit_gate.py --project web` 通過；`uvx pip-audit@2.10.1` 無公告；web typecheck、`test:website` 2319 過；`nuxt build` 成功，啟動後首頁與各內頁 200；readdir-glob 搭 minimatch 11 實際列檔正常。
+
+## 2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳（`fix/day-card-jump-20261114`）
+
+使用者用 iPhone 錄影回報：首頁「常春藤的一天」的拍立得，卡片的顏色和文字有時候會跳一下。逐格看錄影，跳的都是同一刻——手機停止滑動後，已經在畫面上的 CSS 版卡片換成 WebGL 紙（`paperPrints.ts`）。本機 WebKit 與 Chromium 手機模擬都重現（同一頁先拍 CSS 版、再放行 WebGL 版逐像素比），差在五個地方：
+
+| 哪裡跳 | 原因 | 修正前 → 修正後 |
+|---|---|---|
+| 照片像蒙一層霧 | 紙面材質有鏡面反射（主光在平放的紙上加一層固定亮度），貼圖又在照片左上疊一道亮面漸層 | 暗部 +15～32 階 → 0 |
+| 紙色略暗 | 同上（材質的漫射不是剛好等於貼圖原色） | −2 階 → 0 |
+| 正面小標往下掉 | 基線用「行高 × 0.78」估，不是照 CSS 行框算；時間戳的斜切基準點與外框也量錯 | 小標往下 1.5～2px、時間戳右偏 1.5px → 1 個實體像素內 |
+| 背面整段字重排 | 背面段落是 `text-wrap:pretty`，iPhone（Safari 26）會整段重新平均斷行，貼圖卻自己用貪婪法折行 | 每段斷行不同 → 照 DOM 實際的行畫 |
+| 卡片周圍亮一下 | CSS 版是大而柔的 `box-shadow`，WebGL 版是光源投的小影子；點過的卡還黏著 `:hover` 的加深陰影 | 右側與下方 +15～20 階 → 1 階內 |
+
+- `web/app/utils/paperPrints.ts`：紙面改純漫射材質（`MeshLambertMaterial`，暖身場景同步）；拿掉照片上的亮面漸層與外框線；小標、標題、時間戳的基線改用 `baselineIn`；時間戳量斜切前的版面框、繞中心斜切、光暈讀 CSS 的 `text-shadow`；背面三段用新的 `linesOf` 讀 DOM 實際斷行；平放時在自己的畫布上畫 CSS 的 `--print-shadow`（`drawRestShadow`），抬起的頭三成高度交叉淡到光源投的影子。
+- `web/app/assets/css/styles.css`：相紙陰影值搬到 `--print-shadow`（數值沒變）；懸停加深的陰影包進 `@media(hover:hover) and (pointer:fine)`。
+- `web/app/utils/three-lite.ts`：補匯出 `MeshLambertMaterial`。
+- **桌機也看得到的改變**：WebGL 紙上的照片不再偏霧（與 CSS 版、原圖同色）；平放時的陰影變成 CSS 版那道（較大較柔、落在右下），懸停與翻面時照舊是光源投的影子。翻面、掀角、懸停的動作都沒改。
+- 驗證：`web/tests/day-print-handoff-20261114.spec.ts`（新）；typecheck；`npm run test:website` 152 檔 2319 過。畫面：WebKit／Chrome 手機模擬 402×874@3、360×740@2、320×568@2，第 1、2、3、5 張正面與第 2、3、4 張背面換手前後比對；桌機 1440×900 截進場、懸停、翻面途中。**iPhone 實機還沒驗**（本機 Mac 的 canvas 文字比 DOM 略粗是 macOS 字體平滑造成的，錄影裡的 iPhone 沒有這個差）。未 commit、未部署。
+
 ## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
 
 使用者要幫官網打 Google 廣告。盤點後不裝 Google Ads 自己的轉換代碼：GA4 已在正式站運作、預約成立會送 `generate_lead`，連結 GA4 與 Google Ads 再匯入成轉換就夠（步驟與待實測項在 `deploy/README.md`「Google Ads」）。

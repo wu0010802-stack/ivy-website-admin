@@ -99,12 +99,14 @@ main:focus,section[tabindex="-1"]:focus,h2[tabindex="-1"]:focus{outline:none}
 /* 紙膠帶在 .print 裡、略浮於正面（translateZ），跟著紙翻；翻到背面時被紙擋住，只露出超出上緣的一截。WebGL 版由 paperPrints.ts 讀 --tape-a／--tape-b 畫進貼圖。 */
 .print-tape{--tape-a:color-mix(in oklch,var(--print-tint) 76%,var(--ivy-white-pure));--tape-b:color-mix(in oklch,var(--print-tint) 32%,var(--ivy-white-pure));position:absolute;top:-13px;left:calc(50% - 50px);z-index:6;width:100px;height:26px;background:repeating-linear-gradient(45deg,var(--tape-a) 0 6px,var(--tape-b) 6px 12px);clip-path:polygon(2% 0,98% 3%,100% 96%,0 100%);rotate:-4deg;transform:translateZ(1px);box-shadow:0 1px 2px rgb(var(--ink) / .15)}
 .day-print:nth-child(even) .print-tape{rotate:5deg;left:auto;right:26px}
-.print-wrap{--rule:32px;--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,var(--ivy-print-face));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,var(--ivy-print-back));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
+.print-wrap{--rule:32px;--print-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3);--print-face-bg:color-mix(in oklch,var(--print-tint) 24%,var(--ivy-print-face));--print-back-bg:color-mix(in oklch,var(--print-tint) 15%,var(--ivy-print-back));position:relative;container-type:inline-size;perspective:1400px;cursor:pointer}
 /* --flip 由 DayMomentCard 依翻面位置給（0、-180deg、-360deg…）：永遠右緣掀起往左翻。時長與曲線同 utils/printFlip.ts。 */
 .print{position:relative;transform-style:preserve-3d;transform:rotateX(var(--rx,0deg)) rotateY(calc(var(--ry,0deg) + var(--flip,0deg)));transition:transform .95s cubic-bezier(.28,.1,.38,1)}
-/* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。 */
-.print::after{content:'';position:absolute;inset:0;z-index:-1;transform:translateZ(-1px);box-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3);transition:box-shadow .5s}
-.print-wrap:hover .print::after{box-shadow:0 2px 0 rgb(var(--ink) / .05),12px 32px 60px rgb(var(--ink) / .38)}
+/* 相紙陰影放在會跟著翻的 ::after，因為正反面用 clip-path 切角落捲起的缺口時會把自己的 box-shadow 一起裁掉。
+   陰影值放在 --print-shadow：WebGL 紙平放時照同一道畫在自己的畫布上（paperPrints.ts 的 drawRestShadow），換手時卡片周圍才不會亮一下。 */
+.print::after{content:'';position:absolute;inset:0;z-index:-1;transform:translateZ(-1px);box-shadow:var(--print-shadow);transition:box-shadow .5s}
+/* 游標停在卡片上才加深；觸控裝置點完 :hover 會黏在那張卡上，換成 WebGL 紙（觸控沒有懸停抬升）那一刻陰影會縮回去（2026-11-14）。 */
+@media(hover:hover) and (pointer:fine){.print-wrap:hover .print::after{box-shadow:0 2px 0 rgb(var(--ink) / .05),12px 32px 60px rgb(var(--ink) / .38)}}
 /* F 第一張翻開進場：載入後在畫面外悄悄翻成背面，不播翻面（DayMomentCard.vue faceDownQuietly） */
 .print-wrap.is-snapping .print{transition:none}
 .print-wrap.is-tilting .print{transition:transform .18s ease-out}
