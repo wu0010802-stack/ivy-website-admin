@@ -1610,24 +1610,24 @@
     "height": 1000,
     "candidates": [
       {
-        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-480.webp",
+        "src": "/assets/responsive/cur-daily-art-7c931830bd01-480.webp",
         "width": 480,
-        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-480.avif"
+        "avif": "/assets/responsive/cur-daily-art-1bed1e9e63e9-480.avif"
       },
       {
-        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-800.webp",
+        "src": "/assets/responsive/cur-daily-art-7c931830bd01-800.webp",
         "width": 800,
-        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-800.avif"
+        "avif": "/assets/responsive/cur-daily-art-1bed1e9e63e9-800.avif"
       },
       {
-        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1200.webp",
+        "src": "/assets/responsive/cur-daily-art-7c931830bd01-1200.webp",
         "width": 1200,
-        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-1200.avif"
+        "avif": "/assets/responsive/cur-daily-art-1bed1e9e63e9-1200.avif"
       },
       {
-        "src": "/assets/responsive/cur-daily-art-d85e02bf7558-1600.webp",
+        "src": "/assets/cur-daily-art.webp",
         "width": 1600,
-        "avif": "/assets/responsive/cur-daily-art-b9569f4f2fd9-1600.avif"
+        "avif": "/assets/responsive/cur-daily-art-1bed1e9e63e9-1600.avif"
       }
     ]
   },
