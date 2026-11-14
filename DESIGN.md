@@ -842,6 +842,12 @@
 - 手機（觸控）的 WebGL 紙是停下滑動、卡片已在畫面上才接手，換手一定被看到；所以 WebGL 紙**平放、正對觀者**時要跟 CSS 版逐像素接近，差異只能出現在翻面、掀角、傾斜這些動態裡。
 - 字：貼圖上的字要照 DOM 的 computed `letter-spacing` 畫（`fillSpaced`），新增貼圖文字時一起讀字距。
 - 光：主光白光、環境光 `π − 主光 × 平放 N·L`（漫射 BRDF 是 albedo／π），平放＝貼圖原色。要調暖色調改 token（`--print-face-bg` 等），不要染燈光。
+- **2026-11-14 補（實機錄影回報換手時顏色與文字會跳，`fix/day-card-jump-20261114`）**：10-20 只對了紙色與字距，下面幾樣之後改貼圖或燈光時一起守住。
+  - 材質：紙面用純漫射（`MeshLambertMaterial`）。有鏡面反射的材質會在平放的紙上加一層固定亮度，紙色量不出來、照片暗部卻亮 15～30 階。照片上也不另外疊亮面漸層或外框線（CSS 版顯影完沒有）。
+  - 字的位置：貼圖文字的基線一律用 `baselineIn`（照 CSS 行框算），不要寫「行高 × 0.78」這種估計值；有 `transform` 的元素（時間戳的 skewX）要量拿掉 transform 的版面框，再照 CSS 的 transform-origin 重畫。
+  - 斷行：段落照 DOM 實際排出來的行畫（`linesOf`），不要自己折行。`text-wrap:pretty` 各家瀏覽器斷法不同（Safari 26 整段重新平均），自己折一定對不上。
+  - 陰影：平放時紙底下畫的是 CSS 那道 `--print-shadow`（改陰影只改這個變數，CSS 版與 WebGL 紙一起變）；光源投的影子只在抬起、翻面時交叉淡進來。懸停加深的陰影只給滑鼠（`@media(hover:hover) and (pointer:fine)`），觸控點完 `:hover` 會黏住。
+  - 驗法：同一頁先擋住 `paperPrints` 的載入拍 CSS 版、放行後再拍 WebGL 版，逐像素比（WebKit 與 Chromium 都要；WebKit 截圖要先把另一面 `visibility:hidden`）。量到的殘差只剩邊緣反鋸齒 1 個實體像素。
 
 ## 官網調亮第一層：拿掉不需要的暗面（2026-10-20，`feature/brighten-20261020`）
 
