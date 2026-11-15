@@ -92,6 +92,7 @@ async def _claim_backfilled(db: AsyncSession, visit: RecruitmentVisit) -> bool:
     student.from_funnel = True
     if student.birthday is None:
         student.birthday = visit.birthday
+    student.version += 1  # 之前就開著的編輯框要看得到「剛被看板改過」
     student.updated_at = datetime.now(timezone.utc)
     return True
 

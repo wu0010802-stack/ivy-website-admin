@@ -173,7 +173,7 @@ describe('幼生選單', () => {
     const loose = student({ id: 'u1', child_name: '丁', status: 'pending' })
     const { wrapper } = await mountRoster(roster({ classes: [klass({ id: 'cA', students: [enrolled, placed] })], unassigned: [loose] }))
     await openMenu(wrapper, 'p1')
-    expect(menuButtons()).toEqual(['已入園', '編輯資料', '退預繳'])
+    expect(menuButtons()).toEqual(['已入園', '編輯資料', '放回還沒編班', '退預繳'])
     expect(document.body.textContent).toContain('預繳日期：115.09.01')
     await openMenu(wrapper, 'e1')
     expect(menuButtons()).toEqual(['編輯資料', '離園'])

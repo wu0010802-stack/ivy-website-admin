@@ -790,7 +790,7 @@ Review Focus（總覽）：1「標記已到場」被招生資料拖垮、2 台�
 
 ## 招生入學：編班與缺額（2026-11-15，`feature/admissions-roster-20261114`，未合併、未部署）
 
-- 資料表與約束：`test_admissions_roster_models.py`；算法（驗算基準仁武 115.11.11、113/9/1 邊界、不讀與重讀歸欄、回算）：`test_admissions_roster_calc.py`；班級、幼生、狀態動作、讀取與統計、看板同步各有 `test_admissions_roster_{classes,students,status,view,sync}.py`（含同班並發移動、髒資料貼上、統計日期範圍、看板來回拖不重複新增、樂觀鎖衝突）。
+- 資料表與約束：`test_admissions_roster_models.py`；算法（驗算基準仁武 115.11.11、113/9/1 邊界、不讀與重讀歸欄、回算）：`test_admissions_roster_calc.py`；班級、幼生、狀態動作、讀取與統計、看板同步各有 `test_admissions_roster_{classes,students,status,view,sync,review}.py`（review 是最終審查與延後小項的回歸）（含同班並發移動、髒資料貼上、統計日期範圍、看板來回拖不重複新增、樂觀鎖衝突）。
 - 前端：`admissionsRoster{Helpers,Api,Table,Actions,Dialogs,Gap}.test.ts`；stack e2e `tests/stack/admissions-roster.spec.ts`（新增班級 → 貼上名單 → 看板轉預繳 → 拖進班級 → 已入園 → 回算 → 結算紀錄 → 手機版）。
 - 未驗證：正式站登入後的畫面；正式資料上的操作；iPad／觸控裝置實機；正式站是否留有 (下一學年, 上學期) 的舊計畫名額（查詢指令在 `deploy/README.md`「編班與缺額」）。
 - 待業主：已離園、已退預繳的紀錄要留多久（規格 §13）；隱私權政策要不要補在籍幼生資料。

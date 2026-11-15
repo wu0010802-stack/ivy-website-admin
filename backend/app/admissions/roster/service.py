@@ -6,7 +6,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -255,9 +255,15 @@ async def peek_student(db: AsyncSession, student_id: uuid.UUID) -> tuple[uuid.UU
 
 
 async def lock_student(
-    db: AsyncSession, student_id: uuid.UUID, class_ids: set[uuid.UUID], expected_class_id: uuid.UUID | None
+    db: AsyncSession,
+    student_id: uuid.UUID,
+    class_ids: set[uuid.UUID],
+    expected_class_id: uuid.UUID | None,
+    *,
+    check_class: bool = True,
 ) -> tuple[RosterStudent | None, dict[uuid.UUID, RosterClass]]:
-    """先鎖班級、再鎖幼生（固定順序）。鎖到時幼生已不在原本的班級＝剛被別人搬走。"""
+    """先鎖班級、再鎖幼生（固定順序）。鎖到時幼生已不在原本的班級＝剛被別人搬走；
+    只改資料、不動班內順序的寫入（編輯資料）不在乎在哪個班，check_class=False 略過這項檢查。"""
     classes = await lock_classes(db, class_ids)
     student = await db.scalar(
         select(RosterStudent)
@@ -265,7 +271,7 @@ async def lock_student(
         .with_for_update()
         .execution_options(populate_existing=True)
     )
-    if student is not None and student.class_id != expected_class_id:
+    if check_class and student is not None and student.class_id != expected_class_id:
         raise version_conflict(student.version, "位幼生")
     return student, classes
 
@@ -572,7 +578,10 @@ async def leave_student(
     student, _ = await _locked_for_action(db, student_id, peeked_class_id, data.expected_version)
     if student.status != "enrolled":
         raise _status_invalid("只有在籍的幼生能離園")
-    student.left_date = _action_date(data.left_date)
+    left_date = _action_date(data.left_date)
+    if student.enrollment_date is not None and left_date < student.enrollment_date:
+        raise RosterError(422, "ROSTER_DATE_ORDER", "離園日不能早於入園日")
+    student.left_date = left_date
     student.status = "left"
     await _leave_class(db, student)
     _touch(student, user_id)
@@ -586,7 +595,10 @@ async def refund_student(
     student, _ = await _locked_for_action(db, student_id, peeked_class_id, data.expected_version)
     if student.status != "pending":
         raise _status_invalid("只有預繳未入園的幼生能退預繳")
-    student.refunded_date = _action_date(data.refunded_date)
+    refunded_date = _action_date(data.refunded_date)
+    if student.deposit_date is not None and refunded_date < student.deposit_date:
+        raise RosterError(422, "ROSTER_DATE_ORDER", "退預繳日不能早於預繳日期")
+    student.refunded_date = refunded_date
     student.status = "refunded"
     await _leave_class(db, student)
     _touch(student, user_id)
@@ -842,6 +854,11 @@ async def build_roster(db: AsyncSession, campus_key: str, school_year: int, as_o
 async def save_tier_targets(
     db: AsyncSession, campus_key: str, data: TierTargetsRequest, user_id: uuid.UUID
 ) -> TierOut:
+    # 同一組（校、學年、學期）先排隊，兩人同時第一次設定不會撞主鍵（同 intake.save_targets）。
+    await db.execute(
+        text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+        {"key": f"roster_tier_targets:{campus_key}:{data.school_year}:{data.semester}"},
+    )
     row = await _tier_row(db, campus_key, data.school_year, data.semester)
     if row is None:
         row = RosterTierTarget(campus_key=campus_key, school_year=data.school_year, semester=data.semester)

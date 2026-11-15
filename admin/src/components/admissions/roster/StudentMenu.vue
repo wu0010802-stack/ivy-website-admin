@@ -17,6 +17,7 @@ const emit = defineEmits<{
   enter: []
   edit: []
   move: [classId: string]
+  unassign: []
   leave: []
   refund: []
   close: []
@@ -82,6 +83,7 @@ function pickClass(event: Event) {
           <option v-for="room in otherClasses" :key="room.id" :value="room.id">{{ room.name }}({{ room.class_code }})</option>
         </select>
       </label>
+      <button v-if="pending && student.class_id !== null" type="button" role="menuitem" @click="emit('unassign')">放回還沒編班</button>
       <button v-if="pending" type="button" role="menuitem" class="is-danger" @click="emit('refund')">退預繳</button>
       <button v-else type="button" role="menuitem" class="is-danger" @click="emit('leave')">離園</button>
     </div>

@@ -92,3 +92,74 @@ describe('審查修正', () => {
     expect(future.wrapper.findAll('button').map((b) => b.text())).toContain('開學日')
   })
 })
+
+describe('延後小項的第二輪', () => {
+  const overlayOf = (text: string) => [...body().querySelectorAll<HTMLElement>('.el-overlay')].find((o) => o.textContent!.includes(text))!
+  async function mountTab(data = roster({ classes: [klass({ id: 'cA', students: [student({ id: 'a1', child_name: '甲' })] })] })) {
+    const get = mockGet({ [ROOT]: () => data })
+    const mounted = await mountWith(RosterTab, { props: { campusKey: 'yihua', schoolYear: 115 }, user: reception() })
+    return { ...mounted, get }
+  }
+
+  it('觸控裝置：預繳生的選單可以「放回還沒編班」', async () => {
+    const placed = student({ id: 'p1', child_name: '丙', status: 'pending', deposit_date: '2026-09-01', target_school_year: 115, target_semester: 1 })
+    const { wrapper } = await mountTab(roster({ classes: [klass({ id: 'cA', students: [placed] })] }))
+    const post = mockPost({ [`${ROOT}/students/p1/move`]: {} })
+    await wrapper.get('button.roster-kid[data-student-id="p1"]').trigger('click')
+    await flushPromises()
+    press('放回還沒編班')!.click()
+    await flushPromises()
+    expect(post).toHaveBeenCalledWith(`${ROOT}/students/p1/move`, { class_id: null, position: 0, expected_version: 1 })
+  })
+
+  it('在籍幼生的選單沒有「放回還沒編班」', async () => {
+    const { wrapper } = await mountTab()
+    await wrapper.get('button.roster-kid[data-student-id="a1"]').trigger('click')
+    await flushPromises()
+    expect(press('放回還沒編班')).toBeUndefined()
+  })
+
+  it('三段目標被後端擋下後，輸入框回到原本的值', async () => {
+    const { wrapper } = await mountTab()
+    vi.spyOn(ElMessage, 'error').mockReturnValue(undefined as never)
+    vi.spyOn(api, 'put').mockRejectedValue(new ApiError(422, [{ msg: 'Value error, 三段目標要由低到高', loc: [], type: 'value_error' }]))
+    const input = wrapper.get('input[aria-label="115下 基礎目標"]')
+    await input.setValue('300')
+    await flushPromises()
+    expect((wrapper.get('input[aria-label="115下 基礎目標"]').element as HTMLInputElement).value).toBe('')
+  })
+
+  it('班級對話框：後端拒絕時對話框留著、輸入還在', async () => {
+    const { wrapper } = await mountTab()
+    vi.spyOn(ElMessage, 'error').mockReturnValue(undefined as never)
+    vi.spyOn(api, 'patch').mockRejectedValue(new ApiError(409, { code: 'ROSTER_CLASS_CODE_TAKEN', message: '這個學年已經有相同的班序' }))
+    await wrapper.get('th[data-class-id="cA"]').trigger('click')
+    await flushPromises()
+    await set(field('班導'), '王老師')
+    press('儲存')!.click()
+    await flushPromises()
+    expect(overlayOf('修改班級').style.display).not.toBe('none')
+    expect(field('班導')!.value).toBe('王老師')
+  })
+
+  it('編輯資料對話框：後端拒絕時留著；版本衝突則關掉並重讀', async () => {
+    const { wrapper, get } = await mountTab()
+    vi.spyOn(ElMessage, 'error').mockReturnValue(undefined as never)
+    vi.spyOn(ElMessage, 'warning').mockReturnValue(undefined as never)
+    const patch = vi.spyOn(api, 'patch').mockRejectedValueOnce(new ApiError(422, { code: 'ROSTER_FIELD_NOT_EDITABLE', message: '不能改' }))
+    await wrapper.get('td.roster-note[data-index="0"]').trigger('click')
+    await flushPromises()
+    await set(field('備註'), '12或2')
+    press('儲存')!.click()
+    await flushPromises()
+    expect(overlayOf('編輯資料').style.display).not.toBe('none')
+    expect(field('備註')!.value).toBe('12或2')
+    patch.mockRejectedValueOnce(new ApiError(409, { code: 'ROSTER_VERSION_CONFLICT', current_version: 4 }))
+    const before = pathsTo(get, ROOT).length
+    press('儲存')!.click()
+    await flushPromises()
+    const closed = overlayOf('編輯資料') // 元件隨 editingStudent 清空一起卸載，或是被隱藏
+    expect(closed === undefined || closed.style.display === 'none').toBe(true)
+    expect(pathsTo(get, ROOT).length).toBe(before + 1)
+  })
+})

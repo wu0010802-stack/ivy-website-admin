@@ -30,6 +30,8 @@ const roster = ref<Roster | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const asOf = ref<string | null>(null)
+// 每次成功重讀加一：缺額統計表用它重掛，被後端擋下的輸入值不會留在輸入框裡看起來像存了。
+const loadCount = ref(0)
 const requests = useRequestSequence()
 
 async function load(options: { keep?: boolean } = {}) {
@@ -42,6 +44,7 @@ async function load(options: { keep?: boolean } = {}) {
     const result = await getRoster(props.campusKey, props.schoolYear, asOf.value)
     if (!requests.isCurrent(request)) return
     roster.value = result
+    loadCount.value += 1
   } catch (err) {
     if (!requests.isCurrent(request)) return
     if (options.keep && roster.value) {
@@ -159,6 +162,22 @@ function editStudent(id: string) {
   editingStudentId.value = id
 }
 
+/** 對話框送出：成功或衝突（已重新載入）回 true 讓對話框關掉；其他失敗回 false，對話框與輸入留著。 */
+async function attempt(action: () => Promise<unknown>, fallback: string): Promise<boolean> {
+  try {
+    await action()
+  } catch (err) {
+    if (isVersionConflict(err) || (err as { status?: number } | null)?.status === 404) {
+      await onActionError(err, fallback)
+      return true
+    }
+    notifyError(apiErrorMessage(err, fallback))
+    return false
+  }
+  await load({ keep: true })
+  return true
+}
+
 async function runAction(action: () => Promise<unknown>, fallback: string) {
   menu.value = null
   try {
@@ -192,6 +211,9 @@ function leave(student: RosterStudent) {
 function refund(student: RosterStudent) {
   return confirmThen(student, '退預繳', '退預繳後會從班級拿掉，之後可以在「已離園、已退預繳」清單恢復。', () => refundStudent(student.id, student.version))
 }
+function unassign(student: RosterStudent) {
+  return runAction(() => moveStudent(student.id, { class_id: null, position: 0, expected_version: student.version }), '無法放回還沒編班。')
+}
 function moveToClass(student: RosterStudent, classId: string) {
   const room = roster.value?.classes.find((item) => item.id === classId)
   if (!room) return Promise.resolve()
@@ -209,9 +231,11 @@ const studentOpen = computed({
 async function saveStudent(body: Omit<StudentUpdate, 'expected_version'>) {
   const student = editingStudent.value
   if (!student) return
-  editingStudentId.value = null
-  if (!Object.keys(body).length) return
-  await runAction(() => updateStudent(student.id, { ...body, expected_version: student.version }), '無法儲存幼生資料。')
+  if (!Object.keys(body).length) {
+    editingStudentId.value = null
+    return
+  }
+  if (await attempt(() => updateStudent(student.id, { ...body, expected_version: student.version }), '無法儲存幼生資料。')) editingStudentId.value = null
 }
 
 const classDialog = ref<{ id: string | null } | null>(null)
@@ -222,10 +246,14 @@ const classOpen = computed({
 })
 async function saveClass(body: ClassCreate | Omit<ClassUpdate, 'expected_version'>) {
   const room = classRoom.value
-  classDialog.value = null
-  if (!room) return runAction(() => createClass(props.campusKey, body as ClassCreate), '無法新增班級。')
-  if (!Object.keys(body).length) return
-  await runAction(() => updateClass(room.id, { ...body, expected_version: room.version }), '無法儲存班級。')
+  if (room && !Object.keys(body).length) {
+    classDialog.value = null
+    return
+  }
+  const done = room
+    ? await attempt(() => updateClass(room.id, { ...body, expected_version: room.version }), '無法儲存班級。')
+    : await attempt(() => createClass(props.campusKey, body as ClassCreate), '無法新增班級。')
+  if (done) classDialog.value = null
 }
 async function removeClass() {
   const room = classRoom.value
@@ -241,8 +269,7 @@ async function removeClass() {
   } catch {
     return
   }
-  classDialog.value = null
-  await runAction(() => deleteClass(room.id, room.version), '無法刪除班級。')
+  if (await attempt(() => deleteClass(room.id, room.version), '無法刪除班級。')) classDialog.value = null
 }
 
 const depositOpen = ref(false)
@@ -350,7 +377,7 @@ defineExpose({ reload: () => load({ keep: true }) })
     </section>
     <section v-if="roster" class="roster-tab__card roster-tab__stats">
       <div class="roster-tab__head"><h3>缺額統計</h3></div>
-      <GapTable :roster="roster" :can-write="canWrite" @change-as-of="changeAsOf" @save-next-target="saveNextTarget" @save-tier="saveTier" @snapshot="saveSnapshot" />
+      <GapTable :key="loadCount" :roster="roster" :can-write="canWrite" @change-as-of="changeAsOf" @save-next-target="saveNextTarget" @save-tier="saveTier" @snapshot="saveSnapshot" />
       <SnapshotList :snapshots="roster.snapshots" />
     </section>
     <template v-if="roster">
@@ -365,6 +392,7 @@ defineExpose({ reload: () => load({ keep: true }) })
         @enter="enter(menuStudent)"
         @edit="editStudent(menuStudent.id)"
         @move="moveToClass(menuStudent, $event)"
+        @unassign="unassign(menuStudent)"
         @leave="leave(menuStudent)"
         @refund="refund(menuStudent)"
       />

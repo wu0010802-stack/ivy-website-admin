@@ -156,7 +156,7 @@ async def _locked_student(db: AsyncSession, user: User, student_id: uuid.UUID) -
     """不重排班內順序的寫入用：鎖幼生列後再檢查權限。"""
     class_id = await _scoped_student(db, user, student_id)
     try:
-        student, _ = await service.lock_student(db, student_id, set(), class_id)
+        student, _ = await service.lock_student(db, student_id, set(), class_id, check_class=False)
     except RosterError as exc:
         await _fail(db, exc)
     if student is None:

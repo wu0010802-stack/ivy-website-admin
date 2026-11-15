@@ -139,8 +139,8 @@ def compute_gap(students: Iterable[Facts], *, school_year: int, as_of: date) -> 
         underage = False
         if f.grade == "幼幼班":
             underage = is_underage(f, school_year)
-            if f.birthday is None:
-                missing_birthday += 1
+            if f.birthday is None and not underage:
+                missing_birthday += 1  # 手動標了不足齡的不算：他們不是「暫時算可以升小班」
             if underage:
                 underage_total += 1
                 if state == "enrolled":

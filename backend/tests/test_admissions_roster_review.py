@@ -78,3 +78,85 @@ async def test_past_school_year_default_as_of_is_year_end(reception_yihua_client
     body = (await get_roster(reception_yihua_client)).json()
     assert body["as_of"] == "2027-07-31" and body["today"] == "2027-09-01"
     assert (await get_roster(reception_yihua_client, as_of="2027-09-01")).status_code == 422
+
+
+# ---- 延後小項的第二輪（2026-11-15）----
+
+from datetime import datetime, timedelta, timezone  # noqa: E402
+import asyncio  # noqa: E402
+import uuid  # noqa: E402
+
+from app.admissions.roster import service  # noqa: E402
+from app.admissions.roster.calc import Facts, compute_gap  # noqa: E402
+from app.admissions.roster.models import RosterStudent  # noqa: E402
+from app.common.timezones import today_local  # noqa: E402
+from tests.admissions_helpers import campus_admin_yihua_client  # noqa: E402,F401
+
+
+async def test_claiming_backfilled_student_bumps_version(reception_yihua_client):
+    backfilled = await add_pending(reception_yihua_client, "測試甲", grade="小班")
+    record = await create_record(reception_yihua_client, child_name="測試甲", birthday="2023-03-02")
+    await transition(reception_yihua_client, record, "deposited")
+    [claimed] = (await get_roster(reception_yihua_client)).json()["unassigned"]
+    assert claimed["id"] == backfilled["id"] and claimed["version"] == backfilled["version"] + 1
+    stale = await patch_student(reception_yihua_client, backfilled, birthday="2020-01-01")
+    assert stale.status_code == 409  # 先前開著的編輯框不會悄悄蓋掉看板補上的生日
+
+
+async def test_first_tier_targets_saved_concurrently(admin_client, campus_admin_yihua_client, monkeypatch):
+    """兩人同時第一次設定同一組三段目標：不能 500（主鍵撞到）。"""
+    original = service._tier_row
+
+    async def slow(*args, **kwargs):
+        row = await original(*args, **kwargs)
+        await asyncio.sleep(0.3)
+        return row
+
+    monkeypatch.setattr(service, "_tier_row", slow)
+    body = {"school_year": 115, "semester": 2, "base": 10, "boost": 20, "top": 30}
+    first, second = await asyncio.gather(
+        admin_client.put(f"{ROSTER}/tier-targets?campus_key=yihua", json=body),
+        campus_admin_yihua_client.put(f"{ROSTER}/tier-targets?campus_key=yihua", json={**body, "base": 11}),
+    )
+    assert (first.status_code, second.status_code) == (200, 200), (first.text, second.text)
+
+
+async def test_note_edit_survives_concurrent_drag(reception_yihua_client, db_session):
+    """只改備註不需要比對班級：lock_student 可以略過「還在原班」的檢查。"""
+    room = await make_class(reception_yihua_client)
+    [kid] = await add_students(reception_yihua_client, room["id"], ["測試甲"])
+    student, _ = await service.lock_student(db_session, uuid.UUID(kid["id"]), set(), None, check_class=False)
+    assert student is not None and student.class_id == uuid.UUID(room["id"])
+    await db_session.rollback()
+
+
+async def test_dates_cannot_be_in_the_future_or_out_of_order(reception_yihua_client):
+    tomorrow = (today_local() + timedelta(days=1)).isoformat()
+    future_deposit = await reception_yihua_client.post(
+        f"{ROSTER}/students?campus_key=yihua",
+        json={"school_year": 115, "names": ["測試甲"], "pending": {"grade": "小班", "target_school_year": 115, "target_semester": 1, "deposit_date": tomorrow}},
+    )
+    assert future_deposit.status_code == 422
+    room = await make_class(reception_yihua_client)
+    [kid] = await add_students(reception_yihua_client, room["id"], ["測試乙"])
+    assert (await patch_student(reception_yihua_client, kid, enrollment_date=tomorrow)).status_code == 422
+    entered = (await patch_student(reception_yihua_client, kid, enrollment_date="2026-10-05")).json()
+    early_leave = await act(reception_yihua_client, entered, "leave", left_date="2026-10-01")
+    assert early_leave.status_code == 422
+    assert early_leave.json()["detail"]["code"] == "ROSTER_DATE_ORDER"
+    pending = await add_pending(reception_yihua_client, "測試丙", deposit_date="2026-09-10")
+    early_refund = await act(reception_yihua_client, pending, "refund", refunded_date="2026-09-01")
+    assert early_refund.status_code == 422 and early_refund.json()["detail"]["code"] == "ROSTER_DATE_ORDER"
+    assert (await patch_student(reception_yihua_client, pending, deposit_date=tomorrow)).status_code == 422
+
+
+def test_manually_underage_without_birthday_is_not_counted_as_missing():
+    """「沒填生日，暫時算可以升小班」只該數真的被算成可以升小班的人。"""
+    def toddler(**kw):
+        values = dict(grade="幼幼班", status="enrolled", enrollment_date=None, deposit_date=None, left_date=None, refunded_date=None,
+                      target_school_year=None, target_semester=None, birthday=None, underage_manual=False, is_new_manual=False, next_year="continue")
+        values.update(kw)
+        return Facts(**values)
+
+    gap = compute_gap([toddler(), toddler(underage_manual=True)], school_year=115, as_of=date(2026, 11, 11))
+    assert gap.missing_birthday == 1 and gap.underage_enrolled == 1

@@ -12,6 +12,7 @@ from typing import Annotated, Literal
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.admissions.schemas._common import Grade, OptionalText, SchoolYear, Semester, _not_future, _required_text
+from app.common.timezones import today_local
 
 TeacherName = Annotated[str | None, Field(max_length=50)]
 TargetSeats = Annotated[int | None, Field(ge=0, le=9999)]
@@ -86,13 +87,22 @@ BoardNotice = Literal["deposit_removed", "enrolled"]
 Birthday = Annotated[date | None, AfterValidator(_not_future)]
 
 
+def _not_after_today(value: date | None) -> date | None:
+    if value is not None and value > today_local():
+        raise ValueError("日期不能晚於今天")
+    return value
+
+
+PastDate = Annotated[date | None, AfterValidator(_not_after_today)]
+
+
 class PendingFields(_Request):
     """補登預繳未入園時共用的欄位（一次貼多個姓名共用同一組）。"""
 
     grade: Grade
     target_school_year: SchoolYear
     target_semester: Semester
-    deposit_date: date
+    deposit_date: Annotated[date, AfterValidator(_not_after_today)]
     planned_entry_date: date | None = None
     birthday: Birthday = None
 
@@ -110,9 +120,9 @@ class StudentUpdate(_Request):
     child_name: str | None = Field(default=None, max_length=50)
     birthday: Birthday = None
     note: OptionalText = Field(default=None, max_length=1000)
-    enrollment_date: date | None = None
+    enrollment_date: PastDate = None
     planned_entry_date: date | None = None
-    deposit_date: date | None = None
+    deposit_date: PastDate = None
     target_school_year: SchoolYear | None = None
     target_semester: Semester | None = None
     grade: Grade | None = None
