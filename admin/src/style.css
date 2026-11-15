@@ -13,6 +13,16 @@
   --status-live: oklch(0.56 0.12 155);
   /* 淺綠底上的「已上線／已完成」字色（--status-live 在淺底只有 4.4:1）。 */
   --status-live-ink: oklch(0.5 0.12 150);
+  /* 編班與缺額（2026-11-15）：年級表頭四色、預繳未入園的淡灰底、姓名字色的四種身分標記（義華原表的圖例，五校統一）。 */
+  --roster-grade-1: oklch(0.95 0.045 125);
+  --roster-grade-2: oklch(0.94 0.03 215);
+  --roster-grade-3: oklch(0.925 0.03 20);
+  --roster-grade-4: oklch(0.975 0.07 105);
+  --roster-pending-bg: oklch(0.945 0.008 250);
+  --roster-mark-new: oklch(0.52 0.15 150);
+  --roster-mark-underage: oklch(0.5 0.15 50);
+  --roster-mark-sped: oklch(0.45 0.17 305);
+  --roster-mark-indigenous: oklch(0.5 0.15 250);
   --brand-gold: oklch(0.88 0.14 92);
   --brand-gold-ink: oklch(0.45 0.09 80);
 

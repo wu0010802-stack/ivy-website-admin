@@ -117,10 +117,10 @@ describe('招生入學頁：篩選與分頁跟網址雙向同步（規格第 10 
 })
 
 describe('官網預約分頁已拿掉（2026-10-05）', () => {
-  it('分頁只剩兩個（待追蹤 2026-10-06 拿掉、統計分析 2026-10-16 抽成招生統計頁）；舊連結 tab=arrivals 退回漏斗看板，網址拿掉 tab，不讀官網預約', async () => {
+  it('分頁三個（待追蹤 2026-10-06 拿掉、統計分析 2026-10-16 抽成招生統計頁、2026-11-15 加編班與缺額）；舊連結 tab=arrivals 退回漏斗看板，網址拿掉 tab，不讀官網預約', async () => {
     const get = mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&tab=arrivals' })
-    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '訪視明細'])
+    expect(tabTexts(wrapper)).toEqual(['漏斗看板', '訪視明細', '編班與缺額'])
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua' })
     expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('漏斗看板')
     expect(pathsTo(get, '/admin/admissions/arrivals')).toEqual([])

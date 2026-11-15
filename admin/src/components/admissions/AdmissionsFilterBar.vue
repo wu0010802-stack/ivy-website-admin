@@ -16,6 +16,8 @@ const props = defineProps<{
   campusKeys: readonly string[]
   defaultYear: number
   termless?: boolean
+  // 編班與缺額只看學年：學期選單拿掉（2026-11-15）。
+  hideSemester?: boolean
 }>()
 const emit = defineEmits<{
   'update:campus': [value: string]
@@ -34,6 +36,7 @@ const filterSummary = computed(() => {
   const parts: string[] = []
   if (multiCampus.value) parts.push(campusLabel(props.campus))
   if (props.termless) parts.push('不分學年學期')
+  else if (props.hideSemester) parts.push(props.schoolYear === null ? '不限學年' : `${props.schoolYear} 學年`)
   else parts.push(props.schoolYear === null ? '不限學年' : `${props.schoolYear} 學年`, props.semester ? SEMESTER_LABELS[props.semester] : '整學年')
   return parts.join('・')
 })
@@ -69,7 +72,7 @@ const filterSummary = computed(() => {
         <el-option v-for="year in yearOptions" :key="year" :label="`${year} 學年`" :value="year" />
       </el-select>
     </div>
-    <div class="filter-field">
+    <div v-if="!hideSemester" class="filter-field">
       <span>入學學期</span>
       <el-select
         :model-value="semester ?? undefined"

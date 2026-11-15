@@ -6886,6 +6886,106 @@
         "title": "CampusStatusUpdate",
         "type": "object"
       },
+      "ClassCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "class_code": {
+            "maxLength": 20,
+            "title": "Class Code",
+            "type": "string"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "name": {
+            "maxLength": 50,
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "school_year",
+          "grade",
+          "name",
+          "class_code"
+        ],
+        "title": "ClassCreate",
+        "type": "object"
+      },
       "ClassDistributionOut": {
         "properties": {
           "as_of": {
@@ -6968,6 +7068,350 @@
           "unrecorded"
         ],
         "title": "ClassDistributionOut",
+        "type": "object"
+      },
+      "ClassOut": {
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "class_code": {
+            "title": "Class Code",
+            "type": "string"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "grade",
+          "name",
+          "class_code",
+          "english_name",
+          "head_teacher",
+          "assistant_teacher",
+          "english_teacher",
+          "target_seats",
+          "sort_order",
+          "version"
+        ],
+        "title": "ClassOut",
+        "type": "object"
+      },
+      "ClassUpdate": {
+        "additionalProperties": false,
+        "description": "年級不能改（不收 grade 欄位，送了是 422）；只送要改的欄位。",
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "class_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Code"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ClassUpdate",
+        "type": "object"
+      },
+      "ClassWithStudentsOut": {
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "class_code": {
+            "title": "Class Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Students",
+            "type": "array"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "grade",
+          "name",
+          "class_code",
+          "english_name",
+          "head_teacher",
+          "assistant_teacher",
+          "english_teacher",
+          "target_seats",
+          "sort_order",
+          "version",
+          "students",
+          "count",
+          "gap"
+        ],
+        "title": "ClassWithStudentsOut",
         "type": "object"
       },
       "ClientErrorIn": {
@@ -9734,6 +10178,33 @@
         "title": "EnrollmentHistoryRowOut",
         "type": "object"
       },
+      "EnterRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "EnterRequest",
+        "type": "object"
+      },
       "ErrorGroupListOut": {
         "properties": {
           "items": {
@@ -10899,6 +11370,74 @@
         "title": "FunnelSourceOut",
         "type": "object"
       },
+      "GapBlockOut": {
+        "properties": {
+          "achievement": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Achievement",
+            "type": "object"
+          },
+          "gap": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Gap",
+            "type": "object"
+          },
+          "rows": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "object"
+          },
+          "targets": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Targets",
+            "type": "object"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/TierOut"
+          }
+        },
+        "required": [
+          "rows",
+          "targets",
+          "achievement",
+          "gap",
+          "tier"
+        ],
+        "title": "GapBlockOut",
+        "type": "object"
+      },
       "GoogleLinkStart": {
         "properties": {
           "authorize_url": {
@@ -10928,6 +11467,34 @@
           "count"
         ],
         "title": "GradeCountOut",
+        "type": "object"
+      },
+      "GradeTotalOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "returning": {
+            "title": "Returning",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "returning",
+          "new",
+          "pending"
+        ],
+        "title": "GradeTotalOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -12136,6 +12703,33 @@
           "from_enrolled"
         ],
         "title": "JourneyWithdrawnOut",
+        "type": "object"
+      },
+      "LeaveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "left_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Date"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "LeaveRequest",
         "type": "object"
       },
       "LineCampusTargetOut": {
@@ -14455,6 +15049,71 @@
           "expires_at"
         ],
         "title": "PasswordResetVerifyOut",
+        "type": "object"
+      },
+      "PendingFields": {
+        "additionalProperties": false,
+        "description": "補登預繳未入園時共用的欄位（一次貼多個姓名共用同一組）。",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "deposit_date": {
+            "format": "date",
+            "title": "Deposit Date",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "target_school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "Target School Year",
+            "type": "integer"
+          },
+          "target_semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Target Semester",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grade",
+          "target_school_year",
+          "target_semester",
+          "deposit_date"
+        ],
+        "title": "PendingFields",
         "type": "object"
       },
       "PendingNowOut": {
@@ -17318,6 +17977,33 @@
         "title": "RecruitmentVisitUpdate",
         "type": "object"
       },
+      "RefundRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "refunded_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded Date"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RefundRequest",
+        "type": "object"
+      },
       "ReleaseChangeOut": {
         "properties": {
           "campus_key": {
@@ -17534,6 +18220,34 @@
           "queued"
         ],
         "title": "ResendConfirmationOut",
+        "type": "object"
+      },
+      "RestoreRequest": {
+        "additionalProperties": false,
+        "description": "已退預繳的恢復成還沒編班（忽略 class_id）；已離園的恢復成在籍，要選一個班。",
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RestoreRequest",
         "type": "object"
       },
       "RetentionCountsOut": {
@@ -17924,6 +18638,112 @@
         ],
         "title": "Role",
         "type": "string"
+      },
+      "RosterOut": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/ClassWithStudentsOut"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/GapBlockOut"
+          },
+          "gone": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Gone",
+            "type": "array"
+          },
+          "grade_totals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/GradeTotalOut"
+            },
+            "title": "Grade Totals",
+            "type": "object"
+          },
+          "incomplete": {
+            "title": "Incomplete",
+            "type": "integer"
+          },
+          "missing_birthday": {
+            "title": "Missing Birthday",
+            "type": "integer"
+          },
+          "next": {
+            "$ref": "#/components/schemas/GapBlockOut"
+          },
+          "next_year": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Next Year",
+            "type": "array"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotOut"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          },
+          "underage_enrolled": {
+            "title": "Underage Enrolled",
+            "type": "integer"
+          },
+          "underage_pending": {
+            "title": "Underage Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "school_year",
+          "today",
+          "as_of",
+          "classes",
+          "unassigned",
+          "next_year",
+          "gone",
+          "grade_totals",
+          "current",
+          "next",
+          "underage_enrolled",
+          "underage_pending",
+          "missing_birthday",
+          "incomplete",
+          "snapshots"
+        ],
+        "title": "RosterOut",
+        "type": "object"
       },
       "ScheduleRequest": {
         "properties": {
@@ -18509,6 +19329,628 @@
         "title": "SlotUsageThresholdsOut",
         "type": "object"
       },
+      "SnapshotOut": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enrolled": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Enrolled",
+            "type": "object"
+          },
+          "estimate_total": {
+            "title": "Estimate Total",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "total_enrolled": {
+            "title": "Total Enrolled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "as_of",
+          "enrolled",
+          "total_enrolled",
+          "estimate_total",
+          "created_at"
+        ],
+        "title": "SnapshotOut",
+        "type": "object"
+      },
+      "SnapshotRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "as_of"
+        ],
+        "title": "SnapshotRequest",
+        "type": "object"
+      },
+      "StudentMove": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "position": {
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "class_id",
+          "position",
+          "expected_version"
+        ],
+        "title": "StudentMove",
+        "type": "object"
+      },
+      "StudentOut": {
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "board_notice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deposit_removed",
+                  "enrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Notice"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "child_name": {
+            "title": "Child Name",
+            "type": "string"
+          },
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "deposit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Date"
+          },
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "from_funnel": {
+            "title": "From Funnel",
+            "type": "boolean"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_indigenous": {
+            "title": "Is Indigenous",
+            "type": "boolean"
+          },
+          "is_new": {
+            "title": "Is New",
+            "type": "boolean"
+          },
+          "is_new_manual": {
+            "title": "Is New Manual",
+            "type": "boolean"
+          },
+          "is_special_education": {
+            "title": "Is Special Education",
+            "type": "boolean"
+          },
+          "is_underage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Underage"
+          },
+          "left_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Date"
+          },
+          "next_year": {
+            "title": "Next Year",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "refunded_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded Date"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "underage_manual": {
+            "title": "Underage Manual",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "class_id",
+          "position",
+          "grade",
+          "child_name",
+          "birthday",
+          "note",
+          "status",
+          "enrollment_date",
+          "planned_entry_date",
+          "deposit_date",
+          "left_date",
+          "refunded_date",
+          "target_school_year",
+          "target_semester",
+          "is_special_education",
+          "is_indigenous",
+          "is_new_manual",
+          "underage_manual",
+          "next_year",
+          "from_funnel",
+          "version",
+          "is_new",
+          "is_underage",
+          "board_notice"
+        ],
+        "title": "StudentOut",
+        "type": "object"
+      },
+      "StudentUpdate": {
+        "additionalProperties": false,
+        "description": "只送要改的欄位。可以清空的只有 birthday、note、enrollment_date、planned_entry_date。",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "deposit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Date"
+          },
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "is_indigenous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Indigenous"
+          },
+          "is_new_manual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is New Manual"
+          },
+          "is_special_education": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Special Education"
+          },
+          "next_year": {
+            "anyOf": [
+              {
+                "enum": [
+                  "continue",
+                  "leave",
+                  "repeat"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Year"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "underage_manual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underage Manual"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "StudentUpdate",
+        "type": "object"
+      },
+      "StudentsCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "names": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Names",
+            "type": "array"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingFields"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "names"
+        ],
+        "title": "StudentsCreate",
+        "type": "object"
+      },
+      "StudentsCreated": {
+        "properties": {
+          "duplicates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Duplicates",
+            "type": "array"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Students",
+            "type": "array"
+          }
+        },
+        "required": [
+          "students",
+          "duplicates"
+        ],
+        "title": "StudentsCreated",
+        "type": "object"
+      },
       "SubmitReviewRequest": {
         "properties": {
           "revision_id": {
@@ -18909,6 +20351,158 @@
           "registered"
         ],
         "title": "TermRowIn",
+        "type": "object"
+      },
+      "TierOut": {
+        "properties": {
+          "base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "boost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boost"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "boost",
+                  "top"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "reached": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "boost",
+                  "top"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reached"
+          },
+          "short": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          }
+        },
+        "required": [
+          "base",
+          "boost",
+          "top",
+          "reached",
+          "next",
+          "short"
+        ],
+        "title": "TierOut",
+        "type": "object"
+      },
+      "TierTargetsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "boost": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boost"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Semester",
+            "type": "integer"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester"
+        ],
+        "title": "TierTargetsRequest",
         "type": "object"
       },
       "TokenExchangeRequest": {
@@ -26407,6 +28001,1116 @@
         "summary": "Transition Recruitment Visit",
         "tags": [
           "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster": {
+      "get": {
+        "description": "整張編班表、預繳名單與缺額統計。名單永遠是現在的狀態；統計數字跟著 as_of 回算。",
+        "operationId": "get_roster_api_website_v1_admin_admissions_roster_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "school_year",
+            "required": true,
+            "schema": {
+              "maximum": 999,
+              "minimum": 1,
+              "title": "School Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Roster",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/classes": {
+      "post": {
+        "operationId": "create_class_api_website_v1_admin_admissions_roster_classes_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/classes/{class_id}": {
+      "delete": {
+        "operationId": "delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      },
+      "patch": {
+        "operationId": "update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/snapshots": {
+      "post": {
+        "operationId": "create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Snapshot",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students": {
+      "post": {
+        "operationId": "create_students_api_website_v1_admin_admissions_roster_students_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentsCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentsCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Students",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}": {
+      "patch": {
+        "operationId": "update_student_api_website_v1_admin_admissions_roster_students__student_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/enter": {
+      "post": {
+        "operationId": "enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enter Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/leave": {
+      "post": {
+        "operationId": "leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leave Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/move": {
+      "post": {
+        "operationId": "move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/refund": {
+      "post": {
+        "operationId": "refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refund Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/restore": {
+      "post": {
+        "operationId": "restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/tier-targets": {
+      "put": {
+        "operationId": "save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Tier Targets",
+        "tags": [
+          "admissions-roster"
         ]
       }
     },

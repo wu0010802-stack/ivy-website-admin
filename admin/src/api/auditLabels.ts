@@ -179,6 +179,16 @@ type AuditFormatter = (value: unknown, action: string, metadata: Record<string, 
 
 // 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
 // kind、status、source 在不同動作代表不同東西，依 action 分開翻。
+const ROSTER_STATUS_LABELS: Record<string, string> = { pending: '預繳未入園', enrolled: '在籍', left: '已離園', refunded: '已退預繳' }
+// 編班與缺額的修改欄位（只記欄位名，不記值）。
+const ROSTER_FIELD_LABELS: Record<string, string> = {
+  child_name: '姓名', birthday: '生日', note: '備註', enrollment_date: '入園日', planned_entry_date: '預定入園日',
+  deposit_date: '預繳日期', target_school_year: '入學學年', target_semester: '入學學期', grade: '年級',
+  is_special_education: '特教生標記', is_indigenous: '原住民標記', is_new_manual: '新生標記', underage_manual: '不足齡標記',
+  next_year: '下學年去向', name: '班級名稱', class_code: '班序', english_name: '英文班名', head_teacher: '班導',
+  assistant_teacher: '副班導', english_teacher: '美師', target_seats: '目標人數',
+}
+
 const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 帳號
   role: (v) => `角色：${auditValueLabel('role', v)}`,
@@ -225,7 +235,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 系統狀態頁「全部標為已處理」（system.error_resolve_all）：這次標了幾種錯誤。
   resolved_count: (v) => `標為已處理 ${countOf(v)} 種錯誤`,
   // 聯絡片語（contact_phrases.update）：存檔後共有幾句；片語內容不進稽核。
-  count: (v) => `共 ${countOf(v)} 句`,
+  count: (v, action) => (action.startsWith('roster_student.') ? `新增 ${countOf(v)} 位幼生` : `共 ${countOf(v)} 句`),
   // 立即同步 Facebook 貼文（facebook_posts.sync）。
   synced_posts: (v) => `讀到 ${countOf(v)} 則貼文`,
   sync_failed: (v) => (v ? '同步失敗' : null),
@@ -233,6 +243,7 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   instagram_posts: (v) => `讀到 ${countOf(v)} 則 Instagram 貼文`,
   instagram_failed: (v) => (v ? 'Instagram 同步失敗' : null),
   status: (v, action) => {
+    if (action.startsWith('roster_student.')) return `幼生狀態：${ROSTER_STATUS_LABELS[String(v)] ?? String(v)}`
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
     if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`
     return `篩選狀態：${visitStatus(String(v)).label}`
@@ -300,7 +311,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     if (!Array.isArray(v)) return null
     const names = action.startsWith('recruitment_visit.')
       ? RECRUITMENT_FIELD_LABELS
-      : action.startsWith('visit_request.') ? VISIT_DETAIL_FIELD_LABELS : MEDIA_FIELD_LABELS
+      : action.startsWith('roster_')
+        ? ROSTER_FIELD_LABELS
+        : action.startsWith('visit_request.') ? VISIT_DETAIL_FIELD_LABELS : MEDIA_FIELD_LABELS
     return `修改：${Array.from(new Set(v.map((field) => names[String(field)] ?? String(field)))).join('、')}`
   },
   imported: (v) => `匯入 ${countOf(v)} 個`,
@@ -349,7 +362,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。來源、介紹者、搜尋字只記有沒有篩，負責人只記類別。
   month: (v) => `篩選月份：${String(v)}`,
   // 未預繳名單的原因、班別篩選收任意字串；不在選項內的後端只記 other，不把輸入原文寫進紀錄。
-  grade: (v) => `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`,
+  grade: (v, action) => (action.startsWith('roster_') ? `年級：${String(v)}` : `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`),
+  // 編班與缺額（2026-11-15）：不記姓名、生日與身分標記。
+  class_code: (v) => `班序：${String(v)}`,
+  class_changed: (v) => (v ? '換了班級' : '同班內調整順序'),
+  as_of: (v) => `統計日期：${auditWhen(v)}`,
   has_source: (v) => (v ? '有篩選來源' : null),
   has_referrer: (v) => (v ? '有篩選家長介紹' : null),
   has_deposit: (v) => `篩選預繳：${v ? '是' : '否'}`,
@@ -496,6 +513,8 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   GRANT_LABELS,
   AUDIT_FIELD_LABELS,
   BOOKING_CONFIG_FIELD_LABELS,
+  ROSTER_STATUS_LABELS,
+  ROSTER_FIELD_LABELS,
   AUDIT_REASON_LABELS,
   RETENTION_CATEGORY_LABELS,
   RETENTION_TRIGGER_LABELS,

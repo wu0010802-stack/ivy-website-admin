@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import constants, records
 from app.admissions.models import RecruitmentVisit
+from app.admissions.roster import sync as roster_sync
 from app.common.timezones import today_local
 
 Stage = Literal["visited", "deposited", "enrolled", "withdrawn"]
@@ -219,6 +220,8 @@ async def transition(
     visit.version += 1
     visit.updated_at = now
     await db.flush()
+    # 已預繳的幼生自動進編班表等待編班（單向，編班表的動作不回頭改看板；規格 7）。
+    await roster_sync.on_stage_changed(db, visit, from_stage=from_stage, to_stage=to_stage, today=today_local())
     return from_stage
 
 
