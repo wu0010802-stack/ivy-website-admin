@@ -9,9 +9,9 @@ import { createThirdPartyAnalytics, leadEventParams, reportBookingLead, whenPage
 const ORIGIN = 'http://localhost:3000'
 const GA = 'G-TEST123456'
 const PIXEL = '1234567890123456'
-const BOTH: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: PIXEL }
-const GA_ONLY: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: null }
-const PIXEL_ONLY: AnalyticsIds = { gaMeasurementId: null, metaPixelId: PIXEL }
+const BOTH: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: null }
+const GA_ONLY: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: null, openaiPixelId: null }
+const PIXEL_ONLY: AnalyticsIds = { gaMeasurementId: null, metaPixelId: PIXEL, openaiPixelId: null }
 
 type Win = Window & { dataLayer?: unknown[]; gtag?: unknown; fbq?: unknown; _fbq?: unknown }
 const win = window as unknown as Win

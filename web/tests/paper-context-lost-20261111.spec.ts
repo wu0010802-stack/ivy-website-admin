@@ -152,6 +152,7 @@ vi.mock('../app/utils/three-lite', () => {
     Mesh,
     PlaneGeometry,
     MeshStandardMaterial: Material,
+    MeshLambertMaterial: Material,
     ShadowMaterial: Material,
     AmbientLight: Light,
     PointLight: Light,

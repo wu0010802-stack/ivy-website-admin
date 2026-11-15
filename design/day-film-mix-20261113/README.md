@@ -159,3 +159,15 @@ node design/day-film-mix-20261113/shots.cjs            # 先開 serve.py
 使用者在比稿頁先選「紗拿掉＋影片不壓暗」（`day-pick4raw-*`），看過接上去的本機預覽後說「改走這個：紗全部拿掉」＝影片用有壓暗的第四輪 `day-pick4-*`（`build.py pick4:desktop pick4:mobile`）、網頁上的紗拿掉。`manifest.json` 記兩支成片的雜湊與每鏡的亮度曲線。
 已在 worktree `~/Repositories/ivy-website-wt/day-film-mix-20261113`（分支 `feature/day-film-mix-20261113`，從 origin/main `4fdf29e4` 開）接上：兩支母帶、兩張封面、`optimize-site-videos.py`、拿掉 `.day-film-shade`、大標與圖說加文字陰影、圖說三處、測試。**未 commit、未部署**；改了什麼與驗證結果寫在該 worktree 的 README／DESIGN.md 最上方。
 比稿目錄裡其他幾輪的成片（`day-mix-*`、`day-pick-*`、`day-pick2-*`、`day-pick3-*`、`day-pick4-*`）只留在 Desktop 工作區，沒有複製進 worktree。
+
+## 第五輪：拿掉穿鞋，十四鏡（`pick5`，2026-11-14）
+
+上線隔天使用者說：「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」。第四輪拿掉第 2 鏡 `shoes`（明華｜孩子坐在鞋櫃前自己穿鞋），其餘十四鏡順序不變，擁抱直接溶到沿線走。
+
+24.67 秒。桌機 6.72 MB（平均 Y 121.3／最亮一秒 125.1），手機 3.86 MB（120.9／130.5）；第四輪 26.30 秒、7.24／4.05 MB。
+
+- 沿用第四輪的各鏡中間檔，只重新接片；其餘十四鏡的裁切框與亮度曲線跟第四輪一樣（改 `manifest.json` 時逐鏡核對）。
+- 封面不重出：第一鏡沒變，新片第 0 格跟第四輪的封面只差重新壓縮的雜訊（每個像素平均差 1.5／255），站上沿用 `day-pick4-poster*.webp` 那兩張。
+- 版控裡的成片換成 `day-pick5-*.mp4`（`day-pick4-*.mp4` 拿掉，要看翻 git 歷史），`manifest.json` 記新的雜湊。
+
+重製：`build.py pick5:desktop pick5:mobile pick5:stats`。

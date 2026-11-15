@@ -3,7 +3,7 @@
     "mh": "明華校 FB〈幼幼寶貝的快樂生活〉815137417136803（3840×2160 AV1；同園方雲端〈2024幼幼班介紹Kathy.mp4〉）",
     "rw": "仁武校 FB〈仁武區最快樂的美語幼兒園〉2352105698588693（1440×2560 AV1）"
   },
-  "cut": "pick4：使用者 2026-11-13 第四輪指定的十五鏡，每鏡各自壓到平均 Y 118",
+  "cut": "pick5：使用者 2026-11-13 第四輪指定的十五鏡，2026-11-14 再拿掉穿鞋那一鏡，剩十四鏡；每鏡各自壓到平均 Y 118",
   "lut": "design/day-film-color-20261025/screen-17.cube",
   "decode": "BT.601 limited（瀏覽器對沒標記影片的解法）",
   "color": "BT.709 原色與矩陣、sRGB 轉換函數、limited range",
@@ -29,28 +29,6 @@
       "curve_desktop": "curves=all=0/0 0.5/0.284 1/0.930",
       "curve_mobile": "curves=all=0/0 0.5/0.369 1/0.930",
       "note": "明華｜校門口，老師蹲下來抱住孩子（背影）"
-    },
-    {
-      "key": "shoes",
-      "source": "mh",
-      "start": 79.0,
-      "end": 79.95,
-      "speed": 0.4,
-      "crop_desktop": [
-        480,
-        300,
-        2880,
-        1620
-      ],
-      "crop_mobile": [
-        1300,
-        0,
-        1084,
-        1926
-      ],
-      "curve_desktop": "curves=all=0/0 0.5/0.442 1/0.930",
-      "curve_mobile": "curves=all=0/0 0.5/0.442 1/0.930",
-      "note": "明華｜孩子坐在鞋櫃前自己穿鞋"
     },
     {
       "key": "line",
@@ -341,26 +319,26 @@
   ],
   "variants": [
     {
-      "file": "day-pick4-desktop.mp4",
+      "file": "day-pick5-desktop.mp4",
       "width": 1440,
       "height": 810,
       "fps": "30/1",
-      "frames": "789",
-      "duration": "26.300000",
-      "bytes": 7593774,
+      "frames": "740",
+      "duration": "24.666667",
+      "bytes": 7046444,
       "crf": 24,
-      "sha256": "0842954b3bac8dd11d98b17b89151b1710139e025e47e11a32decaf2cf35d13c"
+      "sha256": "dc6f6f951ae78c7dc58595af8b466d70ae26de56e302186c38dbd9a42a99e2bb"
     },
     {
-      "file": "day-pick4-mobile.mp4",
+      "file": "day-pick5-mobile.mp4",
       "width": 720,
       "height": 1280,
       "fps": "30/1",
-      "frames": "789",
-      "duration": "26.300000",
-      "bytes": 4242115,
+      "frames": "740",
+      "duration": "24.666667",
+      "bytes": 4052102,
       "crf": 27,
-      "sha256": "33bfbd26308270bf0c4f306cd0d926da01d7bc33fc4eef95b41dd3d3328b9a3a"
+      "sha256": "494ca1502ee8826731c49d788ecce4705542c68ffc33fab8d8682a30fe285016"
     }
   ]
 }

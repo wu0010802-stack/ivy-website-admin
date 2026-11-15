@@ -166,7 +166,9 @@ export default defineNuxtConfig({
       // NUXT_PUBLIC_GA_MEASUREMENT_ID／NUXT_PUBLIC_META_PIXEL_ID，改了重啟即生效、刪掉變數重啟即關
       // （若在這裡讀 build 時的值，刪掉變數還要重建映像）。格式不符（G-XXXXXXXXXX／純數字）視同未設定。
       gaMeasurementId: '',
-      metaPixelId: ''
+      metaPixelId: '',
+      // ChatGPT 廣告的 OpenAI 評估像素（2026-11-15）：NUXT_PUBLIC_OPENAI_PIXEL_ID，規則同上（預設空白＝關）。
+      openaiPixelId: ''
     }
   }
 

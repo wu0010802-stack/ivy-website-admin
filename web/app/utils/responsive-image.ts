@@ -36,25 +36,35 @@ export const HOME_HERO_SIZES = '100vw'
  */
 export const ADMISSION_HERO_IMAGE = 'admission-hello'
 
-/** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
+/** 常春藤環境頁首屏照片（橫幅原圖 1960×934；後台「常春藤環境頁」顯示的內建照片也是這張）；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
+/**
+ * 官網首屏實際載入的是這張裁好的直幅（2026-11-13）：拱窗約 4:5、object-position 70%，橫幅原圖只看得到中間偏右的 38%，
+ * 手機 DPR3 卻要為了那 38% 下載整張 1960w（AVIF 93 KB）；裁好的直幅 747×934 只要 49 KB，畫出來逐像素相同、首屏照片（LCP）少載一半。
+ * 裁法：高度全留，寬＝高 × 0.8＝747，左緣＝(1960 − 747) × 0.7＝849——同一個 70% 套在裁好的檔上，各種拱窗寬度的取景都跟原本一樣。
+ * 換內建照片時兩張要一起換：`python3 - <<…` 依上式裁出 `env-hero-hug-arch.webp`（q96），再跑
+ * `python3 scripts/optimize-site-images.py --only env-hero-hug env-hero-hug-arch`。
+ */
+export const ENVIRONMENT_HERO_ARCH_IMAGE = 'env-hero-hug-arch'
 
 /**
  * 常春藤環境頁的首屏照片在赤陶拱積木的拱窗裡（2026-11-04 起，environment.css 的 `.renv-arch-photo`；之前是彩虹疊疊樂最內圈的拱），
- * object-fit: cover，框是直的（約 4:5）；橫幅原圖（1960×934）左右被裁掉，實際要畫的寬度＝框寬 × (原圖寬高比 ÷ 4/5)。
- * 桌機照片最寬 (540 − 26) − 2×20 = 474px → 480px；900px 以下拱在版心裡、往右錯開 13px、邊 14px，
- * 照片寬＝視窗 − 74px（390 寬 316px）。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
+ * object-fit: cover，框是直的（約 4:5）；比框寬的照片左右被裁掉，實際要畫的寬度＝框寬 × (照片寬高比 ÷ 4/5)。
+ * 內建照片用裁好的直幅（ENVIRONMENT_HERO_ARCH_IMAGE，倍率 1）；後台換上的橫幅照片照這個倍率放大。
+ * 桌機照片最寬 (540 − 26) − 2×20 = 474px → 480px；640px 以下拱在版心裡、往右錯開 13px、邊 14px，
+ * 照片寬＝視窗 − 74px（390 寬 316px）；641–900 平板是兩欄（2026-11-13），照片欄＝版心的 44%，不到視窗的 42%。
+ * 頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
  */
 export const ENVIRONMENT_HERO_ASPECT = 4 / 5
 /** factor＝原圖寬高比 ÷ 4/5（至少 1）：橫幅被裁成拱框時，要畫的寬度是框寬乘上它。 */
 export function environmentHeroSizes(factor: number) {
-  return `(max-width: 900px) calc((100vw - 74px) * ${factor}), ${Math.round(480 * factor)}px`
+  return `(max-width: 640px) calc((100vw - 74px) * ${factor}), (max-width: 900px) calc(42vw * ${factor}), ${Math.round(480 * factor)}px`
 }
 export function environmentHeroImage() {
-  const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_IMAGE] : undefined
+  const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_ARCH_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_ARCH_IMAGE] : undefined
   const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
   const factor = Number(scale.toFixed(2))
-  return responsiveImage(ENVIRONMENT_HERO_IMAGE, environmentHeroSizes(factor))
+  return responsiveImage(ENVIRONMENT_HERO_ARCH_IMAGE, environmentHeroSizes(factor))
 }
 
 /**

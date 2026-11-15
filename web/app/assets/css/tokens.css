@@ -174,28 +174,32 @@
   --ivy-passport-page: oklch(97.2% .01 104);       /* 內頁證件紙：米白混一點薄荷（paper 84%＋mint 16%） */
   --ivy-passport-red: oklch(51% .17 31);           /* 朱紅印泥：印章、答案裡的班別、條款編號；對兩種內頁紙 ≥ 5.7:1 */
 
-  /* 15. 常春藤環境頁木頭積木（/environment，2026-10-30 比稿 D2 定案，取代 09-28 手繪版的點格紙與蠟筆）：
-     北歐木玩／蒙特梭利教具的幾何。每塊積木一個正面色＋同色深一階的「側面」（往下錯開表現厚度），不用木紋或任何紋理。
-     environment.css 的 .renv 以 --renv-* 別名引用。 */
-  --ivy-env-paper: oklch(98.6% .006 85);
+  /* 15. 常春藤環境頁積木（/environment，2026-10-30 比稿 D2 定案的木頭積木，取代 09-28 手繪版的點格紙與蠟筆）：
+     每塊積木一個正面色＋同色深一階的「側面」（往下錯開表現厚度），不用木紋或任何紋理。environment.css 的 .renv 以 --renv-* 別名引用。
+     2026-11-14 整組調亮（使用者：「背景配色有點舊舊的」，要諾貝爾、吉的堡那種明亮）：形狀、用法、色相家族都沒換，
+     五個積木色從灰濁的中明度（彩度 .06–.12、明度 68–85%）改成乾淨的高明度（彩度 .08–.15、明度 75–90%），
+     像剛上過漆的積木；頁面底接近純白，章節底色只留三塊、色相換乾淨（鮭魚米 → 櫻花粉、土黃 → 奶油黃）。
+     變數名沿用 10-30 的舊名（測試、圓點小路都用這組名字）：terra＝珊瑚橘、mustard＝陽光黃、sage＝嫩葉綠、mist＝天空藍、pink＝蜜桃粉。
+     每個色值都在 sRGB 色域內（超出的話各家瀏覽器裁法不同）；墨綠字在五個正面色上的對比 6.4–10.7，量法見 DESIGN.md「環境頁調亮」。 */
+  --ivy-env-paper: oklch(99.5% .004 95);
   --ivy-env-ink: oklch(28% .05 160);
   --ivy-env-ink-soft: oklch(38% .04 160);
-  --ivy-env-terra: oklch(68% .12 40);
-  --ivy-env-terra-side: oklch(57.5% .12 38);
-  --ivy-env-mustard: oklch(82% .12 85);
-  --ivy-env-mustard-side: oklch(71% .12 78);
-  --ivy-env-sage: oklch(76% .07 150);
-  --ivy-env-sage-side: oklch(65% .07 152);
-  --ivy-env-mist: oklch(79% .06 230);
-  --ivy-env-mist-side: oklch(68% .065 232);
-  --ivy-env-pink: oklch(87% .05 30);
-  --ivy-env-pink-side: oklch(77.5% .06 28);
+  --ivy-env-terra: oklch(75% .15 46);
+  --ivy-env-terra-side: oklch(65% .155 44);
+  --ivy-env-mustard: oklch(90% .15 95);
+  --ivy-env-mustard-side: oklch(79% .16 83);
+  --ivy-env-sage: oklch(83% .13 146);
+  --ivy-env-sage-side: oklch(71% .145 148);
+  --ivy-env-mist: oklch(84% .085 228);
+  --ivy-env-mist-side: oklch(73% .11 232);
+  --ivy-env-pink: oklch(85% .08 22);
+  --ivy-env-pink-side: oklch(75% .115 20);
   --ivy-env-forest: oklch(45% .07 160);
   --ivy-env-forest-side: oklch(35% .065 162);
-  --ivy-env-cream-side: oklch(89% .025 80);
-  /* 各章淡底色帶 */
-  --ivy-env-tint-pink: oklch(96.8% .016 40);
-  --ivy-env-tint-sage: oklch(96.6% .018 150);
-  --ivy-env-tint-mustard: oklch(96.8% .03 90);
-  --ivy-env-tint-mist: oklch(96.6% .014 230);
+  --ivy-env-cream-side: oklch(89% .06 94);  /* 白盤子、餐點書的側面：奶油黃底板上的同色系陰影（原本是灰米色） */
+  /* 章節底色：01 幼兒保育櫻花粉、03 幼兒餐點奶油黃、04 五所校園晴空藍；02 校園環境是白底（整頁最長的一章，留白才亮），
+     原本的淡綠底 --ivy-env-tint-sage 不再使用、已移除。 */
+  --ivy-env-tint-pink: oklch(96% .019 20);
+  --ivy-env-tint-mustard: oklch(97% .042 96);
+  --ivy-env-tint-mist: oklch(96.2% .024 226);
 }

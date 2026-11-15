@@ -101,6 +101,42 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - GA4 連上 Ads 之後，`gtag.js` 會不會多連 `stats.g.doubleclick.net`、`www.google.com` 而被 CSP 擋（看 Console；被擋不影響 GA4 自己的事件）。
 - 隱私權政策第 5 段目前寫 GA4 用來「了解網站的使用情形與廣告的成效」、預約成功時只告訴 Google 有一筆預約與校區，已涵蓋這個用法；要不要明寫「Google Ads」由園方決定。
 
+## ChatGPT 廣告：OpenAI 評估像素回報「預約成功」（2026-11-15 程式，`feature/openai-ads-pixel-20261115`；預設關，沒設變數就和現在完全一樣）
+
+規格見 `docs/specs/2026-11-15-openai-ads-pixel-design.md`。**只動 web**：沒有 migration、api 不用動。沿用 GA4／Meta Pixel 的規則（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。
+
+**一個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_OPENAI_PIXEL_ID` | 英數、底線、連字號，6–64 字 | 廣告管理平台（ads.openai.com）「轉換 → 資料來源」那顆 Web Pixel 的 Pixel ID |
+
+- 執行期變數：設好、web 重新部署就生效；刪掉並重新部署就關。格式不符視同未設定。沒設時不載任何 OpenAI 的腳本，公開頁 CSP 一字不變（`web/tests/openai-ads-pixel.spec.ts` 鎖住）。
+- 設了之後 CSP 多放行 `script-src https://bzrcdn.openai.com`、`connect-src https://bzr.openai.com`、`img-src https://bzr.openai.com`；後台 CSP 不動。官方文件另外要求的 `connect-src https://bzrcdn.openai.com` **刻意不放行**（見下面「自動進階比對」）。訪客瀏覽器多三個第一方 cookie：`__oppref`（廣告點擊代碼，30 天）、`__obref`（隨機瀏覽器代碼，365 天）、`__oaiq_consent`（SDK 記目前是不是暫停中；官方文件沒列，2026-11-15 實測看到）。
+
+**程式做了什麼**（和 GA4／Pixel 同一組檔案）
+
+- 用 `createElement` 載 `https://bzrcdn.openai.com/sdk/oaiq.min.js`，和另外兩家一樣等整頁 `load` 之後、主執行緒有空才載；DNT 或 Global Privacy Control 開著就不載。
+- **只回報一件事**：伺服器回 `status === 'confirmed'` 時送標準事件 `appointment_scheduled`（`{ type: 'customer_action' }`），不帶校區、入口、收據編號、修改連結或任何個資。不送 `page_viewed`。
+- 廣告點擊代碼（落地頁網址上的 `oppref`，平台在廣告點擊時自動加）在進站當下就讀出來傳給 SDK 的 `init`：SDK 延後載入，家長在那之前站內換頁的話網址上已經沒有它。
+- `/visit/manage`、`/admin`、`/preview` 完全不送：第一頁就是這些頁面時不載；載入後 SPA 換頁進去，換頁前先 `oaiq('consent', false)` 暫停，離開再 `consent(true)`。SDK 平常會自己送診斷事件（載入、分頁切到背景），暫停後一筆都不送（2026-11-15 以真的 SDK 實測）。暫停會把 `__oppref` 刪掉，所以程式先把廣告點擊代碼記在記憶體，離開時重新 `init` 帶回去，同一次造訪的歸因不會斷；家長若就在修改頁關掉分頁，下次回來的預約就歸因不到廣告（那時通常已經預約過了）。事件帶的網址本來就只有 origin＋pathname，不含 query 與 hash。
+- **「自動進階比對」由官網關掉**：這個功能會掃頁面上的 Email／電話／姓名欄位，雜湊後跟事件一起送。平台上沒有開關——網頁像素一律啟用，`https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 回的是 `"automatic_advanced_matching_enabled":true`（2026-11-15 建好像素後實測；編輯像素的視窗裡也沒有這個選項）。預約表單有這些欄位、隱私權政策寫明不傳送，所以官網在載入 SDK 前包一層 `fetch`（`keepOpenaiAutoMatchingOff`），只攔 SDK 取那份設定檔的請求、直接回「關」，不連外；CSP 不放行 bzrcdn 的 `connect-src` 當第二道（攔截失效時請求會被 CSP 擋掉，主控台會出現違規，功能仍然是關的）。對照實驗（`output/openai-ads-pixel/verify-aam.cjs`，真的 SDK、假資料、事件在本機攔下）：沒有攔截時事件帶著 Email、電話、名字的雜湊；有攔截時 SDK 自己回報 `automatic_advanced_matching: disabled`，事件裡沒有任何使用者欄位。
+- 廣告的追蹤參數（行銷活動層已填）：`utm_source=chatgpt&utm_medium=cpc&utm_campaign=chatgpt-five-campuses&utm_id={campaign_id}&utm_content={ad_id}`。`utm_medium=cpc` 讓後台「成效統計」把這些造訪歸在「廣告」，`utm_campaign` 是後台看得到的活動代碼（小寫英數、底線、連字號，32 字內）。`oppref` 是平台的保留參數，不能自己寫進範本。
+
+**上線步驟（都要本人登入）**
+
+1. **隱私權政策第 5 段補上第三項工具**再開變數（規則同 GA4／Pixel：先發布政策再開）。建議的條列與句子：
+   - 「OpenAI 評估像素（OpenAI，ChatGPT 的經營者）：計算 ChatGPT 廣告帶來多少人預約。OpenAI 會在您的瀏覽器設定 cookie（名稱以 `__o` 開頭），用來辨識這次造訪是不是從 ChatGPT 的廣告來的。」
+   - 原本「Google 與 Meta 會收到您的 IP 與瀏覽器資訊」「這兩項工具」等句子要改成涵蓋三家；對 OpenAI 只告知「有一筆預約成功」，不含校區。
+2. **廣告管理平台 → 轉換 → 建立資料來源**（Web Pixel）。按「建立」等於同意 OpenAI 的《轉換條款》。2026-11-15 已建：名稱「常春藤官網」，Pixel ID `H3LXGVGDAfgHkdJ1svTjbe`（Pixel ID 會出現在公開頁面裡，不是機密）。
+3. 「自動進階比對」平台上關不掉，由官網擋（見上）。上線後要確認它真的沒開：見步驟 6。
+4. **轉換 → 轉換事件 → 建立**：基準事件選「已排定預約」（`appointment_scheduled`）、資料來源選那顆像素、點擊後歸因 30 天。2026-11-15 已建：「官網預約參觀成功」。
+5. **Railway web 服務**設 `NUXT_PUBLIC_OPENAI_PIXEL_ID`，等重新部署完成（改變數前先看有沒有別的部署在跑）。
+6. **驗證**：資料來源的三點選單 →「測試」，填官網網址開始測試；在開出來的官網用測試資料預約一次成功（驗完到後台取消這筆預約），回「事件串流」要看到一筆帶 Test 標籤的 `appointment_scheduled`。DevTools 的 Network 看得到 `bzrcdn.openai.com/sdk/oaiq.min.js` 與送往 `bzr.openai.com` 的請求，**不應該有** `bzrcdn.openai.com/pixel-config/…` 的請求（被官網攔下了）；Console 沒有 CSP 違規（有的話代表攔截失效、靠 CSP 擋下，要查 SDK 是不是改了取設定檔的方式）。送往 `bzr.openai.com` 的內容裡要看到 `"automatic_advanced_matching":"disabled"`，預約成功那一筆不應該有 `"user"` 欄位。開一個預約修改連結，不應有送往 `bzr.openai.com` 的事件。
+7. **行銷活動 → 編輯 → 轉換事件 → 新增事件**，把步驟 4 的事件掛上去，行銷活動的「轉換次數」欄才會有數字。
+
+**程式端沒辦法驗證的**：平台是否真的收得到事件、轉換是否歸到行銷活動，只能在正式站設好變數後照步驟 6 實測。SDK 是 OpenAI 的外部腳本，行為可能隨版本改變；上面「只帶 origin＋pathname」「不掛換頁事件」「從 `window.fetch` 取設定檔」是 2026-11-15 當時的版本，SDK 大改版後要重跑 `output/openai-ads-pixel/verify-aam.cjs` 那個對照實驗。
+
 ## Google Search Console 與 CrUX（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
 
 規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 3、4 節。**只動 api 與後台**：沒有 migration、不存任何資料到資料庫（查到的結果只放 api 程序記憶體）、不新增依賴；web 不用動。後台「成效統計」兩處用到：**「瀏覽與速度」多一區「Chrome 真實使用者」**（CrUX：Google 從 Chrome 使用者蒐集的官網速度，手機與電腦的 p75 與好／需要改善／不佳比例，附近 25 週走勢）、**「怎麼來、怎麼逛」多一區「Google 搜尋」**（Search Console：點進官網、出現次數、點進去的比例、平均排名，前 25 個搜尋字詞、前 25 個頁面、裝置別，期間跟著整頁的近 7／28／90 天）。兩者都只有總管理者看得到（權限同成效統計其他全站數據 `admissions.stats`），沒設定時只顯示一行「尚未設定」。
@@ -246,6 +282,49 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 搬過去之後同事要知道：要在新網址重新登入；瀏覽器存的密碼是跟著網址的，要重新存；手機通知要在新網址的後台重新開一次（舊網址的訂閱會失效）；加到手機主畫面的後台要刪掉重加。LINE 群組推播與信裡的後台連結會自動改成新網址。
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
+
+## 2026-11-15 ChatGPT 廣告的 OpenAI 評估像素上線並開啟（main CI 部署＋Railway web 變數，沒有 migration）
+
+- **內容**：`143fc9c8`（PR #96，`feature/openai-ads-pixel-20261115`）。只動 `web/`：GA4／Meta Pixel 的架構加第三家，預約成功時送 `appointment_scheduled`。做法與規則見上面「ChatGPT 廣告：OpenAI 評估像素」一節與 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 154 檔 2375 項；本機用真的 `oaiq.min.js` 跑四支驗證腳本（事件在本機攔下）。分支連推三次，前兩組 run 被新的取代而取消，PR 顯示 BLOCKED；重跑被取消的 push 那組（43620292360）全綠後轉 CLEAN 才合併。
+- **CI**：main run 43622853729 全綠，含 E2E 與 Deploy Railway production。部署當下變數還沒設，官網行為與 CSP 不變。
+- **隱私權政策**：合併後、main 部署進行中，在後台改第 5 段（兩項工具改三項、加 OpenAI 評估像素的條列、三處句子涵蓋三家）與最後更新日期（2026-11-15），發布。正式站 `/api/website/v1/public/site` 的第 5 段與備好的新版逐字相同，其餘十一段字數不變。
+- **變數**：政策發布、main 部署完成後，`railway variable set NUXT_PUBLIC_OPENAI_PIXEL_ID=H3LXGVGDAfgHkdJ1svTjbe`（web、production）。web 重新部署 01:57:12 開始、約 40 秒完成，期間首頁一直 200。
+- **廣告管理平台**（同一晚）：資料來源「常春藤官網」、轉換事件「官網預約參觀成功」（已排定預約）並掛到行銷活動「常春藤幼兒園｜認識高雄五所校園」；行銷活動層的廣告素材強化關掉、追蹤參數與情境提示填好、每日預算 NT$360 → NT$1,000（使用者指定）。
+- **部署後正式站驗證**（Playwright 真 Chrome；第一方統計與 GA／Meta 的請求在本機回 204，送往 OpenAI 的照常送）：首頁與 `/visit` 的 CSP 多了 `script-src https://bzrcdn.openai.com`、`connect-src`／`img-src https://bzr.openai.com`；`oaiq.min.js` 有載入；送往 `bzr.openai.com` 的內容帶這顆 Pixel ID、`"automatic_advanced_matching":"disabled"`、`source_url` 只有 origin＋pathname、沒有 `user` 欄位（在 `/visit` 插了填好 Email 與電話的欄位也一樣）；沒有任何 `pixel-config` 請求出去；主控台沒有 CSP 違規。`/visit/manage` 當第一頁：沒有載 SDK、沒有 `oaiq`、沒有送往 OpenAI 的請求。
+- **沒驗**：真的預約成功那一筆有沒有進平台（要用測試資料預約一次再到後台取消，會發通知，留給園方做，步驟見上一節第 6 步）；轉換有沒有歸到行銷活動（要等廣告 11-16 開跑後有真的點擊）；iOS／Safari 實機。
+
+## 2026-11-15 特色教學美術創作換成戶外滾筒畫上線（main CI 部署，沒有 migration）
+
+- **內容**：`a61af11d`（PR #95，`feature/curriculum-art-20261114`）。`/curriculum` 五件事・美術創作的內建照片 `cur-daily-art` 從男孩剪紙換成兩個幼幼在草地上用滾筒刷畫畫（Drive「官網」資料夾義華校原檔，母檔去 EXIF），替代文字同步改。只動 `web/` 的一張照片、衍生檔、manifest 與元件一行；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 153 檔 2341 項；fixture dev 上 Playwright 1440／390 截圖。推送自動起的那組 run 被取消、PR 顯示 BLOCKED，重跑後 PR 那組的 E2E 反被取消；`gh run rerun --failed` 後其餘 job 全綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43616736526 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `a61af11d`。Playwright（真 Chrome，1440 與 390 寬）開 `/curriculum`，美術創作那格載入新雜湊 `cur-daily-art-1bed1e9e63e9-*.avif`、畫面是新照片。正式站特色教學頁沒有後台覆寫這張照片。
+- **沒驗**：iOS／Safari 實機。
+
+## 2026-11-14 常春藤環境頁調亮＋11-13 版面精修上線（main CI 部署，沒有 migration）
+
+- **內容**：`3f7325e6`（PR #94，`feature/env-bright-20261114`）。環境頁的積木色整組換成乾淨的高明度色、頁面底接近純白、章節底色從四條滿版色帶改成三塊圓角底板；同一個 PR 帶著 11-13 還沒上線的版面精修（原 `feature/env-polish-20261113`）。只動 `web/` 的環境頁樣式、元件、兩張內建照片與後台環境頁編輯畫面的兩句說明；沒有改 API、變數與資料庫。細節見 `README.md` 同日兩段與 `DESIGN.md`「環境頁調亮」「環境頁精修」。
+- **推前**：web typecheck、`test:website` 153 檔 2341 項；admin typecheck 與 177 檔 3461 項；正式建置上 18 種寬度 × 2 種高度的版面檢查、axe 三種寬度 0 違規、字數壓力測試六種寬度、舊版 Safari 模擬。PR 的 CI 全綠（含 E2E）。當天依賴稽核閘門因新公告全紅，等 #93 升級套件併入後才接上 main 重跑；之後又讓 #92 先部署，前後 rebase 兩次，README 頂部各衝突一次（兩邊段落都留）。推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun` 那組跑綠後才合併。
+- **CI**：main run 43555620835 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `3f7325e6`。Playwright（真 Chrome，1440 與 390 寬，遙測與第三方分析一律攔下回 204、只發 GET）開 `/environment` 共 29 項全過：01 章是粉色圓角底板、02 章白底、積木色是新色票、章節編號深綠底白字、手機目次排成一列、圓點小路有畫、沒有水平溢出、圖片都載得到（教室照片是提亮後的新雜湊、首屏載裁好的直幅）、主控台沒有錯誤。`/`、`/about`、`/curriculum`、`/admission`、`/visit` 都回 200（`/anniversary` 回 404 是後台開關關著，與這次無關）。
+- **沒驗**：iOS／Safari 實機（這一頁用到容器單位、`svh`、`:has()`、`subgrid`，舊版 Safari 只做過模擬）。
+
+## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡上線（main CI 部署，沒有 migration）
+
+- **內容**：`9fb2f19b`（PR #92，合併提交 `a5e681f7`；README「2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡」）。使用者說「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」，看過本機預覽後說「部署」。11-13 的十五鏡拿掉第 2 鏡，其餘順序、裁切、亮度不變；只換 web 的兩支影片與 `video-manifest.json`，封面、樣式、圖說都沒動；沒有 migration、沒有變數要改。
+- **CI**：第一輪 PR run 43543169135 被當天的依賴稽核閘門擋下（見下一節，跟這個改動無關）。等 #93 的升級併進 main 後把分支接上 `43acc27a`，第二輪 PR run 43547008365 全綠；推送自動起的 run 43547001804 被 PR 的 run 取代而 cancelled（必要檢查因此算失敗、擋住合併），重跑後全綠才合併，沒有用管理員權限。main run 43549113503 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `a5e681f7`。同時間等著上線的 #94 與這個 PR 錯開，等這輪部署跑完才接 main。
+- **線上驗證**：Playwright Chrome 1440×900、1440×560、390×844 開首頁捲到「常春藤的一天」（遙測、錯誤回報、GA／Pixel 全部攔下）：桌機播 `day-desktop-dc6f6f951ae7.mp4`（1440×810、24.67 秒）、手機播 `day-mobile-494ca1502ee8.mp4`（720×1280、24.67 秒），封面照舊，圖說「明華校 · 仁武校」，沒有橫向捲動，console 沒有錯誤。桌機把影片每 1.5 秒截一格共 17 格，擁抱之後直接是沿線走，沒有穿鞋那一鏡。
+- **未驗證**：iOS／Android 實機、Safari、Firefox。
+
+## 2026-11-14 手機拍立得換成 WebGL 紙不再跳＋依賴稽核升級上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #93，合併提交 `43acc27a`，三個提交。
+  - `d737f83b` 拍立得修正（README「2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳」）。使用者用 iPhone 錄影回報卡片的顏色和文字會跳一下，查出是 CSS 版換成 WebGL 紙那一刻兩版畫得不一樣，修完後說「上線」。只改 `web/`，沒有改 API、後台、內容，沒有變數要改。
+  - `d050c739`、`98d1faaa` 依賴升級（README「2026-11-14 依賴稽核閘門擋下部署」）：當天新公告讓稽核閘門擋下所有 PR，`nuxt` 4.6.3 → 4.6.4、overrides 補 `readdir-glob → minimatch ^11.0.1`、後端 dnspython 2.9.0 → 2.9.2。放行清單維持空的。
+- **CI**：第一輪 PR run 43543254007 被稽核閘門擋（Frontend (web) 的 npm audit、Backend 1/3 的 pip-audit），同時間的 #92、#94 也一樣。第二輪 lock 檔用 npm 11 產生，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」；改用 CI 同版的 npm 10 從 main 的 lock 重裝後第三輪全綠。main run 43546820449 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `43acc27a`。
+- **線上驗證**：`/api/website/v1/health` `status: ok`；首頁與 `/about`、`/environment`、`/curriculum`、`/admission`、`/visit` 200，`//admin/` 回 301（nuxt 公告講的 `//` 開頭路徑沒有繞過轉址）。Playwright 手機模擬 402×874@3（非 GET 的 API、遙測、GA／Pixel 全部攔下；含 WebGL 紙程式的 chunk 先扣住，拍完 CSS 版再放行）：WebKit 第 2 張正面換手前後照片與紙色差 0、小標／標題／時間戳位移在 1 個實體像素內、卡片右側與下方陰影差 1 階內；WebKit 第 4 張背面兩版斷行相同；Chrome 第 3 張正面照片與紙色差 0。
+- **未驗證**：iPhone／Android 實機（回報的那支 iPhone 要請使用者再看一次）；桌機沒有在正式站重截（本機 dev 截過懸停與翻面途中）。
 
 ## 2026-11-13 GA4 的 page_location 多留 gbraid／wbraid 上線（main CI 部署，沒有 migration）
 

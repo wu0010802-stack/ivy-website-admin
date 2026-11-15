@@ -10,6 +10,109 @@
 - **個資**：編班表開始存在籍幼生的姓名、生日與特教生、原住民標記。測試與文件一律虛構姓名。已離園、已退預繳的紀錄這次不自動清除（規格 §13 待業主回覆）。
 - 驗證與上線前要查的事見 `deploy/README.md`「編班與缺額」。
 
+## 2026-11-15 ChatGPT 廣告的轉換追蹤：OpenAI 評估像素（`feature/openai-ads-pixel-20261115`）
+
+園方在 ChatGPT 廣告管理平台開了第一檔廣告，平台只看得到點擊。使用者要把「點進來的家長有沒有預約」接起來。規格 `docs/specs/2026-11-15-openai-ads-pixel-design.md`，上線步驟 `deploy/README.md`「ChatGPT 廣告」。沒有 migration、沒有改 API。
+
+- **做法**：GA4／Meta Pixel 的同一組檔案加第三家。新變數 `NUXT_PUBLIC_OPENAI_PIXEL_ID`，預設空白＝關；設了才載 `oaiq.min.js`、CSP 才放行 `bzrcdn.openai.com`（腳本）與 `bzr.openai.com`（事件）。DNT／GPC 不載。
+- **只回報預約成功**：伺服器回 `confirmed` 時送標準事件 `appointment_scheduled`，不送頁面瀏覽，不帶校區、入口或任何個資。
+- **廣告點擊代碼**：落地頁網址上的 `oppref` 進站當下就傳給 SDK 的 `init`（SDK 等整頁載完才載入，家長先站內換頁的話網址上已經沒有它）。
+- **「自動進階比對」由官網關掉**：這個功能會掃頁面上的 Email／電話／姓名欄位，雜湊後跟事件一起送。平台上沒有開關（網頁像素一律啟用）。官網在載入 SDK 前攔下它取設定檔的請求、直接回「關」，CSP 也不放行 bzrcdn 的 `connect-src` 當第二道。用真的 SDK 做過對照：沒攔時事件帶 Email、電話、名字的雜湊；有攔時 SDK 回報 disabled、事件沒有使用者欄位。
+- **預約修改頁、後台、草稿預覽完全不送**：第一頁是這些頁面就不載；載入後換頁進去先暫停（`consent(false)`），離開時恢復並把點擊代碼帶回去。
+- **隱私權政策**第 5 段補上第三項工具（後台內容，已發布）。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix web run test:unit`（154 檔 2375 項，新增 `web/tests/openai-ads-pixel.spec.ts` 34 項）；真的 SDK 的四支驗證腳本與正式站驗證腳本在 `output/openai-ads-pixel/`（事件在本機攔下）。正式站結果見 `deploy/README.md` 同日段落。
+
+## 2026-11-15 特色教學「美術創作」換成戶外滾筒畫（`feature/curriculum-art-20261114`）
+
+使用者截了五件事・美術創作那張（男孩拿剪刀剪紙）說換掉，從候選板（`output/curriculum-art-photo-20261114/候選板.jpg`，A1–A5）選 A2。
+
+- **`cur-daily-art`**：Drive「官網」資料夾幼幼主題的手機原檔（盤點編號 460，5712×4284，判斷是義華校），兩個穿罩衣的幼幼在草地上拿滾筒刷塗顏色；置中偏上裁 8:5 → 1600×1000，**母檔去 EXIF**（原檔帶 GPS）。代號不變，替代文字改成「兩個穿罩衣的小小孩站在草地上，拿滾筒刷在紙板上塗顏色」。
+- `optimize-site-images.py --only cur-daily-art` 重產衍生檔，舊雜湊檔刪除。
+- **驗證**：`npm --prefix web run typecheck`、`npm --prefix web run test:unit`（153 檔 2341 項）通過；fixture dev server 上 Playwright 截桌機 1440／手機 390。
+
+## 2026-11-14 常春藤環境頁調亮（`feature/env-bright-20261114`）
+
+使用者看正式站 `/environment` 說「背景配色有點舊舊的」，舉諾貝爾、吉的堡當明亮的參考。積木的視覺語言、內容、照片都沒換，這一輪換的是整組顏色與章節底色的鋪法；同一個分支也帶著 11-13 還沒上線的精修（下一段）。設計規則在 `DESIGN.md`「環境頁調亮」。沒有 migration、沒有改 API。
+
+- **積木色**：赤陶、芥末、鼠尾草綠、霧藍、粉五個灰濁色，換成珊瑚橘、陽光黃、嫩葉綠、天空藍、蜜桃粉（明度 75–90%、彩度 .08–.15，`web/app/assets/css/tokens.css` 第 15 節，變數名不變）。墨綠字與深綠按鈕沒動。
+- **底色**：頁面底接近純白。章節底色從四條滿版色帶改成三塊圓角底板（01 櫻花粉、03 奶油黃、04 晴空藍），左右內縮、四周露白；02 校園環境改白底。版心寬度與位置不變。
+- **目次積木**：01、03 的顏色對調，四塊的顏色和各章的章節色一致。
+- **章節編號**（01–04 小圓）改成深綠底白字；01 章主照片後面的墊塊改陽光黃、04 章的墊塊不用藍（同色不疊同色）；小標籤改成平的；照片外緣加一圈極淡的線（淺色照片在白底上不會缺角）。
+- **手機首屏的目次排成一列**（只留編號與章名）：原本兩列大積木佔掉一整屏，現在第一屏就看得到大標、照片與四章目次；整頁少約 280px。
+- **一天五餐的圖示**：吐司改珊瑚橘、蘋果改蜜桃粉（原本黃吐司在白盤上看不清、橘色蘋果像橘子）；白盤側面從灰米色改成奶油色。
+- **兩張偏暗的內建照片提亮**（`env-space-classroom`、`env-space-animals`，沒有換照片）：白平衡與暗部提亮，教室去掉橘色偏色。原檔在 git 歷史裡；前後對照在 `output/env-bright-20261114/`。
+- 六個空間的標題與內文放大一級；兩塊底板相鄰留 24px 的白。
+- 360 以下的手機，營養餐點書那一組不再超出版心。11-13 精修新增的容器單位與欄 `subgrid` 補了舊版 Safari（iOS 15）的後備。
+- 兩個獨立審查代理各看了正式站與新版：配色方向一致；採納與沒採納的意見記在 `DESIGN.md`「環境頁調亮」。**要園方決定的內容問題**（沒動）：「乾淨溫馨的教室」內文講的是課程與戶外；「套房式衛廁」配的是洗手台；「早餐美語」放在餐點底下語意不清；家長最在意的「安全角落設計」「套房式衛廁」排在第 4、5 站（順序可在後台調）。
+- 墨綠字在積木上的對比從 4.7–8.9 提高到 6.1–10.6；全部色值在 sRGB 色域內。
+
+**驗證**：`npm --prefix web run typecheck`、`npm run test:website`（152 檔 2325 項）、admin typecheck 與 `test:unit`（177 檔 3461 項）、`nuxt build`；正式建置上跑 18 種寬度 × 2 種高度的版面檢查（水平溢出、版心寬度、出版心）0 問題、axe 三種寬度 0 違規、主控台無錯誤、舊版 Safari 模擬（`output/legacy-safari-20261113/sim15.cjs`）手機與桌機無溢出；`npx impeccable detect` 只剩刻意的錯位陰影。檢查腳本與前後截圖在 `output/env-bright-20261114/`。`scripts/page-copy-stress.cjs /environment` 六種寬度通過（章名寫到 6 個字的上限時，手機目次平均折成兩行）。**沒驗**：stack e2e、iOS／Safari 實機。
+
+## 2026-11-13 常春藤環境頁精修（`feature/env-polish-20261113`，併在 11-14 的 `feature/env-bright-20261114` 一起出）
+
+使用者要「繼續優化這個分頁」。木頭積木的視覺語言、內容與照片都沒換，這一輪修的是版面、斷行、效能與各種螢幕尺寸。設計規則寫在 `DESIGN.md`「環境頁精修」。沒有 migration、沒有改 API；後台只改了兩句照片說明與手機的裁切預覽比例。
+
+**版面**
+
+- **分三級**：901 以上桌機、641–900 平板、640 以下手機。平板原本是把手機單欄等比例放大（768 寬整頁 14,380px 高、首屏只看得到大標和半張照片），改成沿用桌機的兩欄構圖縮小（7,500px）；手機單欄的版心最寬 440px，481–640 不再放大。
+- **留白與首屏目次跟著視窗高度收**：章節留白取視窗寬、視窗高換算較小的那個；首屏四塊目次積木照 `--b` 等比例縮放，1366×650、1440×558 這類矮視窗也看得到完整首屏（不到 700px 高時目次排成一列）。目次的圓、拱、方統一同寬（原本 192／188／180，兩列間距不一）；手機 03 補回小字。
+- **01 幼兒保育**：五顆心固定一列、兩端貼齊右欄（901–1150 寬原本第五顆會掉到第二列）；第五件「定時消毒」從半圓＋一塊空平板改成圓角方塊；手機的橫幅照片從 2.2:1 改 1.7:1；手機第五件改成左圖右字。
+- **02 校園環境**：圓點小路只從第 1 站走到第 6 站，頭尾懸空的那兩小段拿掉；同一欄的照片寬度統一（左欄 76%、右欄撐滿），墊塊錯開的量算進間距，每站之間等距。
+- **03 幼兒餐點**：兩欄改頂端對齊（章節標籤離色塊頂的距離和其他三章一樣）；時間軸的圓點改成盤子和盤子之間各一小段、段內置中，不再有被盤子切掉一半的圓點。
+- **04 五所校園**：小照片在右欄一左一右錯開往下疊、圓與方交替，名稱都放在自己那張照片正下方；矮視窗時分頁積木壓扁、大圖照高度收，換校後整張大圖看得到。選中分頁的小圓點不再把校名往右推。
+- **墊塊不出版心**：照片後面錯開的墊塊一律算在版心內，手機不再貼到螢幕邊（原本三處貼邊或出血）。
+- 結尾三塊積木的標題對齊同一條線；鍵盤焦點外框跟著積木外形走；粉色積木加深一階（01 章淡粉底上對比太弱）。
+- 首屏四塊目次與拱後面的墊塊進場時落定（純 CSS，不等 JS；首屏照片不動）。
+
+**文字**
+
+- **短說明不從詞中間斷行**（`web/app/utils/phrase.ts`）：原本「提升孩／子的健康」「每日定／時測量體溫」。伺服器用 `Intl.Segmenter` 斷詞、併成小段，小段之間放 `<wbr>`；結果放進 `useState` 送到瀏覽器，hydrate 沿用同一份。Chrome 的 `word-break: auto-phrase` 對中文無效（實測 157）。
+
+**效能**（正式建置，手機 4 倍 CPU 降速＋1.6 Mbps，三次）
+
+- 首屏照片改載裁好的直幅 `env-hero-hug-arch`（747×934）：拱窗只看得到橫幅原圖的 38%，手機卻要下載整張 1960w。LCP 約 2.28 秒 → 約 1.6 秒，LCP 那張圖 93 KB → 49 KB，取景逐像素相同。
+- 「健康把關」母檔重裁成 4:5（原本 1961×934 的橫幅放在拱裡）：手機 91 KB → 57 KB；`sizes` 改照「照片比框寬多少」算（`pageCoverPhotoAttrs`），原本這張在 Retina 桌機只拿到需要的 0.67 倍。
+- CLS 載入與整頁捲動都是 0。
+
+**驗證**：`npm --prefix web run typecheck`、`npm run test:website`（148 檔 2275 項）、admin typecheck 與 3461 項、`scripts/page-copy-stress.cjs /environment`（六種寬度，補上內建留空的五個欄位）、axe 三種尺寸 0 違規、25 種寬度 × 2 種高度的版面檢查（溢出、互壓、字出框、墊塊出版心）0 問題、關閉 JavaScript 內容完整。**沒驗**：stack e2e、iOS／Safari 實機。
+## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡（`feature/day-no-shoes-20261114`）
+
+使用者：「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」。11-13 的十五鏡拿掉第 2 鏡（明華｜孩子坐在鞋櫃前自己穿鞋），其餘順序不變，擁抱直接溶到沿線走。
+
+- 影片：擁抱 → 沿線走 → 套盒 → 圖書室 → 俯拍看書 → 小女孩看書 → 手指繪本 → 薰衣草 → 空拍校舍 → 粉筆畫 → 揮手 → 溜滑梯 → 兩個女孩 → 牽手（溶回擁抱）。十四鏡 24.67 秒（原本十五鏡 26.3 秒）；桌機 1440×810 6.72 MB、手機 720×1280 3.86 MB（原本 7.24／4.05 MB）。每秒平均 Y 桌機 121.3／最亮一秒 125.1、手機 120.9／130.5。
+- 做法：`design/day-film-mix-20261113/build.py` 加 `pick5`，沿用 11-13 的各鏡中間檔重新接片，其餘十四鏡的裁切框與亮度曲線都沒變（`manifest.json` 逐鏡核對過）。母帶 `web/media-src/day-film*.mp4`、`optimize-site-videos.py` 的 `DAY_MASTERS`、`video-manifest.json` 跟著換；比稿目錄裡的 `day-pick4-*.mp4` 換成 `day-pick5-*.mp4`。
+- 封面沒換：第一鏡還是擁抱，新片第 0 格跟現有的 `day-poster*.webp` 只差重新壓縮的雜訊（每個像素平均差 1.5／255）。
+- 樣式、元件、圖說都沒動。
+- 驗證：`npm --prefix web run typecheck`、`npm run test:website` 151 檔 2303 過、後端 `tests/test_media_slots.py` 21 過（自己的測試庫）；fixture dev server 用 Playwright 看 1440×900／1440×560／390×844：播的是新檔（24.67 秒）、逐格截圖沒有穿鞋那一鏡、沒有 console 錯誤與橫向捲動。admin 測試、e2e、stack、實機沒跑（沒動到）。
+
+## 2026-11-14 依賴稽核閘門擋下部署：升 nuxt 4.6.4、dnspython 2.9.2（隨 `fix/day-card-jump-20261114` 一起上）
+
+11-14 早上新公告三則，CI 的稽核閘門把所有 PR 都擋下（跟各 PR 自己的改動無關）：
+
+- web：`GHSA-mjrq-cffv-q4qc`（@nuxt/schema）、`GHSA-r99w-jh2x-3mg9`（@nuxt/nitro-server，請求路徑開頭 `//` 可繞過 server middleware 與 route rules）。`nuxt` 4.6.3 → 4.6.4。
+- 升完多出一則 `GHSA-g3hv-75wg-m249`（minimatch 7～11.0.0）：nitropack 2.13.6 的 archiver 8 → readdir-glob 3 帶進 minimatch 10.2.6。`web/package.json` 的 overrides 補 `readdir-glob → minimatch ^11.0.1`（解到 11.0.8，跟既有 glob 那條同一份）；放行清單維持空的。
+- 後端：dnspython 2.9.0 的 `CVE-2026-128089`，`uv lock --upgrade-package dnspython` 升到 2.9.2（`uv.lock` 只動 3 行）。
+- lock 檔要用 **CI 同版的 npm 10**（Node 22 內附的 10.9.x）產生：第一次用 npm 11 重裝，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」（npm 11 不寫進非本機平台 wasm 綁定的選用依賴，npm 10 卻要它們在 lock 裡）。推之前用同版 npm 跑 `npm ci --dry-run` 就能在本機重現。vue 仍是單一份 3.5.44。
+- 驗證：`python3 deploy/npm_audit_gate.py --project web` 通過；`uvx pip-audit@2.10.1` 無公告；web typecheck、`test:website` 2319 過；`nuxt build` 成功，啟動後首頁與各內頁 200；readdir-glob 搭 minimatch 11 實際列檔正常。
+
+## 2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳（`fix/day-card-jump-20261114`）
+
+使用者用 iPhone 錄影回報：首頁「常春藤的一天」的拍立得，卡片的顏色和文字有時候會跳一下。逐格看錄影，跳的都是同一刻——手機停止滑動後，已經在畫面上的 CSS 版卡片換成 WebGL 紙（`paperPrints.ts`）。本機 WebKit 與 Chromium 手機模擬都重現（同一頁先拍 CSS 版、再放行 WebGL 版逐像素比），差在五個地方：
+
+| 哪裡跳 | 原因 | 修正前 → 修正後 |
+|---|---|---|
+| 照片像蒙一層霧 | 紙面材質有鏡面反射（主光在平放的紙上加一層固定亮度），貼圖又在照片左上疊一道亮面漸層 | 暗部 +15～32 階 → 0 |
+| 紙色略暗 | 同上（材質的漫射不是剛好等於貼圖原色） | −2 階 → 0 |
+| 正面小標往下掉 | 基線用「行高 × 0.78」估，不是照 CSS 行框算；時間戳的斜切基準點與外框也量錯 | 小標往下 1.5～2px、時間戳右偏 1.5px → 1 個實體像素內 |
+| 背面整段字重排 | 背面段落是 `text-wrap:pretty`，iPhone（Safari 26）會整段重新平均斷行，貼圖卻自己用貪婪法折行 | 每段斷行不同 → 照 DOM 實際的行畫 |
+| 卡片周圍亮一下 | CSS 版是大而柔的 `box-shadow`，WebGL 版是光源投的小影子；點過的卡還黏著 `:hover` 的加深陰影 | 右側與下方 +15～20 階 → 1 階內 |
+
+- `web/app/utils/paperPrints.ts`：紙面改純漫射材質（`MeshLambertMaterial`，暖身場景同步）；拿掉照片上的亮面漸層與外框線；小標、標題、時間戳的基線改用 `baselineIn`；時間戳量斜切前的版面框、繞中心斜切、光暈讀 CSS 的 `text-shadow`；背面三段用新的 `linesOf` 讀 DOM 實際斷行；平放時在自己的畫布上畫 CSS 的 `--print-shadow`（`drawRestShadow`），抬起的頭三成高度交叉淡到光源投的影子。
+- `web/app/assets/css/styles.css`：相紙陰影值搬到 `--print-shadow`（數值沒變）；懸停加深的陰影包進 `@media(hover:hover) and (pointer:fine)`。
+- `web/app/utils/three-lite.ts`：補匯出 `MeshLambertMaterial`。
+- **桌機也看得到的改變**：WebGL 紙上的照片不再偏霧（與 CSS 版、原圖同色）；平放時的陰影變成 CSS 版那道（較大較柔、落在右下），懸停與翻面時照舊是光源投的影子。翻面、掀角、懸停的動作都沒改。
+- 驗證：`web/tests/day-print-handoff-20261114.spec.ts`（新）；typecheck；`npm run test:website` 152 檔 2319 過。畫面：WebKit／Chrome 手機模擬 402×874@3、360×740@2、320×568@2，第 1、2、3、5 張正面與第 2、3、4 張背面換手前後比對；桌機 1440×900 截進場、懸停、翻面途中。**iPhone 實機還沒驗**（本機 Mac 的 canvas 文字比 DOM 略粗是 macOS 字體平滑造成的，錄影裡的 iPhone 沒有這個差）。已上線（main `43acc27a`，PR #93），正式站驗證見 `deploy/README.md`。
+
 ## 2026-11-13 Google 廣告轉換：GA4 的 page_location 多留 gbraid／wbraid（`feature/ads-click-ids-20261113`）
 
 使用者要幫官網打 Google 廣告。盤點後不裝 Google Ads 自己的轉換代碼：GA4 已在正式站運作、預約成立會送 `generate_lead`，連結 GA4 與 Google Ads 再匯入成轉換就夠（步驟與待實測項在 `deploy/README.md`「Google Ads」）。

@@ -6,7 +6,8 @@
 import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from './scrollFrame'
 
 type Point = [number, number]
-export interface RouteSegment { d: string; color: string }
+/** centered：圓點在這一段裡置中排（兩端各留半個間距），不從起點開始排；餐點時間軸兩個盤子之間用 */
+export interface RouteSegment { d: string; color: string; centered?: boolean }
 /** 照片框在小路宿主（<ol>）裡的水平中心與上下緣 */
 export interface FrameBox { x: number; top: number; bottom: number }
 
@@ -15,39 +16,47 @@ const f1 = (v: number) => v.toFixed(1)
 export const polyline = (points: Point[]) => points.map(([x, y], i) => `${i ? 'L' : 'M'}${f1(x)} ${f1(y)}`).join(' ')
 
 /**
- * 校園環境（桌機）：從第一張照片上方進來，每一段從這張照片的底部彎到下一張的頂部（中間經過的照片會蓋住小路），
- * 最後從最後一張底部再走一小段出去。每段用「要去的那一站」的顏色。
+ * 校園環境（桌機、平板）：每一段從這張照片的底部彎到下一張的頂部（中間經過的照片會蓋住小路），從第一張走到最後一張。
+ * 每段用「要去的那一站」的顏色。
+ * 2026-11-13 前頭尾各多走一段：起點是第一張上方 130px 憑空冒出的幾顆圓點，終點從最後一張底部再走 80px、懸在章節底部的留白裡，
+ * 兩頭都沒有接任何東西，拿掉。
  */
 export function mapSegments(frames: FrameBox[], colors: string[]): RouteSegment[] {
-  if (!frames.length) return []
-  const first = frames[0]!
-  const segs: RouteSegment[] = [{ d: polyline([[first.x, first.top - 130], [first.x, first.top]]), color: colors[0]! }]
+  const segs: RouteSegment[] = []
   frames.forEach((m, i) => {
     const n = frames[i + 1]
     if (!n) return
     const k = (n.top - m.bottom) * 0.95 + 30
     segs.push({ d: `M${f1(m.x)} ${f1(m.bottom)} C${f1(m.x)} ${f1(m.bottom + k)} ${f1(n.x)} ${f1(n.top - k)} ${f1(n.x)} ${f1(n.top)}`, color: colors[i + 1]! })
   })
-  const last = frames.at(-1)!
-  segs.push({ d: polyline([[last.x, last.bottom], [last.x, last.bottom + 80]]), color: colors.at(-1)! })
   return segs
 }
 
-/** 校園環境（手機）：左邊一條直線，依序經過每一站的編號 */
+/** 校園環境（手機）：左邊一條直線，從第一站的編號依序走到最後一站的編號（原本頭尾各多走 90、110px） */
 export function mapSegmentsNarrow(numbers: Point[], colors: string[]): RouteSegment[] {
-  if (!numbers.length) return []
-  const segs = numbers.map((p, i): RouteSegment => ({ d: polyline([i ? numbers[i - 1]! : [p[0], p[1] - 90], p]), color: colors[i]! }))
-  const last = numbers.at(-1)!
-  segs.push({ d: polyline([last, [last[0], last[1] + 110]]), color: colors.at(-1)! })
-  return segs
+  return numbers.slice(1).map((p, i): RouteSegment => ({ d: polyline([numbers[i]!, p]), color: colors[i + 1]! }))
 }
 
-/** 幼兒餐點：直線串起五個時間站，頭尾各多走一段（桌機橫向、手機直向） */
-export function daySegments(stations: Point[], color: string, narrow: boolean): RouteSegment[] {
+/**
+ * 幼兒餐點：五個時間站（圓盤）之間各一小段圓點，桌機、平板橫向，手機直向。
+ * 每一小段從這個盤子的邊緣走到下一個盤子的邊緣（兩邊各留 pad），圓點在段內置中：每個盤子左右（上下）露出來的圓點都一樣，
+ * 不會有圓點被盤子切掉一半。2026-11-13 前是一條穿過所有圓心的線，盤子蓋住哪幾顆要看運氣。
+ * radius＝盤子的半徑；直向時盤子底下還有 side px 的積木側面，要再讓開。
+ * 橫向的頭尾各多走一小段 stub（不夠放一顆圓點就不畫）；直向不畫頭尾（手機上孤零零一顆像髒點）。
+ */
+export function daySegments(stations: Point[], color: string, narrow: boolean, { radius = 56, pad = 10, side = 7, stub = 44 } = {}): RouteSegment[] {
   if (!stations.length) return []
-  const [a, z] = [stations[0]!, stations.at(-1)!]
-  const ends: [Point, Point] = narrow ? [[a[0], a[1] - 44], [z[0], z[1] + 44]] : [[a[0] - 110, a[1]], [z[0] + 110, z[1]]]
-  return [{ d: polyline([ends[0], ...stations, ends[1]]), color }]
+  const segs: RouteSegment[] = []
+  const add = (a: Point, b: Point) => segs.push({ d: polyline([a, b]), color, centered: true })
+  if (!narrow && stub >= 12) add([stations[0]![0] - radius - pad - stub, stations[0]![1]], [stations[0]![0] - radius - pad, stations[0]![1]])
+  stations.slice(1).forEach((b, i) => {
+    const a = stations[i]!
+    if (narrow) { if (b[1] - radius - pad > a[1] + radius + side + pad) add([a[0], a[1] + radius + side + pad], [b[0], b[1] - radius - pad]) }
+    else if (b[0] - radius - pad > a[0] + radius + pad) add([a[0] + radius + pad, a[1]], [b[0] - radius - pad, b[1]])
+  })
+  const last = stations.at(-1)!
+  if (!narrow && stub >= 12) add([last[0] + radius + pad, last[1]], [last[0] + radius + pad + stub, last[1]])
+  return segs
 }
 
 /** 每段等距撒點；段與段在照片上接起來，每段的最後一點讓給下一段，不重疊 */
@@ -78,8 +87,9 @@ const center = (el: HTMLElement, host: HTMLElement): Point => {
 }
 
 export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { reducedMotion: boolean }): EnvironmentRoutes {
-  // 不寫成 (width <= 900px)：Safari 16.4 以前不認得範圍寫法，會當成永遠不成立（2026-11-13，tests/legacy-safari-20261113.spec.ts）。
-  const narrowQuery = matchMedia('(max-width: 900px)')
+  // 640 以下是手機單欄（同 environment.css）：校園環境走左邊的直線、餐點時間軸直向；641 以上（含平板）用彎的小路與橫向時間軸。
+  // 不寫成 (width <= 640px)：Safari 16.4 以前不認得範圍寫法，會當成永遠不成立（2026-11-13，tests/legacy-safari-20261113.spec.ts）。
+  const narrowQuery = matchMedia('(max-width: 640px)')
   /** sig：上次撒點用的版面（窄版與否、每段的 d 與顏色）；一樣的話撒出來的圓點逐點相同 */
   interface Route { svg: SVGSVGElement; host: HTMLElement; kind: string; dots: { el: SVGCircleElement; y: number }[]; shown: number; sig: string }
   let routes: Route[] = []
@@ -109,8 +119,12 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
         return { x: box.x + box.w / 2, top: box.y, bottom: box.y + box.h }
       }), colors)
     }
-    const stations = [...r.host.querySelectorAll<HTMLElement>('.renv-stn')].map((el) => center(el, r.host))
-    return daySegments(stations, style.getPropertyValue('--renv-terra').trim(), narrow)
+    const plates = [...r.host.querySelectorAll<HTMLElement>('.renv-stn')]
+    const stations = plates.map((el) => center(el, r.host))
+    const radius = (plates[0]?.offsetWidth ?? 0) / 2
+    // 頭尾多走的那一小段不超出時間軸本身（第一個盤子左緣到時間軸左緣的距離），最長 44px
+    const pad = narrow ? 7 : 10
+    return daySegments(stations, style.getPropertyValue('--renv-terra').trim(), narrow, { radius, pad, stub: Math.min(44, (stations[0]?.[0] ?? 0) - radius - pad) })
   }
 
   /**
@@ -137,9 +151,11 @@ export function createEnvironmentRoutes(root: HTMLElement, { reducedMotion }: { 
       for (const seg of segs) {
         guide.setAttribute('d', seg.d)
         const len = guide.getTotalLength()
-        const n = dotCount(len, gap)
+        // 盤子之間的小段比間距短時也至少放得下的顆數：長度 ÷ 間距四捨五入，至少一顆
+        const n = dotCount(len, seg.centered ? gap * 0.72 : gap)
+        const shift = seg.centered ? 0.5 : 0
         for (let i = 0; i < n; i++) {
-          const p = guide.getPointAtLength((i * len) / n)
+          const p = guide.getPointAtLength(((i + shift) * len) / n)
           points.push({ x: p.x, y: p.y, color: seg.color })
         }
       }
