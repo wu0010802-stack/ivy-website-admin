@@ -56,12 +56,17 @@ test('新增班級 → 貼上名單 → 看板轉預繳 → 拖進班級 → 已
 
   await test.step('在班級最後一格逐位輸入三個姓名：合計 3、缺額 −13', async () => {
     await nameCell(page, id, 0).click()
-    for (const name of KIDS) {
-      const input = page.getByLabel('新增幼生姓名')
+    for (const [index, name] of KIDS.entries()) {
+      // 送出後要等重新讀取：姓名出現在格子裡、輸入框搬到下一格，才打下一位（CI 較慢時不然會打進舊的輸入框）。
+      const input = nameCell(page, id, index).getByLabel('新增幼生姓名')
+      await expect(input).toBeVisible()
       await input.fill(name)
       await input.press('Enter')
+      await expect(nameCell(page, id, index)).toContainText(name)
     }
-    await page.getByLabel('新增幼生姓名').press('Escape')
+    const last = nameCell(page, id, KIDS.length).getByLabel('新增幼生姓名')
+    await expect(last).toBeVisible()
+    await last.press('Escape')
     for (const [index, name] of KIDS.entries()) await expect(nameCell(page, id, index)).toContainText(name)
     await expect(footRow(page, '合計')).toContainText('3')
     await expect(footRow(page, '缺額')).toContainText('−13')
