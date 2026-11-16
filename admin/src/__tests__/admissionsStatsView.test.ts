@@ -11,7 +11,7 @@ import { authGuard, routes } from '../router'
 import { canListNavItem, canOpenPath, canSeeNavItem, NAV_GROUPS, navItem, navItemMatchScore, normalizeSearch } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
-import { campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, potentialData, queryOf, reception, superAdmin } from './admissionsTestKit'
+import { areaCompare, campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, potentialData, queryOf, reception, superAdmin } from './admissionsTestKit'
 
 vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -307,6 +307,15 @@ describe('子分頁寫進網址（X2a 3A）', () => {
     const paths = pathsTo(get, '/admin/admissions/journey')
     expect(paths).toHaveLength(2)
     expect(Object.fromEntries(queryOf(paths[1]!))).toMatchObject({ source: 'all', from: '2026-07-04', to: '2026-10-01' })
+  })
+
+  it('五校周邊環境點校區名：切到那一校的區域分析（campus、sub=area 寫進網址）', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 115, semester: 1, seat_semester: 1, rows: [] }, '/admin/admissions/area/compare': areaCompare() })
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sub=compare') })
+    wrapper.findComponent(StatsTab).vm.$emit('open-area', 'minghua')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toMatchObject({ campus: 'minghua', sub: 'area' })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('area')
   })
 
   // 區域分析工作台（2026-10-16）：map／village／table 只在 sub=area 有意義，寫法見 admissions/areaView.ts。
