@@ -20,8 +20,9 @@ test('收合成 64px 圖示欄、內容接著變寬，重新整理後仍收著',
   await expect.poll(() => sideWidth(page)).toBe(64)
   await expect.poll(async () => Math.round((await page.locator('header.top').boundingBox())?.x ?? 0)).toBe(64)
   await expectNoHorizontalOverflow(page)
-  // 平常收起來的「全站與素材」也列出來，點了照常換頁、側欄維持收著。
+  // 平常收起來的「全站共用」也列出來，點了照常換頁、側欄維持收著。
   const nav = page.getByRole('navigation', { name: '主選單' })
+  await expect(nav.getByRole('link', { name: '頁尾文字' })).toBeVisible()
   await expect(nav.getByRole('link', { name: '素材庫' })).toBeVisible()
   await page.screenshot({ path: test.info().outputPath('collapsed.png') })
 

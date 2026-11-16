@@ -205,15 +205,15 @@ describe('餐點時間檢查', () => {
 })
 
 describe('側欄、標籤與網址', () => {
-  it('側欄在「全站與素材」，關於常春藤頁之後，只有總管理者', () => {
-    const items = NAV_GROUPS.find((g) => g.key === 'site')!.items
+  it('側欄在「各分頁」，特色教學頁之後，只有總管理者', () => {
+    const items = NAV_GROUPS.find((g) => g.key === 'pages')!.items
     const item = items.find((i) => i.name === 'environment-page')!
     expect(item.path).toBe('/content/environment-page')
     expect(item.title).toBe('常春藤環境頁')
     expect(item.roles).toEqual(['super_admin'])
     expect(item.shared).toBe(true)
     for (const word of ['環境', '餐點', '保育', '校園']) expect(item.keywords, word).toContain(word)
-    expect(items.findIndex((i) => i.name === 'environment-page')).toBe(items.findIndex((i) => i.name === 'about-page') + 1)
+    expect(items.findIndex((i) => i.name === 'environment-page')).toBe(items.findIndex((i) => i.name === 'curriculum-page') + 1)
   })
 
   it('內容種類標籤與官網網址', () => {

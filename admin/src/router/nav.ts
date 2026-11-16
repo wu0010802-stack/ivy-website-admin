@@ -46,6 +46,8 @@ export interface NavGroup {
   label: string
   /** 相鄰且同名的分組在側欄裡共用一個區段標題，頁首麵包屑也顯示這個 */
   section?: string
+  /** 不畫可收合的標題，項目直接列出（區段裡的工具類項目）。搜尋時照常顯示分組名。 */
+  flat?: boolean
   items: NavItem[]
 }
 
@@ -76,8 +78,10 @@ export const NAV_GROUPS: NavGroup[] = [
   // （後端 registry 的 hq_managed），同樣標 shared。分校自有內容（五校介紹／
   // 各校消息）不限制。
   // 官網內容原本是一個 11 項的大組，「首頁五校區塊／五校介紹／校園探索」
-  // 三個名字都帶校區，攤在一起很難認。拆成三個各 3～4 項的子組，共用
-  // 「官網內容」區段標題。
+  // 三個名字都帶校區，攤在一起很難認，先拆成首頁／各校／全站與素材三個子組。
+  // 2026-11-16 再分一次：「全站與素材」長到 11 項，各分頁的編輯頁、每一頁共用的設定、
+  // 素材庫與發布紀錄混在一起。現在照官網的結構排——首頁、各分頁（順序同官網主選單）、
+  // 各校、全站共用——素材庫與發布紀錄是工具不是內容，直接列在區段最下面、不必展開。
   {
     key: 'home',
     label: '首頁',
@@ -88,6 +92,20 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Film', roles: ['super_admin'], shared: true, keywords: ['五校', '校區卡片'] },
       { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'], shared: true, keywords: ['作息', '拍立得'] },
       { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'], shared: true, keywords: ['消息', '活動', '公告'] },
+    ],
+  },
+  {
+    key: 'pages',
+    label: '各分頁',
+    section: '官網內容',
+    items: [
+      { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', roles: ['super_admin'], shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
+      { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', roles: ['super_admin'], shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
+      { name: 'environment-page', path: '/content/environment-page', title: '常春藤環境頁', icon: 'School', roles: ['super_admin'], shared: true, keywords: ['環境', '餐點', '保育', '校園', '空間', '遊樂區', '五顆心'] },
+      // 常春藤環境頁「五所校園」：五校各一份，由總部統一管理，所以跟著環境頁放在這裡、不在「各校」。
+      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: ['super_admin'], shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
+      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
+      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
     ],
   },
   {
@@ -102,21 +120,25 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'facebook-posts', path: '/content/facebook-posts', title: 'Facebook 貼文', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['臉書', 'FB', '粉專', '貼文', '消息'] },
     ],
   },
+  // 每一頁都看得到的東西：頁首的網站名稱與電話、頁尾，以及頁尾連過去的隱私權政策。
   {
     key: 'site',
-    label: '全站與素材',
+    label: '全站共用',
     section: '官網內容',
     items: [
-      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
-      { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', roles: ['super_admin'], shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
-      { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', roles: ['super_admin'], shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
-      { name: 'environment-page', path: '/content/environment-page', title: '常春藤環境頁', icon: 'School', roles: ['super_admin'], shared: true, keywords: ['環境', '餐點', '保育', '校園', '空間', '遊樂區', '五顆心'] },
-      // 常春藤環境頁「五所校園」：五校各一份，由總部統一管理。
-      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: ['super_admin'], shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
-      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
-      { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', roles: ['super_admin'], shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
-      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },
       { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享', '30 週年', '週年', '布幕', '隱藏最新消息', '關閉最新消息', '消息開關', '隱藏入學資訊', '隱藏分頁'] },
+      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },
+      { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', roles: ['super_admin'], shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
+    ],
+  },
+  // 素材庫與發布紀錄：編哪一頁都會用到，看得到內容的角色都能進。不畫可收合的標題，
+  // 兩項直接列在「官網內容」最下面；分組名只在側欄搜尋的結果裡出現。
+  {
+    key: 'library',
+    label: '素材與發布',
+    section: '官網內容',
+    flat: true,
+    items: [
       { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
