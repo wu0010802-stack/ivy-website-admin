@@ -283,6 +283,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 後台側欄「官網內容」重新分組上線（main CI 部署，沒有 migration）
+
+- **內容**：`79d48894`（PR #99，`feature/admin-nav-groups-20261116`）。後台側欄「官網內容」從首頁／各校／全站與素材三個子組，改成首頁、各分頁（關於常春藤頁、特色教學頁、常春藤環境頁、校園探索、入學資訊頁、預約文案）、各校、全站共用（網站標題與電話、頁尾文字、隱私權政策）四個子組；素材庫與發布紀錄不收在分組裡，直接列在區段最下面。只動 `admin/`（`router/nav.ts`、`AdminSidebar.vue`、一句提醒文案與測試）和兩支 stack spec；項目名稱、網址、權限都沒變，沒有改 API、變數與資料庫。細節見 `README.md` 同日段落與 DESIGN.md「官網內容的分組」。
+- **推前**：admin typecheck；admin vitest 184 檔 3557 項（本機負載高，逾時放寬到 60 秒跑）；vite dev＋假 `/auth/me` 的 Playwright 截圖對照（總管理者收合／全展開、內容編輯、搜尋、圖示欄）。本機沒跑 stack e2e（另一個 session 正在跑）。PR 的 CI 全綠（含 E2E 的 `roles`、`sidebar-collapse`）；推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun` 跑綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43792134933 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**（唯讀，沒有登入）：`/release.json` base_commit `79d48894`；`https://admin.ivykidschool.com/admin/` 入口 JS（`index-DpL4qAuY.js`）裡有「各分頁」「全站共用」「素材與發布」，已經沒有「全站與素材」。
+- **沒驗**：登入正式後台實際看側欄；`tests/stack/visual.spec.ts` 的四張 macOS 基準圖還沒重拍（側欄多三列，CI 在 Linux 不比對像素）。重拍：`npm run e2e:build` 後 `npm run test:e2e:stack -- visual --update-snapshots=changed`。
+
 ## 2026-11-16 /about 年數改「邁向 30 週年」＋結尾五張線稿去掉接縫上線（main CI 部署，沒有 migration）
 
 - **內容**：`5f010d67`（PR #98，`feature/about-years-20261116`）。/about「一路走來」結尾年份底下與第一章標題第二行，從「第 30 年」改成「邁向 30 週年」（之後一律「滿 N 年」，差一年滿整十年寫「邁向 N 週年」）；結尾五張線稿左右各淡出 8%，去掉圖與圖之間的直線。只動 `web/` 的 `utils/about-content.ts`、`assets/css/about.css` 與兩支測試；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
