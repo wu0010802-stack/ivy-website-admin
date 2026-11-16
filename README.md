@@ -7,6 +7,19 @@
 - **異動通知**：公開資料同步尾端（鎖內）檢查五校 3 公里內的園所新設／停辦／類型變動與新公布的裁罰，寫進站內通知（只給總管理者）。兩張記帳表 `geo_change_notices`／`geo_change_notice_baselines`（migration `a9c4e7b2d815`，只新增表）；首輪只記帳不發，之後異動超過 90 天、裁罰超過 365 天只記帳；`ON CONFLICT DO NOTHING` 保證同步重疊也只發一則。非總管理者的列表、計數、全部已讀、單筆已讀都排除這兩種。
 - **驗證**：見 `deploy/README.md`「公開地理資料同步」補述。實作紀錄在規格 §12。
 
+## 2026-11-16 官網 cookie 六項功能（`feature/cookie-features-20261116`，已部署 main `a6aa9a00`）
+
+使用者看完「有什麼可以用 cookie 但還沒用」的盤點後說「都幫我做」（規格 `docs/specs/2026-11-16-cookie-features-design.md`，隱私權政策改寫擬稿在附錄 A）。沿用 10-03 裁定：不做同意橫幅、追蹤類尊重 DNT／GPC。
+
+1. **跨次造訪的網站來源**：官網伺服器在進站時寫 HttpOnly cookie `ivy_src`（第一次進站、最後一次不是直接進站的來源與 utm_campaign，90 天），送出預約時寫進預約。後台案件明細多「網站來源」、招生統計「參觀預約」多一張「網站來源」表（來源 → 預約、到場、預繳，可切第一次／最後一次）、案件匯出多四欄。來源判斷搬到 `web/shared/engagement-source.ts` 前後端共用。
+2. **到場、預繳回傳廣告平台**（預設全關）：GA4 Measurement Protocol、Meta Conversions API、OpenAI Conversions API；標記已到場、招生訪視轉已預繳時排入 `ad_conversion_jobs`，API 定期工作送出。只送平台的點擊／瀏覽器代碼與校區，不送個資或個資雜湊。
+3. **這台裝置記住預約**：送單成立時發 `__Host-ivy_visit_remember`（值是修改連結 token），預約頁上方顯示「您已預約…」與「修改或取消預約」「不是我的預約」。沒留 Email 的家長關掉結果頁後也找得回來。
+4. **記住看過的校區**（`ivy_campus`，180 天）：頁首選單參觀專線與首頁五校卡第一個畫面就停在上次選的那一校；預約流程不變。
+5. **開場動畫回訪不重播**（`ivy_seen_entrance`、`ivy_seen_anni_intro`，30 天）：伺服器看到 cookie 就不輸出開場的 inline script。
+6. **LINE Tag**（`NUXT_PUBLIC_LINE_TAG_ID`，預設關）：頁面瀏覽與預約成功 Conversion，網址自己清洗、不開進階比對與跨網域同步；`apm.yahoo.co.jp` 刻意不放行。
+
+migration `a7c3e9f1b250` 只新增欄位與一張表。上線前要做的事見 `deploy/README.md`「網站來源、這台裝置記住預約、到場與預繳回傳廣告平台」與「LINE Tag」。
+
 ## 2026-11-16 後台側欄「官網內容」重新分組（`feature/admin-nav-groups-20261116`，已部署 main `79d48894`）
 
 使用者附側欄截圖要優化「官網內容」的分類。原本三個子組裡「全站與素材」長到 11 項：四個分頁的編輯頁、校園探索、預約文案、隱私權政策、頁尾、網站標題與電話、素材庫、發布紀錄全收在一起，組名也看不出裡面有各分頁。
