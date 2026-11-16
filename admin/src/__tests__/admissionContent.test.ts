@@ -4,8 +4,8 @@ import { CONTENT_KIND_LABELS, contentFieldLabel, contentPublicPath } from '../ap
 import { diffPayload } from '../composables/useContentItem'
 
 describe('入學資訊（admission_content）', () => {
-  it('側欄在「全站與素材」、只給 super_admin，發布後開 /admission', () => {
-    const group = NAV_GROUPS.find(g => g.key === 'site')!
+  it('側欄在「各分頁」、只給 super_admin，發布後開 /admission', () => {
+    const group = NAV_GROUPS.find(g => g.key === 'pages')!
     const item = group.items.find(i => i.name === 'admission-content')!
     expect(group.section).toBe('官網內容')
     expect(item.path).toBe('/content/admission')

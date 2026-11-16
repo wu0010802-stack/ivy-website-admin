@@ -12,7 +12,7 @@ import {
 } from '../composables/privacyPolicyDraft'
 
 describe('隱私權政策（privacy_policy）', () => {
-  it('側欄在「全站與素材」、只給 super_admin，標籤與網址對得上', () => {
+  it('側欄在「全站共用」、只給 super_admin，標籤與網址對得上', () => {
     const group = NAV_GROUPS.find((g) => g.key === 'site')!
     const item = group.items.find((i) => i.name === 'privacy-policy')!
     expect(item.path).toBe('/content/privacy-policy')

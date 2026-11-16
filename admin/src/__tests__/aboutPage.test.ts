@@ -65,7 +65,7 @@ const superAdmin = () => testUser('super_admin', { id: 'me', email: 'me@example.
 
 describe('關於常春藤頁（about_page）', () => {
   it('側欄、標籤與網址', () => {
-    const item = NAV_GROUPS.find((g) => g.key === 'site')!.items.find((i) => i.name === 'about-page')!
+    const item = NAV_GROUPS.find((g) => g.key === 'pages')!.items.find((i) => i.name === 'about-page')!
     expect(item.path).toBe('/content/about-page')
     expect(item.roles).toEqual(['super_admin'])
     expect(item.shared).toBe(true)

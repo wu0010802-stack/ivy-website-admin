@@ -51,7 +51,7 @@ describe('側欄圖示（2026-10-05）', () => {
 
 describe('側欄分組層級', () => {
   it('收起目前頁面所在的分組，標題改用選取色；展開時不標', async () => {
-    const { wrapper } = await mountSidebar('/media')
+    const { wrapper } = await mountSidebar('/content/site-footer')
     const toggle = wrapper.get('[aria-controls="nav-site"]')
     expect(toggle.attributes('aria-expanded')).toBe('true')
     expect(toggle.classes()).not.toContain('has-current')
@@ -64,9 +64,58 @@ describe('側欄分組層級', () => {
   it('搜尋時分組不能收合，箭頭藏起來但保留位置（子組文字仍對齊子項目）', async () => {
     const { wrapper } = await mountSidebar()
     await wrapper.get('input').setValue('預約文案')
-    const toggle = wrapper.get('[aria-controls="nav-site"]')
+    const toggle = wrapper.get('[aria-controls="nav-pages"]')
     expect(toggle.attributes('disabled')).toBeDefined()
     expect(toggle.get('.sidebar__chevron').classes()).toContain('is-hidden')
+  })
+})
+
+describe('官網內容的分組（2026-11-16）', () => {
+  const content = NAV_GROUPS.filter(group => group.section === '官網內容')
+  const titles = (key: string) => content.find(group => group.key === key)!.items.map(item => item.title)
+
+  it('照官網的結構分：首頁、各分頁、各校、全站共用，最後是素材庫與發布紀錄', () => {
+    expect(content.map(group => group.label)).toEqual(['首頁', '各分頁', '各校', '全站共用', '素材與發布'])
+    // 各分頁的順序同官網主選單（關於、特色教學、環境、入學資訊），校園探索跟著環境頁，預約頁在最後
+    expect(titles('pages')).toEqual(['關於常春藤頁', '特色教學頁', '常春藤環境頁', '校園探索', '入學資訊頁', '預約文案'])
+    expect(titles('site')).toEqual(['網站標題與電話', '頁尾文字', '隱私權政策'])
+    expect(titles('library')).toEqual(['素材庫', '發布紀錄'])
+    // 沒有哪一組再長成十幾項的大抽屜
+    for (const group of content) expect(group.items.length, group.label).toBeLessThanOrEqual(6)
+  })
+
+  it('素材庫與發布紀錄不收在分組裡：沒有標題、不用展開就看得到', async () => {
+    const { wrapper } = await mountSidebar()
+    expect(wrapper.find('[aria-controls="nav-library"]').exists()).toBe(false)
+    expect(wrapper.get('#nav-library').isVisible()).toBe(true)
+    expect(wrapper.get('#nav-library').findAll('a').map(link => link.text())).toEqual(['素材庫', '發布紀錄'])
+    expect(wrapper.get('#nav-library').element.closest('.sidebar__group')!.classList.contains('is-flat')).toBe(true)
+    // 其他四組照常收著
+    for (const key of ['home', 'pages', 'campus', 'site']) expect(wrapper.get(`#nav-${key}`).isVisible(), key).toBe(false)
+  })
+
+  it('搜尋時素材庫那組照常顯示分組名，跟其他結果同一個樣子', async () => {
+    const { wrapper } = await mountSidebar()
+    await wrapper.get('input').setValue('發布')
+    const toggle = wrapper.get('[aria-controls="nav-library"]')
+    expect(toggle.text()).toBe('素材與發布')
+    expect(toggle.attributes('disabled')).toBeDefined()
+    expect(toggle.element.closest('.sidebar__group')!.classList.contains('is-flat')).toBe(false)
+  })
+
+  it('內容編輯只看得到各校一組，加上素材庫與發布紀錄', async () => {
+    const pinia = createPinia()
+    const auth = useAuthStore(pinia)
+    auth.user = testUser('editor', { id: 'editor', email: 'editor@example.invalid', campus_keys: ['yihua'] })
+    auth.features = { password_reset_email: false, admissions: true }
+    const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:pathMatch(.*)*', component: defineComponent({ template: '<div />' }) }] })
+    await router.push('/content/campus-profile')
+    await router.isReady()
+    const wrapper = mount(AdminSidebar, { global: { plugins: [pinia, router, ElementPlus], provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) } }, attachTo: document.body })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.findAll('.sidebar__group.is-nested .sidebar__group-toggle').map(el => el.text())).toEqual(['各校'])
+    expect(wrapper.get('#nav-library').findAll('a').map(link => link.text())).toEqual(['素材庫', '發布紀錄'])
   })
 })
 
@@ -111,7 +160,7 @@ describe('側欄搜尋的鍵盤操作', () => {
     expect(home.getAttribute('aria-expanded')).toBe('false')
     home.focus()
     home.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }))
-    expect(document.activeElement?.getAttribute('aria-controls')).toBe('nav-campus')
+    expect(document.activeElement?.getAttribute('aria-controls')).toBe('nav-pages')
   })
 
   it('桌機按 ⌘K／Ctrl+K 跳到搜尋框，提示寫在框裡；打字後提示收起', async () => {
@@ -232,7 +281,8 @@ describe('2026-10-13 桌機側欄收合成圖示欄', () => {
       expect(wrapper.find('.sidebar__group-toggle').exists()).toBe(false)
       const links = wrapper.findAll('.sidebar__link')
       expect(links.map(link => link.attributes('href'))).toEqual(superAdminItems.map(item => item.path))
-      // 「全站與素材」預設收起，圖示欄照樣列出
+      // 「全站共用」預設收起，圖示欄照樣列出
+      expect(wrapper.get('a[href="/content/site-footer"]').isVisible()).toBe(true)
       expect(wrapper.get('a[href="/media"]').isVisible()).toBe(true)
       // 名稱還在連結裡（報讀器念得到），只是視覺上藏起來
       const media = wrapper.get('a[href="/media"]')

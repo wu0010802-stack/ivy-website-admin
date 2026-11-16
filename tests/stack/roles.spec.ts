@@ -39,7 +39,10 @@ test('內容編輯：沒有參觀預約，直接輸入網址會回到內容頁',
   await expect(page.getByRole('heading', { level: 1, name: '五校介紹' })).toBeVisible()
   const nav = page.getByRole('navigation', { name: '主選單' })
   await expect(nav.getByRole('button', { name: '參觀預約' })).toHaveCount(0)
-  await expect(nav.getByRole('button', { name: '全站與素材' })).toBeVisible()
+  // 素材庫與發布紀錄不收在分組裡，內容編輯一進來就看得到（2026-11-16）。
+  await expect(nav.getByRole('button', { name: '各校' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '素材庫' })).toBeVisible()
+  await expect(nav.getByRole('link', { name: '發布紀錄' })).toBeVisible()
   await context.close()
 })
 
