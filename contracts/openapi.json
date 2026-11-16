@@ -1,6 +1,347 @@
 {
   "components": {
     "schemas": {
+      "AdRoiCampusOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "platform",
+          "cases",
+          "completed",
+          "deposited"
+        ],
+        "title": "AdRoiCampusOut",
+        "type": "object"
+      },
+      "AdRoiGoogleCampaignOut": {
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "cost_per_click": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Click"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "leads": {
+            "title": "Leads",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "campaign_name",
+          "cost",
+          "clicks",
+          "impressions",
+          "leads",
+          "cost_per_click"
+        ],
+        "title": "AdRoiGoogleCampaignOut",
+        "type": "object"
+      },
+      "AdRoiGoogleOut": {
+        "properties": {
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiGoogleCampaignOut"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          }
+        },
+        "required": [
+          "configured",
+          "error",
+          "currency",
+          "fetched_at",
+          "campaigns"
+        ],
+        "title": "AdRoiGoogleOut",
+        "type": "object"
+      },
+      "AdRoiOut": {
+        "description": "廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "by_campus": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiCampusOut"
+            },
+            "title": "By Campus",
+            "type": "array"
+          },
+          "google": {
+            "$ref": "#/components/schemas/AdRoiGoogleOut"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/AdRoiPendingOut"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "touch": {
+            "enum": [
+              "last",
+              "first"
+            ],
+            "title": "Touch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "touch",
+          "months",
+          "google",
+          "rows",
+          "pending",
+          "by_campus"
+        ],
+        "title": "AdRoiOut",
+        "type": "object"
+      },
+      "AdRoiPendingOut": {
+        "properties": {
+          "awaiting_attendance": {
+            "title": "Awaiting Attendance",
+            "type": "integer"
+          },
+          "considering": {
+            "title": "Considering",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming",
+          "awaiting_attendance",
+          "considering"
+        ],
+        "title": "AdRoiPendingOut",
+        "type": "object"
+      },
+      "AdRoiRowOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "cost_per_case": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Case"
+          },
+          "cost_per_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Completed"
+          },
+          "cost_per_deposit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Deposit"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "key": {
+            "enum": [
+              "google",
+              "openai",
+              "meta",
+              "line",
+              "other",
+              "unknown",
+              "offline",
+              "organic",
+              "unrecorded"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "missing_months": {
+            "title": "Missing Months",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "spend": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spend"
+          },
+          "spend_state": {
+            "enum": [
+              "ok",
+              "unset",
+              "not_configured",
+              "error",
+              "none"
+            ],
+            "title": "Spend State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "spend",
+          "spend_state",
+          "missing_months",
+          "clicks",
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "cost_per_case",
+          "cost_per_completed",
+          "cost_per_deposit"
+        ],
+        "title": "AdRoiRowOut",
+        "type": "object"
+      },
       "AdSpendEntryOut": {
         "properties": {
           "amount": {
@@ -24975,6 +25316,104 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/ad-roi": {
+      "get": {
+        "description": "各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。\n只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。",
+        "operationId": "get_ad_roi_api_website_v1_admin_admissions_ad_roi_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "touch",
+            "required": false,
+            "schema": {
+              "default": "last",
+              "enum": [
+                "last",
+                "first"
+              ],
+              "title": "Touch",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdRoiOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ad Roi",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/ad-spend": {
       "get": {
         "description": "列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。",

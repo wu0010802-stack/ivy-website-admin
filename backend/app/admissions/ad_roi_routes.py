@@ -4,23 +4,32 @@
 
 from __future__ import annotations
 
+import calendar
+import logging
 import re
 import uuid
 from datetime import date
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.import_routes import NoEchoValidationRoute
+from app.admissions import ad_roi
 from app.admissions.models import MANUAL_SPEND_PLATFORMS, AdSpendEntry
-from app.admissions.schemas import AdSpendEntryOut, AdSpendIn, AdSpendListOut
+from app.admissions.schemas import AdRoiOut, AdSpendEntryOut, AdSpendIn, AdSpendListOut
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import require_scope
+from app.auth.permissions import covers_campus, require_scope
+from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import now_utc, today_local
+from app.insights.ga4_ads import Ga4Ads
+from app.insights.http import GoogleApiError
 from app.operations import audit_service
+
+logger = logging.getLogger("app.admissions.ad_roi")
 
 class AdSpendValidationRoute(NoEchoValidationRoute):
     error_code = "INVALID_AD_SPEND"
@@ -178,3 +187,51 @@ async def delete_ad_spend(
     )
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/admin/admissions/ad-roi", response_model=AdRoiOut)
+async def get_ad_roi(
+    request: Request,
+    from_: str = Query(alias="from"),
+    to: str = Query(),
+    touch: Literal["last", "first"] = "last",
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdRoiOut:
+    """各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。
+    只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。"""
+    require_scope(current_user, "admissions.stats")
+    today = today_local()
+    try:
+        months = ad_roi.parse_month_range(from_, to, today)
+    except ValueError as exc:
+        raise _rejected("INVALID_MONTH_RANGE", str(exc)) from None
+    now = now_utc()
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    buckets = await ad_roi.query_buckets(db, campus_keys, months, touch, now)
+    entries = (
+        await db.execute(
+            select(AdSpendEntry).where(
+                AdSpendEntry.month >= date(int(months[0][:4]), int(months[0][5:]), 1),
+                AdSpendEntry.month <= date(int(months[-1][:4]), int(months[-1][5:]), 1),
+            )
+        )
+    ).scalars().all()
+    spend = [ad_roi.SpendRow(entry.month.strftime("%Y-%m"), entry.platform, entry.amount) for entry in entries]
+    await db.rollback()
+
+    settings = request.app.state.settings
+    google = ad_roi.GoogleState(configured=False)
+    if settings.ga4_ads_enabled:
+        first = date(int(months[0][:4]), int(months[0][5:]), 1)
+        last_year, last_month = int(months[-1][:4]), int(months[-1][5:])
+        last = min(date(last_year, last_month, calendar.monthrange(last_year, last_month)[1]), today)
+        service: Ga4Ads = request.app.state.ga4_ads
+        try:
+            report = await service.report(settings, first, last, getattr(request.app.state, "google_transport", None))
+            google = ad_roi.GoogleState(configured=True, report=report)
+        except GoogleApiError as exc:
+            logger.warning("GA4 廣告花費查詢失敗：%s", exc)
+            google = ad_roi.GoogleState(configured=True, error=str(exc))
+    result = ad_roi.compute_ad_roi(months, buckets, spend, google)
+    return AdRoiOut.model_validate({"as_of": now, "touch": touch, **result})

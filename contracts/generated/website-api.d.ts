@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/ad-roi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ad Roi
+         * @description 各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。
+         *     只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。
+         */
+        get: operations["get_ad_roi_api_website_v1_admin_admissions_ad_roi_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/ad-spend": {
         parameters: {
             query?: never;
@@ -4069,6 +4090,115 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdRoiCampusOut */
+        AdRoiCampusOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            /** Deposited */
+            deposited: number;
+            /** Platform */
+            platform: string;
+        };
+        /** AdRoiGoogleCampaignOut */
+        AdRoiGoogleCampaignOut: {
+            /** Campaign Id */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Clicks */
+            clicks: number;
+            /** Cost */
+            cost: number;
+            /** Cost Per Click */
+            cost_per_click: number | null;
+            /** Impressions */
+            impressions: number;
+            /** Leads */
+            leads: number;
+        };
+        /** AdRoiGoogleOut */
+        AdRoiGoogleOut: {
+            /** Campaigns */
+            campaigns: components["schemas"]["AdRoiGoogleCampaignOut"][];
+            /** Configured */
+            configured: boolean;
+            /** Currency */
+            currency: string | null;
+            /** Error */
+            error: string | null;
+            /** Fetched At */
+            fetched_at: string | null;
+        };
+        /**
+         * AdRoiOut
+         * @description 廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。
+         */
+        AdRoiOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Campus */
+            by_campus: components["schemas"]["AdRoiCampusOut"][];
+            google: components["schemas"]["AdRoiGoogleOut"];
+            /** Months */
+            months: string[];
+            pending: components["schemas"]["AdRoiPendingOut"];
+            /** Rows */
+            rows: components["schemas"]["AdRoiRowOut"][];
+            /**
+             * Touch
+             * @enum {string}
+             */
+            touch: "last" | "first";
+        };
+        /** AdRoiPendingOut */
+        AdRoiPendingOut: {
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            /** Considering */
+            considering: number;
+            /** Upcoming */
+            upcoming: number;
+        };
+        /** AdRoiRowOut */
+        AdRoiRowOut: {
+            /** Cases */
+            cases: number;
+            /** Clicks */
+            clicks: number | null;
+            /** Completed */
+            completed: number;
+            /** Cost Per Case */
+            cost_per_case: number | null;
+            /** Cost Per Completed */
+            cost_per_completed: number | null;
+            /** Cost Per Deposit */
+            cost_per_deposit: number | null;
+            /** Deposited */
+            deposited: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "google" | "openai" | "meta" | "line" | "other" | "unknown" | "offline" | "organic" | "unrecorded";
+            /** Missing Months */
+            missing_months: number;
+            /** No Show */
+            no_show: number;
+            /** Spend */
+            spend: number | null;
+            /**
+             * Spend State
+             * @enum {string}
+             */
+            spend_state: "ok" | "unset" | "not_configured" | "error" | "none";
+        };
         /** AdSpendEntryOut */
         AdSpendEntryOut: {
             /** Amount */
@@ -12085,6 +12215,43 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ad_roi_api_website_v1_admin_admissions_ad_roi_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                touch?: "last" | "first";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdRoiOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_ad_spend_api_website_v1_admin_admissions_ad_spend_get: {
         parameters: {
             query?: {

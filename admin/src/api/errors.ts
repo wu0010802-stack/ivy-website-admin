@@ -52,6 +52,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   INVALID_PLATFORM: '這個平台不能手填花費',
   AD_SPEND_NOT_FOUND: '找不到這筆花費',
   INVALID_AD_SPEND: '花費資料格式不對',
+  INVALID_MONTH_RANGE: '月份區間不對（最多 24 個月，開始不能晚於結束）',
   // 後台資料匯入（2026-10-21）
   INVALID_IMPORT_PAYLOAD: '上傳的資料格式不對',
   ENROLLED_MATCH_FAILED: '在籍清冊比對失敗',

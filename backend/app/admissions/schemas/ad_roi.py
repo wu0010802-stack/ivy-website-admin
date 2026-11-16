@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -33,3 +34,62 @@ class AdSpendEntryOut(BaseModel):
 
 class AdSpendListOut(BaseModel):
     entries: list[AdSpendEntryOut]
+
+
+class AdRoiGoogleCampaignOut(BaseModel):
+    campaign_id: str
+    campaign_name: str
+    cost: int
+    clicks: int
+    impressions: int
+    leads: int
+    cost_per_click: int | None
+
+
+class AdRoiGoogleOut(BaseModel):
+    configured: bool
+    error: str | None
+    currency: str | None
+    fetched_at: datetime | None
+    campaigns: list[AdRoiGoogleCampaignOut]
+
+
+class AdRoiRowOut(BaseModel):
+    key: Literal["google", "openai", "meta", "line", "other", "unknown", "offline", "organic", "unrecorded"]
+    spend: int | None
+    spend_state: Literal["ok", "unset", "not_configured", "error", "none"]
+    missing_months: int
+    clicks: int | None
+    cases: int
+    completed: int
+    no_show: int
+    deposited: int
+    cost_per_case: int | None
+    cost_per_completed: int | None
+    cost_per_deposit: int | None
+
+
+class AdRoiPendingOut(BaseModel):
+    upcoming: int
+    awaiting_attendance: int
+    considering: int
+
+
+class AdRoiCampusOut(BaseModel):
+    campus_key: str
+    platform: str
+    cases: int
+    completed: int
+    deposited: int
+
+
+class AdRoiOut(BaseModel):
+    """廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。"""
+
+    as_of: datetime
+    touch: Literal["last", "first"]
+    months: list[str]
+    google: AdRoiGoogleOut
+    rows: list[AdRoiRowOut]
+    pending: AdRoiPendingOut
+    by_campus: list[AdRoiCampusOut]
