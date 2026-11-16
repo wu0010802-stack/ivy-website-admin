@@ -4,7 +4,7 @@
 只新增 geo_change_notices、geo_change_notice_baselines 兩張表，不改既有資料，不需要部署前備份；上一版程式不讀新表。
 
 Revision ID: a9c4e7b2d815
-Revises: d4b7e1a95c26
+Revises: a7c3e9f1b250
 Create Date: 2026-11-16
 """
 from __future__ import annotations
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "a9c4e7b2d815"
-down_revision = "d4b7e1a95c26"
+down_revision = "a7c3e9f1b250"
 branch_labels = None
 depends_on = None
 
