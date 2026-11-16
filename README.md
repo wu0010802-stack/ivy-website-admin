@@ -1,4 +1,4 @@
-## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤（`feature/roster-beta-20261116`，未合併、未部署）
+## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤（`feature/roster-beta-20261116`，已部署 main `bcd507ea`）
 
 使用者要求這個功能先標成 Beta。分頁名後面加一顆操作色的小標籤（`admin/src/views/AdmissionsView.vue`，用 `el-tag`，不另寫色碼）；只是標示，功能、權限、網址都沒動。320px 寬的手機加了標籤會放不下、Element Plus 會改成箭頭捲動並切掉目前分頁，所以 359px 以下把分頁之間的留白從 20px 收到 12px。分頁文字變成「編班與缺額Beta」，三個單元測試與兩個 stack spec 的斷言跟著改；之後拿掉標籤時要一起改回。
 

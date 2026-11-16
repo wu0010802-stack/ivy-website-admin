@@ -353,6 +353,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #103 合併進 main（`bcd507ea`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43817039105）。PR 上同一個 commit 的 push 那組因為連推兩次被取消、擋住合併，重跑後綠。
+- **內容**：只改後台前端（`admin/src/views/AdmissionsView.vue`）：分頁名後面加一顆 Beta 標籤，359px 以下分頁留白收到 12px。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**：`/release.json` base_commit `bcd507ea`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 的 `AdmissionsView` chunk 有 `admissions__beta` 與「Beta」，對應的 CSS 也在。
+- **沒驗證**：登入正式後台看畫面（未登入只能看到程式包）。
+
 ## 2026-11-16 後台與 LINE 串聯七項上線（main CI 部署，migration `b3e8d1c4f9a7` 只新增三張表＋放寬一個檢查）
 
 - **提交**：PR #102 合併進 main（`45d9eb94`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43812365946）。PR 第一輪後端 2/3 紅在 `test_google_oauth.py::test_google_login_is_not_blocked_by_the_password_lock`（帳密鎖定在 CI 偶發沒鎖上，本機單獨跑 54 過，和這次無關），重跑後綠。規格 `docs/specs/2026-11-16-line-integrations-design.md`。
