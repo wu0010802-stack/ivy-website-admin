@@ -343,7 +343,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **CI**：PR 兩輪 pull_request 全綠（中間 main 併了 #99，README 頂部衝突，README 段落改成部署後補）；push 那組被取消擋住合併，`gh run rerun 43792800268` 後 CLEAN。main run 43795556282 全綠，含 E2E 與 Deploy Railway production。
 - **部署後正式站驗證**（唯讀，沒有送預約）：`/release.json` base_commit `a6aa9a00`、`/api/website/v1/health` ok；帶 `?utm_source=chatgpt&utm_medium=cpc&utm_campaign=…&oppref=…` 進首頁回 `Set-Cookie: ivy_src=…; Max-Age=7776000; Path=/; HttpOnly; Secure; SameSite=Lax`，解出來是 ads／活動代碼／oppref；帶 `DNT: 1` 不寫、帶 `Sec-GPC: 1` 把已有的清掉；`/public/visit-remembered` 沒 cookie 回 204、假 cookie 回 204 並清掉 `__Host-ivy_visit_remember`；帶 `ivy_campus=minghua` 的首頁 SSR 就選在明華；公開頁 CSP 與前一版相同（沒有 LINE 網域）。
 - **沒驗**：真的預約一筆後的提示列與來源寫入（會發真的通知，留給使用者或測試預約時一起看）；正式站 30 週年開關是關的（首頁沒有布幕、`/anniversary` 404），開場不重播要等開關打開才有作用；第 2、6 項沒設變數，維持關閉。
-- **待使用者**：隱私權政策第 4、5、7 段改寫並發布（擬稿在規格附錄 A；網站來源、記住預約、記住校區、開場 cookie 已經生效）；要開第 2、6 項時自己拿金鑰／Tag ID 設 Railway 變數。
+- **隱私權政策**：同日使用者登入正式後台後，由我改第 4 段（拿掉「不使用 cookie 識別您」、補 `ivy_src` 與預約一起保存來源）、第 5 段（必要 cookie 補 `ivy_visit_remember`；分頁暫存那段改成列 `ivy_src`、`ivy_campus`、開場 cookie 與分頁暫存）與最後更新日期 2026-11-16，發布後 `/privacy` 已是新版。第 7 段（廣告點擊代碼的保存）與第三方工具清單等開第 2、6 項時再補。
+- **待使用者**：要開第 2、6 項時自己拿金鑰／Tag ID 設 Railway 變數，開之前隱私權政策要再補附錄 A 對應的句子。
 
 ## 2026-11-16 後台側欄「官網內容」重新分組上線（main CI 部署，沒有 migration）
 
