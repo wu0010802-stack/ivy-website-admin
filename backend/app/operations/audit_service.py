@@ -114,6 +114,8 @@ STATS_ONLY_ACTIONS = (
     "enrolled_roster.clear",
     "enrollment_history.import",
     "recruitment_visit.export_no_deposit",
+    "ad_spend.upsert",
+    "ad_spend.delete",
 )
 
 # 只有 notifications.manage（總管理者）看得到的設定：metadata 帶 LINE 群組 ID，設定頁本身限總管理者，

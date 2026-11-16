@@ -1,6 +1,91 @@
 {
   "components": {
     "schemas": {
+      "AdSpendEntryOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "platform",
+          "amount",
+          "note",
+          "updated_at"
+        ],
+        "title": "AdSpendEntryOut",
+        "type": "object"
+      },
+      "AdSpendIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "maximum": 10000000.0,
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "AdSpendIn",
+        "type": "object"
+      },
+      "AdSpendListOut": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AdSpendEntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "AdSpendListOut",
+        "type": "object"
+      },
       "AdminDetailsUpdate": {
         "additionalProperties": false,
         "description": "後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄\n（2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。\n\n驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空\n（送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。\nexpected_version 是案件的 details_version，和家長端共用。",
@@ -24890,6 +24975,272 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/ad-spend": {
+      "get": {
+        "description": "列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。",
+        "operationId": "list_ad_spend_api_website_v1_admin_admissions_ad_spend_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdSpendListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/ad-spend/{month}/{platform}": {
+      "delete": {
+        "operationId": "delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "put": {
+        "description": "新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），\n稽核帶更新前的金額。",
+        "operationId": "put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdSpendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdSpendEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/area": {
       "get": {
         "description": "區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。\n母體同 /stats。只讀，不寫稽核；不含家長個資。",

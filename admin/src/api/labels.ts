@@ -569,6 +569,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // 後台資料匯入（2026-10-21）
   'enrolled_roster.import': '匯入在籍清冊',
   'enrolled_roster.clear': '清除在籍資料',
+  'ad_spend.upsert': '填寫廣告花費',
+  'ad_spend.delete': '刪除廣告花費',
   'enrollment_history.import': '匯入歷年註冊',
 }
 
@@ -743,6 +745,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   roster_tier: '全校三段目標',
   roster_snapshot: '結算紀錄',
   enrolled_roster: '在籍清冊',
+  ad_spend: '廣告花費',
   enrollment_history: '歷年註冊',
   error_group: '錯誤回報',
 }

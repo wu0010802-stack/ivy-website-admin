@@ -189,6 +189,10 @@ const ROSTER_FIELD_LABELS: Record<string, string> = {
   assistant_teacher: '副班導', english_teacher: '美師', target_seats: '目標人數',
 }
 
+const AD_SPEND_PLATFORM_LABELS: Record<string, string> = {
+  openai: 'ChatGPT', meta: 'Meta', line: 'LINE', other: '其他網路廣告', offline: '離線花費',
+}
+
 const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 帳號
   role: (v) => `角色：${auditValueLabel('role', v)}`,
@@ -364,7 +368,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
   grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
   // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。來源、介紹者、搜尋字只記有沒有篩，負責人只記類別。
-  month: (v) => `篩選月份：${String(v)}`,
+  month: (v, action) => (action.startsWith('ad_spend.') ? `月份：${String(v)}` : `篩選月份：${String(v)}`),
+  // 廣告花費（2026-11-16 規格 §6.2）：手填的月花費，平台翻成後台用的名稱。
+  platform: (v) => `平台：${AD_SPEND_PLATFORM_LABELS[String(v)] ?? String(v)}`,
+  amount: (v) => `金額：NT$${Number(v).toLocaleString('en-US')}`,
+  before_amount: (v) => (v === null || v === undefined ? null : `原本：NT$${Number(v).toLocaleString('en-US')}`),
   // 未預繳名單的原因、班別篩選收任意字串；不在選項內的後端只記 other，不把輸入原文寫進紀錄。
   grade: (v, action) => (action.startsWith('roster_') ? `年級：${String(v)}` : `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`),
   // 編班與缺額（2026-11-15）：不記姓名、生日與身分標記。

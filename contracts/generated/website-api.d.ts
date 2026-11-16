@@ -4,6 +4,48 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/ad-spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ad Spend
+         * @description 列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。
+         */
+        get: operations["list_ad_spend_api_website_v1_admin_admissions_ad_spend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/ad-spend/{month}/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Ad Spend
+         * @description 新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），
+         *     稽核帶更新前的金額。
+         */
+        put: operations["put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put"];
+        post?: never;
+        /** Delete Ad Spend */
+        delete: operations["delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area": {
         parameters: {
             query?: never;
@@ -4027,6 +4069,34 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdSpendEntryOut */
+        AdSpendEntryOut: {
+            /** Amount */
+            amount: number;
+            /** Month */
+            month: string;
+            /** Note */
+            note: string | null;
+            /** Platform */
+            platform: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AdSpendIn */
+        AdSpendIn: {
+            /** Amount */
+            amount: number;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdSpendListOut */
+        AdSpendListOut: {
+            /** Entries */
+            entries: components["schemas"]["AdSpendEntryOut"][];
+        };
         /**
          * AdminDetailsUpdate
          * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
@@ -12015,6 +12085,116 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_ad_spend_api_website_v1_admin_admissions_ad_spend_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdSpendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_admissions_area_api_website_v1_admin_admissions_area_get: {
         parameters: {
             query: {

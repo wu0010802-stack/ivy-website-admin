@@ -1,0 +1,169 @@
+"""廣告花費（手填）與成效 API（2026-11-16 docs/specs/2026-11-16-ad-roi-design.md §6.2）。
+
+權限同招生統計：admissions.stats（總管理者）。稽核的 action、target_type 與 metadata 鍵寫字面值（labelCoverage 會掃）。"""
+
+from __future__ import annotations
+
+import re
+import uuid
+from datetime import date
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import delete, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.admissions.import_routes import NoEchoValidationRoute
+from app.admissions.models import MANUAL_SPEND_PLATFORMS, AdSpendEntry
+from app.admissions.schemas import AdSpendEntryOut, AdSpendIn, AdSpendListOut
+from app.auth.deps import get_current_user, get_db_session
+from app.auth.models import User
+from app.auth.permissions import require_scope
+from app.common.timezones import now_utc, today_local
+from app.operations import audit_service
+
+router = APIRouter(prefix="/api/website/v1", tags=["admissions"], route_class=NoEchoValidationRoute)
+
+_MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
+
+
+class InvalidMonth(ValueError):
+    pass
+
+
+def parse_month(value: str, *, today: date) -> date:
+    """「YYYY-MM」轉該月 1 號；格式不對或晚於本月（營運時區）丟 InvalidMonth。"""
+    if not _MONTH_RE.fullmatch(value):
+        raise InvalidMonth(value)
+    year, month = int(value[:4]), int(value[5:])
+    if year < 2000:
+        raise InvalidMonth(value)
+    parsed = date(year, month, 1)
+    if parsed > today.replace(day=1):
+        raise InvalidMonth(value)
+    return parsed
+
+
+def _rejected(code: str, message: str) -> HTTPException:
+    return HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail={"code": code, "message": message})
+
+
+def _month_or_422(value: str) -> date:
+    try:
+        return parse_month(value, today=today_local())
+    except InvalidMonth:
+        raise _rejected("INVALID_MONTH", "月份格式要是 YYYY-MM，且不能晚於本月") from None
+
+
+def _platform_or_422(value: str) -> str:
+    if value not in MANUAL_SPEND_PLATFORMS:
+        raise _rejected("INVALID_PLATFORM", "這個平台不能手填花費")
+    return value
+
+
+def _out(entry: AdSpendEntry) -> AdSpendEntryOut:
+    return AdSpendEntryOut(
+        month=entry.month.strftime("%Y-%m"),
+        platform=entry.platform,
+        amount=entry.amount,
+        note=entry.note,
+        updated_at=entry.updated_at,
+    )
+
+
+@router.get("/admin/admissions/ad-spend", response_model=AdSpendListOut)
+async def list_ad_spend(
+    from_: str | None = Query(default=None, alias="from"),
+    to: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdSpendListOut:
+    """列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。"""
+    require_scope(current_user, "admissions.stats")
+    query = select(AdSpendEntry).order_by(AdSpendEntry.month, AdSpendEntry.platform)
+    if from_ is not None:
+        query = query.where(AdSpendEntry.month >= _month_or_422(from_))
+    if to is not None:
+        query = query.where(AdSpendEntry.month <= _month_or_422(to))
+    return AdSpendListOut(entries=[_out(row) for row in (await db.execute(query)).scalars()])
+
+
+@router.put("/admin/admissions/ad-spend/{month}/{platform}", response_model=AdSpendEntryOut)
+async def put_ad_spend(
+    month: str,
+    platform: str,
+    payload: AdSpendIn,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdSpendEntryOut:
+    """新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），
+    稽核帶更新前的金額。"""
+    require_scope(current_user, "admissions.stats")
+    month_day = _month_or_422(month)
+    platform = _platform_or_422(platform)
+    before = (
+        await db.execute(
+            select(AdSpendEntry.amount)
+            .where(AdSpendEntry.month == month_day, AdSpendEntry.platform == platform)
+            .with_for_update()
+        )
+    ).scalar_one_or_none()
+    now = now_utc()
+    stmt = pg_insert(AdSpendEntry).values(
+        id=uuid.uuid4(),
+        month=month_day,
+        platform=platform,
+        amount=payload.amount,
+        note=payload.note,
+        updated_by=current_user.id,
+        created_at=now,
+        updated_at=now,
+    )
+    stmt = stmt.on_conflict_do_update(
+        constraint="uq_ad_spend_entries_month_platform",
+        set_={"amount": stmt.excluded.amount, "note": stmt.excluded.note, "updated_by": stmt.excluded.updated_by, "updated_at": now},
+    ).returning(AdSpendEntry)
+    entry = (await db.execute(stmt.execution_options(populate_existing=True))).scalar_one()
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="ad_spend.upsert",
+        target_type="ad_spend",
+        target_id=f"{month}:{platform}",
+        campus_key=None,
+        metadata={"month": month, "platform": platform, "amount": payload.amount, "before_amount": before},
+    )
+    await db.commit()
+    return _out(entry)
+
+
+@router.delete("/admin/admissions/ad-spend/{month}/{platform}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_ad_spend(
+    month: str,
+    platform: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
+    require_scope(current_user, "admissions.stats")
+    month_day = _month_or_422(month)
+    platform = _platform_or_422(platform)
+    removed = (
+        await db.execute(
+            delete(AdSpendEntry)
+            .where(AdSpendEntry.month == month_day, AdSpendEntry.platform == platform)
+            .returning(AdSpendEntry.amount)
+        )
+    ).scalar_one_or_none()
+    if removed is None:
+        raise HTTPException(status_code=404, detail={"code": "AD_SPEND_NOT_FOUND", "message": "找不到這筆花費"})
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="ad_spend.delete",
+        target_type="ad_spend",
+        target_id=f"{month}:{platform}",
+        campus_key=None,
+        metadata={"month": month, "platform": platform, "amount": removed},
+    )
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
