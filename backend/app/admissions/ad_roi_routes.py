@@ -9,7 +9,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,7 +22,12 @@ from app.auth.permissions import require_scope
 from app.common.timezones import now_utc, today_local
 from app.operations import audit_service
 
-router = APIRouter(prefix="/api/website/v1", tags=["admissions"], route_class=NoEchoValidationRoute)
+class AdSpendValidationRoute(NoEchoValidationRoute):
+    error_code = "INVALID_AD_SPEND"
+    error_message = "花費資料格式不對"
+
+
+router = APIRouter(prefix="/api/website/v1", tags=["admissions"], route_class=AdSpendValidationRoute)
 
 _MONTH_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 
@@ -42,6 +47,10 @@ def parse_month(value: str, *, today: date) -> date:
     if parsed > today.replace(day=1):
         raise InvalidMonth(value)
     return parsed
+
+
+def ad_spend_lock_key(month_day: date, platform: str) -> str:
+    return f"ad_spend:{month_day.isoformat()}:{platform}"
 
 
 def _rejected(code: str, message: str) -> HTTPException:
@@ -101,11 +110,13 @@ async def put_ad_spend(
     require_scope(current_user, "admissions.stats")
     month_day = _month_or_422(month)
     platform = _platform_or_422(platform)
+    # 列還不存在時鎖不到東西：用 (月份, 平台) 的 advisory lock 讓並發的 PUT 排隊，
+    # 後到的才讀得到先到的金額當 before_amount（§6.2）。交易結束自動放鎖。
+    await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": ad_spend_lock_key(month_day, platform)})
     before = (
         await db.execute(
             select(AdSpendEntry.amount)
             .where(AdSpendEntry.month == month_day, AdSpendEntry.platform == platform)
-            .with_for_update()
         )
     ).scalar_one_or_none()
     now = now_utc()

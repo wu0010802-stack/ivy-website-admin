@@ -75,3 +75,50 @@ async def test_note_blank_becomes_none(admin_client, raw, expected):
     response = await admin_client.put(f"{BASE}/2026-10/other", json={"amount": 5, "note": raw})
     assert response.status_code == 200
     assert response.json()["note"] == expected
+
+
+async def test_body_error_uses_ad_spend_code(admin_client):
+    response = await admin_client.put(f"{BASE}/2026-10/openai", json={"amount": 1, "extra": 1})
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert (detail["code"], detail["message"]) == ("INVALID_AD_SPEND", "花費資料格式不對")
+
+
+async def test_concurrent_first_puts_record_true_before_amount(app, admin_client, db_session):
+    """列還不存在時兩個 PUT 並發：另一個交易先拿著同一把 advisory lock，等兩個請求都卡在鎖上才放手，
+    所以一定是同時排隊；序列化後必有一筆 before=None、另一筆 before＝先寫入的金額。"""
+    import asyncio
+
+    from sqlalchemy import text
+
+    from app.admissions.ad_roi_routes import ad_spend_lock_key
+    from datetime import date
+
+    key = ad_spend_lock_key(date(2026, 10, 1), "meta")
+    async with app.state.session_factory() as holder:
+        await holder.execute(text("SELECT pg_advisory_xact_lock(hashtext(:k))"), {"k": key})
+        tasks = [
+            asyncio.create_task(admin_client.put(f"{BASE}/2026-10/meta", json={"amount": amount})) for amount in (100, 200)
+        ]
+        for _ in range(100):
+            if any(t.done() for t in tasks):
+                break
+            async with app.state.engine.connect() as conn:
+                waiting = await conn.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() "
+                        "AND wait_event_type = 'Lock' AND wait_event = 'advisory'"
+                    )
+                )
+            if waiting >= 2:
+                break
+            await asyncio.sleep(0.05)
+        await holder.rollback()
+    responses = await asyncio.gather(*tasks)
+    assert [r.status_code for r in responses] == [200, 200]
+    rows = await _audit(db_session, "ad_spend.upsert")
+    pairs = sorted((r.metadata_json["amount"], r.metadata_json["before_amount"]) for r in rows)
+    assert len(pairs) == 2
+    first = next(p for p in pairs if p[1] is None)
+    second = next(p for p in pairs if p[1] is not None)
+    assert second[1] == first[0]
