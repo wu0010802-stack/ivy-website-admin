@@ -1,4 +1,4 @@
-## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，未合併、未部署）
+## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，已部署 main `45d9eb94`）
 
 使用者看完「後台還可以跟 LINE 串聯什麼」的盤點後，挑了七項（規格 `docs/specs/2026-11-16-line-integrations-design.md`）。除了第 2 項，都要設變數或在後台打開才有作用。
 

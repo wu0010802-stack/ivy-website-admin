@@ -14,7 +14,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，未合併、未部署）
+## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，已部署 main `45d9eb94`）
 
 規格 `docs/specs/2026-11-16-line-integrations-design.md`。migration `b3e8d1c4f9a7` 只新增三張表、放寬 `ad_conversion_jobs.platform` 檢查（加 `'line'`），不改既有資料、不必先備份。除了群組推播改成卡片，其他功能都要設變數或在後台打開才有作用。
 
@@ -352,6 +352,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 搬過去之後同事要知道：要在新網址重新登入；瀏覽器存的密碼是跟著網址的，要重新存；手機通知要在新網址的後台重新開一次（舊網址的訂閱會失效）；加到手機主畫面的後台要刪掉重加。LINE 群組推播與信裡的後台連結會自動改成新網址。
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
+
+## 2026-11-16 後台與 LINE 串聯七項上線（main CI 部署，migration `b3e8d1c4f9a7` 只新增三張表＋放寬一個檢查）
+
+- **提交**：PR #102 合併進 main（`45d9eb94`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43812365946）。PR 第一輪後端 2/3 紅在 `test_google_oauth.py::test_google_login_is_not_blocked_by_the_password_lock`（帳密鎖定在 CI 偶發沒鎖上，本機單獨跑 54 過，和這次無關），重跑後綠。規格 `docs/specs/2026-11-16-line-integrations-design.md`。
+- **migration**：`b3e8d1c4f9a7` 接在 `a9c4e7b2d815` 之後，只新增 `line_parent_campus_accounts`、`line_parent_links`、`line_parent_link_codes`，`ad_conversion_jobs.platform` 檢查加 `'line'`；不改既有資料，沒有備份。沒有新設任何環境變數。
+- **正式站唯讀驗證**：`/release.json` base_commit `45d9eb94`；`/api/website/v1/health` ok；`/public/booking-config/yihua` 多了 `line_notify_enabled: false`；`/public/visit-manage/line-notify`、`/admin/line-insights` 未登入回 401（路由已掛）；後台 `LineNotificationsView` chunk 有「官方帳號與本月額度」「家長 LINE 通知」，`AnalyticsView` chunk 有 LINE 面板；官網 chunk 有「用 LINE 接收參觀通知」。
+- **已生效**：園方群組推播改成卡片（正式站若有設 `WEBSITE_LINE_MESSAGING_*` 且有綁群組，下一則參觀通知就是卡片）；系統狀態「LINE 官方帳號」一列會查額度。
+- **還沒生效（等使用者）**：家長 LINE 通知每校預設不開放；開之前先發布隱私權政策（規格附錄 A），再照本檔頂部 11-16 段落設帳號與 webhook。LINE 廣告轉換回傳沒設變數＝關。
+- **沒驗證**：登入正式後台看畫面；真的推一則卡片到群組；家長真機綁定與「我的預約」；聊天模式下 webhook 是否還開著；Conversion API 台灣可用性。
 
 ## 2026-11-16 區域分析：年份滑桿、五校周邊環境、異動通知上線（main CI 部署，migration `a9c4e7b2d815` 只新增兩張表）
 
