@@ -200,7 +200,9 @@ describe('廣告平台判斷（2026-11-16）', () => {
     ['?gclid=abc', 'google'], ['?gbraid=x', 'google'], ['?wbraid=x', 'google'],
     ['?oppref=tok', 'openai'], ['?ldtag_cl=tok', 'line'],
     ['?utm_medium=paid&utm_source=facebook', 'meta'], ['?utm_medium=cpc&utm_source=IG', 'meta'],
-    ['?utm_medium=cpc&utm_source=newsletter', 'other'], ['?gclid=a&utm_medium=paid&utm_source=facebook', 'google']
+    ['?utm_medium=cpc&utm_source=newsletter', 'other'], ['?gclid=a&utm_medium=paid&utm_source=facebook', 'google'],
+    ['?utm_source=chatgpt&utm_medium=cpc', 'openai'], ['?utm_source=OpenAI&utm_medium=paid', 'openai'],
+    ['?utm_source=line&utm_medium=cpc', 'line'], ['?utm_source=newsletter&utm_medium=cpc', 'other']
   ])('adPlatformOf(%s) = %s', (search, platform) => expect(adPlatformOf(search)).toBe(platform))
 
   it('fbclid alone is not an ad', () => expect(adPlatformOf('?fbclid=abc')).toBeUndefined())

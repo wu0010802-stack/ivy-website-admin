@@ -19,7 +19,7 @@ const PAID_MEDIUM = /^(cpc|ppc|paid|paid_social|paidsocial|ads?|display|banner)$
 
 /**
  * 落地網址是哪個廣告平台帶來的；不是廣告回 undefined。點擊代碼優先（gclid 系列 → oppref → ldtag_cl），
- * 再看 utm_medium 是付費、utm_source 屬 Meta 系的算 meta，其他付費算 other。單獨的 fbclid 不算廣告。
+ * 再看 utm_medium 是付費：utm_source 屬 Meta 系算 meta、chatgpt／openai 開頭算 openai、line 開頭算 line，其他付費算 other。單獨的 fbclid 不算廣告。
  */
 export function adPlatformOf(search: string): AdPlatform | undefined {
   const params = new URLSearchParams(search)
@@ -27,7 +27,12 @@ export function adPlatformOf(search: string): AdPlatform | undefined {
   if (params.has('oppref')) return 'openai'
   if (params.has('ldtag_cl')) return 'line'
   if (!PAID_MEDIUM.test(params.get('utm_medium') ?? '')) return undefined
-  return /^(facebook|fb|meta|instagram|ig)/.test((params.get('utm_source') ?? '').toLowerCase()) ? 'meta' : 'other'
+  const source = (params.get('utm_source') ?? '').toLowerCase()
+  if (/^(facebook|fb|meta|instagram|ig)/.test(source)) return 'meta'
+  // oppref 是平台自己附加、不保證每次都有，utm_source 也要認得 ChatGPT／LINE 廣告。
+  if (/^(chatgpt|openai)/.test(source)) return 'openai'
+  if (/^line/.test(source)) return 'line'
+  return 'other'
 }
 
 /**
