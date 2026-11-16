@@ -760,6 +760,30 @@ describe('招生機會著色（2026-10-13 規格 7.2）', () => {
     expect(wrapper.get('.area-map__canvas').attributes('aria-label')).toContain('依2–5 歲孩子著色')
   })
 
+  it('2–5 歲孩子＋年份滑桿：用 childrenShade 的共用最大值上色，沒有資料畫 l0，圖例跟 max，換年份重新上色（2026-11-16）', async () => {
+    const shade = (a: number | null, b: number | null, c: number | null, max: number) => ({
+      byCode: new Map<string, number | null>([['64000050001', a], ['64000050015', b], ['64000050025', c]]), max,
+    })
+    const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'children', childrenShade: shade(120, 60, null, 120) })
+    // 有 childrenShade 時不吃招生機會的孩子數（鼎金里 500、本揚里 300）：120／120 → l5、60／120 → l3、null → l0。
+    expect([DINGJIN, BENYANG, BAOYE].map(classOf)).toEqual([
+      'area-village area-village--l5', 'area-village area-village--l3', 'area-village area-village--l0',
+    ])
+    expect(wrapper.findAll('.area-legend--levels li')[0]!.text()).toBe('1–24 位')
+    await wrapper.setProps({ childrenShade: shade(30, 120, 24, 120) })
+    await flushPromises()
+    expect([DINGJIN, BENYANG, BAOYE].map(pathOf)).toEqual([
+      'area-village area-village--l2', 'area-village area-village--l5', 'area-village area-village--l1',
+    ])
+    expect(leaflet.created.geoJSON).toHaveLength(1)
+    // 換年份只重新上色，不重畫里界圖層，圖例最大值不變。
+    expect(wrapper.findAll('.area-legend--levels li')[0]!.text()).toBe('1–24 位')
+    await wrapper.setProps({ childrenShade: null })
+    await flushPromises()
+    expect(classOf(DINGJIN)).toBe('area-village area-village--l5')
+    expect(classOf(BAOYE)).toBe('area-village area-village--l2')
+  })
+
   it('招生機會：明顯偏少、差不多、比附近多三色，其餘不上色；圖例', async () => {
     const wrapper = await mountMap({ opportunity: areaOpportunity(), mode: 'opportunity' })
     expect([DINGJIN, BENYANG, BAOYE, LONGZI].map(classOf)).toEqual([

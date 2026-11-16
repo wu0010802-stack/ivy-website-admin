@@ -3,14 +3,15 @@ import { computed, defineAsyncComponent, nextTick, ref, shallowRef, useId, watch
 import AreaSidePane from './AreaSidePane.vue'
 import AreaTables from './AreaTables.vue'
 import NearbyPanel from './NearbyPanel.vue'
+import ChildrenYearSlider from './ChildrenYearSlider.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import {
-  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
+  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaChildrenHistory, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
   getAreaPresale, getAreaTrends,
 } from '../../../api/admissions'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends,
   VillageBoundaries,
 } from '../../../api/types'
 import { areaQuery } from '../../../admissions/areaFilter'
@@ -24,6 +25,7 @@ import {
 import {
   addressSummary, dataStatusText, defaultMapMode, modeNote, paneHead, rankingFor, resolveMapMode, type ModeNotes, type PaneData,
 } from './areaPane'
+import { childrenShade, childrenStops, resolveStop, retiredNote, stopKey, stopLabel, type YearStop } from './childrenHistory'
 import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
 import { findFeature, villageFacts } from './villageFacts'
 
@@ -305,6 +307,61 @@ const notes = computed<ModeNotes>(() => ({
   judged: opportunity.value?.baseline?.judged ?? null,
 }))
 const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
+
+// ---- 2–5 歲孩子的年份滑桿（2026-11-16 規格 §5.3）----
+
+// 歷年人口只在「2–5 歲孩子」模式才讀（進模式才發請求），換校區或半徑清空、只採用最後一次的回應。讀取失敗：沒有滑桿、
+// 地圖與排行照用最新人數，原因寫在工具列下一行；讀取中同樣先用最新人數。
+const childrenHistory = ref<AreaChildrenHistory | null>(null)
+const childrenHistoryFailed = ref(false)
+const childrenHistoryRequested = ref(false)
+const childrenHistoryRequests = useRequestSequence()
+async function loadChildrenHistory() {
+  const request = childrenHistoryRequests.begin()
+  childrenHistory.value = null
+  childrenHistoryFailed.value = false
+  childrenHistoryRequested.value = true
+  if (!props.campusKey) return
+  try {
+    const result = await getAreaChildrenHistory(props.campusKey, radiusKm.value)
+    if (childrenHistoryRequests.isCurrent(request)) childrenHistory.value = result
+  } catch {
+    if (childrenHistoryRequests.isCurrent(request)) childrenHistoryFailed.value = true
+  }
+}
+watch([() => props.campusKey, radiusKm], () => {
+  childrenHistoryRequests.begin()
+  childrenHistory.value = null
+  childrenHistoryFailed.value = false
+  childrenHistoryRequested.value = false
+  if (mapMode.value === 'children') void loadChildrenHistory()
+})
+watch(mapMode, (mode) => {
+  if (mode === 'children' && (!childrenHistoryRequested.value || childrenHistoryFailed.value)) void loadChildrenHistory()
+  // 年份只在這個模式有效：離開就從網址拿掉。
+  if (mode !== 'children' && view.value.year !== null) patchView({ year: null })
+}, { immediate: true })
+// 有滑桿可拉：模式對、讀到了、本校有座標且九月表有資料。
+const childrenHistoryReady = computed(() => {
+  const data = childrenHistory.value
+  return mapMode.value === 'children' && data !== null && data.unavailable === null && childrenStops(data).length > 0
+})
+const yearStops = computed<YearStop[]>(() => (childrenHistoryReady.value && childrenHistory.value ? childrenStops(childrenHistory.value) : []))
+const childrenStop = computed(() => resolveStop(view.value.year, yearStops.value))
+const yearLabels = computed<Record<string, string>>(() => {
+  const data = childrenHistory.value
+  return data ? Object.fromEntries(yearStops.value.map((stop) => [stopKey(stop), stopLabel(stop, data)])) : {}
+})
+const shade = computed(() => (childrenHistoryReady.value && childrenHistory.value ? childrenShade(childrenHistory.value, childrenStop.value) : null))
+const retiredText = computed(() => (childrenHistoryReady.value && childrenHistory.value ? retiredNote(childrenHistory.value, childrenStop.value) : ''))
+// 網址帶來的年份不在格子裡（怪年份、九月表沒有、換半徑後新範圍沒有）：畫面已經用最新，網址的 year 拿掉。
+watch([yearStops, () => view.value.year], ([stops, year]) => {
+  if (year !== null && stops.length && !stops.includes(year)) patchView({ year: null })
+}, { immediate: true })
+function setYear(stop: YearStop) {
+  patchView({ year: stop === 'latest' ? null : stop })
+}
+
 const modeOptions = computed(() => MAP_MODES.map((option) => ({ ...option, disabled: Boolean(modeNote(option.value, notes.value)) })))
 // 工具列下一行寫停用的原因：招生機會那兩種的原因排第一（同一個原因只寫一次，例如里的變化讀取失敗同時停用孩子增減與新屋交屋）。
 // 原因那一行的 id：「看什麼」用 aria-describedby 指過去，讀屏聽到停用的選項時也聽得到為什麼（只有真的有原因才帶）。
@@ -313,7 +370,7 @@ const modeReasons = computed(() => [
   ...new Set(
     [
       notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.presale,
-      notes.value.enrolled,
+      notes.value.enrolled, mapMode.value === 'children' && childrenHistoryFailed.value ? '歷年人口讀取失敗。' : '',
     ].filter(Boolean),
   ),
 ])
@@ -413,6 +470,7 @@ const paneData = computed<PaneData | null>(() =>
     ? {
         boundaries: boundaries.value, area: area.value, opportunity: opportunity.value, trends: trends.value, enrolled: enrolled.value,
         gradeFilter: gradeFilter.value, peerFees: peerFees.value, emptyText: props.emptyText, radiusKm: radiusKm.value,
+        childrenHistory: childrenHistoryReady.value ? childrenHistory.value : null, childrenStop: childrenStop.value,
       }
     : null,
 )
@@ -509,6 +567,10 @@ const footer = computed(() =>
             <el-radio-button v-for="km in RADIUS_OPTIONS" :key="km" :value="km">{{ km }} 公里</el-radio-button>
           </el-radio-group>
         </div>
+        <div v-if="childrenHistoryReady" class="area-toolbar__group area-toolbar__year">
+          <span class="area-toolbar__label" aria-hidden="true">年份</span>
+          <ChildrenYearSlider :stops="yearStops" :model-value="childrenStop" :labels="yearLabels" @update:model-value="setYear" />
+        </div>
         <p v-if="modeReasons.length" :id="reasonId" class="area-toolbar__note">
           <span v-for="reason in modeReasons" :key="reason">{{ reason }}</span>
         </p>
@@ -544,8 +606,10 @@ const footer = computed(() =>
             :presale="presale"
             :enrolled="enrolled"
             :grade-filter="gradeFilter"
+            :children-shade="shade"
             @select-village="selectFromMap"
           />
+          <p v-if="retiredText" class="hint area-workbench__retired">{{ retiredText }}</p>
         </div>
         <!-- 右欄容器可程式聚焦（tabindex -1）：關掉里卡片後焦點落在這裡，不掉到 body；手機選了里捲到這裡（卡片在最上面）。 -->
         <div ref="sideEl" class="area-workbench__side" tabindex="-1">
@@ -659,6 +723,14 @@ const footer = computed(() =>
 
 .area-toolbar__range {
   margin-inline-start: auto;
+}
+
+.area-toolbar__year {
+  flex: 1 1 100%;
+}
+
+.area-workbench__retired {
+  margin: 8px 0 0;
 }
 
 .area-toolbar__label {

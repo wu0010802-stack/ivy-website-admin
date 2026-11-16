@@ -9,7 +9,7 @@ import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
-  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
   EnrolledPreview, HistoryPreview, ImportStatus, Potential, PotentialClosureSource, PotentialEstimate, PotentialPresaleSource, PotentialShareYear, PotentialVillageSource, UserOut,
   VillageBoundaries,
 } from '../api/types'
@@ -200,6 +200,30 @@ const buildAreaOpportunity = () => ({
 } satisfies AreaOpportunity)
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaOpportunity = (changes: Partial<AreaOpportunity> = {}): AreaOpportunity => ({ ...buildAreaOpportunity(), ...changes })
+
+// 歷年 2–5 歲（2026-11-16）：107、108、114、115 四個九月＋最新 115-10；寶業里 114 以前還沒有（新設）、
+// 本上里 115-07 界線調整過；已廢止的廍北里、廍南里同區有 107、108 年的資料。
+const buildChildrenHistory = () => ({
+  campus: { key: 'yihua', name: '義華校', lat: 22.64, lng: 120.34, locate_error: null, district: '三民區' },
+  radius_km: 3,
+  unavailable: null,
+  latest: { label: '115-10', synced_at: '2026-11-10T04:00:00Z' },
+  years: [107, 108, 114, 115],
+  villages: [
+    { village_code: '64000050015', district: '三民區', village: '本揚里', distance_m: 300,
+      counts: { '107': 360, '108': 380, '114': 390, '115': 392, latest: 400 }, adjusted: [] },
+    { village_code: '64000050025', district: '三民區', village: '寶業里', distance_m: 300,
+      counts: { '107': null, '108': null, '114': null, '115': 196, latest: 200 }, adjusted: [] },
+    { village_code: '64000050001', district: '三民區', village: '鼎金里', distance_m: 800,
+      counts: { '107': 480, '108': 500, '114': 520, '115': 490, latest: 500 }, adjusted: ['115-07'] },
+  ],
+  retired: [
+    { village_code: '64000050991', district: '三民區', village: '廍北里', years: [107, 108] },
+    { village_code: '64000050992', district: '三民區', village: '廍南里', years: [107] },
+  ],
+  max_children: 520,
+} satisfies AreaChildrenHistory)
+export const areaChildrenHistory = (changes: Partial<AreaChildrenHistory> = {}): AreaChildrenHistory => ({ ...buildChildrenHistory(), ...changes })
 
 // 里的變化（2026-10-14）：本揚里淨增最多、鼎金里減少；寶業里與龍子里因里界調整合併（代碼含一個已廢止的舊代碼）。
 const buildAreaTrends = () => ({

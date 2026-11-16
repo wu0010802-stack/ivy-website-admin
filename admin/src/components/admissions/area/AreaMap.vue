@@ -13,6 +13,7 @@ import {
   NO_PRESALE_TEXT,
   type GradeFilter, type MapMode, type RadiusKm,
 } from './areaFormat'
+import type { ChildrenShade } from './childrenHistory'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
 // 標出本校、半徑虛線圓與附近幼兒園。Leaflet 的 fillColor 寫不了 CSS 變數，所以圖形只掛 class，
@@ -51,8 +52,10 @@ const props = withDefaults(
     enrolled?: AreaEnrolled | null
     /** 在籍學生的班別篩選（AreaTab 持有，只用來決定畫哪些點與圖例文字）。 */
     gradeFilter?: GradeFilter
+    /** 「2–5 歲孩子」的年份滑桿（2026-11-16 規格 §5.3）：選的那一格的各里人數與共用最大值；null＝照招生機會的最新人數。 */
+    childrenShade?: ChildrenShade | null
   }>(),
-  { babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, gradeFilter: 'all' },
+  { babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, gradeFilter: 'all', childrenShade: null },
 )
 const emit = defineEmits<{ 'select-village': [payload: { code: string; district: string; village: string }] }>()
 
@@ -149,7 +152,7 @@ const canvasLabel = computed(() => {
   return `${props.campusName}周邊里界地圖（依${modeLabel.value}著色）${tail}`
 })
 const legendMax = computed(() => {
-  if (props.mode === 'children') return opportunityStats.value.maxChildren
+  if (props.mode === 'children') return props.childrenShade ? props.childrenShade.max : opportunityStats.value.maxChildren
   if (props.mode === 'homes') return homesMaxValue.value
   if (props.mode === 'presale') return presaleMaxValue.value
   return villageStats.value.max
@@ -196,7 +199,12 @@ function villageClass(properties: VillageProperties): string {
     return row ? `area-village area-village--l${levelOf(presaleCount(row, properties.VILLCODE), presaleMaxValue.value)}` : 'area-village area-village--l0'
   }
   const row = opportunityRow(properties)
-  if (props.mode === 'children') return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
+  if (props.mode === 'children') {
+    const shade = props.childrenShade
+    // 年份滑桿：沒有資料（新設的里、那年沒有）當 0＝l0；色階用所有年份共用的最大值。
+    if (shade) return `area-village area-village--l${levelOf(shade.byCode.get(properties.VILLCODE) ?? 0, shade.max)}`
+    return `area-village area-village--l${levelOf(row?.children ?? 0, opportunityStats.value.maxChildren)}`
+  }
   const tone = row ? signalTone(row.signal) : 'none'
   return tone === 'none' ? 'area-village area-village--l0' : `area-village area-village--${tone}`
 }
@@ -653,7 +661,7 @@ function retry() {
 onMounted(() => void startMap())
 
 watch(() => props.boundaries, drawVillages)
-watch([() => props.villages, () => props.opportunity, () => props.trends, () => props.mode], restyleVillages)
+watch([() => props.villages, () => props.opportunity, () => props.trends, () => props.mode, () => props.childrenShade], restyleVillages)
 // 選取外框另一條 watch：只換外框那一層，不走 drawVillages。
 watch(() => props.selectedCode, drawSelected)
 // 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。

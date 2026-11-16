@@ -311,14 +311,14 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
   it('區域分析的畫面狀態（模式、里、表格分頁）經 areaView 傳給 AreaTab 的 view，AreaTab 改了再往上傳；沒給就是預設', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const standalone = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
-    expect(standalone.wrapper.findComponent({ name: 'AreaTab' }).props('view')).toEqual({ map: null, village: '', table: 'village' })
+    expect(standalone.wrapper.findComponent({ name: 'AreaTab' }).props('view')).toEqual({ map: null, village: '', table: 'village', year: null })
     cleanup()
     mockGet({ '/admin/admissions/stats': stats() })
-    const areaView = { map: 'trend', village: '64000050015', table: 'school' }
+    const areaView = { map: 'trend', village: '64000050015', table: 'school', year: null }
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area', areaView }) })
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props('view')).toEqual(areaView)
-    const next = { map: 'peers', village: '', table: 'village' }
+    const next = { map: 'peers', village: '', table: 'village', year: null }
     tab.vm.$emit('update:view', next)
     expect(wrapper.emitted('update:areaView')).toEqual([[next]])
   })
