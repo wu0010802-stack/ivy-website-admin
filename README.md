@@ -1,3 +1,12 @@
+## 2026-11-16 區域分析：人口年份滑桿、五校周邊環境、園所異動通知（`feature/area-compare-notices-20261116`，未合併、未部署）
+
+業主 11-16 從候選清單挑了三項，規格 `docs/specs/2026-11-16-area-compare-notices-design.md`、計畫 `docs/superpowers/plans/2026-11-16-area-compare-notices.md`。
+
+- **年份滑桿**：招生統計 → 區域分析 → 「2–5 歲孩子」模式多一條年份滑桿（九月底 107 年起到最新月份），▶ 每秒前進一格（偏好減少動態時不放）。新 API `GET /admin/admissions/area/children-history`；色階所有年份共用最大值（換年份才看得出變化）；右欄排行「比前一年」，兩點之間有界線調整（115-07）就寫「界線 115-07 調整」不寫增減；新設的里調整前畫成沒有資料；已廢止的里只在地圖下方列名。網址 `year` 參數，進模式才讀、不在格子裡的年份退回最新。
+- **五校周邊環境**：五校比較分頁在招生件數表下多一張表（1／3／6 公里，預設 3）：2–5 歲、一年增減、四種幼兒園與托嬰家數（不含常春藤各校）、本校 3 歲收費、私立一般中位數與排名（本校不是私立一般只寫類型）、近 12 月異動。新 API `GET /admin/admissions/area/compare`，逐校各自一個 savepoint，一校出錯只有那一列寫原因。`trends` 新增 `kids_only`（只算孩子與淨增，數字和單校一致）。
+- **異動通知**：公開資料同步尾端（鎖內）檢查五校 3 公里內的園所新設／停辦／類型變動與新公布的裁罰，寫進站內通知（只給總管理者）。兩張記帳表 `geo_change_notices`／`geo_change_notice_baselines`（migration `a9c4e7b2d815`，只新增表）；首輪只記帳不發，之後異動超過 90 天、裁罰超過 365 天只記帳；`ON CONFLICT DO NOTHING` 保證同步重疊也只發一則。非總管理者的列表、計數、全部已讀、單筆已讀都排除這兩種。
+- **驗證**：見 `deploy/README.md`「公開地理資料同步」補述。實作紀錄在規格 §12。
+
 ## 2026-11-15 招生入學新增「編班與缺額」分頁（`feature/admissions-roster-20261114`，未合併、未部署）
 
 使用者 11-13 要把各校 Excel 的編班表、缺額統計搬進官網後台（規格 `docs/specs/2026-11-14-admissions-roster-gap-design.md`、計畫 `docs/superpowers/plans/2026-11-15-admissions-roster-gap.md`）。招生入學多第三個分頁「編班與缺額」（`tab=roster`，學期篩選在這頁隱藏）：

@@ -124,6 +124,8 @@ async def test_a_babycare_file_never_touches_the_network(app):
     # 結果欄位（型別是 str）除了托嬰，其餘每一種資料都沒碰：之後新增的資料種類也會被這裡抓到
     outcomes = {f.name: getattr(result, f.name) for f in dataclasses.fields(result) if f.type in (str, "str")}
     assert outcomes.pop("babycare") == "updated"
+    # 附近異動通知（2026-11-16）每輪都檢查（不連外、冪等），不是資料種類。
+    assert outcomes.pop("notices") == "updated"
     assert set(outcomes.values()) == {"skipped"}, outcomes
     assert await _count(app) == 6
 
