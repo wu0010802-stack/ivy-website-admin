@@ -217,6 +217,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | --- | --- | --- |
 | `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` | 服務帳戶金鑰**整份 JSON** | 要有 `client_email` 與 `private_key`；啟動時驗證，格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。只放 Railway，不進 repo、不貼進對話或文件 |
 | `WEBSITE_GOOGLE_SC_PROPERTY` | `sc-domain:ivykidschool.com` 或 `https://www.ivykidschool.com/` | Search Console 資源。**要和 Search Console 左上角那個資源的類型一致**：「網域」資源寫 `sc-domain:網域`，「網址前置字元」資源寫完整網址（含結尾斜線）。**和上一個要同時設**，只設一個 api 拒絕啟動 |
+| `WEBSITE_GA4_PROPERTY_ID` | `563982090` | GA4 資源編號（純數字 6–12 位，管理 → 資源設定）。選填；與 Search Console 共用同一個服務帳戶（要把它加進該 GA4 資源的「檢視者」），用來唯讀讀 Google 廣告各活動每月花費與預約轉換（`app/insights/ga4_ads.py`）。格式不對 api 拒絕啟動，錯誤訊息不含值 |
 | `WEBSITE_CRUX_API_KEY` | GCP 的 API key | 只用來呼叫 Chrome UX Report API。查的網站是 `WEBSITE_PUBLIC_ORIGIN`（沒設就是 `WEBSITE_ADMIN_ORIGIN`，正式站是 `https://www.ivykidschool.com`） |
 
 三個互相獨立：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。

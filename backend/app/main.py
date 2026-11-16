@@ -38,6 +38,7 @@ from app.campuses.routes import router as campuses_router
 from app.contact_phrases.routes import router as contact_phrases_router
 from app.facebook.routes import router as facebook_router
 from app.insights.crux import CruxHistory
+from app.insights.ga4_ads import Ga4Ads
 from app.insights.routes import router as insights_router
 from app.insights.search_console import SearchConsole
 from app.content.release_routes import router as content_release_router
@@ -229,6 +230,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Search Console 與 CrUX（app/insights）：權杖與結果快取各自在這兩個物件裡，測試注入 google_transport。
     app.state.search_console = SearchConsole()
     app.state.crux = CruxHistory()
+    app.state.ga4_ads = Ga4Ads()
     app.state.google_transport = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
