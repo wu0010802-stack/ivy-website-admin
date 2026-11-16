@@ -1,3 +1,16 @@
+## 2026-11-16 首頁拍立得：字看得清楚（`claude/inspiring-darwin-oatthr`）
+
+使用者請我想首頁拍立得的 UI／UX 優化，看過六項提案（私人 Artifact「首頁拍立得優化提案」，含本機前後對照截圖）後先做其中三項。翻面、顯影、傾角、提示都不動。
+
+- **1× 螢幕的字不再發糊**：WebGL 紙的貼圖、共用 renderer 與顯示畫布最低照 2× 畫（`paperPrints.ts` 的 `pixelRatio()`，原本照螢幕 1×）。1× 螢幕（外接螢幕、一般 Windows 筆電）上背面粗體小字的筆畫原本黏在一起；代價是這類螢幕每張卡的貼圖像素變 4 倍，等於 Retina 筆電現在的用量。手機本來就 ≥2×，不受影響。
+- **背面字級放大一級**：桌機故事 16→18、問答 14→16；手機全部 14→16。WebGL 貼圖照 DOM 的字級與斷行畫，自動跟上。
+  - 761–900px 的兩欄窄版（紙寬不到 400px）背面是絕對定位、超出就裁：用 `.print-wrap` 本來就有的 container 查詢，故事退回 16、背面內距 `32 32 60` 收成 `28 24 36`（下緣 60 原本是翻面提示字的位置）。用正式站 8 張的實際文案量 320–1280 共 14 種寬高：絕對定位那段最緊的一張剩 102px（改版前 74px）；手機背面跟著內容長高，320 寬前幾張會長高一點。
+  - 打包後 `@container (max-width:400px)` 變成 `(width<=400px)`：支援 container query 的瀏覽器都認得；iOS 15 不支援 container query，照桌機字級，最窄 761px 也排得下（10px）。
+- **相紙加貼著紙緣的細影子**：`--print-shadow` 在原本兩道中間加 `0 1px 2px ink/.3`、`2px 6px 14px ink/.22`，懸停那組同步加。WebGL 平放時照同一個變數畫；模糊半徑 ≤4 的那幾道改畫在 1× 畫布上（`TIGHT_SHADOW_BLUR`，每張卡約多 1 MB），半解析度放大會把紙緣那條深線抹淡。
+- **換手驗證**（同一頁先卡住 `paperPrints` 拍 CSS 版、放行後拍 WebGL 版，淺色純色背景）：手機 390×3 紙緣下方 0–6px 的差異 p95，舊影子 2、新影子半解析度 12、改 1× 後 4；離紙 6–60px 的影子環新舊相同（p95 4–5）。桌機 1×／2× 影子環最大差 2–3 階。
+- 測試：`web/tests/polaroid-legibility-20261116.spec.ts`；`day-print-handoff-20261114.spec.ts` 的 `--print-shadow` 值同步。`npm --prefix web run typecheck`、`npm run test:website`（162 檔 2460 則）、`nuxt build` 通過。
+- **未驗證**：截圖與量測是 SwiftShader 軟體繪圖，沒有實機。上線前要在 1× 螢幕的舊電腦上看翻面幀率，在 iPhone 上看換手時紙緣有沒有跳。
+
 ## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`）
 
 規格 `docs/specs/2026-11-16-ad-roi-design.md`。

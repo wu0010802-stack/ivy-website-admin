@@ -110,7 +110,8 @@ describe('WebGL 紙平放時的陰影就是 CSS 版那道 box-shadow', () => {
     expect(parseShadows('rgb(0, 0, 0) 0px 0px 4px 0px inset')).toEqual([])
   })
   it('陰影值放在 --print-shadow，CSS 版與 WebGL 紙讀同一份', () => {
-    expect(css).toContain('--print-shadow:0 2px 0 rgb(var(--ink) / .05),6px 18px 46px rgb(var(--ink) / .3)')
+    // 2026-11-16 多兩道貼著紙緣的細影子（polaroid-legibility-20261116.spec.ts）
+    expect(css).toContain('--print-shadow:0 2px 0 rgb(var(--ink) / .05),0 1px 2px rgb(var(--ink) / .3),2px 6px 14px rgb(var(--ink) / .22),6px 18px 46px rgb(var(--ink) / .3)')
     expect(css).toMatch(/\.print::after\{[^}]*box-shadow:var\(--print-shadow\)/)
     expect(paper).toContain("resolveShadowsOn(view, 'var(--print-shadow)')")
   })
