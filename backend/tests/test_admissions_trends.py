@@ -226,6 +226,21 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert all(row["kids_net"] is None for row in body["villages"][4:])
 
 
+async def test_kids_only_matches_full(db_session, located_campus):
+    """五校並排只要淨增（2026-11-16）：kids_only 的 baseline.kids_net、各里 kids_net 與完整模式一模一樣（含合併組）。"""
+    await _seed(db_session)
+    full = await trends.query_trends(db_session, "yihua", school_year=None, semester=None, radius_km=1)
+    light = await trends.query_trends(db_session, "yihua", school_year=None, semester=None, radius_km=1, kids_only=True)
+    assert full["baseline"]["kids_net"] is not None
+    assert light["baseline"]["kids_net"] == full["baseline"]["kids_net"]
+    assert light["baseline"]["children"] == full["baseline"]["children"]
+    assert light["kids_unavailable"] == full["kids_unavailable"]
+    assert [(row["key"], row["kids_net"]) for row in light["villages"]] == [(row["key"], row["kids_net"]) for row in full["villages"]]
+    assert any(row["merged"] for row in light["villages"])
+    assert light["schools"] == []
+    assert all(row["income_median"] is None and row["new_homes"] is None and row["presale_households"] is None for row in light["villages"])
+
+
 async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_client, db_session, located_campus):
     await _seed(db_session)
     group = _by_key(await _get(admin_client))[f"group:三民區:{BENSHANG}"]

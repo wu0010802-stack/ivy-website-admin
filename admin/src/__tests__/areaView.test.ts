@@ -6,7 +6,7 @@ import {
 describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1、§5、D2）', () => {
   it('讀網址：認得的值照收，認不得的退回預設', () => {
     expect(parseAreaViewQuery({ map: 'trend', village: '64000050015', table: 'school' }))
-      .toEqual({ map: 'trend', village: '64000050015', table: 'school' })
+      .toEqual({ map: 'trend', village: '64000050015', table: 'school', year: null })
     expect(parseAreaViewQuery({ map: 'heat', village: 'abc', table: 'x' })).toEqual(DEFAULT_AREA_VIEW)
     expect(parseAreaViewQuery({ map: ['peers', 'visits'] })).toEqual({ ...DEFAULT_AREA_VIEW, map: 'peers' })
   })
@@ -30,21 +30,28 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
 
   it('寫網址：預設值不寫', () => {
     expect(areaViewQuery(DEFAULT_AREA_VIEW)).toEqual({})
-    expect(areaViewQuery({ map: 'peers', village: '64000050001', table: 'fees' }))
+    expect(areaViewQuery({ map: 'peers', village: '64000050001', table: 'fees', year: null }))
       .toEqual({ map: 'peers', village: '64000050001', table: 'fees' })
-    expect(areaViewQuery({ map: null, village: '', table: 'village' })).toEqual({})
-    expect(areaViewQuery({ map: 'visits', village: '', table: 'village' })).toEqual({ map: 'visits' })
+    expect(areaViewQuery({ map: null, village: '', table: 'village', year: null })).toEqual({})
+    expect(areaViewQuery({ map: 'visits', village: '', table: 'village', year: null })).toEqual({ map: 'visits' })
   })
 
   it('寫了再讀回來是同一個畫面', () => {
-    const view = { map: 'homes' as const, village: '64000020015', table: 'births' as const }
+    const view = { map: 'homes' as const, village: '64000020015', table: 'births' as const, year: 108 }
     expect(parseAreaViewQuery(areaViewQuery(view))).toEqual(view)
     expect(parseAreaViewQuery(areaViewQuery(DEFAULT_AREA_VIEW))).toEqual(DEFAULT_AREA_VIEW)
   })
 
+  it('年份：只收三位數字，其他當沒帶；有年份才寫網址（2026-11-16 規格 §5.3）', () => {
+    expect(parseAreaViewQuery({ year: '108' }).year).toBe(108)
+    for (const year of ['abc', '1080', '10', '', ' 108', '-10']) expect(parseAreaViewQuery({ year }).year).toBeNull()
+    expect(areaViewQuery({ ...DEFAULT_AREA_VIEW, year: 108 })).toEqual({ year: '108' })
+    expect(areaViewQuery(DEFAULT_AREA_VIEW)).toEqual({})
+  })
+
   it('DEFAULT_AREA_VIEW 凍結，要新值一律展開複製', () => {
     expect(Object.isFrozen(DEFAULT_AREA_VIEW)).toBe(true)
-    expect({ ...DEFAULT_AREA_VIEW }).toEqual({ map: null, village: '', table: 'village' })
+    expect({ ...DEFAULT_AREA_VIEW }).toEqual({ map: null, village: '', table: 'village', year: null })
   })
 
   it('isMapMode 只認八個模式值', () => {

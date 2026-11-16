@@ -1,6 +1,6 @@
 import { MAP_MODES, type MapMode } from '../../../admissions/areaView'
 import type {
-  AdmissionsArea, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
+  AdmissionsArea, AreaChildrenHistory, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
 } from '../../../api/types'
 import {
   NOT_JUDGED_NOTE, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, NO_PRESALE_TEXT, babycareStatusText, doorplateVersionLabel,
@@ -8,6 +8,7 @@ import {
   opportunityUnavailable, populationVersionLabel, presaleMapNote, reasonLabel, signedCount, signedPercent, taipeiMonthDay, trendMapNote,
   trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
 } from './areaFormat'
+import { childrenStops, stopKey, yearChangeText, type YearStop } from './childrenHistory'
 import { feeLagNote, peerSummaryText } from './peerFeesFormat'
 import { featureCode, findFeature } from './villageFacts'
 
@@ -91,6 +92,10 @@ export interface PaneData {
   /** 這個範圍還沒有招生訪視的說明（D14：只出現在參觀、招生機會模式）。 */
   emptyText: string
   radiusKm: RadiusKm
+  /** 「2–5 歲孩子」年份滑桿的歷年人數（2026-11-16 規格 §5.3）；沒有（沒讀到、讀取失敗、不在這個模式）時排行用招生機會的最新人數。 */
+  childrenHistory?: AreaChildrenHistory | null
+  /** 滑桿選的那一格（預設最新）。 */
+  childrenStop?: YearStop
 }
 
 const TREND_SECTION_SIZE = 5
@@ -135,6 +140,20 @@ function trendItem(data: PaneData, row: AreaTrendsVillage, value: string, detail
 }
 
 /** 孩子增減的兩段：增加最多（>0）與減少最多（<0）各 5 個；孩子少與算不出來的不列，合併組照列。 */
+/** 年份滑桿的排行：選的那一格有人數（> 0）的里，由大到小；細節是比前一格（見 yearChangeText）。 */
+function childrenHistoryItems(history: AreaChildrenHistory, stop: YearStop): RankingItem[] {
+  const stops = childrenStops(history)
+  const key = stopKey(stop)
+  const label = history.latest?.label
+  return history.villages
+    .filter((row) => (row.counts[key] ?? 0) > 0)
+    .sort((a, b) => b.counts[key]! - a.counts[key]!)
+    .map((row) => ({
+      code: row.village_code, name: placeName(row.district, row.village), distance: formatDistance(row.distance_m),
+      value: `${formatCount(row.counts[key]!)} 位`, detail: yearChangeText(row, stop, stops, label),
+    }))
+}
+
 function trendSections(data: PaneData): RankingSection[] {
   const rows = (data.trends?.villages ?? []).filter(
     (row) => row.kids_level !== 'few' && row.kids_level !== 'unknown' && row.kids_net !== null,
@@ -170,7 +189,9 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
         }),
       )
     }
-    case 'children':
+    case 'children': {
+      const history = data.childrenHistory
+      if (history) return one(childrenHistoryItems(history, data.childrenStop ?? 'latest'))
       return one(
         [...(data.opportunity?.villages ?? [])]
           .filter((row) => row.children > 0)
@@ -180,6 +201,7 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
             value: `${formatCount(row.children)} 位`, detail: `0–1 歲 ${formatCount(row.infants)} 位`,
           })),
       )
+    }
     case 'trend':
       return trendSections(data)
     case 'homes':

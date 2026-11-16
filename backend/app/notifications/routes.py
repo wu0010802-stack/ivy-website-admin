@@ -10,9 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
-from app.auth.permissions import CapabilityDenied, campus_scope, covers_campus, require_scope
+from app.auth.permissions import CapabilityDenied, campus_scope, covers_campus, has_capability, require_scope
 from app.booking.models import OutboxStatus, VisitRequest, VisitSlot
 from app.notifications import outbox_admin
+from app.notifications.area_kinds import AREA_NOTICE_KINDS
 from app.notifications.models import NotificationInboxItem, UserNotification
 
 router = APIRouter(prefix="/api/website/v1", tags=["notifications"])
@@ -119,9 +120,17 @@ async def _visit_details(
     }
 
 
+def _can_see_area_notices(current_user: User) -> bool:
+    """附近園所異動與裁罰通知只給有 admissions.stats 的人（2026-11-16 規格 §7.4）。"""
+    return has_capability(current_user, "admissions.stats")
+
+
 def _inbox_scope(stmt, current_user: User, campus_key: str | None):
-    """列表與計數共用的範圍：指定校區（要有權限），或你負責的所有校區（總管理者＝全部）。"""
+    """列表與計數共用的範圍：指定校區（要有權限），或你負責的所有校區（總管理者＝全部）。
+    沒有 admissions.stats 的人一律排除區域分析的異動與裁罰通知（帶 campus_key 也一樣，直接不回，不報 403）。"""
     require_scope(current_user, "booking.read")
+    if not _can_see_area_notices(current_user):
+        stmt = stmt.where(NotificationInboxItem.kind.not_in(AREA_NOTICE_KINDS))
     if campus_key:
         require_scope(current_user, "booking.read", campus_keys=[campus_key])
         return stmt.where(NotificationInboxItem.campus_key == campus_key)
@@ -224,7 +233,8 @@ async def mark_notification_read(
         select(NotificationInboxItem).where(NotificationInboxItem.id == notification_id)
     )
     item = result.scalar_one_or_none()
-    if item is None:
+    # 沒有 admissions.stats 的人硬打區域分析通知的 id：同查無此則，不洩漏它存在。
+    if item is None or (item.kind in AREA_NOTICE_KINDS and not _can_see_area_notices(current_user)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個項目")
     # read_at 是全校共用的處理狀態，不是個人已讀：有人標了，同校其他人就
     # 看不到未讀提示。2026-09-25 業主裁定開放給櫃台的處理項目沒有列這一項，
@@ -255,6 +265,8 @@ async def mark_all_notifications_read(
     與 /admin/my-notifications/read-all（個人的內容審核通知，另一張表）無關。"""
     require_scope(current_user, "booking.manage")
     stmt = update(NotificationInboxItem).where(NotificationInboxItem.read_at.is_(None))
+    if not _can_see_area_notices(current_user):
+        stmt = stmt.where(NotificationInboxItem.kind.not_in(AREA_NOTICE_KINDS))
     if campus_key:
         require_scope(current_user, "booking.manage", campus_keys=[campus_key])
         stmt = stmt.where(NotificationInboxItem.campus_key == campus_key)

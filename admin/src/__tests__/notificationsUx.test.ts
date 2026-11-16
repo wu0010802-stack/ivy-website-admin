@@ -484,3 +484,27 @@ describe('站內通知翻頁與計數（2026-10-14）', () => {
     expect(wrapper.findAll('.notice')).toHaveLength(1)
   })
 })
+
+describe('站內通知的附近園所異動與裁罰（2026-11-16）', () => {
+  it('標題寫 3 公里內新設，整列連到該校的區域分析同業模式，點開標已讀；色調 primary', async () => {
+    vi.spyOn(api, 'get').mockImplementation(url => Promise.resolve(String(url).includes('notification-outbox') ? { items: [], total: 0 } : [
+      { id: 'a1', campus_key: 'yihua', kind: 'area_provider_change', created_at: '2026-11-16T01:00:00Z', read_at: null, slot: null,
+        payload: { radius_km: 3, provider: 'kindergarten', source_id: 'k1', name: '高雄市私立甲幼兒園', change: 'opened', kind: 'private', old_kind: null, new_kind: null, distance_m: 1200, date: '2026-10-02', date_basis: 'registered' } },
+      { id: 'a2', campus_key: 'renwu', kind: 'area_penalty', created_at: '2026-11-16T01:00:00Z', read_at: null, slot: null,
+        payload: { radius_km: 3, source_id: 'k2', name: '高雄市私立乙幼兒園', occurred_on: '2026-10-03', doc_no: '1', laws: ['法'], distance_m: 900 } },
+    ]) as Promise<never>)
+    const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+    const wrapper = await setup()
+    await flushPromises()
+    const rows = wrapper.findAll('.notice')
+    expect(rows[0]!.get('.notice__title').text()).toBe('3 公里內新設：甲幼兒園')
+    expect(rows[0]!.attributes('data-tone')).toBe('primary')
+    expect(rows[0]!.get('.notice__meta').text()).toBe('義華・1.2 km・私立・115-10-02')
+    expect(rows[0]!.get('a.notice__main').attributes('href')).toBe('/admissions-stats?campus=yihua&sub=area&map=peers')
+    expect(rows[1]!.get('.notice__title').text()).toBe('3 公里內裁罰：乙幼兒園')
+    expect(rows[1]!.attributes('data-tone')).toBe('warning')
+    expect(rows[1]!.get('a.notice__main').attributes('href')).toBe('/admissions-stats?campus=renwu&sub=area&map=peers')
+    await rows[0]!.get('a.notice__main').trigger('click')
+    expect(post).toHaveBeenCalledWith('/admin/notifications/a1/read')
+  })
+})

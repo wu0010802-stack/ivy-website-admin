@@ -616,6 +616,13 @@ export type AreaOpportunityRow = components['schemas']['AreaOpportunityRowOut']
 /** 半徑內、但各里人口沒有這個里：沒有孩子數，參觀不算進附近平均，也不是半徑外。 */
 export type AreaOpportunityMissing = components['schemas']['AreaOpportunityMissingOut']
 export type OpportunitySignal = AreaOpportunityRow['signal']
+// 歷年 2–5 歲人口（2026-11-16 規格 §5.2）：區域分析年份滑桿。
+export type AreaChildrenHistory = components['schemas']['AreaChildrenHistoryOut']
+export type AreaChildrenHistoryVillage = components['schemas']['AreaChildrenHistoryVillageOut']
+export type AreaChildrenHistoryRetired = components['schemas']['AreaChildrenHistoryRetiredOut']
+// 五校周邊環境比較（2026-11-16 規格 §6）：五校並排，每校一列。
+export type AreaCompare = components['schemas']['AreaCompareOut']
+export type AreaCompareRow = components['schemas']['AreaCompareRowOut']
 // 里的變化（2026-10-14 規格 §6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與淨遷入。
 export type AreaTrends = components['schemas']['AreaTrendsOut']
 /** 半徑內一個里，或同區里界調整過的一組（merged）。 */

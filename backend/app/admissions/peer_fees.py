@@ -102,7 +102,10 @@ async def query_peer_fees(db: AsyncSession, campus_key: str, *, radius_km: int, 
     kinds = {item.source_id: kind_of(item.kind, item.pre_public_period) for item in found}
     peers = [item for item in found if not own_flags[item.source_id]]
     # 本校本身是私立一般才排名（F14）：不同類型的公告收費不能互相排名。
-    own_is_private = own_fee is not None and kind_of(own_school.kind, own_school.pre_public_period) == "private"
+    own_kind = kind_of(own_school.kind, own_school.pre_public_period) if own_school is not None else None
+    if result["own"] is not None:
+        result["own"]["kind"] = own_kind
+    own_is_private = own_fee is not None and own_kind == "private"
     rank_against = own_fee.semester_total if own_fee is not None and own_is_private else None
     result["groups"] = [
         _group(kind, [item for item in peers if kinds[item.source_id] == kind], fees, rank_against if kind == "private" else None)

@@ -4,7 +4,7 @@
 import { api } from './client'
 import { searchHeaders } from './searchHeader'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
+  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaCompare, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, EnrolledApplyResult, EnrolledClearResult, EnrolledImportPayload, EnrolledPreview, EnrolledPreviewRequest, EnrollmentHistoryPayload,
   FollowUpUpdate, FunnelBoard, HistoryApplyResult, HistoryPreview, HistoryPreviewRequest, ImportStatus, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
@@ -202,6 +202,16 @@ export function getAreaOpportunity(params: {
   campus_key: string; school_year: number | null; semester: number | null; radius_km: 1 | 3 | 6
 }): Promise<AreaOpportunity> {
   return api.get<AreaOpportunity>(`/admin/admissions/area/opportunity?${toQuery(params)}`)
+}
+
+/** 五校周邊環境比較（2026-11-16 規格 §6）：每校半徑內的孩子、幼兒園與托嬰家數、本校收費排名、近 12 個月異動；只列看得到的校區。 */
+export function getAreaCompare(radiusKm: 1 | 3 | 6): Promise<AreaCompare> {
+  return api.get<AreaCompare>(`/admin/admissions/area/compare?${toQuery({ radius_km: radiusKm })}`)
+}
+
+/** 歷年 2–5 歲人口（2026-11-16 規格 §5.2）：本校半徑內各里歷年九月底與最新月份，半徑同 getAreaKindergartens（1、3、6 公里）。 */
+export function getAreaChildrenHistory(campusKey: string, radiusKm: 1 | 3 | 6): Promise<AreaChildrenHistory> {
+  return api.get<AreaChildrenHistory>(`/admin/admissions/area/children-history?${toQuery({ campus_key: campusKey, radius_km: radiusKm })}`)
 }
 
 /** 里的變化（2026-10-14 規格 §6）：參數同 getAreaOpportunity（學年學期目前只回在 filters）。 */

@@ -3,7 +3,7 @@ import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils
 import CompareTable from '../components/admissions/CompareTable.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import type { AdmissionsCompare, AdmissionsCompareRow, AdmissionsStats } from '../api/types'
-import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo } from './admissionsTestKit'
+import { areaCompare, button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -130,20 +130,20 @@ describe('統計分頁的「五校比較」子分頁', () => {
   })
 
   it('多校：切到五校比較才讀，帶頁首的學年學期，依後端順序每校一列', async () => {
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, CHONGDE, RENWU]) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, CHONGDE, RENWU]) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
     expect(tabTexts(wrapper).at(-5)).toBe('五校比較')
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual([])
 
     const pane = await openCompare(wrapper)
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual(['/admin/admissions/compare?school_year=115&semester=1'])
-    expect(bodyRows(pane).map((tr) => tr[0])).toEqual(['義華', '明華', '崇德', '仁武'])
+    expect(bodyRows(pane.get('.compare-table')).map((tr) => tr[0])).toEqual(['義華', '明華', '崇德', '仁武'])
     // 選了學年：學年學期寫在標題，不另加說明。
     expect(pane.find('.compare-note').exists()).toBe(false)
   })
 
   it('頁首整學年：請求不帶 semester，標題寫整學年', async () => {
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
 
     const pane = await openCompare(wrapper)
@@ -153,7 +153,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
   })
 
   it('頁首選下學期：請求帶 semester=2，標題寫下學期', async () => {
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, 2) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA], 115, 2) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: 2 }) })
 
     const pane = await openCompare(wrapper)
@@ -164,7 +164,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
   it('頁首沒選學年學期：沒選學年用目前學年（台北日期）並寫明、沒選學期件數算整學年', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ schoolYear: null, semester: null }) })
 
     const pane = await openCompare(wrapper)
@@ -179,7 +179,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
   it('下學期期間只選了今年：沒選學期不帶 semester（件數整學年）', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2027-02-10T09:00:00+08:00'))
-    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ schoolYear: 115, semester: null }) })
 
     const pane = await openCompare(wrapper)
@@ -192,6 +192,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const second = deferred<AdmissionsCompare>()
     mockGet({
       '/admin/admissions/stats': quietStats(),
+      '/admin/admissions/area/compare': areaCompare(),
       '/admin/admissions/compare': (path: string) => (path.endsWith('semester=1') ? first.promise : second.promise),
     })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
@@ -206,13 +207,13 @@ describe('統計分頁的「五校比較」子分頁', () => {
 
     const pane = wrapper.get('#pane-stats-compare')
     expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 下學期）')
-    expect(bodyRows(pane)[0]![1]).toBe('7')
+    expect(bodyRows(pane.get('.compare-table'))[0]![1]).toBe('7')
   })
 
   it('匯出 CSV：檔名用比較結果的學年學期與台北日期，欄名同畫面、比率寫分子分母', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T23:30:00+08:00'))
-    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, RENWU], 115, null) })
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, RENWU], 115, null) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ semester: null }) })
     const pane = await openCompare(wrapper)
 
@@ -234,6 +235,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
     let fail = true
     const get = mockGet({
       '/admin/admissions/stats': quietStats(),
+      '/admin/admissions/area/compare': areaCompare(),
       '/admin/admissions/compare': () => {
         if (fail) throw new Error('network')
         return compare([YIHUA])
@@ -248,5 +250,68 @@ describe('統計分頁的「五校比較」子分頁', () => {
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/compare')).toHaveLength(2)
     expect(bodyRows(wrapper.get('#pane-stats-compare'))[0]![0]).toBe('義華')
+  })
+})
+
+describe('五校比較的「周邊環境」表（2026-11-16）', () => {
+  const AREA_COMPARE = '/admin/admissions/area/compare'
+  const radiusInputs = (pane: Dom) => pane.get('.area-compare [aria-label="範圍"]').findAll('input.el-radio-button__original-radio')
+  const areaRows = (pane: Dom) => bodyRows(pane.get('.area-compare'))
+
+  it('切到五校比較才讀（預設 3 公里），招生件數表下面多一張周邊環境表，不用學年學期', async () => {
+    const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]), [AREA_COMPARE]: areaCompare() })
+    get.mockClear()
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    expect(pathsTo(get, AREA_COMPARE)).toEqual([])
+    const pane = await openCompare(wrapper)
+    expect(pathsTo(get, AREA_COMPARE)).toEqual(['/admin/admissions/area/compare?radius_km=3'])
+    expect(pane.text()).toContain('周邊環境')
+    expect(areaRows(pane)).toHaveLength(5)
+    expect(areaRows(pane).map((tr) => tr[0]!.slice(0, 2))).toEqual(['義華', '明華', '崇德', '國際', '仁武'])
+    expect(areaRows(pane)[3]![0]).toBe('國際（讀取失敗）')
+    expect(pane.get('.area-compare').text()).toContain('人口為最新月份；收費為 3 歲、和私立一般園所比；幼兒園家數不含常春藤各校。')
+  })
+
+  it('切 1 公里重讀；晚到的舊回應丟掉', async () => {
+    const slow = deferred<unknown>()
+    const get = mockGet({
+      '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]),
+      [AREA_COMPARE]: (path: string) => (path.endsWith('radius_km=3') ? slow.promise : areaCompare({ radius_km: 1 })),
+    })
+    get.mockClear()
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    const pane = await openCompare(wrapper)
+    await radiusInputs(pane)[0]!.setValue()
+    await flushPromises()
+    expect(pathsTo(get, AREA_COMPARE)).toEqual(['/admin/admissions/area/compare?radius_km=3', '/admin/admissions/area/compare?radius_km=1'])
+    expect(pane.get('.area-compare').text()).toContain('1 公里內')
+    slow.resolve(areaCompare({ radius_km: 3 }))
+    await flushPromises()
+    expect(pane.get('.area-compare').text()).toContain('1 公里內')
+  })
+
+  it('周邊環境讀取失敗：招生件數表照常，周邊環境顯示錯誤與重新載入', async () => {
+    const get = mockGet({
+      '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA, MINGHUA]),
+      [AREA_COMPARE]: () => { throw new Error('boom') },
+    })
+    get.mockClear()
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    const pane = await openCompare(wrapper)
+    expect(bodyRows(pane.get('.compare-table')).map((tr) => tr[0])).toEqual(['義華', '明華'])
+    expect(pane.get('.area-compare').text()).toContain('無法讀取周邊環境')
+    get.mockClear()
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]), [AREA_COMPARE]: areaCompare() })
+    await button(pane.get('.area-compare'), '重新載入')!.trigger('click')
+    await flushPromises()
+    expect(areaRows(pane)).toHaveLength(5)
+  })
+
+  it('點校區名：emit open-area 帶校區代碼', async () => {
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/compare': compare([YIHUA]), [AREA_COMPARE]: areaCompare() })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    const pane = await openCompare(wrapper)
+    await pane.findAll('.area-compare button.stats-table__name-link')[1]!.trigger('click')
+    expect(wrapper.emitted('open-area')).toEqual([['minghua']])
   })
 })

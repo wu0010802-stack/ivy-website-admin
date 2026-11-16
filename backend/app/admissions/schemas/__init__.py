@@ -111,6 +111,9 @@ from app.admissions.schemas.area import (
     AreaFiltersOut,
     AreaDataStatusOut,
     AreaCampusOut,
+    AreaCompareKindergartensOut,
+    AreaCompareOut,
+    AreaCompareRowOut,
     AreaReasonCountOut,
     AreaTotalsOut,
     AreaDistrictRowOut,
@@ -140,6 +143,10 @@ from app.admissions.schemas.area import (
     AreaChangesOut,
 )
 from app.admissions.schemas.trends import (
+    AreaChildrenHistoryLatestOut,
+    AreaChildrenHistoryOut,
+    AreaChildrenHistoryRetiredOut,
+    AreaChildrenHistoryVillageOut,
     OpportunitySignal,
     AreaPopulationOut,
     AreaOpportunityBaselineOut,

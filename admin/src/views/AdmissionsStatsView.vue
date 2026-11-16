@@ -24,6 +24,12 @@ const termless = computed(() => sub.value === 'booking' || sub.value === 'journe
 // 統計的警示與行動入口「查看本月明細」、區域分析與退出原因分佈的「查看明細」：到招生入學的訪視明細，
 // 帶校區、學年學期，以及月份、區域或退出原因（呼叫端只給其中一個，不疊成更窄的範圍）。
 // 用 push 不用 replace：看完明細按上一頁回到統計離開時的子分頁。
+// 五校周邊環境表點校區名：切到那一校的區域分析（網址由 useAdmissionsFilters 同步；換校區時選取的里會清掉）。
+function openArea(campusKey: string) {
+  campus.value = campusKey
+  sub.value = 'area'
+}
+
 function openRecords(filter: { month?: string; area?: string; withdraw?: string }) {
   const query: LocationQuery = {}
   for (const key of ['campus', 'sy', 'sem']) if (route.query[key] !== undefined) query[key] = route.query[key]!
@@ -61,6 +67,7 @@ function openRecords(filter: { month?: string; area?: string; withdraw?: string 
           :semester="semester"
           :campus-keys="visibleCampusKeys"
           @open-records="openRecords"
+          @open-area="openArea"
         />
       </div>
     </template>

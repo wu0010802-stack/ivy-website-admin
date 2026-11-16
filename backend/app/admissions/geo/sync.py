@@ -105,6 +105,7 @@ from app.admissions.geo import september as september_io
 from app.admissions.geo import village_series as series_io
 from app.admissions.geo.babycare import BabycareFormatError, parse_babycare
 from app.admissions.geo.closure_backfill import BackfillFormatError, load_closure_backfill
+from app.admissions.geo.notices import run_change_notices
 from app.admissions.geo.kindergartens import KindergartenFormatError, ParseReport, parse_preschools, parse_registry
 from app.admissions.geo.matcher import active_doorplate_version, rematch_visits
 from app.admissions.geo.models import (
@@ -399,6 +400,9 @@ class GeoSyncResult:
     elementary: str = "skipped"
     elementary_version: str | None = None
     elementary_years: int = 0
+    # 附近園所異動與裁罰通知（2026-11-16）：結果（updated｜failed）、這一輪寫了幾則站內通知；失敗只記 log，不讓同步失敗。
+    notices: str = "skipped"
+    notices_sent: int = 0
 
 
 class _AnchorCollector(HTMLParser):
@@ -2183,6 +2187,8 @@ async def run_geo_sync(
             logger.warning("預售建案重比失敗：%s", _error_text(exc), exc_info=True)
             await _record(session_factory, "presale_buildcases", now=now, error=f"重比失敗：{_error_text(exc)}")
             presale_rematched = 0
+        # 附近園所異動與裁罰通知：仍在 _exclusive 鎖內（兩個同步不會同時檢查）；自己開 session、自己 commit，失敗不擋同步。
+        notices, notices_sent = await run_change_notices(session_factory, today=today_local(now))
         status = await _status(session_factory, "doorplates")
         population_status = await _status(session_factory, "population")
         births_status = await _status(session_factory, "births")
@@ -2242,4 +2248,6 @@ async def run_geo_sync(
                 elementary_status.label if elementary_status and elementary_status.active_version else None
             ),
             elementary_years=elementary_years,
+            notices=notices,
+            notices_sent=notices_sent,
         )

@@ -404,6 +404,7 @@ async def test_tables_exist(db_session):
         "geo_village_births", "geo_village_migration", "geo_village_ages", "geo_village_income", "geo_new_home_sales",
         "geo_babycare", "geo_provider_events", "geo_kindergarten_fees", "geo_presale_buildcases", "geo_parcel_points",
         "geo_kindergarten_penalties", "geo_kindergarten_evaluations", "geo_village_ages_september", "geo_elementary_grade1",
+        "geo_change_notices", "geo_change_notice_baselines",
     }
 
 

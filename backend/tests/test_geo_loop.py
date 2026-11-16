@@ -332,10 +332,32 @@ def cli_on_test_app(app, monkeypatch):
     monkeypatch.setattr(cli, "get_settings", lambda: app.state.settings)
 
 
+async def test_sync_result_carries_notice_outcome(app, monkeypatch):
+    """同步尾端檢查附近異動與裁罰（2026-11-16 規格 §7.3）：結果帶 notices 與 notices_sent；通知失敗不影響其他資料集。"""
+    result = await sync.run_geo_sync(
+        app.state.session_factory, app.state.settings, doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON,
+        kindergartens_registry_file=REGISTRY_CSV,
+    )
+    assert (result.doorplates, result.kindergartens) == ("updated", "updated")
+    assert (result.notices, result.notices_sent) == ("updated", 0)
+
+    async def failing(session_factory, *, today):
+        return "failed", 0
+
+    monkeypatch.setattr(sync, "run_change_notices", failing)
+    again = await sync.run_geo_sync(
+        app.state.session_factory, app.state.settings, doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON,
+        kindergartens_registry_file=REGISTRY_CSV, force=True,
+    )
+    assert (again.notices, again.notices_sent) == ("failed", 0)
+    assert again.doorplates == "updated" and again.kindergartens == "updated"
+
+
 async def test_cli_geo_sync_with_files_imports_and_exits_zero(app, cli_on_test_app, capsys):
     await geo_sync_command(doorplates_file=SAMPLE_CSV, kindergartens_file=SAMPLE_JSON, kindergartens_registry_file=REGISTRY_CSV)
     output = capsys.readouterr().out
     assert "門牌：updated" in output and "幼兒園：updated" in output
+    assert "異動通知：updated" in output
     assert "略過" not in output  # 樣本沒有壞資料，不多印一行
     assert await _doorplate_count(app) > 0
 

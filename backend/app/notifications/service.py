@@ -39,6 +39,9 @@ from app.notifications.models import LineCampusTarget, LineGroup, NotificationDe
 logger = logging.getLogger("app.notifications")
 
 _KIND_LABELS = {
+    # 區域分析：五校 3 公里內的園所異動與裁罰（2026-11-16，只給總管理者）。
+    "area_provider_change": "附近園所異動",
+    "area_penalty": "附近幼兒園裁罰",
     # 官網送單即預約成立（排了場次的才叫預約，未排的才叫「參觀需求」，和後台用語一致）。
     "visit_request_created": "新的參觀預約",
     # 後台補登排入場次。

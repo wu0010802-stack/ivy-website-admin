@@ -2633,6 +2633,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要多種公開資料（以下四種是起頭的，「里的變化」另有出生、遷入遷出、所得、新成屋，各段在下方）：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）、內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）與托嬰中心名單（2026-10-14，見下方「托嬰名單與園所異動」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。
 
+**同步後的異動通知（2026-11-16）**：`run_geo_sync` 在鎖內、重比之後會檢查五校 3 公里內的園所新設、停辦、類型變動與新公布的裁罰，寫進後台「站內通知」（只有總管理者看得到，`area_provider_change`／`area_penalty`）。**上線第一輪只記帳不發通知**（每校每種各寫一列基準，之後才發）；失敗只記 log，同步結果多 `notices`（updated／failed）與 `notices_sent`，CLI `geo-sync` 總結行多「異動通知」。migration `a9c4e7b2d815` 只新增 `geo_change_notices`、`geo_change_notice_baselines` 兩張表，不需要部署前備份；沒有新環境變數。
+
 **六個環境變數**（api 服務，全部選填；沒設就用預設）：
 
 | 變數 | 預設 | 作用 |

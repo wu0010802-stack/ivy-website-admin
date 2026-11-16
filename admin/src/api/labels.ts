@@ -362,6 +362,9 @@ export const BOOKING_MODE_LABELS: Record<string, string> = {
 
 // 與後端 notifications/service.py 的 _KIND_LABELS 同一組（labels.test.ts 會比對）。
 export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
+  // 區域分析：五校 3 公里內的園所異動與裁罰（2026-11-16，只有總管理者看得到）。
+  area_provider_change: '附近園所異動',
+  area_penalty: '附近幼兒園裁罰',
   visit_request_created: '新的參觀預約',
   visit_request_confirmed: '參觀預約已確認',
   visit_request_cancelled: '參觀預約已取消',

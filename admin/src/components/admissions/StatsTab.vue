@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useTemplateRef, watch } from 'vue'
 import AreaTab from './area/AreaTab.vue'
+import AreaCompareTable from './AreaCompareTable.vue'
 import CompareTable from './CompareTable.vue'
 import NoDepositList from './NoDepositList.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
@@ -10,11 +11,12 @@ import PotentialTab from './potential/PotentialTab.vue'
 import ImportsTab from './imports/ImportsTab.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import BookingStatsPane from '../analytics/BookingStatsPane.vue'
-import { getCompare, getStats } from '../../api/admissions'
+import { getAreaCompare, getCompare, getStats } from '../../api/admissions'
 import { campusLabel, formatDateTime } from '../../api/labels'
-import type { AdmissionsCompare, AdmissionsStats } from '../../api/types'
+import type { AdmissionsCompare, AdmissionsStats, AreaCompare } from '../../api/types'
 import { currentTerm, taipeiToday, termLabel } from '../../admissions/academic'
 import { SEMESTER_LABELS, UNCLASSIFIED_LABEL, UNCLASSIFIED_WITHDRAW } from '../../admissions/constants'
+import { AREA_COMPARE_NOTE } from '../../admissions/areaCompareFormat'
 import { DEFAULT_AREA_VIEW, type AreaView } from '../../admissions/areaView'
 import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/journeyFormat'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
@@ -36,7 +38,10 @@ import { csvFilename } from '../../utils/csv'
 // 「招生潛力與市佔率」（2026-10-20，PotentialTab）也讀自己的 API，看所有學年，沒有要放網址的篩選。
 // 「資料匯入」（2026-10-21，ImportsTab）上傳在籍清冊與歷年註冊，同樣讀自己的 API、不分入學學年學期。
 const props = defineProps<{ campusKey: string; schoolYear: number | null; semester: number | null; campusKeys: readonly string[] }>()
-const emit = defineEmits<{ 'open-records': [filter: { month?: string; area?: string; withdraw?: string }] }>()
+const emit = defineEmits<{
+  'open-records': [filter: { month?: string; area?: string; withdraw?: string }]
+  'open-area': [campusKey: string]
+}>()
 
 // 統計表的匯出檔名：招生統計-表名-校區-學期-日期（沒選學年寫「全部學年」，只選學期就接上學期，
 // 檔名才不會把只有上學期的數字寫成全部）。
@@ -178,6 +183,32 @@ async function loadCompare() {
 watch([subTab, () => compareTerm.value.schoolYear, () => compareTerm.value.semester], () => {
   if (subTab.value === 'stats-compare' && showCompare.value) void loadCompare()
 }, { immediate: true })
+
+// 五校周邊環境（2026-11-16 規格 §6.2）：接在招生件數表下面，自己讀、自己成敗；不吃學年學期（人口、園所都是當下資料），
+// 範圍 1／3／6 公里是畫面狀態（預設 3、不進網址）。
+const compareRadius = ref<1 | 3 | 6>(3)
+const areaCompare = ref<AreaCompare | null>(null)
+const areaCompareFailed = ref(false)
+const areaCompareRequests = useRequestSequence()
+async function loadAreaCompare() {
+  const request = areaCompareRequests.begin()
+  areaCompare.value = null
+  areaCompareFailed.value = false
+  try {
+    const result = await getAreaCompare(compareRadius.value)
+    if (areaCompareRequests.isCurrent(request)) areaCompare.value = result
+  } catch {
+    if (areaCompareRequests.isCurrent(request)) areaCompareFailed.value = true
+  }
+}
+watch([subTab, compareRadius], () => {
+  if (subTab.value === 'stats-compare' && showCompare.value) void loadAreaCompare()
+}, { immediate: true })
+// el-radio-group 回報 string | number | boolean：只收 1、3、6。
+function setCompareRadius(value: string | number | boolean | undefined) {
+  const km = Number(value)
+  if (km === 1 || km === 3 || km === 6) compareRadius.value = km
+}
 // 權限更新後只剩一校：子分頁消失，退回總覽。
 // 網址帶 sub=compare 但只看得到一校：掛載時也要退回。
 watch(showCompare, (visible) => {
@@ -500,6 +531,26 @@ function openWithdrawRecords(row: { code: string }) {
             :semester="compareResult.semester"
             :export-filename="csvFilename('招生統計', '五校比較', termLabel(compareResult.school_year, compareResult.semester), taipeiToday())"
           />
+          <section class="area-compare">
+            <div class="area-compare__head">
+              <span class="area-compare__label" aria-hidden="true">周邊環境範圍</span>
+              <el-radio-group :model-value="compareRadius" size="small" aria-label="範圍" @update:model-value="setCompareRadius">
+                <el-radio-button v-for="km in [1, 3, 6]" :key="km" :value="km">{{ km }} 公里</el-radio-button>
+              </el-radio-group>
+            </div>
+            <el-alert v-if="areaCompareFailed" type="error" :closable="false" show-icon title="無法讀取周邊環境，請重新載入。">
+              <el-button size="small" @click="loadAreaCompare()">重新載入</el-button>
+            </el-alert>
+            <el-skeleton v-else-if="!areaCompare" :rows="4" animated />
+            <template v-else>
+              <AreaCompareTable
+                :data="areaCompare"
+                :export-filename="csvFilename('招生統計', '五校周邊環境', `${areaCompare.radius_km}公里`, taipeiToday())"
+                @open-area="emit('open-area', $event)"
+              />
+              <p class="hint">{{ AREA_COMPARE_NOTE }}</p>
+            </template>
+          </section>
         </div>
       </el-tab-pane>
 
@@ -586,6 +637,25 @@ function openWithdrawRecords(row: { code: string }) {
 .nodeposit-priority {
   margin: 0;
   color: var(--ink-2);
+}
+
+.area-compare {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+
+.area-compare__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.area-compare__label {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
 .compare-note {

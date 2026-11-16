@@ -23,6 +23,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import area as area_service
 from app.admissions import journey as journey_service
+from app.admissions import area_compare as area_compare_service
+from app.admissions import children_history as children_history_service
 from app.admissions import opportunity as opportunity_service
 from app.admissions import peer_fees as peer_fees_service
 from app.admissions import potential as potential_service
@@ -42,6 +44,8 @@ from app.admissions.schemas import (
     AdmissionsStatsOut,
     AreaBabycareOut,
     AreaChangesOut,
+    AreaChildrenHistoryOut,
+    AreaCompareOut,
     AreaEnrolledOut,
     AreaKindergartenRecordsOut,
     AreaKindergartensOut,
@@ -1011,6 +1015,46 @@ async def get_admissions_area_opportunity(
         db, campus_key, school_year=school_year, semester=semester, radius_km=radius_km
     )
     return AreaOpportunityOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/children-history",
+    response_model=AreaChildrenHistoryOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_children_history(
+    campus_key: str,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaChildrenHistoryOut:
+    """歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）：本校半徑內各里歷年九月底與最新月份的 2–5 歲人數。
+    只讀，不寫稽核；只有里層級的公開人口資料。"""
+    _require_campus(current_user, "admissions.stats", campus_key)
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await children_history_service.query_children_history(db, campus_key, radius_km=radius_km)
+    return AreaChildrenHistoryOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/compare",
+    response_model=AreaCompareOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_compare(
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaCompareOut:
+    """五校周邊環境比較（2026-11-16 規格 §6）：每校半徑內的 2–5 歲孩子、一年增減、附近幼兒園與托嬰家數、本校 3 歲收費
+    排名、近 12 個月異動件數。權限同 /compare（只列授權範圍內的校區）；各校各自成敗。只讀，不寫稽核。"""
+    require_scope(current_user, "admissions.stats")
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    result = await area_compare_service.query_area_compare(db, campus_keys, radius_km=radius_km)
+    return AreaCompareOut.model_validate(result)
 
 
 @router.get(

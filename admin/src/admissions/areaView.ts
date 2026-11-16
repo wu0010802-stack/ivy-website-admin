@@ -26,13 +26,17 @@ export interface AreaView {
   /** 里代碼（VILLCODE，11 位數字）；空字串＝沒選。 */
   village: string
   table: AreaTableTab
+  /** 「2–5 歲孩子」模式的年份滑桿（2026-11-16 規格 §5.3）：民國年；null＝最新。只在這個模式有效，換模式就拿掉。 */
+  year: number | null
 }
 
 /** 預設畫面；凍結，要新值（model 預設、重設）一律 `{ ...DEFAULT_AREA_VIEW }`。 */
-export const DEFAULT_AREA_VIEW: Readonly<AreaView> = Object.freeze({ map: null, village: '', table: 'village' })
+export const DEFAULT_AREA_VIEW: Readonly<AreaView> = Object.freeze({ map: null, village: '', table: 'village', year: null })
 
 // VILLCODE：縣市 2 碼＋鄉鎮 3 碼＋里 6 碼，例 64000050015。
 const VILLAGE_CODE = /^\d{11}$/
+// 年份：民國三位數（107…）；實際有哪些年由後端的九月表決定，不在格子裡的年份由 AreaTab 退回最新。
+const YEAR = /^\d{3}$/
 
 // 網址參數重複時取第一個；非字串（null、巢狀）當沒帶。
 const text = (value: unknown): string => {
@@ -52,18 +56,21 @@ export function parseAreaViewQuery(query: LocationQuery): AreaView {
   const map = text(query.map)
   const village = text(query.village)
   const table = text(query.table)
+  const year = text(query.year)
   return {
     map: isMapMode(map) ? map : DEFAULT_AREA_VIEW.map,
     village: VILLAGE_CODE.test(village) ? village : DEFAULT_AREA_VIEW.village,
     table: isTableTab(table) ? table : DEFAULT_AREA_VIEW.table,
+    year: YEAR.test(year) ? Number(year) : DEFAULT_AREA_VIEW.year,
   }
 }
 
-/** 寫網址：預設值（map 為 null、沒選里、table 為 village）不寫。 */
+/** 寫網址：預設值（map 為 null、沒選里、table 為 village、year 為 null）不寫。 */
 export function areaViewQuery(view: AreaView): Record<string, string> {
   const query: Record<string, string> = {}
   if (view.map !== null) query.map = view.map
   if (view.village !== DEFAULT_AREA_VIEW.village) query.village = view.village
   if (view.table !== DEFAULT_AREA_VIEW.table) query.table = view.table
+  if (view.year !== null) query.year = String(view.year)
   return query
 }

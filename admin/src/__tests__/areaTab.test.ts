@@ -9,6 +9,7 @@ import { flushPromises, type VueWrapper } from '@vue/test-utils'
 import AreaTab from '../components/admissions/area/AreaTab.vue'
 import areaTabSource from '../components/admissions/area/AreaTab.vue?raw'
 import statsTabSource from '../components/admissions/StatsTab.vue?raw'
+import ChildrenYearSlider from '../components/admissions/area/ChildrenYearSlider.vue'
 import AreaTables from '../components/admissions/area/AreaTables.vue'
 import NearbyBabycare from '../components/admissions/area/NearbyBabycare.vue'
 import NearbyKindergartens from '../components/admissions/area/NearbyKindergartens.vue'
@@ -17,7 +18,7 @@ import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import { NOT_JUDGED_NOTE } from '../components/admissions/area/areaFormat'
 import { DEFAULT_AREA_VIEW, type AreaTableTab, type AreaView } from '../admissions/areaView'
 import {
-  areaBabycare, areaChanges, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
+  areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
   deferred,
   mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
@@ -32,7 +33,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
-        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter',
+        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter', 'childrenShade',
       ],
       emits: ['select-village'],
       setup(_, { expose }) {
@@ -67,6 +68,7 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/babycare': areaBabycare(),
   '/admin/admissions/area/fees': areaPeerFees(),
   '/admin/admissions/area/changes': areaChanges(),
+  '/admin/admissions/area/children-history': areaChildrenHistory(),
   '/admin/admissions/area/opportunity': opportunity,
   '/admin/admissions/area/trends': areaTrends(),
   '/admin/admissions/area/presale': areaPresale(),
@@ -207,13 +209,13 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('點看什麼：右欄與地圖跟著換；和預設不同才寫進 view，選回預設是 null', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '參觀')
-    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village' })
+    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village', year: null })
     expect(checkedMode(wrapper)).toBe('參觀')
     expect(paneTitle(wrapper)).toBe('參觀')
     expect(areaMap(wrapper).props('mode')).toBe('visits')
     expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區本揚里', '三民區寶業里', '鼓山區龍子里'])
     await chooseMode(wrapper, '在籍學生')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village' })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
     expect(areaMap(wrapper).props('mode')).toBe('enrolled')
   })
 
@@ -248,7 +250,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('falls back when map is disabled：網址 map=enrolled、清冊未匯入 → 工具列選 2–5 歲孩子、emit update:view 的 map 是 null', async () => {
     const slow = deferred<unknown>()
     mockGet(routes(areaStats(), areaOpportunity(), () => slow.promise))
-    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school' }))
+    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school', year: null }))
     // 讀取中不算停用：先照網址看在籍學生。
     expect(checkedMode(wrapper)).toBe('在籍學生')
     expect(wrapper.emitted('update:view')).toBeUndefined()
@@ -257,7 +259,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
     expect(modeInput(wrapper, '在籍學生').disabled).toBe(true)
     expect(modeInput(wrapper, '在籍學生').checked).toBe(false)
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school' })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school', year: null })
     expect(areaMap(wrapper).props('mode')).toBe('children')
   })
 
@@ -265,7 +267,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     const slowBoundaries = deferred<unknown>()
     const slowEnrolled = deferred<unknown>()
     mockGet({ ...routes(areaStats(), areaOpportunity(), () => slowEnrolled.promise), '/admin/admissions/area/boundaries': () => slowBoundaries.promise })
-    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school' })
+    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school', year: null })
     const Host = defineComponent({
       setup: () => () => h(AreaTab, { ...props(), view: view.value, 'onUpdate:view': (next: AreaView) => { view.value = next } }),
     })
@@ -275,7 +277,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     slowEnrolled.resolve(areaEnrolled({ status: 'not_imported' }))
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(view.value).toEqual({ map: null, village: '', table: 'school' })
+    expect(view.value).toEqual({ map: null, village: '', table: 'school', year: null })
   })
 
   it('同一個畫面裡網址換到停用的模式（上一頁／下一頁）：也退回預設、map 寫回 null，不來回觸發', async () => {
@@ -285,8 +287,138 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.emitted('update:view')).toBeUndefined()
     await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'enrolled' } })
     await flushPromises()
-    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village' }]])
+    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village', year: null }]])
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+  })
+})
+
+describe('區域分析：2–5 歲孩子的年份滑桿（2026-11-16）', () => {
+  const HISTORY = '/admin/admissions/area/children-history'
+  const slider = (wrapper: VueWrapper) => wrapper.findComponent(ChildrenYearSlider)
+  const sliderEmit = (wrapper: VueWrapper, stop: number | 'latest') => slider(wrapper).vm.$emit('update:modelValue', stop)
+
+  it('只在「2–5 歲孩子」模式才讀歷年、才出現滑桿；換到別的模式就沒有，也不再多讀', async () => {
+    const get = mockGet(routes())
+    const { wrapper } = await mountReady(withView({ map: 'visits' }))
+    expect(pathsTo(get, HISTORY)).toEqual([])
+    expect(wrapper.find('.children-year').exists()).toBe(false)
+    await chooseMode(wrapper, '2–5 歲孩子')
+    expect(pathsTo(get, HISTORY)).toHaveLength(1)
+    expect(queryOf(pathsTo(get, HISTORY)[0]!).get('campus_key')).toBe('yihua')
+    expect(queryOf(pathsTo(get, HISTORY)[0]!).get('radius_km')).toBe('3')
+    expect(slider(wrapper).exists()).toBe(true)
+    expect(wrapper.get('.area-toolbar__year').text()).toContain('年份')
+    expect(slider(wrapper).props('stops')).toEqual([107, 108, 114, 115, 'latest'])
+    expect(slider(wrapper).props('modelValue')).toBe('latest')
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '2–5 歲孩子')
+    expect(wrapper.find('.children-year').exists()).toBe(true)
+    expect(pathsTo(get, HISTORY)).toHaveLength(1)
+  })
+
+  it('預設最新：地圖拿到最新那一格的 childrenShade，右欄用歷年排行', async () => {
+    mockGet(routes())
+    const { wrapper } = await mountReady(withView({ map: 'children' }))
+    const shade = areaMap(wrapper).props('childrenShade') as { byCode: Map<string, number | null>; max: number }
+    expect(shade.max).toBe(520)
+    expect(shade.byCode.get('64000050015')).toBe(400)
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區鼎金里', '三民區本揚里', '三民區寶業里'])
+  })
+
+  it('選 108：view.year 寫 108、地圖換那一年；換到其他模式 year 回 null', async () => {
+    mockGet(routes())
+    const { wrapper } = await mountReady(withView({ map: 'children' }))
+    await sliderEmit(wrapper, 108)
+    await flushPromises()
+    expect(lastView(wrapper)).toMatchObject({ map: 'children', year: 108 })
+    await wrapper.setProps({ view: lastView(wrapper)! })
+    expect(slider(wrapper).props('modelValue')).toBe(108)
+    expect((areaMap(wrapper).props('childrenShade') as { byCode: Map<string, number | null> }).byCode.get('64000050015')).toBe(380)
+    await sliderEmit(wrapper, 'latest')
+    expect(lastView(wrapper)).toMatchObject({ year: null })
+    await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'children', year: 108 } })
+    await chooseMode(wrapper, '參觀')
+    expect(lastView(wrapper)).toMatchObject({ map: 'visits', year: null })
+  })
+
+  it('在籍名冊還沒匯入（預設就是 2–5 歲孩子）且網址沒帶 map：重新整理時 year 不會在在籍讀取中被提早拿掉', async () => {
+    const slowEnrolled = deferred<unknown>()
+    mockGet(routes(areaStats(), areaOpportunity(), () => slowEnrolled.promise))
+    const { wrapper } = await mountReady(withView({ year: 108 }))
+    expect(lastView(wrapper)).toBeUndefined()
+    slowEnrolled.resolve(areaEnrolled({ status: 'not_imported' }))
+    await flushPromises()
+    expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+    expect(slider(wrapper).props('modelValue')).toBe(108)
+    expect(wrapper.emitted('update:view')?.some((call) => (call[0] as AreaView).year === null)).toBeFalsy()
+  })
+
+  it('網址的年份不在格子裡（999、106）：畫面用最新，網址的 year 拿掉', async () => {
+    mockGet(routes())
+    for (const year of [999, 106]) {
+      const { wrapper } = await mountReady(withView({ map: 'children', year }))
+      expect(slider(wrapper).props('modelValue')).toBe('latest')
+      expect(lastView(wrapper)).toMatchObject({ year: null })
+      expect((areaMap(wrapper).props('childrenShade') as { byCode: Map<string, number | null> }).byCode.get('64000050015')).toBe(400)
+    }
+  })
+
+  it('歷年讀取失敗：沒有滑桿、地圖不帶 childrenShade、原因列寫「歷年人口讀取失敗」，其他畫面照常', async () => {
+    mockGet({ ...routes(), [HISTORY]: () => { throw new Error('boom') } })
+    const { wrapper } = await mountReady(withView({ map: 'children' }))
+    expect(wrapper.find('.children-year').exists()).toBe(false)
+    expect(areaMap(wrapper).props('childrenShade')).toBeNull()
+    expect(modeNotes(wrapper)).toContain('歷年人口讀取失敗。')
+    expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區鼎金里', '三民區本揚里', '三民區寶業里'])
+  })
+
+  it('歷年讀取中：沒有滑桿、地圖用最新人數，不會出現空白地圖', async () => {
+    const slow = deferred<unknown>()
+    mockGet({ ...routes(), [HISTORY]: () => slow.promise })
+    const { wrapper } = await mountReady(withView({ map: 'children' }))
+    expect(wrapper.find('.children-year').exists()).toBe(false)
+    expect(areaMap(wrapper).props('childrenShade')).toBeNull()
+    slow.resolve(areaChildrenHistory())
+    await flushPromises()
+    expect(wrapper.find('.children-year').exists()).toBe(true)
+  })
+
+  it('本校沒座標或沒有歷年資料（unavailable）：不出滑桿、照用最新人數', async () => {
+    mockGet({ ...routes(), [HISTORY]: areaChildrenHistory({ unavailable: 'no_history', years: [], villages: [] }) })
+    const { wrapper } = await mountReady(withView({ map: 'children' }))
+    expect(wrapper.find('.children-year').exists()).toBe(false)
+    expect(areaMap(wrapper).props('childrenShade')).toBeNull()
+  })
+
+  it('換半徑：重新讀、年份不在新格子裡退回最新；晚到的舊回應丟掉', async () => {
+    const first = deferred<unknown>()
+    const calls: string[] = []
+    mockGet({
+      ...routes(),
+      [HISTORY]: (path: string) => {
+        calls.push(path)
+        return calls.length === 1 ? first.promise : areaChildrenHistory({ radius_km: 1, years: [108, 115], villages: [], max_children: 10 })
+      },
+    })
+    const { wrapper } = await mountReady(withView({ map: 'children', year: 108 }))
+    await chooseRadius(wrapper, 1)
+    await flushPromises()
+    expect(calls).toHaveLength(2)
+    expect(queryOf(calls[1]!).get('radius_km')).toBe('1')
+    expect(slider(wrapper).props('stops')).toEqual([108, 115, 'latest'])
+    first.resolve(areaChildrenHistory())
+    await flushPromises()
+    expect(slider(wrapper).props('stops')).toEqual([108, 115, 'latest'])
+  })
+
+  it('地圖下方：選到的年份有已廢止的里，寫一行說明；最新那一格沒有', async () => {
+    mockGet(routes())
+    const { wrapper } = await mountReady(withView({ map: 'children', year: 107 }))
+    expect(wrapper.get('.area-workbench__retired').text())
+      .toBe('同區另有 2 個已廢止的里（廍北里、廍南里）有這年的資料，地圖上畫不出來。')
+    await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'children', year: null } })
+    expect(wrapper.find('.area-workbench__retired').exists()).toBe(false)
   })
 })
 
@@ -295,7 +427,7 @@ describe('區域分析：選取的里', () => {
     const { wrapper } = await mountTab()
     areaMap(wrapper).vm.$emit('select-village', PB)
     await flushPromises()
-    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village' })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village', year: null })
     expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
     expect(side(wrapper).get('[aria-live="polite"]').text()).toBe('已選取三民區本揚里')
     expect(areaMap(wrapper).props('selectedCode')).toBe('64000050015')
@@ -501,7 +633,7 @@ describe('區域分析：選取的里', () => {
     slow.resolve(villageBoundaries())
     await vi.waitFor(() => expect(missing.wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village' })
+    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
     cleanup()
 
     // 里界裡有的代碼：讀到後照開卡片，不清。
@@ -1255,7 +1387,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('在建預售模式：右欄是戶數排行與摘要，地圖拿到 presale；網址帶 map=presale', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '在建預售')
-    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village' })
+    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village', year: null })
     expect(paneTitle(wrapper)).toBe('在建預售')
     expect(areaMap(wrapper).props('mode')).toBe('presale')
     expect(side(wrapper).text()).toContain('半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。')
@@ -1266,7 +1398,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('預售建案分頁：清單在各里之後；點案名＝選取所在的里（地圖移過去、右欄出現里卡片）', async () => {
     const { wrapper } = await mountTab()
     await openTable(wrapper, 'presale')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale' })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale', year: null })
     expect(tableTitles(wrapper)).toEqual(['附近預售建案（本校 3 公里內）'])
     expect(bodyRows(block(wrapper, '附近預售建案（本校 3 公里內）')).map((row) => row[1])).toEqual(['乙案', '甲案', '丙案'])
     await wrapper.findAll('.area-full-tables .stats-table__name-link')[2]!.trigger('click')
@@ -1386,7 +1518,7 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
       ...routes(),
       '/admin/admissions/area/fees': (path: string) => areaPeerFees({ age: Number(queryOf(path).get('age')) as 2 | 3 | 4 | 5 }),
     })
-    const { wrapper } = await mountReady(withView({ map: 'peers', table: 'fees' }))
+    const { wrapper } = await mountReady(withView({ map: 'peers', table: 'fees', year: null }))
     const meta = () => wrapper.findAll('.nearby__meta').map((item) => item.text())
     expect(meta()[0]).toBe('0 m・核定 210 人・3 歲學期 89,750')
     wrapper.findComponent(PeerFeesPanel).vm.$emit('update:age', 5)
@@ -1413,7 +1545,7 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
   it('收費讀取失敗只影響這一塊，重試成功恢復', async () => {
     let fail = true
     mockGet({ ...routes(), '/admin/admissions/area/fees': () => { if (fail) throw new Error('boom'); return areaPeerFees() } })
-    const { wrapper } = await mountReady(withView({ map: 'peers', table: 'fees' }))
+    const { wrapper } = await mountReady(withView({ map: 'peers', table: 'fees', year: null }))
     expect(wrapper.text()).toContain('無法讀取附近同業收費。')
     expect(wrapper.findAll('.nearby__name')).toHaveLength(4)
     expect(wrapper.findAll('.nearby__meta')[0]!.text()).toBe('0 m・核定 210 人・—')
