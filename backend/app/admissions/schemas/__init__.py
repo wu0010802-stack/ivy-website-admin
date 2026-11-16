@@ -140,6 +140,10 @@ from app.admissions.schemas.area import (
     AreaChangesOut,
 )
 from app.admissions.schemas.trends import (
+    AreaChildrenHistoryLatestOut,
+    AreaChildrenHistoryOut,
+    AreaChildrenHistoryRetiredOut,
+    AreaChildrenHistoryVillageOut,
     OpportunitySignal,
     AreaPopulationOut,
     AreaOpportunityBaselineOut,

@@ -315,3 +315,45 @@ class AreaPresaleOut(BaseModel):
     summary: AreaPresaleSummaryOut
     # 依預計交屋由近到遠（已過預計時間的在最前），同值依距離、區、案名。
     items: list[AreaPresaleItemOut]
+
+
+# ---- 歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）----
+
+
+class AreaChildrenHistoryLatestOut(BaseModel):
+    """「最新」那一格：人口狀態的月份（如 115-10）與同步時間。"""
+
+    label: str | None
+    synced_at: datetime | None
+
+
+class AreaChildrenHistoryVillageOut(BaseModel):
+    """半徑內一個里。counts 的鍵是民國年字串與 "latest"，某年沒有這個里的資料（例如新設的里）是 null；
+    adjusted＝行政區域調整人數過門檻的月份（如 115-07），前後年份不可直接比。"""
+
+    village_code: str
+    district: str
+    village: str
+    distance_m: int
+    counts: dict[str, int | None]
+    adjusted: list[str]
+
+
+class AreaChildrenHistoryRetiredOut(BaseModel):
+    """九月表有資料、現行里界沒有的代碼（已廢止的里），只列和半徑內的里同一區的；years＝有資料的民國年。"""
+
+    village_code: str
+    district: str
+    village: str
+    years: list[int]
+
+
+class AreaChildrenHistoryOut(BaseModel):
+    campus: AreaCampusOut
+    radius_km: int
+    unavailable: Literal["no_campus_point", "no_history"] | None
+    latest: AreaChildrenHistoryLatestOut | None
+    years: list[int]
+    villages: list[AreaChildrenHistoryVillageOut]
+    retired: list[AreaChildrenHistoryRetiredOut]
+    max_children: int

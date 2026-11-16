@@ -89,6 +89,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/children-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Children History
+         * @description 歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）：本校半徑內各里歷年九月底與最新月份的 2–5 歲人數。
+         *     只讀，不寫稽核；只有里層級的公開人口資料。
+         */
+        get: operations["get_admissions_area_children_history_api_website_v1_admin_admissions_area_children_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/enrolled": {
         parameters: {
             query?: never;
@@ -4721,6 +4742,68 @@ export interface components {
             tracking_since: components["schemas"]["AreaTrackingSinceOut"];
             /** Window Months */
             window_months: number;
+        };
+        /**
+         * AreaChildrenHistoryLatestOut
+         * @description 「最新」那一格：人口狀態的月份（如 115-10）與同步時間。
+         */
+        AreaChildrenHistoryLatestOut: {
+            /** Label */
+            label: string | null;
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /** AreaChildrenHistoryOut */
+        AreaChildrenHistoryOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            latest: components["schemas"]["AreaChildrenHistoryLatestOut"] | null;
+            /** Max Children */
+            max_children: number;
+            /** Radius Km */
+            radius_km: number;
+            /** Retired */
+            retired: components["schemas"]["AreaChildrenHistoryRetiredOut"][];
+            /** Unavailable */
+            unavailable: ("no_campus_point" | "no_history") | null;
+            /** Villages */
+            villages: components["schemas"]["AreaChildrenHistoryVillageOut"][];
+            /** Years */
+            years: number[];
+        };
+        /**
+         * AreaChildrenHistoryRetiredOut
+         * @description 九月表有資料、現行里界沒有的代碼（已廢止的里），只列和半徑內的里同一區的；years＝有資料的民國年。
+         */
+        AreaChildrenHistoryRetiredOut: {
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+            /** Years */
+            years: number[];
+        };
+        /**
+         * AreaChildrenHistoryVillageOut
+         * @description 半徑內一個里。counts 的鍵是民國年字串與 "latest"，某年沒有這個里的資料（例如新設的里）是 null；
+         *     adjusted＝行政區域調整人數過門檻的月份（如 115-07），前後年份不可直接比。
+         */
+        AreaChildrenHistoryVillageOut: {
+            /** Adjusted */
+            adjusted: string[];
+            /** Counts */
+            counts: {
+                [key: string]: number | null;
+            };
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
         };
         /**
          * AreaDataStatusOut
@@ -11535,6 +11618,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaChangesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_children_history_api_website_v1_admin_admissions_area_children_history_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaChildrenHistoryOut"];
                 };
             };
             /** @description Validation Error */
