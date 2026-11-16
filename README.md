@@ -10,6 +10,15 @@
 - **業主待辦**：(1) GA4 資源 563982090 把 Search Console 服務帳戶加為檢視者、啟用 Google Analytics Data API、在 Railway api 設 `WEBSITE_GA4_PROPERTY_ID`（步驟見 `deploy/README.md`「GA4 廣告花費」）；(2) 申請 Google Business Profile API 存取權；(3) 申請 Google Ads developer token。
 - **之後投 Meta 廣告**：廣告網址要帶 `utm_medium=paid&utm_source=facebook`；只有 `fbclid` 會被當成一般 Facebook 分享（見 `docs/website-admin/operations.md`）。
 
+## 2026-11-16 特色教學手機版美術館：進度條＋尾端留白（`feature/cur-gallery-ticks-20261116`）
+
+使用者問手機版 03 兒童美術館的橫滑有沒有更好的呈現方式，看過三個方向的比稿（`design/curriculum-gallery-mobile-20261116/`）後選 A 小修。只動 760px 以下，桌機與平板的作品牆不變。
+
+- 「1 / 8　左右滑動」換成一件一段的進度條，目前這件深綠，點一段捲到那一件（`CurriculumContent.vue` 的 `.cur-ticks`、`showArt`）。
+- 清單尾端補一段留白（`.cur-art-wall::after`），滑到底時最後一件停在起點，左邊不再露出上一件的殘邊。實測 320／375／390 寬，最後一件的左緣都在 20px，與第一件起點相同；拿掉留白時是 58px。
+- 清單的顏料收在作品後面，地板畫在手機往下 16px，進度條和地板畫的顏料不再連成一片。
+- 測試：`web/tests/curriculum-gallery-ticks-20261116.spec.ts`、`tests/e2e/curriculum-gallery.spec.ts`；`curriculum-mobile-rails-20261111.spec.ts` 的張數斷言改成進度條。規則寫在 DESIGN.md「特色教學手機版美術館：進度條＋尾端留白」。
+
 ## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤（`feature/roster-beta-20261116`，已部署 main `bcd507ea`）
 
 使用者要求這個功能先標成 Beta。分頁名後面加一顆操作色的小標籤（`admin/src/views/AdmissionsView.vue`，用 `el-tag`，不另寫色碼）；只是標示，功能、權限、網址都沒動。320px 寬的手機加了標籤會放不下、Element Plus 會改成箭頭捲動並切掉目前分頁，所以 359px 以下把分頁之間的留白從 20px 收到 12px。分頁文字變成「編班與缺額Beta」，三個單元測試與兩個 stack spec 的斷言跟著改；之後拿掉標籤時要一起改回。

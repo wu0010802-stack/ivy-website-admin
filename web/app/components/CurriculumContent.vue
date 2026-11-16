@@ -108,9 +108,18 @@ const gallery = computed(() => GALLERY.map((look, i) => ({ ...look, ...props.pag
 const daily = computed(() => DAILY.map((look, i) => ({ ...look, ...props.page.daily[i]! })))
 
 // 手機只有美術館橫滑（760px 以下，見 curriculum.css；2026-11-11 起課程方向、五件事改直排）。
-// 底下的「第幾件／共幾件」：只露出下一件的邊，看不出後面還有幾件。捲動時找左緣最靠近清單起點的那一件；
-// 捲到底算最後一件（作品寬度不一，最後一件的左緣到不了起點）。桌機清單不橫捲、數字也不顯示。
+// 底下一排進度條（2026-11-16 取代「1 / 8　左右滑動」）：只露出下一件的邊，看不出後面還有幾件。
+// 捲動時找左緣最靠近清單起點的那一件；點某一段就捲到那一件。桌機清單不橫捲、進度條也不顯示。
+// 清單尾端留一段空白（curriculum.css 的 .cur-art-wall::after），最後一件也停得到起點、左邊不再露出上一件的殘邊；
+// 留白寬度要用最後一件的寬高比算，後台換了照片就照新照片，量不到寬高時當 4:3。
+const galleryRail = ref<HTMLElement | null>(null)
 const galleryAt = ref(1)
+const galleryTail = computed(() => {
+  const last = gallery.value.at(-1)
+  if (!last) return undefined
+  const { width, height } = pagePhotoAttrs(last.image, last.photo, GALLERY_SIZES)
+  return { '--art-last-ratio': width && height ? Number((width / height).toFixed(4)) : 1.3333 }
+})
 function onGalleryScroll(event: Event) {
   const rail = event.currentTarget as HTMLElement
   const items = Array.from(rail.children) as HTMLElement[]
@@ -120,6 +129,14 @@ function onGalleryScroll(event: Event) {
   let best = 0
   items.forEach((el, i) => { if (Math.abs(el.offsetLeft - start) < Math.abs(items[best]!.offsetLeft - start)) best = i })
   galleryAt.value = best + 1
+}
+function showArt(index: number) {
+  const rail = galleryRail.value
+  const items = rail ? Array.from(rail.children) as HTMLElement[] : []
+  const target = items[index]
+  if (!rail || !target) return
+  const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches
+  rail.scrollTo({ left: target.offsetLeft - items[0]!.offsetLeft, behavior: smooth ? 'smooth' : 'auto' })
 }
 
 const root = ref<HTMLElement | null>(null)
@@ -216,13 +233,15 @@ useWatercolor(root)
           </div>
           <p v-if="page.galleryText || page.gallerySource" class="cur-text">{{ page.galleryText }}<small v-if="page.gallerySource" class="cur-source">{{ page.gallerySource }}</small></p>
         </div>
-        <ul class="cur-art-wall" aria-label="孩子的作品" @scroll.passive="onGalleryScroll" data-reveal-group data-wash-mobile="sun,.45,.4,.72,.36,.022,34">
+        <ul class="cur-art-wall" ref="galleryRail" aria-label="孩子的作品" :style="galleryTail" @scroll.passive="onGalleryScroll" data-reveal-group data-wash-mobile="sun,.45,.38,.72,.28,.022,34">
           <li v-for="art in gallery" :key="art.image" class="cur-art" data-reveal>
             <div class="cur-frame" :data-wash="art.wash"><ResponsivePicture v-bind="withPhotoStyle(pagePhotoAttrs(art.image, art.photo, art.tall ? GALLERY_SIZES_TALL : GALLERY_SIZES), art.photo)" :alt="pagePhotoAlt(art.alt, art.photo, art.photoAlt)" loading="lazy" /></div>
             <span>{{ art.label }}</span>
           </li>
         </ul>
-        <p class="cur-count" aria-hidden="true"><b>{{ galleryAt }}</b> / {{ gallery.length }}<span>左右滑動</span></p>
+        <ol class="cur-ticks" aria-label="跳到某一件作品">
+          <li v-for="(art, i) in gallery" :key="art.image"><button type="button" :aria-label="`第 ${i + 1} 件：${art.label}`" :aria-current="galleryAt === i + 1 ? 'true' : undefined" @click="showArt(i)" /></li>
+        </ol>
         <figure class="cur-band" data-reveal>
           <div class="cur-frame" :data-wash="FLOOR.wash"><ResponsivePicture v-bind="pagePhotoAttrs(FLOOR.image, undefined, BAND_SIZES)" :alt="FLOOR.alt" :style="{ objectPosition: FLOOR.position }" loading="lazy" /></div>
         </figure>
