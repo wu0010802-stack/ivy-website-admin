@@ -413,7 +413,10 @@ async def query_trends(
     semester: int | None,
     radius_km: int,
     now: datetime | None = None,
+    kids_only: bool = False,
 ) -> dict[str, Any]:
+    """kids_only（2026-11-16 五校並排）：只算 2–5 歲孩子與這一年淨增，不讀所得、新屋、預售、國小學區；回應鍵不變，
+    其他來源維持初始值、schools 是空的。孩子數與淨增（含里界調整合併組）和完整模式完全相同。"""
     campus = await campus_out(db, campus_key)
     current = await _label(db, "population")
     births_latest = await _label(db, "births")
@@ -454,7 +457,7 @@ async def query_trends(
             near[code] = _round_distance(distance)
     names = boundaries.village_names()
     # 學區碰到半徑內任一個里的國小，整個學區的里都要讀（含半徑外的里所在的區）。
-    touched = sorted({item.school_code for code in near for item in sd.by_village().get(code, ())})
+    touched = [] if kids_only else sorted({item.school_code for code in near for item in sd.by_village().get(code, ())})
     school_villages = {item.village_code for school in touched for item in sd.by_school()[school]}
     districts = {names[code][0] for code in (*near, *school_villages) if code in names}
     data = await _load(
@@ -465,21 +468,30 @@ async def query_trends(
         migration_months=sorted({*migration_window, *kids_window}),
     )
 
-    income_year, income_note, incomes = await _income(db, districts)
-    result["sources"]["income"] = {"year": income_year, "note": income_note}
+    if kids_only:
+        income_year, income_note, incomes = None, "", {}
+    else:
+        income_year, income_note, incomes = await _income(db, districts)
+        result["sources"]["income"] = {"year": income_year, "note": income_note}
     income_changed = (
         await _adjusted_since(db, districts, income_year, {code: _people(data, code) for code in incomes})
         if income_year is not None
         else set()
     )
 
-    homes_latest, homes_seasons, homes, homes_unplaced = await _new_homes(db, {names[code][0] for code in near})
+    if kids_only:
+        homes_latest, homes_seasons, homes, homes_unplaced = None, [], {}, 0
+    else:
+        homes_latest, homes_seasons, homes, homes_unplaced = await _new_homes(db, {names[code][0] for code in near})
     if homes_latest is not None:
         result["sources"]["new_homes"] = {
             "latest": homes_latest, "seasons": homes_seasons, "unplaced": homes_unplaced, "note": new_homes_io.SOURCE_NOTE,
         }
 
-    presale_version, presale, presale_unplaced = await _presale(db, {names[code][0] for code in near}, today_local())
+    if kids_only:
+        presale_version, presale, presale_unplaced = None, {}, 0
+    else:
+        presale_version, presale, presale_unplaced = await _presale(db, {names[code][0] for code in near}, today_local())
     if presale_version is not None:
         result["sources"]["presale"] = {
             "version": presale_version, "unplaced": presale_unplaced, "note": presale_io.SOURCE_NOTE,
@@ -592,10 +604,11 @@ async def query_trends(
         )
     )
     result["villages"] = villages
-    result["schools"] = await _schools(
-        db, touched, data, adjusted=adjusted, kids_months=kids_months if unavailable is None else [],
-        campus_key=campus_key, school_year=school_year, semester=semester,
-    )
+    if not kids_only:
+        result["schools"] = await _schools(
+            db, touched, data, adjusted=adjusted, kids_months=kids_months if unavailable is None else [],
+            campus_key=campus_key, school_year=school_year, semester=semester,
+        )
 
     all_codes = [code for row in villages for code in row["codes"]]
     change, compared_months = births_change(data.births, births_present, all_codes)

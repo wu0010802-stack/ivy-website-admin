@@ -110,6 +110,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Compare
+         * @description 五校周邊環境比較（2026-11-16 規格 §6）：每校半徑內的 2–5 歲孩子、一年增減、附近幼兒園與托嬰家數、本校 3 歲收費
+         *     排名、近 12 個月異動件數。權限同 /compare（只列授權範圍內的校區）；各校各自成敗。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_area_compare_api_website_v1_admin_admissions_area_compare_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/enrolled": {
         parameters: {
             query?: never;
@@ -4806,6 +4827,68 @@ export interface components {
             village_code: string;
         };
         /**
+         * AreaCompareKindergartensOut
+         * @description 半徑內各類型幼兒園家數，不含常春藤各校。
+         */
+        AreaCompareKindergartensOut: {
+            /** Nonprofit */
+            nonprofit: number;
+            /** Private */
+            private: number;
+            /** Public */
+            public: number;
+            /** Quasi Public */
+            quasi_public: number;
+        };
+        /** AreaCompareOut */
+        AreaCompareOut: {
+            /** Fee School Year */
+            fee_school_year: number | null;
+            /** Population Version */
+            population_version: string | null;
+            /** Radius Km */
+            radius_km: number;
+            /** Rows */
+            rows: components["schemas"]["AreaCompareRowOut"][];
+        };
+        /**
+         * AreaCompareRowOut
+         * @description 一校一列。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝這一校計算失敗；
+         *     兩種情況數字都是 null。fee_*：本校 3 歲一學期公告收費和半徑內私立一般的比較；本校不是私立一般時沒有排名
+         *     （fee_rank 是 null，own_kind 寫實際類型），own_missing 是本校沒找到或沒有收費資料的原因。
+         */
+        AreaCompareRowOut: {
+            /** Babycare */
+            babycare: number | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Changes 12M */
+            changes_12m: number | null;
+            /** Children */
+            children: number | null;
+            /** Fee Median */
+            fee_median: number | null;
+            /** Fee Rank */
+            fee_rank: number | null;
+            /** Fee Rank Total */
+            fee_rank_total: number | null;
+            /** Kids Net */
+            kids_net: number | null;
+            /** Kids Unavailable */
+            kids_unavailable: string | null;
+            kindergartens: components["schemas"]["AreaCompareKindergartensOut"] | null;
+            /** Locate Error */
+            locate_error: string | null;
+            /** Own Fee */
+            own_fee: number | null;
+            /** Own Kind */
+            own_kind: ("public" | "nonprofit" | "quasi_public" | "private") | null;
+            /** Own Missing */
+            own_missing: ("not_found" | "no_fee") | null;
+            /** Unavailable */
+            unavailable: ("no_campus_point" | "error") | null;
+        };
+        /**
          * AreaDataStatusOut
          * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
          *     各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。
@@ -5215,6 +5298,11 @@ export interface components {
         /** AreaPeerFeeOwnOut */
         AreaPeerFeeOwnOut: {
             items: components["schemas"]["AreaFeeItemsOut"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private";
             /** Monthly Average */
             monthly_average: number | null;
             /** Months */
@@ -11655,6 +11743,42 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaChildrenHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_compare_api_website_v1_admin_admissions_area_compare_get: {
+        parameters: {
+            query?: {
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaCompareOut"];
                 };
             };
             /** @description Validation Error */

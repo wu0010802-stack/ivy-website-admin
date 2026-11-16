@@ -75,3 +75,14 @@ async def test_kindergartens_endpoint_has_space_and_services(admin_client, db_se
     p1 = next(item for item in body["items"] if item["source_id"] == "p1")
     assert (p1["indoor_m2_per_child"], p1["outdoor_m2_per_child"], p1["has_shuttle"], p1["after_school_capacity"]) == (4.7, 2.5, True, 0)
     assert body["source_note"] == geo_kindergartens.SOURCE_NOTE == "資料來源：全國教保資訊網（kiang 整理）"
+
+
+async def test_own_carries_kind(admin_client, db_session, peers):
+    """本校類型（2026-11-16 五校並排用）：私立一般有排名；準公共（準公共期間涵蓋收費學年）沒有排名。"""
+    body = (await admin_client.get(f"{FEES}?campus_key=yihua&radius_km=3&age=3")).json()
+    assert body["own"]["kind"] == "private" and body["groups"][0]["own_rank"] == 2
+    await db_session.execute(update(GeoKindergarten).where(GeoKindergarten.source_id == "own").values(kind="quasi_public", pre_public_period="113-115"))
+    await db_session.commit()
+    body = (await admin_client.get(f"{FEES}?campus_key=yihua&radius_km=3&age=3")).json()
+    assert body["own"]["kind"] == "quasi_public"
+    assert body["groups"][0]["own_rank"] is None and body["groups"][0]["median"] == 75000
