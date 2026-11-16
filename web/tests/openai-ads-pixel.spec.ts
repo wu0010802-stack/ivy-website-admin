@@ -15,9 +15,9 @@ const ORIGIN = 'http://localhost:3000'
 const OPENAI = 'pix_test_1234567890'
 const GA = 'G-TEST123456'
 const PIXEL = '1234567890123456'
-const NONE: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null }
-const OPENAI_ONLY: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: OPENAI }
-const ALL: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: OPENAI }
+const NONE: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null, lineTagId: null }
+const OPENAI_ONLY: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: OPENAI, lineTagId: null }
+const ALL: AnalyticsIds = { gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: OPENAI, lineTagId: null }
 const SDK = 'https://bzrcdn.openai.com/sdk/oaiq.min.js'
 
 type Win = Window & { dataLayer?: unknown[]; gtag?: unknown; fbq?: unknown; _fbq?: unknown; oaiq?: { q: unknown[] } & ((...args: unknown[]) => void) }
@@ -79,8 +79,8 @@ describe('Pixel ID 驗證（不符視同未設定）', () => {
   it('從 runtimeConfig 取：沒設是 null；只設這一個也算啟用', () => {
     expect(analyticsIdsFromConfig({ public: { openaiPixelId: '' } })).toEqual(NONE)
     expect(analyticsIdsFromConfig({ public: { openaiPixelId: 'bad id' } })).toEqual(NONE)
-    expect(analyticsIdsFromConfig({ public: { openaiPixelId: OPENAI } })).toEqual(OPENAI_ONLY)
-    expect(analyticsIdsFromConfig({ public: { gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: OPENAI } })).toEqual(ALL)
+    expect(analyticsIdsFromConfig({ public: { openaiPixelId: OPENAI, lineTagId: null } })).toEqual(OPENAI_ONLY)
+    expect(analyticsIdsFromConfig({ public: { gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: OPENAI, lineTagId: null } })).toEqual(ALL)
     expect(analyticsEnabled(NONE)).toBe(false)
     expect(analyticsEnabled(OPENAI_ONLY)).toBe(true)
   })
@@ -174,7 +174,7 @@ describe('自動進階比對一律關（攔下 SDK 取設定檔的請求）', ()
     const native = vi.fn(async () => new Response('native'))
     window.fetch = native as unknown as typeof fetch
     const other = fakeDocument()
-    createThirdPartyAnalytics({ gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: null }, win, other.doc).pageView(at('/'), '/', 'x')
+    createThirdPartyAnalytics({ gaMeasurementId: GA, metaPixelId: PIXEL, openaiPixelId: null, lineTagId: null }, win, other.doc).pageView(at('/'), '/', 'x')
     expect(window.fetch).toBe(native)
 
     resetWindow()
@@ -457,7 +457,7 @@ describe('外掛', () => {
   }
 
   it('只設 NUXT_PUBLIC_OPENAI_PIXEL_ID：掛上換頁掛鉤，整頁載完後才載 SDK', () => {
-    const hooks = mount({ gaMeasurementId: '', metaPixelId: '', openaiPixelId: OPENAI })
+    const hooks = mount({ gaMeasurementId: '', metaPixelId: '', openaiPixelId: OPENAI, lineTagId: null })
     expect(Object.keys(hooks).sort()).toEqual(['app:mounted', 'page:finish'])
     hooks['app:mounted']!()
     expect(queue()).toEqual([['consent', true], ['init', { pixelId: OPENAI }]])
@@ -476,7 +476,7 @@ describe('外掛', () => {
 
   it('瀏覽器要求不追蹤（DNT）或 Global Privacy Control：不載入', () => {
     for (const nav of [{ doNotTrack: '1' }, { doNotTrack: null, globalPrivacyControl: true }]) {
-      expect(mount({ openaiPixelId: OPENAI }, nav)).toEqual({})
+      expect(mount({ openaiPixelId: OPENAI, lineTagId: null }, nav)).toEqual({})
     }
     vi.advanceTimersByTime(8000)
     expect(win.oaiq).toBeUndefined()

@@ -11,10 +11,10 @@ import { ADMIN_CSP, PUBLIC_RESOURCE_CSP, publicCsp, securityHeadersFor } from '.
 // GA4＋Meta Pixel（2026-11-12 規格第 1 節）的純函式與伺服器端 CSP。瀏覽器端載入與事件在
 // third-party-analytics-runtime.spec.ts。
 
-const NONE: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null }
-const GA: AnalyticsIds = { gaMeasurementId: 'G-TEST123456', metaPixelId: null, openaiPixelId: null }
-const PIXEL: AnalyticsIds = { gaMeasurementId: null, metaPixelId: '1234567890123456', openaiPixelId: null }
-const BOTH: AnalyticsIds = { gaMeasurementId: 'G-TEST123456', metaPixelId: '1234567890123456', openaiPixelId: null }
+const NONE: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null, lineTagId: null }
+const GA: AnalyticsIds = { gaMeasurementId: 'G-TEST123456', metaPixelId: null, openaiPixelId: null, lineTagId: null }
+const PIXEL: AnalyticsIds = { gaMeasurementId: null, metaPixelId: '1234567890123456', openaiPixelId: null, lineTagId: null }
+const BOTH: AnalyticsIds = { gaMeasurementId: 'G-TEST123456', metaPixelId: '1234567890123456', openaiPixelId: null, lineTagId: null }
 
 describe('ID 格式驗證（不符視同未設定）', () => {
   it('GA4 評估 ID：G- 開頭、大寫英數；前後空白會修掉', () => {
@@ -46,7 +46,7 @@ describe('ID 格式驗證（不符視同未設定）', () => {
     // 連雙引號一起填時 destr 解析成字串，大於 MAX_SAFE_INTEGER 的 ID 靠這個辦法保持完整
     expect(normalizeMetaPixelId('9876543210987654')).toBe('9876543210987654')
     expect(analyticsIdsFromConfig({ public: { gaMeasurementId: 'G-ABC123DEF4', metaPixelId: 1234567890123456 } }))
-      .toEqual({ gaMeasurementId: 'G-ABC123DEF4', metaPixelId: '1234567890123456', openaiPixelId: null })
+      .toEqual({ gaMeasurementId: 'G-ABC123DEF4', metaPixelId: '1234567890123456', openaiPixelId: null, lineTagId: null })
   })
 
   it('從 runtimeConfig 取：沒有 public、鍵不存在、格式不符都是 null', () => {

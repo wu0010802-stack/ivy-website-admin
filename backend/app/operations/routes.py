@@ -806,6 +806,56 @@ async def get_booking_outcomes(
     )
 
 
+class AttributionCountsOut(BaseModel):
+    cases: int
+    completed: int
+    no_show: int
+    # 招生訪視預繳過（現在已預繳、已轉正式，或從這兩種退出）。
+    deposited: int
+    # 已到場 ÷（已到場＋未到場）。
+    attendance_rate: AdmissionsRate
+    # 預繳 ÷ 已到場。
+    deposit_rate: AdmissionsRate
+
+
+class AttributionCampaignOut(AttributionCountsOut):
+    campaign: str
+
+
+class AttributionSourceOut(AttributionCountsOut):
+    # 第一方統計的來源代碼（direct、search、facebook…），或 unrecorded（送單時沒有記錄）。
+    source: str
+    campaigns: list[AttributionCampaignOut]
+
+
+class BookingAttributionOut(BaseModel):
+    as_of: datetime
+    date_from: date | None
+    date_to: date | None
+    touch: Literal["first", "last"]
+    rows: list[AttributionSourceOut]
+    totals: AttributionCountsOut
+
+
+@router.get("/admin/analytics/booking-attribution", response_model=BookingAttributionOut)
+async def get_booking_attribution(
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含），省略＝不限"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含），省略＝不限"),
+    touch: Literal["first", "last"] = Query("last", description="first＝第一次進站；last＝預約前最後一次不是直接進站"),
+    campus_key: str | None = Query(None, description="只看一校；省略＝授權範圍內的全部校區"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。"""
+    # 指定校區時同班別分布的檢查（require_scope 帶 campus_keys）；不指定就是授權範圍內的全部校區。
+    require_scope(current_user, "admissions.stats", campus_keys=[campus_key] if campus_key is not None else None)
+    _validate_range(date_from, date_to)
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key) and campus_key in (None, key)]
+    return await booking_outcomes_service.attribution_outcomes(
+        db, campus_keys, analytics_service.FunnelRange(date_from, date_to), touch
+    )
+
+
 class EventTrendDayOut(BaseModel):
     day: date
     request_created: int

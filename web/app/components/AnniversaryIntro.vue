@@ -2,6 +2,7 @@
 import { ANNI_MEDIA } from '~/utils/anniversary/media'
 import { ANNI_INTRO_SESSION_KEY } from '~/utils/anniversary/timeline'
 import { ANNI_INTRO_GATE_SCRIPT } from '~/utils/inline-scripts'
+import { ANNI_INTRO_SEEN_COOKIE, seenCookieSet, writeSeenCookie } from '~/utils/seen-cookie'
 
 // 30 週年分頁的開場：30 秒影片《手牽手，走到 30》。
 // 第一次進來自動靜音播放（可開聲音、可略過）；播到海報那一格（29.0 秒，之後影片淡出成黑）
@@ -31,8 +32,10 @@ const film = computed(() => (portrait.value ? ANNI_MEDIA.filmMobile : ANNI_MEDIA
 // 5 秒還沒開始播（JS 載不到、極慢的網路）就拿掉深色蓋層，不讓頁面一直黑著、鎖住捲動（2026-10-12）。
 // 連線閘門比照首屏影片（media-policy 的 heroMayAutoplay）：省流量、2G／3G、頻寬估計低於門檻就不自動播。
 // 開場影片手機 6 MB、桌機 12 MB，慢速 4G 播不順也會白白下載；這些訪客仍可按首屏「重看開場影片」自己播（2026-10-21）。
+// 30 天內看過（cookie ivy_seen_anni_intro，2026-11-16）：伺服器直接不輸出閘門 script，回訪者完全不會出現蓋層。
+const seenBefore = seenCookieSet(useCookie(ANNI_INTRO_SEEN_COOKIE, { readonly: true }).value)
 useHead({
-  script: [{
+  script: seenBefore ? [] : [{
     key: 'anni-intro-gate',
     tagPosition: 'head',
     // 本文放在 utils/inline-scripts.ts：公開頁 CSP 要事先登記它的 sha256（用戶端換頁插入時用）。
@@ -127,6 +130,7 @@ function finish() {
   video.value?.pause()
   delete html().dataset.anniIntro
   try { sessionStorage.setItem(ANNI_INTRO_SESSION_KEY, '1') } catch { /* 無痕模式寫不進去也沒關係 */ }
+  writeSeenCookie(ANNI_INTRO_SEEN_COOKIE)
   frame.value?.getAnimations({ subtree: true }).forEach((a) => a.cancel())
   backdrop.value?.getAnimations().forEach((a) => a.cancel())
   if (finalImg.value) finalImg.value.style.opacity = '0'

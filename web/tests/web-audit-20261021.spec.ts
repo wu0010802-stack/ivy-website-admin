@@ -37,10 +37,10 @@ describe('30 週年開場影片的連線閘門', () => {
     expect(read('../app/components/AnniversaryIntro.vue')).toContain('innerHTML: ANNI_INTRO_GATE_SCRIPT')
   })
 
-  function run(connection?: object) {
+  function run(connection?: object, cookie = '') {
     const dataset: Record<string, string> = {}
     runInNewContext(gate, {
-      document: { documentElement: { dataset } },
+      document: { documentElement: { dataset }, cookie },
       location: { hash: '' },
       matchMedia: () => ({ matches: false }),
       sessionStorage: { getItem: () => null },
@@ -53,6 +53,11 @@ describe('30 週年開場影片的連線閘門', () => {
   it('沒有連線資訊（Safari／Firefox）或快速網路照常自動播', () => {
     expect(run()).toBe('pending')
     expect(run({ effectiveType: '4g', downlink: 10 })).toBe('pending')
+  })
+  it('30 天內看過（cookie ivy_seen_anni_intro=1）不自動播；別的 cookie 或同名前綴不算', () => {
+    expect(run(undefined, 'ivy_seen_anni_intro=1')).toBeUndefined()
+    expect(run(undefined, 'a=b; ivy_seen_anni_intro=1; c=d')).toBeUndefined()
+    expect(run(undefined, 'xivy_seen_anni_intro=1; ivy_seen_anni_intro_x=1; ivy_seen_anni_intro=0')).toBe('pending')
   })
   it.each([
     { saveData: true }, { effectiveType: '3g' }, { effectiveType: '2g' }, { effectiveType: 'slow-2g' },

@@ -144,6 +144,18 @@ class Settings(BaseSettings):
     google_sc_property: str | None = None
     # CrUX（Chrome 使用者體驗報告）API 金鑰（§4）：沒設就不查。查的網站是 public_origin（沒設用 admin_origin）。
     crux_api_key: str | None = Field(default=None, repr=False)
+    # 到場、預繳回傳廣告平台（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §2）：每家都是
+    # 「ID＋伺服器端金鑰」兩個都設才啟用、只設一個拒絕啟動；都沒設就不記點擊識別碼、不建待送工作。
+    # GA4 Measurement Protocol：評估 ID（G-XXXX）＋ API 密鑰（GA4 管理 → 資料串流 → Measurement Protocol API 密鑰）。
+    ga4_measurement_id: str | None = None
+    ga4_api_secret: str | None = Field(default=None, repr=False)
+    # Meta Conversions API：像素 ID（純數字）＋ 存取權杖（事件管理工具 → 設定 → 轉換 API）。
+    meta_pixel_id: str | None = None
+    meta_capi_token: str | None = Field(default=None, repr=False)
+    meta_graph_version: str = "v26.0"
+    # OpenAI Conversions API：像素 ID ＋ Conversions API 金鑰（廣告管理平台 → 轉換）。
+    openai_pixel_id: str | None = None
+    openai_capi_key: str | None = Field(default=None, repr=False)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -294,6 +306,8 @@ class Settings(BaseSettings):
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
         "google_sc_service_account_json", "google_sc_property", "crux_api_key",
+        "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
+        "openai_pixel_id", "openai_capi_key",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
@@ -438,6 +452,16 @@ class Settings(BaseSettings):
         return bool(self.crux_api_key)
 
     @property
+    def ad_conversion_platforms(self) -> tuple[str, ...]:
+        """設定了伺服器端金鑰、要回傳到場與預繳的平台（順序固定：ga4、meta、openai）。"""
+        enabled = {
+            "ga4": bool(self.ga4_measurement_id and self.ga4_api_secret),
+            "meta": bool(self.meta_pixel_id and self.meta_capi_token),
+            "openai": bool(self.openai_pixel_id and self.openai_capi_key),
+        }
+        return tuple(platform for platform, on in enabled.items() if on)
+
+    @property
     def crux_origin(self) -> str | None:
         """CrUX 查哪個網站：家長看得到的官網 origin（public_origin，沒設就是 admin_origin）；都沒設回 None。"""
         return self.parent_origin
@@ -559,6 +583,22 @@ class Settings(BaseSettings):
             )
         if bool(self.vapid_public_key) != bool(self.vapid_private_key):
             raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
+        # 回傳廣告平台（2026-11-16）：ID 與金鑰成對；ID 格式和官網前端的同名變數一樣嚴格，打錯不會默默送到別的帳戶。
+        for label, ident, secret, env in (
+            ("GA4", self.ga4_measurement_id, self.ga4_api_secret, "WEBSITE_GA4_MEASUREMENT_ID 與 WEBSITE_GA4_API_SECRET"),
+            ("Meta", self.meta_pixel_id, self.meta_capi_token, "WEBSITE_META_PIXEL_ID 與 WEBSITE_META_CAPI_TOKEN"),
+            ("OpenAI", self.openai_pixel_id, self.openai_capi_key, "WEBSITE_OPENAI_PIXEL_ID 與 WEBSITE_OPENAI_CAPI_KEY"),
+        ):
+            if bool(ident) != bool(secret):
+                raise ValueError(f"{label} 轉換回傳必須同時設定 {env}")
+        if self.ga4_measurement_id and not re.fullmatch(r"G-[A-Z0-9]{4,20}", self.ga4_measurement_id):
+            raise ValueError("WEBSITE_GA4_MEASUREMENT_ID 格式應為 G-XXXXXXXXXX")
+        if self.meta_pixel_id and not re.fullmatch(r"[0-9]{5,20}", self.meta_pixel_id):
+            raise ValueError("WEBSITE_META_PIXEL_ID 應為純數字")
+        if self.openai_pixel_id and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", self.openai_pixel_id):
+            raise ValueError("WEBSITE_OPENAI_PIXEL_ID 格式不符")
+        if not re.fullmatch(r"v[0-9]{2,3}\.0", self.meta_graph_version):
+            raise ValueError("WEBSITE_META_GRAPH_VERSION 格式應為 v26.0 這種寫法")
         if self.vapid_subject and not vapid.valid_subject(self.vapid_subject):
             raise ValueError("WEBSITE_VAPID_SUBJECT 必須是 https:// 網址（不含路徑）或 mailto: 信箱")
         if self.vapid_public_key and self.vapid_private_key:

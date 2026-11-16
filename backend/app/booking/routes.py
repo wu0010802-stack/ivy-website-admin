@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from sqlalchemy import select
@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.deps import get_db_session
 from app.booking import (
     access_service,
+    attribution,
+    remember,
     service,
     slot_service,
     turnstile,
@@ -25,6 +27,7 @@ from app.booking import (
 from app.booking.exceptions import slot_unavailable
 from app.common import ratelimit
 from app.operations import retention_service
+from app.booking.models import VisitRequestStatus
 from app.booking.schemas import VisitRequestCreate, VisitRequestOut
 from app.campuses.models import Campus
 from app.booking import admin_visit_routes, config_routes, slot_routes
@@ -122,10 +125,32 @@ def _trusted_client_ip_header(request: Request) -> str | None:
     return ratelimit.trusted_client_ip(request)
 
 
-async def _submit_manage_path(db: AsyncSession, request: Request, visit_request_id: uuid.UUID) -> str | None:
-    return await access_service.original_manage_path(
-        db, visit_request_id, secret=request.app.state.settings.session_secret
+async def _receipt(
+    db: AsyncSession, request: Request, response: Response, *, receipt_id: uuid.UUID, receipt_status: str, created_at
+) -> VisitRequestOut:
+    """送單（新建或重播）的收據。修改連結只回送單時發的那一條（access_service.original_access）；
+    預約成立時同一條 token 也寫進「這台裝置記住預約」的 cookie（2026-11-16，booking/remember.py）。"""
+    settings = request.app.state.settings
+    access = await access_service.original_access(db, receipt_id, secret=settings.session_secret)
+    if access is not None and receipt_status == VisitRequestStatus.CONFIRMED.value:
+        remember.set_cookie(response, settings, *access)
+    return VisitRequestOut(
+        receipt_id=receipt_id,
+        status=receipt_status,
+        created_at=created_at,
+        manage_path=access_service.manage_path(access[0]) if access is not None else None,
     )
+
+
+def _tracking(request: Request) -> dict | None:
+    """網站來源與點擊識別碼（2026-11-16 規格 §1、§2）：訪客開了 DNT／GPC 就不讀。"""
+    if attribution.privacy_opt_out(request.headers):
+        return None
+    site = attribution.parse_site_cookie(request.cookies.get(attribution.SITE_COOKIE))
+    ids = attribution.click_ids(
+        request.cookies, site, request.app.state.settings.ad_conversion_platforms, datetime.now(timezone.utc)
+    )
+    return {**attribution.touch_columns(site), "ad_click_ids": ids}
 
 
 @router.post("/public/visit-requests", response_model=VisitRequestOut)
@@ -196,11 +221,8 @@ async def create_visit_request(
             await db.rollback()
             raise _submit_error(exc) from exc
         # rollback 會讓 ORM 物件過期，先取出回應要的欄位。
-        out = None if replay is None else VisitRequestOut(
-            receipt_id=replay.id,
-            status=replay.status,
-            created_at=replay.created_at,
-            manage_path=await _submit_manage_path(db, request, replay.id),
+        out = None if replay is None else await _receipt(
+            db, request, response, receipt_id=replay.id, receipt_status=replay.status, created_at=replay.created_at
         )
         await db.rollback()
         if out is not None:
@@ -213,11 +235,8 @@ async def create_visit_request(
         )
         if replay is not None:
             response.status_code = status.HTTP_200_OK
-            return VisitRequestOut(
-                receipt_id=replay.id,
-                status=replay.status,
-                created_at=replay.created_at,
-                manage_path=await _submit_manage_path(db, request, replay.id),
+            return await _receipt(
+                db, request, response, receipt_id=replay.id, receipt_status=replay.status, created_at=replay.created_at
             )
         holds_slot = await service.precheck_submission(
             db,
@@ -316,6 +335,7 @@ async def create_visit_request(
                 SUBMIT_LIMIT_BY_PHONE.max_per_window, timedelta(seconds=SUBMIT_LIMIT_BY_PHONE.window_seconds)
             ),
             access_secret=settings.session_secret,
+            tracking=_tracking(request),
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
@@ -334,12 +354,9 @@ async def create_visit_request(
             # 案件已經建立：記不到限流次數不該讓家長看到失敗、再送一次。
             logger.warning("公開送單的手機限流計數寫入失敗", exc_info=True)
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
-    return VisitRequestOut(
-        receipt_id=receipt_id,
-        status=receipt_status,
-        created_at=created_at,
-        # 新建時只有剛發的這一條；併發重播落到這裡時也一樣只回原始那條。
-        manage_path=await _submit_manage_path(db, request, receipt_id),
+    # 新建時只有剛發的這一條；併發重播落到這裡時也一樣只回原始那條。
+    return await _receipt(
+        db, request, response, receipt_id=receipt_id, receipt_status=receipt_status, created_at=created_at
     )
 
 

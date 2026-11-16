@@ -7,6 +7,7 @@ import { responsiveImage } from '~/utils/responsive-image'
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
 import { apiFieldErrors, earliestChildBirthdate, focusFirstInvalidField, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
+import { VISIT_REMEMBERED_HINT } from '~/utils/visit-remembered'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { ctaEntryOf, reportBookingActionClick } from '~/utils/cta-analytics'
@@ -50,6 +51,9 @@ const form = reactive({
 // 上一頁直接離開預約頁。現在下一步＝換到 /visit/<校>、更換校區＝回 /visit，頁面元件不重掛（pages/visit/[[key]].vue）。
 const step = computed<1 | 2>(() => props.routeCampus ? 2 : 1)
 const router = useRouter()
+// 選校卡被點選就記住這一校（cookie ivy_campus）；流程不變，不自動選校。
+const remembered = useRememberedCampus()
+const rememberCampus = (key: string) => remembered.remember(key, props.campuses.map(campus => campus.key))
 const stageRef = ref<HTMLElement | null>(null)
 const titleRef = ref<HTMLElement | null>(null)
 const asideRef = ref<HTMLElement | null>(null)
@@ -297,6 +301,9 @@ const submitButtonRef = ref<HTMLButtonElement | null>(null)
 const idempotencyKey = ref(newIdempotencyKey())
 
 const selectedCampus = computed(() => props.campuses.find((c) => c.key === form.campus))
+// 這台裝置記住的預約（VisitRememberedNotice）用前台的校名，和選校卡一致。
+const campusNameOf = (key: string) => props.campuses.find((c) => c.key === key)?.name
+const rememberedHint = useState(VISIT_REMEMBERED_HINT, () => false)
 // 選校卡寫短地址（去掉「高雄市」）：第一步請家長「依生活圈與接送路線選擇」，只給區名比不出來（2026-09-29 評析）。
 const shortAddress = (campus: Campus) => campus.address?.replace(/^高雄市/, '') || campus.district
 // 送出失敗時的退路：直接打給所選校區。
@@ -554,6 +561,8 @@ async function onSubmit() {
     resultStatus.value = created?.status ?? null
     receiptId.value = created?.receipt_id || idempotencyKey.value
     managePath.value = created?.manage_path ?? null
+    // 預約成立時後端發了「這台裝置記住預約」的 cookie（VisitRememberedNotice）：這次造訪再回到選校步驟就查得到。
+    if (created?.status === 'confirmed' && created?.manage_path) rememberedHint.value = true
     linkCopied.value = false
     linkCopyFailed.value = false
     submitted.value = true
@@ -682,6 +691,7 @@ async function onSubmit() {
 
         <div ref="stageRef" class="visit-stage" tabindex="-1">
           <template v-if="!submitted">
+            <VisitRememberedNotice :campus-name="campusNameOf" />
             <ol class="visit-steps" aria-label="預約步驟">
               <li :aria-current="step === 1 ? 'step' : undefined" :class="{ 'is-complete': step === 2 }">
                 <button type="button" :disabled="step === 1 || submitting" @click="changeCampus"><span class="visit-step-number">{{ step === 2 ? '✓' : '1' }}</span>選擇校園</button>
@@ -707,7 +717,7 @@ async function onSubmit() {
                 <li v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <span class="visit-campus-card">
                     <span class="visit-campus-photo"><ResponsivePicture v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" /></span>
-                    <span class="visit-campus-copy"><NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)"><strong>{{ campus.name }}</strong></NuxtLink><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
+                    <span class="visit-campus-copy"><NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)" @click="rememberCampus(campus.key)"><strong>{{ campus.name }}</strong></NuxtLink><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
                     <span class="visit-campus-go" aria-hidden="true"><svg class="icon"><use href="#i-arrow-right" /></svg></span>
                   </span>
                 </li>

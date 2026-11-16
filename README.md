@@ -1,3 +1,16 @@
+## 2026-11-16 官網 cookie 六項功能（`feature/cookie-features-20261116`，未提交、未部署）
+
+使用者看完「有什麼可以用 cookie 但還沒用」的盤點後說「都幫我做」（規格 `docs/specs/2026-11-16-cookie-features-design.md`，隱私權政策改寫擬稿在附錄 A）。沿用 10-03 裁定：不做同意橫幅、追蹤類尊重 DNT／GPC。
+
+1. **跨次造訪的網站來源**：官網伺服器在進站時寫 HttpOnly cookie `ivy_src`（第一次進站、最後一次不是直接進站的來源與 utm_campaign，90 天），送出預約時寫進預約。後台案件明細多「網站來源」、招生統計「參觀預約」多一張「網站來源」表（來源 → 預約、到場、預繳，可切第一次／最後一次）、案件匯出多四欄。來源判斷搬到 `web/shared/engagement-source.ts` 前後端共用。
+2. **到場、預繳回傳廣告平台**（預設全關）：GA4 Measurement Protocol、Meta Conversions API、OpenAI Conversions API；標記已到場、招生訪視轉已預繳時排入 `ad_conversion_jobs`，API 定期工作送出。只送平台的點擊／瀏覽器代碼與校區，不送個資或個資雜湊。
+3. **這台裝置記住預約**：送單成立時發 `__Host-ivy_visit_remember`（值是修改連結 token），預約頁上方顯示「您已預約…」與「修改或取消預約」「不是我的預約」。沒留 Email 的家長關掉結果頁後也找得回來。
+4. **記住看過的校區**（`ivy_campus`，180 天）：頁首選單參觀專線與首頁五校卡第一個畫面就停在上次選的那一校；預約流程不變。
+5. **開場動畫回訪不重播**（`ivy_seen_entrance`、`ivy_seen_anni_intro`，30 天）：伺服器看到 cookie 就不輸出開場的 inline script。
+6. **LINE Tag**（`NUXT_PUBLIC_LINE_TAG_ID`，預設關）：頁面瀏覽與預約成功 Conversion，網址自己清洗、不開進階比對與跨網域同步；`apm.yahoo.co.jp` 刻意不放行。
+
+migration `a7c3e9f1b250` 只新增欄位與一張表。上線前要做的事見 `deploy/README.md`「網站來源、這台裝置記住預約、到場與預繳回傳廣告平台」與「LINE Tag」。
+
 ## 2026-11-15 招生入學新增「編班與缺額」分頁（`feature/admissions-roster-20261114`，未合併、未部署）
 
 使用者 11-13 要把各校 Excel 的編班表、缺額統計搬進官網後台（規格 `docs/specs/2026-11-14-admissions-roster-gap-design.md`、計畫 `docs/superpowers/plans/2026-11-15-admissions-roster-gap.md`）。招生入學多第三個分頁「編班與缺額」（`tab=roster`，學期篩選在這頁隱藏）：

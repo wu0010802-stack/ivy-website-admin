@@ -13,6 +13,8 @@ export interface AnalyticsIds {
   metaPixelId: string | null
   /** ChatGPT 廣告（OpenAI Ads）評估像素的 Pixel ID；沒設定是 null。 */
   openaiPixelId: string | null
+  /** LINE Tag（LINE 廣告）的 Tag ID（UUID）；沒設定是 null。 */
+  lineTagId: string | null
 }
 
 export const GA_SCRIPT_ORIGIN = 'https://www.googletagmanager.com'
@@ -22,6 +24,12 @@ export const OPENAI_PIXEL_SCRIPT_ORIGIN = 'https://bzrcdn.openai.com'
 export const OPENAI_PIXEL_EVENT_ORIGIN = 'https://bzr.openai.com'
 /** SDK 取「自動進階比對」設定檔的網址開頭（後面接 v1/<Pixel ID>.json）。 */
 export const OPENAI_PIXEL_CONFIG_PREFIX = `${OPENAI_PIXEL_SCRIPT_ORIGIN}/pixel-config/`
+
+/** LINE Tag：lt.js 載入後會再載入 ltag.js（LINE Yahoo 共用的標籤引擎），兩支都要放行 script-src。 */
+export const LINE_TAG_SCRIPT_ORIGIN = 'https://d.line-scdn.net'
+export const LINE_TAG_ENGINE_ORIGIN = 'https://tag.flvcdn.net'
+/** 事件以 1x1 圖片請求送到這裡（tag.gif／err.gif），所以只放 img-src。 */
+export const LINE_TAG_EVENT_ORIGIN = 'https://tr.line.me'
 
 export function normalizeGaMeasurementId(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -51,18 +59,27 @@ export function normalizeOpenaiPixelId(value: unknown): string | null {
   return /^[A-Za-z0-9][A-Za-z0-9_-]{5,63}$/.test(id) ? id : null
 }
 
-/** 從 runtimeConfig（含 public）取三個 ID；格式不符一律當作沒設。config 可能是空物件（測試）。 */
+// LINE Tag ID 由 LINE 廣告管理後台「事件管理 → LINE Tag」產生，格式是 UUID。只收 UUID：
+// 不可能夾帶網址或物件字面值，也不會誤把別的字串當 ID 載入外部腳本。
+export function normalizeLineTagId(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const id = value.trim().toLowerCase()
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id) ? id : null
+}
+
+/** 從 runtimeConfig（含 public）取四個 ID；格式不符一律當作沒設。config 可能是空物件（測試）。 */
 export function analyticsIdsFromConfig(config: unknown): AnalyticsIds {
   const pub = (config as { public?: Record<string, unknown> } | null | undefined)?.public
   return {
     gaMeasurementId: normalizeGaMeasurementId(pub?.gaMeasurementId),
     metaPixelId: normalizeMetaPixelId(pub?.metaPixelId),
-    openaiPixelId: normalizeOpenaiPixelId(pub?.openaiPixelId)
+    openaiPixelId: normalizeOpenaiPixelId(pub?.openaiPixelId),
+    lineTagId: normalizeLineTagId(pub?.lineTagId)
   }
 }
 
 export function analyticsEnabled(ids: AnalyticsIds): boolean {
-  return Boolean(ids.gaMeasurementId || ids.metaPixelId || ids.openaiPixelId)
+  return Boolean(ids.gaMeasurementId || ids.metaPixelId || ids.openaiPixelId || ids.lineTagId)
 }
 
 export interface AnalyticsCspSources {
@@ -99,6 +116,15 @@ export function analyticsCspSources(ids: AnalyticsIds): AnalyticsCspSources {
     sources.connect.push(OPENAI_PIXEL_EVENT_ORIGIN)
     sources.img.push(OPENAI_PIXEL_EVENT_ORIGIN)
   }
+  if (ids.lineTagId) {
+    // 2026-11-16 以真的 lt.js 3.7.0 在空白頁實測（送往 LINE 的請求以 204 攔下，沒有真的送出事件）：
+    // lt.js（d.line-scdn.net）載入後再插入 tag.flvcdn.net/ltag.js；init／pv／cv 各是一張 1x1 圖片請求
+    // tr.line.me/tag.gif，沒有 fetch／XHR／sendBeacon，所以 connect-src 不用放行。
+    // ltag.js 內有 LINE Yahoo 的 apm.yahoo.co.jp 呼叫，那一支會讀完整網址（含 hash）、不受我們傳給 lt.js 的 $location 影響，
+    // 刻意不放行：CSP 擋下之後只是少了日本市場用的功能（主控台會有 CSP 違規），台灣站用不到。
+    sources.script.push(LINE_TAG_SCRIPT_ORIGIN, LINE_TAG_ENGINE_ORIGIN)
+    sources.img.push(LINE_TAG_EVENT_ORIGIN)
+  }
   return sources
 }
 
@@ -125,6 +151,19 @@ export function analyticsSuppressedPath(pathname: string): boolean {
 // gbraid／wbraid（2026-11-13）：Google 廣告在 iOS 上拿不到 gclid 時改帶這兩個點擊代碼；
 // 濾掉的話 GA4 匯進 Google Ads 的轉換會漏算 iPhone 的廣告點擊。
 const ATTRIBUTION_PARAM = /^(?:utm_[a-z0-9_]+|gclid|gbraid|wbraid|fbclid)$/i
+
+// LINE Tag 另外要保留 LINE 廣告自己帶的點擊代碼（lt.js 在 init 時從網址讀，見 lt.js 的 _parseMessageParam）。
+const LINE_CLICK_PARAM = /^(?:ldtag_m|ldtag_cl|ldtag_t|lt_r|srclt)$/i
+
+/** 傳給 lt.js 的 $location 用：query 只留歸因參數與 LINE 廣告點擊代碼，其他一律不送。 */
+export function lineTagSearch(search: string): string {
+  const kept = new URLSearchParams()
+  for (const [key, value] of new URLSearchParams(search)) {
+    if (ATTRIBUTION_PARAM.test(key) || LINE_CLICK_PARAM.test(key)) kept.append(key, value)
+  }
+  const query = kept.toString()
+  return query ? `?${query}` : ''
+}
 
 /**
  * GA 的 page_location：origin ＋ pathname ＋ 只保留歸因參數的 query，不帶 hash。

@@ -137,6 +137,59 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 **程式端沒辦法驗證的**：平台是否真的收得到事件、轉換是否歸到行銷活動，只能在正式站設好變數後照步驟 6 實測。SDK 是 OpenAI 的外部腳本，行為可能隨版本改變；上面「只帶 origin＋pathname」「不掛換頁事件」「從 `window.fetch` 取設定檔」是 2026-11-15 當時的版本，SDK 大改版後要重跑 `output/openai-ads-pixel/verify-aam.cjs` 那個對照實驗。
 
+## LINE Tag：LINE 廣告回報頁面瀏覽與「預約成功」（2026-11-16 程式，`feature/cookie-web-prefs-20261116`；預設關，沒設變數就和現在完全一樣）
+
+第四家第三方追蹤，沿用 GA4／Meta Pixel／OpenAI 的整套規則（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。**只動 web**：沒有 migration、api 不用動。
+
+**一個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_LINE_TAG_ID` | UUID（`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`，大小寫不拘） | LINE 廣告管理後台（`admanager.line.biz`）「事件管理（Event Manager）→ LINE Tag」裡那顆 Tag 的 Tag ID（也出現在後台給的安裝程式碼 `_lt('init', { customerType: 'account', tagId: '…' })` 裡） |
+
+- 執行期變數：設好、web 重新部署就生效；刪掉並重新部署就關。格式不符視同未設定。沒設時不載任何 LINE 的腳本，公開頁 CSP 一字不變（`web/tests/line-tag.spec.ts` 與 `third-party-analytics.spec.ts` 鎖住）。
+- **CSP 設了之後多放行**：`script-src https://d.line-scdn.net https://tag.flvcdn.net`（`lt.js` 與它再載入的 `ltag.js`）、`img-src https://tr.line.me`（事件是 1x1 圖片請求 `tr.line.me/tag.gif`）。`connect-src` 不動；後台 CSP 不動。**刻意不放行** `apm.yahoo.co.jp`：`ltag.js` 是 LINE Yahoo 共用的標籤引擎，內有往那個網域送資料的程式，而且它讀的是完整網址（含 hash），不受下面的網址清洗影響；台灣站用不到，被 CSP 擋下時主控台會有違規訊息，屬預期。
+- 訪客瀏覽器多第一方 cookie：`__lt__cid`（瀏覽器代碼，約兩年）、`__lt__sid`（工作階段，30 分鐘），localStorage 另有一份 `__lt__cid`。隱私權政策第 5 段要補第四項工具（見上線步驟 1）。
+
+**程式做了什麼**（和另外三家同一組檔案：`web/shared/third-party-analytics.ts`、`web/app/utils/third-party-analytics.ts`、`web/app/plugins/third-party-analytics.client.ts`、`web/server/utils/security-headers.ts`）
+
+- 用 `createElement` 載 `https://d.line-scdn.net/n/line_tag/public/release/v1/lt.js`，等整頁 `load` 之後、主執行緒有空才載；`_lt` 的 queue stub 與官方 snippet 相同，事件先排在 queue。DNT 或 Global Privacy Control 開著就不載。
+- **兩種事件**：每個頁面送一次 `_lt('send', 'pv', [tagId])`；伺服器回 `status === 'confirmed'` 時（與 GA／Pixel／OpenAI 同一個呼叫點 `reportBookingLead`）送 `_lt('send', 'cv', { type: 'Conversion' })`。轉換不帶校區、入口、金額、收據編號、修改連結或任何個資。
+- **不送個資、不開進階比對**：`init` 只有 `customerType`、`tagId`、`allowSync: false`、`$location`；不帶 `tel`、`email`、`externalId`、`deduplicationKey`（LINE 的進階比對／重複事件比對就是靠這幾個欄位，傳了才會雜湊後送出），也不設 `autoLink`、`syncByLCS`、`syncByLIFF`（跨網域同步）。
+- **網址清洗**：`lt.js` 預設把完整網址放進每個請求（`b_u`、`b_q`、`b_h`＝hash）。`init` 另外傳一個自己的 `$location`（`lineTagLocation`）：origin＋pathname＋只留 `utm_*`、`gclid`、`gbraid`、`wbraid`、`fbclid` 與 LINE 廣告自己的點擊代碼（`ldtag_m`、`ldtag_cl`、`ldtag_t`、`lt_r`、`srclt`，`lt.js` 在 init 時從網址讀，濾掉會歸因不到廣告），hash 一律空。實測：預設會送 `b_h=%23hash-id`、`b_q=…secret=1`；帶 `$location` 後兩者都沒有。例外：`lt.js` 自己出錯時的 `err.gif` 會帶完整網址（內建、改不了），修改頁因為根本不載入而不受影響。
+- `/visit/manage`、`/admin`、`/preview` 完全不送：第一頁就是這些頁面時不載；載入後 SPA 換頁進去就不呼叫 `send`（`lt.js` 沒有同意／暫停 API，也不掛 `pushState`／`popstate`，實測 `history.pushState` 到修改頁後 3 秒內 0 個請求）。
+- 載入前不把 `pv` 排進 queue（queue 載入時才依序處理，所有 `pv` 都會讀到載入當下的網址），只記「有一次要送」，載入時補送當下那一頁，與 Meta Pixel 同一個做法。
+
+**2026-11-16 實測紀錄**（臨時腳本 `output/cookie-web-prefs/line-tag-probe.cjs`，真的 `lt.js` 3.7.0、假 Tag ID、送往 LINE 的追蹤請求一律 `route.fulfill(204)`，沒有真的送出事件）：載入的 script 只有 `https://d.line-scdn.net/n/line_tag/public/release/v1/lt.js` 與 `https://tag.flvcdn.net/ltag.js`；打到的網域只有 `tr.line.me`（`/tag.gif?…&e=pv`、`&e=cv&d0=Conversion`，皆為 img 請求）；沒有 fetch／XHR／sendBeacon；ltag.js 在 5 秒內沒有額外請求。**沒驗到的**：真實的 `tr.line.me` 回應若帶 `X-Z-BurlS` 標頭，`ltag.js` 會去 fetch 標頭裡列的網址（`no-cors`），那些網址 CSP 不會放行、會被擋；上線後要在 DevTools Console 看有沒有 CSP 違規，有的話再決定是否放行（先確認是什麼網域）。
+
+**上線步驟（都要本人登入）**
+
+1. **隱私權政策第 5 段補上第四項工具**再開變數（規則同 GA4／Pixel：先發布政策再開）。建議的條列：「LINE Tag（LINE 廣告）：計算 LINE 廣告帶來多少人瀏覽與預約。LINE 會在您的瀏覽器設定 cookie（名稱以 `__lt__` 開頭）。」對 LINE 只告知頁面瀏覽與「有一筆預約成功」，不含校區與個資。
+2. **LINE 廣告管理後台 → 事件管理 → LINE Tag**：建立（或取用）Tag，複製 Tag ID。**關掉**後台上的自動功能：進階比對（Advanced Matching）、自動事件蒐集等 Tag 設定裡有的開關。
+3. **轉換（Conversion）**：在 LINE Tag 底下建立「預約參觀成功」的轉換，事件類型選 Conversion（對應程式送的 `cv`）。
+4. **Railway web 服務**設 `NUXT_PUBLIC_LINE_TAG_ID`，等重新部署完成（改變數前先看有沒有別的部署在跑）。
+5. **驗證**：DevTools Network 要看到 `lt.js`、`ltag.js` 與送往 `tr.line.me/tag.gif` 的圖片請求（`e=pv`）；請求的 `b_u` 沒有 hash、`b_q` 只有歸因參數；Console 沒有 CSP 違規（除了預期的 `apm.yahoo.co.jp`，若出現）。在官網用測試資料預約一次成功（驗完到後台取消），要看到一筆 `e=cv`、`d0=Conversion`；LINE 廣告後台「事件管理」的測試工具（Tag 詳細頁的事件檢視）要看到 Page View 與 Conversion。開一個預約修改連結，不應有送往 `tr.line.me` 的請求。
+
+**程式端沒辦法驗證的**：LINE 後台是否真的收得到事件、轉換是否歸到廣告，只能在正式站設好變數後照步驟 5 實測。`lt.js` 是 LINE 的外部腳本，行為可能隨版本改變；上面「只在 init 與送事件時讀 `$location`」「圖片請求」「不掛換頁事件」是 3.7.0 當時的行為，大改版後要重跑上面的實測腳本。
+
+## 網站來源、這台裝置記住預約、到場與預繳回傳廣告平台（2026-11-16 程式，`feature/cookie-features-20261116`；migration `a7c3e9f1b250` 只新增欄位與表）
+
+規格 `docs/specs/2026-11-16-cookie-features-design.md`。前兩項不用設變數，部署後就生效；第三項預設全關。
+
+- **網站來源**（`ivy_src`，web 的 `server/middleware/01.attribution.ts`）：跟著 `NUXT_PUBLIC_TELEMETRY_ENABLED`（正式站本來就開）。送出預約時寫進 `visit_requests.first_touch_*`／`last_touch_*`；後台案件明細多一列「網站來源」、招生統計「參觀預約」多一張「網站來源」表、案件匯出多四欄。上線前的預約都是「沒有記錄」。代理多轉 `DNT`、`Sec-GPC` 兩個標頭給 api。
+- **這台裝置記住預約**（`ivy_visit_remember`，正式站是 `__Host-ivy_visit_remember`）：送單成立時發，值是修改連結的 token、期限同連結；預約頁上方顯示「您已預約…」，按「修改或取消預約」換家長 session 進 `/visit/manage`。園方重新產生連結、案件取消或完成時自動失效。
+- **到場、預繳回傳廣告平台**（`backend/app/ad_conversions/`）：每家「ID＋伺服器端金鑰」兩個都設才啟用、只設一個 api 拒絕啟動。設了之後新的預約才會記點擊識別碼（之前的預約不會回傳）；「標記已到場」與招生訪視「已預繳」排入 `ad_conversion_jobs`，API 定期工作每 60 秒送出，失敗重試 5 次，原因記在 `last_error`。不送姓名、電話、Email 或它們的雜湊。
+
+| 平台 | Railway api 變數 | 去哪裡拿 |
+|---|---|---|
+| GA4（再匯入 Google Ads） | `WEBSITE_GA4_MEASUREMENT_ID`（同 web 的 `G-KERZKPSV2H`）、`WEBSITE_GA4_API_SECRET` | GA4 管理 → 資料串流 → 網站串流 → Measurement Protocol API 密鑰 → 建立 |
+| Meta | `WEBSITE_META_PIXEL_ID`（同 web 的像素 ID）、`WEBSITE_META_CAPI_TOKEN`；`WEBSITE_META_GRAPH_VERSION` 預設 `v26.0` | 事件管理工具 → 資料集（像素）→ 設定 → 轉換 API → 產生存取權杖 |
+| ChatGPT 廣告 | `WEBSITE_OPENAI_PIXEL_ID`（同 web 的 `H3LXGVGDAfgHkdJ1svTjbe`）、`WEBSITE_OPENAI_CAPI_KEY` | 廣告管理平台 → 轉換 → 資料來源「常春藤官網」→ Conversions API 金鑰 |
+
+**開啟步驟**：1. 隱私權政策第 5 段補上「到場、預繳會以點擊識別碼回傳廣告平台」（擬稿在規格附錄 A）並發布。2. 一次把要開的那家兩個變數設好（只設一個 api 會起不來；2026-11-13 曾因變數分兩次設造成停機，相依變數一次到位）。3. 在平台後台把事件設成轉換：GA4 把 `visit_attended`、`deposit_paid` 標成重要事件再匯入 Google Ads；Meta 用自訂事件 `VisitAttended`、`DepositPaid` 建自訂轉換；ChatGPT 廣告建自訂事件 `visit_attended`、`deposit_paid`。4. 用測試資料走一次：預約（從帶 `?utm_source=test` 的網址進站）→ 後台標記到場 → 一分鐘後查 `ad_conversion_jobs.status`。
+
+**未驗證**：GA4 Measurement Protocol 送的事件沒有帶 session_id，GA 報表裡這兩個事件的「工作階段來源」可能是 (not set)，匯進 Google Ads 後能不能歸到原本的廣告點擊要實測；Meta 只靠 fbc／fbp 比對，比對率會比帶雜湊個資低（業主不送個資的取捨）。
+
 ## Google Search Console 與 CrUX（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
 
 規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 3、4 節。**只動 api 與後台**：沒有 migration、不存任何資料到資料庫（查到的結果只放 api 程序記憶體）、不新增依賴；web 不用動。後台「成效統計」兩處用到：**「瀏覽與速度」多一區「Chrome 真實使用者」**（CrUX：Google 從 Chrome 使用者蒐集的官網速度，手機與電腦的 p75 與好／需要改善／不佳比例，附近 25 週走勢）、**「怎麼來、怎麼逛」多一區「Google 搜尋」**（Search Console：點進官網、出現次數、點進去的比例、平均排名，前 25 個搜尋字詞、前 25 個頁面、裝置別，期間跟著整頁的近 7／28／90 天）。兩者都只有總管理者看得到（權限同成效統計其他全站數據 `admissions.stats`），沒設定時只顯示一行「尚未設定」。

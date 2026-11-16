@@ -332,6 +332,40 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -355,6 +389,40 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",
@@ -5927,6 +5995,132 @@
         "title": "AreaVillageRowOut",
         "type": "object"
       },
+      "AttributionCampaignOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "campaign": {
+            "title": "Campaign",
+            "type": "string"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate",
+          "campaign"
+        ],
+        "title": "AttributionCampaignOut",
+        "type": "object"
+      },
+      "AttributionCountsOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate"
+        ],
+        "title": "AttributionCountsOut",
+        "type": "object"
+      },
+      "AttributionSourceOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionCampaignOut"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate",
+          "source",
+          "campaigns"
+        ],
+        "title": "AttributionSourceOut",
+        "type": "object"
+      },
       "AuditActorOut": {
         "description": "操作者篩選的一個選項；actor_user_id 為 null 是「系統」（排程發布、每天清理等）。",
         "properties": {
@@ -6213,6 +6407,67 @@
           "kind"
         ],
         "title": "Body_upload_media_api_website_v1_admin_media_post",
+        "type": "object"
+      },
+      "BookingAttributionOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionSourceOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AttributionCountsOut"
+          },
+          "touch": {
+            "enum": [
+              "first",
+              "last"
+            ],
+            "title": "Touch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "date_from",
+          "date_to",
+          "touch",
+          "rows",
+          "totals"
+        ],
+        "title": "BookingAttributionOut",
         "type": "object"
       },
       "BookingConfigOut": {
@@ -18208,6 +18463,43 @@
         "title": "ReleaseRestoreRequest",
         "type": "object"
       },
+      "RememberedVisitOut": {
+        "description": "這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、\nEmail——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "slot_date": {
+            "format": "date",
+            "title": "Slot Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "slot_date",
+          "start_time",
+          "end_time"
+        ],
+        "title": "RememberedVisitOut",
+        "type": "object"
+      },
       "ResendConfirmationOut": {
         "description": "重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。",
         "properties": {
@@ -22109,6 +22401,40 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -22125,6 +22451,40 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_name": {
             "title": "Parent Name",
@@ -22517,6 +22877,40 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -22540,6 +22934,40 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",
@@ -29322,6 +29750,144 @@
         "summary": "Get Admissions Stats",
         "tags": [
           "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/booking-attribution": {
+      "get": {
+        "description": "官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。",
+        "operationId": "get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get",
+        "parameters": [
+          {
+            "description": "送出日期起（台北，含），省略＝不限",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（台北，含），省略＝不限",
+              "title": "From"
+            }
+          },
+          {
+            "description": "送出日期迄（台北，含），省略＝不限",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（台北，含），省略＝不限",
+              "title": "To"
+            }
+          },
+          {
+            "description": "first＝第一次進站；last＝預約前最後一次不是直接進站",
+            "in": "query",
+            "name": "touch",
+            "required": false,
+            "schema": {
+              "default": "last",
+              "description": "first＝第一次進站；last＝預約前最後一次不是直接進站",
+              "enum": [
+                "first",
+                "last"
+              ],
+              "title": "Touch",
+              "type": "string"
+            }
+          },
+          {
+            "description": "只看一校；省略＝授權範圍內的全部校區",
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只看一校；省略＝授權範圍內的全部校區",
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingAttributionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Attribution",
+        "tags": [
+          "operations"
         ]
       }
     },
@@ -42313,6 +42879,182 @@
           }
         },
         "summary": "Parent Reschedule",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-remembered": {
+      "delete": {
+        "description": "「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。",
+        "operationId": "forget_remembered_visit_api_website_v1_public_visit_remembered_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Remembered Visit",
+        "tags": [
+          "parent-access"
+        ]
+      },
+      "get": {
+        "description": "只回日期、場次與校區。案件已不是「已確認」（取消、完成、未到場時連結也已撤銷）、場次已結束、\n連結被園方重新產生或過期，都當作沒有，並清掉 cookie。",
+        "operationId": "get_remembered_visit_api_website_v1_public_visit_remembered_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_visit_remember",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Visit Remember"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RememberedVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "這台裝置沒有記住預約，或記住的那筆已失效（同時清掉 cookie）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Remembered Visit",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-remembered/open": {
+      "post": {
+        "description": "用記住的那條修改連結換 2 小時的家長 session（和點信裡的連結同一個流程），前端接著整頁開 /visit/manage。",
+        "operationId": "open_remembered_visit_api_website_v1_public_visit_remembered_open_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_visit_remember",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Visit Remember"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open Remembered Visit",
         "tags": [
           "parent-access"
         ]
