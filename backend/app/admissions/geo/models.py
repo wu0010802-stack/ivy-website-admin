@@ -64,6 +64,7 @@ STREET_KINDS = ("road", "area")
 # kindergarten_penalties、kindergarten_evaluations：幼兒園裁罰與評鑑（2026-10-20），migration b8e2d6a4f931 加進約束
 # （名稱超過原本的 20 字，同一支 migration 把 dataset 欄放寬到 32 字）。
 # elementary：教育部國民小學各校一年級人數（2026-10-20 招生潛力與市佔率），migration 76c4bf84b907 加進約束。
+# marriages：各里每月結婚對數（2026-11-16 廣告成效，docs/specs/2026-11-16-ad-roi-design.md），migration c4d2e8a1f6b3 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -79,6 +80,7 @@ DATASETS = (
     "kindergarten_penalties",
     "kindergarten_evaluations",
     "elementary",
+    "marriages",
 )
 # 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
 # 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
@@ -363,6 +365,14 @@ class GeoVillageBirths(_VillageMonth, Base):
     __tablename__ = "geo_village_births"
 
     births: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class GeoVillageMarriages(_VillageMonth, Base):
+    """各里每月結婚對數（2026-11-16 廣告成效，docs/specs/2026-11-16-ad-roi-design.md），結構同 GeoVillageBirths。"""
+
+    __tablename__ = "geo_village_marriages"
+
+    marriages: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
 class GeoVillageMigration(_VillageMonth, Base):

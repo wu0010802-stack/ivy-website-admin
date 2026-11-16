@@ -1,27 +1,23 @@
 """Google Search Console 搜尋成效（docs/specs/2026-11-12-external-integrations-design.md §3）。
 
-驗證：服務帳戶金鑰簽 RS256 JWT，向 oauth2.googleapis.com/token 換 access token（scope 唯讀），
-token 放程序記憶體、過期前 5 分鐘就換新。查詢：searchAnalytics.query 四次（總計、搜尋字詞、頁面、裝置），
+驗證：服務帳戶 access token（scope 唯讀）由 google_token.ServiceAccountToken 處理。查詢：searchAnalytics.query 四次（總計、搜尋字詞、頁面、裝置），
 每次只問一個維度、最多 25 列；結果依「資源＋期間＋維度」快取 6 小時，同一份同時只向 Google 要一次。
 
 access token、assertion、私鑰都只在記憶體與 Authorization 標頭／POST 本文，不進網址、log、例外、回應。"""
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import time
 from collections.abc import Callable
-from dataclasses import dataclass
 from datetime import date, timezone
 from urllib.parse import quote, urlsplit
 
 import httpx
-from joserfc import jwt
-from joserfc.jwk import RSAKey
 
 from app.config import GoogleServiceAccount, Settings
 from app.insights.cache import Cached, TtlCache
+from app.insights.google_token import ServiceAccountToken
 from app.insights.http import SEARCH_CONSOLE_USER_AGENT, GoogleApiError, new_client, post_json
 from app.insights.schemas import (
     SearchDeviceRowOut,
@@ -34,26 +30,13 @@ from app.insights.schemas import (
 logger = logging.getLogger("app.insights")
 
 SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
-TOKEN_URL = "https://oauth2.googleapis.com/token"
 QUERY_URL = "https://searchconsole.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
 ROW_LIMIT = 25
 RESULT_TTL_SECONDS = 6 * 3600
-# access token 通常 1 小時；過期前 5 分鐘就換，免得查到一半過期。
-TOKEN_REFRESH_MARGIN_SECONDS = 300
-_JWT_LIFETIME_SECONDS = 3600
 _QUERY_TEXT_LIMIT = 200
 _DEVICES = {"MOBILE": "mobile", "DESKTOP": "desktop", "TABLET": "tablet"}
 
-STEP_TOKEN = "取得 Google 權杖"
-STEP_SIGN = "簽署服務帳戶憑證"
 STEP_QUERY = "查詢 Search Console"
-
-
-@dataclass
-class _Token:
-    value: str
-    client_email: str
-    refresh_at: float
 
 
 def _number(value: object, default: float = 0.0) -> float:
@@ -88,48 +71,8 @@ class SearchConsole:
 
     def __init__(self, clock: Callable[[], float] = time.monotonic):
         self.clock = clock
-        self._token: _Token | None = None
-        self._token_lock = asyncio.Lock()
+        self._auth = ServiceAccountToken(SCOPE, clock=lambda: self.clock())
         self._results: TtlCache[list[dict]] = TtlCache(RESULT_TTL_SECONDS, clock=lambda: self.clock())
-
-    # ---- 驗證 ----
-
-    async def _access_token(self, client: httpx.AsyncClient, account: GoogleServiceAccount) -> str:
-        async with self._token_lock:
-            token = self._token
-            if token and token.client_email == account.client_email and self.clock() < token.refresh_at:
-                return token.value
-            value, lifetime = await self._exchange(client, account)
-            self._token = _Token(value, account.client_email, self.clock() + max(0.0, lifetime - TOKEN_REFRESH_MARGIN_SECONDS))
-            return value
-
-    def _drop_token(self) -> None:
-        self._token = None
-
-    async def _exchange(self, client: httpx.AsyncClient, account: GoogleServiceAccount) -> tuple[str, float]:
-        issued = int(time.time())
-        claims = {
-            "iss": account.client_email,
-            "scope": SCOPE,
-            "aud": TOKEN_URL,
-            "iat": issued,
-            "exp": issued + _JWT_LIFETIME_SECONDS,
-        }
-        header = {"alg": "RS256", "typ": "JWT", **({"kid": account.private_key_id} if account.private_key_id else {})}
-        try:
-            assertion = jwt.encode(header, claims, RSAKey.import_key(account.private_key), algorithms=["RS256"])
-        except Exception:  # noqa: BLE001 — 金鑰格式不對的各種例外都可能帶出金鑰片段，一律只報固定字串。
-            raise GoogleApiError(STEP_SIGN, reason="金鑰無法使用") from None
-        status, data = await post_json(
-            client, STEP_TOKEN, TOKEN_URL,
-            data={"grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer", "assertion": assertion},
-        )
-        if status != 200 or not isinstance(data, dict):
-            raise GoogleApiError(STEP_TOKEN, status=status)
-        token = data.get("access_token")
-        if not isinstance(token, str) or not token:
-            raise GoogleApiError(STEP_TOKEN, status=status, reason="回應格式不對")
-        return token, _number(data.get("expires_in"), 3600.0)
 
     # ---- 查詢 ----
 
@@ -142,7 +85,7 @@ class SearchConsole:
         key = (prop, start, end, dimension)
 
         async def fetch() -> list[dict]:
-            token = await self._access_token(client, account)
+            token = await self._auth.get(client, account)
             body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "rowLimit": ROW_LIMIT, "type": "web"}
             if dimension:
                 body["dimensions"] = [dimension]
@@ -152,7 +95,7 @@ class SearchConsole:
             )
             if status == 401:
                 # 權杖被撤銷或提早失效：丟掉它，下一次請求重新簽。
-                self._drop_token()
+                self._auth.drop()
             if status != 200 or not isinstance(data, dict):
                 raise GoogleApiError(STEP_QUERY, status=status)
             rows = data.get("rows", [])

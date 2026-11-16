@@ -15,6 +15,14 @@ const SAMPLE_COOKIE =
   'ImNoYXRncHQtZml2ZS1jYW1wdXNlcyJ9LCJvIjp7InYiOiJvcHBfQWJDLjEyMy14IiwidCI6MTc5NDc4NzIwMDAwMH0sImIiOnsidiI6Ikl3' +
   'QVIwYWJjX0RFRi0xMjMiLCJ0IjoxNzk0Nzg3MjAwMDAwfX0'
 
+// 廣告平台（p）樣本：Task 2 後端測試用同一個字串
+const SAMPLE_ADS: AttributionCookie = {
+  v: 1,
+  f: { s: 'search', d: '2026-11-10' },
+  l: { s: 'ads', p: 'google', d: '2026-11-16' }
+}
+const SAMPLE_ADS_COOKIE = 'eyJ2IjoxLCJmIjp7InMiOiJzZWFyY2giLCJkIjoiMjAyNi0xMS0xMCJ9LCJsIjp7InMiOiJhZHMiLCJwIjoiZ29vZ2xlIiwiZCI6IjIwMjYtMTEtMTYifX0'
+
 const NOW = new Date('2026-11-16T02:00:00Z')
 const landing = (referrer: string, search = '', userAgent = 'Mozilla/5.0') => ({ referrer, search, userAgent })
 
@@ -22,6 +30,17 @@ describe('cookie 編碼', () => {
   it('和後端用同一個字串', () => {
     expect(encodeAttribution(SAMPLE)).toBe(SAMPLE_COOKIE)
     expect(decodeAttribution(SAMPLE_COOKIE)).toEqual(SAMPLE)
+  })
+
+  it('廣告平台 p 編碼與讀回', () => {
+    expect(encodeAttribution(SAMPLE_ADS)).toBe(SAMPLE_ADS_COOKIE)
+    expect(decodeAttribution(SAMPLE_ADS_COOKIE)).toEqual(SAMPLE_ADS)
+  })
+
+  it('壞的 p 丟掉那一欄，非廣告來源不收 p', () => {
+    const enc = (l: unknown) => btoa(JSON.stringify({ v: 1, f: { s: 'search', d: '2026-11-10' }, l })).replace(/=+$/, '')
+    expect(decodeAttribution(enc({ s: 'ads', p: 'tiktok', d: '2026-11-16' }))?.l).toEqual({ s: 'ads', d: '2026-11-16' })
+    expect(decodeAttribution(enc({ s: 'search', p: 'google', d: '2026-11-16' }))?.l).toEqual({ s: 'search', d: '2026-11-16' })
   })
 
   it('格式不對整個當沒有，欄位不合規則就丟掉那一欄', () => {
@@ -41,9 +60,15 @@ describe('進站更新', () => {
     expect(nextAttribution(search, landing(''), new Date('2026-11-20T03:00:00Z'))).toEqual(search)
   })
 
+  it('廣告進站記平台，非廣告進站沒有 p', () => {
+    expect(nextAttribution(null, { referrer: '', search: '?gclid=a', userAgent: '' }, NOW).f).toEqual({ s: 'ads', p: 'google', d: '2026-11-16' })
+    const organic = nextAttribution(null, landing('https://www.google.com/'), NOW)
+    expect(organic.f).not.toHaveProperty('p')
+  })
+
   it('廣告點擊記活動代碼與點擊代碼', () => {
     const next = nextAttribution(null, landing('', '?utm_source=chatgpt&utm_medium=cpc&utm_campaign=chatgpt-five-campuses&oppref=opp_1'), NOW)
-    expect(next.f).toEqual({ s: 'ads', d: '2026-11-16', c: 'chatgpt-five-campuses' })
+    expect(next.f).toEqual({ s: 'ads', p: 'openai', d: '2026-11-16', c: 'chatgpt-five-campuses' })
     expect(next.l).toEqual(next.f)
     expect(next.o).toEqual({ v: 'opp_1', t: NOW.getTime() })
     const fb = nextAttribution(next, landing('https://l.facebook.com/', '?fbclid=IwAR_x-1'), NOW)
@@ -60,7 +85,9 @@ describe('進站更新', () => {
   })
 
   it('格式怪的點擊代碼不記', () => {
-    expect(nextAttribution(null, landing('', '?oppref=a%3Bb&fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'facebook', d: '2026-11-16' }, l: { s: 'facebook', d: '2026-11-16' } })
+    expect(nextAttribution(null, landing('', '?oppref=a%3Bb&fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'ads', p: 'openai', d: '2026-11-16' }, l: { s: 'ads', p: 'openai', d: '2026-11-16' } })
+    // oppref 一出現就算 OpenAI 廣告進站（2026-11-16 起），只是格式怪的代碼本身不記
+    expect(nextAttribution(null, landing('', '?fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'facebook', d: '2026-11-16' }, l: { s: 'facebook', d: '2026-11-16' } })
   })
 
   it('台北日期', () => {

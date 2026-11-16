@@ -4,7 +4,8 @@
 base64url 編碼的 JSON，`v` 固定 1，格式與 web/shared/attribution-cookie.ts 一致（兩邊測試用同一組樣本）。
 
 - `f`：第一次進站 {s 來源代碼, c 活動代碼（可省略）, d 日期 YYYY-MM-DD}
-- `l`：最後一次不是直接進站的進站，欄位同上（可省略）
+- `l`：最後一次不是直接進站的進站，欄位同上（可省略）；來源是 ads 時可多一個 `p` 廣告平台（2026-11-16，
+  docs/specs/2026-11-16-ad-roi-design.md，web 端判斷，後端只讀不分類）
 - `o`：最後一次落地網址上的 OpenAI 點擊代碼 {v, t 毫秒}（可省略）
 - `b`：最後一次的 fbclid {v, t 毫秒}（可省略）
 - `n`：最後一次落地網址上的 LINE 廣告點擊代碼 ldtag_cl {v, t 毫秒}（可省略，2026-11-16）
@@ -25,6 +26,8 @@ from datetime import date, datetime, timedelta, timezone
 from app.operations.models import ENGAGEMENT_SOURCES
 
 SITE_COOKIE = "ivy_src"
+# 廣告平台代碼（2026-11-16）：要和 web/shared/engagement.ts 的 AD_PLATFORMS 一致（test_ad_platform_attribution 比對）。
+AD_PLATFORMS = ("google", "openai", "meta", "line", "other")
 # 比 4 KB 上限再寬一點；超過就不是官網寫的。
 _MAX_COOKIE_LENGTH = 3000
 _CAMPAIGN = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
@@ -61,6 +64,8 @@ class Touch:
     source: str
     campaign: str | None
     on: date
+    # 廣告平台：只有來源是 ads 且代碼在 AD_PLATFORMS 才留，其餘一律 None。
+    platform: str | None = None
 
 
 @dataclass(frozen=True)
@@ -95,7 +100,10 @@ def _touch(raw: object) -> Touch | None:
         return None
     if campaign is not None and not (isinstance(campaign, str) and _CAMPAIGN.match(campaign)):
         campaign = None
-    return Touch(source=source, campaign=campaign, on=on)
+    platform = raw.get("p")
+    if source != "ads" or not isinstance(platform, str) or platform not in AD_PLATFORMS:
+        platform = None
+    return Touch(source=source, campaign=campaign, on=on, platform=platform)
 
 
 def _click(raw: object, pattern: re.Pattern[str]) -> ClickToken | None:
@@ -128,12 +136,13 @@ def parse_site_cookie(raw: str | None) -> SiteCookie | None:
 
 
 def touch_columns(site: SiteCookie | None) -> dict:
-    """寫進 visit_requests 的六個網站來源欄位（沒有就是 None）。"""
+    """寫進 visit_requests 的八個網站來源欄位（沒有就是 None）。"""
     columns: dict = {}
     for prefix, touch in (("first_touch", site.first if site else None), ("last_touch", site.last if site else None)):
         columns[f"{prefix}_source"] = touch.source if touch else None
         columns[f"{prefix}_campaign"] = touch.campaign if touch else None
         columns[f"{prefix}_on"] = touch.on if touch else None
+        columns[f"{prefix}_ad_platform"] = touch.platform if touch else None
     return columns
 
 

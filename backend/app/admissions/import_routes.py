@@ -79,7 +79,11 @@ def _describe(errors: list[dict]) -> str:
 
 class NoEchoValidationRoute(APIRoute):
     """把 RequestValidationError 改成只有位置與種類的 422（INVALID_IMPORT_PAYLOAD），不帶輸入值。
-    `from None` 抑制例外鏈：印 traceback 時不會帶出原本的驗證錯誤（含 input），這裡也沒有記錄它。"""
+    `from None` 抑制例外鏈：印 traceback 時不會帶出原本的驗證錯誤（含 input），這裡也沒有記錄它。
+    error_code／error_message 可由子類別覆寫（message 為 None 時用「位置：種類」的說明），別的 router 不必沿用匯入的字樣。"""
+
+    error_code = "INVALID_IMPORT_PAYLOAD"
+    error_message: str | None = None
 
     def get_route_handler(self) -> Callable[[Request], Coroutine[Any, Any, Response]]:
         handler = super().get_route_handler()
@@ -90,7 +94,7 @@ class NoEchoValidationRoute(APIRoute):
             except RequestValidationError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                    detail={"code": "INVALID_IMPORT_PAYLOAD", "message": _describe(exc.errors())},
+                    detail={"code": self.error_code, "message": self.error_message or _describe(exc.errors())},
                 ) from None
 
         return no_echo_handler

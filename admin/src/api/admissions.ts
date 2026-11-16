@@ -4,7 +4,7 @@
 import { api } from './client'
 import { searchHeaders } from './searchHeader'
 import type {
-  AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaCompare, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
+  AdRoi, AdSpendEntry, AdSpendList, AdSpendPlatform, AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaCompare, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, EnrolledApplyResult, EnrolledClearResult, EnrolledImportPayload, EnrolledPreview, EnrolledPreviewRequest, EnrollmentHistoryPayload,
   FollowUpUpdate, FunnelBoard, HistoryApplyResult, HistoryPreview, HistoryPreviewRequest, ImportStatus, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
@@ -298,4 +298,21 @@ export function previewHistoryImport(campusKey: string, body: HistoryPreviewRequ
 /** 確認匯入歷年註冊：本文是預覽回來的 payload 原樣送回，整校取代。 */
 export function applyHistoryImport(campusKey: string, payload: EnrollmentHistoryPayload): Promise<HistoryApplyResult> {
   return api.post<HistoryApplyResult>(`/admin/admissions/imports/history/apply?${toQuery({ campus_key: campusKey })}`, payload)
+}
+
+// 廣告成效（2026-11-16）：from／to 是 YYYY-MM；花費每月每平台一筆手填（Google 花費由後端讀 GA4）。
+export function getAdRoi(from: string, to: string, touch: 'last' | 'first'): Promise<AdRoi> {
+  return api.get<AdRoi>(`/admin/admissions/ad-roi?${toQuery({ from, to, touch })}`)
+}
+
+export function listAdSpend(from: string, to: string): Promise<AdSpendList> {
+  return api.get<AdSpendList>(`/admin/admissions/ad-spend?${toQuery({ from, to })}`)
+}
+
+export function putAdSpend(month: string, platform: AdSpendPlatform, body: { amount: number; note: string | null }): Promise<AdSpendEntry> {
+  return api.put<AdSpendEntry>(`/admin/admissions/ad-spend/${month}/${platform}`, body)
+}
+
+export function deleteAdSpend(month: string, platform: AdSpendPlatform): Promise<void> {
+  return api.delete<void>(`/admin/admissions/ad-spend/${month}/${platform}`)
 }

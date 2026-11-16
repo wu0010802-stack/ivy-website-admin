@@ -8,6 +8,7 @@ from __future__ import annotations
 import httpx
 
 SEARCH_CONSOLE_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-search-insights/1.0)"
+GA4_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-ad-cost/1.0)"
 CRUX_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-crux/1.0)"
 
 # 回應很小（25 列、或兩個裝置的時間序列）；超過就當異常。

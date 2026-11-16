@@ -49,6 +49,11 @@ FOLLOW_UP_OPEN_CHECK = "follow_up_at IS NULL OR (enrolled = false AND withdrawn_
 WITHDRAW_CATEGORY_WITHDRAWN_CHECK = "withdraw_reason_category IS NULL OR withdrawn_at IS NOT NULL"
 
 
+# 手填廣告花費的平台（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：Google 花費由 API 匯入，不在這裡；
+# offline 是非網路廣告（傳單、活動等）。與 migration c4d2e8a1f6b3 的字面值逐字相同。
+MANUAL_SPEND_PLATFORMS = ("openai", "meta", "line", "other", "offline")
+
+
 def _sql_in(column: str, values: Iterable[str], *, nullable: bool = True) -> str:
     listed = ", ".join(f"'{value}'" for value in values)
     condition = f"{column} IN ({listed})"
@@ -286,3 +291,25 @@ from app.admissions.geo import models as _geo_models  # noqa: E402,F401
 from app.admissions.enrolled import models as _enrolled_models  # noqa: E402,F401
 from app.admissions.history import models as _history_models  # noqa: E402,F401
 from app.admissions.roster import models as _roster_models  # noqa: E402,F401
+
+
+class AdSpendEntry(Base):
+    """手填廣告花費：一個月、一個平台一列（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）。
+    amount 是新台幣整數元；month 一律該月 1 號。"""
+
+    __tablename__ = "ad_spend_entries"
+    __table_args__ = (
+        UniqueConstraint("month", "platform", name="uq_ad_spend_entries_month_platform"),
+        CheckConstraint("EXTRACT(DAY FROM month) = 1", name="ck_ad_spend_entries_month_first_day"),
+        CheckConstraint(_sql_in("platform", MANUAL_SPEND_PLATFORMS, nullable=False), name="ck_ad_spend_entries_platform"),
+        CheckConstraint("amount BETWEEN 0 AND 10000000", name="ck_ad_spend_entries_amount"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    month: Mapped[date_] = mapped_column(Date, nullable=False)
+    platform: Mapped[str] = mapped_column(String(8), nullable=False)
+    amount: Mapped[int] = mapped_column(Integer, nullable=False)
+    note: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

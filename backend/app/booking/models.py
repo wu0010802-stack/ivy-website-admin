@@ -133,6 +133,24 @@ class VisitRequest(Base):
             "('direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
             name="ck_visit_requests_last_touch_source",
         ),
+        # 2026-11-16 廣告平台（docs/specs/2026-11-16-ad-roi-design.md）：代碼與 attribution.AD_PLATFORMS 相同，
+        # 且只有來源是 ads 才可能有平台。
+        CheckConstraint(
+            "first_touch_ad_platform IS NULL OR first_touch_ad_platform IN ('google', 'openai', 'meta', 'line', 'other')",
+            name="ck_visit_requests_first_touch_ad_platform",
+        ),
+        CheckConstraint(
+            "last_touch_ad_platform IS NULL OR last_touch_ad_platform IN ('google', 'openai', 'meta', 'line', 'other')",
+            name="ck_visit_requests_last_touch_ad_platform",
+        ),
+        CheckConstraint(
+            "first_touch_ad_platform IS NULL OR first_touch_source = 'ads'",
+            name="ck_visit_requests_first_touch_ad_platform_ads",
+        ),
+        CheckConstraint(
+            "last_touch_ad_platform IS NULL OR last_touch_source = 'ads'",
+            name="ck_visit_requests_last_touch_ad_platform_ads",
+        ),
         # 後台列表、CSV 匯出依 created_at 由新到舊排序。
         Index("ix_visit_requests_created_at", "created_at"),
         # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。
@@ -229,6 +247,9 @@ class VisitRequest(Base):
     last_touch_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     last_touch_campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)
     last_touch_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    # 2026-11-16 廣告平台（docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時，web 端判斷的平台。
+    first_touch_ad_platform: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    last_touch_ad_platform: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # 到場、預繳回傳廣告平台用的點擊識別碼（同規格 §2，app/ad_conversions/）：GA4 client_id、
     # Meta fbc／fbp、OpenAI oppref／obref。只有該平台設了伺服器端金鑰才記；匿名化時清掉。
     ad_click_ids: Mapped[dict | None] = mapped_column(JSON, nullable=True)

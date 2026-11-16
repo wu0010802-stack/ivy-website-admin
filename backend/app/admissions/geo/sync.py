@@ -12,7 +12,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 - 背景（app/workers/geo_loop.py，每天一次）：門牌、各里人口超過 30 天沒確認過，幼兒園與托嬰超過 7 天
   （providers.PROVIDER_REFRESH_AFTER）才去看來源；門牌先找最新月份，月份和使用中的一樣就不下載。
 - 手動（`python -m app.cli geo-sync`）：可加 --force 立刻重抓；或用 --doorplates-file／
-  --kindergartens-file／--babycare-file／--population-file／--births-file／--migration-file／--income-file／
+  --kindergartens-file／--babycare-file／--population-file／--births-file／--marriages-file／--migration-file／--income-file／
   --new-homes-file／--presale-file／--presale-parcels-file／--kindergarten-penalties-file／--kindergarten-evaluations-file／
   --september-file／--elementary-file（或 --bundle）指定本機檔案，這時完全不連外，沒指定檔案的那幾種跳過。
   幼兒園的 --kindergartens-file（JSON）要和 --kindergartens-registry-file（教育部名單）成對給，營業中以名單為準。
@@ -31,7 +31,7 @@ geo_dataset_status.last_error（不含地址）並保留使用中的版本。
 
 內政部戶政司 ODRP014（各里人口，population.py）：網址帶民國年月與頁碼，還沒公布的月份回
 「查無資料」；從上一個月往回找第一個有資料的月份，再把全部頁數抓完、篩出高雄市。
-ODRP061、ODRP011（出生、遷入遷出，village_series.py）同一支 API：找到最新月份後，出生往回 71 個月（表留 72 個月）、遷入遷出往回 24 個月
+ODRP061、ODRP060、ODRP011（出生、結婚、遷入遷出，village_series.py；結婚是 2026-11-16 廣告成效 §9 加的）同一支 API：找到最新月份後，出生與結婚往回 71 個月（表留 72 個月）、遷入遷出往回 24 個月
 內表裡沒有的月份逐月補，每個月份各自一個交易。ris.gov.tw 連續快速請求會回擋頁（2026-10-14 實測），
 所以每個請求之間至少隔 RIS_REQUEST_GAP_SECONDS 秒。
 
@@ -364,6 +364,10 @@ class GeoSyncResult:
     births: str = "skipped"
     births_version: str | None = None
     births_months: int = 0
+    # 各里結婚對數（2026-11-16 廣告成效 §9，ODRP060）。
+    marriages: str = "skipped"
+    marriages_version: str | None = None
+    marriages_months: int = 0
     migration: str = "skipped"
     migration_version: str | None = None
     migration_months: int = 0
@@ -2024,6 +2028,7 @@ async def run_geo_sync(
     babycare_file: Path | None = None,
     population_files: list[Path] | None = None,
     births_files: list[Path] | None = None,
+    marriages_files: list[Path] | None = None,
     migration_files: list[Path] | None = None,
     income_file: Path | None = None,
     income_year: int | None = None,
@@ -2043,7 +2048,7 @@ async def run_geo_sync(
         now = datetime.now(timezone.utc)
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
-            or bool(population_files) or bool(births_files) or bool(migration_files) or income_file is not None
+            or bool(population_files) or bool(births_files) or bool(marriages_files) or bool(migration_files) or income_file is not None
             or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
             or kindergarten_penalties_file is not None or kindergarten_evaluations_file is not None
             or bool(september_files) or bool(elementary_files)
@@ -2126,6 +2131,10 @@ async def run_geo_sync(
                 session_factory, "births", SERIES_TIME_BUDGET, now=now,
                 work=sync_series(session_factory, network, series_io.BIRTHS, now=now, force=force, files=births_files),
             )
+            marriages, marriages_months = await _within_budget(
+                session_factory, "marriages", SERIES_TIME_BUDGET, now=now,
+                work=sync_series(session_factory, network, series_io.MARRIAGES, now=now, force=force, files=marriages_files),
+            )
             migration, migration_months = await _within_budget(
                 session_factory, "migration", SERIES_TIME_BUDGET, now=now,
                 work=sync_series(session_factory, network, series_io.MIGRATION, now=now, force=force, files=migration_files),
@@ -2192,6 +2201,7 @@ async def run_geo_sync(
         status = await _status(session_factory, "doorplates")
         population_status = await _status(session_factory, "population")
         births_status = await _status(session_factory, "births")
+        marriages_status = await _status(session_factory, "marriages")
         migration_status = await _status(session_factory, "migration")
         income_status = await _status(session_factory, "income")
         new_homes_status = await _status(session_factory, "new_homes")
@@ -2212,6 +2222,9 @@ async def run_geo_sync(
             births=births,
             births_version=births_status.label if births_status and births_status.active_version else None,
             births_months=births_months,
+            marriages=marriages,
+            marriages_version=marriages_status.label if marriages_status and marriages_status.active_version else None,
+            marriages_months=marriages_months,
             migration=migration,
             migration_version=migration_status.label if migration_status and migration_status.active_version else None,
             migration_months=migration_months,

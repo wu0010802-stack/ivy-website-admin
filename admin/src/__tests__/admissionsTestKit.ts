@@ -258,6 +258,7 @@ const buildAreaTrends = () => ({
   sources: {
     population: { month: '115-09', year_ago_month: '114-09' },
     births: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
+    marriages: { latest: null, months: [] as string[], missing: [] as string[] },
     migration: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
     note: '資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口',
     income: {
@@ -275,27 +276,27 @@ const buildAreaTrends = () => ({
   },
   baseline: {
     villages: 4, villages_outside: 0, children: 1400, kids_net: 26, kids_base: 1374, births_12m: 180, births_months: 12, births_compared_months: 9,
-    births_change_pct: -20.7, migration_net_12m: -160, migration_months: 12,
+    births_change_pct: -20.7, marriages_12m: null, marriages_months: 0, migration_net_12m: -160, migration_months: 12,
     births_series: [
-      { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 180, change_pct: -20.7 },
-      { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2 },
-      { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null },
+      { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 180, change_pct: -20.7, marriages: null },
+      { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2, marriages: null },
+      { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null, marriages: null },
     ],
     new_homes: 130, new_homes_latest: 41, new_homes_seasons: 4,
     presale_households: 376, presale_cases: 5,
   },
   kids_unavailable: null,
   villages: [
-    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
+    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, marriages_12m: null, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
       presale_households: 156, presale_by_code: { '64000050015': 156 } as Record<string, number>,
       schools: [{ code: '593615', name: '東光國小', district: '三民區', partial: false, free_zone: false }] },
-    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
+    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, marriages_12m: null, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
       presale_households: 0, presale_by_code: {} as Record<string, number>,
       schools: [
         { code: '553608', name: '光武國小', district: '三民區', partial: true, free_zone: false },
         { code: '523606', name: '龍華國小', district: '鼓山區', partial: true, free_zone: false },
       ] },
-    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
+    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, marriages_12m: null, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
       presale_households: 220, presale_by_code: { '64000050001': 220 } as Record<string, number>,
       schools: [
         { code: '553604', name: '獅湖國小', district: '三民區', partial: false, free_zone: false },

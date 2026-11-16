@@ -9,6 +9,7 @@ import StatsOverview from './StatsOverview.vue'
 import JourneyTab from './JourneyTab.vue'
 import PotentialTab from './potential/PotentialTab.vue'
 import ImportsTab from './imports/ImportsTab.vue'
+import AdsTab from './ads/AdsTab.vue'
 import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import BookingStatsPane from '../analytics/BookingStatsPane.vue'
 import { getAreaCompare, getCompare, getStats } from '../../api/admissions'
@@ -210,9 +211,9 @@ function setCompareRadius(value: string | number | boolean | undefined) {
   if (km === 1 || km === 3 || km === 6) compareRadius.value = km
 }
 // 權限更新後只剩一校：子分頁消失，退回總覽。
-// 網址帶 sub=compare 但只看得到一校：掛載時也要退回。
+// 網址帶 sub=compare／ads 但只看得到一校：掛載時也要退回。
 watch(showCompare, (visible) => {
-  if (!visible && sub.value === 'compare') sub.value = 'overview'
+  if (!visible && (sub.value === 'compare' || sub.value === 'ads')) sub.value = 'overview'
 }, { immediate: true })
 
 // 表頭照園務 Recruitment{Class,Source,Staff,NoDeposit}Tab 原文。
@@ -568,6 +569,10 @@ function openWithdrawRecords(row: { code: string }) {
 
       <el-tab-pane label="資料匯入" name="stats-imports" lazy>
         <ImportsTab :campus-key="campusKey" :active="sub === 'imports'" />
+      </el-tab-pane>
+
+      <el-tab-pane v-if="showCompare" label="廣告成效" name="stats-ads" lazy>
+        <AdsTab :active="sub === 'ads'" />
       </el-tab-pane>
     </el-tabs>
   </section>

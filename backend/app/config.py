@@ -174,6 +174,8 @@ class Settings(BaseSettings):
     # JSON 在啟動時驗證；任何錯誤訊息都不帶內容。
     google_sc_service_account_json: str | None = Field(default=None, repr=False)
     google_sc_property: str | None = None
+    # GA4 資源編號（純數字）；與上面的服務帳戶共用，唯讀讀 Google 廣告花費（docs/specs/2026-11-16-ad-roi-design.md §6.1）。
+    ga4_property_id: str | None = None
     # CrUX（Chrome 使用者體驗報告）API 金鑰（§4）：沒設就不查。查的網站是 public_origin（沒設用 admin_origin）。
     crux_api_key: str | None = Field(default=None, repr=False)
     # 到場、預繳回傳廣告平台（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §2）：每家都是
@@ -348,7 +350,7 @@ class Settings(BaseSettings):
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
-        "google_sc_service_account_json", "google_sc_property", "crux_api_key",
+        "google_sc_service_account_json", "google_sc_property", "crux_api_key", "ga4_property_id",
         "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
         "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
     )
@@ -374,6 +376,13 @@ class Settings(BaseSettings):
     def _check_search_console_property(cls, value: str | None) -> str | None:
         if value is not None and _SEARCH_CONSOLE_PROPERTY.fullmatch(value) is None:
             raise ValueError("WEBSITE_GOOGLE_SC_PROPERTY 格式是 sc-domain:網域（例 sc-domain:example.com）或 https:// 網址")
+        return value
+
+    @field_validator("ga4_property_id")
+    @classmethod
+    def _check_ga4_property_id(cls, value: str | None) -> str | None:
+        if value is not None and re.fullmatch(r"[0-9]{6,12}", value) is None:
+            raise ValueError("WEBSITE_GA4_PROPERTY_ID 應為 GA4 資源編號（純數字）")
         return value
 
     @field_validator("facebook_pages")
@@ -497,6 +506,10 @@ class Settings(BaseSettings):
     @property
     def search_console_enabled(self) -> bool:
         return bool(self.google_sc_service_account_json and self.google_sc_property)
+
+    @property
+    def ga4_ads_enabled(self) -> bool:
+        return bool(self.google_sc_service_account_json and self.ga4_property_id)
 
     @property
     def google_sc_service_account(self) -> GoogleServiceAccount | None:

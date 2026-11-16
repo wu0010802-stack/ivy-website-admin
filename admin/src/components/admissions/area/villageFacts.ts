@@ -200,6 +200,7 @@ function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
       toneOf(group?.kids_net),
     ),
     factRow('近 12 個月出生', countText(group?.births_12m, '位')),
+    factRow('近 12 個月結婚', countText(group?.marriages_12m, '對')),
     factRow('近 12 個月淨遷入', moves === null ? NO_VALUE : `${signedCount(moves)} 人`, undefined, toneOf(moves)),
     homesRow(group, code),
     presaleRow(group, code),

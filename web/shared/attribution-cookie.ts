@@ -1,5 +1,5 @@
-import { ENGAGEMENT_CAMPAIGN, ENGAGEMENT_SOURCES, type EngagementSource } from './engagement'
-import { campaignOf, classifySource } from './engagement-source'
+import { AD_PLATFORMS, ENGAGEMENT_CAMPAIGN, ENGAGEMENT_SOURCES, type AdPlatform, type EngagementSource } from './engagement'
+import { adPlatformOf, campaignOf, classifySource } from './engagement-source'
 
 // 跨次造訪的網站來源（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §1）。
 // 官網伺服器在訪客「進站」（整頁載入公開頁）時更新這個第一方 cookie（server/middleware/01.attribution.ts），
@@ -13,6 +13,8 @@ export const ATTRIBUTION_MAX_AGE_SECONDS = 90 * 24 * 3600
 export interface AttributionTouch {
   /** 來源代碼（第一方統計的 ENGAGEMENT_SOURCES） */
   s: EngagementSource
+  /** 廣告平台（只在 s 是 ads 時有） */
+  p?: AdPlatform
   /** 活動代碼（utm_campaign 正規化後） */
   c?: string
   /** 台北日期 YYYY-MM-DD */
@@ -61,9 +63,9 @@ export function taipeiDay(now: Date): string {
 
 function validTouch(raw: unknown): AttributionTouch | undefined {
   if (!raw || typeof raw !== 'object') return undefined
-  const { s, c, d } = raw as Record<string, unknown>
+  const { s, p, c, d } = raw as Record<string, unknown>
   if (!ENGAGEMENT_SOURCES.some((source) => source === s) || typeof d !== 'string' || !DAY.test(d)) return undefined
-  return { s: s as EngagementSource, d, ...(typeof c === 'string' && ENGAGEMENT_CAMPAIGN.test(c) ? { c } : {}) }
+  return { s: s as EngagementSource, ...(s === 'ads' && AD_PLATFORMS.some((platform) => platform === p) ? { p: p as AdPlatform } : {}), d, ...(typeof c === 'string' && ENGAGEMENT_CAMPAIGN.test(c) ? { c } : {}) }
 }
 
 function validClick(raw: unknown, pattern: RegExp): AttributionClick | undefined {
@@ -107,7 +109,8 @@ export function decodeAttribution(raw: string | undefined | null): AttributionCo
 export function nextAttribution(previous: AttributionCookie | null, landing: Landing, now: Date): AttributionCookie {
   const source = classifySource(landing.referrer, landing.search, NO_ORIGIN, landing.userAgent)
   const campaign = campaignOf(landing.search)
-  const touch: AttributionTouch = { s: source, d: taipeiDay(now), ...(campaign ? { c: campaign } : {}) }
+  const platform = source === 'ads' ? adPlatformOf(landing.search) : undefined
+  const touch: AttributionTouch = { s: source, ...(platform ? { p: platform } : {}), d: taipeiDay(now), ...(campaign ? { c: campaign } : {}) }
   const next: AttributionCookie = previous ? { ...previous } : { v: 1, f: touch }
   if (source !== 'direct') next.l = touch
   const params = new URLSearchParams(landing.search)

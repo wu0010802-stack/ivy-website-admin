@@ -4,6 +4,69 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/ad-roi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ad Roi
+         * @description 各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。
+         *     只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。
+         */
+        get: operations["get_ad_roi_api_website_v1_admin_admissions_ad_roi_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/ad-spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ad Spend
+         * @description 列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。
+         */
+        get: operations["list_ad_spend_api_website_v1_admin_admissions_ad_spend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/ad-spend/{month}/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Ad Spend
+         * @description 新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），
+         *     稽核帶更新前的金額。
+         */
+        put: operations["put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put"];
+        post?: never;
+        /** Delete Ad Spend */
+        delete: operations["delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area": {
         parameters: {
             query?: never;
@@ -4027,6 +4090,147 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdRoiCampusOut */
+        AdRoiCampusOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            /** Deposited */
+            deposited: number;
+            /** Platform */
+            platform: string;
+        };
+        /** AdRoiGoogleCampaignOut */
+        AdRoiGoogleCampaignOut: {
+            /** Campaign Id */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Clicks */
+            clicks: number;
+            /** Cost */
+            cost: number;
+            /** Cost Per Click */
+            cost_per_click: number | null;
+            /** Impressions */
+            impressions: number;
+            /** Leads */
+            leads: number;
+        };
+        /** AdRoiGoogleOut */
+        AdRoiGoogleOut: {
+            /** Campaigns */
+            campaigns: components["schemas"]["AdRoiGoogleCampaignOut"][];
+            /** Configured */
+            configured: boolean;
+            /** Currency */
+            currency: string | null;
+            /** Error */
+            error: string | null;
+            /** Fetched At */
+            fetched_at: string | null;
+            /** Time Zone */
+            time_zone: string | null;
+        };
+        /**
+         * AdRoiOut
+         * @description 廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。
+         */
+        AdRoiOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Campus */
+            by_campus: components["schemas"]["AdRoiCampusOut"][];
+            google: components["schemas"]["AdRoiGoogleOut"];
+            /** Months */
+            months: string[];
+            pending: components["schemas"]["AdRoiPendingOut"];
+            /** Rows */
+            rows: components["schemas"]["AdRoiRowOut"][];
+            /**
+             * Touch
+             * @enum {string}
+             */
+            touch: "last" | "first";
+        };
+        /** AdRoiPendingOut */
+        AdRoiPendingOut: {
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            /** Considering */
+            considering: number;
+            /** Upcoming */
+            upcoming: number;
+        };
+        /** AdRoiRowOut */
+        AdRoiRowOut: {
+            /** Cases */
+            cases: number;
+            /** Clicks */
+            clicks: number | null;
+            /** Completed */
+            completed: number;
+            /** Cost Partial */
+            cost_partial: boolean;
+            /** Cost Per Case */
+            cost_per_case: number | null;
+            /** Cost Per Completed */
+            cost_per_completed: number | null;
+            /** Cost Per Deposit */
+            cost_per_deposit: number | null;
+            /** Deposited */
+            deposited: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "google" | "openai" | "meta" | "line" | "other" | "unknown" | "offline" | "organic" | "unrecorded";
+            /** Missing Months */
+            missing_months: number;
+            /** No Show */
+            no_show: number;
+            /** Spend */
+            spend: number | null;
+            /**
+             * Spend State
+             * @enum {string}
+             */
+            spend_state: "ok" | "unset" | "not_configured" | "error" | "none";
+        };
+        /** AdSpendEntryOut */
+        AdSpendEntryOut: {
+            /** Amount */
+            amount: number;
+            /** Month */
+            month: string;
+            /** Note */
+            note: string | null;
+            /** Platform */
+            platform: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AdSpendIn */
+        AdSpendIn: {
+            /** Amount */
+            amount: number;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdSpendListOut */
+        AdSpendListOut: {
+            /** Entries */
+            entries: components["schemas"]["AdSpendEntryOut"][];
+        };
         /**
          * AdminDetailsUpdate
          * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
@@ -4121,6 +4325,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -4136,6 +4342,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */
@@ -5731,6 +5939,10 @@ export interface components {
             kids_base: number | null;
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
+            /** Marriages Months */
+            marriages_months: number;
             /** Migration Months */
             migration_months: number;
             /** Migration Net 12M */
@@ -5766,6 +5978,8 @@ export interface components {
             change_pct: number | null;
             /** Ends */
             ends: string;
+            /** Marriages */
+            marriages: number | null;
             /** Missing */
             missing: string[];
             /** Months */
@@ -5901,6 +6115,7 @@ export interface components {
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
             income: components["schemas"]["AreaTrendsIncomeSourceOut"];
+            marriages: components["schemas"]["AreaTrendsMonthsOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
             new_homes: components["schemas"]["AreaTrendsNewHomesSourceOut"];
             /** Note */
@@ -5941,6 +6156,8 @@ export interface components {
             kids_level: "up2" | "up1" | "flat" | "down1" | "down2" | "few" | "unknown";
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
             /** Merged */
             merged: boolean;
             /** Migration Net 12M */
@@ -11521,6 +11738,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -11534,6 +11753,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */
@@ -11641,6 +11862,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -11656,6 +11879,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */
@@ -12003,6 +12228,153 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ad_roi_api_website_v1_admin_admissions_ad_roi_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                touch?: "last" | "first";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdRoiOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ad_spend_api_website_v1_admin_admissions_ad_spend_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdSpendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_admissions_area_api_website_v1_admin_admissions_area_get: {
         parameters: {
             query: {

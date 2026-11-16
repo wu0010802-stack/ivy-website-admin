@@ -575,7 +575,7 @@ async def transcode_media_videos(*, apply: bool) -> None:
 def geo_sync_options(args: list[str]) -> dict:
     """`geo-sync` 的參數。指定任一個檔案就完全不連外，沒指定檔案的那幾種跳過；
     --doorplates-version 省略時從檔名找「115-10」「115_10」，找不到用今天的民國年月。
-    --population-file、--births-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
+    --population-file、--births-file、--marriages-file、--migration-file 可以給好幾次（內政部 API 一頁一個檔），月份取資料本身的
     統計月份。--september-file 同樣可以給好幾次，是回補每年九月底的各里人口（2026-10-20 招生潛力規格 §3.2），
     只收統計月份是九月的檔（其他月份整批不匯入、exit 1），只寫九月底人口表。--elementary-file 是教育部統計處的國小校別資料
     （「114_basec.csv」，可以給好幾次，學年取檔名，2026-10-20 招生潛力規格 §3.3），只寫國小一年級人數表。
@@ -597,7 +597,7 @@ def geo_sync_options(args: list[str]) -> dict:
         "[--doorplates-file <CSV>] [--doorplates-version 115-10] "
         "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
         "[--babycare-file <JSON>] [--population-file <JSON> ...] "
-        "[--births-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
+        "[--births-file <JSON> ...] [--marriages-file <JSON> ...] [--migration-file <JSON> ...] [--income-file <CSV> [--income-year 112]] "
         "[--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
         "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
         "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] "
@@ -606,7 +606,7 @@ def geo_sync_options(args: list[str]) -> dict:
     options: dict = {
         "force": False, "doorplates_file": None, "doorplates_version": None, "kindergartens_file": None,
         "kindergartens_registry_file": None,
-        "babycare_file": None, "population_files": None, "births_files": None, "migration_files": None,
+        "babycare_file": None, "population_files": None, "births_files": None, "marriages_files": None, "migration_files": None,
         "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
         "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None, "elementary_files": None,
@@ -620,7 +620,7 @@ def geo_sync_options(args: list[str]) -> dict:
               "--kindergarten-penalties-file": "kindergarten_penalties_file",
               "--kindergarten-evaluations-file": "kindergarten_evaluations_file"}
     texts = {"--doorplates-version", "--income-year", "--new-homes-season"}
-    repeated = {"--population-file": "population_files", "--births-file": "births_files",
+    repeated = {"--population-file": "population_files", "--births-file": "births_files", "--marriages-file": "marriages_files",
                 "--migration-file": "migration_files", "--new-homes-file": "new_homes_files",
                 "--september-file": "september_files", "--elementary-file": "elementary_files"}
     lists: dict[str, list[Path]] = {key: [] for key in repeated.values()}
@@ -721,6 +721,7 @@ async def geo_sync_command(**options) -> None:
     )
     print(
         f"各里出生：{result.births}（最新 {result.births_version or '尚未匯入'}，這次寫入 {result.births_months} 個月）；"
+        f"各里結婚：{result.marriages}（最新 {result.marriages_version or '尚未匯入'}，這次寫入 {result.marriages_months} 個月）；"
         f"各里遷入遷出：{result.migration}（最新 {result.migration_version or '尚未匯入'}，這次寫入 {result.migration_months} 個月）；"
         f"一年前的年齡：{result.age_history}；"
         f"各里所得：{result.income}（使用中 {result.income_version + ' 年度' if result.income_version else '尚未匯入'}）"
@@ -761,6 +762,7 @@ async def geo_sync_command(**options) -> None:
             ("babycare", "托嬰", result.babycare),
             ("population", "各里人口", result.population),
             ("births", "各里出生", result.births),
+            ("marriages", "各里結婚", result.marriages),
             ("migration", "各里遷入遷出", result.migration),
             ("population", "一年前的年齡", result.age_history),
             ("income", "各里所得", result.income),
@@ -1079,7 +1081,7 @@ def main() -> None:
             "regenerate-media-variants [--apply] [--all]|strip-media-metadata [--apply]|transcode-media-videos [--apply]|"
             "geo-sync [--force] [--doorplates-file <CSV>] [--doorplates-version 115-10] "
             "[--kindergartens-file <JSON> --kindergartens-registry-file <CSV>] "
-            "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--migration-file <JSON> ...] "
+            "[--babycare-file <JSON>] [--population-file <JSON> ...] [--births-file <JSON> ...] [--marriages-file <JSON> ...] [--migration-file <JSON> ...] "
             "[--income-file <CSV> [--income-year 112]] [--new-homes-file <CSV> ... [--new-homes-season 115S3]] "
             "[--presale-file <CSV>] [--presale-parcels-file <CSV>] "
             "[--kindergarten-penalties-file <CSV>] [--kindergarten-evaluations-file <CSV>] "

@@ -719,3 +719,13 @@ export type HistoryPreviewRequest = components['schemas']['HistoryPreviewIn']
 export type HistoryPreview = components['schemas']['HistoryPreviewOut']
 export type EnrollmentHistoryPayload = components['schemas']['EnrollmentHistoryIn']
 export type HistoryApplyResult = components['schemas']['HistoryApplyOut']
+
+// 廣告成效（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：各平台花費對預約／到場／預繳，與每月手填花費。
+export type AdRoi = components['schemas']['AdRoiOut']
+export type AdRoiRow = components['schemas']['AdRoiRowOut']
+export type AdRoiGoogleCampaign = components['schemas']['AdRoiGoogleCampaignOut']
+export type AdRoiCampus = components['schemas']['AdRoiCampusOut']
+export type AdRoiPending = components['schemas']['AdRoiPendingOut']
+export type AdSpendEntry = components['schemas']['AdSpendEntryOut']
+export type AdSpendList = components['schemas']['AdSpendListOut']
+export type AdSpendPlatform = 'openai' | 'meta' | 'line' | 'other' | 'offline'

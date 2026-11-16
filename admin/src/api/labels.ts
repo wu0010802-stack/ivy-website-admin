@@ -569,6 +569,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // 後台資料匯入（2026-10-21）
   'enrolled_roster.import': '匯入在籍清冊',
   'enrolled_roster.clear': '清除在籍資料',
+  'ad_spend.upsert': '填寫廣告花費',
+  'ad_spend.delete': '刪除廣告花費',
   'enrollment_history.import': '匯入歷年註冊',
 }
 
@@ -743,6 +745,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   roster_tier: '全校三段目標',
   roster_snapshot: '結算紀錄',
   enrolled_roster: '在籍清冊',
+  ad_spend: '廣告花費',
   enrollment_history: '歷年註冊',
   error_group: '錯誤回報',
 }
@@ -1273,8 +1276,20 @@ export const TOUCH_SOURCE_LABELS: Record<string, string> = {
   unrecorded: '沒有記錄',
 }
 
-function touchLabel(source: string, campaign: string | null | undefined, on: string | null | undefined): string {
-  const name = TOUCH_SOURCE_LABELS[source] || source
+// 廣告平台（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時，web 端判斷的平台代碼。
+export const AD_PLATFORM_LABELS: Record<string, string> = {
+  google: 'Google',
+  openai: 'ChatGPT',
+  meta: 'Meta',
+  line: 'LINE',
+  other: '其他網路廣告',
+}
+
+function touchLabel(
+  source: string, campaign: string | null | undefined, on: string | null | undefined, platform?: string | null,
+): string {
+  const base = TOUCH_SOURCE_LABELS[source] || source
+  const name = source === 'ads' && platform ? `${base}・${AD_PLATFORM_LABELS[platform] || platform}` : base
   const when = on ? `，${Number(on.slice(5, 7))}/${Number(on.slice(8, 10))}` : ''
   return `${name}${campaign ? `（${campaign}）` : ''}${when}`
 }
@@ -1283,11 +1298,12 @@ function touchLabel(source: string, campaign: string | null | undefined, on: str
 export function websiteTouchText(d: {
   first_touch_source?: string | null; first_touch_campaign?: string | null; first_touch_on?: string | null
   last_touch_source?: string | null; last_touch_campaign?: string | null; last_touch_on?: string | null
+  first_touch_ad_platform?: string | null; last_touch_ad_platform?: string | null
 }): string {
   if (!d.first_touch_source) return ''
-  const first = touchLabel(d.first_touch_source, d.first_touch_campaign, d.first_touch_on)
+  const first = touchLabel(d.first_touch_source, d.first_touch_campaign, d.first_touch_on, d.first_touch_ad_platform)
   if (!d.last_touch_source) return `第一次${first}`
-  const last = touchLabel(d.last_touch_source, d.last_touch_campaign, d.last_touch_on)
+  const last = touchLabel(d.last_touch_source, d.last_touch_campaign, d.last_touch_on, d.last_touch_ad_platform)
   return first === last ? first : `第一次${first}；預約前${last}`
 }
 

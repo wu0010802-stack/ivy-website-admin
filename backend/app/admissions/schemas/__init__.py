@@ -198,6 +198,17 @@ from app.admissions.schemas.enrolled import (
     AreaEnrolledVillageOut,
     AreaEnrolledOut,
 )
+from app.admissions.schemas.ad_roi import (
+    AdRoiCampusOut,
+    AdRoiGoogleCampaignOut,
+    AdRoiGoogleOut,
+    AdRoiOut,
+    AdRoiPendingOut,
+    AdRoiRowOut,
+    AdSpendEntryOut,
+    AdSpendIn,
+    AdSpendListOut,
+)
 from app.admissions.schemas.imports import (
     EnrolledUploadStudentIn,
     EnrolledPreviewIn,

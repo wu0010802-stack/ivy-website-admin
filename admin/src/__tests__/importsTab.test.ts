@@ -539,7 +539,7 @@ describe('招生統計的子分頁', () => {
   it('子分頁寫進網址', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-10-01T09:00:00+08:00'))
-    expect(STATS_SUBS.at(-1)).toBe('imports')
+    expect(STATS_SUBS.at(-2)).toBe('imports')
     const get = mockGet({
       '/admin/admissions/options': options(),
       '/admin/admissions/stats': () => { throw new Error('統計不在這支測試的範圍') },
@@ -548,7 +548,7 @@ describe('招生統計的子分頁', () => {
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: '/admissions-stats?campus=yihua&sy=114&sem=2&sub=imports' })
     const stats = wrapper.findComponent(StatsTab)
     expect(stats.props('sub')).toBe('imports')
-    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()).at(-1)).toBe('資料匯入')
+    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()).at(-2)).toBe('資料匯入')
     expect(wrapper.find('section[aria-label="資料匯入"]').exists()).toBe(true)
     expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
     const selects = ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label)!)

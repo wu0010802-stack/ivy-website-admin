@@ -66,6 +66,7 @@ def test_parse_site_cookie_reads_every_field():
     assert attribution.touch_columns(site) == {
         "first_touch_source": "facebook", "first_touch_campaign": None, "first_touch_on": date(2026, 11, 10),
         "last_touch_source": "ads", "last_touch_campaign": "chatgpt-five-campuses", "last_touch_on": date(2026, 11, 16),
+        "first_touch_ad_platform": None, "last_touch_ad_platform": None,
     }
 
 

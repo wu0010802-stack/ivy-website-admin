@@ -18,6 +18,7 @@ from joserfc.jwk import RSAKey
 
 CLIENT_EMAIL = "insights-reader@ivy-test-project.iam.gserviceaccount.com"
 PROPERTY = "sc-domain:ivykidschool.com"
+GA4_PROPERTY = "563982090"
 ACCESS_TOKEN = "ya29.test-access-token-never-leak"
 CRUX_KEY = "AIzaSyTestCruxKeyNeverLeak0123456789abc"
 
@@ -67,6 +68,16 @@ class FakeGoogle:
     user_agents: list[str] = field(default_factory=list)
     # 維度 → 回傳的 rows；沒有維度的總計用 None 當鍵。
     rows: dict = field(default_factory=dict)
+    # token 請求應帶的 scope（GA4 讀取器用 analytics.readonly）。
+    scope: str = "https://www.googleapis.com/auth/webmasters.readonly"
+    # GA4 Data API（analyticsdata.googleapis.com）：花費列、轉換列、狀態（依 metric 名稱分流）。
+    ga4_cost_rows: list = field(default_factory=list)
+    ga4_lead_rows: list = field(default_factory=list)
+    ga4_cost_status: int = 200
+    ga4_lead_status: int = 200
+    ga4_currency: str = "TWD"
+    ga4_row_count: int | None = None
+    ga4_calls: list[dict] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         if not self.rows:
@@ -93,6 +104,8 @@ class FakeGoogle:
             return self._token(request)
         if host == "searchconsole.googleapis.com":
             return self._query(request)
+        if host == "analyticsdata.googleapis.com":
+            return self._ga4(request)
         return httpx.Response(404)
 
     def _token(self, request: httpx.Request) -> httpx.Response:
@@ -103,7 +116,7 @@ class FakeGoogle:
         claims = decoded.claims
         assert decoded.header["alg"] == "RS256"
         assert claims["iss"] == CLIENT_EMAIL
-        assert claims["scope"] == "https://www.googleapis.com/auth/webmasters.readonly"
+        assert claims["scope"] == self.scope
         assert claims["aud"] == "https://oauth2.googleapis.com/token"
         assert 0 < claims["exp"] - claims["iat"] <= 3600
         self.token_calls.append(claims)
@@ -132,6 +145,31 @@ class FakeGoogle:
         key = dimensions[0] if dimensions else None
         rows = self.rows.get(key, [])
         payload = {"rows": rows, "responseAggregationType": "byProperty"} if rows else {"responseAggregationType": "byProperty"}
+        return httpx.Response(200, json=payload)
+
+    def _ga4(self, request: httpx.Request) -> httpx.Response:
+        assert request.method == "POST"
+        assert request.headers["authorization"] == f"Bearer {ACCESS_TOKEN}"
+        assert request.url.path == f"/v1beta/properties/{GA4_PROPERTY}:runReport", request.url.path
+        body = json.loads(request.content)
+        self.ga4_calls.append(body)
+        metric = body["metrics"][0]["name"]
+        is_leads = metric.startswith("keyEvents")
+        status = self.ga4_lead_status if is_leads else self.ga4_cost_status
+        if status != 200:
+            return httpx.Response(status, json={"error": {"code": status, "message": f"no access to {GA4_PROPERTY} {ACCESS_TOKEN}"}})
+        rows = self.ga4_lead_rows if is_leads else self.ga4_cost_rows
+        payload: dict = {
+            "dimensionHeaders": [{"name": d["name"]} for d in body["dimensions"]],
+            "metricHeaders": [{"name": m["name"], "type": "TYPE_FLOAT"} for m in body["metrics"]],
+            "metadata": {"currencyCode": self.ga4_currency, "timeZone": "Asia/Taipei"},
+        }
+        if rows:
+            payload["rows"] = [
+                {"dimensionValues": [{"value": v} for v in dims], "metricValues": [{"value": v} for v in mets]}
+                for dims, mets in rows
+            ]
+            payload["rowCount"] = self.ga4_row_count if self.ga4_row_count is not None else len(rows)
         return httpx.Response(200, json=payload)
 
     def dimensions_asked(self) -> list:

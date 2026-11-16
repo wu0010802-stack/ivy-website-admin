@@ -15,8 +15,8 @@ afterEach(() => {
 })
 
 const periods = [
-  { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 100, change_pct: -20 },
-  { starts: '113-10', ends: '114-09', months: 11, missing: ['113-11'], births: 125, change_pct: null },
+  { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 100, change_pct: -20, marriages: null },
+  { starts: '113-10', ends: '114-09', months: 11, missing: ['113-11'], births: 125, change_pct: null, marriages: null },
 ]
 const mountIt = (props: Record<string, unknown> = {}) =>
   mount(BirthSeries, { props: { periods, radiusKm: 3, csvName: '招生統計-近幾年的出生數.csv', ...props }, global: { plugins: [ElementPlus] } })
@@ -48,7 +48,7 @@ describe('BirthSeries', () => {
     const wrapper = mountIt()
     expect(wrapper.find('table').exists()).toBe(false)
     expect(wrapper.get('[role="table"]').attributes('aria-label')).toBe('近幾年的出生數（本校 3 公里內）')
-    expect(wrapper.findAll('[role="columnheader"]').map((cell) => cell.text())).toEqual(['期間', '出生數', '和前一期'])
+    expect(wrapper.findAll('[role="columnheader"]').map((cell) => cell.text())).toEqual(['期間', '出生數', '和前一期', '結婚（對）'])
     wrapper.unmount()
   })
 
@@ -67,9 +67,9 @@ describe('BirthSeries', () => {
     const [filename, csv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
     expect(filename).toBe('招生統計-近幾年的出生數.csv')
     expect(csv.slice(1).split('\r\n')).toEqual([
-      '期間起,期間迄,有資料月數,缺的月份,出生數,和前一期增減（%）',
-      '114 年 10 月,115 年 9 月,12,,100,-20',
-      '113 年 10 月,114 年 9 月,11,113 年 11 月,125,',
+      '期間起,期間迄,有資料月數,缺的月份,出生數,和前一期增減（%）,結婚（對）',
+      '114 年 10 月,115 年 9 月,12,,100,-20,',
+      '113 年 10 月,114 年 9 月,11,113 年 11 月,125,,',
       '',
     ])
     expect(notifyError).not.toHaveBeenCalled()

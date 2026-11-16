@@ -44,6 +44,7 @@ function exportCsv() {
         <span role="columnheader">期間</span>
         <span role="columnheader">出生數</span>
         <span role="columnheader">和前一期</span>
+        <span role="columnheader">結婚（對）</span>
       </div>
       <div v-for="row in rows" :key="row.key" class="birth-series__row" role="row">
         <span role="rowheader">
@@ -57,6 +58,7 @@ function exportCsv() {
           <span class="birth-series__number">{{ row.births_text }}</span>
         </span>
         <span role="cell" class="birth-series__change">{{ row.change_text }}</span>
+        <span role="cell" class="birth-series__marriages">{{ row.marriages_text }}</span>
       </div>
     </div>
     <p class="hint birth-series__note">{{ BIRTH_SERIES_NOTE }}</p>
@@ -92,7 +94,7 @@ function exportCsv() {
 
 .birth-series__row {
   display: grid;
-  grid-template-columns: minmax(170px, 1.6fr) minmax(150px, 1.2fr) minmax(72px, auto);
+  grid-template-columns: minmax(170px, 1.6fr) minmax(150px, 1.2fr) minmax(72px, auto) minmax(72px, auto);
   gap: 4px 12px;
   align-items: center;
   padding: 8px 12px;
@@ -148,6 +150,7 @@ function exportCsv() {
 }
 
 .birth-series__number,
+.birth-series__marriages,
 .birth-series__change {
   font-variant-numeric: tabular-nums;
 }
@@ -160,7 +163,8 @@ function exportCsv() {
 
 /* 表頭與其欄對齊：第 2、3 格（含表頭）一律靠右，期間欄維持靠左、可換行 */
 .birth-series__row > :nth-child(2),
-.birth-series__row > :nth-child(3) {
+.birth-series__row > :nth-child(3),
+.birth-series__row > :nth-child(4) {
   text-align: right;
 }
 
@@ -170,7 +174,7 @@ function exportCsv() {
 
 @media (max-width: 720px) {
   .birth-series__row {
-    grid-template-columns: minmax(0, 1fr) 104px 64px;
+    grid-template-columns: minmax(0, 1fr) 104px 64px 56px;
     padding: 8px 10px;
   }
 

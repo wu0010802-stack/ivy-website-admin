@@ -136,6 +136,8 @@ class AreaTrendsPresaleSourceOut(BaseModel):
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
+    # 各里結婚對數（2026-11-16 廣告成效 §9）：近 12 個月窗口以結婚資料自己的最新月份算；五校並排不讀，維持 null、空陣列。
+    marriages: AreaTrendsMonthsOut
     migration: AreaTrendsMonthsOut
     # 內政部戶政司三個資料集的來源（一句）。
     note: str
@@ -156,6 +158,8 @@ class AreaTrendsBirthPeriodOut(BaseModel):
     missing: list[str]
     births: int
     change_pct: float | None
+    # 同一期 12 個月裡結婚有資料的月份不到 10 個月、或沒有結婚資料時 null（2026-11-16 廣告成效 §9）。
+    marriages: int | None
 
 
 class AreaTrendsBaselineOut(BaseModel):
@@ -175,6 +179,9 @@ class AreaTrendsBaselineOut(BaseModel):
     births_change_pct: float | None
     # 每 12 個月一期，最新一期在前；沒有出生資料或湊不滿 10 個月時是空陣列。
     births_series: list[AreaTrendsBirthPeriodOut]
+    # 各里結婚對數近 12 個月合計與有資料的月數（廣告成效 §9）；沒有結婚資料是 null、0。
+    marriages_12m: int | None
+    marriages_months: int
     migration_net_12m: int | None
     migration_months: int
     # 新成屋交屋（B2 段）：近 4 季到里的筆數、最近一季的筆數、近 4 季裡有資料的季數；沒匯入新成屋是 null、0。
@@ -214,6 +221,7 @@ class AreaTrendsVillageOut(BaseModel):
     kids_base: int | None
     kids_level: Literal["up2", "up1", "flat", "down1", "down2", "few", "unknown"]
     births_12m: int | None
+    marriages_12m: int | None
     migration_net_12m: int | None
     # 所得中位數（千元，規格 V9：只當背景，不排序、不分級）。沒有所得的里（115-07 新設）與合併組是 null（中位數
     # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。

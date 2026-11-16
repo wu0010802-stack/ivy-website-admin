@@ -211,15 +211,25 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 3、4 節。**只動 api 與後台**：沒有 migration、不存任何資料到資料庫（查到的結果只放 api 程序記憶體）、不新增依賴；web 不用動。後台「成效統計」兩處用到：**「瀏覽與速度」多一區「Chrome 真實使用者」**（CrUX：Google 從 Chrome 使用者蒐集的官網速度，手機與電腦的 p75 與好／需要改善／不佳比例，附近 25 週走勢）、**「怎麼來、怎麼逛」多一區「Google 搜尋」**（Search Console：點進官網、出現次數、點進去的比例、平均排名，前 25 個搜尋字詞、前 25 個頁面、裝置別，期間跟著整頁的近 7／28／90 天）。兩者都只有總管理者看得到（權限同成效統計其他全站數據 `admissions.stats`），沒設定時只顯示一行「尚未設定」。
 
-**三個變數（api 服務）**
+**四個變數（api 服務）**
 
 | 變數 | 內容 | 說明 |
 | --- | --- | --- |
 | `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` | 服務帳戶金鑰**整份 JSON** | 要有 `client_email` 與 `private_key`；啟動時驗證，格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。只放 Railway，不進 repo、不貼進對話或文件 |
 | `WEBSITE_GOOGLE_SC_PROPERTY` | `sc-domain:ivykidschool.com` 或 `https://www.ivykidschool.com/` | Search Console 資源。**要和 Search Console 左上角那個資源的類型一致**：「網域」資源寫 `sc-domain:網域`，「網址前置字元」資源寫完整網址（含結尾斜線）。**和上一個要同時設**，只設一個 api 拒絕啟動 |
+| `WEBSITE_GA4_PROPERTY_ID` | `563982090` | GA4 資源編號（純數字 6–12 位，管理 → 資源設定）。選填；與 Search Console 共用同一個服務帳戶（要把它加進該 GA4 資源的「檢視者」），用來唯讀讀 Google 廣告各活動每月花費與預約轉換（`app/insights/ga4_ads.py`）。格式不對 api 拒絕啟動，錯誤訊息不含值 |
 | `WEBSITE_CRUX_API_KEY` | GCP 的 API key | 只用來呼叫 Chrome UX Report API。查的網站是 `WEBSITE_PUBLIC_ORIGIN`（沒設就是 `WEBSITE_ADMIN_ORIGIN`，正式站是 `https://www.ivykidschool.com`） |
 
-三個互相獨立：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
+**GA4 廣告花費（2026-11-16，`feature/ad-roi-20261116`，未部署）**：招生統計 → 廣告成效的 Google 花費來源，選填，沒設時 Google 列顯示「未設定」，其他功能不受影響。
+
+1. GA4 資源 `563982090` → 管理 → 資源設定：確認幣別是新台幣（TWD）、時區是台北（Asia/Taipei）；不是的話畫面會提醒：幣別不是 TWD 時，Google 列花費後面標幣別、表下多一行「Google 花費以 X 計。」；時區不是台北時多一行「Google 花費依 <時區> 切月份。」。
+2. GA4 資源 `563982090` → 管理 → 資源存取管理：把 Search Console 服務帳戶的 email（`WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` 裡的 `client_email`）加為「檢視者」。
+3. 該服務帳戶所屬的 Google Cloud 專案：啟用「Google Analytics Data API」。
+4. Railway api 服務設 `WEBSITE_GA4_PROPERTY_ID=563982090`（需先有服務帳戶變數；改變數會重新部署，先確認沒有人在部署）。
+5. 驗證：後台招生統計 → 廣告成效，Google 列的花費顯示數字而不是「未設定」或「讀取失敗」。
+6. 各里結婚對數隨既有「公開地理資料同步」一起抓，不需要新變數。
+
+四個變數分三組：Search Console 要服務帳戶 JSON 與資源兩個一起設；CrUX 只要金鑰；GA4 廣告花費要同一個服務帳戶 JSON 加 `WEBSITE_GA4_PROPERTY_ID`（沒有服務帳戶時只設編號不會生效）。三組互不影響：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
 
 **程式做了什麼**（`backend/app/insights/`）
 

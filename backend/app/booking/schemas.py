@@ -526,6 +526,9 @@ class VisitRequestDetailOut(BaseModel):
     last_touch_source: str | None = None
     last_touch_campaign: str | None = None
     last_touch_on: date | None = None
+    # 廣告平台（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時才可能有值。
+    first_touch_ad_platform: str | None = None
+    last_touch_ad_platform: str | None = None
     # 排除標記（2026-10-15）：測試或重複的案件；列表不回說明（計畫裁定 P12）。
     excluded_at: datetime | None = None
     exclude_reason: str | None = None

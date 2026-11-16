@@ -40,6 +40,8 @@ export interface VillageTableRow extends Record<string, unknown> {
   level_text: string
   births_12m: number | null
   births_text: string
+  marriages_12m: number | null
+  marriages_text: string
   migration_net_12m: number | null
   migration_text: string
   new_homes: number | null
@@ -163,6 +165,8 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
     level_text: KIDS_LEVEL_LABELS[kidsLevel],
     births_12m: t?.births_12m ?? null,
     births_text: t && t.births_12m !== null ? formatCount(t.births_12m) : NO_VALUE,
+    marriages_12m: t?.marriages_12m ?? null,
+    marriages_text: t && t.marriages_12m !== null ? formatCount(t.marriages_12m) : NO_VALUE,
     migration_net_12m: t?.migration_net_12m ?? null,
     migration_text: signedCount(t?.migration_net_12m),
     new_homes: t?.new_homes ?? null,
@@ -285,6 +289,7 @@ export function villageColumns(judged: boolean, allChildren: boolean): StatsColu
     { key: 'kids_text', label: '這一年淨增' },
     { key: 'level_text', label: '孩子增減' },
     { key: 'births_text', label: '近 12 個月出生' },
+    { key: 'marriages_text', label: '近 12 個月結婚（對）' },
     { key: 'migration_text', label: '近 12 個月淨遷入' },
     { key: 'homes_text', label: '近 4 季新屋' },
     { key: 'presale_text', label: '在建預售（戶）' },
@@ -346,6 +351,8 @@ export function villageCsvCell(row: VillageTableRow, column: StatsColumn): CsvCe
       return row.kids_level === 'unknown' ? '' : row.level_text
     case 'births_text':
       return row.births_12m ?? ''
+    case 'marriages_text':
+      return row.marriages_12m ?? ''
     case 'migration_text':
       return row.migration_net_12m ?? ''
     case 'homes_text':
@@ -422,17 +429,21 @@ function trendsHow(data: AreaTrends | null): string {
       ? `人口 ${populationVersionLabel(sources.population.month)}${sources.population.year_ago_month ? `與 ${populationVersionLabel(sources.population.year_ago_month)}` : ''}`
       : '',
     sources.births.months.length ? `出生 ${monthRange(sources.births.months)}` : '',
+    sources.marriages.months.length ? `結婚 ${monthRange(sources.marriages.months)}` : '',
     sources.migration.months.length ? `遷入遷出 ${monthRange(sources.migration.months)}` : '',
     sources.new_homes.seasons.length ? `新成屋 ${seasonRange(sources.new_homes.seasons)}` : '',
   ].filter(Boolean)
   const missing = sources.births.missing.length
     ? `出生缺 ${sources.births.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
+  const marriagesMissing = sources.marriages.missing.length
+    ? `結婚缺 ${sources.marriages.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
+    : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
   const homes = sources.new_homes.note ? `${sources.new_homes.note}。` : ''
   const presale = sources.presale.note ? `資料來源：${sources.presale.note}（${populationVersionLabel(sources.presale.version!)}版）。` : ''
   const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${homes}${presale}${income}${schools}`
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${marriagesMissing}${homes}${presale}${income}${schools}`
 }
 
 /** 「這些數字怎麼算」：招生機會與里的變化原本的兩段 caption 接起來，「附近」的定義只寫一次；兩邊都沒有說明時是空字串。 */
