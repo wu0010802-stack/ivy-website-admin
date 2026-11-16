@@ -13,7 +13,7 @@ const telemetry = read('../app/plugins/telemetry.client.ts')
 describe('選校卡是連結，點一下就進第二步', () => {
   it('清單是具名的 list，每張卡一個連到 /visit/<校> 的 NuxtLink', () => {
     expect(form).toContain('<ul ref="pickerRef" class="visit-campus-list" role="list" aria-label="想參觀的校區">')
-    expect(form).toContain('<NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)"><strong>{{ campus.name }}</strong></NuxtLink>')
+    expect(form).toContain('<NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)" @click="rememberCampus(campus.key)"><strong>{{ campus.name }}</strong></NuxtLink>')
   })
   it('沒有 radio、沒有「下一步」按鈕，也沒有「請先選擇校區」的錯誤', () => {
     expect(form).not.toContain('type="radio" name="campus"')

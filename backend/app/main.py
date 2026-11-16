@@ -16,6 +16,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+# 回傳廣告平台的待送表（2026-11-16）只在函式內匯入，這裡先註冊模型（schema 比對、測試清表都靠 Base.metadata）。
+from app.ad_conversions import models as _ad_conversion_models  # noqa: F401
 from app.auth.routes import router as auth_router
 from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware

@@ -304,8 +304,8 @@ describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12
   it('白名單涵蓋後端會讀的標頭（新增後端標頭時要一起加）', async () => {
     const { API_FORWARD_REQUEST_HEADERS } = await import('../server/utils/api-proxy')
     expect([...API_FORWARD_REQUEST_HEADERS].sort()).toEqual([
-      'content-length', 'content-type', 'cookie', 'idempotency-key', 'if-modified-since', 'if-none-match', 'if-range',
-      'origin', 'range', 'sec-fetch-site', 'user-agent', 'x-csrf-token', 'x-request-id',
+      'content-length', 'content-type', 'cookie', 'dnt', 'idempotency-key', 'if-modified-since', 'if-none-match', 'if-range',
+      'origin', 'range', 'sec-fetch-site', 'sec-gpc', 'user-agent', 'x-csrf-token', 'x-request-id',
     ])
   })
 })

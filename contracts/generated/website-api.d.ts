@@ -1061,6 +1061,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/analytics/booking-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Attribution
+         * @description 官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。
+         */
+        get: operations["get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/booking-outcomes": {
         parameters: {
             query?: never;
@@ -3844,6 +3864,51 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/visit-remembered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Remembered Visit
+         * @description 只回日期、場次與校區。案件已不是「已確認」（取消、完成、未到場時連結也已撤銷）、場次已結束、
+         *     連結被園方重新產生或過期，都當作沒有，並清掉 cookie。
+         */
+        get: operations["get_remembered_visit_api_website_v1_public_visit_remembered_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Forget Remembered Visit
+         * @description 「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。
+         */
+        delete: operations["forget_remembered_visit_api_website_v1_public_visit_remembered_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-remembered/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Remembered Visit
+         * @description 用記住的那條修改連結換 2 小時的家長 session（和點信裡的連結同一個流程），前端接著整頁開 /visit/manage。
+         */
+        post: operations["open_remembered_visit_api_website_v1_public_visit_remembered_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/visit-requests": {
         parameters: {
             query?: never;
@@ -3973,6 +4038,12 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -3982,6 +4053,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -5837,6 +5914,51 @@ export interface components {
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
         };
+        /** AttributionCampaignOut */
+        AttributionCampaignOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Campaign */
+            campaign: string;
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+        };
+        /** AttributionCountsOut */
+        AttributionCountsOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+        };
+        /** AttributionSourceOut */
+        AttributionSourceOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Campaigns */
+            campaigns: components["schemas"]["AttributionCampaignOut"][];
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+            /** Source */
+            source: string;
+        };
         /**
          * AuditActorOut
          * @description 操作者篩選的一個選項；actor_user_id 為 null 是「系統」（排程發布、每天清理等）。
@@ -5926,6 +6048,26 @@ export interface components {
             kind: string;
             /** Source Attribution */
             source_attribution?: string | null;
+        };
+        /** BookingAttributionOut */
+        BookingAttributionOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Rows */
+            rows: components["schemas"]["AttributionSourceOut"][];
+            totals: components["schemas"]["AttributionCountsOut"];
+            /**
+             * Touch
+             * @enum {string}
+             */
+            touch: "first" | "last";
         };
         /** BookingConfigOut */
         BookingConfigOut: {
@@ -9900,6 +10042,32 @@ export interface components {
             expected_current_release_id?: string | null;
         };
         /**
+         * RememberedVisitOut
+         * @description 這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、
+         *     Email——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。
+         */
+        RememberedVisitOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Slot Date
+             * Format: date
+             */
+            slot_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+        };
+        /**
          * ResendConfirmationOut
          * @description 重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。
          */
@@ -11109,6 +11277,12 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /**
@@ -11116,6 +11290,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -11217,6 +11397,12 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -11226,6 +11412,12 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -13781,6 +13973,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdmissionsStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get: {
+        parameters: {
+            query?: {
+                /** @description 送出日期起（台北，含），省略＝不限 */
+                from?: string | null;
+                /** @description 送出日期迄（台北，含），省略＝不限 */
+                to?: string | null;
+                /** @description first＝第一次進站；last＝預約前最後一次不是直接進站 */
+                touch?: "first" | "last";
+                /** @description 只看一校；省略＝授權範圍內的全部校區 */
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingAttributionOut"];
                 };
             };
             /** @description Validation Error */
@@ -19500,6 +19734,108 @@ export interface operations {
                 "application/json": components["schemas"]["ParentRescheduleRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_remembered_visit_api_website_v1_public_visit_remembered_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_visit_remember?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RememberedVisitOut"];
+                };
+            };
+            /** @description 這台裝置沒有記住預約，或記住的那筆已失效（同時清掉 cookie） */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_remembered_visit_api_website_v1_public_visit_remembered_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_remembered_visit_api_website_v1_public_visit_remembered_open_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_visit_remember?: string | null;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

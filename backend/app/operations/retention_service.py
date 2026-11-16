@@ -184,6 +184,8 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> bool:
     visit_request.email = None
     visit_request.referral_sources = []
     visit_request.questions = None
+    # 回傳廣告平台用的點擊識別碼（2026-11-16）：能把這筆預約連回某個瀏覽器，一起清。網站來源六欄只是代碼，保留。
+    visit_request.ad_click_ids = None
     # 排除的說明（2026-10-15）是人員寫的自由文字；原因類別保留（規格 E11）。
     visit_request.exclude_note = None
     # payload_hash 是家長填寫內容的雜湊，舊資料是裸 SHA-256：稱呼＋手機這類

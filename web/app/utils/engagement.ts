@@ -2,6 +2,9 @@ import { ENGAGEMENT_CAMPAIGN, ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEME
 import { publicPage } from '#shared/telemetry'
 import { newIdempotencyKey } from './idempotency-key'
 
+// 來源判斷 2026-11-16 起前後端共用（官網伺服器進站時寫跨次來源 cookie 也用它，見 shared/engagement-source.ts）。
+export { campaignOf, classifySource } from '#shared/engagement-source'
+
 // 內容興趣統計的瀏覽器端邏輯（plugins/engagement.client.ts 用），抽出來方便測試。
 // 量的是：這一頁實際在看的時間、捲到多深、畫面中央停在哪個區塊多久、做了哪些互動。
 // 區塊在外層標 data-track-section="代碼"，互動的按鈕或連結標 data-track-action="代碼"；
@@ -35,56 +38,7 @@ export function storyActionKey(storyId: string): string | null {
   return STORY_PREFIXES[kind ?? ''] && ENGAGEMENT_KEY.test(key) ? key : null
 }
 
-/**
- * 進站連結上的活動代碼（utm_campaign）：園方貼連結時自己設的，用來分辨是哪一則貼文或廣告。
- * 只留小寫英數、底線、連字號，最長 32 字；其他字元換成連字號，整個不合格式就不記。
- */
-export function campaignOf(search: string): string | undefined {
-  const raw = new URLSearchParams(search).get('utm_campaign') ?? ''
-  const key = raw.toLowerCase().replace(/[^a-z0-9_-]+/g, '-').replace(/^[^a-z0-9]+/, '').slice(0, 32).replace(/-+$/, '')
-  return ENGAGEMENT_CAMPAIGN.test(key) ? key : undefined
-}
 const SESSION_KEY = 'ivy-engagement'
-
-const SEARCH_HOSTS = /(^|\.)(google\.[a-z.]+|bing\.com|yahoo\.com|duckduckgo\.com|baidu\.com)$/
-const PAID_MEDIUM = /^(cpc|ppc|paid|paid_social|paidsocial|ads?|display|banner)$/i
-
-/**
- * 這次造訪從哪裡來，只分成幾種代碼，不保留來源網址。順序：廣告參數 → utm_source → fbclid（Instagram 的線索先於它）→
- * 來源網站 → App 內建瀏覽器（LINE、Facebook、Instagram 常不帶來源網站，從 User-Agent 認）→ 直接進站。
- */
-export function classifySource(referrer: string, search: string, origin: string, userAgent = ''): EngagementSource {
-  const params = new URLSearchParams(search)
-  if (['gclid', 'gbraid', 'wbraid'].some((key) => params.has(key)) || PAID_MEDIUM.test(params.get('utm_medium') ?? '')) return 'ads'
-  const named = bySourceName((params.get('utm_source') ?? '').toLowerCase())
-  if (named) return named
-  let host = ''
-  try { if (referrer) { const url = new URL(referrer); host = url.origin === origin ? '' : url.hostname.toLowerCase() } } catch { /* 來源網址壞掉當作沒有 */ }
-  // Meta 在 Instagram 的外連連結上也會加 fbclid：Instagram 的線索（來源網站、沒有來源網站時的 App 內建瀏覽器）要先於 fbclid。
-  if (params.has('fbclid')) return /(^|\.)instagram\.com$/.test(host) || (!host && /Instagram/.test(userAgent)) ? 'instagram' : 'facebook'
-  if (host) {
-    if (SEARCH_HOSTS.test(host)) return 'search'
-    if (/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(host)) return 'facebook'
-    if (/(^|\.)instagram\.com$/.test(host)) return 'instagram'
-    if (/(^|\.)(line\.me|lin\.ee|line\.naver\.jp)$/.test(host)) return 'line'
-    if (/(^|\.)(youtube\.com|youtu\.be)$/.test(host)) return 'youtube'
-    return 'other'
-  }
-  if (/\bLine\//.test(userAgent)) return 'line'
-  if (/Instagram/.test(userAgent)) return 'instagram'
-  if (/FBAN|FBAV|FB_IAB/.test(userAgent)) return 'facebook'
-  return 'direct'
-}
-
-function bySourceName(name: string): EngagementSource | null {
-  if (!name) return null
-  if (/^(facebook|fb|meta)/.test(name)) return 'facebook'
-  if (/^(instagram|ig)/.test(name)) return 'instagram'
-  if (/^line/.test(name)) return 'line'
-  if (/^(youtube|yt)/.test(name)) return 'youtube'
-  if (/^(google|bing|yahoo)/.test(name)) return 'search'
-  return 'other'
-}
 
 export interface EngagementSession { id: string; source: EngagementSource; campaign?: string; /** 這次造訪已經看了幾頁 */ pages: number }
 

@@ -26,7 +26,7 @@ from app.booking.models import BookingConfig, VisitRequest, VisitRequestSource, 
 from app.campuses.models import Campus
 from app.common.timezones import now_utc
 from app.operations.analytics_service import UNKNOWN, FunnelRange
-from app.operations.models import CANCEL_REASONS
+from app.operations.models import CANCEL_REASONS, ENGAGEMENT_SOURCES
 
 # 每筆案件剛好落在其中一種，加總＝cases。已確認一定有場次（資料庫約束），所以沒有「沒場次」這一種。
 OUTCOMES = ("upcoming", "awaiting_attendance", "completed", "no_show", "cancelled")
@@ -207,4 +207,113 @@ async def class_distribution(
         "out_of_range": out_of_range,
         "unrecorded": unrecorded,
         "excluded_cases": int(excluded_cases or 0),
+    }
+
+
+# ── 網站來源（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §1）────────────────────────────
+# 官網送單依「第一次進站」或「預約前最後一次不是直接進站」的來源分組，看各管道帶來的預約有多少真的到場、預繳。
+# 只算官網表單送出的案件（人工補登沒有網站來源）；口徑同上面的預約結果：期間依送出時間、排除的案件不算。
+# 「最後一次」沒有記錄（這個瀏覽器從沒從外面點進來過）而第一次有記錄的，算直接進站。
+# 送單時沒有 cookie 的（2026-11-16 以前、DNT／GPC、瀏覽器擋 cookie）歸「沒有記錄」。
+ATTRIBUTION_TOUCHES = ("first", "last")
+UNRECORDED = "unrecorded"
+
+
+def _deposited():
+    """招生訪視預繳過（現在已預繳、已轉正式，或從已預繳／已轉正式退出）。"""
+    from app.admissions.models import RecruitmentVisit
+
+    v = RecruitmentVisit
+    return (
+        select(literal(1))
+        .where(
+            v.visit_request_id == VisitRequest.id,
+            (v.has_deposit.is_(True)) | (v.enrolled.is_(True)) | (v.withdrawn_from.in_(("deposited", "enrolled"))),
+        )
+        .correlate(VisitRequest)
+        .exists()
+    )
+
+
+def _attribution_counts() -> dict:
+    return {"cases": 0, "completed": 0, "no_show": 0, "deposited": 0}
+
+
+def _attribution_rates(counts: dict) -> dict:
+    marked = counts["completed"] + counts["no_show"]
+    return {
+        **counts,
+        # 已到場 ÷（已到場＋未到場），同預約結果。
+        "attendance_rate": _rate(counts["completed"], marked),
+        # 預繳 ÷ 已到場。
+        "deposit_rate": _rate(counts["deposited"], counts["completed"]),
+    }
+
+
+async def attribution_outcomes(
+    db: AsyncSession, campus_keys: list[str], period: FunnelRange, touch: str, now: datetime | None = None
+) -> dict:
+    current = now or now_utc()
+    if touch == "first":
+        source, campaign = VisitRequest.first_touch_source, VisitRequest.first_touch_campaign
+    else:
+        source = case(
+            (VisitRequest.last_touch_source.is_not(None), VisitRequest.last_touch_source),
+            (VisitRequest.first_touch_source.is_not(None), literal("direct")),
+            else_=None,
+        )
+        campaign = VisitRequest.last_touch_campaign
+    per_case = (
+        select(
+            func.coalesce(source, literal(UNRECORDED)).label("source"),
+            campaign.label("campaign"),
+            _outcome(current).label("outcome"),
+            _deposited().label("deposited"),
+        )
+        .where(
+            VisitRequest.campus_key.in_(campus_keys),
+            VisitRequest.source == VisitRequestSource.WEB.value,
+            *period.on(VisitRequest.created_at),
+            exclusion.not_excluded(),
+        )
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited, func.count())
+            .group_by(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited)
+        )
+    ).all()
+    sources: dict[str, dict] = {}
+    campaigns: dict[tuple[str, str], dict] = {}
+    totals = _attribution_counts()
+    for source_key, campaign_key, outcome, deposited, count in rows:
+        buckets = [totals, sources.setdefault(source_key, _attribution_counts())]
+        if campaign_key:
+            buckets.append(campaigns.setdefault((source_key, campaign_key), _attribution_counts()))
+        for bucket in buckets:
+            bucket["cases"] += count
+            if outcome in ("completed", "no_show"):
+                bucket[outcome] += count
+            if deposited:
+                bucket["deposited"] += count
+    order = {key: index for index, key in enumerate((*ENGAGEMENT_SOURCES, UNRECORDED))}
+    out_rows = []
+    for source_key in sorted(sources, key=lambda key: (-sources[key]["cases"], order.get(key, 99))):
+        children = sorted(
+            ((name, counts) for (parent, name), counts in campaigns.items() if parent == source_key),
+            key=lambda item: (-item[1]["cases"], item[0]),
+        )
+        out_rows.append({
+            "source": source_key,
+            **_attribution_rates(sources[source_key]),
+            "campaigns": [{"campaign": name, **_attribution_rates(counts)} for name, counts in children],
+        })
+    return {
+        "as_of": current,
+        "date_from": period.date_from,
+        "date_to": period.date_to,
+        "touch": touch,
+        "rows": out_rows,
+        "totals": _attribution_rates(totals),
     }

@@ -190,6 +190,10 @@ async def mark_completed(
             visit_request.slot_id = None
             after_extra["slot"] = None
     await _close(db, visit_request, "completed", before=before, actor=actor, after_extra=after_extra)
+    # 到場回傳廣告平台（2026-11-16 規格 §2）：案件有點擊識別碼才排；同一個交易，回滾就一起不見。
+    from app.ad_conversions import service as ad_conversions
+
+    await ad_conversions.enqueue(db, visit_request, ad_conversions.VISIT_ATTENDED)
     if admissions_enabled:
         # 招生訪視的資料要用鎖住之後的值：路由讀到這筆預約時還沒上鎖，同事或家長正好改了
         # 電話、孩子資料並先提交的話，記憶體裡是舊值；用舊值建了招生訪視，之後再改也會因為

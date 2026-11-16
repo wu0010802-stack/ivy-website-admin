@@ -5,6 +5,7 @@ import { renderToString } from 'vue/server-renderer'
 import fixture from '../server/data/site-fixture.json'
 import type { SiteContent } from '../app/types/site-content'
 import SiteHeader from '../app/components/SiteHeader.vue'
+import { useRememberedCampus } from '../app/composables/useRememberedCampus'
 
 // 頁首選單面板的「機構社群」：不管來源是後台、fixture 還是舊資料，只有通過 httpsUrl 的連結才會變成 <a href>。
 // Nuxt 的自動匯入在單元測試裡沒有，這裡補上；元件只用伺服器渲染（同官網 SSR）。
@@ -15,6 +16,10 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onUnmounted', onUnmounted)
 vi.stubGlobal('useRoute', () => ({ path: '/' }))
+// 記住的校區 cookie（ivy_campus）：測試用一個可替換的 ref 代替 useCookie。
+const rememberedCookie = ref<unknown>(undefined)
+vi.stubGlobal('useCookie', () => rememberedCookie)
+vi.stubGlobal('useRememberedCampus', useRememberedCampus)
 
 const site = fixture as unknown as SiteContent
 const NuxtLink = defineComponent({
@@ -34,6 +39,27 @@ function institutionLinks(html: string): { href: string; icon: string }[] {
   const block = html.match(/<div class="menu-socials">([\s\S]*?)<\/nav><\/div>/)?.[1] ?? ''
   return [...block.matchAll(/<a href="([^"]*)"[^>]*>[\s\S]*?<use href="#i-([\w-]+)"/g)].map((m) => ({ href: m[1]!.replace(/&amp;/g, '&'), icon: m[2]! }))
 }
+
+describe('SiteHeader 選單預設校區（cookie ivy_campus）', () => {
+  const second = site.campuses[1]!
+
+  it('SSR 第一個畫面就停在記住的那一校（選中、參觀專線）', async () => {
+    rememberedCookie.value = second.key
+    const html = await render(site.siteMeta.socialLinks)
+    rememberedCookie.value = undefined
+    expect(html).toMatch(new RegExp(`class="is-active"[^>]*aria-pressed="true"[^>]*><span>${second.name}</span>`))
+    expect(html).toContain(`${second.name}參觀專線`)
+  })
+
+  it('不認得的值忽略，沿用 headerPhone 對應的那一校', async () => {
+    const baseline = await render(site.siteMeta.socialLinks)
+    for (const bad of ['nope', 3, ['yihua'], '']) {
+      rememberedCookie.value = bad
+      expect(await render(site.siteMeta.socialLinks)).toBe(baseline)
+    }
+    rememberedCookie.value = undefined
+  })
+})
 
 describe('SiteHeader 的機構社群連結', () => {
   it('內建清單照常渲染', async () => {

@@ -94,10 +94,15 @@ async def issue_access_token(
 
 def _manage_path_of(token: ParentAccessToken, secret: str) -> str | None:
     """token 列重算出原始連結；2026-09-30 以前隨機產生、或密鑰更換前發的重算不出來，回 None。"""
+    raw_token = _raw_of(token, secret)
+    return manage_path(raw_token) if raw_token is not None else None
+
+
+def _raw_of(token: ParentAccessToken, secret: str) -> str | None:
     raw_token = _derive_raw(secret, token.id)
     if not hmac.compare_digest(_hash(raw_token), token.token_hash):
         return None
-    return manage_path(raw_token)
+    return raw_token
 
 
 async def current_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> str | None:
@@ -116,6 +121,13 @@ async def original_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *,
 
     一次查出這個案件發過的所有 token 再判斷（2026-10-13 審查）：先數筆數、再另查「目前有效的
     那條」是兩個查詢，園方剛好在中間重新產生時，筆數檢查看到 1、後一個查詢卻拿到新的那條。"""
+    access = await original_access(db, visit_request_id, secret=secret)
+    return manage_path(access[0]) if access is not None else None
+
+
+async def original_access(db: AsyncSession, visit_request_id: uuid.UUID, *, secret: str) -> tuple[str, datetime] | None:
+    """original_manage_path 的原始 token 與到期時間（2026-11-16「這台裝置記住預約」的 cookie 用同一條）。
+    規則與 original_manage_path 相同：只有送單時發的那條還是唯一一條、未撤銷、未過期才回。"""
     result = await db.execute(select(ParentAccessToken).where(ParentAccessToken.visit_request_id == visit_request_id))
     issued = result.scalars().all()
     if len(issued) != 1:
@@ -123,7 +135,21 @@ async def original_manage_path(db: AsyncSession, visit_request_id: uuid.UUID, *,
     token = issued[0]
     if token.revoked_at is not None or token.expires_at <= datetime.now(timezone.utc):
         return None
-    return _manage_path_of(token, secret)
+    raw_token = _raw_of(token, secret)
+    return (raw_token, token.expires_at) if raw_token is not None else None
+
+
+async def visit_request_for_token(db: AsyncSession, raw_token: str) -> VisitRequest | None:
+    """修改連結 token 目前指向的案件（含場次）；token 不存在、已撤銷或已過期回 None。只讀不換發 session，
+    給「這台裝置記住預約」的提示列用（2026-11-16）。"""
+    result = await db.execute(select(ParentAccessToken).where(ParentAccessToken.token_hash == _hash(raw_token)))
+    token = result.scalar_one_or_none()
+    if token is None or token.revoked_at is not None or token.expires_at <= datetime.now(timezone.utc):
+        return None
+    result = await db.execute(
+        select(VisitRequest).options(selectinload(VisitRequest.slot)).where(VisitRequest.id == token.visit_request_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def ensure_access_token(

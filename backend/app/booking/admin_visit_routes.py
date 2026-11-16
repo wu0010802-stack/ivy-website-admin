@@ -336,6 +336,10 @@ def _export_row(r: VisitRequest, visited_on: date | None) -> list[str]:
         r.slot.start_time.strftime("%H:%M") if r.slot else "",
         r.slot.end_time.strftime("%H:%M") if r.slot else "",
         export_labels.exclude_label(r.exclude_reason),
+        export_labels.touch_source_label(r.first_touch_source),
+        csv_export.safe_cell(r.first_touch_campaign),
+        export_labels.touch_source_label(r.last_touch_source),
+        csv_export.safe_cell(r.last_touch_campaign),
     ]
 
 
