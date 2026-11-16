@@ -33,6 +33,7 @@ from app.booking.schemas import (
 )
 from app.campuses.models import Campus
 from app.common.timezones import today_local
+from app.notifications import line_parent
 from app.operations import audit_service
 
 logger = logging.getLogger("app.booking")
@@ -377,6 +378,9 @@ async def create_visit_closure(
             notify=notify,
             secret=settings.session_secret,
             dry_run=payload.dry_run,
+            email_enabled=email_enabled,
+            line_account=(line_account := await line_parent.parent_account_key(db, settings, campus_key)),
+            notify_line=payload.notify_parents and line_account is not None,
         )
         if not payload.dry_run:
             await audit_service.log_action(
@@ -394,6 +398,7 @@ async def create_visit_closure(
                     "affected_requests": result.confirmed_requests,
                     "notified": result.notified,
                     "no_email": result.no_email,
+                    "with_line": result.with_line,
                 },
             )
         results.append(VisitClosureCampusOut(**result.__dict__))

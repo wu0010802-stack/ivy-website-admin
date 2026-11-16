@@ -28,6 +28,8 @@ function settings(overrides: Partial<LineSettingsOut> = {}): LineSettingsOut {
       { campus_key: 'yihua', campus_name: '義華校', target_id: GROUP },
       { campus_key: 'minghua', campus_name: '明華校', target_id: null },
     ],
+    accounts: [],
+    parent_campuses: [],
     ...overrides,
   }
 }

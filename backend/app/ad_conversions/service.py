@@ -29,7 +29,7 @@ class _HideConversionUrls(logging.Filter):
     """httpx 每個請求都在 INFO 記一行「HTTP Request: POST <完整網址>」；GA4 Measurement Protocol 的 api_secret
     只能放在網址上，不能進平台日誌。丟掉目標是這幾個轉換端點的那幾行（同 notifications/web_push.py 的做法）。"""
 
-    _HOSTS = ("www.google-analytics.com/mp/", "graph.facebook.com/", "bzr.openai.com/")
+    _HOSTS = ("www.google-analytics.com/mp/", "graph.facebook.com/", "bzr.openai.com/", "conversion-api.tr.line.me/")
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args if isinstance(record.args, tuple) else ()
@@ -45,14 +45,16 @@ DEPOSIT_PAID = "deposit_paid"
 
 # 各平台的事件名稱：GA4 與 OpenAI 用小寫底線，Meta 自訂事件慣例用大寫開頭。
 EVENT_NAMES: dict[str, dict[str, str]] = {
-    VISIT_ATTENDED: {"ga4": "visit_attended", "meta": "VisitAttended", "openai": "visit_attended"},
-    DEPOSIT_PAID: {"ga4": "deposit_paid", "meta": "DepositPaid", "openai": "deposit_paid"},
+    VISIT_ATTENDED: {"ga4": "visit_attended", "meta": "VisitAttended", "openai": "visit_attended", "line": "visit_attended"},
+    DEPOSIT_PAID: {"ga4": "deposit_paid", "meta": "DepositPaid", "openai": "deposit_paid", "line": "deposit_paid"},
 }
 # 平台收事件的時限（事件時間距今）：GA4 Measurement Protocol 72 小時、Meta 與 OpenAI 7 天，各留一小時餘裕。
 DEADLINES: dict[str, timedelta] = {
     "ga4": timedelta(hours=71),
     "meta": timedelta(days=7) - timedelta(hours=1),
     "openai": timedelta(days=7) - timedelta(hours=1),
+    # LINE 文件沒寫事件時間的上限（轉換以 LINE 收到的時間計），比照 Meta 留 7 天。
+    "line": timedelta(days=7) - timedelta(hours=1),
 }
 MAX_ATTEMPTS = 5
 # 第 n 次失敗後隔多久再試（n 從 1 起算）。
@@ -101,7 +103,9 @@ def _event_id(job: AdConversionJob) -> str:
     return f"{job.visit_request_id}:{job.event}"
 
 
-def build_request(job: AdConversionJob, ids: dict, campus_key: str, settings: Settings) -> tuple[str, dict, dict] | None:
+def build_request(
+    job: AdConversionJob, ids: dict, campus_key: str, settings: Settings
+) -> tuple[str, dict, dict | list] | None:
     """回傳 (網址, 標頭, JSON 本文)；這個平台需要的識別碼都沒有就回 None。金鑰只放在標頭或本文，不進網址
     （GA4 例外：Measurement Protocol 只收網址參數）。"""
     name = EVENT_NAMES[job.event][job.platform]
@@ -158,6 +162,25 @@ def build_request(job: AdConversionJob, ids: dict, campus_key: str, settings: Se
         return url, {"Authorization": f"Bearer {settings.openai_capi_key}"}, {
             "integration_source": OPENAI_INTEGRATION_SOURCE, "events": [event],
         }
+    if job.platform == "line":
+        # LINE Conversion API（conversion-api-docs.linebiz.com）：本文是事件陣列；成功回 202。
+        # 只送點擊代碼與 LINE Tag 的瀏覽器 ID，不送電話、Email（文件允許但官網不送個資或其雜湊）。
+        user = {key: ids[source] for key, source in (("click_id", "line_click_id"), ("browser_id", "line_browser_id")) if ids.get(source)}
+        if not user:
+            return None
+        url = f"https://conversion-api.tr.line.me/v1/{settings.line_tag_id}/events"
+        body = [{
+            "event": {
+                "event_type": "conversion",
+                "event_name": name,
+                "source_type": "web",
+                "event_timestamp": int(job.occurred_at.timestamp()),
+                "deduplication_key": _event_id(job),
+                "test_flag": settings.line_capi_test,
+            },
+            "user": user,
+        }]
+        return url, {"X-Line-TagAccessToken": settings.line_capi_token}, body
     return None
 
 
@@ -167,7 +190,7 @@ def _error_summary(response: httpx.Response) -> str:
     return f"HTTP {response.status_code}: {text}"
 
 
-async def _send(client: httpx.AsyncClient, url: str, headers: dict, body: dict) -> None:
+async def _send(client: httpx.AsyncClient, url: str, headers: dict, body: dict | list) -> None:
     try:
         response = await client.post(url, headers=headers, json=body)
     except httpx.HTTPError as exc:

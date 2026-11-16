@@ -19,7 +19,8 @@ from app.auth.permissions import require_scope
 from app.common.timezones import today_local
 from app.insights.crux import CruxHistory
 from app.insights.http import GoogleApiError
-from app.insights.schemas import CruxOut, SearchInsightsOut
+from app.insights import line_insights
+from app.insights.schemas import CruxOut, LineInsightsOut, SearchInsightsOut
 from app.insights.search_console import SearchConsole
 
 logger = logging.getLogger("app.insights")
@@ -104,3 +105,27 @@ async def get_crux(
     except GoogleApiError as exc:
         logger.warning("CrUX 查詢失敗：%s", exc)
         return CruxOut(configured=True, error=str(exc))
+
+
+@router.get("/admin/line-insights", response_model=LineInsightsOut)
+async def get_line_insights(
+    request: Request,
+    start: date | None = Query(None, description="台北日期（含），省略＝結束日往前 28 天"),
+    end: date | None = Query(None, description="台北日期（含），省略＝今天；不能是未來"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> LineInsightsOut:
+    """LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。"""
+    require_scope(current_user, "admissions.stats")
+    today = today_local()
+    first, last = resolve_range(start, end, today)
+    campuses = await line_insights.campus_rows(db, first, last)
+    settings = request.app.state.settings
+    # 向 LINE 要資料前先結束讀取交易。
+    await db.rollback()
+    accounts = await line_insights.account_rows(
+        settings, first, last, today, getattr(request.app.state, "line_transport", None)
+    )
+    return LineInsightsOut(
+        configured=bool(settings.line_accounts), start=first, end=last, accounts=accounts, campuses=campuses
+    )

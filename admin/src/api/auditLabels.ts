@@ -285,6 +285,10 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   already_closed: (v) => (v ? '這天原本就是休假日' : null),
   notified: (v) => (countOf(v) ? `寄停課通知給 ${countOf(v)} 位家長` : '沒有寄停課通知'),
   no_email: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，要來電` : null),
+  with_line: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，用 LINE 通知` : null),
+  dropped_links: (v) => (countOf(v) ? `解除 ${countOf(v)} 筆家長的 LINE 綁定（換帳號或關閉後推不到）` : null),
+  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，其餘是校區鍵。
+  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
   open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,

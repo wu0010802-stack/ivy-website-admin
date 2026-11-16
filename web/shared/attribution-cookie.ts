@@ -35,6 +35,8 @@ export interface AttributionCookie {
   o?: AttributionClick
   /** Meta 的 fbclid（後端在沒有 _fbc 時用它組 fbc） */
   b?: AttributionClick
+  /** LINE 廣告的點擊代碼（落地網址的 ldtag_cl，2026-11-16；後端回傳到場、預繳給 LINE 時用） */
+  n?: AttributionClick
 }
 
 export interface Landing {
@@ -97,7 +99,8 @@ export function decodeAttribution(raw: string | undefined | null): AttributionCo
   const l = validTouch(record.l)
   const o = validClick(record.o, OPPREF)
   const b = validClick(record.b, FBCLID)
-  return { v: 1, f, ...(l ? { l } : {}), ...(o ? { o } : {}), ...(b ? { b } : {}) }
+  const n = validClick(record.n, OPPREF)
+  return { v: 1, f, ...(l ? { l } : {}), ...(o ? { o } : {}), ...(b ? { b } : {}), ...(n ? { n } : {}) }
 }
 
 /** 這次進站之後的 cookie 內容。直接進站不蓋掉「最後一次」；點擊代碼只在落地網址有帶時更新。 */
@@ -112,6 +115,8 @@ export function nextAttribution(previous: AttributionCookie | null, landing: Lan
   if (oppref && OPPREF.test(oppref)) next.o = { v: oppref, t: now.getTime() }
   const fbclid = params.get('fbclid')
   if (fbclid && FBCLID.test(fbclid)) next.b = { v: fbclid, t: now.getTime() }
+  const ldtag = params.get('ldtag_cl')
+  if (ldtag && OPPREF.test(ldtag)) next.n = { v: ldtag, t: now.getTime() }
   return next
 }
 

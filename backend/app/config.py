@@ -21,6 +21,25 @@ _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 _PLACEHOLDER_SECRET_MARKERS = ("change-me", "changeme", "change_me", "example", "placeholder")
 
 
+# 可以設 LINE 官方帳號的鍵：main＝園方群組推播用的帳號（WEBSITE_LINE_MESSAGING_*），其餘是五校各自的帳號
+# （WEBSITE_LINE_<校>_*，2026-11-16 docs/specs/2026-11-16-line-integrations-design.md §2）。順序＝後台顯示順序。
+LINE_MAIN_ACCOUNT = "main"
+LINE_CAMPUS_ACCOUNT_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
+LINE_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, *LINE_CAMPUS_ACCOUNT_KEYS)
+
+
+@dataclass(frozen=True, repr=False)
+class LineAccountCredentials:
+    """一個 LINE 官方帳號的 Messaging API 金鑰。repr 不印金鑰。"""
+
+    key: str
+    channel_secret: str
+    access_token: str
+
+    def __repr__(self) -> str:
+        return f"LineAccountCredentials({self.key})"
+
+
 @dataclass(frozen=True, repr=False)
 class GoogleServiceAccount:
     """服務帳戶金鑰 JSON 裡用得到的三個欄位。repr 刻意不印任何內容（私鑰）。"""
@@ -103,6 +122,19 @@ class Settings(BaseSettings):
     # 類型的 channel，金鑰也不同，所以另外命名。兩個都有才啟用。
     line_messaging_channel_secret: str | None = Field(default=None, repr=False)
     line_messaging_access_token: str | None = Field(default=None, repr=False)
+    # 各校自己的 LINE 官方帳號（2026-11-16）：家長通知、「我的預約」、好友數。和上面的園方群組推播帳號分開設，
+    # 同一校兩個都設才算有；webhook 網址是 /api/website/v1/line/webhook/<校>（後台 LINE 通知頁會列出）。
+    # 沒設的校區，家長通知只能選用上面那個帳號或關閉（後台 LINE 通知頁）。
+    line_yihua_channel_secret: str | None = Field(default=None, repr=False)
+    line_yihua_access_token: str | None = Field(default=None, repr=False)
+    line_minghua_channel_secret: str | None = Field(default=None, repr=False)
+    line_minghua_access_token: str | None = Field(default=None, repr=False)
+    line_chongde_channel_secret: str | None = Field(default=None, repr=False)
+    line_chongde_access_token: str | None = Field(default=None, repr=False)
+    line_international_channel_secret: str | None = Field(default=None, repr=False)
+    line_international_access_token: str | None = Field(default=None, repr=False)
+    line_renwu_channel_secret: str | None = Field(default=None, repr=False)
+    line_renwu_access_token: str | None = Field(default=None, repr=False)
     retention_allow_real_run: bool = False
     # 招生入學模組（2026-10）。預設關閉：規格 §15 Q1（預約同意書是否涵蓋參觀後的
     # 招生聯繫、招生訪視保存幾天）裁定前，正式站不可開啟。關閉時「標記已到場」
@@ -156,6 +188,12 @@ class Settings(BaseSettings):
     # OpenAI Conversions API：像素 ID ＋ Conversions API 金鑰（廣告管理平台 → 轉換）。
     openai_pixel_id: str | None = None
     openai_capi_key: str | None = Field(default=None, repr=False)
+    # LINE 廣告 Conversion API（2026-11-16，docs/specs/2026-11-16-line-integrations-design.md §8）：LINE Tag ID（UUID，
+    # 和官網的 NUXT_PUBLIC_LINE_TAG_ID 同一個）＋ LINE 企業管理平台發的 Conversion API 存取權杖。台灣帳號能不能用要在
+    # 企業管理平台確認；line_capi_test 為 true 時事件帶 test_flag（LINE 後台只當測試、不算轉換），先用它驗。
+    line_tag_id: str | None = None
+    line_capi_token: str | None = Field(default=None, repr=False)
+    line_capi_test: bool = False
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -302,12 +340,17 @@ class Settings(BaseSettings):
 
     @field_validator(
         "line_messaging_channel_secret", "line_messaging_access_token",
+        "line_yihua_channel_secret", "line_yihua_access_token",
+        "line_minghua_channel_secret", "line_minghua_access_token",
+        "line_chongde_channel_secret", "line_chongde_access_token",
+        "line_international_channel_secret", "line_international_access_token",
+        "line_renwu_channel_secret", "line_renwu_access_token",
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
         "google_sc_service_account_json", "google_sc_property", "crux_api_key",
         "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
-        "openai_pixel_id", "openai_capi_key",
+        "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
@@ -418,6 +461,21 @@ class Settings(BaseSettings):
     def line_messaging_enabled(self) -> bool:
         return bool(self.line_messaging_channel_secret and self.line_messaging_access_token)
 
+    def _line_pair(self, key: str) -> tuple[str | None, str | None]:
+        if key == LINE_MAIN_ACCOUNT:
+            return self.line_messaging_channel_secret, self.line_messaging_access_token
+        return getattr(self, f"line_{key}_channel_secret"), getattr(self, f"line_{key}_access_token")
+
+    @property
+    def line_accounts(self) -> dict[str, LineAccountCredentials]:
+        """設好的 LINE 官方帳號（main＝園方群組推播用的那個），依 LINE_ACCOUNT_KEYS 的順序。"""
+        accounts: dict[str, LineAccountCredentials] = {}
+        for key in LINE_ACCOUNT_KEYS:
+            secret, token = self._line_pair(key)
+            if secret and token:
+                accounts[key] = LineAccountCredentials(key, secret, token)
+        return accounts
+
     @property
     def background_jobs_interval(self) -> int:
         """0 代表不在 API 程序內跑定期工作。本機開發與測試預設關閉，避免
@@ -453,11 +511,12 @@ class Settings(BaseSettings):
 
     @property
     def ad_conversion_platforms(self) -> tuple[str, ...]:
-        """設定了伺服器端金鑰、要回傳到場與預繳的平台（順序固定：ga4、meta、openai）。"""
+        """設定了伺服器端金鑰、要回傳到場與預繳的平台（順序固定：ga4、meta、openai、line）。"""
         enabled = {
             "ga4": bool(self.ga4_measurement_id and self.ga4_api_secret),
             "meta": bool(self.meta_pixel_id and self.meta_capi_token),
             "openai": bool(self.openai_pixel_id and self.openai_capi_key),
+            "line": bool(self.line_tag_id and self.line_capi_token),
         }
         return tuple(platform for platform, on in enabled.items() if on)
 
@@ -581,6 +640,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
             )
+        for key in LINE_CAMPUS_ACCOUNT_KEYS:
+            secret, token = self._line_pair(key)
+            if bool(secret) != bool(token):
+                env = f"WEBSITE_LINE_{key.upper()}"
+                raise ValueError(f"LINE 官方帳號必須同時設定 {env}_CHANNEL_SECRET 與 {env}_ACCESS_TOKEN")
         if bool(self.vapid_public_key) != bool(self.vapid_private_key):
             raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
         # 回傳廣告平台（2026-11-16）：ID 與金鑰成對；ID 格式和官網前端的同名變數一樣嚴格，打錯不會默默送到別的帳戶。
@@ -588,6 +652,7 @@ class Settings(BaseSettings):
             ("GA4", self.ga4_measurement_id, self.ga4_api_secret, "WEBSITE_GA4_MEASUREMENT_ID 與 WEBSITE_GA4_API_SECRET"),
             ("Meta", self.meta_pixel_id, self.meta_capi_token, "WEBSITE_META_PIXEL_ID 與 WEBSITE_META_CAPI_TOKEN"),
             ("OpenAI", self.openai_pixel_id, self.openai_capi_key, "WEBSITE_OPENAI_PIXEL_ID 與 WEBSITE_OPENAI_CAPI_KEY"),
+            ("LINE", self.line_tag_id, self.line_capi_token, "WEBSITE_LINE_TAG_ID 與 WEBSITE_LINE_CAPI_TOKEN"),
         ):
             if bool(ident) != bool(secret):
                 raise ValueError(f"{label} 轉換回傳必須同時設定 {env}")
@@ -597,6 +662,10 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_META_PIXEL_ID 應為純數字")
         if self.openai_pixel_id and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", self.openai_pixel_id):
             raise ValueError("WEBSITE_OPENAI_PIXEL_ID 格式不符")
+        if self.line_tag_id and not re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", self.line_tag_id
+        ):
+            raise ValueError("WEBSITE_LINE_TAG_ID 格式應為 UUID（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）")
         if not re.fullmatch(r"v[0-9]{2,3}\.0", self.meta_graph_version):
             raise ValueError("WEBSITE_META_GRAPH_VERSION 格式應為 v26.0 這種寫法")
         if self.vapid_subject and not vapid.valid_subject(self.vapid_subject):

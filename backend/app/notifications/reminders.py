@@ -163,13 +163,16 @@ async def enqueue_due_reminders(
 async def enqueue_due_parent_reminders(
     db: AsyncSession, now: datetime | None = None, *, due: list[DueUpcoming] | None = None
 ) -> int:
-    """家長參觀提醒（2026-10-15 規格）：同一個到點判斷，只排有 Email 的案件；回傳新寫入的則數。
-    呼叫端負責 commit。`due` 同 `enqueue_due_reminders`。"""
+    """家長參觀提醒（2026-10-15 規格）：同一個到點判斷，只排有 Email 或綁了 LINE 通知（2026-11-16）的案件；
+    回傳新寫入的則數。呼叫端負責 commit。`due` 同 `enqueue_due_reminders`。"""
+    from app.notifications import line_parent
+
     if due is None:
         due = await due_upcoming(db, now)
+    linked = await line_parent.linked_visit_ids(db, [visit_id for visit_id, _, email, _ in due if not email])
     created = 0
     for visit_id, campus_key, email, slot_id in due:
-        if not email:
+        if not email and visit_id not in linked:
             continue
         payload = {"campus_key": campus_key, "receipt_id": str(visit_id), "slot_id": str(slot_id)}
         created += await _enqueue(db, visit_id, PARENT_VISIT_REMINDER, payload, parent_reminder_key(visit_id, slot_id))

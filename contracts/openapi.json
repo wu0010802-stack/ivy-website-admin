@@ -13458,6 +13458,113 @@
         "title": "LeaveRequest",
         "type": "object"
       },
+      "LineAccountOut": {
+        "description": "一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。",
+        "properties": {
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "quota": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineQuotaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quota_error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Error Status"
+          },
+          "webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhook Url"
+          }
+        },
+        "required": [
+          "key",
+          "webhook_url",
+          "display_name",
+          "basic_id",
+          "quota"
+        ],
+        "title": "LineAccountOut",
+        "type": "object"
+      },
+      "LineCampusClicksOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "line_clicks": {
+            "title": "Line Clicks",
+            "type": "integer"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "line_clicks",
+          "linked"
+        ],
+        "title": "LineCampusClicksOut",
+        "type": "object"
+      },
       "LineCampusTargetOut": {
         "properties": {
           "campus_key": {
@@ -13506,6 +13613,133 @@
           "target_id"
         ],
         "title": "LineCampusTargetUpdate",
+        "type": "object"
+      },
+      "LineFollowerAccountOut": {
+        "description": "一個 LINE 官方帳號在期間內的好友數（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵。",
+        "properties": {
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "blocks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocks"
+          },
+          "blocks_change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocks Change"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "followers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followers"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "new_followers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Followers"
+          },
+          "ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready"
+          },
+          "targeted_reaches": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Reaches"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "display_name",
+          "basic_id",
+          "from_date",
+          "to_date"
+        ],
+        "title": "LineFollowerAccountOut",
         "type": "object"
       },
       "LineGroupOut": {
@@ -13576,6 +13810,47 @@
         "title": "LineGroupOut",
         "type": "object"
       },
+      "LineInsightsOut": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/LineFollowerAccountOut"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/LineCampusClicksOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "start",
+          "end",
+          "accounts",
+          "campuses"
+        ],
+        "title": "LineInsightsOut",
+        "type": "object"
+      },
       "LineLinkStart": {
         "properties": {
           "authorize_url": {
@@ -13589,8 +13864,101 @@
         "title": "LineLinkStart",
         "type": "object"
       },
+      "LineParentCampusOut": {
+        "properties": {
+          "account_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Key"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "linked_upcoming": {
+            "title": "Linked Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "account_key",
+          "linked_upcoming"
+        ],
+        "title": "LineParentCampusOut",
+        "type": "object"
+      },
+      "LineParentCampusUpdate": {
+        "properties": {
+          "account_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Key"
+          }
+        },
+        "required": [
+          "account_key"
+        ],
+        "title": "LineParentCampusUpdate",
+        "type": "object"
+      },
+      "LineQuotaOut": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "limit",
+          "used",
+          "warning"
+        ],
+        "title": "LineQuotaOut",
+        "type": "object"
+      },
       "LineSettingsOut": {
         "properties": {
+          "accounts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineAccountOut"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
@@ -13600,6 +13968,14 @@
               "$ref": "#/components/schemas/LineGroupOut"
             },
             "title": "Groups",
+            "type": "array"
+          },
+          "parent_campuses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineParentCampusOut"
+            },
+            "title": "Parent Campuses",
             "type": "array"
           },
           "targets": {
@@ -15416,6 +15792,107 @@
         "title": "ParentDetailsUpdate",
         "type": "object"
       },
+      "ParentLineCodeOut": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "add_friend_url": {
+            "title": "Add Friend Url",
+            "type": "string"
+          },
+          "basic_id": {
+            "title": "Basic Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "message_url": {
+            "title": "Message Url",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "expires_at",
+          "message_url",
+          "text",
+          "basic_id",
+          "add_friend_url"
+        ],
+        "title": "ParentLineCodeOut",
+        "type": "object"
+      },
+      "ParentLineNotifyOut": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "add_friend_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Add Friend Url"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "linked"
+        ],
+        "title": "ParentLineNotifyOut",
+        "type": "object"
+      },
       "ParentRescheduleRequest": {
         "properties": {
           "slot_id": {
@@ -16726,6 +17203,11 @@
               }
             ],
             "title": "External Url"
+          },
+          "line_notify_enabled": {
+            "default": false,
+            "title": "Line Notify Enabled",
+            "type": "boolean"
           },
           "line_url": {
             "anyOf": [
@@ -21994,6 +22476,11 @@
           },
           "with_email": {
             "title": "With Email",
+            "type": "integer"
+          },
+          "with_line": {
+            "default": 0,
+            "title": "With Line",
             "type": "integer"
           }
         },
@@ -34490,6 +34977,110 @@
         ]
       }
     },
+    "/api/website/v1/admin/line-insights": {
+      "get": {
+        "description": "LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。",
+        "operationId": "get_line_insights_api_website_v1_admin_line_insights_get",
+        "parameters": [
+          {
+            "description": "台北日期（含），省略＝結束日往前 28 天",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝結束日往前 28 天",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝今天；不能是未來",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝今天；不能是未來",
+              "title": "End"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineInsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Insights",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
       "put": {
         "operationId": "update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put",
@@ -34637,6 +35228,91 @@
           }
         },
         "summary": "Send Line Test Message",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
+      "put": {
+        "description": "選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；\nmain 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。\n關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。",
+        "operationId": "update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineParentCampusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Parent Account",
         "tags": [
           "line"
         ]
@@ -43320,6 +43996,235 @@
         "summary": "Exchange Parent Token",
         "tags": [
           "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-manage/line-notify": {
+      "delete": {
+        "description": "不再用 LINE 接收這筆預約的通知（Email 照舊）。",
+        "operationId": "delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Parent Line Notify",
+        "tags": [
+          "line"
+        ]
+      },
+      "get": {
+        "operationId": "get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentLineNotifyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Parent Line Notify",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-manage/line-notify/code": {
+      "post": {
+        "description": "產生一次性綁定代碼（30 分鐘、用一次）。家長把它傳給官方帳號就完成綁定。",
+        "operationId": "create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentLineCodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Parent Line Code",
+        "tags": [
+          "line"
         ]
       }
     },

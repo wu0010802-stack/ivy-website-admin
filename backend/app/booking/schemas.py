@@ -248,6 +248,8 @@ class PublicBookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     parent_email_enabled: bool = False
+    # 這校有開家長 LINE 通知（2026-11-16）：預約完成頁據此顯示「用 LINE 接收通知」。
+    line_notify_enabled: bool = False
     # 2026-10-02 起官網預約不用勾選同意，不再回同意文字與版本。
     # 預約文案發布中的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
     privacy_notice: PrivacyNoticeOut | None = None
@@ -1241,6 +1243,8 @@ class VisitClosureCampusOut(BaseModel):
     notified: int
     already_notified: int
     no_email: int
+    # 沒有 Email、但停課通知會走 LINE 的（2026-11-16）。
+    with_line: int = 0
 
 
 class VisitClosureOut(BaseModel):

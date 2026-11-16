@@ -18,6 +18,7 @@ from app.booking import access_service, history, remember, slot_service, workflo
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
+from app.notifications import line_parent
 from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_open
 from app.booking.schemas import (
     ParentAccessLinkCreatedOut,
@@ -518,6 +519,9 @@ async def create_parent_access_link(
     raw_token, expires_at = await access_service.issue_access_token(
         db, visit_request_id, secret=request.app.state.settings.session_secret, slot=visit_request.slot
     )
+    # 重新產生是為了切斷外流的連結：拿外流連結綁了 LINE 的人也要一起切斷，否則新連結照樣推到他的 LINE
+    # （2026-11-16 審查）。家長要用 LINE 收，拿到新連結後再綁一次。
+    await line_parent.unlink(db, visit_request_id)
     mail_parent = bool(visit_request.email)
     if mail_parent:
         # 沒設定寄信也照排，但下一輪背景工作會把這封標成略過（notifications/service._dispatch_parent_email：
@@ -625,6 +629,8 @@ async def revoke_parent_access_link(
     await workflow_service.lock_status(db, visit_request)
     had_link = await access_service.active_access_token(db, visit_request_id) is not None
     await access_service.revoke_access_for_visit_request(db, visit_request_id)
+    # 撤銷＝連結外流：LINE 綁定也一起解除（同重新產生）。
+    await line_parent.unlink(db, visit_request_id)
     if had_link:
         history.record_event(db, visit_request.id, "access_link_revoked", actor=Actor.staff(current_user.id))
     await audit_service.log_action(

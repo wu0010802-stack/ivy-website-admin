@@ -53,6 +53,8 @@ const reasonText = computed(() => reason.value.trim())
 const multiCampus = computed(() => props.campusKeys.length > 1 && !props.fixed)
 const emailEnabled = computed(() => preview.value?.parent_email_enabled !== false)
 const sendMail = computed(() => notify.value && emailEnabled.value)
+// 沒留 Email、但綁了 LINE 通知的家長數（2026-11-16）：正式站沒設寄信也能通知他們，勾選框不鎖。
+const lineCount = computed(() => (preview.value?.campuses ?? []).reduce((sum, row) => sum + (row.with_line ?? 0), 0))
 const title = computed(() => (props.fixed ? '寄停課通知' : '停班停課'))
 const dayLabel = computed(() => (day.value ? `${formatDate(day.value)}（${formatWeekday(day.value)}）` : ''))
 
@@ -99,6 +101,8 @@ function previewLine(row: VisitClosureCampusOut): string {
   if (sendMail.value && row.notified) people.push(`會寄停課通知給 ${row.notified} 位`)
   if (sendMail.value && row.already_notified) people.push(`${row.already_notified} 位之前寄過，不重寄`)
   if (!sendMail.value && row.with_email) people.push(`${row.with_email} 位有 Email，但這次不寄信`)
+  // 沒留 Email、但綁了 LINE 通知的家長（2026-11-16）：勾選通知時走 LINE，不必來電。
+  if (row.with_line) people.push(notify.value ? `${row.with_line} 位沒有 Email，會用 LINE 通知` : `${row.with_line} 位用 LINE 收通知，但這次不通知`)
   if (row.no_email) people.push(`${row.no_email} 位沒有 Email 要來電`)
   parts.push(people.join('，'))
   return parts.join('；')
@@ -109,16 +113,16 @@ function resultLine(row: VisitClosureCampusOut): string {
   const parts = [row.closed_slots ? `關閉 ${row.closed_slots} 場` : row.already_closed ? '這天原本就是休假日' : '沒有開放中的場次']
   if (row.notified) parts.push(`寄出 ${row.notified} 封停課通知`)
   if (row.already_notified) parts.push(`${row.already_notified} 位之前已寄過`)
-  const toCall = row.no_email + (result.value?.parent_email_enabled && notify.value ? 0 : row.with_email)
+  const toCall = callCount(row)
   if (toCall) parts.push(`${toCall} 位要來電`)
   return parts.join('，')
 }
-const toCallTotal = computed(() =>
-  (result.value?.campuses ?? []).reduce(
-    (sum, row) => sum + row.no_email + (result.value?.parent_email_enabled && notify.value ? 0 : row.with_email),
-    0,
-  ),
-)
+function callCount(row: VisitClosureCampusOut): number {
+  return row.no_email
+    + (result.value?.parent_email_enabled && notify.value ? 0 : row.with_email)
+    + (notify.value ? 0 : row.with_line ?? 0)
+}
+const toCallTotal = computed(() => (result.value?.campuses ?? []).reduce((sum, row) => sum + callCount(row), 0))
 
 const missing = computed(() => {
   if (!day.value) return '請選日期'
@@ -190,8 +194,9 @@ watch(open, value => {
           </div>
         </el-form-item>
         <el-form-item class="closure__notify">
-          <el-checkbox v-model="notify" :disabled="!emailEnabled" data-test="closure-notify">寄信請家長改約（信裡附修改連結，停課日不受線上修改期限限制）</el-checkbox>
-          <span v-if="!emailEnabled" class="field-help">正式站還沒設定寄信，不會寄停課通知；已約的家長請逐一來電。</span>
+          <el-checkbox v-model="notify" :disabled="!emailEnabled && !lineCount" data-test="closure-notify">寄信請家長改約（信裡附修改連結，停課日不受線上修改期限限制；綁了 LINE 通知的家長也會收到 LINE）</el-checkbox>
+          <span v-if="!emailEnabled && lineCount" class="field-help">正式站還沒設定寄信：{{ lineCount }} 位綁了 LINE 通知的家長會收到 LINE，其他已約的家長請逐一來電。</span>
+          <span v-else-if="!emailEnabled" class="field-help">正式站還沒設定寄信，不會寄停課通知；已約的家長請逐一來電。</span>
         </el-form-item>
       </el-form>
 

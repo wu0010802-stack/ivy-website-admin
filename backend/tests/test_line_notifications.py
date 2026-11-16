@@ -19,7 +19,7 @@ from sqlalchemy import select, update
 from app.booking.models import VisitRequest
 from app.main import create_app
 from app.notifications.line import LineMessagingClient, retry_key, verify_signature
-from app.notifications.service import admin_visit_url, line_text
+from app.notifications.service import admin_visit_url, staff_line_message
 from app.notifications.models import LineGroup, NotificationDelivery
 from app.operations.models import AuditLogEntry
 from tests.conftest import (
@@ -86,6 +86,28 @@ async def line_app(fake_line):
     app.state.line_transport = fake_line.transport()
     yield app
     await app.state.engine.dispose()
+
+
+def flex_texts(message: dict) -> list[str]:
+    """卡片訊息裡所有的文字與按鈕網址（依出現順序），測試用來檢查內容。"""
+    found: list[str] = []
+
+    def walk(node):
+        if isinstance(node, dict):
+            if node.get("type") == "text" and isinstance(node.get("text"), str):
+                found.append(node["text"])
+            action = node.get("action")
+            if isinstance(action, dict) and action.get("uri"):
+                found.append(action["uri"])
+            for value in node.values():
+                if isinstance(value, (dict, list)):
+                    walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(message.get("contents"))
+    return found
 
 
 def _sign(body: bytes) -> str:
@@ -269,7 +291,9 @@ async def test_test_push_sends_to_assigned_group(line_app, fake_line):
         resp = await client.post("/api/website/v1/admin/line/campus-targets/yihua/test")
         assert resp.status_code == 204, resp.text
         assert fake_line.pushes[-1]["body"]["to"] == GROUP
-        assert "義華" in fake_line.pushes[-1]["body"]["messages"][0]["text"]
+        test_message = fake_line.pushes[-1]["body"]["messages"][0]
+        assert test_message["type"] == "flex"
+        assert "義華" in test_message["altText"] and "LINE 通知測試" in test_message["altText"]
 
         fake_line.push_status = [500]
         failed = await client.post("/api/website/v1/admin/line/campus-targets/yihua/test")
@@ -335,14 +359,20 @@ async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
     # 家長確認信只走 Email，不推 LINE。
     assert len(fake_line.pushes) == result["sent"] == 1
     push = fake_line.pushes[0]
-    text = push["body"]["messages"][0]["text"]
-    assert text.startswith("[常春藤官網] 新的參觀預約\n")
+    message = push["body"]["messages"][0]
+    # 2026-11-16 起是卡片訊息：altText（通知與聊天列表看到的）只有類型、校區、時段，不帶家長稱呼與網址。
+    assert message["type"] == "flex"
+    assert message["altText"].startswith("[常春藤官網] 新的參觀預約｜義華")
+    assert "陳媽媽" not in message["altText"] and "http" not in message["altText"]
+    texts = flex_texts(message)
     assert push["body"]["to"] == GROUP
-    assert "義華" in text and receipt_id in text
-    assert f"https://ivy.example/admin/visit-requests/{receipt_id}" in text
+    assert texts[texts.index("校區") + 1].startswith("義華")
+    assert "參觀時段" in texts
+    # 後台連結是「開啟案件」按鈕，帶 openExternalBrowser=1（LINE 內建瀏覽器擋 Google 登入）。
+    assert f"https://ivy.example/admin/visit-requests/{receipt_id}?openExternalBrowser=1" in texts
     # 2026-10-05 業主裁定群組推播帶家長稱呼；電話照舊不帶。
-    assert "\n家長：陳媽媽\n" in text
-    assert "0912345678" not in text, "群組推播不能帶家長電話"
+    assert texts[texts.index("家長") + 1] == "陳媽媽"
+    assert "0912345678" not in json.dumps(message, ensure_ascii=False), "群組推播不能帶家長電話"
     assert push["retry_key"]
 
     # 再跑一次不會重送。
@@ -351,17 +381,29 @@ async def test_outbox_pushes_to_campus_group_once(line_app, fake_line):
     assert len(fake_line.pushes) == before
 
 
-def test_line_text_has_parent_line_only_when_known():
-    text = line_text("新的參觀預約", "義華", "abc", "https://ivy.example", "  林小姐 ")
-    assert text.splitlines()[:3] == ["[常春藤官網] 新的參觀預約", "校區：義華", "家長：林小姐"]
+def test_line_card_has_parent_row_only_when_known():
+    texts = flex_texts(staff_line_message("新的參觀預約", "義華", "abc", "https://ivy.example", "  林小姐 "))
+    assert texts[:2] == ["常春藤官網", "新的參觀預約"]
+    assert texts[texts.index("校區") + 1] == "義華"
+    assert texts[texts.index("家長") + 1] == "林小姐"
     for missing in (None, "", "   "):
-        assert "家長" not in line_text("新的參觀預約", "義華", "abc", None, missing)
+        assert "家長" not in flex_texts(staff_line_message("新的參觀預約", "義華", "abc", None, missing))
 
 
-def test_line_text_url_opens_external_browser():
+def test_line_card_without_admin_origin_shows_case_number():
+    texts = flex_texts(staff_line_message("新的參觀預約", "義華", "abc", None))
+    assert texts[texts.index("案件編號") + 1] == "abc"
+    assert not any(text.startswith("http") for text in texts)
+
+
+def test_line_card_url_opens_external_browser():
     # LINE 內建瀏覽器擋 Google 登入，連結要帶 openExternalBrowser=1 改用手機預設瀏覽器。
-    text = line_text("新的參觀預約", "義華校", "V-ABC123", "https://admin.example.com/")
-    assert text.splitlines()[-1] == "https://admin.example.com/admin/visit-requests/V-ABC123?openExternalBrowser=1"
+    message = staff_line_message("新的參觀預約", "義華校", "V-ABC123", "https://admin.example.com/")
+    assert message["contents"]["footer"]["contents"][0]["action"] == {
+        "type": "uri",
+        "label": "開啟案件",
+        "uri": "https://admin.example.com/admin/visit-requests/V-ABC123?openExternalBrowser=1",
+    }
 
 
 def test_email_url_has_no_line_param():
@@ -388,8 +430,8 @@ async def test_outbox_push_skips_parent_name_once_case_is_anonymized(line_app, f
         await db.commit()
     await _run_outbox(line_app, fake_line)
     [push] = fake_line.pushes
-    text = push["body"]["messages"][0]["text"]
-    assert "家長" not in text and "陳媽媽" not in text
+    dumped = json.dumps(push["body"]["messages"][0], ensure_ascii=False)
+    assert "家長" not in flex_texts(push["body"]["messages"][0]) and "陳媽媽" not in dumped
 
 
 async def test_outbox_retries_failed_push_with_same_retry_key(line_app, fake_line):

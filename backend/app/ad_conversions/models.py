@@ -14,7 +14,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
 
-PLATFORMS = ("ga4", "meta", "openai")
+PLATFORMS = ("ga4", "meta", "openai", "line")
 EVENTS = ("visit_attended", "deposit_paid")
 STATUSES = ("pending", "sent", "failed", "skipped")
 

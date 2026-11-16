@@ -13,7 +13,7 @@ export const LEVEL_TAG_TYPES: Record<StatusLevel, 'success' | 'danger' | 'info'>
 
 export const ITEM_LABELS: Record<string, string> = {
   smtp: '寄信',
-  line_messaging: 'LINE 群組推播',
+  line_messaging: 'LINE 官方帳號',
   web_push: '手機推播',
   turnstile: '機器人驗證（Turnstile）',
   google_login: 'Google 登入',
@@ -134,6 +134,23 @@ function describeGeoLoop(item: SystemStatusItem, d: Detail): string {
   return d.last_run_at ? `上次同步 ${when(d.last_run_at)}` : '剛啟動，還沒有跑完第一輪'
 }
 
+// LINE 官方帳號（2026-11-16）：有設帳號時 detail.accounts 列出每個帳號本月用了幾則；用到八成或查不到額度算要注意。
+function describeLine(d: Detail): string {
+  const base = d.configured ? '已設定，參觀通知會推到各校的 LINE 群組' : '園方群組推播未設定'
+  const accounts = Array.isArray(d.accounts) ? (d.accounts as Detail[]) : []
+  if (!accounts.length) return d.configured ? base : '未設定，參觀通知不會推到 LINE 群組'
+  const parts = accounts.map((account) => {
+    const name = text(account.name) || (account.key === 'main' ? '園方群組推播帳號' : text(account.key))
+    if (account.error_status !== null && account.error_status !== undefined) {
+      return `${name}查不到額度${account.error_status === 401 ? '（金鑰可能已失效）' : ''}`
+    }
+    if (account.limit === null || account.limit === undefined) return `${name}本月 ${count(account.used)} 則`
+    const ratio = count(account.limit) ? count(account.used) / count(account.limit) : 0
+    return `${name}本月 ${count(account.used)}／${count(account.limit)} 則${ratio >= 0.8 ? '（快用完）' : ''}`
+  })
+  return `${base}；${parts.join('、')}`
+}
+
 export function describeItem(item: SystemStatusItem, section: StatusSection): string {
   const d = (item.detail ?? {}) as Detail
   if (section === 'datasets') return describeDataset(item, d)
@@ -145,7 +162,7 @@ export function describeItem(item: SystemStatusItem, section: StatusSection): st
       if (d.sink) return '寫入本機資料夾（測試用）'
       return '還沒設定寄信：家長確認信、參觀提醒、停課通知與重設密碼連結都寄不出去'
     case 'line_messaging':
-      return d.configured ? '已設定，參觀通知會推到各校的 LINE 群組' : '未設定，參觀通知不會推到 LINE 群組'
+      return describeLine(d)
     case 'web_push':
       return d.configured
         ? `已設定，目前 ${count(d.devices)} 台裝置開啟通知`
