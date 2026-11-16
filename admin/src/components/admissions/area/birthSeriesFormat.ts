@@ -6,7 +6,7 @@ import { formatCount, populationVersionLabel, signedPercent } from './areaFormat
 // 近幾年的出生數（2026-10-14 出生走勢規格 §4.3）：本校半徑每 12 個月一期的出生數。只呈現後端算好的數字，
 // 不另外推估；缺月寫出來，不補值。
 
-export const BIRTH_SERIES_NOTE = '每 12 個月一期，加總本校半徑內各里的出生數；和前一期只比兩期都有資料的月份；出生依出生登記的戶籍里。資料來源：內政部戶政司。'
+export const BIRTH_SERIES_NOTE = '每 12 個月一期，加總本校半徑內各里的出生數；和前一期只比兩期都有資料的月份；出生依出生登記的戶籍里。結婚依戶政登記的里，只描述、不推估之後的出生。資料來源：內政部戶政司。'
 
 export interface BirthSeriesRow {
   key: string
@@ -17,6 +17,8 @@ export interface BirthSeriesRow {
   missing_text: string
   births: number
   births_text: string
+  marriages: number | null
+  marriages_text: string
   change_text: string
 }
 
@@ -44,6 +46,8 @@ export function birthSeriesRows(periods: readonly AreaTrendsBirthPeriod[]): Birt
     missing_text: birthMissingText(period),
     births: period.births,
     births_text: formatCount(period.births),
+    marriages: period.marriages,
+    marriages_text: period.marriages === null ? NO_VALUE : formatCount(period.marriages),
     change_text: birthChangeText(period.change_pct),
   }))
 }
@@ -51,13 +55,14 @@ export function birthSeriesRows(periods: readonly AreaTrendsBirthPeriod[]): Birt
 /** CSV：期間起訖寫文字（「114 年 10 月」，試算表不會當日期轉）、缺的月份用頓號、增減寫數字（沒有值寫空白）。 */
 export function birthSeriesCsv(periods: readonly AreaTrendsBirthPeriod[]): { header: string[]; rows: CsvCell[][] } {
   return {
-    header: ['期間起', '期間迄', '有資料月數', '缺的月份', '出生數', '和前一期增減（%）'],
+    header: ['期間起', '期間迄', '有資料月數', '缺的月份', '出生數', '結婚（對）', '和前一期增減（%）'],
     rows: periods.map((period) => [
       populationVersionLabel(period.starts),
       populationVersionLabel(period.ends),
       period.months,
       period.missing.map(populationVersionLabel).join('、'),
       period.births,
+      period.marriages ?? '',
       period.change_pct ?? '',
     ]),
   }
