@@ -294,6 +294,7 @@ async def precheck_submission(
 _TRACKING_COLUMNS = frozenset({
     "first_touch_source", "first_touch_campaign", "first_touch_on",
     "last_touch_source", "last_touch_campaign", "last_touch_on", "ad_click_ids",
+    "first_touch_ad_platform", "last_touch_ad_platform",
 })
 
 

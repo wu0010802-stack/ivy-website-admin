@@ -4121,6 +4121,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -4136,6 +4138,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */
@@ -11521,6 +11525,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -11534,6 +11540,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */
@@ -11641,6 +11649,8 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
             /** First Touch Campaign */
             first_touch_campaign?: string | null;
             /** First Touch On */
@@ -11656,6 +11666,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
             /** Last Touch Campaign */
             last_touch_campaign?: string | null;
             /** Last Touch On */

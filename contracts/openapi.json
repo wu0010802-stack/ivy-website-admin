@@ -332,6 +332,17 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
           "first_touch_campaign": {
             "anyOf": [
               {
@@ -389,6 +400,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
           },
           "last_touch_campaign": {
             "anyOf": [
@@ -23359,6 +23381,17 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
           "first_touch_campaign": {
             "anyOf": [
               {
@@ -23409,6 +23442,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
           },
           "last_touch_campaign": {
             "anyOf": [
@@ -23835,6 +23879,17 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
           "first_touch_campaign": {
             "anyOf": [
               {
@@ -23892,6 +23947,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
           },
           "last_touch_campaign": {
             "anyOf": [
