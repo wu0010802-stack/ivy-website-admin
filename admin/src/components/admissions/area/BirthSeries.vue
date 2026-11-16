@@ -43,8 +43,8 @@ function exportCsv() {
       <div class="birth-series__row birth-series__row--head" role="row">
         <span role="columnheader">期間</span>
         <span role="columnheader">出生數</span>
-        <span role="columnheader">結婚（對）</span>
         <span role="columnheader">和前一期</span>
+        <span role="columnheader">結婚（對）</span>
       </div>
       <div v-for="row in rows" :key="row.key" class="birth-series__row" role="row">
         <span role="rowheader">
@@ -57,8 +57,8 @@ function exportCsv() {
           </span>
           <span class="birth-series__number">{{ row.births_text }}</span>
         </span>
-        <span role="cell" class="birth-series__marriages">{{ row.marriages_text }}</span>
         <span role="cell" class="birth-series__change">{{ row.change_text }}</span>
+        <span role="cell" class="birth-series__marriages">{{ row.marriages_text }}</span>
       </div>
     </div>
     <p class="hint birth-series__note">{{ BIRTH_SERIES_NOTE }}</p>
@@ -174,7 +174,7 @@ function exportCsv() {
 
 @media (max-width: 720px) {
   .birth-series__row {
-    grid-template-columns: minmax(0, 1fr) 104px 56px 64px;
+    grid-template-columns: minmax(0, 1fr) 104px 64px 56px;
     padding: 8px 10px;
   }
 

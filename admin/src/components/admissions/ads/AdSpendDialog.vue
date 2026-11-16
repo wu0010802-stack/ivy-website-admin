@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { apiErrorMessage } from '../../../api/errors'
 import { putAdSpend } from '../../../api/admissions'
 import type { AdSpendEntry, AdSpendPlatform } from '../../../api/types'
-import { AD_ROW_LABELS, AD_SPEND_PLATFORMS } from '../../../admissions/adRoiFormat'
+import { AD_ROI_FIRST_MONTH, AD_ROW_LABELS, AD_SPEND_PLATFORMS } from '../../../admissions/adRoiFormat'
 import { notifyError } from '../../../composables/notify'
 
 // 每月廣告花費（手填）：新增或編輯一個月份＋平台的金額。編輯時月份與平台不能改。
@@ -28,7 +28,10 @@ watch(() => props.modelValue, (open) => {
 
 const editing = computed(() => props.entry !== null)
 const canSave = computed(() => !!month.value && !!platform.value && amount.value !== null && amount.value >= 0 && !saving.value)
-const disabledMonth = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}` > props.thisMonth
+const disabledMonth = (date: Date) => {
+  const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+  return key > props.thisMonth || key < AD_ROI_FIRST_MONTH
+}
 
 async function save() {
   if (!canSave.value || !platform.value || amount.value === null) return
@@ -60,10 +63,10 @@ async function save() {
         </el-select>
       </el-form-item>
       <el-form-item label="花費（新台幣）">
-        <el-input-number v-model="amount" data-test="ads-amount" :min="0" :precision="0" :controls="false" />
+        <el-input-number v-model="amount" data-test="ads-amount" :min="0" :max="10000000" :precision="0" :controls="false" />
       </el-form-item>
       <el-form-item label="備註">
-        <el-input v-model="note" maxlength="200" />
+        <el-input v-model="note" maxlength="100" show-word-limit />
       </el-form-item>
       <p v-if="error" class="ads-dialog__error" role="alert">{{ error }}</p>
     </el-form>

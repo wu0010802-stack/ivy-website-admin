@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { AD_ROW_LABELS, costText, defaultMonthRange, pendingText, spendText } from '../admissions/adRoiFormat'
+import { AD_ROW_LABELS, PARTIAL_NOTE, campusCellText, costCellText, costText, defaultMonthRange, googleZoneNote, pendingText, spendText } from '../admissions/adRoiFormat'
 import type { AdRoiRow } from '../api/types'
 
 const row = (changes: Partial<AdRoiRow> = {}): AdRoiRow => ({
   key: 'google', spend: 9000, spend_state: 'ok', missing_months: 0, clicks: 310, cases: 6, completed: 4, no_show: 0, deposited: 1,
-  cost_per_case: 1500, cost_per_completed: 2250, cost_per_deposit: 9000, ...changes,
+  cost_per_case: 1500, cost_per_completed: 2250, cost_per_deposit: 9000, cost_partial: false, ...changes,
 })
 
 describe('AD_ROW_LABELS', () => {
@@ -39,10 +39,34 @@ describe('costText', () => {
   })
 })
 
+describe('costCellText', () => {
+  it('只算部分月份的列加「＊」，沒有值仍是破折號', () => {
+    expect(costCellText(1500, false)).toBe('1,500')
+    expect(costCellText(1500, true)).toBe('1,500＊')
+    expect(costCellText(null, true)).toBe('—')
+    expect(PARTIAL_NOTE).toBe('＊ 只算有填花費的月份。')
+  })
+})
+
+describe('googleZoneNote', () => {
+  it('台北與沒有時區不提醒，其他時區提醒', () => {
+    expect(googleZoneNote('Asia/Taipei')).toBe('')
+    expect(googleZoneNote(null)).toBe('')
+    expect(googleZoneNote('America/Los_Angeles')).toBe('Google 花費依 America/Los_Angeles 切月份。')
+  })
+})
+
+describe('campusCellText', () => {
+  it('預約 / 到場 / 預繳；沒有資料是破折號', () => {
+    expect(campusCellText({ cases: 4, completed: 2, deposited: 1 })).toBe('4 / 2 / 1')
+    expect(campusCellText(undefined)).toBe('—')
+  })
+})
+
 describe('pendingText', () => {
   it('0 的項目省略', () => {
-    expect(pendingText({ upcoming: 3, awaiting_attendance: 0, considering: 2 })).toBe('另有 3 筆還沒到參觀日、2 筆到場後還在考慮。')
-    expect(pendingText({ upcoming: 1, awaiting_attendance: 2, considering: 3 })).toBe('另有 1 筆還沒到參觀日、2 筆還沒標記到場、3 筆到場後還在考慮。')
+    expect(pendingText({ upcoming: 3, awaiting_attendance: 0, considering: 2 })).toBe('廣告帶來的預約中，另有 3 筆還沒到參觀日、2 筆到場後還在考慮。')
+    expect(pendingText({ upcoming: 1, awaiting_attendance: 2, considering: 3 })).toBe('廣告帶來的預約中，另有 1 筆還沒到參觀日、2 筆還沒標記到場、3 筆到場後還在考慮。')
   })
   it('全 0 回空字串', () => {
     expect(pendingText({ upcoming: 0, awaiting_attendance: 0, considering: 0 })).toBe('')

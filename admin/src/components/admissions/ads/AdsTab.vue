@@ -7,7 +7,9 @@ import { apiErrorMessage } from '../../../api/errors'
 import { campusLabel } from '../../../api/labels'
 import type { AdRoi, AdSpendEntry, AdSpendPlatform } from '../../../api/types'
 import { taipeiToday } from '../../../admissions/academic'
-import { AD_ROW_LABELS, AD_ROI_FIRST_MONTH, costText, defaultMonthRange, pendingText, spendText } from '../../../admissions/adRoiFormat'
+import {
+  AD_ROW_LABELS, AD_ROI_FIRST_MONTH, PARTIAL_NOTE, campusCellText, costCellText, costText, defaultMonthRange, googleZoneNote, pendingText, spendText,
+} from '../../../admissions/adRoiFormat'
 import { NO_VALUE } from '../../../admissions/statsFormat'
 import { notifyError } from '../../../composables/notify'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
@@ -64,10 +66,12 @@ const currency = computed(() => data.value?.google.currency ?? null)
 const pending = computed(() => (data.value ? pendingText(data.value.pending) : ''))
 const campaigns = computed(() => data.value?.google.campaigns ?? [])
 const campusRows = computed(() => (data.value?.by_campus ?? []).filter((item) => item.cases > 0))
+const zoneNote = computed(() => googleZoneNote(data.value?.google.time_zone ?? null))
+const anyPartial = computed(() => data.value?.rows.some((row) => row.cost_partial) ?? false)
 const showCurrency = computed(() => !!currency.value && currency.value !== 'TWD')
 const count = (value: number | null) => (value === null ? NO_VALUE : formatCount(value))
 
-// 各校表：平台 × 校，列出預約數；沒有資料的格子留空白。
+// 各校表：平台 × 校，每格「預約 / 到場 / 預繳」；沒有資料的格子是破折號。
 const CAMPUS_ORDER = ['yihua', 'minghua', 'chongde', 'international', 'renwu']
 const campusPlatforms = computed(() => [...new Set(campusRows.value.map((item) => item.platform))])
 function campusCell(platform: string, campus: string) {
@@ -101,10 +105,11 @@ async function remove(entry: AdSpendEntry) {
   try {
     await deleteAdSpend(entry.month, entry.platform as AdSpendPlatform)
     ElMessage.success('已刪除')
-    void load()
   } catch (err) {
     notifyError(apiErrorMessage(err, '刪除失敗，請再試一次。'))
   }
+  // 失敗（例如別人已刪掉、404）也重讀，畫面才跟資料一致。
+  void load()
 }
 </script>
 
@@ -150,18 +155,20 @@ async function remove(entry: AdSpendEntry) {
               <td class="num">{{ formatCount(row.cases) }}</td>
               <td class="num">{{ formatCount(row.completed) }}</td>
               <td class="num">{{ formatCount(row.deposited) }}</td>
-              <td class="num">{{ costText(row.cost_per_case) }}</td>
-              <td class="num">{{ costText(row.cost_per_completed) }}</td>
-              <td class="num">{{ costText(row.cost_per_deposit) }}</td>
+              <td class="num">{{ costCellText(row.cost_per_case, row.cost_partial) }}</td>
+              <td class="num">{{ costCellText(row.cost_per_completed, row.cost_partial) }}</td>
+              <td class="num">{{ costCellText(row.cost_per_deposit, row.cost_partial) }}</td>
             </tr>
           </tbody>
         </table>
       </div>
+      <p v-if="anyPartial" class="hint ads-note ads-partial">{{ PARTIAL_NOTE }}</p>
       <p v-if="pending" class="ads-note ads-pending">{{ pending }}</p>
       <p v-if="!data.google.configured" class="hint ads-note">Google 花費尚未設定。</p>
       <p v-else-if="data.google.error" class="hint ads-note">Google 花費讀取失敗：{{ data.google.error }}</p>
       <p class="hint ads-note">預約含之後取消的。沒有計入：開了「不要追蹤」的訪客、看到廣告後直接來電或到校的家長。</p>
       <p class="hint ads-note">Google 花費約晚一天。<template v-if="showCurrency">Google 花費以 {{ currency }} 計。</template></p>
+      <p v-if="zoneNote" class="hint ads-note ads-zone">{{ zoneNote }}</p>
 
       <section v-if="campaigns.length" class="ads-block ads-campaigns" aria-label="Google 活動">
         <h3>Google 活動</h3>
@@ -192,7 +199,7 @@ async function remove(entry: AdSpendEntry) {
       </section>
 
       <section v-if="campusRows.length" class="ads-block ads-campus" aria-label="各校">
-        <h3>各校（廣告帶來的預約）</h3>
+        <h3>各校（廣告帶來的預約 / 到場 / 預繳）</h3>
         <div class="ads-scroll">
           <table class="ads-table">
             <thead>
@@ -204,7 +211,7 @@ async function remove(entry: AdSpendEntry) {
             <tbody>
               <tr v-for="platform in campusPlatforms" :key="platform">
                 <th scope="row">{{ platformLabel(platform) }}</th>
-                <td v-for="key in CAMPUS_ORDER" :key="key" class="num">{{ campusCell(platform, key) ? formatCount(campusCell(platform, key)!.cases) : NO_VALUE }}</td>
+                <td v-for="key in CAMPUS_ORDER" :key="key" class="num">{{ campusCellText(campusCell(platform, key)) }}</td>
               </tr>
             </tbody>
           </table>

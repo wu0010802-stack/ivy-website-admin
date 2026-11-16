@@ -55,15 +55,15 @@ export function birthSeriesRows(periods: readonly AreaTrendsBirthPeriod[]): Birt
 /** CSV：期間起訖寫文字（「114 年 10 月」，試算表不會當日期轉）、缺的月份用頓號、增減寫數字（沒有值寫空白）。 */
 export function birthSeriesCsv(periods: readonly AreaTrendsBirthPeriod[]): { header: string[]; rows: CsvCell[][] } {
   return {
-    header: ['期間起', '期間迄', '有資料月數', '缺的月份', '出生數', '結婚（對）', '和前一期增減（%）'],
+    header: ['期間起', '期間迄', '有資料月數', '缺的月份', '出生數', '和前一期增減（%）', '結婚（對）'],
     rows: periods.map((period) => [
       populationVersionLabel(period.starts),
       populationVersionLabel(period.ends),
       period.months,
       period.missing.map(populationVersionLabel).join('、'),
       period.births,
-      period.marriages ?? '',
       period.change_pct ?? '',
+      period.marriages ?? '',
     ]),
   }
 }

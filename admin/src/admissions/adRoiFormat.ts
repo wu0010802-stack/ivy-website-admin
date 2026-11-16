@@ -27,6 +27,24 @@ export function costText(value: number | null): string {
   return value === null ? NO_VALUE : money(value)
 }
 
+/** 成本格：沒有值是破折號；只算了有填花費月份的列（cost_partial）在數字後加「＊」。 */
+export function costCellText(value: number | null, partial: boolean): string {
+  return value === null ? NO_VALUE : `${money(value)}${partial ? PARTIAL_MARK : ''}`
+}
+
+export const PARTIAL_MARK = '＊'
+export const PARTIAL_NOTE = '＊ 只算有填花費的月份。'
+
+/** Google 花費依 GA4 資源的時區切月份；不是台北時才提醒（null 不提）。 */
+export function googleZoneNote(timeZone: string | null): string {
+  return timeZone && timeZone !== 'Asia/Taipei' ? `Google 花費依 ${timeZone} 切月份。` : ''
+}
+
+/** 各校格：預約 / 到場 / 預繳。 */
+export function campusCellText(cell: { cases: number; completed: number; deposited: number } | undefined): string {
+  return cell ? `${cell.cases} / ${cell.completed} / ${cell.deposited}` : NO_VALUE
+}
+
 export function spendText(row: AdRoiRow, currency: string | null): string {
   switch (row.spend_state) {
     case 'not_configured': return '未設定'
@@ -46,7 +64,7 @@ export function pendingText(pending: AdRoiPending): string {
   if (pending.upcoming) parts.push(`${pending.upcoming} 筆還沒到參觀日`)
   if (pending.awaiting_attendance) parts.push(`${pending.awaiting_attendance} 筆還沒標記到場`)
   if (pending.considering) parts.push(`${pending.considering} 筆到場後還在考慮`)
-  return parts.length ? `另有 ${parts.join('、')}。` : ''
+  return parts.length ? `廣告帶來的預約中，另有 ${parts.join('、')}。` : ''
 }
 
 function shiftMonth(month: string, delta: number): string {
