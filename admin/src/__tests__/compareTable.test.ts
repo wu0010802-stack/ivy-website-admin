@@ -132,7 +132,8 @@ describe('統計分頁的「五校比較」子分頁', () => {
   it('多校：切到五校比較才讀，帶頁首的學年學期，依後端順序每校一列', async () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, CHONGDE, RENWU]) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
-    expect(tabTexts(wrapper).at(-5)).toBe('五校比較')
+    const tabs = tabTexts(wrapper)
+    expect(tabs[tabs.indexOf('參觀預約') - 1]).toBe('五校比較')
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual([])
 
     const pane = await openCompare(wrapper)
