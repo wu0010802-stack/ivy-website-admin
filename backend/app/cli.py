@@ -740,7 +740,8 @@ async def geo_sync_command(**options) -> None:
     )
     print(
         f"幼兒園裁罰：{result.kindergarten_penalties}（{result.kindergarten_penalties_version or '尚未匯入'}，這次寫入 {result.kindergarten_penalty_rows} 筆）；"
-        f"幼兒園評鑑：{result.kindergarten_evaluations}（{result.kindergarten_evaluations_version or '尚未匯入'}，這次寫入 {result.kindergarten_evaluation_rows} 筆）"
+        f"幼兒園評鑑：{result.kindergarten_evaluations}（{result.kindergarten_evaluations_version or '尚未匯入'}，這次寫入 {result.kindergarten_evaluation_rows} 筆）；"
+        f"異動通知：{result.notices}（這次發出 {result.notices_sent} 則）"
     )
     if (
         result.doorplate_rows_skipped or result.kindergarten_rows_skipped or result.babycare_rows_skipped
