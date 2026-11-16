@@ -8,6 +8,7 @@ access token、私鑰、GA4 資源編號、Google 回應內容都不進 log、�
 
 from __future__ import annotations
 
+import math
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -79,7 +80,7 @@ def _parse(step: str, status: int, data: dict, metric_count: int) -> _Table:
             metrics = [float(item["value"]) for item in row["metricValues"]]
         except (KeyError, TypeError, ValueError):
             raise bad() from None
-        if len(dims) != len(_DIMENSIONS) or len(metrics) != metric_count:
+        if len(dims) != len(_DIMENSIONS) or len(metrics) != metric_count or not all(math.isfinite(m) for m in metrics):
             raise bad()
         month, campaign_id, name = dims
         if len(month) != 6 or not month.isdigit():
@@ -141,6 +142,8 @@ class Ga4Ads:
         for key in sorted(cost.value.rows.keys() | leads.value.rows.keys()):
             cost_name, cost_values = cost.value.rows.get(key, ("", [0.0, 0.0, 0.0]))
             lead_name, lead_values = leads.value.rows.get(key, ("", [0.0]))
+            if key[1].strip() in ("", "(not set)"):
+                continue  # 非 Google 廣告帶來的 session 會集中在 (not set)，不是活動
             row = GoogleCampaignMonth(
                 month=key[0], campaign_id=key[1], campaign_name=cost_name or lead_name,
                 cost=round(cost_values[0]), clicks=round(cost_values[1]), impressions=round(cost_values[2]),

@@ -73,6 +73,13 @@ def _month_or_422(value: str) -> date:
         raise _rejected("INVALID_MONTH", "月份格式要是 YYYY-MM，且不能晚於本月") from None
 
 
+def _range_month_or_422(value: str, this_month: date) -> date:
+    try:
+        return min(parse_month(value, today=date.max), this_month)
+    except InvalidMonth:
+        raise _rejected("INVALID_MONTH", "月份格式要是 YYYY-MM") from None
+
+
 def _platform_or_422(value: str) -> str:
     if value not in MANUAL_SPEND_PLATFORMS:
         raise _rejected("INVALID_PLATFORM", "這個平台不能手填花費")
@@ -99,10 +106,12 @@ async def list_ad_spend(
     """列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。"""
     require_scope(current_user, "admissions.stats")
     query = select(AdSpendEntry).order_by(AdSpendEntry.month, AdSpendEntry.platform)
+    this_month = today_local().replace(day=1)
+    # 區間可以晚於本月（截到本月）；格式不對才 422。
     if from_ is not None:
-        query = query.where(AdSpendEntry.month >= _month_or_422(from_))
+        query = query.where(AdSpendEntry.month >= _range_month_or_422(from_, this_month))
     if to is not None:
-        query = query.where(AdSpendEntry.month <= _month_or_422(to))
+        query = query.where(AdSpendEntry.month <= _range_month_or_422(to, this_month))
     return AdSpendListOut(entries=[_out(row) for row in (await db.execute(query)).scalars()])
 
 

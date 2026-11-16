@@ -60,6 +60,23 @@ async def test_ga4_drops_rows_without_ad_metrics(fake, settings):
     assert [row.campaign_id for row in report.rows] == ["24468966410"]
 
 
+async def test_ga4_drops_not_set_campaign_even_with_leads_or_cost(fake, settings):
+    fake.ga4_lead_rows.append((["202611", "(not set)", "(not set)"], ["7"]))
+    fake.ga4_cost_rows.append((["202611", "(not set)", "(not set)"], ["12", "1", "1"]))
+    fake.ga4_lead_rows.append((["202611", " ", ""], ["3"]))
+    report = await _run(fake, settings)
+    assert [row.campaign_id for row in report.rows] == ["24468966410"]
+    assert report.rows[0].leads == 5
+
+
+@pytest.mark.parametrize("bad", ["nan", "inf", "-inf"])
+async def test_ga4_non_finite_metric_is_malformed(fake, settings, bad):
+    fake.ga4_cost_rows[0] = (CAMPAIGN, [bad, "310", "4120"])
+    with pytest.raises(GoogleApiError) as exc:
+        await _run(fake, settings)
+    assert exc.value.reason == "回應格式不對" and exc.value.status == 200
+
+
 async def test_ga4_keeps_lead_only_rows_and_sorts(fake, settings):
     fake.ga4_lead_rows.append((["202610", "111", "舊活動"], ["2"]))
     report = await _run(fake, settings)

@@ -73,7 +73,6 @@ MARRIAGES = Series(
     {"marriages": ("marry_pair_OppositeSex", "marry_pair_SameSex")},
     BIRTHS_KEEP_MONTHS,
 )
-MARRIAGES_SOURCE_NOTE = "資料來源：內政部戶政司 各村（里）結婚、離婚、出生、死亡統計（ODRP060），依登記的戶籍里計"
 MIGRATION = Series(
     "migration",
     "ODRP011",
@@ -95,7 +94,7 @@ AGES = Series(
     GeoVillageAges,
     {**{f"age_{age}": _both(f"people_age_{age:03d}") for age in range(7)}, "people_total": ("people_total",)},
 )
-SOURCE_NOTE = "資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口"
+SOURCE_NOTE = "資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口、結婚統計（ODRP060）"
 
 
 @dataclass

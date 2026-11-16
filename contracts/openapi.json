@@ -130,12 +130,24 @@
               }
             ],
             "title": "Fetched At"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
           }
         },
         "required": [
           "configured",
           "error",
           "currency",
+          "time_zone",
           "fetched_at",
           "campaigns"
         ],
@@ -242,6 +254,10 @@
             "title": "Completed",
             "type": "integer"
           },
+          "cost_partial": {
+            "title": "Cost Partial",
+            "type": "boolean"
+          },
           "cost_per_case": {
             "anyOf": [
               {
@@ -337,7 +353,8 @@
           "deposited",
           "cost_per_case",
           "cost_per_completed",
-          "cost_per_deposit"
+          "cost_per_deposit",
+          "cost_partial"
         ],
         "title": "AdRoiRowOut",
         "type": "object"

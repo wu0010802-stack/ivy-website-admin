@@ -63,6 +63,16 @@ async def test_list_range_filter(admin_client):
     assert [e["month"] for e in entries] == ["2026-09"]
 
 
+async def test_list_range_beyond_this_month_is_clamped(admin_client):
+    await admin_client.put(f"{BASE}/2026-10/line", json={"amount": 1})
+    response = await admin_client.get(f"{BASE}?from=2026-10&to=2099-12")
+    assert response.status_code == 200
+    assert [e["month"] for e in response.json()["entries"]] == ["2026-10"]
+    assert (await admin_client.get(f"{BASE}?from=2099-01&to=2099-12")).status_code == 200
+    bad = await admin_client.get(f"{BASE}?from=2026-1&to=2026-12")
+    assert bad.status_code == 422 and bad.json()["detail"]["code"] == "INVALID_MONTH"
+
+
 async def test_branch_admin_forbidden(reception_yihua_client, readonly_yihua_client, admin_client):
     for client in (reception_yihua_client, readonly_yihua_client):
         assert (await client.get(BASE)).status_code == 403

@@ -5,6 +5,7 @@ from __future__ import annotations
 import itertools
 import uuid
 from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -17,6 +18,7 @@ from app.admissions.ad_roi import (
     SpendRow,
     compute_ad_roi,
     parse_month_range,
+    query_buckets,
 )
 from app.admissions.models import RecruitmentVisit
 from app.booking.models import VisitRequest, VisitRequestSource
@@ -49,6 +51,8 @@ def test_parse_month_range_rejects_reversed_and_too_long():
         parse_month_range("2026-11", "2026-10", date(2026, 11, 16))
     with pytest.raises(ValueError, match="最多 24 個月"):
         parse_month_range("2024-10", "2026-11", date(2026, 11, 16))
+    with pytest.raises(ValueError):
+        parse_month_range("0000-01", "2026-11", date(2026, 11, 16))
     assert len(parse_month_range("2024-12", "2026-11", date(2026, 11, 16))) == 24
     with pytest.raises(ValueError):
         parse_month_range("2026-1", "2026-11", date(2026, 11, 16))
@@ -61,8 +65,8 @@ def _report(*rows: GoogleCampaignMonth) -> GoogleState:
     return GoogleState(configured=True, report=Ga4AdsReport("TWD", "Asia/Taipei", list(rows), NOW))
 
 
-def _bucket(platform="google", campus="yihua", outcome="completed", deposited=False, considering=False, count=1):
-    return CaseBucket(platform, campus, outcome, deposited, considering, count)
+def _bucket(platform="google", campus="yihua", outcome="completed", deposited=False, considering=False, count=1, month="2026-11"):
+    return CaseBucket(platform, campus, outcome, deposited, considering, count, month)
 
 
 def _row(result, key):
@@ -100,12 +104,38 @@ def test_compute_manual_states():
     unset = compute_ad_roi(months, [_bucket("openai")], [], GoogleState(False))
     row = _row(unset, "openai")
     assert (row["spend_state"], row["spend"], row["cost_per_case"], row["missing_months"]) == ("unset", None, None, 0)
-    partial = compute_ad_roi(months, [_bucket("openai")], [SpendRow("2026-10", "openai", 3000)], GoogleState(False))
+    partial = compute_ad_roi(months, [_bucket("openai", month="2026-10")], [SpendRow("2026-10", "openai", 3000)], GoogleState(False))
     row = _row(partial, "openai")
     assert (row["spend_state"], row["spend"], row["missing_months"], row["cost_per_case"]) == ("ok", 3000, 2, 3000)
     zero = compute_ad_roi(months, [_bucket("openai")], [SpendRow(m, "openai", 0) for m in months], GoogleState(False))
     row = _row(zero, "openai")
     assert (row["spend_state"], row["spend"], row["missing_months"], row["cost_per_case"]) == ("ok", 0, 0, 0)
+
+
+def test_compute_manual_cost_only_divides_filled_months():
+    months = ["2026-11", "2026-12"]
+    buckets = [
+        _bucket("openai", month="2026-11", count=2), _bucket("openai", month="2026-12", count=2),
+        _bucket("openai", month="2026-11", deposited=True, count=1),
+    ]
+    row = _row(compute_ad_roi(months, buckets, [SpendRow("2026-11", "openai", 3000)], GoogleState(False)), "openai")
+    assert (row["cases"], row["completed"], row["deposited"]) == (5, 5, 1)
+    assert (row["cost_per_case"], row["cost_per_completed"], row["cost_per_deposit"]) == (1000, 1000, 3000)
+    assert row["cost_partial"] is True and row["missing_months"] == 1
+    # 兩個月都填：分母是整段期間
+    full = _row(compute_ad_roi(months, buckets, [SpendRow(m, "openai", 3000) for m in months], GoogleState(False)), "openai")
+    assert full["cost_partial"] is False and full["cost_per_case"] == 1200
+    # 只有 11 月的案件、12 月沒案件：3,000 / 2
+    simple = [_bucket("openai", month="2026-11", count=2), _bucket("openai", month="2026-12", count=2)]
+    row = _row(compute_ad_roi(months, simple, [SpendRow("2026-11", "openai", 3000)], GoogleState(False)), "openai")
+    assert row["cases"] == 4 and row["cost_per_case"] == 1500 and row["cost_partial"] is True and row["missing_months"] == 1
+
+
+def test_cost_partial_false_for_google_and_offline():
+    google = _report(GoogleCampaignMonth("2026-11", "1", "搜尋", 900, 3, 4, 1))
+    result = compute_ad_roi(["2026-11", "2026-12"], [_bucket()], [SpendRow("2026-11", "offline", 5)], google)
+    assert _row(result, "google")["cost_partial"] is False and _row(result, "offline")["cost_partial"] is False
+    assert result["google"]["time_zone"] == "Asia/Taipei"
 
 
 def test_compute_ignores_spend_outside_months():
@@ -256,6 +286,34 @@ async def test_manual_spend_read_from_table(admin_client, public_client, db_sess
     assert (row["spend"], row["spend_state"], row["cost_per_case"]) == (3000, "ok", 3000)
 
 
+async def test_bucket_month_uses_taipei_time(admin_client, public_client, db_session):
+    # 上個月 30 日 23:30（台北）＝ UTC 15:30，仍算上個月；本月 1 日 00:30（台北）＝ UTC 前一天 16:30，算本月
+    today = today_local()
+    this_first = today.replace(day=1)
+    prev_last = this_first - timedelta(days=1)
+    ads = dict(last_touch_source="ads", last_touch_ad_platform="openai")
+    late = datetime(prev_last.year, prev_last.month, prev_last.day, 23, 30, tzinfo=ZoneInfo("Asia/Taipei"))
+    early = datetime(this_first.year, this_first.month, 1, 0, 30, tzinfo=ZoneInfo("Asia/Taipei"))
+    await _case(admin_client, public_client, db_session, created_at=late, **ads)
+    await _case(admin_client, public_client, db_session, created_at=early, **ads)
+    prev, this = prev_last.strftime("%Y-%m"), this_first.strftime("%Y-%m")
+    now = datetime.now(timezone.utc)
+    buckets = await query_buckets(db_session, ["yihua"], [prev, this], "last", now)
+    got = sorted((b.month, b.count) for b in buckets if b.platform == "openai")
+    assert got == [(prev, 1), (this, 1)]
+
+
+async def test_cost_partial_end_to_end(admin_client, public_client, db_session):
+    today = today_local()
+    prev = (today.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    ads = dict(last_touch_source="ads", last_touch_ad_platform="openai")
+    await _case(admin_client, public_client, db_session, **ads)
+    assert (await admin_client.put(f"/api/website/v1/admin/admissions/ad-spend/{_month()}/openai", json={"amount": 3000})).status_code == 200
+    body = await _get(admin_client, **{"from": prev})
+    row = _rows(body)["openai"]
+    assert (row["cost_partial"], row["missing_months"], row["cost_per_case"]) == (True, 1, 3000)
+
+
 async def test_pending_counts(admin_client, public_client, db_session):
     ads = dict(last_touch_source="ads", last_touch_ad_platform="google")
     await _case(admin_client, public_client, db_session, **ads)  # 未到參觀日
@@ -301,6 +359,7 @@ async def test_cases_outside_range_ignored(admin_client, public_client, db_sessi
 
 @pytest.mark.parametrize("params", [
     {"from": "2026-11", "to": "2026-10"}, {"from": "2024-01", "to": "2026-11"}, {"from": "abc", "to": "2026-11"},
+    {"from": "0000-01", "to": "2026-11"}, {"from": "1999-12", "to": "2000-01"},
 ])
 async def test_invalid_range_is_422(admin_client, params):
     response = await admin_client.get(URL, params=params)

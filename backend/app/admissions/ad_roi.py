@@ -29,6 +29,7 @@ MAX_MONTHS = 24
 # 廣告列（§7.4 pending、by_campus 只數這些）：google～unknown。
 AD_ROW_KEYS = ROW_KEYS[:6]
 _MANUAL_ROWS = ("openai", "meta", "line", "other")
+MIN_YEAR = 2000  # 與 ad_roi_routes.parse_month 同下限
 _MONTH_RE = re.compile(r"^(\d{4})-(0[1-9]|1[0-2])$")
 
 
@@ -43,6 +44,8 @@ def parse_month_range(month_from: str, month_to: str, today: date) -> list[str]:
     """「YYYY-MM」區間展開成月份清單（含頭尾）。結束月份晚於本月就截到本月；開始晚於結束、
     或超過 24 個月丟 ValueError（訊息直接給畫面用，§7.1）。"""
     start, end = _parse(month_from), _parse(month_to)
+    if start[0] < MIN_YEAR or end[0] < MIN_YEAR:
+        raise ValueError("月份格式要是 YYYY-MM")
     end = min(end, (today.year, today.month))
     if start > end:
         raise ValueError("開始月份不能晚於結束月份")
@@ -60,6 +63,7 @@ class CaseBucket:
     deposited: bool
     considering: bool
     count: int
+    month: str  # 建立當下的台北月份 "YYYY-MM"
 
 
 @dataclass(frozen=True)
@@ -84,7 +88,9 @@ def _ratio(spend: int | None, denominator: int) -> int | None:
 
 
 def _google_section(state: GoogleState) -> dict:
-    out = {"configured": state.configured, "error": state.error, "currency": None, "fetched_at": None, "campaigns": []}
+    out = {
+        "configured": state.configured, "error": state.error, "currency": None, "time_zone": None, "fetched_at": None, "campaigns": [],
+    }
     report = state.report
     if not (state.configured and state.error is None and report is not None):
         return out
@@ -100,7 +106,7 @@ def _google_section(state: GoogleState) -> dict:
     campaigns = sorted(merged.values(), key=lambda c: (-c["cost"], c["campaign_id"]))
     for campaign in campaigns:
         campaign["cost_per_click"] = _ratio(campaign["cost"], campaign["clicks"])
-    out.update(currency=report.currency, fetched_at=report.fetched_at, campaigns=campaigns)
+    out.update(currency=report.currency, time_zone=report.time_zone, fetched_at=report.fetched_at, campaigns=campaigns)
     return out
 
 
@@ -109,12 +115,19 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
     google_out = _google_section(google)
     google_ok = google.configured and google.error is None and google.report is not None
     counts = {key: {"cases": 0, "completed": 0, "no_show": 0, "deposited": 0} for key in ROW_KEYS}
+    by_month: dict[str, dict[str, dict[str, int]]] = {key: {} for key in ROW_KEYS}
     pending = {"upcoming": 0, "awaiting_attendance": 0, "considering": 0}
     campus_counts: dict[tuple[str, str], dict] = {}
     for bucket in buckets:
         key = bucket.platform if bucket.platform in counts else "unknown"
         row = counts[key]
         row["cases"] += bucket.count
+        month_row = by_month[key].setdefault(bucket.month, {"cases": 0, "completed": 0, "deposited": 0})
+        month_row["cases"] += bucket.count
+        if bucket.outcome == "completed":
+            month_row["completed"] += bucket.count
+        if bucket.deposited:
+            month_row["deposited"] += bucket.count
         if bucket.outcome in ("completed", "no_show"):
             row[bucket.outcome] += bucket.count
         if bucket.deposited:
@@ -139,6 +152,8 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
     for key in ROW_KEYS:
         c = counts[key]
         state, amount, missing, clicks = "none", None, 0, None
+        denominators = {"cases": c["cases"], "completed": c["completed"], "deposited": c["deposited"]}
+        partial = False
         if key == "google":
             if not google.configured:
                 state = "not_configured"
@@ -154,6 +169,12 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
             if months_filled:
                 amount = sum(months_filled.values())
                 missing = len(months) - len(months_filled)
+                # 成本只除以「有填花費的月份」的案件，沒填的月份不讓成本被低估（§7.3）。
+                denominators = {
+                    name: sum(by_month[key].get(month, {}).get(name, 0) for month in months_filled)
+                    for name in denominators
+                }
+                partial = missing > 0 and key in _MANUAL_ROWS  # offline 不算成本
         has_record = key in filled
         if key == "google" or key == "organic":
             listed = True
@@ -173,9 +194,10 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
             "missing_months": missing,
             "clicks": clicks,
             **c,
-            "cost_per_case": _ratio(amount, c["cases"]) if priced else None,
-            "cost_per_completed": _ratio(amount, c["completed"]) if priced else None,
-            "cost_per_deposit": _ratio(amount, c["deposited"]) if priced else None,
+            "cost_per_case": _ratio(amount, denominators["cases"]) if priced else None,
+            "cost_per_completed": _ratio(amount, denominators["completed"]) if priced else None,
+            "cost_per_deposit": _ratio(amount, denominators["deposited"]) if priced else None,
+            "cost_partial": partial,
         })
 
     campus_order = {key: index for index, key in enumerate(CAMPUS_KEYS)}
@@ -225,6 +247,7 @@ async def query_buckets(
         select(
             platform.label("platform"),
             VisitRequest.campus_key.label("campus_key"),
+            func.to_char(func.timezone(OPERATING_TZ.key, VisitRequest.created_at), "YYYY-MM").label("month"),
             outcome.label("outcome"),
             deposited.label("deposited"),
             and_(outcome == "completed", ~deposited, ~withdrawn).label("considering"),
@@ -240,8 +263,14 @@ async def query_buckets(
     )
     rows = (
         await db.execute(
-            select(per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering, func.count())
-            .group_by(per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering)
+            select(
+                per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering,
+                per_case.c.month, func.count(),
+            )
+            .group_by(
+                per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering,
+                per_case.c.month,
+            )
         )
     ).all()
-    return [CaseBucket(p, c, o, bool(d), bool(k), n) for p, c, o, d, k, n in rows]
+    return [CaseBucket(p, c, o, bool(d), bool(k), n, m) for p, c, o, d, k, m, n in rows]

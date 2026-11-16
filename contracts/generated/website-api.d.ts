@@ -4132,6 +4132,8 @@ export interface components {
             error: string | null;
             /** Fetched At */
             fetched_at: string | null;
+            /** Time Zone */
+            time_zone: string | null;
         };
         /**
          * AdRoiOut
@@ -4174,6 +4176,8 @@ export interface components {
             clicks: number | null;
             /** Completed */
             completed: number;
+            /** Cost Partial */
+            cost_partial: boolean;
             /** Cost Per Case */
             cost_per_case: number | null;
             /** Cost Per Completed */

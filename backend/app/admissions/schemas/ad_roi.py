@@ -50,6 +50,7 @@ class AdRoiGoogleOut(BaseModel):
     configured: bool
     error: str | None
     currency: str | None
+    time_zone: str | None
     fetched_at: datetime | None
     campaigns: list[AdRoiGoogleCampaignOut]
 
@@ -67,6 +68,7 @@ class AdRoiRowOut(BaseModel):
     cost_per_case: int | None
     cost_per_completed: int | None
     cost_per_deposit: int | None
+    cost_partial: bool
 
 
 class AdRoiPendingOut(BaseModel):
