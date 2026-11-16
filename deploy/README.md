@@ -336,6 +336,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 官網 cookie 六項功能上線（main CI 部署，migration `a7c3e9f1b250` 只新增欄位與表）
+
+- **內容**：`a6aa9a00`（PR #100，`feature/cookie-features-20261116`）。跨次造訪的網站來源（`ivy_src`）寫進預約＋後台案件明細「網站來源」與招生統計「參觀預約」的網站來源表；到場、預繳回傳 GA4／Meta／ChatGPT 廣告（`ad_conversion_jobs`，**預設全關**）；這台裝置記住預約（`__Host-ivy_visit_remember`，預約頁「您已預約…」）；記住看過的校區（`ivy_campus`）；開場動畫 30 天內不重播；LINE Tag（**預設關**）。規格 `docs/specs/2026-11-16-cookie-features-design.md`，變數與開啟步驟見上面「網站來源、這台裝置記住預約、到場與預繳回傳廣告平台」「LINE Tag」兩節。migration 只新增，沒有備份。
+- **推前**：backend 全套 5476 passed；web 2421；admin 3555（1 個負載逾時，單獨重跑過）；web／admin typecheck、`contract:check`、`deploy/tests` 48；stack e2e 新 `cookie-features.spec.ts` 7 個＋hydration、booking-flow、booking-stats、public-csp、roles 等 180 個；預約頁提示列桌機／手機與後台表格截圖對照。
+- **CI**：PR 兩輪 pull_request 全綠（中間 main 併了 #99，README 頂部衝突，README 段落改成部署後補）；push 那組被取消擋住合併，`gh run rerun 43792800268` 後 CLEAN。main run 43795556282 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**（唯讀，沒有送預約）：`/release.json` base_commit `a6aa9a00`、`/api/website/v1/health` ok；帶 `?utm_source=chatgpt&utm_medium=cpc&utm_campaign=…&oppref=…` 進首頁回 `Set-Cookie: ivy_src=…; Max-Age=7776000; Path=/; HttpOnly; Secure; SameSite=Lax`，解出來是 ads／活動代碼／oppref；帶 `DNT: 1` 不寫、帶 `Sec-GPC: 1` 把已有的清掉；`/public/visit-remembered` 沒 cookie 回 204、假 cookie 回 204 並清掉 `__Host-ivy_visit_remember`；帶 `ivy_campus=minghua` 的首頁 SSR 就選在明華；公開頁 CSP 與前一版相同（沒有 LINE 網域）。
+- **沒驗**：真的預約一筆後的提示列與來源寫入（會發真的通知，留給使用者或測試預約時一起看）；正式站 30 週年開關是關的（首頁沒有布幕、`/anniversary` 404），開場不重播要等開關打開才有作用；第 2、6 項沒設變數，維持關閉。
+- **待使用者**：隱私權政策第 4、5、7 段改寫並發布（擬稿在規格附錄 A；網站來源、記住預約、記住校區、開場 cookie 已經生效）；要開第 2、6 項時自己拿金鑰／Tag ID 設 Railway 變數。
+
 ## 2026-11-16 後台側欄「官網內容」重新分組上線（main CI 部署，沒有 migration）
 
 - **內容**：`79d48894`（PR #99，`feature/admin-nav-groups-20261116`）。後台側欄「官網內容」從首頁／各校／全站與素材三個子組，改成首頁、各分頁（關於常春藤頁、特色教學頁、常春藤環境頁、校園探索、入學資訊頁、預約文案）、各校、全站共用（網站標題與電話、頁尾文字、隱私權政策）四個子組；素材庫與發布紀錄不收在分組裡，直接列在區段最下面。只動 `admin/`（`router/nav.ts`、`AdminSidebar.vue`、一句提醒文案與測試）和兩支 stack spec；項目名稱、網址、權限都沒變，沒有改 API、變數與資料庫。細節見 `README.md` 同日段落與 DESIGN.md「官網內容的分組」。
