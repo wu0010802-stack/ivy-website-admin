@@ -81,11 +81,14 @@ describe('年數由今年算', () => {
   it('幾年的說法：差一兩年到整十年寫「近」、整十年、其他「多年」', () => {
     expect([29, 30, 31, 37, 38, 40].map(yearsSpoken)).toEqual(['近三十年', '三十年', '三十多年', '三十多年', '近四十年', '四十年'])
   })
-  it('第一章標題：1997 是第 1 年，2026 是第 30 年，2027 滿 30 年；不再重複首屏的「五所校園」', () => {
-    expect(storyYearTitle(1997, 2026)).toEqual(['走到今年', '是第 30 年'])
+  // 2026-11-16 使用者：2026 寫「第 30 年」讀起來像已經滿 30 年（30 週年是 2027），改寫已滿幾年、差一年滿整十年寫「邁向 N 週年」
+  it('第一章標題：2026「邁向 30 週年」、2027 滿 30 年、2028 滿 31 年；不寫「第 N 年」，不再重複首屏的「五所校園」', () => {
+    expect(storyYearTitle(1997, 2026)).toEqual(['走到今年', '邁向 30 週年'])
     expect(storyYearTitle(1997, 2027)).toEqual(['走到今年', '滿 30 年'])
-    expect(storyYearTitle(1997, 2028)).toEqual(['走到今年', '是第 32 年'])
-    expect(storyYearTitle(1998, 2026)).toEqual(['走到今年', '是第 29 年'])
+    expect(storyYearTitle(1997, 2028)).toEqual(['走到今年', '滿 31 年'])
+    expect(storyYearTitle(1997, 2036)).toEqual(['走到今年', '邁向 40 週年'])
+    expect(storyYearTitle(1998, 2026)).toEqual(['走到今年', '滿 28 年'])
+    expect(storyYearTitle(1997, 2026).join('')).not.toMatch(/第 ?\d+ ?年/)
     expect(storyYearTitle(1997, 2026).join('')).not.toContain('五所校園')
   })
   it('首屏介紹：內建原文換年數，2026 年和原文一字不差；後台改寫過的照後台', () => {
@@ -259,9 +262,12 @@ describe('一路走來：年份里程表、一校一站', () => {
     expect(component).toContain('const finaleYear = ref(thisYear)')
     expect(component).toContain("if (el.classList.contains('abh-finale-year')) finaleYear.value = lastYear.value")
     expect(component).toContain("if (el.classList.contains('abh-finale-year')) finaleYear.value = thisYear")
-    expect(yearsRunning(1997, 2026)).toBe('第 30 年')
+    expect(yearsRunning(1997, 2026)).toBe('邁向 30 週年')
     expect(yearsRunning(1997, 2027)).toBe('滿 30 年')
-    expect(yearsRunning(1997, 2028)).toBe('第 32 年')
+    expect(yearsRunning(1997, 2028)).toBe('滿 31 年')
+    // 後台把創校年份改成今年（或改錯成未來）時不寫「滿 0 年」
+    expect(yearsRunning(2026, 2026)).toBe('第 1 年')
+    expect(yearsRunning(2030, 2026)).toBe('第 1 年')
   })
   it('每一站：手繪線稿（墨線＋淡彩；後台換過線稿的走 is-blend）、年份校名、沿革、地址電話；不放校園場景照', () => {
     expect(component).toContain('ink: campus ? lineArtInkImage(campus, SKETCH_SIZES) : null')
