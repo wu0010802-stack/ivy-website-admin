@@ -7,6 +7,9 @@ import { publicPage, type PublicPage } from './telemetry'
 // 造訪來源只分這幾種代碼；要和後端 operations/models.py 的 ENGAGEMENT_SOURCES 一致（測試會比對）。
 export const ENGAGEMENT_SOURCES = ['direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other'] as const
 export type EngagementSource = (typeof ENGAGEMENT_SOURCES)[number]
+// 廣告來自哪個平台（來源是 ads 時才有）；要和後端 booking/attribution.py 的 AD_PLATFORMS 一致（測試會比對）。
+export const AD_PLATFORMS = ['google', 'openai', 'meta', 'line', 'other'] as const
+export type AdPlatform = (typeof AD_PLATFORMS)[number]
 
 export const ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
 export const ENGAGEMENT_MAX_KEYS = 24

@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { adPlatformOf } from '../shared/engagement-source'
 import { ENGAGEMENT_KEY, ENGAGEMENT_SOURCES, newsItemOf, validateEngagement } from '../shared/engagement'
 import { BOOKED_ACTION, CLASS_ACTIONS, countEngagementAction, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
 
@@ -191,5 +192,21 @@ describe('內容興趣統計（2026-11-11）', () => {
       { ...base, actions: { faq: 0 } },
       { ...base, sections: Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`s${i}`, 1])) }
     ]) expect(validateEngagement(bad)).toBeNull()
+  })
+})
+
+describe('廣告平台判斷（2026-11-16）', () => {
+  it.each([
+    ['?gclid=abc', 'google'], ['?gbraid=x', 'google'], ['?wbraid=x', 'google'],
+    ['?oppref=tok', 'openai'], ['?ldtag_cl=tok', 'line'],
+    ['?utm_medium=paid&utm_source=facebook', 'meta'], ['?utm_medium=cpc&utm_source=IG', 'meta'],
+    ['?utm_medium=cpc&utm_source=newsletter', 'other'], ['?gclid=a&utm_medium=paid&utm_source=facebook', 'google']
+  ])('adPlatformOf(%s) = %s', (search, platform) => expect(adPlatformOf(search)).toBe(platform))
+
+  it('fbclid alone is not an ad', () => expect(adPlatformOf('?fbclid=abc')).toBeUndefined())
+
+  it('ChatGPT and LINE ad clicks count as ads', () => {
+    expect(classifySource('https://chatgpt.com/', '?oppref=tok', 'https://www.ivykidschool.com')).toBe('ads')
+    expect(classifySource('', '?ldtag_cl=tok', 'https://www.ivykidschool.com', 'Line/14.0')).toBe('ads')
   })
 })
