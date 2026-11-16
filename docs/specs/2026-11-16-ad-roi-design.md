@@ -1,7 +1,7 @@
 # 廣告成效與成本、各里結婚對數、Google 商家檔案、關鍵字搜尋量（設計）
 
 - 日期：2026-11-16
-- 狀態：草稿，待業主核可
+- 狀態：階段一已實作（feature/ad-roi-20261116，未合併、未部署）
 - 基準：`origin/main` `7b4ad4ed`
 - 工作分支：`feature/ad-roi-20261116`（worktree `~/Repositories/ivy-website-wt/ad-roi-20261116`，sparse）
 - 相關規格：cookie 六項 `2026-11-16-cookie-features-design.md`（§1 跨次來源、§2 回傳廣告平台）、外部服務五項 `2026-11-12-external-integrations-design.md`（§3 Search Console）、出生走勢 `2026-10-14-birth-series-design.md`、里的變化 `2026-10-14-admissions-village-trends-design.md`、地圖工作台 `2026-10-16-admissions-area-workbench-design.md`
@@ -114,6 +114,7 @@
 - **還沒定案的數**：同一批案件裡還沒到參觀日、或已到場但仍在考慮的筆數另外回傳，畫面寫「另有 N 筆還沒到參觀日、M 筆到場後還在考慮」，提醒預繳數還會變。
 - **各校**：平台 × 校區的預約、到場、預繳筆數，沒有花費。
 - **Google 活動明細**：GA4 回來的每個活動一列（活動名稱、花費、點擊、曝光、單次點擊成本、Google 回報的預約轉換）。官網這邊目前不分 Google 活動（自動標記不帶 `utm_campaign`），所以活動列沒有後台的到場與預繳；業主日後若在 Google Ads 的追蹤範本加上 `utm_campaign={campaignid}`，官網就會記到活動代碼，屆時可再對起來（本期不做）。
+- **「沒有來源紀錄」列**（實作時加，規格外）：沒有來源 cookie 的預約（開了 DNT／GPC、2026-11-16 之前送出的）另列一行 `unrecorded`，不混進「非廣告來源」；補登的預約本來就不在案件批次內。「預約」數含之後被取消的預約。
 - **已知的低估或高估**：開了「不要追蹤」的訪客、看到廣告後直接打電話或走進來的，都不會算到廣告，所以成本會偏高；畫面一行註腳寫明。
 
 ## 8. 畫面

@@ -220,6 +220,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_GA4_PROPERTY_ID` | `563982090` | GA4 資源編號（純數字 6–12 位，管理 → 資源設定）。選填；與 Search Console 共用同一個服務帳戶（要把它加進該 GA4 資源的「檢視者」），用來唯讀讀 Google 廣告各活動每月花費與預約轉換（`app/insights/ga4_ads.py`）。格式不對 api 拒絕啟動，錯誤訊息不含值 |
 | `WEBSITE_CRUX_API_KEY` | GCP 的 API key | 只用來呼叫 Chrome UX Report API。查的網站是 `WEBSITE_PUBLIC_ORIGIN`（沒設就是 `WEBSITE_ADMIN_ORIGIN`，正式站是 `https://www.ivykidschool.com`） |
 
+**GA4 廣告花費（2026-11-16，`feature/ad-roi-20261116`，未部署）**：招生統計 → 廣告成效的 Google 花費來源，選填，沒設時 Google 列顯示「未設定」，其他功能不受影響。
+
+1. GA4 資源 `563982090` → 管理 → 資源存取管理：把 Search Console 服務帳戶的 email（`WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` 裡的 `client_email`）加為「檢視者」。
+2. 該服務帳戶所屬的 Google Cloud 專案：啟用「Google Analytics Data API」。
+3. Railway api 服務設 `WEBSITE_GA4_PROPERTY_ID=563982090`（需先有服務帳戶變數；改變數會重新部署，先確認沒有人在部署）。
+4. 驗證：後台招生統計 → 廣告成效，Google 列的花費顯示數字而不是「未設定」或「讀取失敗」。
+5. 各里結婚對數隨既有「公開地理資料同步」一起抓，不需要新變數。
+
 三個互相獨立：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
 
 **程式做了什麼**（`backend/app/insights/`）
