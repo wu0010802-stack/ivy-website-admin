@@ -72,8 +72,8 @@
 .cur-kicker .cur-num { color: var(--cur-accent); }
 .cur-title { margin: 0; font: 700 var(--cur-title)/1.26 var(--font-head); color: var(--green); letter-spacing: .01em; word-break: keep-all; overflow-wrap: anywhere; text-wrap: balance; }
 .cur-text { max-width: 30em; margin: 22px 0 0; word-break: keep-all; overflow-wrap: anywhere; }
-/* 美術館橫滑的張數，只有手機顯示（760px 以下才橫滑） */
-.cur-count { display: none; }
+/* 美術館橫滑的進度條，只有手機顯示（760px 以下才橫滑） */
+.cur-ticks { display: none; }
 .cur-source { display: block; margin-top: 8px; font-size: var(--fs-sm); color: var(--muted); }
 /* 手機橫滑清單可 Tab 聚焦：沿用全站 3px 焦點環，清單貼齊視窗左右緣，所以畫在框內（2026-10-13；原本是瀏覽器預設 1px 黑框） */
 .cur [data-reveal-group]:focus-visible { outline: 3px solid var(--leaf); outline-offset: -3px; }
@@ -273,15 +273,25 @@
 
   /* 美術館：唯一的橫滑。作品等高、寬度照原比例（原本同寬，橫幅比直幅矮 127px，底下空一塊）；
      高度上限 60vw，4:3 的橫幅最寬 80vw，下一件一定露得出來。吸附放鬆，不會一張一張卡住。清單本身鋪一片淡顏料。 */
-  .cur-art-wall { --art-h: min(240px, 60vw); display: flex; align-items: flex-start; gap: 14px; margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 20px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
+  .cur-art-wall { --art-h: min(240px, 60vw); --art-gap: 14px; display: flex; align-items: flex-start; gap: var(--art-gap); margin-inline: calc(-1 * var(--cur-gutter)); padding: 12px var(--cur-gutter) 8px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scroll-padding-inline: var(--cur-gutter); scrollbar-width: none; }
   .cur-art-wall::-webkit-scrollbar { display: none; }
+  /* 尾端留白（2026-11-16）：補到「最後一件停在起點時，右邊剛好到清單尾」。原本作品寬度不一，滑到底時最後一件停不到起點，
+     左邊露出上一件約 60px 的殘邊。100% 是清單的內容寬（扣掉左右 gutter）；--art-last-ratio 由元件依最後一件的寬高比給。 */
+  .cur-art-wall::after { content: ""; flex: none; width: max(0px, 100% - var(--art-gap) - var(--art-h) * var(--art-last-ratio, 1.3333)); }
   .cur-art { flex: none; margin: 0 !important; scroll-snap-align: start; }
   .cur-art .cur-frame, .cur-art img { height: var(--art-h); }
   .cur-art img { width: auto; }
-  /* 張數提示（2026-11-11）：清單底下一行「1 / 8　左右滑動」，數字跟著捲動變 */
-  .cur-count { display: flex; align-items: baseline; gap: 4px; margin: 0; font: 600 var(--fs-sm)/1.4 var(--font-date); letter-spacing: .08em; color: var(--muted); font-variant-numeric: tabular-nums; }
-  .cur-count b { font-weight: 700; color: var(--green); }
-  .cur-count span { margin-left: 10px; font-family: var(--font); font-weight: 400; letter-spacing: .04em; }
+  /* 進度條（2026-11-16 取代 11-11 的「1 / 8　左右滑動」，那行是操作說明字）：一件一段，目前這件深綠，其餘淡線；
+     每段是按鈕，點了捲到那一件。看得到的只有 4px 的線，點擊範圍是整段寬 × 32px 高。 */
+  .cur-ticks { display: flex; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .cur-ticks li { flex: 1; min-width: 0; }
+  .cur-ticks button { position: relative; display: block; width: 100%; height: 32px; padding: 0; border: 0; background: none; cursor: pointer; }
+  .cur-ticks button::before { content: ""; position: absolute; inset: 14px 0 auto; height: 4px; border-radius: 2px; background: var(--line); transition: background-color .25s; }
+  .cur-ticks button[aria-current="true"]::before { background: var(--green); }
+  .cur-ticks button:focus-visible { outline: 3px solid var(--leaf); outline-offset: 2px; border-radius: 4px; }
+  /* 進度條和下面地板畫各自的顏料原本連成一片（地板畫的顏料往上暈約 26px）：清單的顏料收在作品後面（元件的 data-wash-mobile），
+     地板畫多往下 16px，進度條四周留一段乾淨的紙。只動美術館這張，04 的寬幅照不變。 */
+  .cur-ticks + .cur-band { margin-top: 72px; }
   .cur-band .cur-frame { aspect-ratio: 4 / 3; }
 
   /* 五件事：一列一件，左邊方形照片、右邊編號＋標題＋內文（同上面的年段）。nth-child(n) 是為了蓋過桌機、平板指定欄位與錯落的那幾條 */
@@ -310,7 +320,7 @@
 @media (prefers-reduced-motion: reduce) {
   .cur.is-live [data-reveal] { transition: opacity .3s linear; }
   .cur.is-live [data-reveal]:not(.is-in) { transform: none; }
-  .cur-blot, .cur-frame.has-mask, .cur-index b { transition: none; }
+  .cur-blot, .cur-frame.has-mask, .cur-index b, .cur-ticks button::before { transition: none; }
 }
 @media (forced-colors: active) {
   .cur-wash, .cur-grain, .cur-blot { display: none; }
@@ -318,4 +328,7 @@
   .cur-hero::after, .cur-sec::after { display: none; }
   .cur-frame.has-mask { -webkit-mask: none; mask: none; }
   .cur-pan, .cur-thing-no { border: 1px solid CanvasText; border-radius: 50%; }
+  /* 美術館進度條是背景色畫的線，強制色彩會把背景換成底色；改用系統色，目前這件用 Highlight */
+  .cur-ticks button::before { forced-color-adjust: none; background: GrayText; }
+  .cur-ticks button[aria-current="true"]::before { background: Highlight; }
 }

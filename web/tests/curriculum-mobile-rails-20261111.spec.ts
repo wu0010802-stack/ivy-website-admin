@@ -25,21 +25,21 @@ describe('手機只有美術館橫滑', () => {
     expect(mobile.match(/overflow-x: auto/g)).toHaveLength(1)
     expect(rule('.cur-art-wall')).toContain('overflow-x: auto')
   })
-  it('只有美術館接捲動事件、有張數', () => {
+  // 11-16 起張數「1 / 8　左右滑動」改成進度條，細節在 curriculum-gallery-ticks-20261116.spec.ts
+  it('只有美術館接捲動事件、有進度條', () => {
     expect(cur.match(/@scroll\.passive=/g)).toHaveLength(1)
     expect(tag('cur-art-wall')).toContain('@scroll.passive="onGalleryScroll"')
-    expect(cur.match(/class="cur-count"/g)).toHaveLength(1)
-    expect(cur).toContain('<p class="cur-count" aria-hidden="true"><b>{{ galleryAt }}</b> / {{ gallery.length }}<span>左右滑動</span></p>')
+    expect(cur.match(/class="cur-ticks"/g)).toHaveLength(1)
   })
   it('整條清單鋪的那片顏料只留給還在橫滑的美術館（直排的清單每張照片畫自己的）', () => {
     expect(cur.match(/data-wash-mobile=/g)).toHaveLength(1)
     expect(tag('cur-art-wall')).toContain('data-wash-mobile=')
   })
-  it('張數桌機不顯示，760 以下才顯示', () => {
-    const base = css.indexOf('.cur-count { display: none; }')
+  it('進度條桌機不顯示，760 以下才顯示', () => {
+    const base = css.indexOf('.cur-ticks { display: none; }')
     expect(base).toBeGreaterThan(-1)
     expect(base).toBeLessThan(mobileAt)
-    expect(rule('.cur-count')).toContain('display: flex')
+    expect(rule('.cur-ticks')).toContain('display: flex')
   })
 })
 
