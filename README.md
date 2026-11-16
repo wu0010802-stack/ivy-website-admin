@@ -1,4 +1,4 @@
-## 2026-11-16 區域分析：人口年份滑桿、五校周邊環境、園所異動通知（`feature/area-compare-notices-20261116`，未合併、未部署）
+## 2026-11-16 區域分析：人口年份滑桿、五校周邊環境、園所異動通知（`feature/area-compare-notices-20261116`，已部署 main `94a84e8d`）
 
 業主 11-16 從候選清單挑了三項，規格 `docs/specs/2026-11-16-area-compare-notices-design.md`、計畫 `docs/superpowers/plans/2026-11-16-area-compare-notices.md`。
 

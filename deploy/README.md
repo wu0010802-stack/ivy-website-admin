@@ -336,6 +336,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 區域分析：年份滑桿、五校周邊環境、異動通知上線（main CI 部署，migration `a9c4e7b2d815` 只新增兩張表）
+
+- **提交**：PR #101 合併進 main（`94a84e8d`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43799180432，含公開 smoke）。分支 `feature/area-compare-notices-20261116`，規格 `docs/specs/2026-11-16-area-compare-notices-design.md`。
+- **migration**：`a9c4e7b2d815` 只新增 `geo_change_notices`、`geo_change_notice_baselines`，接在 cookie 功能的 `a7c3e9f1b250` 之後（兩個 PR 原本都接在 `d4b7e1a95c26`，第一輪 CI 因兩個 head 全紅，改接後解決）；沒有備份、沒有新環境變數、沒有依賴檔變動。API 啟動時自動套用。
+- **還沒生效／要看的**：異動通知在公開資料同步尾端檢查，要等下一輪自動同步（`WEBSITE_GEO_AUTO_SYNC` 開著、每天一輪）；**第一輪只記帳不發通知**，每校每種各寫一列基準。檢查（使用者在 Railway Postgres 的 Database 分頁）：`select campus_key, kind, established_at from geo_change_notice_baselines order by 1,2;`（有座標的校區兩種各一列）、`select campus_key, kind, notified, count(*) from geo_change_notices group by 1,2,3;`；CLI 手動同步的總結行末尾會多「異動通知：updated（這次發出 N 則）」。
+- **沒驗證**：登入正式站實際看畫面（區域分析 2–5 歲滑桿、五校比較的周邊環境表、站內通知）；390 寬度手機排版從沒人工看過。
+- **已知取捨**：新設幼兒園以設立日套 90 天時間窗，來源晚收錄的新園會只記帳不發通知（要不要改 365 天待使用者決定）。
+
 ## 2026-11-16 官網 cookie 六項功能上線（main CI 部署，migration `a7c3e9f1b250` 只新增欄位與表）
 
 - **內容**：`a6aa9a00`（PR #100，`feature/cookie-features-20261116`）。跨次造訪的網站來源（`ivy_src`）寫進預約＋後台案件明細「網站來源」與招生統計「參觀預約」的網站來源表；到場、預繳回傳 GA4／Meta／ChatGPT 廣告（`ad_conversion_jobs`，**預設全關**）；這台裝置記住預約（`__Host-ivy_visit_remember`，預約頁「您已預約…」）；記住看過的校區（`ivy_campus`）；開場動畫 30 天內不重播；LINE Tag（**預設關**）。規格 `docs/specs/2026-11-16-cookie-features-design.md`，變數與開啟步驟見上面「網站來源、這台裝置記住預約、到場與預繳回傳廣告平台」「LINE Tag」兩節。migration 只新增，沒有備份。
