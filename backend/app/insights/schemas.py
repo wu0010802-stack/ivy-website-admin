@@ -89,3 +89,43 @@ class CruxOut(BaseModel):
     origin: str | None = None
     as_of: datetime | None = None
     devices: list[CruxDeviceOut] = Field(default_factory=list)
+
+
+class LineFollowerAccountOut(BaseModel):
+    """一個 LINE 官方帳號在期間內的好友數（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵。"""
+
+    key: str
+    display_name: str | None
+    basic_id: str | None
+    # 實際比較的兩天（UTC+9）：開始日前一天、結束日（今天的還沒算好就往前一天）。
+    from_date: date
+    to_date: date
+    # LINE 還沒算好（status 不是 ready）時是 False，數字為 null。
+    ready: bool | None = None
+    # 累計加好友次數（封鎖不會減少）、目前封鎖人數、可以精準發送的人數。
+    followers: int | None = None
+    blocks: int | None = None
+    targeted_reaches: int | None = None
+    new_followers: int | None = None
+    blocks_change: int | None = None
+    # 查不到：LINE 回的 HTTP 狀態碼（連不上時為 0）。
+    error_status: int | None = None
+
+
+class LineCampusClicksOut(BaseModel):
+    # None＝官網上不分校區的 LINE 按鈕（頁首、頁尾）。
+    campus_key: str | None
+    campus_name: str
+    # 期間內官網 LINE 按鈕的點擊數（成效事件 cta_click_line）。
+    line_clicks: int
+    # 期間內綁定 LINE 通知的預約數。
+    linked: int
+
+
+class LineInsightsOut(BaseModel):
+    # 有沒有任何一個官方帳號設好 Messaging API 金鑰；沒有時 accounts 是空的，校區列照常回。
+    configured: bool
+    start: date
+    end: date
+    accounts: list[LineFollowerAccountOut]
+    campuses: list[LineCampusClicksOut]

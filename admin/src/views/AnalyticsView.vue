@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
 import CruxPanel from '../components/CruxPanel.vue'
+import LineInsightsPanel from '../components/LineInsightsPanel.vue'
 import PageHeader from '../components/PageHeader.vue'
 import SearchInsightsPanel from '../components/SearchInsightsPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
@@ -99,6 +100,8 @@ const statusText = computed(() => {
     <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
+    <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
+    <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
   </div>
 </template>
 

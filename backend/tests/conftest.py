@@ -200,6 +200,12 @@ def _reset_process_caches():
     from app.content import routes as content_routes
     from app.admissions.geo import sync as geo_sync
 
+    from app.insights import line_insights
+    from app.notifications import line_accounts, line_parent
+
+    line_parent.clear_bot_info_cache()
+    line_accounts.clear_quota_cache()
+    line_insights.clear_cache()
     traffic_service._last_purge = None
     media_service._release_media_cache = None
     public_caps._last_logged.clear()

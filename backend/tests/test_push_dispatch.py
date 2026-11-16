@@ -39,10 +39,11 @@ class FakeLine:
         self.pushes: list[str] = []
         self.fail = fail
 
-    async def push_text(self, to: str, text: str, *, key) -> None:
+    async def push(self, to: str, messages: list[dict], *, key) -> None:
+        # 2026-11-16 起群組推播是卡片訊息：記 altText（通知預覽看到的那句）。
         if self.fail:
             raise line_api.LinePushError("LINE_HTTP_500")
-        self.pushes.append(text)
+        self.pushes.append(messages[0].get("altText") or messages[0].get("text", ""))
 
 
 class Recorder:

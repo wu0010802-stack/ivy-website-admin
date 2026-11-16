@@ -67,6 +67,7 @@ async def test_dry_run_counts_without_writing(app, admin_client, public_client, 
             "notified": 1,
             "already_notified": 0,
             "no_email": 0,
+            "with_line": 0,
         }
     ]
     assert (await db_session.scalar(select(VisitException.id))) is None
@@ -93,6 +94,7 @@ async def test_closure_closes_the_day_and_queues_one_notice_per_booking(app, adm
         "notified": 1,
         "already_notified": 0,
         "no_email": 0,
+        "with_line": 0,
     }
     second = again.json()["campuses"][0]
     assert second["already_closed"] is True

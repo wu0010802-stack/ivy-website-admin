@@ -24,8 +24,8 @@ def enqueue_outbox(db: AsyncSession, visit_request_id: uuid.UUID, kind: str, pay
     )
 
 
-# 寄給家長的確認信（只走 Email，不寫站內通知、不推 LINE）。payload 只放 id，
-# 修改連結在寄件當下才重算，原始 token 不進 DB。
+# 寄給家長的確認信（Email；家長綁了 LINE 通知時也推到他的 LINE，2026-11-16）。不寫站內通知、
+# 不推園方群組。payload 只放 id，修改連結在寄件當下才重算，原始 token 不進 DB。
 PARENT_VISIT_BOOKED = "parent_visit_booked"
 PARENT_VISIT_CHANGED = "parent_visit_changed"
 PARENT_VISIT_CANCELLED = "parent_visit_cancelled"
@@ -52,7 +52,8 @@ PARENT_KINDS = frozenset(
 
 
 async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> None:
-    """排一封家長信（沒有 Email 就不排）。
+    """排一封家長信（沒有 Email、也沒綁 LINE 通知就不排；2026-11-16 起綁了 LINE 的同一則也推 LINE，
+    哪些管道真的送由 notifications.service 在送出當下決定）。
 
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
@@ -60,7 +61,10 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
     if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER, PARENT_EMAIL_CHANGED):
         raise ValueError(kind)
     if not visit_request.email:
-        return
+        from app.notifications import line_parent
+
+        if not await line_parent.has_active_link(db, visit_request.id):
+            return
     if kind == PARENT_VISIT_CHANGED:
         queued = await db.scalar(
             select(OutboxMessage.id)

@@ -22,10 +22,11 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 
-from sqlalchemy import Text, cast, func, or_, select, update
+from sqlalchemy import Text, cast, delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.notifications.models import LineParentLink, LineParentLinkCode
 from app.admissions import retention as admissions_retention
 from app.booking import status_groups
 from app.booking.models import OutboxMessage, VisitContactNote, VisitRequest, VisitRequestEvent, VisitRequestStatus
@@ -203,6 +204,9 @@ async def anonymize(db: AsyncSession, visit_request: VisitRequest) -> bool:
     )
     await _clear_free_text_reasons(db, [visit_request.id])
     await _clear_old_email_notices(db, visit_request.id)
+    # 家長 LINE 通知的綁定（2026-11-16）：LINE userId 能把這筆預約連回某個人，連同沒用掉的代碼一起刪。
+    await db.execute(delete(LineParentLink).where(LineParentLink.visit_request_id == visit_request.id))
+    await db.execute(delete(LineParentLinkCode).where(LineParentLinkCode.visit_request_id == visit_request.id))
     visit_request.anonymized_at = datetime.now(timezone.utc)
     await db.flush()
     return True

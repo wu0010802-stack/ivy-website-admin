@@ -471,6 +471,8 @@ describe('2026-10-06 後台 bug 稽核：預約與總覽（第 1–8 條）', ()
         webhook_url: 'https://ivy.example/api/website/v1/line/webhook',
         groups: [{ target_id: GROUP, source_type: 'group', name: '校務群', first_seen_at: '2026-09-24T01:00:00Z', last_seen_at: '2026-09-24T01:00:00Z', left_at: null, verified_at: '2026-09-24T01:05:00Z' }],
         targets,
+        accounts: [],
+        parent_campuses: [],
       }
     }
 

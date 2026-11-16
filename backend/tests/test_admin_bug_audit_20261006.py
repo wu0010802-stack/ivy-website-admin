@@ -695,20 +695,23 @@ async def test_admin_origin_with_trailing_slash_still_accepts_writes(app, db_ses
 # ---------------------------------------------------------------- 通知
 
 from app.booking.models import OutboxMessage, VisitSlot  # noqa: E402
-from app.notifications.service import line_text  # noqa: E402
+from app.notifications.service import staff_line_message  # noqa: E402
+from tests.test_line_notifications import flex_texts  # noqa: E402
 from app.workers.runner import process_outbox_batch  # noqa: E402
 
 
 def test_line_text_strips_links_from_parent_name():
-    text = line_text(
+    # 2026-11-16 起群組推播是卡片訊息，家長稱呼一樣先拿掉網址、限 20 字。
+    message = staff_line_message(
         "新的參觀預約", "義華校", "case-1", "https://admin.ivy.example",
         parent_name="王媽媽 後台已更新請改由 https://evil.example/login 或 www.evil.example 登入",
     )
-    parent_line = next(line for line in text.splitlines() if line.startswith("家長："))
-    assert "http" not in parent_line and "evil" not in parent_line and "www." not in parent_line
-    assert parent_line.startswith("家長：王媽媽")
-    assert len(parent_line) <= len("家長：") + 20
-    assert "https://admin.ivy.example/admin/visit-requests/case-1" in text
+    texts = flex_texts(message)
+    parent = texts[texts.index("家長") + 1]
+    assert "http" not in parent and "evil" not in parent and "www." not in parent
+    assert parent.startswith("王媽媽")
+    assert len(parent) <= 20
+    assert "https://admin.ivy.example/admin/visit-requests/case-1?openExternalBrowser=1" in texts
 
 
 @pytest.mark.asyncio

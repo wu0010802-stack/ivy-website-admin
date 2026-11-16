@@ -52,6 +52,13 @@ describe('進站更新', () => {
     expect(fb.o).toEqual(next.o)
   })
 
+  it('LINE 廣告的 ldtag_cl 記成 n，讀回來也保留（2026-11-16）', () => {
+    const line = nextAttribution(null, landing('', '?utm_source=line&utm_medium=cpc&ldtag_cl=CL.abc-123_x'), NOW)
+    expect(line.n).toEqual({ v: 'CL.abc-123_x', t: NOW.getTime() })
+    expect(decodeAttribution(encodeAttribution(line))?.n).toEqual(line.n)
+    expect(nextAttribution(null, landing('', '?ldtag_cl=a%3Bb'), NOW).n).toBeUndefined()
+  })
+
   it('格式怪的點擊代碼不記', () => {
     expect(nextAttribution(null, landing('', '?oppref=a%3Bb&fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'facebook', d: '2026-11-16' }, l: { s: 'facebook', d: '2026-11-16' } })
   })

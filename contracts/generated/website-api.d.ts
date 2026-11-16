@@ -1847,6 +1847,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Line Insights
+         * @description LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。
+         */
+        get: operations["get_line_insights_api_website_v1_admin_line_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
         parameters: {
             query?: never;
@@ -1878,6 +1898,28 @@ export interface paths {
          * @description 送一則測試訊息到這校指定的群組，確認設定真的通。
          */
         post: operations["send_line_test_message_api_website_v1_admin_line_campus_targets__campus_key__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Line Parent Account
+         * @description 選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；
+         *     main 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
+         *     關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。
+         */
+        put: operations["update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3823,6 +3865,47 @@ export interface paths {
         put?: never;
         /** Exchange Parent Token */
         post: operations["exchange_parent_token_api_website_v1_public_visit_manage_exchange_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-manage/line-notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Parent Line Notify */
+        get: operations["get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Parent Line Notify
+         * @description 不再用 LINE 接收這筆預約的通知（Email 照舊）。
+         */
+        delete: operations["delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-manage/line-notify/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Parent Line Code
+         * @description 產生一次性綁定代碼（30 分鐘、用一次）。家長把它傳給官方帳號就完成綁定。
+         */
+        post: operations["create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -8305,6 +8388,34 @@ export interface components {
             /** Left Date */
             left_date?: string | null;
         };
+        /**
+         * LineAccountOut
+         * @description 一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。
+         */
+        LineAccountOut: {
+            /** Basic Id */
+            basic_id: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Key */
+            key: string;
+            quota: components["schemas"]["LineQuotaOut"] | null;
+            /** Quota Error Status */
+            quota_error_status?: number | null;
+            /** Webhook Url */
+            webhook_url: string | null;
+        };
+        /** LineCampusClicksOut */
+        LineCampusClicksOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Campus Name */
+            campus_name: string;
+            /** Line Clicks */
+            line_clicks: number;
+            /** Linked */
+            linked: number;
+        };
         /** LineCampusTargetOut */
         LineCampusTargetOut: {
             /** Campus Key */
@@ -8318,6 +8429,42 @@ export interface components {
         LineCampusTargetUpdate: {
             /** Target Id */
             target_id: string | null;
+        };
+        /**
+         * LineFollowerAccountOut
+         * @description 一個 LINE 官方帳號在期間內的好友數（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵。
+         */
+        LineFollowerAccountOut: {
+            /** Basic Id */
+            basic_id: string | null;
+            /** Blocks */
+            blocks?: number | null;
+            /** Blocks Change */
+            blocks_change?: number | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Error Status */
+            error_status?: number | null;
+            /** Followers */
+            followers?: number | null;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /** Key */
+            key: string;
+            /** New Followers */
+            new_followers?: number | null;
+            /** Ready */
+            ready?: boolean | null;
+            /** Targeted Reaches */
+            targeted_reaches?: number | null;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
         };
         /** LineGroupOut */
         LineGroupOut: {
@@ -8342,17 +8489,71 @@ export interface components {
             /** Verified At */
             verified_at: string | null;
         };
+        /** LineInsightsOut */
+        LineInsightsOut: {
+            /** Accounts */
+            accounts: components["schemas"]["LineFollowerAccountOut"][];
+            /** Campuses */
+            campuses: components["schemas"]["LineCampusClicksOut"][];
+            /** Configured */
+            configured: boolean;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+        };
         /** LineLinkStart */
         LineLinkStart: {
             /** Authorize Url */
             authorize_url: string;
         };
+        /** LineParentCampusOut */
+        LineParentCampusOut: {
+            /** Account Key */
+            account_key: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /** Linked Upcoming */
+            linked_upcoming: number;
+        };
+        /** LineParentCampusUpdate */
+        LineParentCampusUpdate: {
+            /** Account Key */
+            account_key: string | null;
+        };
+        /** LineQuotaOut */
+        LineQuotaOut: {
+            /** Limit */
+            limit: number | null;
+            /** Used */
+            used: number;
+            /** Warning */
+            warning: boolean;
+        };
         /** LineSettingsOut */
         LineSettingsOut: {
+            /**
+             * Accounts
+             * @default []
+             */
+            accounts: components["schemas"]["LineAccountOut"][];
             /** Enabled */
             enabled: boolean;
             /** Groups */
             groups: components["schemas"]["LineGroupOut"][];
+            /**
+             * Parent Campuses
+             * @default []
+             */
+            parent_campuses: components["schemas"]["LineParentCampusOut"][];
             /** Targets */
             targets: components["schemas"]["LineCampusTargetOut"][];
             /** Webhook Url */
@@ -8986,6 +9187,39 @@ export interface components {
              */
             visit_request_id: string;
         };
+        /** ParentLineCodeOut */
+        ParentLineCodeOut: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Add Friend Url */
+            add_friend_url: string;
+            /** Basic Id */
+            basic_id: string;
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Message Url */
+            message_url: string;
+            /** Text */
+            text: string;
+        };
+        /** ParentLineNotifyOut */
+        ParentLineNotifyOut: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Add Friend Url */
+            add_friend_url?: string | null;
+            /** Available */
+            available: boolean;
+            /** Basic Id */
+            basic_id?: string | null;
+            /** Linked */
+            linked: boolean;
+        };
         /** ParentRescheduleRequest */
         ParentRescheduleRequest: {
             /**
@@ -9432,6 +9666,11 @@ export interface components {
             campus_key: string;
             /** External Url */
             external_url: string | null;
+            /**
+             * Line Notify Enabled
+             * @default false
+             */
+            line_notify_enabled: boolean;
             /** Line Url */
             line_url: string | null;
             /** Message */
@@ -11007,6 +11246,11 @@ export interface components {
             notified: number;
             /** With Email */
             with_email: number;
+            /**
+             * With Line
+             * @default 0
+             */
+            with_line: number;
         };
         /** VisitClosureIn */
         VisitClosureIn: {
@@ -15667,6 +15911,44 @@ export interface operations {
             };
         };
     };
+    get_line_insights_api_website_v1_admin_line_insights_get: {
+        parameters: {
+            query?: {
+                /** @description 台北日期（含），省略＝結束日往前 28 天 */
+                start?: string | null;
+                /** @description 台北日期（含），省略＝今天；不能是未來 */
+                end?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineInsightsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put: {
         parameters: {
             query?: never;
@@ -15727,6 +16009,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineParentCampusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -19637,6 +19958,110 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ParentVisitRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentLineNotifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentLineCodeOut"];
                 };
             };
             /** @description Validation Error */

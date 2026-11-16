@@ -14,6 +14,23 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，未合併、未部署）
+
+規格 `docs/specs/2026-11-16-line-integrations-design.md`。migration `b3e8d1c4f9a7` 只新增三張表、放寬 `ad_conversion_jobs.platform` 檢查（加 `'line'`），不改既有資料、不必先備份。除了群組推播改成卡片，其他功能都要設變數或在後台打開才有作用。
+
+| 服務 | 變數 | 用途 |
+|---|---|---|
+| api | `WEBSITE_LINE_<YIHUA\|MINGHUA\|CHONGDE\|INTERNATIONAL\|RENWU>_CHANNEL_SECRET`、`…_ACCESS_TOKEN` | 各校自己的官方帳號（Messaging API 的 Channel secret 與長效 Channel access token），兩個一起設；家長 LINE 通知、我的預約、好友數。沒設的校區只能用 `WEBSITE_LINE_MESSAGING_*` 那個帳號 |
+| api | `WEBSITE_LINE_TAG_ID`、`WEBSITE_LINE_CAPI_TOKEN`、`WEBSITE_LINE_CAPI_TEST` | 到場、預繳回傳 LINE 廣告（Conversion API）。TAG_ID 和 web 的 `NUXT_PUBLIC_LINE_TAG_ID` 同一個；TOKEN 由 LINE 企業管理平台發；TEST=true 時事件帶 test_flag |
+
+**上線步驟（使用者）**
+1. 先發布隱私權政策（規格附錄 A 兩段），再做下面任何一步。
+2. 家長 LINE 通知用各校帳號時：LINE Developers → 該校官方帳號 → Messaging API，取 Channel secret 與 long-lived access token 設進 Railway api；Webhook URL 填後台「LINE 通知 → 官方帳號與本月額度」列出的 `…/line/webhook/<校>`，開「Use webhook」。OA Manager 的回應模式若是「聊天」，存檔後回 LINE Developers 確認 Use webhook 仍開著。
+3. 後台「LINE 通知 → 家長 LINE 通知」替該校選帳號；用自己的手機預約一筆、按「用 LINE 接收通知」、傳送代碼，確認收到「已開啟 LINE 通知」，再在官方帳號傳「我的預約」。取消那筆，確認 LINE 收到取消卡片。
+4. 圖文選單：OA Manager → 圖文選單，新增一格動作「文字」、內容「我的預約」；不要另設同字的關鍵字自動回應。
+5. 系統狀態「LINE 官方帳號」一列看得到每個帳號本月用量；用到八成會列為要注意。免費的輕用量每月 200 則，推到群組依群組人數計。
+6. LINE 廣告轉換回傳：先確認台灣帳號能在 LINE 企業管理平台發 Conversion API token，設三個變數（TEST=true），標記一筆有 LINE 廣告點擊的預約到場，到 LINE 後台看測試事件，再把 TEST 拿掉。
+
 ## 編班與缺額（2026-11-15，`feature/admissions-roster-20261114`；**未合併、未部署**，合併與部署等業主開口）
 
 招生入學多第三個分頁「編班與缺額」，設計見 `docs/specs/2026-11-14-admissions-roster-gap-design.md`。
@@ -3311,6 +3328,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
+| api | `WEBSITE_LINE_<校>_CHANNEL_SECRET`、`WEBSITE_LINE_<校>_ACCESS_TOKEN`（選填，2026-11-16，各校自己的官方帳號，家長 LINE 通知用；見頂部 11-16 段落） |
+| api | `WEBSITE_LINE_TAG_ID`、`WEBSITE_LINE_CAPI_TOKEN`、`WEBSITE_LINE_CAPI_TEST`（選填，2026-11-16，到場與預繳回傳 LINE 廣告） |
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
@@ -3470,8 +3489,8 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
    2026-09-29 起未驗證的群組不能被選為新的推播目標（任何人都能把官方帳號拉進自己取名的
    群組）；修補前已綁定的群組照常推播，但建議找時間也貼一次驗證碼。
 
-群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
-帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
+群組訊息 2026-11-16 起是卡片：類型、校區、參觀時段、家長稱呼與「開啟案件」按鈕（電話、Email、孩子資料不放；
+手機通知預覽只有類型、校區與時段）。推播會用掉官方帳號的每月訊息則數（推到群組依群組人數計）；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
 `notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
 
 ### 素材改存 S3 相容物件儲存（2026-09-24 程式；**2026-11-13 正式站已切到 Cloudflare R2**，紀錄見上方同日段落）

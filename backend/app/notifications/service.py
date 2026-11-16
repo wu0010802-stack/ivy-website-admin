@@ -31,9 +31,9 @@ from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
-from app.notifications import reminders, web_push
+from app.notifications import line_flex, line_parent, reminders, web_push
 from app.notifications.email_adapter import EmailAdapter, outbox_idempotency_key, send_email
-from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email
+from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email, parent_notice
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
 
 logger = logging.getLogger("app.notifications")
@@ -149,6 +149,9 @@ async def _campus_name(db: AsyncSession, campus_key: str) -> str:
     return name or campus_key
 
 
+campus_display_name = _campus_name
+
+
 async def _campus_active(db: AsyncSession, campus_key: str) -> bool:
     """分校是否仍開放公開預約；查不到校區列時維持原行為（當作開放）。"""
     active = (await db.execute(select(Campus.active).where(Campus.key == campus_key))).scalar_one_or_none()
@@ -177,24 +180,25 @@ def line_parent_name(parent_name: str | None) -> str:
     return cleaned[:LINE_PARENT_NAME_MAX].strip()
 
 
-def line_text(
+def staff_line_message(
     label: str,
     campus_name: str,
     receipt_id: str | None,
     admin_origin: str | None,
     parent_name: str | None = None,
-) -> str:
-    """類型、校區、家長稱呼、案件編號與後台連結。家長稱呼是 2026-10-05 業主裁定
-    加上的（原本群組推播不帶任何家長資料）；電話、Email、孩子資料照舊不放，
-    明細要點連結登入後台看。"""
-    lines = [f"[常春藤官網] {label}", f"校區：{campus_name}"]
-    if shown := line_parent_name(parent_name):
-        lines.append(f"家長：{shown}")
-    if receipt_id:
-        lines.append(f"案件編號：{receipt_id}")
-        if url := admin_visit_url(admin_origin, receipt_id, external_browser=True):
-            lines.append(url)
-    return "\n".join(lines)
+    *,
+    slot: VisitSlot | None = None,
+) -> dict:
+    """園方群組的卡片訊息（2026-11-16 起取代原本的純文字＋網址）：同樣只帶類型、校區、家長稱呼，
+    多了參觀時段；後台連結做成「開啟案件」按鈕。"""
+    return line_flex.staff_card(
+        label,
+        campus_name,
+        when=push_slot_text(slot) if slot is not None else None,
+        parent_name=line_parent_name(parent_name) or None,
+        receipt_id=receipt_id,
+        url=admin_visit_url(admin_origin, receipt_id, external_browser=True),
+    )
 
 
 # 信件稱呼用。表單沒有性別欄位，只有家長自己寫了稱謂（王媽媽、林先生）
@@ -313,11 +317,12 @@ async def _dispatch_parent_email(
     created_at: datetime | None,
     public_origin: str | None,
     access_secret: str | None,
+    line_clients: line_parent.LineClients | None = None,
 ) -> bool:
-    """寄給家長的確認信：只寄 Email。回傳 False 代表不適用（沒設定寄信、太舊、
-    沒有 Email、已匿名化、預約成功／變更信寄出前案件已不是預約成立、參觀提醒寄出前
-    場次已換、那天停課或案件已標記排除），runner 會標成 skipped、不重試。"""
-    if adapter is None:
+    """家長通知：有 Email 就寄信，綁了 LINE 通知（2026-11-16）就推到家長的 LINE，兩個都有就兩個都送。
+    回傳 False 代表不適用（沒有任何管道能送、太舊、已匿名化、預約成功／變更信寄出前案件已不是預約成立、
+    參觀提醒寄出前場次已換、那天停課或案件已標記排除），runner 會標成 skipped、不重試。"""
+    if adapter is None and line_clients is None:
         return False
     if created_at is not None and datetime.now(timezone.utc) - created_at > EXTERNAL_DELIVERY_STALE_AFTER:
         return False
@@ -328,7 +333,11 @@ async def _dispatch_parent_email(
     visit_request = await _load_visit_request(
         db, payload.get("receipt_id"), share_lock=kind != PARENT_VISIT_CANCELLED
     )
-    if visit_request is None or visit_request.anonymized_at is not None or not visit_request.email:
+    if visit_request is None or visit_request.anonymized_at is not None:
+        return False
+    email_ok = adapter is not None and bool(visit_request.email)
+    line_link = await _parent_line_link(db, visit_request, line_clients)
+    if not email_ok and line_link is None:
         return False
     # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
     # 家長只該收到「已取消」。
@@ -359,7 +368,9 @@ async def _dispatch_parent_email(
     if kind == PARENT_VISIT_REMINDER and exclusion.is_excluded(visit_request):
         return False
     recipient_key = f"parent:{visit_request.id}"
-    if await _already_delivered(db, outbox_message_id, "email", recipient_key):
+    email_pending = email_ok and not await _already_delivered(db, outbox_message_id, "email", recipient_key)
+    line_pending = line_link is not None and not await _already_delivered(db, outbox_message_id, "line", recipient_key)
+    if not email_pending and not line_pending:
         return True
     # 改期與重新預約連結指向官網（2026-11-12 起後台可能在獨立子網域，見 Settings.parent_origin）。
     origin = public_origin.rstrip("/") if public_origin else None
@@ -376,41 +387,79 @@ async def _dispatch_parent_email(
     profile = await content_service.published_payload(db, "campus_profile", visit_request.campus_key) or {}
     # 分校停用後 /visit/<校> 不再開放預約：取消信不附重新預約網址，信件模板會改請家長來電。
     rebook_open = bool(origin) and await _campus_active(db, visit_request.campus_key)
-    subject, body = build_parent_email(
-        ParentEmail(
-            kind=kind,
-            campus_name=await _campus_name(db, visit_request.campus_key),
-            salutation=parent_salutation(visit_request.parent_name),
-            slot_date=slot.slot_date if slot else None,
-            start_time=slot.start_time if slot else None,
-            end_time=slot.end_time if slot else None,
-            party_size=visit_request.party_size,
-            campus_address=str(profile.get("address") or "").strip() or None,
-            campus_phone=str(profile.get("phone") or "").strip() or None,
-            manage_url=manage_url,
-            change_deadline=change_deadline,
-            change_window_passed=not change_open,
-            day_closed=closed,
-            cancel_reason=visit_request.cancel_reason,
-            rebook_url=f"{origin}/visit/{visit_request.campus_key}" if rebook_open else None,
-            closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
-            day_word=_day_word(slot.slot_date) if kind == PARENT_VISIT_REMINDER and slot else None,
-        )
+    mail = ParentEmail(
+        kind=kind,
+        campus_name=await _campus_name(db, visit_request.campus_key),
+        salutation=parent_salutation(visit_request.parent_name),
+        slot_date=slot.slot_date if slot else None,
+        start_time=slot.start_time if slot else None,
+        end_time=slot.end_time if slot else None,
+        party_size=visit_request.party_size,
+        campus_address=str(profile.get("address") or "").strip() or None,
+        campus_phone=str(profile.get("phone") or "").strip() or None,
+        manage_url=manage_url,
+        change_deadline=change_deadline,
+        change_window_passed=not change_open,
+        day_closed=closed,
+        cancel_reason=visit_request.cancel_reason,
+        rebook_url=f"{origin}/visit/{visit_request.campus_key}" if rebook_open else None,
+        closure_reason=str(payload.get("reason") or "").strip() or None if kind == PARENT_VISIT_DAY_CLOSED else None,
+        day_word=_day_word(slot.slot_date) if kind == PARENT_VISIT_REMINDER and slot else None,
     )
-    recipient = _header_safe(visit_request.email)
-    # 信組好了：放掉共享鎖再寄，不握著案件列鎖等 SMTP。
+    recipient = _header_safe(visit_request.email) if email_pending else None
+    # 內容組好了：放掉共享鎖再送，不握著案件列鎖等 SMTP 或 LINE。
     await db.commit()
-    await asyncio.to_thread(
-        send_email,
-        adapter,
-        to=recipient,
-        subject=_header_safe(subject),
-        body=body,
-        idempotency_key=outbox_idempotency_key(outbox_message_id, recipient),
-    )
-    _record_delivery(db, outbox_message_id, "email", recipient_key)
-    await db.commit()
+    # 兩個管道互不阻擋（2026-11-16 審查）：一個失敗也先把另一個送完，最後再丟出第一個錯誤讓整筆重試；
+    # 送成的那個已記 delivery，重試只補沒送成的。
+    failure: Exception | None = None
+    if recipient is not None:
+        subject, body = build_parent_email(mail)
+        try:
+            await asyncio.to_thread(
+                send_email,
+                adapter,
+                to=recipient,
+                subject=_header_safe(subject),
+                body=body,
+                idempotency_key=outbox_idempotency_key(outbox_message_id, recipient),
+            )
+        except Exception as exc:  # noqa: BLE001 —— 先記下，LINE 送完再丟
+            failure = exc
+        else:
+            _record_delivery(db, outbox_message_id, "email", recipient_key)
+            await db.commit()
+    if line_pending and line_link is not None and line_clients is not None:
+        client = line_clients.get(line_link.account_key)
+        assert client is not None  # _parent_line_link 已確認帳號有設
+        try:
+            await client.push(
+                line_link.line_user_id,
+                [line_flex.parent_card(parent_notice(mail))],
+                key=line_api.retry_key(outbox_message_id, line_link.line_user_id),
+            )
+        except (line_api.LinePushError, httpx.HTTPError) as exc:
+            # 額度用完 429、金鑰失效 401、逾時：記下來，整筆重試時只補推 LINE。
+            logger.warning("家長 LINE 推播失敗：outbox=%s error=%s", outbox_message_id, exc)
+            failure = failure or exc
+        else:
+            _record_delivery(db, outbox_message_id, "line", recipient_key)
+            await db.commit()
+    if failure is not None:
+        raise failure
     return True
+
+
+async def _parent_line_link(
+    db: AsyncSession, visit_request: VisitRequest, line_clients: line_parent.LineClients | None
+):
+    """這筆預約現在推得到的家長 LINE：有綁、沒封鎖、這校目前的家長通知帳號就是綁的那個、金鑰還在。
+    後台關掉或換了帳號，舊綁定就不再推（userId 換了帳號也推不到）。"""
+    if line_clients is None:
+        return None
+    current = await line_parent.parent_account_key(db, line_clients.settings, visit_request.campus_key)
+    if current is None or not line_clients.has(current):
+        return None
+    return await line_parent.active_link(db, visit_request.id, current)
 
 
 async def _forget_old_email(db: AsyncSession, outbox_message_id: uuid.UUID, payload: dict) -> None:
@@ -560,6 +609,7 @@ async def dispatch_outbox_message(
     access_secret: str | None = None,
     push: web_push.PushSender | None = None,
     public_origin: str | None = None,
+    line_clients: line_parent.LineClients | None = None,
 ) -> bool:
     """處理一筆 outbox 訊息：寫站內通知 → 推到員工手機（Web Push）→ 推播校區的 LINE 群組 → 寄信。
     任何一個管道或收件人失敗都讓整筆工作視為失敗，交給 worker 的重試機制
@@ -593,6 +643,7 @@ async def dispatch_outbox_message(
             # 沒另外設官網 origin（後台與官網同一個網域）就沿用 admin_origin。
             public_origin=public_origin or admin_origin,
             access_secret=access_secret,
+            line_clients=line_clients,
         )
     if kind in reminders.REMINDER_KINDS and not await reminders.still_applies(db, kind, payload):
         return False
@@ -634,12 +685,16 @@ async def dispatch_outbox_message(
                 if visit_request is not None and visit_request.anonymized_at is None
                 else None
             )
+            message = staff_line_message(
+                label,
+                await _campus_name(db, campus_key),
+                receipt_id,
+                admin_origin,
+                parent_name,
+                slot=visit_request.slot if visit_request is not None else None,
+            )
             try:
-                await line.push_text(
-                    target,
-                    line_text(label, await _campus_name(db, campus_key), receipt_id, admin_origin, parent_name),
-                    key=line_api.retry_key(outbox_message_id, target),
-                )
+                await line.push(target, [message], key=line_api.retry_key(outbox_message_id, target))
             except (line_api.LinePushError, httpx.HTTPError) as exc:
                 # LINE 失敗（月額度用完 429、token 失效 401、bot 被移出群組 400、
                 # 逾時）不能擋住 email：先把信寄完，最後再拋出讓整筆重試。重試時

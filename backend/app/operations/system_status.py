@@ -31,7 +31,7 @@ from app.config import Settings
 from app.content.models import ContentItem, PublishJob
 from app.content.publish_jobs import unresolved_condition
 from app.media.models import MediaAsset, MediaJob, MediaStatus
-from app.notifications import outbox_admin
+from app.notifications import line_accounts, outbox_admin
 from app.notifications.models import PushSubscription
 from app.notifications.email_adapter import (
     EmailAdapter,
@@ -292,7 +292,31 @@ async def notification_items(db: AsyncSession) -> list[SystemStatusItem]:
     ]
 
 
-async def build_status(db: AsyncSession, state: Any, settings: Settings, now: datetime) -> SystemStatusOut:
+async def line_item(settings: Settings, transport=None) -> SystemStatusItem:
+    """LINE 官方帳號（2026-11-16）：每個設好的帳號這個月用了幾則、上限多少。用到八成、或查不到額度
+    （401＝金鑰失效、連不上）算要注意：額度用完 LINE 回 429，群組與家長通知都會一直重試失敗。
+    configured 沿用原本的意思（園方群組推播帳號有沒有設）。"""
+    accounts = []
+    attention = False
+    for status_ in await line_accounts.all_statuses(settings, transport):
+        attention = attention or status_.quota_error or status_.quota_warning
+        accounts.append({
+            "key": status_.key,
+            "name": status_.display_name,
+            "used": status_.quota_used,
+            "limit": status_.quota_limit,
+            "error_status": (status_.quota_error_status or 0) if status_.quota_error else None,
+        })
+    return SystemStatusItem(
+        key="line_messaging",
+        level="attention" if attention else "ok",
+        detail={"configured": settings.line_messaging_enabled, "accounts": accounts},
+    )
+
+
+async def build_status(
+    db: AsyncSession, state: Any, settings: Settings, now: datetime, *, line_transport=None
+) -> SystemStatusOut:
     # 只讀：不用 retention_service.get_policy（沒有政策列時它會建一列）。
     policy = await db.get(RetentionPolicy, 1)
     push_devices = (
@@ -303,6 +327,11 @@ async def build_status(db: AsyncSession, state: Any, settings: Settings, now: da
     services = service_items(
         settings, policy_auto_run=bool(policy is not None and policy.auto_run_enabled), push_devices=push_devices
     )
+    if settings.line_accounts:
+        # 查 LINE 之前先結束讀取交易，不握著連線等外部 API。
+        await db.commit()
+        line = await line_item(settings, line_transport)
+        services = [line if item.key == "line_messaging" else item for item in services]
     background = [
         maintenance_item(settings, getattr(state, "maintenance", None), now),
         await media_item(db, settings, getattr(state, "media_jobs", None)),

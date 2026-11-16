@@ -7,6 +7,7 @@ base64url 編碼的 JSON，`v` 固定 1，格式與 web/shared/attribution-cooki
 - `l`：最後一次不是直接進站的進站，欄位同上（可省略）
 - `o`：最後一次落地網址上的 OpenAI 點擊代碼 {v, t 毫秒}（可省略）
 - `b`：最後一次的 fbclid {v, t 毫秒}（可省略）
+- `n`：最後一次落地網址上的 LINE 廣告點擊代碼 ldtag_cl {v, t 毫秒}（可省略，2026-11-16）
 
 cookie 是訪客瀏覽器送來的，什麼都可能被改：整個格式不對就當沒有，個別欄位不合規則就丟掉那一欄，
 不讓壞資料進資料庫，也不讓送單失敗。訪客開了 DNT 或 GPC（代理有轉這兩個標頭）就什麼都不讀。
@@ -40,12 +41,18 @@ _FBP = re.compile(r"^fb\.\d\.\d{10,13}\.\d{1,20}$")
 OPPREF_MAX_AGE = timedelta(days=30)
 # Meta 的 fbc 點擊歸因同樣不超過 28～30 天；自己組 fbc 時只用這麼新的 fbclid。
 FBCLID_MAX_AGE = timedelta(days=30)
+# LINE 廣告預設的轉換期間是點擊後 30 天（自訂轉換最長 90 天）；用 90 天，超過的點擊代碼不記。
+LINE_CLICK_MAX_AGE = timedelta(days=90)
+# LINE Tag（lt.js）在官網網域寫的第一方 cookie，Conversion API 的 browser_id。名稱是 2026-11-16 實測 lt.js 3.7.0
+# 看到的（__lt__cid）；LINE 文件沒寫名稱，lt.js 改版要重查。
+LINE_BROWSER_COOKIE = "__lt__cid"
 
 # 各平台在 ad_click_ids 裡用到的鍵；送出時也照這張表找識別碼（app/ad_conversions/）。
 PLATFORM_KEYS: dict[str, tuple[str, ...]] = {
     "ga4": ("ga_client_id",),
     "meta": ("fbc", "fbp"),
     "openai": ("oppref", "obref"),
+    "line": ("line_click_id", "line_browser_id"),
 }
 
 
@@ -68,6 +75,7 @@ class SiteCookie:
     last: Touch | None
     oppref: ClickToken | None
     fbclid: ClickToken | None
+    line_click: ClickToken | None = None
 
 
 def privacy_opt_out(headers: Mapping[str, str]) -> bool:
@@ -115,6 +123,7 @@ def parse_site_cookie(raw: str | None) -> SiteCookie | None:
         last=_touch(data.get("l")),
         oppref=_click(data.get("o"), _CLICK_TOKEN),
         fbclid=_click(data.get("b"), _FBCLID),
+        line_click=_click(data.get("n"), _CLICK_TOKEN),
     )
 
 
@@ -151,4 +160,10 @@ def click_ids(
         obref = cookies.get("__obref", "")
         if _CLICK_TOKEN.match(obref):
             ids["obref"] = obref
+    if "line" in platforms:
+        if site and site.line_click and now - site.line_click.at <= LINE_CLICK_MAX_AGE:
+            ids["line_click_id"] = site.line_click.value
+        browser = cookies.get(LINE_BROWSER_COOKIE, "")
+        if len(browser) <= 200 and _CLICK_TOKEN.match(browser):
+            ids["line_browser_id"] = browser
     return ids or None

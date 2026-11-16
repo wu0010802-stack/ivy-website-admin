@@ -268,6 +268,8 @@ const linkCopied = ref(false)
 // LINE 等內建瀏覽器可能不給寫剪貼簿：失敗時把完整網址印出來讓家長長按複製（2026-10-12）。
 const linkCopyFailed = ref(false)
 const manageUrl = computed(() => managePath.value && import.meta.client ? new URL(managePath.value, window.location.origin).href : '')
+// 用 LINE 接收通知（2026-11-16）：按下去時用修改連結裡的 token 換家長 session。
+const manageToken = computed(() => managePath.value ? new URLSearchParams(managePath.value.split('#')[1] ?? '').get('token') : null)
 const resultKind = computed(() => visitResultKind(resultStatus.value))
 const resultCopy = computed(() => visitResultCopy(resultKind.value, {
   emailEnabled: Boolean(bookingConfig.value?.parent_email_enabled),
@@ -818,6 +820,7 @@ async function onSubmit() {
               v-if="resultKind === 'booked' && submittedSlot && selectedCampus"
               :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"
             />
+            <VisitLineNotify v-if="resultKind === 'booked' && manageToken && bookingConfig?.line_notify_enabled" :token="manageToken" :visit-id="receiptId" />
             <div v-if="resultKind === 'booked' && managePath" class="visit-result-next">
               <h3>之後要改時間或取消</h3>
               <p>用這個連結就能改場次、修改資料或取消預約，請收藏起來，不要轉給其他人。</p>

@@ -29,6 +29,7 @@ export const ERROR_CODE_MESSAGES: Record<string, string> = {
   RETENTION_POLICY_VERSION_CONFLICT: '保存政策剛被其他人修改，請重新載入後再編輯',
   LINE_NOT_CONFIGURED: '尚未設定 LINE 官方帳號的 Messaging API 金鑰',
   LINE_GROUP_UNAVAILABLE: '官方帳號不在這個群組裡，請重新把它拉進群組',
+  LINE_ACCOUNT_UNAVAILABLE: '這個官方帳號還沒設定金鑰，或不能用在這個校區',
   LINE_GROUP_UNVERIFIED: '這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再選這個群組',
   RECRUITMENT_VISIT_VERSION_CONFLICT: '這筆招生訪視剛被其他人修改，請重新載入後再操作',
   RECRUITMENT_VISIT_ANONYMIZED: '這筆招生訪視已依保存政策匿名化，不能再修改',

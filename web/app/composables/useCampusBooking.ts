@@ -12,6 +12,7 @@ interface PublicBookingConfigResponse {
   privacy_notice?: { title: string; sections: { heading: string; body: string }[] } | null
   turnstile_site_key?: string | null
   parent_email_enabled?: boolean
+  line_notify_enabled?: boolean
 }
 
 // 選校頁（VisitForm 的選校卡）一次讀五校、選定後 useCampusBooking 再讀所選那校：兩邊共用
@@ -55,7 +56,9 @@ export function fetchCampusBooking(campusKey: string): Promise<BookingConfig> {
       // 有值時表單要先通過 Turnstile 才能送出（沒設定的部署維持原樣）。
       turnstile_site_key: response.turnstile_site_key || null,
       // 結果頁依此決定能不能說「確認信已寄出」；舊版 API 沒有這個欄位就當沒開。
-      parent_email_enabled: response.parent_email_enabled ?? false
+      parent_email_enabled: response.parent_email_enabled ?? false,
+      // 舊版 API 沒有這個欄位就當沒開。
+      line_notify_enabled: response.line_notify_enabled ?? false
     }
     fetchedAt.set(config, Date.now())
     return config

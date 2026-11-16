@@ -377,6 +377,12 @@ async def _reset_access_after_email_change(
     （信在寄件當下重算，寄到新信箱的就是新連結），其餘只撤銷。keep_session_id 是家長自己更正時正在用的
     session，不撤銷。呼叫端已持有案件列鎖。回傳作廢前是否有有效連結。"""
     had_link = await access_service.active_access_token(db, visit_request.id) is not None
+    if keep_session_id is None:
+        # 園方更正 Email（連結寄錯信箱）：拿到那條連結的人可能已經綁了 LINE，一起解除（2026-11-16 審查）。
+        # 家長自己改 Email（keep_session_id）時，他的 LINE 是他自己綁的，不動。
+        from app.notifications import line_parent
+
+        await line_parent.unlink(db, visit_request.id)
     if had_link and reissue and secret:
         _, expires_at = await access_service.issue_access_token(
             db, visit_request.id, secret=secret, slot=slot, keep_session_id=keep_session_id

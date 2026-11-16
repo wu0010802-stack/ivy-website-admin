@@ -654,7 +654,10 @@ async def get_dashboard(
     summary["system_attention"] = None
     if has_capability(current_user, "system.status"):
         try:
-            status_now = await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+            status_now = await system_status.build_status(
+                db, request.app.state, request.app.state.settings, now_utc(),
+                line_transport=getattr(request.app.state, "line_transport", None),
+            )
         except Exception:  # noqa: BLE001
             logger.exception("營運總覽：系統狀態查詢失敗")
             await db.rollback()
@@ -1375,7 +1378,10 @@ async def get_system_status(
 ) -> system_status.SystemStatusOut:
     """總管理者的系統狀態（2026-10-15 規格）：設定有沒有設、背景工作、公開資料、寄送與發布失敗。唯讀。"""
     require_scope(current_user, "system.status")
-    return await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+    return await system_status.build_status(
+        db, request.app.state, request.app.state.settings, now_utc(),
+        line_transport=getattr(request.app.state, "line_transport", None),
+    )
 
 
 @router.post("/admin/system-status/test-email", response_model=system_status.SystemEmailTestOut)
