@@ -22,7 +22,9 @@ describe('編班與缺額分頁', () => {
     mockGet({ '/admin/admissions/options': options(), '/admin/admissions/roster': roster({ classes: [klass()] }) })
     const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?tab=roster' })
     await flushPromises()
-    expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('編班與缺額')
+    // 分頁名後面掛著 Beta 標籤（2026-11-16）。
+    expect(wrapper.find('.el-tabs__item.is-active').text()).toBe('編班與缺額Beta')
+    expect(wrapper.find('.el-tabs__item.is-active .el-tag').text()).toBe('Beta')
     expect(wrapper.text()).toContain('入學學年')
     expect(wrapper.text()).not.toContain('入學學期')
     expect(wrapper.find('table.roster-table').exists()).toBe(true)
