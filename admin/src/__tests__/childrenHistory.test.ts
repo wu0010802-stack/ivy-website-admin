@@ -38,13 +38,13 @@ describe('歷年 2–5 歲滑桿的純函式（2026-11-16 規格 §5.3）', () =
   it('比前一年：第一格、前一格沒有資料都不寫', () => {
     expect(yearChangeText(benYang, 107, stops, '115-10')).toBe('')
     expect(yearChangeText(baoYe, 115, stops, '115-10')).toBe('')
-    expect(yearChangeText(baoYe, 'latest', stops, '115-10')).toBe('比前一年 +4')
+    expect(yearChangeText(baoYe, 'latest', stops, '115-10')).toBe('比 115.09 +4')
   })
 
   it('比前一年：兩點之間有界線調整的月份就寫調整，不寫增減', () => {
     expect(yearChangeText(dingJin, 115, stops, '115-10')).toBe('界線 115-07 調整')
     // 115-09 → 115-10 之間沒有 115-07：照常寫
-    expect(yearChangeText(dingJin, 'latest', stops, '115-10')).toBe('比前一年 +10')
+    expect(yearChangeText(dingJin, 'latest', stops, '115-10')).toBe('比 115.09 +10')
     // 114 之前的比較不受 115-07 影響
     expect(yearChangeText(dingJin, 114, stops, '115-10')).toBe('比前一年 +20')
   })

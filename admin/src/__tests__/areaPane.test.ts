@@ -48,7 +48,7 @@ describe('右欄：2–5 歲孩子排行跟著年份（2026-11-16 規格 §5.3�
     expect(itemsOf(115).map((item) => [item.name, item.detail])).toEqual([
       ['三民區鼎金里', '界線 115-07 調整'], ['三民區本揚里', '比前一年 +2'], ['三民區寶業里', ''],
     ])
-    expect(itemsOf('latest').map((item) => item.detail)).toEqual(['比前一年 +10', '比前一年 +8', '比前一年 +4'])
+    expect(itemsOf('latest').map((item) => item.detail)).toEqual(['比 115.09 +10', '比 115.09 +8', '比 115.09 +4'])
   })
 
   it('人數是 0 的里不列；沒有歷年資料時維持招生機會的最新人數排行', () => {

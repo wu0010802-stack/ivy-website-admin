@@ -341,6 +341,18 @@ describe('區域分析：2–5 歲孩子的年份滑桿（2026-11-16）', () => 
     expect(lastView(wrapper)).toMatchObject({ map: 'visits', year: null })
   })
 
+  it('在籍名冊還沒匯入（預設就是 2–5 歲孩子）且網址沒帶 map：重新整理時 year 不會在在籍讀取中被提早拿掉', async () => {
+    const slowEnrolled = deferred<unknown>()
+    mockGet(routes(areaStats(), areaOpportunity(), () => slowEnrolled.promise))
+    const { wrapper } = await mountReady(withView({ year: 108 }))
+    expect(lastView(wrapper)).toBeUndefined()
+    slowEnrolled.resolve(areaEnrolled({ status: 'not_imported' }))
+    await flushPromises()
+    expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
+    expect(slider(wrapper).props('modelValue')).toBe(108)
+    expect(wrapper.emitted('update:view')?.some((call) => (call[0] as AreaView).year === null)).toBeFalsy()
+  })
+
   it('網址的年份不在格子裡（999、106）：畫面用最新，網址的 year 拿掉', async () => {
     mockGet(routes())
     for (const year of [999, 106]) {

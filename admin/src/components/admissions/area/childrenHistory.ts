@@ -62,7 +62,9 @@ export function yearChangeText(
   const to = monthOf(stop, latestLabel)
   const crossed = village.adjusted.find((month) => month > from && month <= to)
   if (crossed) return `界線 ${crossed} 調整`
-  return `比前一年 ${signedCount(current - before)}`
+  // 「最新」和前一格（最近一年的九月）只差幾個月，不能寫成「前一年」：寫出是比哪個月。
+  const base = stop === 'latest' ? `比 ${String(previous).padStart(3, '0')}.09` : '比前一年'
+  return `${base} ${signedCount(current - before)}`
 }
 
 const RETIRED_NAMES_SHOWN = 3

@@ -338,8 +338,9 @@ watch([() => props.campusKey, radiusKm], () => {
 })
 watch(mapMode, (mode) => {
   if (mode === 'children' && (!childrenHistoryRequested.value || childrenHistoryFailed.value)) void loadChildrenHistory()
-  // 年份只在這個模式有效：離開就從網址拿掉。
-  if (mode !== 'children' && view.value.year !== null) patchView({ year: null })
+  // 年份只在這個模式有效：明寫了別的模式（網址帶 map）就把 year 拿掉。view.map 是 null 時模式是由資料狀況決定的預設，
+  // 在籍名冊還在讀取時暫時是「在籍學生」、讀完才變成「2–5 歲孩子」，這時不能清（否則重新整理就弄丟網址的 year）。
+  if (mode !== 'children' && view.value.year !== null && view.value.map !== null) patchView({ year: null })
 }, { immediate: true })
 // 有滑桿可拉：模式對、讀到了、本校有座標且九月表有資料。
 const childrenHistoryReady = computed(() => {
@@ -377,7 +378,8 @@ const modeReasons = computed(() => [
 // 選的模式和這個校區當下的預設一樣就不寫進網址（view.map 為 null）；停用的模式點不到，handler 再擋一次。
 function setMode(value: string | number | boolean | undefined) {
   if (!isMapMode(value) || modeNote(value, notes.value)) return
-  patchView({ map: value === defaultMapMode(notes.value) ? null : value })
+  // 換模式一律把年份拿掉（年份只屬於「2–5 歲孩子」），和 map 合成一個 patch。
+  patchView({ map: value === defaultMapMode(notes.value) ? null : value, year: null })
 }
 // 正在看的模式變成停用，或網址帶來（含同一個畫面裡上一頁／下一頁換到）一個停用的模式：退回預設，網址拿掉 map。
 // 讀取中不算停用，所以要等資料回來才會退。寫成 null 之後條件不再成立，不會來回觸發。
