@@ -283,6 +283,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 /about 年數改「邁向 30 週年」＋結尾五張線稿去掉接縫上線（main CI 部署，沒有 migration）
+
+- **內容**：`5f010d67`（PR #98，`feature/about-years-20261116`）。/about「一路走來」結尾年份底下與第一章標題第二行，從「第 30 年」改成「邁向 30 週年」（之後一律「滿 N 年」，差一年滿整十年寫「邁向 N 週年」）；結尾五張線稿左右各淡出 8%，去掉圖與圖之間的直線。只動 `web/` 的 `utils/about-content.ts`、`assets/css/about.css` 與兩支測試；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
+- **推前**：web typecheck、`test:website` 154 檔 2375 項；fixture dev 上 Playwright 1440／820／390 截圖，標題與年份那行 320–1920 共 11 個寬度量過行數。PR 的 CI 全綠（含 E2E）；推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun --failed` 跑綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43787363148 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `5f010d67`。Playwright（真 Chrome，1440 與 390 寬，遙測與第三方分析一律攔下回 204、只發 GET）開 `/about`：回 200，結尾「民國 115 年 邁向 30 週年」、第一章標題「走到今年 邁向 30 週年」（正式站 about_page 的第一章標題仍是原文，走自動換算），線稿 10 張圖（淡彩＋墨線）都有左右淡出遮罩，沒有水平溢出、沒有頁面錯誤。
+- **沒驗**：iOS／Safari 實機。
+
 ## 2026-11-15 ChatGPT 廣告的 OpenAI 評估像素上線並開啟（main CI 部署＋Railway web 變數，沒有 migration）
 
 - **內容**：`143fc9c8`（PR #96，`feature/openai-ads-pixel-20261115`）。只動 `web/`：GA4／Meta Pixel 的架構加第三家，預約成功時送 `appointment_scheduled`。做法與規則見上面「ChatGPT 廣告：OpenAI 評估像素」一節與 `README.md` 同日段落。
