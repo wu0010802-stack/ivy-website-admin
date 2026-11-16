@@ -47,17 +47,20 @@ export function yearsSpoken(n: number): string {
   return `${TENS[tens]}多年`
 }
 
-/** 第一章標題（兩行）：創校那年是第 1 年，2026 年「走到今年⏎是第 30 年」；整十年寫「滿 30 年」。
- *  標題大字不放逗號、句號（2026-11-03，見 page-content.ts 的 plainTitleLine）。 */
-export function storyYearTitle(founded: number, year: number): string[] {
-  const n = year - founded
-  return ['走到今年', n > 0 && n % 10 === 0 ? `滿 ${n} 年` : `是第 ${n + 1} 年`]
-}
-
-/** 今年是第幾年（年份里程表走過最後一站時寫在年份底下）：同第一章標題的算法，「第 30 年」／整十年「滿 30 年」。 */
+/** 創校到今年幾年（年份里程表寫在今年底下、第一章標題第二行共用）：寫已經滿幾年；差一年就滿整十年時寫「邁向 30 週年」。
+ *  1997 創校：2026「邁向 30 週年」、2027「滿 30 年」、2028「滿 31 年」。
+ *  2026-11-16 使用者：原本把創校那年算第 1 年，2026 寫「第 30 年」，讀起來像已經滿 30 年，和 30 週年頁「到 2027 年滿 30 年」
+ *  對不上；選了「邁向 30 週年」。30 週年頁時間軸的計數器（1997 第 1 年 → 2026 第 30 年）一年一年跳，不跟著改。 */
 export function yearsRunning(founded: number, year: number): string {
   const n = year - founded
-  return n > 0 && n % 10 === 0 ? `滿 ${n} 年` : `第 ${n + 1} 年`
+  if (n < 1) return '第 1 年'
+  return n % 10 === 9 ? `邁向 ${n + 1} 週年` : `滿 ${n} 年`
+}
+
+/** 第一章標題（兩行）：「走到今年⏎邁向 30 週年」，第二行同年份里程表（yearsRunning）。
+ *  標題大字不放逗號、句號（2026-11-03，見 page-content.ts 的 plainTitleLine）。 */
+export function storyYearTitle(founded: number, year: number): string[] {
+  return ['走到今年', yearsRunning(founded, year)]
 }
 
 /** 首屏介紹：內建原文的「近三十年來」換成算出來的年數（從同一句寫的 1997 算）；後台改寫過就照後台。 */
