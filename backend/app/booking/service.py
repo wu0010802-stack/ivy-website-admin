@@ -291,6 +291,22 @@ async def precheck_submission(
     return slot is not None
 
 
+_TRACKING_COLUMNS = frozenset({
+    "first_touch_source", "first_touch_campaign", "first_touch_on",
+    "last_touch_source", "last_touch_campaign", "last_touch_on", "ad_click_ids",
+})
+
+
+def _tracking_columns(tracking: dict | None) -> dict:
+    """只收網站來源與點擊識別碼這幾欄，呼叫端多帶別的鍵直接報錯（不能藉此改到別的欄位）。"""
+    if not tracking:
+        return {}
+    unknown = set(tracking) - _TRACKING_COLUMNS
+    if unknown:
+        raise ValueError(f"tracking 不能帶 {sorted(unknown)}")
+    return dict(tracking)
+
+
 async def submit_visit_request(
     db: AsyncSession,
     *,
@@ -301,8 +317,12 @@ async def submit_visit_request(
     hash_key: bytes,
     phone_limit: tuple[int, timedelta] | None = None,
     access_secret: str,
+    tracking: dict | None = None,
 ) -> tuple[VisitRequest, bool]:
-    """回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
+    """tracking：網站來源六欄與 ad_click_ids（app/booking/attribution.py，2026-11-16）。只寫進新建的案件，
+    不進 payload 雜湊——同一張表單重送時 cookie 可能已經變了，不能因此變成「同 key 不同內容」。
+
+    回傳 (visit_request, is_new)。is_new=False 代表這是重播（同 key 同
     payload），呼叫端應回 200 而非 201，且不得重新寫入任何列。
 
     phone_limit=(上限, 窗口)：同校同一支手機在窗口內最多建立幾筆，超過丟
@@ -407,6 +427,7 @@ async def submit_visit_request(
         slot_id=slot.id,
         confirmed_at=now,
         created_at=now,
+        **_tracking_columns(tracking),
     )
     db.add(visit_request)
     try:

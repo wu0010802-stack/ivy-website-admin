@@ -56,7 +56,7 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
     props: { campusKey: 'yihua', campusKeys: CAMPUS_KEYS },
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
+      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true, BookingAttributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })

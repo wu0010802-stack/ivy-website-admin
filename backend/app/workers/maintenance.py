@@ -68,6 +68,8 @@ class CycleResult:
     notifications_failed: int = 0
     notifications_skipped: int = 0
     rate_limit_rows_purged: int = 0
+    ad_conversions_sent: int = 0
+    ad_conversions_failed: int = 0
     media_purged: int = 0
     # 這一輪清掉來源 IP／User-Agent 的操作紀錄筆數；刪掉的失效 session、重設連結、家長 session 筆數。
     audit_client_info_cleared: int = 0
@@ -233,6 +235,19 @@ async def _run_steps(
             await line.aclose()
         if push is not None:
             await push.client.aclose()
+
+    # 到場、預繳回傳廣告平台（2026-11-16，app/ad_conversions/）。平台都沒設定時也要跑：之前排入、後來拿掉設定的列
+    # 要記成 skipped，不能一直掛著。
+    try:
+        from app.ad_conversions import service as ad_conversions
+
+        async with session_factory() as db:
+            conversions = await ad_conversions.process_due(db, settings)
+        result.ad_conversions_sent = conversions["sent"]
+        result.ad_conversions_failed = conversions["failed"]
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：回傳廣告平台失敗")
+        result.failed_steps.append("ad_conversions")
 
     try:
         async with session_factory() as db:

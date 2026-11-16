@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Body, Cookie, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel
@@ -13,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import require_scope
-from app.booking import access_service, history, slot_service, workflow_service
+from app.booking import access_service, history, remember, slot_service, workflow_service
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
@@ -23,9 +24,11 @@ from app.booking.schemas import (
     ParentDetailsUpdate,
     ParentRescheduleRequest,
     ParentVisitRequestOut,
+    RememberedVisitOut,
     ResendConfirmationOut,
 )
 from app.campuses.models import Campus
+from app.common.timezones import slot_start_utc
 from app.common import ratelimit
 from app.content import service as content_service
 from app.operations import audit_service
@@ -190,6 +193,11 @@ async def exchange_parent_token(
             headers={"Set-Cookie": response.headers["set-cookie"]},
         ) from exc
     await db.commit()
+    _set_parent_session(response, request, raw_session_token)
+    return await _parent_output(db, visit_request)
+
+
+def _set_parent_session(response: Response, request: Request, raw_session_token: str) -> None:
     response.set_cookie(
         key=PARENT_SESSION_COOKIE,
         value=raw_session_token,
@@ -199,7 +207,92 @@ async def exchange_parent_token(
         max_age=int(access_service.SESSION_TTL.total_seconds()),
         path="/",
     )
+
+
+# 這台裝置記住預約（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §3、booking/remember.py）。
+# 三個端點都要 X-Ivy-Parent（和其他家長端點同一道跨站防線與限流）。
+
+
+def _forget(request: Request, *, status_code: int = status.HTTP_204_NO_CONTENT) -> Response:
+    out = Response(status_code=status_code, headers={"Cache-Control": "private, no-store"})
+    remember.clear_cookie(out, request.app.state.settings)
+    return out
+
+
+@router.get(
+    "/public/visit-remembered",
+    response_model=RememberedVisitOut,
+    responses={204: {"description": "這台裝置沒有記住預約，或記住的那筆已失效（同時清掉 cookie）"}},
+    dependencies=[Depends(require_parent_request)],
+)
+async def get_remembered_visit(
+    request: Request,
+    response: Response,
+    remembered: str | None = Cookie(default=None, alias=remember.REMEMBER_COOKIE),
+    db: AsyncSession = Depends(get_db_session),
+):
+    """只回日期、場次與校區。案件已不是「已確認」（取消、完成、未到場時連結也已撤銷）、場次已結束、
+    連結被園方重新產生或過期，都當作沒有，並清掉 cookie。"""
+    if not remembered:
+        return Response(status_code=status.HTTP_204_NO_CONTENT, headers={"Cache-Control": "private, no-store"})
+    visit_request = await access_service.visit_request_for_token(db, remembered)
+    slot = visit_request.slot if visit_request is not None else None
+    if (
+        visit_request is None
+        or slot is None
+        or visit_request.status != VisitRequestStatus.CONFIRMED.value
+        or slot_start_utc(slot.slot_date, slot.end_time) <= datetime.now(timezone.utc)
+    ):
+        return _forget(request)
+    campus = await db.get(Campus, visit_request.campus_key)
+    response.headers["Cache-Control"] = "private, no-store"
+    return RememberedVisitOut(
+        campus_key=visit_request.campus_key,
+        campus_name=campus.name if campus is not None else visit_request.campus_key,
+        slot_date=slot.slot_date,
+        start_time=slot.start_time,
+        end_time=slot.end_time,
+    )
+
+
+@router.post(
+    "/public/visit-remembered/open",
+    response_model=ParentVisitRequestOut,
+    dependencies=[Depends(require_parent_request)],
+)
+async def open_remembered_visit(
+    request: Request,
+    response: Response,
+    remembered: str | None = Cookie(default=None, alias=remember.REMEMBER_COOKIE),
+    db: AsyncSession = Depends(get_db_session),
+) -> ParentVisitRequestOut:
+    """用記住的那條修改連結換 2 小時的家長 session（和點信裡的連結同一個流程），前端接著整頁開 /visit/manage。"""
+    response.headers["Cache-Control"] = "private, no-store"
+    if not remembered:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"code": "TOKEN_INVALID", "message": "連結已失效或過期"})
+    try:
+        raw_session_token, visit_request = await access_service.exchange_token(db, remembered)
+    except access_service.TokenInvalid as exc:
+        await db.rollback()
+        cleared = _forget(request)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "TOKEN_INVALID", "message": "連結已失效或過期"},
+            headers={"Set-Cookie": cleared.headers["set-cookie"], "Cache-Control": "private, no-store"},
+        ) from exc
+    await db.commit()
+    _set_parent_session(response, request, raw_session_token)
     return await _parent_output(db, visit_request)
+
+
+@router.delete(
+    "/public/visit-remembered",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_parent_request)],
+)
+async def forget_remembered_visit(request: Request) -> Response:
+    """「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。"""
+    return _forget(request)
 
 
 @router.get("/public/visit-manage/me", response_model=ParentVisitRequestOut)

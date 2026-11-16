@@ -243,7 +243,14 @@ const institutionSocials = computed(() => (props.content.siteMeta.socialLinks ??
   const url = httpsUrl(social.url)
   return url ? [{ ...social, url }] : []
 }))
-const menuCampusKey = ref<string | null>(null)
+// 預設顯示家長上次自己選的那一校（cookie ivy_campus，SSR 就讀得到）；沒記住才照 headerPhone 對應的那一校。
+const remembered = useRememberedCampus()
+const campusKeys = computed(() => campuses.value.map(campus => campus.key))
+const menuCampusKey = ref<string | null>(remembered.recall(campusKeys.value))
+function chooseMenuCampus(key: string) {
+  menuCampusKey.value = key
+  remembered.remember(key, campusKeys.value)
+}
 const contactCampus = computed(() =>
   campuses.value.find(campus => campus.key === menuCampusKey.value)
   ?? campuses.value.find(campus => campus.phone === headerPhone.value.number)
@@ -401,7 +408,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
             :aria-pressed="contactCampus?.key === c.key"
             @pointerenter="onCampusPointerEnter($event, c.key)"
             @focus="menuCampusKey = c.key"
-            @click="menuCampusKey = c.key"
+            @click="chooseMenuCampus(c.key)"
           >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>

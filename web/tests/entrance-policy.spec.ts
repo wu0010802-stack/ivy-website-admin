@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { describe, expect, it } from 'vitest'
+import { ENTRANCE_SEEN_COOKIE } from '../app/utils/seen-cookie'
 import { entranceBootstrap, entranceCoverStyles, ENTRANCE_DIGIT_FONT, ENTRANCE_POSTERS, ENTRANCE_PROJECTION, ENTRANCE_SESSION_KEY } from '../app/utils/entrance-policy'
 
 // Evaluates the aspect-ratio queries ENTRANCE_POSTERS uses against a viewport.
@@ -14,18 +15,21 @@ function aspectMatches(query: string, aspect: number) {
   return match[1] === 'min' ? aspect >= ratio : aspect <= ratio
 }
 
-function run(options: { path?: string; hash?: string; reduced?: boolean; colors?: boolean; seen?: boolean; blockedStorage?: boolean; connection?: object; runtimeSeen?: boolean; aspect?: number; readyState?: string } = {}) {
+function run(options: { path?: string; hash?: string; reduced?: boolean; colors?: boolean; seen?: boolean; blockedStorage?: boolean; connection?: object; runtimeSeen?: boolean; aspect?: number; readyState?: string; cookie?: string; https?: boolean; blockedCookie?: boolean } = {}) {
   const dataset: Record<string, string> = {}
   const writes: string[][] = []
+  const cookieWrites: string[] = []
   const preloads: Record<string, string>[] = []
   const listeners: [string, () => void][] = []
   const clock = { now: 1_000_000 }
   const sandbox = {
-    location: { pathname: options.path ?? '/', hash: options.hash ?? '' },
+    location: { pathname: options.path ?? '/', hash: options.hash ?? '', protocol: options.https === false ? 'http:' : 'https:' },
     window: { __ivyEntranceSeen: options.runtimeSeen ?? false },
     document: {
       readyState: options.readyState ?? 'loading',
       documentElement: { dataset },
+      get cookie() { return options.cookie ?? '' },
+      set cookie(value: string) { if (options.blockedCookie) throw new Error('blocked'); cookieWrites.push(value) },
       createElement: () => ({}),
       head: { append: (link: Record<string, string>) => { preloads.push({ ...link }) } },
       addEventListener: (type: string, listener: () => void) => { listeners.push([type, listener]) }
@@ -44,7 +48,7 @@ function run(options: { path?: string; hash?: string; reduced?: boolean; colors?
     clock.now += after
     for (const [type, listener] of listeners) if (type === 'DOMContentLoaded') listener()
   }
-  return { dataset, writes, preloads, sandbox, listeners, parsed }
+  return { dataset, writes, cookieWrites, preloads, sandbox, listeners, parsed }
 }
 
 describe('first entrance eligibility', () => {
@@ -57,7 +61,7 @@ describe('first entrance eligibility', () => {
   })
   it.each([
     { path: '/visit' }, { hash: '#campuses' }, { reduced: true }, { colors: true },
-    { seen: true }, { runtimeSeen: true }, { connection: { saveData: true } },
+    { seen: true }, { cookie: `${ENTRANCE_SEEN_COOKIE}=1` }, { cookie: `a=b; ${ENTRANCE_SEEN_COOKIE}=1; c=d` }, { runtimeSeen: true }, { connection: { saveData: true } },
     { connection: { effectiveType: '3g' } }, { connection: { effectiveType: '2g' } },
     // Re-inserted by a client-side navigation to / after the page has loaded.
     { readyState: 'interactive' }, { readyState: 'complete' }
@@ -66,6 +70,19 @@ describe('first entrance eligibility', () => {
     expect(result.dataset.ivyEntrance).toBeUndefined()
     expect(result.preloads).toEqual([])
     expect(result.listeners).toEqual([])
+  })
+  it('第一次播的這一刻寫 30 天 cookie（https 加 Secure），與 sessionStorage 同時', () => {
+    expect(run().cookieWrites).toEqual([`${ENTRANCE_SEEN_COOKIE}=1; Max-Age=2592000; Path=/; SameSite=Lax; Secure`])
+    expect(run({ https: false }).cookieWrites).toEqual([`${ENTRANCE_SEEN_COOKIE}=1; Max-Age=2592000; Path=/; SameSite=Lax`])
+  })
+  it('名字只是前綴相同的別的 cookie 不算看過', () => {
+    expect(run({ cookie: `x${ENTRANCE_SEEN_COOKIE}=1; ${ENTRANCE_SEEN_COOKIE}_other=1` }).dataset.ivyEntrance).toBe('pending')
+  })
+  it('cookie 被擋（寫入丟錯）時照樣播，sessionStorage 照寫當後備', () => {
+    const { dataset, writes, cookieWrites } = run({ blockedCookie: true })
+    expect(dataset.ivyEntrance).toBe('pending')
+    expect(cookieWrites).toEqual([])
+    expect(writes).toEqual([[ENTRANCE_SESSION_KEY, '1']])
   })
   it('continues when session storage is unavailable but avoids SPA repeats', () => {
     const { sandbox, dataset } = run({ blockedStorage: true })

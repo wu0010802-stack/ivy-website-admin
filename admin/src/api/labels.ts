@@ -1253,6 +1253,38 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
 // 官網問前六個（2026-10-03 起四個，2026-10-05 加兄姊、傳單）；後三個是舊選項，舊案件仍會有。
 export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: '親友介紹', sibling: '哥哥姊姊讀過或正在讀', nearby: '住附近／路過看到', flyer: '傳單／DM', online: '網路上看到', other: '其他', facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團' }
 
+// 網站來源（2026-11-16）：官網送單時第一方 cookie 記下的來源代碼，和第一方統計（api/engagement.ts 的 SOURCE_LABELS）同一組，
+// 這裡用短名稱。unrecorded 是統計表的「送單時沒有記錄」。
+export const TOUCH_SOURCE_LABELS: Record<string, string> = {
+  direct: '直接進站',
+  search: '搜尋引擎',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  line: 'LINE',
+  youtube: 'YouTube',
+  ads: '付費廣告',
+  other: '其他網站',
+  unrecorded: '沒有記錄',
+}
+
+function touchLabel(source: string, campaign: string | null | undefined, on: string | null | undefined): string {
+  const name = TOUCH_SOURCE_LABELS[source] || source
+  const when = on ? `，${Number(on.slice(5, 7))}/${Number(on.slice(8, 10))}` : ''
+  return `${name}${campaign ? `（${campaign}）` : ''}${when}`
+}
+
+/** 案件明細的「網站來源」：第一次進站與預約前最後一次；兩次一樣只寫一次。沒有記錄回空字串（不顯示這一列）。 */
+export function websiteTouchText(d: {
+  first_touch_source?: string | null; first_touch_campaign?: string | null; first_touch_on?: string | null
+  last_touch_source?: string | null; last_touch_campaign?: string | null; last_touch_on?: string | null
+}): string {
+  if (!d.first_touch_source) return ''
+  const first = touchLabel(d.first_touch_source, d.first_touch_campaign, d.first_touch_on)
+  if (!d.last_touch_source) return `第一次${first}`
+  const last = touchLabel(d.last_touch_source, d.last_touch_campaign, d.last_touch_on)
+  return first === last ? first : `第一次${first}；預約前${last}`
+}
+
 export function referralSourceLabels(sources: string[] | null | undefined): string {
   return sources?.length ? sources.map(source => REFERRAL_SOURCE_LABELS[source] || source).join('、') : '未填寫'
 }

@@ -130,8 +130,9 @@ describe('選單「找到你的校園」', () => {
     expect(header).toContain(':aria-pressed="contactCampus?.key === c.key"')
     expect(header).toContain('@pointerenter="onCampusPointerEnter($event, c.key)"')
     expect(header).toContain('@focus="menuCampusKey = c.key"')
-    // Safari 點按鈕不會給焦點，手機也沒有滑過，要靠 click。
-    expect(header).toContain('@click="menuCampusKey = c.key"')
+    // Safari 點按鈕不會給焦點，手機也沒有滑過，要靠 click；點了另外記住這一校（2026-11-16，cookie ivy_campus）。
+    expect(header).toContain('@click="chooseMenuCampus(c.key)"')
+    expect(header).toMatch(/function chooseMenuCampus\(key: string\) \{\s*menuCampusKey\.value = key/)
     const css = read('../app/assets/css/studio.css')
     const rules = css.split('\n').filter((line) => line.includes('#menu-campuses'))
     expect(rules.length).toBeGreaterThan(0)

@@ -769,6 +769,8 @@ describe('審查後：CampusBoard 只在有換校意圖時算多邊形、強制�
     for (const [name, value] of Object.entries({ computed, ref, shallowRef, watch, onMounted, onBeforeUnmount, nextTick })) vi.stubGlobal(name, value)
     vi.stubGlobal('useRoute', () => ({ query: {} }))
     vi.stubGlobal('useNuxtApp', () => ({ hook: () => () => {} }))
+    // 記住的校區（2026-11-16，cookie ivy_campus）：這裡沒有記住，起始校照後台預設。
+    vi.stubGlobal('useRememberedCampus', () => ({ recall: () => null, remember: () => {} }))
     vi.stubGlobal('navigateTo', async () => {})
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: forcedColors && query === '(forced-colors: active)', addEventListener() {}, removeEventListener() {} }))
     vi.stubGlobal('IntersectionObserver', class {

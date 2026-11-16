@@ -18,7 +18,12 @@ const orderedCampuses = computed(() => props.board.campusOrder
 // 10-12 關於頁結尾緞帶、10-29 頁首五校選單也連過來過，緞帶 10-30 拿掉、選單 2026-11-13 改回只切換）。
 const route = useRoute()
 const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
-const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus) ? requestedCampus : props.board.defaultCampus
+// 優先序：網址指定 ＞ 家長上次自己選的（cookie ivy_campus，SSR 就停在那一校）＞ 後台預設校。
+const remembered = useRememberedCampus()
+const rememberedKeys = computed(() => orderedCampuses.value.map(campus => campus.key))
+const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus)
+  ? requestedCampus
+  : remembered.recall(rememberedKeys.value) ?? props.board.defaultCampus
 const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === startCampus)))
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
@@ -272,6 +277,12 @@ function select(next: number, automatic = false) {
   }
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
+// 訪客自己切換校區（點分頁、鍵盤、拖曳、點旁邊的卡）：換完記住；自動輪播與內容更新不走這裡。
+function pick(next: number) {
+  select(next)
+  const key = current.value?.key
+  if (key) remembered.remember(key, rememberedKeys.value)
+}
 function onKey(event: KeyboardEvent, from: number) {
   const total = orderedCampuses.value.length
   const next = event.key === 'ArrowRight' ? (from + 1) % total
@@ -279,7 +290,7 @@ function onKey(event: KeyboardEvent, from: number) {
     : event.key === 'Home' ? 0 : event.key === 'End' ? total - 1 : -1
   if (next < 0) return
   event.preventDefault()
-  select(next)
+  pick(next)
   root.value?.querySelector<HTMLButtonElement>(`[data-campus-tab="${next}"]`)?.focus()
 }
 function togglePlayback() {
@@ -341,12 +352,12 @@ function onPointerUp(event: PointerEvent) {
   endDrag()
   if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {
     suppressPhotoClick = true
-    select(index.value + (dx < 0 ? 1 : -1))
+    pick(index.value + (dx < 0 ? 1 : -1))
   }
 }
 function onPhotoClick(event: MouseEvent, photo: number) {
   if (suppressPhotoClick) { event.preventDefault(); suppressPhotoClick = false; return }
-  if (photo !== index.value) { event.preventDefault(); select(photo) }
+  if (photo !== index.value) { event.preventDefault(); pick(photo) }
 }
 watch(playing, active => active ? clock.start() : clock.pause())
 // 第一次捲到五校區塊時，先把預設校的線稿畫一次。
@@ -541,7 +552,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
           type="button" role="tab" :data-campus-tab="i" :data-track-action="`campus_${campus.key}`" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
-          @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
+          @click="pick(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
           @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
@@ -596,7 +607,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
             <button
               v-for="(campus, i) in orderedCampuses" :key="campus.key"
               class="page-dot" type="button" :aria-label="`切換至${campus.name}`"
-              :aria-pressed="i === index" aria-controls="campus-stage" @click="select(i)"
+              :aria-pressed="i === index" aria-controls="campus-stage" @click="pick(i)"
             >
               <span class="progress-track" aria-hidden="true"><span
                 :key="i === index ? `run-${progressRun.key}` : 'idle'"

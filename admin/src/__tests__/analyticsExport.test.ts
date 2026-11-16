@@ -11,13 +11,14 @@ import ElementPlus from 'element-plus'
 import BookingStatsPane from '../components/analytics/BookingStatsPane.vue'
 import BookingOutcomesSection from '../components/analytics/BookingOutcomesSection.vue'
 import ClassDistributionPanel from '../components/analytics/ClassDistributionPanel.vue'
+import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
 import EventTrendPanel from '../components/analytics/EventTrendPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import { api } from '../api/client'
 import { funnelSourceLabel } from '../api/analyticsLabels'
 import {
   CAMPUS_KEYS,
-  type AnalyticsFunnelOut, type BookingOutcomesOut, type CampusOutcomeOut, type ClassDistributionOut, type EventTrendOut, type OutcomeCountsOut,
+  type AnalyticsFunnelOut, type BookingAttributionOut, type BookingOutcomesOut, type CampusOutcomeOut, type ClassDistributionOut, type EventTrendOut, type OutcomeCountsOut,
 } from '../api/types'
 import type { TrafficSummary } from '../api/traffic'
 import { taipeiToday } from '../admissions/academic'
@@ -94,7 +95,7 @@ async function mountAnalytics(data: AnalyticsFunnelOut = funnel) {
     props: { campusKey: 'yihua', campusKeys: CAMPUS_KEYS },
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
+      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true, BookingAttributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -269,6 +270,56 @@ describe('參觀預約統計匯出：預約孩子的班別', () => {
 
   it('沒有預約案件時畫面不畫表，也沒有匯出鈕', async () => {
     const wrapper = await mountClasses(dist({ total: 0, grades: [], out_of_range: 0, unrecorded: 0 }))
+    expect(wrapper.find('[data-test="stats-csv"]').exists()).toBe(false)
+  })
+})
+
+// ---- 網站來源（2026-11-16）----
+
+const touchRate = (value: number | null, numerator: number, denominator: number) => ({ value, numerator, denominator })
+const touchCounts = (cases: number, completed: number, noShow: number, deposited: number) => ({
+  cases, completed, no_show: noShow, deposited,
+  attendance_rate: touchRate(completed + noShow ? Math.round((completed / (completed + noShow)) * 1000) / 10 : null, completed, completed + noShow),
+  deposit_rate: touchRate(completed ? Math.round((deposited / completed) * 1000) / 10 : null, deposited, completed),
+})
+const attribution = (over: Partial<BookingAttributionOut> = {}): BookingAttributionOut => ({
+  as_of: '2026-11-16T06:05:00Z', date_from: null, date_to: null, touch: 'last',
+  rows: [
+    { source: 'ads', ...touchCounts(3, 2, 1, 1), campaigns: [{ campaign: 'chatgpt-five-campuses', ...touchCounts(2, 2, 0, 1) }] },
+    { source: 'unrecorded', ...touchCounts(4, 1, 0, 0), campaigns: [] },
+  ],
+  totals: touchCounts(7, 3, 1, 1),
+  ...over,
+})
+
+describe('參觀預約統計：網站來源', () => {
+  it('來源一列、活動代碼接在下面；匯出欄名與每一列同畫面；切「第一次進站」會重查', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(attribution() as never)
+    const wrapper = mount(BookingAttributionPanel, { props: { campusKey: 'yihua', range: null, periodLabel: '開站至今' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?campus_key=yihua&touch=last')
+    await click(wrapper, 'stats-csv')
+    const { filename, lines } = lastDownload()
+    expect(filename).toBe(`招生統計-參觀預約-網站來源-預約前最後來源-義華-開站至今-${today}.csv`)
+    expect(lines).toEqual([
+      `${CSV_BOM}來源,預約,已到場,未到場,到場率,預繳,預繳率`,
+      '付費廣告,3,2,1,66.7%,1,50.0%',
+      '付費廣告・chatgpt-five-campuses,2,2,0,100.0%,1,50.0%',
+      '沒有記錄,4,1,0,100.0%,0,0.0%',
+      '',
+    ])
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 'first')
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?campus_key=yihua&touch=first')
+  })
+
+  it('這段期間沒有官網預約時不畫表、沒有匯出鈕', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(attribution({ rows: [], totals: touchCounts(0, 0, 0, 0) }) as never)
+    const wrapper = mount(BookingAttributionPanel, { props: { campusKey: 'yihua', range: null, periodLabel: '開站至今' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.text()).toContain('這段期間沒有官網送出的預約')
     expect(wrapper.find('[data-test="stats-csv"]').exists()).toBe(false)
   })
 })

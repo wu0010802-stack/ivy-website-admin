@@ -31,10 +31,10 @@ import { publicScriptSources } from './script-csp'
 // 新增外部嵌入或圖片來源時要一起改，tests/stack/public-csp.spec.ts 會抓到違規。
 // 2026-11-12 起 GA4／Meta Pixel：對應的 ID 有設定（runtimeConfig.public.gaMeasurementId／metaPixelId，執行期變數）
 // 才多放行那一家的 script-src／connect-src／img-src 來源，見 shared/third-party-analytics.ts 的 analyticsCspSources。
-// 2026-11-15 加 OpenAI 評估像素（openaiPixelId）。全都沒設時三條和下面的字串一字不差（tests/third-party-analytics.spec.ts 鎖住）。後台 CSP 不放行。
+// 2026-11-15 加 OpenAI 評估像素（openaiPixelId）、2026-11-16 加 LINE Tag（lineTagId）。全都沒設時三條和下面的字串一字不差（tests/third-party-analytics.spec.ts 鎖住）。後台 CSP 不放行。
 const PUBLIC_IMG_SRC = ["'self'", 'data:', 'blob:', 'https://i.ytimg.com']
 const PUBLIC_CONNECT_SRC = ["'self'", 'https://challenges.cloudflare.com']
-const NO_ANALYTICS: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null }
+const NO_ANALYTICS: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null, lineTagId: null }
 
 /** 公開頁「資源從哪裡來」三條；analytics 是啟用中的 GA4／Meta Pixel（可省略）。 */
 export function publicResourceCsp(analytics?: AnalyticsIds): string {

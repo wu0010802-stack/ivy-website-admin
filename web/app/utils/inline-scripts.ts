@@ -1,5 +1,6 @@
 import { ANNI_INTRO_SESSION_KEY } from './anniversary/timeline'
 import { HERO_MIN_DOWNLINK_MBPS } from './media-policy'
+import { ANNI_INTRO_SEEN_COOKIE, seenCookieTest } from './seen-cookie'
 
 // 公開頁用 useHead／app.head 放的 inline script 本文（2026-11-04 資安強化）。
 // 公開頁的 CSP 是 script-src 'self' 加逐支 sha256（web/server/utils/script-csp.ts）：
@@ -16,5 +17,6 @@ export const MOTION_LAYOUT_SCRIPT = "document.documentElement.dataset.ivyMotion=
 /**
  * /anniversary 開場影片閘門：第一次繪製前決定要不要播，要播就先蓋一層深色（AnniversaryIntro.vue）。
  * 5 秒還沒開始播就拿掉蓋層；連線閘門比照首屏影片（media-policy 的 heroMayAutoplay）。
+ * 30 天內看過（cookie ivy_seen_anni_intro，2026-11-16）或同一分頁看過（sessionStorage）都不播；伺服器看到 cookie 時連這支 script 都不輸出。
  */
-export const ANNI_INTRO_GATE_SCRIPT = `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}'))return;var c=navigator.connection;if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')||(c.downlink>0&&c.downlink<${HERO_MIN_DOWNLINK_MBPS})))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`
+export const ANNI_INTRO_GATE_SCRIPT = `(function(){try{var d=document.documentElement;if(location.hash||matchMedia('(prefers-reduced-motion: reduce)').matches||sessionStorage.getItem('${ANNI_INTRO_SESSION_KEY}')||${seenCookieTest(ANNI_INTRO_SEEN_COOKIE)})return;var c=navigator.connection;if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')||(c.downlink>0&&c.downlink<${HERO_MIN_DOWNLINK_MBPS})))return;d.dataset.anniIntro='pending';setTimeout(function(){if(d.dataset.anniIntro==='pending')delete d.dataset.anniIntro},5000)}catch(e){}})()`

@@ -168,7 +168,9 @@ export default defineNuxtConfig({
       gaMeasurementId: '',
       metaPixelId: '',
       // ChatGPT 廣告的 OpenAI 評估像素（2026-11-15）：NUXT_PUBLIC_OPENAI_PIXEL_ID，規則同上（預設空白＝關）。
-      openaiPixelId: ''
+      openaiPixelId: '',
+      // LINE Tag（2026-11-16）：NUXT_PUBLIC_LINE_TAG_ID（UUID），規則同上（預設空白＝關）。
+      lineTagId: ''
     }
   }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { entranceBootstrap, entranceCoverStyles } from '~/utils/entrance-policy'
+import { ENTRANCE_SEEN_COOKIE, seenCookieSet } from '~/utils/seen-cookie'
 import { anniversaryEnabled, newsEnabled } from '~/utils/seo'
 const { data, error } = await usePublishedSite()
 assertPublishedSite(error)
@@ -7,10 +8,13 @@ usePageSeo(computed(() => data.value?.content))
 // 進站布幕（30 週年投影）跟著後台「全站設定」的 30 週年開關：關閉時連 bootstrap 都不放，
 // html 不會標 data-ivy-entrance，entrance-engine plugin 也就不下載引擎。
 const curtain = computed(() => anniversaryEnabled(data.value?.content.siteMeta))
+// 30 天內看過（cookie ivy_seen_entrance，2026-11-16）：伺服器不輸出 bootstrap script 與布幕樣式，回訪者不會閃一下遮罩。
+const enteredBefore = seenCookieSet(useCookie(ENTRANCE_SEEN_COOKIE, { readonly: true }).value)
+const entranceDue = computed(() => curtain.value && !enteredBefore)
 useHead({
   htmlAttrs: { 'data-seam': '2', class: 'relay-day' },
-  script: () => (curtain.value ? [{ key: 'entrance-curtain', tagPriority: 'critical' as const, innerHTML: entranceBootstrap }] : []),
-  style: () => (curtain.value ? [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }] : [])
+  script: () => (entranceDue.value ? [{ key: 'entrance-curtain', tagPriority: 'critical' as const, innerHTML: entranceBootstrap }] : []),
+  style: () => (entranceDue.value ? [{ key: 'entrance-cover', innerHTML: entranceCoverStyles }] : [])
 })
 // 後台「全站設定」的最新消息開關（2026-11-11）：關閉時首頁不放最新消息那一章，五校區塊後面直接接頁尾。
 const showNews = computed(() => newsEnabled(data.value?.content.siteMeta))

@@ -24,7 +24,11 @@ export const API_FORWARD_REQUEST_HEADERS: ReadonlySet<string> = new Set([
   'idempotency-key',
   'x-csrf-token',
   // 沿用上游的 request id（後端會驗格式，不合格就自己產生）。
-  'x-request-id'
+  'x-request-id',
+  // 訪客開了「不要追蹤」或 Global Privacy Control：送出預約時就不記網站來源與點擊識別碼（2026-11-16，
+  // backend/app/booking/attribution.py）。
+  'dnt',
+  'sec-gpc'
 ])
 // 自家標頭（X-Ivy-Parent、X-Ivy-Search…）與 LINE webhook 的簽章標頭。
 const API_FORWARD_REQUEST_PREFIXES = ['x-ivy-', 'x-line-'] as const

@@ -516,6 +516,14 @@ class VisitRequestDetailOut(BaseModel):
     party_size: int | None = None
     # 預計入學時間（2026-10-15）；舊案件與沒選的為 None。
     expected_start: str | None = None
+    # 網站來源（2026-11-16，booking/attribution.py）：官網送單時第一方 cookie 記下的「第一次進站」與
+    # 「預約前最後一次不是直接進站」。來源是第一方統計的代碼，活動代碼是 utm_campaign；沒有就是 None。
+    first_touch_source: str | None = None
+    first_touch_campaign: str | None = None
+    first_touch_on: date | None = None
+    last_touch_source: str | None = None
+    last_touch_campaign: str | None = None
+    last_touch_on: date | None = None
     # 排除標記（2026-10-15）：測試或重複的案件；列表不回說明（計畫裁定 P12）。
     excluded_at: datetime | None = None
     exclude_reason: str | None = None
@@ -713,6 +721,17 @@ class AdminDetailsUpdate(BaseModel):
     def changes(self) -> dict:
         """請求裡有送的欄位與值（不含 expected_version）；清空的欄位值是 None。"""
         return {field: getattr(self, field) for field in self.model_fields_set if field != "expected_version"}
+
+
+class RememberedVisitOut(BaseModel):
+    """這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、
+    Email——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。"""
+
+    campus_key: str
+    campus_name: str
+    slot_date: date
+    start_time: time
+    end_time: time
 
 
 class ParentVisitRequestOut(BaseModel):
