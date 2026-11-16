@@ -49,12 +49,12 @@ watch(rail, isRail => {
   focusSearchOnExpand = false
   searchInput.value?.focus()
 }, { flush: 'post' })
-// 每天要用的總覽與參觀預約預設展開，內容三組與系統收起；使用者自己的
+// 每天要用的總覽與參觀預約預設展開，內容四組與系統收起；使用者自己的
 // 開合記在瀏覽器裡，下次進來不必重開。私密視窗或封鎖 site data 時讀寫
 // 都會丟例外，接住就好，收合只是便利。
 const STORAGE_KEY = 'ivy-admin-nav-expanded'
 const DEFAULT_EXPANDED: Record<string, boolean> = {
-  overview: true, visits: true, home: false, campus: false, site: false, system: false,
+  overview: true, visits: true, home: false, pages: false, campus: false, site: false, system: false,
 }
 function readExpanded(): Record<string, boolean> {
   try {
@@ -89,11 +89,12 @@ const groups = computed(() => {
   // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
   const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
     const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
-    // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項。
+    // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項；
+    // nav.ts 標了 flat 的分組（官網內容最下面的素材庫、發布紀錄）也一樣。
     // 看 nav.ts 原本的項目數，不看過濾後的：角色剛好只剩一項的分組仍保留標題；搜尋時也照常顯示分組名。
-    const flat = !q && group.items.length === 1 && !group.section
+    const flat = !q && (Boolean(group.flat) || (group.items.length === 1 && !group.section))
     if (!q) return { ...group, items: allowed, score: 0, flat }
-    // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「全站與素材」整組攤開；
+    // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「素材與發布」整組攤開；
     // 搜「預約」要帶出參觀案件、參觀場次，不只名稱裡有「預約」的兩項。
     const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
     if (hits.length) {
@@ -232,7 +233,7 @@ const userLine = computed(() => {
     <nav ref="navEl" class="sidebar__nav" aria-label="主選單" @keydown="moveFocus">
       <template v-for="block in blocks" :key="block.key">
       <p v-if="block.section && !rail" class="sidebar__section">{{ block.section }}</p>
-      <section v-for="group in block.groups" :key="group.key" class="sidebar__group" :class="{ 'is-nested': block.section }">
+      <section v-for="group in block.groups" :key="group.key" class="sidebar__group" :class="{ 'is-nested': block.section, 'is-flat': group.flat }">
         <h2 v-if="!group.flat && !rail">
           <button type="button" class="sidebar__group-toggle"
             :class="{ 'has-current': !hasQuery && !expanded[group.key] && group.key === activeGroupKey }"
@@ -355,15 +356,16 @@ const userLine = computed(() => {
 .sidebar__chevron.is-open { transform: none; }
 .sidebar__chevron.is-hidden { visibility: hidden; }
 .sidebar__group:not(.is-nested) .sidebar__chevron { order: 1; margin-left: auto; }
-/* 第二層（官網內容底下的首頁／各校／全站與素材）：長得像一列選單，箭頭占圖示那一欄，
-   文字跟項目的文字對齊。 */
+/* 第二層（官網內容底下的首頁／各分頁／各校／全站共用）：長得像一列選單，箭頭占圖示那一欄，
+   文字跟項目的文字對齊。最下面不收合的素材庫、發布紀錄（.is-flat）圖示也落在同一欄。 */
 .sidebar__group.is-nested .sidebar__group-toggle { gap: var(--nav-gap); min-height: var(--nav-row); color: var(--sidebar-ink); font-size: var(--text-base); font-weight: 500; }
 .sidebar__group.is-nested .sidebar__chevron { width: var(--nav-icon); }
 /* 收起來、但目前頁面在裡面的分組，標題用選取色。 */
 .sidebar__group-toggle.has-current { color: var(--sidebar-active-ink); }
 /* 子項目往右縮到圖示對齊子組標題的文字，左邊一條細線從箭頭往下，看得出屬於哪一組。
-   線的位置＝箭頭中心（--nav-pad + --nav-icon / 2）；padding 補到圖示落在標題文字底下。 */
-.sidebar__group.is-nested > ul {
+   線的位置＝箭頭中心（--nav-pad + --nav-icon / 2）；padding 補到圖示落在標題文字底下。
+   不收合的那組（.is-flat）沒有標題可以掛，不縮排；搜尋時它有分組名，照樣縮。 */
+.sidebar__group.is-nested:not(.is-flat) > ul {
   margin-left: calc(var(--nav-pad) + var(--nav-icon) / 2);
   padding-left: calc(var(--nav-gap) + var(--nav-icon) / 2 - var(--nav-pad) - 1px);
   border-left: 1px solid var(--sidebar-line);

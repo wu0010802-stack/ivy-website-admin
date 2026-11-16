@@ -85,7 +85,7 @@ describe('後台導覽與編輯操作', () => {
     wrappers.push(wrapper)
     await wrapper.get('input').setValue('素材')
     expect(wrapper.findAll('.sidebar__nav a').map(link => link.text())).toEqual(['素材庫'])
-    expect(wrapper.get('#nav-site').isVisible()).toBe(true)
+    expect(wrapper.get('#nav-library').isVisible()).toBe(true)
     await wrapper.get('input').setValue('使用者')
     expect(wrapper.findAll('.sidebar__nav a')).toHaveLength(0)
     expect(wrapper.text()).toContain('找不到符合的功能')
@@ -104,13 +104,15 @@ describe('後台導覽與編輯操作', () => {
     expect(wrapper.get('[aria-current="page"]').text()).toBe('首頁大圖標語')
   })
 
-  it('官網內容分成三個子組共用一個區段標題，收合狀態記在瀏覽器', async () => {
+  it('官網內容分成四個子組共用一個區段標題，收合狀態記在瀏覽器', async () => {
     const { global } = await setup()
     const wrapper = mount(AdminSidebar, { global, attachTo: document.body })
     wrappers.push(wrapper)
-    // 區段標題只有一個，底下是首頁／分校頁／全站與素材三個可收合子組
+    // 區段標題只有一個，底下是首頁／各分頁／各校／全站共用四個可收合子組，
+    // 最後是不收合的素材庫與發布紀錄（2026-11-16）
     expect(wrapper.findAll('.sidebar__section').map(el => el.text())).toEqual(['官網內容'])
-    expect(wrapper.findAll('.sidebar__group.is-nested')).toHaveLength(3)
+    expect(wrapper.findAll('.sidebar__group.is-nested .sidebar__group-toggle').map(el => el.text())).toEqual(['首頁', '各分頁', '各校', '全站共用'])
+    expect(wrapper.findAll('.sidebar__group.is-nested')).toHaveLength(5)
     expect(wrapper.get('#nav-home').isVisible()).toBe(false)
 
     await wrapper.get('[aria-controls="nav-home"]').trigger('click')
