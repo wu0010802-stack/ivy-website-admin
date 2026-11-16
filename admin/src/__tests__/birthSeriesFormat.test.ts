@@ -6,7 +6,7 @@ import {
 } from '../components/admissions/area/birthSeriesFormat'
 
 const period = (changes: Partial<AreaTrendsBirthPeriod> = {}): AreaTrendsBirthPeriod => ({
-  starts: '114-10', ends: '115-09', months: 12, missing: [], births: 10929, change_pct: -19, ...changes,
+  starts: '114-10', ends: '115-09', months: 12, missing: [], births: 10929, change_pct: -19, marriages: null, ...changes,
 })
 
 describe('birthSeriesFormat', () => {

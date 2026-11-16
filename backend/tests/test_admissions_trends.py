@@ -204,7 +204,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
         "distance_m": 300, "children": 120, "kids_net": 20, "kids_base": 100, "kids_level": "up2",
         # 每月出生 2 位；每月遷入 10 − 遷出 4 ＋ 住址變更入 2 − 出 1＝7 人。
-        "births_12m": 24, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
+        "births_12m": 24, "marriages_12m": None, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
         "schools": [_school("東光國小")],
@@ -215,7 +215,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert rows[BAOHUA] | {"distance_m": 0} == {
         "key": BAOHUA, "district": "三民區", "village": "寶華里", "codes": [BAOHUA], "merged": False, "distance_m": 0,
         "children": None, "kids_net": None, "kids_base": None, "kids_level": "unknown",
-        "births_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
+        "births_12m": None, "marriages_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
         "schools": [_school("光武國小")],
@@ -248,7 +248,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
     assert group == {
         "key": f"group:三民區:{BENSHANG}", "district": "三民區", "village": "本上里", "codes": [BENSHANG, OLD_CODE],
         "merged": True, "distance_m": 500, "children": 40, "kids_net": 40 - 44, "kids_base": 44, "kids_level": "down1",
-        "births_12m": 0, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
+        "births_12m": 0, "marriages_12m": None, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
         "schools": [_school("東光國小")],
@@ -278,9 +278,10 @@ async def test_baseline_sums_rows_and_compares_births_with_the_same_months(admin
         "kids_base": 100 + 100 + 100 + 44,
         # 本揚里近 12 個月每月 2 位、前一年每月 3 位：少 33.3%。
         "births_12m": 24, "births_months": 12, "births_compared_months": 12, "births_change_pct": -33.3,
+        "marriages_12m": None, "marriages_months": 0,
         "births_series": [
-            {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
-            {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 36, "change_pct": None},
+            {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3, "marriages": None},
+            {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 36, "change_pct": None, "marriages": None},
         ],
         "migration_net_12m": 84, "migration_months": 12,
         "new_homes": None, "new_homes_latest": None, "new_homes_seasons": 0,
@@ -310,14 +311,14 @@ async def test_births_series_lists_the_periods_newest_first(admin_client, db_ses
     await _seed_births(db_session, months, _per_period([2, 2, 3, 3, 4, 4]))
     baseline = (await _get(admin_client))["baseline"]
     assert baseline["births_series"] == [
-        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": 0.0},
-        {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
-        {"starts": "112-10", "ends": "113-09", "months": 12, "missing": [], "births": 36, "change_pct": 0.0},
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": 0.0, "marriages": None},
+        {"starts": "113-10", "ends": "114-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3, "marriages": None},
+        {"starts": "112-10", "ends": "113-09", "months": 12, "missing": [], "births": 36, "change_pct": 0.0, "marriages": None},
         # 112-03 的前一年同月份是缺月 111-03，只比 11 個月：33 對 44，是 −25.0，不是 36 對 44 的 −18.2。
-        {"starts": "111-10", "ends": "112-09", "months": 12, "missing": [], "births": 36, "change_pct": -25.0},
-        {"starts": "110-10", "ends": "111-09", "months": 11, "missing": ["111-03"], "births": 44, "change_pct": 0.0},
+        {"starts": "111-10", "ends": "112-09", "months": 12, "missing": [], "births": 36, "change_pct": -25.0, "marriages": None},
+        {"starts": "110-10", "ends": "111-09", "months": 11, "missing": ["111-03"], "births": 44, "change_pct": 0.0, "marriages": None},
         # `_load` 只讀 72 個月，最舊一期沒有前一期，所以是 null。
-        {"starts": "109-10", "ends": "110-09", "months": 12, "missing": [], "births": 48, "change_pct": None},
+        {"starts": "109-10", "ends": "110-09", "months": 12, "missing": [], "births": 48, "change_pct": None, "marriages": None},
     ]
     assert (baseline["births_12m"], baseline["births_compared_months"], baseline["births_change_pct"]) == (24, 12, 0.0)
 
@@ -328,7 +329,7 @@ async def test_a_period_with_fewer_than_ten_months_is_not_listed(admin_client, d
     await _seed_births(db_session, series_io.window(CURRENT, 20), lambda month: 2 if month > YEAR_AGO else 3)
     series = (await _get(admin_client))["baseline"]["births_series"]
     assert series == [
-        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3}
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3, "marriages": None}
     ]
 
 
@@ -339,8 +340,8 @@ async def test_a_period_with_exactly_ten_months_is_listed(admin_client, db_sessi
     series = (await _get(admin_client))["baseline"]["births_series"]
     assert series == [
         # 114-10 起的 12 個月都有；前一年同月份只有 114-12 到 115-09 這 10 個月在：20 對 30。
-        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3},
-        {"starts": "113-10", "ends": "114-09", "months": 10, "missing": ["113-10", "113-11"], "births": 30, "change_pct": None},
+        {"starts": "114-10", "ends": "115-09", "months": 12, "missing": [], "births": 24, "change_pct": -33.3, "marriages": None},
+        {"starts": "113-10", "ends": "114-09", "months": 10, "missing": ["113-10", "113-11"], "births": 30, "change_pct": None, "marriages": None},
     ]
 
 

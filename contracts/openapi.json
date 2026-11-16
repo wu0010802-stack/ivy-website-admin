@@ -6089,6 +6089,21 @@
             ],
             "title": "Kids Net"
           },
+          "marriages_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages 12M"
+          },
+          "marriages_months": {
+            "title": "Marriages Months",
+            "type": "integer"
+          },
           "migration_months": {
             "title": "Migration Months",
             "type": "integer"
@@ -6172,6 +6187,8 @@
           "births_compared_months",
           "births_change_pct",
           "births_series",
+          "marriages_12m",
+          "marriages_months",
           "migration_net_12m",
           "migration_months",
           "new_homes",
@@ -6205,6 +6222,17 @@
             "title": "Ends",
             "type": "string"
           },
+          "marriages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages"
+          },
           "missing": {
             "items": {
               "type": "string"
@@ -6227,7 +6255,8 @@
           "months",
           "missing",
           "births",
-          "change_pct"
+          "change_pct",
+          "marriages"
         ],
         "title": "AreaTrendsBirthPeriodOut",
         "type": "object"
@@ -6591,6 +6620,9 @@
           "income": {
             "$ref": "#/components/schemas/AreaTrendsIncomeSourceOut"
           },
+          "marriages": {
+            "$ref": "#/components/schemas/AreaTrendsMonthsOut"
+          },
           "migration": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
@@ -6614,6 +6646,7 @@
         "required": [
           "population",
           "births",
+          "marriages",
           "migration",
           "note",
           "income",
@@ -6718,6 +6751,17 @@
             ],
             "title": "Kids Net"
           },
+          "marriages_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages 12M"
+          },
           "merged": {
             "title": "Merged",
             "type": "boolean"
@@ -6804,6 +6848,7 @@
           "kids_base",
           "kids_level",
           "births_12m",
+          "marriages_12m",
           "migration_net_12m",
           "income_median",
           "income_boundary_changed",

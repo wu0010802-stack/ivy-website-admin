@@ -15,8 +15,8 @@ afterEach(() => {
 })
 
 const periods = [
-  { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 100, change_pct: -20 },
-  { starts: '113-10', ends: '114-09', months: 11, missing: ['113-11'], births: 125, change_pct: null },
+  { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 100, change_pct: -20, marriages: null },
+  { starts: '113-10', ends: '114-09', months: 11, missing: ['113-11'], births: 125, change_pct: null, marriages: null },
 ]
 const mountIt = (props: Record<string, unknown> = {}) =>
   mount(BirthSeries, { props: { periods, radiusKm: 3, csvName: '招生統計-近幾年的出生數.csv', ...props }, global: { plugins: [ElementPlus] } })

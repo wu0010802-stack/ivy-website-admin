@@ -110,7 +110,9 @@ async def elementary_files(client: httpx.AsyncClient) -> list[BundleFile]:
 async def _collect_public(files: list[BundleFile], presale_parcels: Path | None) -> str:
     """人口、九月底人口、出生、遷入遷出、所得、新成屋、國小一年級人數、預售建案（與地號座標）；回傳人口最新月份（預設檔名用）。"""
     async with sync.new_client() as client:
-        for kind, series in (("births", series_io.BIRTHS), ("migration", series_io.MIGRATION)):
+        for kind, series in (
+            ("births", series_io.BIRTHS), ("marriages", series_io.MARRIAGES), ("migration", series_io.MIGRATION)
+        ):
             def url_of(yyymm: str, page: int, series=series) -> str:
                 return series_io.page_url(series, yyymm, page)
 

@@ -5935,6 +5935,10 @@ export interface components {
             kids_base: number | null;
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
+            /** Marriages Months */
+            marriages_months: number;
             /** Migration Months */
             migration_months: number;
             /** Migration Net 12M */
@@ -5970,6 +5974,8 @@ export interface components {
             change_pct: number | null;
             /** Ends */
             ends: string;
+            /** Marriages */
+            marriages: number | null;
             /** Missing */
             missing: string[];
             /** Months */
@@ -6105,6 +6111,7 @@ export interface components {
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
             income: components["schemas"]["AreaTrendsIncomeSourceOut"];
+            marriages: components["schemas"]["AreaTrendsMonthsOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
             new_homes: components["schemas"]["AreaTrendsNewHomesSourceOut"];
             /** Note */
@@ -6145,6 +6152,8 @@ export interface components {
             kids_level: "up2" | "up1" | "flat" | "down1" | "down2" | "few" | "unknown";
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
             /** Merged */
             merged: boolean;
             /** Migration Net 12M */
