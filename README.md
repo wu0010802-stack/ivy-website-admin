@@ -4,7 +4,7 @@
 
 - **招生統計新子分頁「廣告成效」**（`/admin/admissions-stats?sub=ads`，只有總管理者，五校合計）：每個平台一列，欄位為花費、點擊、預約、到場、預繳、每筆預約／每位到場／每位預繳成本；可選月份區間與「最後一次／第一次進站」歸因。另有 Google 活動明細、各校廣告預約、每月手填花費清單。除了規格列出的平台，多一列「沒有來源紀錄」（沒帶來源 cookie 的預約，例如開了 DNT／GPC、11-16 之前的預約）。預約數含之後取消的。
 - **花費來源**：Google 由 GA4 Data API 自動讀（約晚一天，要業主先設定，見下方待辦）；ChatGPT、Meta、LINE、其他網路廣告與離線花費由後台「新增」每月手填。沒設定顯示「未設定」，有預約但沒填顯示「未填」，兩者與填 0 分得開。
-- **廣告平台判斷變更**：官網進站時多記廣告平台（google／openai／meta／line／other），ChatGPT 的 `oppref` 與 LINE 的 `ldtag_cl` 進站現在算「付費廣告」（沒有 `oppref` 但 `utm_source` 是 chatgpt／openai、且 `utm_medium` 是付費，也認得）。這會連帶改變**第一方「網站來源」統計的來源分布**：11-16 之後 ChatGPT 進站從原本的「其他／直接」、LINE 廣告進站從原本的「LINE」移到「付費廣告」，跨過這天的月份比較要留意。
+- **廣告平台判斷變更**：官網進站時多記廣告平台（google／openai／meta／line／other），ChatGPT 的 `oppref` 與 LINE 的 `ldtag_cl` 進站現在算「付費廣告」（沒有 `oppref` 但 `utm_source` 是 chatgpt／openai（算 ChatGPT）或 line 開頭（算 LINE）、且 `utm_medium` 是付費，也認得）。這會連帶改變**第一方「網站來源」統計的來源分布**：11-16 之後 ChatGPT 進站從原本的「其他／直接」、LINE 廣告進站從原本的「LINE」移到「付費廣告」，跨過這天的月份比較要留意。
 - **各里結婚對數**（戶政 ODRP060，自 109-09）：隨公開地理資料同步一起抓（也可用 CLI `--marriages-file` 匯入），顯示在區域分析里表「近 12 個月結婚（對）」與出生走勢。
 - **migration** `c4d2e8a1f6b3` 只新增（`visit_requests` 兩欄、`ad_spend_entries`、`geo_village_marriages`、放寬 dataset 檢查），不需要備份閘門。
 - **業主待辦**：(1) GA4 資源 563982090 把 Search Console 服務帳戶加為檢視者、啟用 Google Analytics Data API、在 Railway api 設 `WEBSITE_GA4_PROPERTY_ID`（步驟見 `deploy/README.md`「GA4 廣告花費」）；(2) 申請 Google Business Profile API 存取權；(3) 申請 Google Ads developer token。

@@ -222,14 +222,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 **GA4 廣告花費（2026-11-16，`feature/ad-roi-20261116`，未部署）**：招生統計 → 廣告成效的 Google 花費來源，選填，沒設時 Google 列顯示「未設定」，其他功能不受影響。
 
-1. GA4 資源 `563982090` → 管理 → 資源設定：確認幣別是新台幣（TWD）、時區是台北（Asia/Taipei）；不是的話畫面會多一行時區註腳，幣別不是 TWD 花費旁會標幣別。
+1. GA4 資源 `563982090` → 管理 → 資源設定：確認幣別是新台幣（TWD）、時區是台北（Asia/Taipei）；不是的話畫面會提醒：幣別不是 TWD 時，Google 列花費後面標幣別、表下多一行「Google 花費以 X 計。」；時區不是台北時多一行「Google 花費依 <時區> 切月份。」。
 2. GA4 資源 `563982090` → 管理 → 資源存取管理：把 Search Console 服務帳戶的 email（`WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` 裡的 `client_email`）加為「檢視者」。
 3. 該服務帳戶所屬的 Google Cloud 專案：啟用「Google Analytics Data API」。
 4. Railway api 服務設 `WEBSITE_GA4_PROPERTY_ID=563982090`（需先有服務帳戶變數；改變數會重新部署，先確認沒有人在部署）。
 5. 驗證：後台招生統計 → 廣告成效，Google 列的花費顯示數字而不是「未設定」或「讀取失敗」。
 6. 各里結婚對數隨既有「公開地理資料同步」一起抓，不需要新變數。
 
-四個變數各自獨立（SC 的服務帳戶與資源兩個要一起設）：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
+四個變數分三組：Search Console 要服務帳戶 JSON 與資源兩個一起設；CrUX 只要金鑰；GA4 廣告花費要同一個服務帳戶 JSON 加 `WEBSITE_GA4_PROPERTY_ID`（沒有服務帳戶時只設編號不會生效）。三組互不影響：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
 
 **程式做了什麼**（`backend/app/insights/`）
 
