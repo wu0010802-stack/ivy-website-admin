@@ -1,3 +1,10 @@
+## 2026-11-17 iPhone 預約表單「寶貝出生年月日」比姓名欄寬（`feature/visit-date-field-20261117`，已部署 main `7524b700`）
+
+- **現象**：手機上「寶貝出生年月日」的框比上面「寶貝姓名」寬一截、右緣貼到畫面外，整頁還被往右推。桌機 Chrome／Safari、Playwright 在 280–1440px 各寬度量兩欄都一樣寬，只有手機原生日期欄才會出現。
+- **原因**：iOS Safari 的原生日期欄（`appearance:auto`）只要寬度不是固定 px，WebKit 就強制 `box-sizing:content-box` 並加最小寬度（`RenderThemeIOS.mm` 的 `adjustInputElementButtonStyle`）。我們寫的是 `width:100%`＋左右 padding 16px＋邊框，於是比容器寬 34px。把使用者截圖照 390px 視窗換算：姓名 350、日期 384、頁面被推 14px，三個數字都對得上。
+- **修正**：預約表單（`web/app/assets/css/visit-booking.css`）與家長修改預約（`web/app/pages/visit/manage.vue`）的日期欄加 `-webkit-appearance:none;appearance:none`，日期文字 `::-webkit-date-and-time-value{text-align:start}`（iOS 預設置中）。點了照樣跳系統日期選擇器。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。
+- **驗證**：桌機 Chrome、WebKit 的 390／1440px 修改前（正式站）與修改後的日期欄寬高、截圖都一樣（Chrome 日曆圖示還在）；`npm --prefix web run typecheck`、`test:unit`（162 檔 2,458 個）通過；正式站部署後桌機 Chrome、WebKit 量到日期欄 `appearance:none`、寬度和姓名欄相同。**iPhone 實機還沒驗**：本機沒有 iOS 模擬器。
+
 ## 2026-11-17 狀態機登記表＋粉專貼文頁籤修正（`feature/state-machines-20261117`，已部署 main `ae2e177f`）
 
 盤點全站的隱性狀態機（狀態與轉移只存在各函式的 `if` 裡），做法與前端流程地圖見 `docs/state-machines/README.md`。

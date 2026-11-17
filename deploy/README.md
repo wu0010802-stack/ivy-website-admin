@@ -363,6 +363,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 iPhone 預約表單出生年月日欄比姓名欄寬修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #109 合併進 main（`7524b700`），main run 44008630281 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。等待期間 main 先後合進 #105、#108、#111 與它們的部署紀錄，README／DESIGN.md 頂部日期段落連續衝突三次；最後把 README／DESIGN.md 段落從 PR 拿出來，改跟這筆部署紀錄一起推。每次重推都遇到推送那組 run 被 PR 那組取消、PR 被擋，`gh run rerun` 重跑後才合得進去。
+- **內容**：只改 web 前端（`visit-booking.css`、`pages/visit/manage.vue`）：預約表單與家長修改預約的日期欄 `appearance:none`、日期文字靠左，避開 iOS Safari 對原生日期欄強制 `content-box` 造成比姓名欄寬 34px、整頁被往右推。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉非 GET、分析、廣告像素與遙測）：`/release.json` base_commit `7524b700`；`/api/website/v1/health` 200；`/visit/yihua` 的 HTML 帶 `input[type=date]{appearance:none}`（打包目標 Safari 15.4，`-webkit-` 前綴被拿掉，屬預期）。Chrome、WebKit 在 390×844 與 1440×900：日期欄 `appearance:none`、`border-box`，寬度與姓名欄相同（350／354px），截圖與部署前一致，Chrome 日曆圖示還在。
+- **沒驗證**：iPhone 實機（本機沒有 iOS 模擬器）、Android 實機、家長修改預約頁（要有效的修改連結）。
+
 ## 2026-11-17 狀態機登記表與守門測試、後台粉專貼文頁籤修正上線（main CI 部署，沒有 migration）
 
 - **提交**：PR #111 合併進 main（`ae2e177f`），main run 44003543831 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。合併前 main 進了 #105、#108 與它們的部署紀錄，merge 三次（只有 README 頂部日期段落衝突，各段都留）；每次更新後 PR 的 CI 都重跑到綠才合併。

@@ -1,3 +1,7 @@
+## 表單的原生日期欄要拿掉原生外觀（2026-11-17，`feature/visit-date-field-20261117`）
+
+- `input[type=date]` 只要寬度是 `%`／`auto`，iOS Safari 會強制 `content-box` 和最小寬度，`width:100%`＋padding 的欄位會比旁邊的欄位寬、撐出畫面。官網表單的日期欄一律加 `-webkit-appearance:none;appearance:none`，日期文字 `::-webkit-date-and-time-value{text-align:start}`。桌機 Chrome、Safari 加了之後畫面不變（Chrome 日曆圖示還在）。原因與量測見 README 同日段落；新增日期欄要一起加進 `web/tests/visit-date-input-ios-20261117.spec.ts`。
+
 ## 預約頁 LINE 聯絡改成按鈕、按鈕不放 ↗（2026-11-17，`feature/visit-line-contact-20261117`）
 
 使用者要求。適用範圍是預約頁第二步的聯絡區塊（`.visit-contact-step`）與預約成功畫面的按鈕。
