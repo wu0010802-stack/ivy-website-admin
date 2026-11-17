@@ -10,7 +10,7 @@
 - **業主待辦**：(1) GA4 資源 563982090 把 Search Console 服務帳戶加為檢視者、啟用 Google Analytics Data API、在 Railway api 設 `WEBSITE_GA4_PROPERTY_ID`（步驟見 `deploy/README.md`「GA4 廣告花費」）；(2) 申請 Google Business Profile API 存取權；(3) 申請 Google Ads developer token。
 - **之後投 Meta 廣告**：廣告網址要帶 `utm_medium=paid&utm_source=facebook`；只有 `fbclid` 會被當成一般 Facebook 分享（見 `docs/website-admin/operations.md`）。
 
-## 2026-11-16 特色教學手機版美術館：進度條＋尾端留白（`feature/cur-gallery-ticks-20261116`）
+## 2026-11-16 特色教學手機版美術館：進度條＋尾端留白（`feature/cur-gallery-ticks-20261116`，已部署 main `5dc63a87`）
 
 使用者問手機版 03 兒童美術館的橫滑有沒有更好的呈現方式，看過三個方向的比稿（`design/curriculum-gallery-mobile-20261116/`）後選 A 小修。只動 760px 以下，桌機與平板的作品牆不變。
 
