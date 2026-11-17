@@ -99,7 +99,7 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
     const contact = await openContactStep(page)
     // 沒填說明就用預設的聯絡句。
     await expect(contact.getByRole('status')).toHaveText(DEFAULT_CONTACT_COPY)
-    const line = contact.getByRole('link', { name: '透過 LINE 聯絡', exact: true })
+    const line = contact.getByRole('link', { name: /^透過 LINE 聯絡\s*（另開新視窗）$/ })
     await expect(line).toBeVisible()
     await expect(line).toHaveAttribute('href', lineUrl)
     await expect(line).toHaveAttribute('target', '_blank')
@@ -151,7 +151,7 @@ test.describe(`${CAMPUS_NAME}：不走線上表單的預約方式`, () => {
 
     const contact = await openContactStep(page)
     await expect(contact.getByRole('status')).toHaveText('請到外部網站選擇參觀時段（e2e 測試說明）。')
-    const external = contact.getByRole('link', { name: '前往預約網站', exact: true })
+    const external = contact.getByRole('link', { name: /^前往預約網站\s*（另開新視窗）$/ })
     await expect(external).toBeVisible()
     await expect(external).toHaveAttribute('href', externalUrl)
     await expect(external).toHaveAttribute('target', '_blank')

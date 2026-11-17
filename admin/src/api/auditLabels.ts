@@ -185,7 +185,7 @@ type AuditFormatter = (value: unknown, action: string, metadata: Record<string, 
 
 // 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
 // kind、status、source 在不同動作代表不同東西，依 action 分開翻。
-const ROSTER_STATUS_LABELS: Record<string, string> = { pending: '預繳未入園', enrolled: '在籍', left: '已離園', refunded: '已退預繳' }
+export const ROSTER_STATUS_LABELS: Record<string, string> = { pending: '預繳未入園', enrolled: '在籍', left: '已離園', refunded: '已退預繳' }
 // 編班與缺額的修改欄位（只記欄位名，不記值）。
 const ROSTER_FIELD_LABELS: Record<string, string> = {
   child_name: '姓名', birthday: '生日', note: '備註', enrollment_date: '入園日', planned_entry_date: '預定入園日',

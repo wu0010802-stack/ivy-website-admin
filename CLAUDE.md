@@ -22,7 +22,8 @@
 | `web/` | 正式公開官網（Nuxt 4 SSR），設計迭代都在這裡；樣式 `web/app/assets/css/`、元件 `web/app/components/` | 顏色走 `web/app/assets/css/tokens.css`；改完跑 `npm --prefix web run typecheck`、`test:unit` |
 | `admin/` | 後台 SPA（Vue 3＋Element Plus），build 後併進 web 的 `/admin/` | 型別取自 `contracts/generated`；`npm --prefix admin run typecheck`、`test:unit` |
 | `backend/` | FastAPI API＋Alembic migration | 合進 `main` 的 migration 部署時自動套到正式 DB，撰寫規則見 `deploy/CICD.md` |
-| `contracts/` | `openapi.json` 與產生的 TS 型別 | 改 API 後 `npm run contract:generate`；CI 跑 `contract:check` |
+| `contracts/` | `openapi.json`、狀態機清單 `state-machines.json` 與產生的 TS 型別 | 改 API 或狀態機登記表後 `npm run contract:generate`；CI 跑 `contract:check` |
+| `docs/state-machines/` | 全站狀態機：`domain.md`（自動產生的狀態圖與轉移表）、`README.md`（做法、前端流程在哪） | 動到任何狀態或轉移前先讀；`domain.md` 不要手改 |
 | `deploy/` | Dockerfile、api 啟動腳本、Railway CI、部署紀錄 | 正式站變數、上線步驟、當月起的部署記在 `deploy/README.md`，更早的在 `docs/changelog/deploy-YYYY-MM.md` |
 | `docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`、`docs/website-admin/` | 官網後台規格、計畫、執行提示（已實作）、驗收表與維運手冊 | 見「官網後台」 |
 | `docs/changelog/` | README 與 deploy/README 的過往月份日期段落（2026-10-16 起每月封存） | 每到新的月份，把 `README.md`、`deploy/README.md` 裡上個月的 `## YYYY-MM-…` 段落整段移過來（參考章節留在原檔），連結補 `../../` |
@@ -91,6 +92,7 @@
 - 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
 - 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 2026-11-13 起改選填，確認信與修改連結只寄給有留 Email 的家長；舊的 inquiry／待確認 10-06 連同資料刪除，案件狀態只剩已確認、已取消、未到場、已完成）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
+- 狀態機（預約案件、通知 outbox、內容審核、排程發布、素材、轉檔、招生階段、編班、廣告回傳、粉專貼文）登記在 `backend/app/state_machines.py`：加狀態、加轉移、或讓新的檔案寫 `status`／`review_status`，都要先改登記表再 `npm run contract:generate`，不在路由直接寫狀態（`tests/test_state_machines.py` 會擋）。前端新流程用單一具名狀態、不堆布林，寫法見 `docs/state-machines/README.md`。
 - 排程發布、延展場次、即將參觀提醒、通知 outbox、清限流計數、素材清理、個資保存清理由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
 - **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相清表。conftest 的 app 共用同一批路由（`backend/tests/route_cache.py`），測試要用 `dependency_overrides` 時改用 `uncached_create_app`；新增很多測試後用 `uv run pytest --store-durations` 重產 `backend/.test_durations`，CI 三組才會平均。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；全站 e2e `npm run e2e:build` 後 `npm run test:e2e:stack`（`tests/stack`），公開站四視口 `npm run test:e2e`（`tests/e2e`）；CI 的 E2E job 兩組都跑（`tests/e2e` 自 2026-10-21 起），E2E 不擋部署；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
 - 根目錄 vanilla 原型已在 `63a0c05` 凍結（階段 A 閘門，使用者同意）；設計迭代一律在 `web/`，不回寫根目錄。`preview.html` 保留為原型離線快照。

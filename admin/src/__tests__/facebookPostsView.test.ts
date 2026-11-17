@@ -6,7 +6,7 @@ import viewSource from '../views/FacebookPostsView.vue?raw'
 import type { FacebookImportOut, FacebookPostListOut, FacebookPostOut } from '../api/types'
 import { notifyWarning } from '../composables/notify'
 import { canListNavItem, navItem } from '../router/nav'
-import { campusAdmin, cleanup, mockGet, mockPost, mountWith } from './admissionsTestKit'
+import { campusAdmin, cleanup, deferred, mockGet, mockPost, mountWith } from './admissionsTestKit'
 import { testUser } from './fixtures'
 
 vi.mock('../composables/notify', () => ({ notifyError: vi.fn(), notifyWarning: vi.fn() }))
@@ -68,6 +68,27 @@ describe('Facebook 貼文', () => {
     expect(wrapper.text()).toContain('每 1 小時自動同步')
     expect(wrapper.text()).toContain('未處理 1')
     expect(router.currentRoute.value.query.campus).toBe('yihua')
+  })
+
+  it('快速切換頁籤：較晚回來的舊頁籤回應不會蓋掉目前頁籤的清單', async () => {
+    const slowImported = deferred<FacebookPostListOut>()
+    const dismissed = list({ posts: [post({ id: 'p9', status: 'dismissed', message: '已略過的那一則' })] })
+    mockGet({
+      '/admin/facebook-posts': (path: string) =>
+        path.includes('status=imported') ? slowImported.promise : path.includes('status=dismissed') ? dismissed : list(),
+    })
+    const { wrapper } = await mountWith(FacebookPostsView, { path: '/content/facebook-posts' })
+    const tabs = wrapper.get('[aria-label="貼文狀態"]').findAll('input')
+    // 點「已轉成消息」還在讀，就改點「已略過」並先收到回應。
+    await tabs[1]!.setValue(true)
+    await tabs[2]!.setValue(true)
+    await flushPromises()
+    expect(wrapper.text()).toContain('已略過的那一則')
+    // 這時「已轉成消息」那一次才回來：畫面要留在「已略過」的清單。
+    slowImported.resolve(list({ posts: [post({ id: 'p5', status: 'imported', message: '已經轉成消息的那一則' })] }))
+    await flushPromises()
+    expect(wrapper.text()).toContain('已略過的那一則')
+    expect(wrapper.text()).not.toContain('已經轉成消息的那一則')
   })
 
   it('還沒設定粉專：說明怎麼接上，不顯示同步鈕', async () => {

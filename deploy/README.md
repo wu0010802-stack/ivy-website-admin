@@ -380,6 +380,35 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 iPhone 預約表單出生年月日欄比姓名欄寬修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #109 合併進 main（`7524b700`），main run 44008630281 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。等待期間 main 先後合進 #105、#108、#111 與它們的部署紀錄，README／DESIGN.md 頂部日期段落連續衝突三次；最後把 README／DESIGN.md 段落從 PR 拿出來，改跟這筆部署紀錄一起推。每次重推都遇到推送那組 run 被 PR 那組取消、PR 被擋，`gh run rerun` 重跑後才合得進去。
+- **內容**：只改 web 前端（`visit-booking.css`、`pages/visit/manage.vue`）：預約表單與家長修改預約的日期欄 `appearance:none`、日期文字靠左，避開 iOS Safari 對原生日期欄強制 `content-box` 造成比姓名欄寬 34px、整頁被往右推。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉非 GET、分析、廣告像素與遙測）：`/release.json` base_commit `7524b700`；`/api/website/v1/health` 200；`/visit/yihua` 的 HTML 帶 `input[type=date]{appearance:none}`（打包目標 Safari 15.4，`-webkit-` 前綴被拿掉，屬預期）。Chrome、WebKit 在 390×844 與 1440×900：日期欄 `appearance:none`、`border-box`，寬度與姓名欄相同（350／354px），截圖與部署前一致，Chrome 日曆圖示還在。
+- **沒驗證**：iPhone 實機（本機沒有 iOS 模擬器）、Android 實機、家長修改預約頁（要有效的修改連結）。
+
+## 2026-11-17 狀態機登記表與守門測試、後台粉專貼文頁籤修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #111 合併進 main（`ae2e177f`），main run 44003543831 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。合併前 main 進了 #105、#108 與它們的部署紀錄，merge 三次（只有 README 頂部日期段落衝突，各段都留）；每次更新後 PR 的 CI 都重跑到綠才合併。
+- **內容**：`backend/app/state_machines.py`（狀態機登記表，不被執行期程式匯入）、`backend/tests/test_state_machines.py`、`backend/scripts/export_state_machines.py` 與它產生的 `docs/state-machines/domain.md`、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`；`contract:generate`／`contract:check` 多跑這一支。後台：三個狀態型別改用產生的型別（只改型別）、粉專貼文頁的載入改用 `useRequestSequence`。沒有 migration、API、環境變數變更，`web/` 沒有變更。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `ae2e177f`；`/api/website/v1/health` 200；首頁 200；`/admin/` 轉到 admin 子網域後 200。
+- **沒驗證**：登入正式站後台實際操作粉專貼文頁的頁籤切換（修正只在本機用測試確認：未修正版紅、修正後綠）。
+- **後續**：盤點時記下的低優先待辦在 issue #110。
+
+## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #108 合併進 main（`08287900`），main run 43999360150 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 第一輪 E2E 紅在自己改的兩個 stack 斷言（讀屏說明前多一個空白，`exact` 比不到），改成正規表示式後綠；期間 main 合進 #105 與它的部署紀錄，rebase、merge 各一次（只有 README／DESIGN.md 頂部日期段落衝突，各段都留）。
+- **內容**：只改 web 前端（`VisitForm.vue`、`VisitCalendarActions.vue`、`visit-booking.css`）：預約頁第二步的「LINE 聯絡○○校」由底線小字改成帶 LINE 圖示的外框鈕；聯絡步驟與預約成功畫面的按鈕拿掉 ↗；外框鈕補 hover。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `08287900`；`/api/website/v1/health` 200。`/visit/minghua` 在 1440×900 與 390×844：致電鈕與 LINE 鈕都是 54px 高，LINE 鈕是 `button outline`、帶 `#i-line` 圖示、連到明華校自己的 LINE、文字裡沒有 ↗；沒有橫向溢出。
+- **沒驗證**：正式站的預約成功畫面（要真的送出一筆預約才看得到，只在本機用模擬 API 確認過按鈕沒有 ↗）；iPhone／Android 實機。
+
+## 2026-11-17 環境頁五所校園分頁改直立積木上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #105 合併進 main（`ffe857e3`），main run 43993614668 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #104、#106 與 #106 的部署紀錄，rebase 兩次（只有 README 頂部日期段落衝突，各段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
+- **內容**：只改 web 前端（`web/app/assets/css/environment.css`）：第四章五校分頁比例改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），線稿 cover 貼底放大，選中改成按下去＋校名深綠底白字。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `ffe857e3`；`/api/website/v1/health` 200。`/environment` 點崇德校後：1280×720 五塊 219×215、1440×900 230×253、390 寬 111×127、320 寬 88×116；選中的校名背景是深綠、沒有 inset 框；線稿 `object-fit: cover`；四種寬度都沒有橫向溢出、積木不重疊、沒有頁面錯誤。
+- **沒驗證**：iPhone／Android 實機。
+
 ## 2026-11-16 廣告成效與各里結婚對數上線（main CI 部署，migration `c4d2e8a1f6b3` 只新增）
 
 - **提交**：PR #106 合併進 main（`3d05fa33`），main run 43866225960 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #103、#104，各合一次 main（只有 README 頂部日期段落衝突，兩段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。

@@ -1,3 +1,30 @@
+## 2026-11-17 iPhone 預約表單「寶貝出生年月日」比姓名欄寬（`feature/visit-date-field-20261117`，已部署 main `7524b700`）
+
+- **現象**：手機上「寶貝出生年月日」的框比上面「寶貝姓名」寬一截、右緣貼到畫面外，整頁還被往右推。桌機 Chrome／Safari、Playwright 在 280–1440px 各寬度量兩欄都一樣寬，只有手機原生日期欄才會出現。
+- **原因**：iOS Safari 的原生日期欄（`appearance:auto`）只要寬度不是固定 px，WebKit 就強制 `box-sizing:content-box` 並加最小寬度（`RenderThemeIOS.mm` 的 `adjustInputElementButtonStyle`）。我們寫的是 `width:100%`＋左右 padding 16px＋邊框，於是比容器寬 34px。把使用者截圖照 390px 視窗換算：姓名 350、日期 384、頁面被推 14px，三個數字都對得上。
+- **修正**：預約表單（`web/app/assets/css/visit-booking.css`）與家長修改預約（`web/app/pages/visit/manage.vue`）的日期欄加 `-webkit-appearance:none;appearance:none`，日期文字 `::-webkit-date-and-time-value{text-align:start}`（iOS 預設置中）。點了照樣跳系統日期選擇器。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。
+- **驗證**：桌機 Chrome、WebKit 的 390／1440px 修改前（正式站）與修改後的日期欄寬高、截圖都一樣（Chrome 日曆圖示還在）；`npm --prefix web run typecheck`、`test:unit`（162 檔 2,458 個）通過；正式站部署後桌機 Chrome、WebKit 量到日期欄 `appearance:none`、寬度和姓名欄相同。**iPhone 實機還沒驗**：本機沒有 iOS 模擬器。
+
+## 2026-11-17 狀態機登記表＋粉專貼文頁籤修正（`feature/state-machines-20261117`，已部署 main `ae2e177f`）
+
+盤點全站的隱性狀態機（狀態與轉移只存在各函式的 `if` 裡），做法與前端流程地圖見 `docs/state-machines/README.md`。
+
+- **後端登記表** `backend/app/state_machines.py`：10 台有狀態欄位的（預約案件、通知 outbox、內容審核、排程發布、素材、轉檔、招生階段、編班、廣告回傳、粉專貼文）＋8 台由欄位推導的（家長連結、場次、登入 session、重設密碼連結、帳號、素材刪除、排程是否已處理、錯誤回報）。只描述、不參與執行期判斷，**正式站行為沒有改變**；`backend/tests/test_state_machines.py` 負責讓它和程式對齊，登記以外的檔案寫狀態欄位會被擋。
+- **自動產生**（`npm run contract:generate`，`contract:check` 會檢查）：`docs/state-machines/domain.md`（狀態圖與轉移表）、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`。後台的素材、排程、粉專貼文狀態型別改用產生的型別；`admin/src/__tests__/stateMachineLabels.test.ts` 檢查每個狀態都有中文標籤。
+- **後台：粉專貼文快速切換頁籤**時，較晚回來的舊頁籤回應不再蓋掉目前頁籤的清單（`FacebookPostsView.vue` 改用 `useRequestSequence`）。
+- 沒有 migration、沒有 API 變更。
+## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭（`feature/visit-line-contact-20261117`，已部署 main `08287900`）
+
+使用者看線上明華校的「歡迎與明華校聯絡」截圖，要求優化 LINE 聯絡的樣子並拿掉箭頭，預約成功畫面按鈕上的箭頭也一起拿掉。
+
+- **LINE 聯絡**：原本是金色致電鈕旁一條底線小字加 ↗，像附註；改成和「重新載入參觀方式」同一種外框鈕，前面放 LINE 圖示，和致電鈕等高（桌機並排、760px 以下各佔一列）。參觀方式設成 LINE 時的主要按鈕「透過 LINE 聯絡」也加上同一個圖示。
+- **拿掉 ↗**：聯絡步驟的「透過 LINE 聯絡」「前往預約網站」「LINE 聯絡○○校」，以及成功畫面的「加入 Google 日曆」「Google 地圖導航」。另開分頁改由只給讀屏的「（另開新視窗）」說明。
+- 預約頁的外框鈕原本沒有 hover，補上淡色底（「複製連結」「重新載入場次」等一起有）。
+- 沒動：「確認預約 →」送出鈕、選校卡右上角的箭頭、成功畫面「用 LINE 接收通知」步驟裡那條文字連結的 ↗（功能預設關閉）。
+- 測試：`web/tests/visit-line-contact-20261117.spec.ts`；`tests/stack/booking-modes.spec.ts` 兩顆外開按鈕的名稱斷言加上「（另開新視窗）」。規則寫在 DESIGN.md 同名章節。
+
+## 2026-11-16 環境頁五所校園分頁改直立積木（`feature/env-tour-tabs-20261116`，已部署 main `ffe857e3`）
+
 ## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，尚未 commit、未部署）
 
 規格 `docs/specs/2026-11-17-line-group-interactions-design.md`，計畫 `docs/superpowers/plans/2026-11-17-line-group-interactions.md`。園方 LINE 群組除了收卡片，現在能查名單、按按鈕處理參觀。
