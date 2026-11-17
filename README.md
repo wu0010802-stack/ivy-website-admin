@@ -4,8 +4,8 @@
 
 - 新增延遲圖片的真瀏覽器回歸：已在修正前的正式建置重現 WebKit 桌機／手機失敗，修正後通過。
 - `E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment` 可直接驗正式建置，使用本機 fixture 與一次性 HTTPS 憑證；WebKit 正式版 Secure cookie 也能實際驗證。測試 cookie 網址取自當次 `baseURL`。
-- CI 在完整 stack／公開站 e2e 之後，加跑正式版 WebKit 桌機與手機，失敗時保留 trace。
-- 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full}.log`。
+- CI 在完整 stack／公開站 e2e 之後，加跑正式版 WebKit 桌機與手機，失敗時保留 trace。首輪 Linux WebKit 抓到測試在初始章節定位／Nuxt manifest 預抓完成前就開始操作；已改成等待實際完成條件，保留錯誤與鍵盤焦點斷言，沒有加入重試或略過。
+- 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full-final}.log`。
 - 本次只修 Router 與測試環境，沒有 API、migration 或正式環境變數異動。Safari／iPhone 實機仍未驗證。
 
 ## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）

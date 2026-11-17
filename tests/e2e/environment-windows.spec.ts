@@ -10,6 +10,14 @@ async function ready(page: Page) {
   await expect(page.locator('html')).toHaveClass(/renv-fx/)
   await expect(page.locator('.renv')).toHaveAttribute('data-windows-ready', 'true')
   await page.evaluate(() => document.fonts.ready)
+  await manifestReady(page)
+}
+
+async function manifestReady(page: Page) {
+  if (process.env.E2E_ENVIRONMENT_BUILD !== '1') return
+  // Nuxt 正式版在 ready 後預抓 manifest。先等這個請求完成，避免極快轉頁造成 WebKit 的 abort 錯誤。
+  await page.waitForFunction(() => performance.getEntriesByType('resource')
+    .some(entry => /\/_nuxt\/builds\/meta\/[^/]+\.json(?:\?|$)/.test(entry.name)))
 }
 
 async function expectChapter(page: Page, id: string) {
@@ -107,6 +115,7 @@ test('沒有 hash 的頁尾重新整理、整頁上一頁與 SPA 上一頁保留
   await page.waitForFunction(() => Boolean((document.querySelector('#__nuxt') as { __vue_app__?: unknown } | null)?.__vue_app__))
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
   await page.evaluate(() => document.fonts.ready)
+  await manifestReady(page)
   await page.goBack()
   await ready(page)
   await expectPosition(page, y)
@@ -126,6 +135,7 @@ test('五校分頁鍵盤、角落換大窗、下一所與記住的校區', async
   await context.addCookies([{ name: 'ivy_campus', value: 'renwu', url: baseURL! }])
   await page.goto('/environment?campus=chongde#campuses')
   await ready(page)
+  await expectChapter(page, 'campuses')
   const tabs = page.getByRole('tablist', { name: '選一所校園' })
   const selected = tabs.locator('[aria-selected="true"]')
   await expect(selected).toHaveAttribute('id', 'tour-tab-chongde')
