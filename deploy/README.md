@@ -363,6 +363,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 環境頁五所校園分頁改直立積木上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #105 合併進 main（`ffe857e3`），main run 43993614668 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #104、#106 與 #106 的部署紀錄，rebase 兩次（只有 README 頂部日期段落衝突，各段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
+- **內容**：只改 web 前端（`web/app/assets/css/environment.css`）：第四章五校分頁比例改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），線稿 cover 貼底放大，選中改成按下去＋校名深綠底白字。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `ffe857e3`；`/api/website/v1/health` 200。`/environment` 點崇德校後：1280×720 五塊 219×215、1440×900 230×253、390 寬 111×127、320 寬 88×116；選中的校名背景是深綠、沒有 inset 框；線稿 `object-fit: cover`；四種寬度都沒有橫向溢出、積木不重疊、沒有頁面錯誤。
+- **沒驗證**：iPhone／Android 實機。
+
 ## 2026-11-16 廣告成效與各里結婚對數上線（main CI 部署，migration `c4d2e8a1f6b3` 只新增）
 
 - **提交**：PR #106 合併進 main（`3d05fa33`），main run 43866225960 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #103、#104，各合一次 main（只有 README 頂部日期段落衝突，兩段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。

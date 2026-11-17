@@ -6,6 +6,9 @@
 - **自動產生**（`npm run contract:generate`，`contract:check` 會檢查）：`docs/state-machines/domain.md`（狀態圖與轉移表）、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`。後台的素材、排程、粉專貼文狀態型別改用產生的型別；`admin/src/__tests__/stateMachineLabels.test.ts` 檢查每個狀態都有中文標籤。
 - **後台：粉專貼文快速切換頁籤**時，較晚回來的舊頁籤回應不再蓋掉目前頁籤的清單（`FacebookPostsView.vue` 改用 `useRequestSequence`）。
 - 沒有 migration、沒有 API 變更。
+## 2026-11-16 環境頁五所校園分頁改直立積木（`feature/env-tour-tabs-20261116`，已部署 main `ffe857e3`）
+
+使用者說第四章五校分頁「有點扁」。原因是桌機視窗高不到 760px 時積木被壓成 1:0.66（1280×720 筆電量到 219×145），白框裡的校舍也只佔中間一條。比稿 A–D 選 A：積木改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），兩層線稿 `cover` 貼底放大、依校別往下挪到地面貼齊白框；選中從「3px 墨綠框＋小圓點」改成「按下去＋校名深綠底白字」，鍵盤操作不再出現兩圈黑框。只動 `web/app/assets/css/environment.css`，規則記在 DESIGN.md「五所校園直立積木分頁」，守門測試在 `web/tests/environment.spec.ts`。驗證：web typecheck、`test:unit` 全過；fixture dev server 1440×900、1280×720、1280×650、820、390、320 截圖無溢出，鍵盤左右鍵換校只有一圈焦點框。
 
 ## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`，已部署 main `3d05fa33`）
 
