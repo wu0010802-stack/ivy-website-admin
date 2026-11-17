@@ -363,6 +363,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-16 廣告成效與各里結婚對數上線（main CI 部署，migration `c4d2e8a1f6b3` 只新增）
+
+- **提交**：PR #106 合併進 main（`3d05fa33`），main run 43866225960 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #103、#104，各合一次 main（只有 README 頂部日期段落衝突，兩段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
+- **內容**：招生統計新子分頁「廣告成效」（`/admin/admissions/ad-roi`、手填花費 `/admin/admissions/ad-spend`，限總管理者）；官網進站記下廣告平台（`visit_requests.first_touch_ad_platform`／`last_touch_ad_platform`）；GA4 Data API 讀 Google 廣告花費（新變數 `WEBSITE_GA4_PROPERTY_ID`，**尚未設定**，畫面 Google 列顯示「未設定」）；各里結婚對數（戶政 ODRP060）隨公開地理資料同步，下一輪每日同步會從 109-09 回補。migration `c4d2e8a1f6b3`：`visit_requests` 兩欄、`ad_spend_entries`、`geo_village_marriages`、放寬 `geo_dataset_status` 的 dataset 檢查，不改既有資料、沒有備份。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `3d05fa33`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 上 `ad-roi`、`ad-spend` 未登入回 401（和既有招生端點相同，www 主機的後台 API 一律 404 是預期）；後台 `AdmissionsStatsView` chunk 有「廣告成效」與「近 12 個月結婚」。
+- **沒驗證**：登入正式後台看畫面；GA4 真的連線（要先照「GA4 廣告花費」設定）；結婚資料第一次同步結果（之後查 `geo_dataset_status` 的 `marriages` 列與 `geo_village_marriages` 筆數）。
+
+## 2026-11-16 特色教學手機版美術館進度條＋尾端留白上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #104 合併進 main（`5dc63a87`），main run 43833722836 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 上 push 那組被 concurrency 取消、擋住合併，重跑後綠；第一次 `gh pr merge` 回 502、接著回「Merge already in progress」卻一直沒合，GitHub 狀態正常，再送一次才合併。
+- **內容**：只改 web 前端（`CurriculumContent.vue`、`curriculum.css`）760px 以下：「1 / 8　左右滑動」換成進度條按鈕、清單尾端留白讓最後一件停在起點、清單顏料收小、美術館地板畫往下 16px。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit 已是之後 PR #106 的 `3d05fa33`（包含 `5dc63a87`）。`/curriculum` 390／320 寬有 8 段進度條、沒有「左右滑動」與 `.cur-count`；點第 5 段停在第 5 件；滑到底最後一件左緣 20px（與第一件起點相同）。1440 寬進度條 `display: none`、作品牆不橫捲。
+- **沒驗證**：iPhone／Android 實機。
+
 ## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤上線（main CI 部署，沒有 migration）
 
 - **提交**：PR #103 合併進 main（`bcd507ea`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43817039105）。PR 上同一個 commit 的 push 那組因為連推兩次被取消、擋住合併，重跑後綠。

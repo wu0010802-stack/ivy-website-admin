@@ -11,7 +11,7 @@
 - 測試：`web/tests/polaroid-legibility-20261116.spec.ts`；`day-print-handoff-20261114.spec.ts` 的 `--print-shadow` 值同步。`npm --prefix web run typecheck`、`npm run test:website`（162 檔 2460 則）、`nuxt build` 通過。
 - **未驗證**：截圖與量測是 SwiftShader 軟體繪圖，沒有實機。上線前要在 1× 螢幕的舊電腦上看翻面幀率，在 iPhone 上看換手時紙緣有沒有跳。
 
-## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`）
+## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`，已部署 main `3d05fa33`）
 
 規格 `docs/specs/2026-11-16-ad-roi-design.md`。
 
@@ -23,7 +23,7 @@
 - **業主待辦**：(1) GA4 資源 563982090 把 Search Console 服務帳戶加為檢視者、啟用 Google Analytics Data API、在 Railway api 設 `WEBSITE_GA4_PROPERTY_ID`（步驟見 `deploy/README.md`「GA4 廣告花費」）；(2) 申請 Google Business Profile API 存取權；(3) 申請 Google Ads developer token。
 - **之後投 Meta 廣告**：廣告網址要帶 `utm_medium=paid&utm_source=facebook`；只有 `fbclid` 會被當成一般 Facebook 分享（見 `docs/website-admin/operations.md`）。
 
-## 2026-11-16 特色教學手機版美術館：進度條＋尾端留白（`feature/cur-gallery-ticks-20261116`）
+## 2026-11-16 特色教學手機版美術館：進度條＋尾端留白（`feature/cur-gallery-ticks-20261116`，已部署 main `5dc63a87`）
 
 使用者問手機版 03 兒童美術館的橫滑有沒有更好的呈現方式，看過三個方向的比稿（`design/curriculum-gallery-mobile-20261116/`）後選 A 小修。只動 760px 以下，桌機與平板的作品牆不變。
 
