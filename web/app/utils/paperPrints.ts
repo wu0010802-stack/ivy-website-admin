@@ -63,6 +63,9 @@ const SHADOW_RADIUS = 6
 const ALOFT_AT = 0.3
 // 柔邊陰影先畫在縮小的畫布上再放大貼：模糊半徑 46px，半解析度看不出差別，每張卡少存四分之三。
 const REST_SHADOW_SCALE = 0.5
+// 貼著紙緣的細影子（模糊半徑不超過這個值，2026-11-16 加的 0 1px 2px）半解析度會被放大抹淡，手機換手時紙緣那條深線會變軟：
+// 這幾道另外畫在 1× 的畫布上（每張卡約多 1 MB），寬的那道照舊半解析度。
+const TIGHT_SHADOW_BLUR = 4
 const KEY_LIGHT = 1.6
 // 手機顯影縮到 1 秒內，與 styles.css 的 .print-photo 手機 transition 對齊。
 const DEVELOP_MS = 3200
@@ -79,9 +82,11 @@ const DEVELOP_STAGES = 6
 // 桌機一張卡 3.2 秒就上傳 190 次。顯影是 3.2 秒（手機 0.9 秒）的慢速交叉淡化，30 fps 一格的差在 1%（手機 3.7%）以內，看不出分格；
 // 沒有其他動作（翻面、掀角、游標）時，中間那幀連 render 與複製畫布都省掉（見 render() 的 same）。
 const DEVELOP_FRAME_MS = 1000 / 30
-// 紙面貼圖、共用 renderer 與顯示畫布同步支援最高 3× 像素密度。
+// 紙面貼圖、共用 renderer 與顯示畫布同步支援最高 3× 像素密度，最低 2×（2026-11-16）：1× 螢幕（外接螢幕、一般 Windows 筆電）
+// 照 1× 畫，貼圖再被卡片傾角重新取樣一次，背面粗體小字的筆畫會黏在一起。2× 畫好由瀏覽器縮回 1× 顯示，等於 Retina 筆電現在的用量；
+// 手機本來就 ≥2×，不受影響。
 const coarsePointer = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches
-const pixelRatio = () => Math.min(window.devicePixelRatio || 1, 3)
+const pixelRatio = () => Math.min(Math.max(window.devicePixelRatio || 1, 2), 3)
 const nextFrame = () => new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
@@ -737,34 +742,35 @@ export async function mountPaper(
     // 沒有模糊的（紙緣那道 2px）每次直接填色才不會被縮放抹開。陰影也鋪在紙底下：紙角掀起時露出來的就是它。
     const softShadows = style.restShadows.filter((shadow) => shadow.blur > 0)
     const hardShadows = style.restShadows.filter((shadow) => shadow.blur <= 0)
-    let restShadow: HTMLCanvasElement | null = null
-    if (softShadows.length) {
-      const q = REST_SHADOW_SCALE
-      restShadow = document.createElement('canvas')
-      restShadow.width = Math.ceil(VW * q)
-      restShadow.height = Math.ceil(VH * q)
-      const sctx = restShadow.getContext('2d')
-      if (sctx) {
-        // shadowOffset／shadowBlur 的單位是畫布像素、不吃 transform：矩形畫在畫布左邊外面，陰影位移回原位
-        const far = restShadow.width + 64
-        sctx.fillStyle = '#000'
-        for (const shadow of softShadows) {
-          sctx.shadowColor = shadow.color
-          sctx.shadowBlur = shadow.blur * q
-          sctx.shadowOffsetX = shadow.x * q + far
-          sctx.shadowOffsetY = shadow.y * q
-          sctx.fillRect((MARGIN - shadow.spread) * q - far, (MARGIN - shadow.spread) * q, (W + shadow.spread * 2) * q, (H + shadow.spread * 2) * q)
-        }
-      } else {
-        restShadow = null
+    const prerenderShadows = (shadows: typeof softShadows, q: number): HTMLCanvasElement | null => {
+      if (!shadows.length) return null
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.ceil(VW * q)
+      canvas.height = Math.ceil(VH * q)
+      const sctx = canvas.getContext('2d')
+      if (!sctx) return null
+      // shadowOffset／shadowBlur 的單位是畫布像素、不吃 transform：矩形畫在畫布左邊外面，陰影位移回原位
+      const far = canvas.width + 64
+      sctx.fillStyle = '#000'
+      for (const shadow of shadows) {
+        sctx.shadowColor = shadow.color
+        sctx.shadowBlur = shadow.blur * q
+        sctx.shadowOffsetX = shadow.x * q + far
+        sctx.shadowOffsetY = shadow.y * q
+        sctx.fillRect((MARGIN - shadow.spread) * q - far, (MARGIN - shadow.spread) * q, (W + shadow.spread * 2) * q, (H + shadow.spread * 2) * q)
       }
+      return canvas
     }
+    const restShadows = [
+      prerenderShadows(softShadows.filter((shadow) => shadow.blur > TIGHT_SHADOW_BLUR), REST_SHADOW_SCALE),
+      prerenderShadows(softShadows.filter((shadow) => shadow.blur <= TIGHT_SHADOW_BLUR), 1)
+    ].filter((canvas): canvas is HTMLCanvasElement => canvas !== null)
     // 紙平放（aloft 0）畫 CSS 的陰影，抬起來就淡出、交給光源投的影子。CSS 版翻到背面時 .print::after 跟著紙轉了半圈，陰影左右相反。
     function drawRestShadow(alpha: number, mirrored: boolean) {
       const ctx = viewCtx!
       if (mirrored) ctx.setTransform(-1, 0, 0, 1, view.width, 0)
       ctx.globalAlpha = alpha
-      if (restShadow) ctx.drawImage(restShadow, 0, 0, view.width, view.height)
+      for (const canvas of restShadows) ctx.drawImage(canvas, 0, 0, view.width, view.height)
       for (const shadow of hardShadows) {
         setFill(ctx, shadow.color, 'transparent')
         ctx.fillRect((MARGIN + shadow.x - shadow.spread) * DPR, (MARGIN + shadow.y - shadow.spread) * DPR, (W + shadow.spread * 2) * DPR, (H + shadow.spread * 2) * DPR)
