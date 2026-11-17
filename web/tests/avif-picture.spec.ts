@@ -234,8 +234,8 @@ describe('呼叫端', () => {
     expect(css('studio.css')).toContain('.studio-hero-image>:is(img,video),.studio-hero-image>:where(picture)>img')
     // 關於頁 2026-11-11 重做後照片都用後代選擇器（.abh-hero-frame img 這類），不看 <img> 是不是直接子代，不需要對應規則
     expect(css('about.css').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/>\s*img/)
-    expect(css('environment.css')).toContain('.renv-frame>img,.renv-frame>:where(picture)>img{')
-    expect(css('environment.css')).toContain('.renv-book>*,.renv-book>:where(picture)>:where(img){position:absolute;bottom:var(--side)}')
+    // 環境頁 2026-11-17 重寫後照片都用後代選擇器（.renv-ph img 這類），不需要對應規則
+    expect(css('environment.css').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/>\s*img/)
     expect(read('../app/components/HomeStoryViewer.vue')).toContain('.hsv-stage > img, .hsv-stage > :where(picture) > img,')
     expect(read('../app/components/HomeStories.vue')).toContain('.hs-card > img, .hs-card > :where(picture) > img {')
   })

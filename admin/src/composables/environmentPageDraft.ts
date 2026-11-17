@@ -22,15 +22,30 @@ export const ENVIRONMENT_BUILTIN_PHOTOS = {
   spaces: ['env-space-classroom', 'env-space-materials', 'env-space-plaza', 'env-space-corner', 'env-space-restroom', 'env-space-animals'],
 } as const
 
-// 官網實際裁切的比例（web/app/assets/css/environment.css）：首屏與主打區 3:2、保育照片 2:1 橫幅、
-// 照顧的小事 4:3；六個空間照片依原本比例整張顯示，不裁切，所以沒有焦點預覽。
-// 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，這裡給最接近的矩形比例預覽裁切（形狀的圓角另外再裁掉一點邊緣）
+// 官網實際裁切的比例（web/app/assets/css/environment.css）。
+// 2026-11-17 官網改成「拱窗打開」版：照片裝在各種形狀的窗裡，這裡給最接近的矩形比例預覽裁切（形狀的圓角另外再裁掉一點邊緣）。
+// 首屏桌機是橫的大畫面（最瘦 2.15:1，矮視窗更扁）、手機是一扇拱窗；保育主照片桌機 2.34:1、手機 3:2；主打區桌機約 3:2、手機 4:3。
+// 五件照顧的小事與六個空間，每一張的窗形狀不同，所以各給各的（照順序對到官網元件的 CARE_LOOKS／STOP_LOOKS）；
+// 六個空間在桌機的舞台上是同一扇 1.27:1 的窗依序變成這六種形狀，裁切和手機的單張大致相同。
 export const ENVIRONMENT_PHOTO_PREVIEWS = {
-  hero: [{ label: '官網裁切（赤陶拱窗，約 4:5）', ratio: '4 / 5' }],
-  care: [{ label: '官網裁切（桌機 2.75:1）', ratio: '2.75 / 1' }, { label: '手機（1.7:1）', ratio: '1.7 / 1' }],
+  hero: [{ label: '官網裁切（桌機大畫面，約 2.2:1）', ratio: '2.2 / 1' }, { label: '手機（拱窗，約 3:4）', ratio: '3 / 4' }],
+  care: [{ label: '官網裁切（桌機 2.34:1）', ratio: '2.34 / 1' }, { label: '手機（3:2）', ratio: '3 / 2' }],
   feature: [{ label: '官網裁切（3:2）', ratio: '3 / 2' }],
-  careItem: [{ label: '官網裁切（約 4:5）', ratio: '4 / 5' }],
-  space: [{ label: '官網裁切（約 1:1）', ratio: '1 / 1' }],
+  careItem: [
+    [{ label: '官網裁切（拱窗，4:5）', ratio: '4 / 5' }],
+    [{ label: '官網裁切（圓窗，1:1）', ratio: '1 / 1' }],
+    [{ label: '官網裁切（桌機 4:3）', ratio: '4 / 3' }, { label: '手機（1:1）', ratio: '1 / 1' }],
+    [{ label: '官網裁切（桌機 4:3）', ratio: '4 / 3' }, { label: '手機（1:1）', ratio: '1 / 1' }],
+    [{ label: '官網裁切（寬窗，2:1）', ratio: '2 / 1' }],
+  ],
+  space: [
+    [{ label: '官網裁切（方窗，5:4）', ratio: '5 / 4' }],
+    [{ label: '官網裁切（圓窗，1:1）', ratio: '1 / 1' }],
+    [{ label: '官網裁切（拱窗，4:5）', ratio: '4 / 5' }],
+    [{ label: '官網裁切（U 形窗，1:1）', ratio: '1 / 1' }],
+    [{ label: '官網裁切（半圓窗，2:1）', ratio: '2 / 1' }],
+    [{ label: '官網裁切（方窗，5:4）', ratio: '5 / 4' }],
+  ],
 } as const
 
 const MEAL_TIME = /^(?:[01]\d|2[0-3]):[0-5]\d$/
