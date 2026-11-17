@@ -266,6 +266,8 @@
 .visit-contact-actions {display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin-top:24px}
 .visit-contact-actions .button {flex-wrap:wrap}
 .visit-contact-actions .button>span:not([aria-hidden]) {font-size:var(--fs-sm)}
+/* LINE 標誌是實心對話框、裡面還有字，跟電話線條圖示同尺寸（1.1em）時字糊成一團：放大一級（2026-11-17）。 */
+.visit-contact-actions .button .icon-line {width:1.35em;height:1.35em}
 .visit-inline-link {display:inline-flex;align-items:center;min-height:44px;max-width:100%;font-size:var(--fs-sm);text-decoration:underline;text-underline-offset:5px;color:var(--visit-ink)}
 /* 「重新選擇場次」改成按鈕（同一校的表單就在原網址，連結點了不會動，2026-10-29）：外觀同文字連結。 */
 button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit;cursor:pointer}
@@ -296,6 +298,8 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
   .visit-campus-choice:hover .visit-campus-photo img {scale:1.04}
   .visit-campus-choice:hover .visit-campus-go .icon {translate:3px 0}
   .visit-change:hover,.visit-inline-link:hover {text-decoration-thickness:2px}
+  /* 外框鈕原本沒有 hover（2026-11-17 LINE 聯絡改成外框鈕時補上）：淡色底，和說明底塊同一個 token。 */
+  .visit-page .button.outline:hover:not(:disabled) {background:var(--visit-soft)}
 }
 
 /* 桌機：第二步左右兩欄，側欄夠高時跟隨捲動。 */
