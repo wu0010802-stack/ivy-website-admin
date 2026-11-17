@@ -412,11 +412,15 @@ class VisitContactNote(Base):
 
 
 class VisitEventSource(str, enum.Enum):
-    """歷程是誰做的。staff 另記 actor_user_id；家長沒有帳號，只記來源。"""
+    """歷程是誰做的。staff 另記 actor_user_id；家長沒有帳號，只記來源。
+    line_group＝園方 LINE 群組裡按按鈕（2026-11-17 設計 §5）：群組裡誰按的對不到後台帳號，
+    actor_user_id 為空，群組與 LINE userId 記在稽核。visit_request_events.source 是 String(16)、
+    沒有 CHECK 限制，新增值不必 migration。"""
 
     STAFF = "staff"
     PARENT = "parent"
     SYSTEM = "system"
+    LINE_GROUP = "line_group"
 
 
 class VisitRequestEvent(Base):

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -133,6 +134,53 @@ class LineCampusTarget(Base):
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class LineGroupSetting(Base):
+    """每個 LINE 群組的通知設定（2026-11-17）。沒有設定列＝全部預設值（四種通知全開、摘要與
+    @所有人開、非總部群組）。`is_hq` 的群組額外收所有校區的通知，和校區群組並存。"""
+
+    __tablename__ = "line_group_settings"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    kinds: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: [
+            "visit_request_created",
+            "visit_request_confirmed",
+            "visit_request_rescheduled",
+            "visit_request_cancelled",
+        ],
+        server_default=text(
+            """'["visit_request_created", "visit_request_confirmed", "visit_request_rescheduled", "visit_request_cancelled"]'::jsonb"""
+        ),
+    )
+    digest_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    mention_all_same_day: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    is_hq: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class LineDigestRun(Base):
+    """某群組某天的參觀摘要已經推過（避免重複推送）。"""
+
+    __tablename__ = "line_digest_runs"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    digest_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class PushSubscription(Base):

@@ -14,6 +14,27 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
+
+規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。[PR #112](https://github.com/wu0010802-stack/ivy-website-admin/pull/112) 已在完整 CI 通過後合併；[main CI/CD](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44042656688) 已全部成功，API／web 於台灣時間 16:07 完成部署。上線前已以唯讀交易核對正式庫：目前僅義華綁定群組，已驗證且未離開，沒有需要重新驗證的舊群組。
+
+- API deployment：`1377cbb1-c46d-4048-b1a5-02caf3c44c42`，web deployment：`044914fa-a409-4bfe-bd74-ee6c4bb77e49`，兩者均為 `SUCCESS`。
+- release snapshot：`6e46e69ce0a7d6085a7e225bba6525ec633e181caf13fa3df9c72a2df669d454`；正式網域 `/release.json` 的 `base_commit` 已核對為 `065dc4b9146f454dbf478c639d82ec33ad587124`。
+- migration `d5e1f7a3b9c2`（接在 `c4d2e8a1f6b3` 之後）只新增兩張表（`line_group_settings`、`line_digest_runs`），不改既有資料，不必先備份。啟動紀錄確認 migration 成功；另以唯讀交易核對正式 `alembic_version` 為該版本、兩張新表均存在。
+- 驗證：PR 與 main 的全部 CI 成功，包括 web/admin 型別、單元測試、建置、後端三組 PostgreSQL、契約、部署腳本、兩組 E2E。正式網域的 release、production/live health、已發布 CMS、首頁與後台登入入口均回 200；CI 的 Railway 網址 smoke 亦通過。
+- 本次未變更 Railway 環境變數或群組設定；未代送真實 LINE 訊息。
+- 沒有新的環境變數。群組功能走既有的主官方帳號（`WEBSITE_LINE_MESSAGING_*`）；該帳號的 webhook 要維持「Use webhook」開著，且允許加入群組（原本群組推播就需要）。按鈕（postback）與 @ 偵測不需要在 LINE 後台另外設定。
+- 預設行為變更：已驗證並綁校區的群組，上線後隔天早上起收「每日摘要」，不再逐筆收「即將參觀」卡片；不想要的群組在後台「LINE 通知」關掉該群組的摘要開關。
+- 推播則數：每日摘要每群組每個有參觀的日子 1 則；查名單、確認卡、結果卡、說明、@選單都是 reply，不計則數；@所有人只有當天異動，那一次多 1 則。
+
+**上線後人工檢查（真群組，使用者操作）**
+1. 在真群組按卡片按鈕，看稽核有沒有記到按的人的 `userId`（postback 不保證有，沒有的話稽核只記群組）。
+2. `{everyone}` 在群組是否真的 @到所有人（用一筆今天的預約測新預約或改期）。
+3. 手機 LINE 上卡片按鈕、確認卡、結果卡與原因、來源分類選擇卡的顯示。
+4. 「到後台填完整資料」在手機 LINE 點開後，是否跳到外部瀏覽器、登入後落在案件頁。
+
+另外：招生入學的隱私權政策補招生用途（規格 Q1）仍待處理；本功能沒有新增蒐集的個資種類。
+
 ## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，已部署 main `45d9eb94`）
 
 規格 `docs/specs/2026-11-16-line-integrations-design.md`。migration `b3e8d1c4f9a7` 只新增三張表、放寬 `ad_conversion_jobs.platform` 檢查（加 `'line'`），不改既有資料、不必先備份。除了群組推播改成卡片，其他功能都要設變數或在後台打開才有作用。
@@ -362,6 +383,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 搬過去之後同事要知道：要在新網址重新登入；瀏覽器存的密碼是跟著網址的，要重新存；手機通知要在新網址的後台重新開一次（舊網址的訂閱會失效）；加到手機主畫面的後台要刪掉重加。LINE 群組推播與信裡的後台連結會自動改成新網址。
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
+
+## 2026-11-17 iPhone 預約表單出生年月日欄比姓名欄寬修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #109 合併進 main（`7524b700`），main run 44008630281 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。等待期間 main 先後合進 #105、#108、#111 與它們的部署紀錄，README／DESIGN.md 頂部日期段落連續衝突三次；最後把 README／DESIGN.md 段落從 PR 拿出來，改跟這筆部署紀錄一起推。每次重推都遇到推送那組 run 被 PR 那組取消、PR 被擋，`gh run rerun` 重跑後才合得進去。
+- **內容**：只改 web 前端（`visit-booking.css`、`pages/visit/manage.vue`）：預約表單與家長修改預約的日期欄 `appearance:none`、日期文字靠左，避開 iOS Safari 對原生日期欄強制 `content-box` 造成比姓名欄寬 34px、整頁被往右推。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉非 GET、分析、廣告像素與遙測）：`/release.json` base_commit `7524b700`；`/api/website/v1/health` 200；`/visit/yihua` 的 HTML 帶 `input[type=date]{appearance:none}`（打包目標 Safari 15.4，`-webkit-` 前綴被拿掉，屬預期）。Chrome、WebKit 在 390×844 與 1440×900：日期欄 `appearance:none`、`border-box`，寬度與姓名欄相同（350／354px），截圖與部署前一致，Chrome 日曆圖示還在。
+- **沒驗證**：iPhone 實機（本機沒有 iOS 模擬器）、Android 實機、家長修改預約頁（要有效的修改連結）。
+
+## 2026-11-17 狀態機登記表與守門測試、後台粉專貼文頁籤修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #111 合併進 main（`ae2e177f`），main run 44003543831 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。合併前 main 進了 #105、#108 與它們的部署紀錄，merge 三次（只有 README 頂部日期段落衝突，各段都留）；每次更新後 PR 的 CI 都重跑到綠才合併。
+- **內容**：`backend/app/state_machines.py`（狀態機登記表，不被執行期程式匯入）、`backend/tests/test_state_machines.py`、`backend/scripts/export_state_machines.py` 與它產生的 `docs/state-machines/domain.md`、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`；`contract:generate`／`contract:check` 多跑這一支。後台：三個狀態型別改用產生的型別（只改型別）、粉專貼文頁的載入改用 `useRequestSequence`。沒有 migration、API、環境變數變更，`web/` 沒有變更。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `ae2e177f`；`/api/website/v1/health` 200；首頁 200；`/admin/` 轉到 admin 子網域後 200。
+- **沒驗證**：登入正式站後台實際操作粉專貼文頁的頁籤切換（修正只在本機用測試確認：未修正版紅、修正後綠）。
+- **後續**：盤點時記下的低優先待辦在 issue #110。
 
 ## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭上線（main CI 部署，沒有 migration）
 

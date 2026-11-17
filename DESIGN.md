@@ -45,6 +45,11 @@
 - **真正執行互動的測試**：`web/tests/environment-windows-runtime.spec.ts` 建立模組、派發捲動／模式切換並驗卸載；`tests/e2e/environment-windows.spec.ts` 操作滾輪、點擊、鍵盤、直接章節連結、重新整理、同頁／整頁／SPA 上下頁、模組延遲載入與減少動態。`npm run test:e2e:environment` 分別跑 Chrome／WebKit 的桌機與手機視窗；同一支 spec 也納入全站正式建置 e2e。延遲載入測試會辨認正式版 hash 檔名的內容，不依賴開發版模組名。
 - **其餘測試與檢查**：`web/tests/environment-windows-20261117.spec.ts`（結構、先開哪一校、地址、下一所、水果小盤、CSS 規則、純函式）、`environment.spec.ts`（沿用的裁定與色票）、`environment-redraw.spec.ts`（預覽重算、換校、角落）、逐字快照 `fixtures/environment-*-20261012.*`。字數上限實測 `scripts/page-copy-stress.cjs /environment`（預設量完成的畫面；`STRESS_MOTION=1` 量釘住的起始畫面與舞台），量 320、390、820、901、1024、1100、1440。截圖在 Desktop 工作區 `output/env-windows-20261117/`。
 
+## 表單的原生日期欄要拿掉原生外觀（2026-11-17，`feature/visit-date-field-20261117`）
+
+- `input[type=date]` 只要寬度是 `%`／`auto`，iOS Safari 會強制 `content-box` 和最小寬度，`width:100%`＋padding 的欄位會比旁邊的欄位寬、撐出畫面。官網表單的日期欄一律加 `-webkit-appearance:none;appearance:none`，日期文字 `::-webkit-date-and-time-value{text-align:start}`。桌機 Chrome、Safari 加了之後畫面不變（Chrome 日曆圖示還在）。原因與量測見 README 同日段落；新增日期欄要一起加進 `web/tests/visit-date-input-ios-20261117.spec.ts`。
+
+
 ## 預約頁 LINE 聯絡改成按鈕、按鈕不放 ↗（2026-11-17，`feature/visit-line-contact-20261117`）
 
 使用者要求。適用範圍是預約頁第二步的聯絡區塊（`.visit-contact-step`）與預約成功畫面的按鈕。

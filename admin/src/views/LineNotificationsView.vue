@@ -132,6 +132,41 @@ async function assign(campusKey: string, campusName: string, targetId: string | 
   }
 }
 
+// --- 每個群組的通知開關（2026-11-17）-------------------------------------------------------
+const GROUP_KIND_OPTIONS = [
+  { value: 'visit_request_created', label: '新的參觀預約' },
+  { value: 'visit_request_confirmed', label: '參觀預約已確認' },
+  { value: 'visit_request_rescheduled', label: '參觀預約已改期' },
+  { value: 'visit_request_cancelled', label: '參觀預約已取消' },
+]
+type GroupSettingsBody = Pick<LineGroupOut, 'kinds' | 'digest_enabled' | 'mention_all_same_day' | 'is_hq'>
+const groupSaving = ref<Record<string, boolean>>({})
+
+async function saveGroupSettings(group: LineGroupOut, patch: Partial<GroupSettingsBody>) {
+  if (groupSaving.value[group.target_id]) return
+  const body: GroupSettingsBody = {
+    kinds: group.kinds,
+    digest_enabled: group.digest_enabled,
+    mention_all_same_day: group.mention_all_same_day,
+    is_hq: group.is_hq,
+    ...patch,
+  }
+  groupSaving.value = { ...groupSaving.value, [group.target_id]: true }
+  try {
+    data.value = await api.put<LineSettingsOut>(`/admin/line/groups/${encodeURIComponent(group.target_id)}`, body)
+    ElMessage.success('已更新群組的通知設定')
+  } catch (err) {
+    notifyError(errorMessage(err, '更新失敗'))
+  } finally {
+    groupSaving.value = { ...groupSaving.value, [group.target_id]: false }
+  }
+}
+
+function toggleKind(group: LineGroupOut, kind: string, on: boolean) {
+  const kinds = GROUP_KIND_OPTIONS.map(option => option.value).filter(value => value === kind ? on : group.kinds.includes(value))
+  return saveGroupSettings(group, { kinds })
+}
+
 async function sendTest(campusKey: string, campusName: string) {
   if (testing.value[campusKey]) return
   testing.value = { ...testing.value, [campusKey]: true }
@@ -323,9 +358,45 @@ onMounted(() => load())
                 </span>
                 <span v-if="group.left_at" class="group-list__meta">{{ formatDateTime(group.left_at) }}</span>
               </div>
+              <div v-if="group.verified_at && !group.left_at" class="group-switches" :data-test="`line-group-settings-${group.target_id}`">
+                <el-switch
+                  v-for="option in GROUP_KIND_OPTIONS"
+                  :key="option.value"
+                  :model-value="group.kinds.includes(option.value)"
+                  :disabled="groupSaving[group.target_id]"
+                  :active-text="option.label"
+                  :aria-label="`${groupLabel(group)}：${option.label}`"
+                  :data-test="`line-group-${group.target_id}-${option.value}`"
+                  @change="(value: unknown) => toggleKind(group, option.value, Boolean(value))"
+                />
+                <el-switch
+                  :model-value="group.digest_enabled"
+                  :disabled="groupSaving[group.target_id]"
+                  active-text="每日摘要"
+                  :aria-label="`${groupLabel(group)}：每日摘要`"
+                  :data-test="`line-group-${group.target_id}-digest`"
+                  @change="(value: unknown) => saveGroupSettings(group, { digest_enabled: Boolean(value) })"
+                />
+                <el-switch
+                  :model-value="group.mention_all_same_day"
+                  :disabled="groupSaving[group.target_id]"
+                  active-text="當天異動 @所有人"
+                  :aria-label="`${groupLabel(group)}：當天異動 @所有人`"
+                  :data-test="`line-group-${group.target_id}-mention`"
+                  @change="(value: unknown) => saveGroupSettings(group, { mention_all_same_day: Boolean(value) })"
+                />
+                <el-switch
+                  :model-value="group.is_hq"
+                  :disabled="groupSaving[group.target_id]"
+                  active-text="設為總部群組"
+                  :aria-label="`${groupLabel(group)}：設為總部群組`"
+                  :data-test="`line-group-${group.target_id}-hq`"
+                  @change="(value: unknown) => saveGroupSettings(group, { is_hq: Boolean(value) })"
+                />
+              </div>
             </li>
           </ul>
-          <p class="field-help">官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
+          <p class="field-help">總部群組會收到所有校區的通知；其他群組只收到各校自己選定的群組通知。官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
         </div>
       </section>
       <section class="panel">
@@ -602,6 +673,13 @@ onMounted(() => load())
 
 .group-list__status {
   align-items: flex-end;
+}
+
+.group-switches {
+  display: flex;
+  flex: 1 0 100%;
+  flex-wrap: wrap;
+  gap: 8px 20px;
 }
 
 .group-list__name {

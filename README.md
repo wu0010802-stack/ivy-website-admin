@@ -45,6 +45,37 @@
 - **驗證**：`web` typecheck 通過；`web` `npm run test:unit` 163 個檔、2,471 個測試全過；`admin` typecheck 通過、指定的五支測試 135 個全過；`scripts/page-copy-stress.cjs /environment`（字數上限）七個寬度、有無動態都通過。fixture dev server 用 Playwright（Chrome）在 1440×900、1280×720、1100×600、820×1180、390×844、320×640 與比稿頁逐屏對照，另量 320–1920 共 14 個視窗：沒有水平溢出、主控台錯誤與 hydration 警告。這是初次實作的驗證紀錄；接手後的導航修正與完整建置／e2e 結果見最上方接手驗收紀錄。
 - 規則寫在 DESIGN.md「環境頁拱窗打開」；守門測試 `web/tests/environment-windows-20261117.spec.ts`。
 
+## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
+
+規格 `docs/specs/2026-11-17-line-group-interactions-design.md`，計畫 `docs/superpowers/plans/2026-11-17-line-group-interactions.md`。園方 LINE 群組除了收卡片，現在能查名單、按按鈕處理參觀。
+
+- **每日摘要（1）**：台灣時間 08:00–12:00，每個開了摘要的群組收一則「今日參觀」卡片（沒有已確認參觀就不發）。**預設行為變更**：群組不再逐筆收「即將參觀」卡片，改由摘要取代；關掉該群組的摘要開關就退回逐筆。員工的站內通知與寄信照舊。
+- **群組查名單（2、13）**：打「今天參觀」「明天參觀」「本週參觀」，或 @官方帳號叫出三顆按鈕；回覆不計推播則數。
+- **已到場／未到場按鈕（4）**：卡片與名單每筆有兩顆按鈕，按下去先出確認卡，按確認才寫入（寫入走後台同一套流程，歷程顯示「LINE 群組」）。已標記的結果卡可再用按鈕填招生的預繳結果、未預繳原因、來源分類（六項，與後台表單相同）、搭交通車，並有「到後台填完整資料」連結。**「已預繳」也要二次確認**（會送出無法收回的廣告回傳）；其餘欄位可再按來更正，不在群組輸入任何姓名、電話或自由文字。
+- **卡片顏色（7）**：新預約深綠、已確認藍、已改期橘、已取消紅。
+- **每群組開關與總部群組（8）**：後台「LINE 通知」每個群組可分開開關四種通知、每日摘要、@所有人，並可設為總部群組（額外收五校全部）。
+- **@所有人（11）**：參觀日是今天的新預約、改期、取消，會多帶一則 @所有人（只有當天異動）。
+- **新成員說明（12）**：有人加入群組，自動回使用說明（同群組 10 分鐘一次）。
+- 指令與按鈕只在綁定校區（或設為總部）的群組或多人聊天室有作用，別的群組不回應；已綁校區的群組按到別校的案件會被拒絕。會寫入的按鈕另外要群組貼過驗證碼（2026-09-29 以前綁定、沒驗證過的舊群組照常收卡片與查名單，按鈕不回應）；總部群組被移出後再拉回來，不會自動恢復總部身分。確認卡的「確認」會以按的人的名義在群組留下「確認已到場」之類的一句，看得出誰確認的。
+- 操作紀錄裡群組按鈕的紀錄，分校帳號看得到但看不到群組 ID 與按的人的 LINE userId（搜尋也比對不到），只有總管理者看得到。
+- 驗證：PR #112 的 CI 全數通過，包含 web/admin 型別、單元測試、建置、後端 PostgreSQL、契約、部署腳本與兩組 E2E；詳細數字見規格 §9.2。真群組的四項實測（`userId`、@所有人、手機呈現、外部瀏覽器）尚未做。
+
+## 2026-11-17 iPhone 預約表單「寶貝出生年月日」比姓名欄寬（`feature/visit-date-field-20261117`，已部署 main `7524b700`）
+
+- **現象**：手機上「寶貝出生年月日」的框比上面「寶貝姓名」寬一截、右緣貼到畫面外，整頁還被往右推。桌機 Chrome／Safari、Playwright 在 280–1440px 各寬度量兩欄都一樣寬，只有手機原生日期欄才會出現。
+- **原因**：iOS Safari 的原生日期欄（`appearance:auto`）只要寬度不是固定 px，WebKit 就強制 `box-sizing:content-box` 並加最小寬度（`RenderThemeIOS.mm` 的 `adjustInputElementButtonStyle`）。我們寫的是 `width:100%`＋左右 padding 16px＋邊框，於是比容器寬 34px。把使用者截圖照 390px 視窗換算：姓名 350、日期 384、頁面被推 14px，三個數字都對得上。
+- **修正**：預約表單（`web/app/assets/css/visit-booking.css`）與家長修改預約（`web/app/pages/visit/manage.vue`）的日期欄加 `-webkit-appearance:none;appearance:none`，日期文字 `::-webkit-date-and-time-value{text-align:start}`（iOS 預設置中）。點了照樣跳系統日期選擇器。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。
+- **驗證**：桌機 Chrome、WebKit 的 390／1440px 修改前（正式站）與修改後的日期欄寬高、截圖都一樣（Chrome 日曆圖示還在）；`npm --prefix web run typecheck`、`test:unit`（162 檔 2,458 個）通過；正式站部署後桌機 Chrome、WebKit 量到日期欄 `appearance:none`、寬度和姓名欄相同。**iPhone 實機還沒驗**：本機沒有 iOS 模擬器。
+
+## 2026-11-17 狀態機登記表＋粉專貼文頁籤修正（`feature/state-machines-20261117`，已部署 main `ae2e177f`）
+
+盤點全站的隱性狀態機（狀態與轉移只存在各函式的 `if` 裡），做法與前端流程地圖見 `docs/state-machines/README.md`。
+
+- **後端登記表** `backend/app/state_machines.py`：10 台有狀態欄位的（預約案件、通知 outbox、內容審核、排程發布、素材、轉檔、招生階段、編班、廣告回傳、粉專貼文）＋8 台由欄位推導的（家長連結、場次、登入 session、重設密碼連結、帳號、素材刪除、排程是否已處理、錯誤回報）。只描述、不參與執行期判斷，**正式站行為沒有改變**；`backend/tests/test_state_machines.py` 負責讓它和程式對齊，登記以外的檔案寫狀態欄位會被擋。
+- **自動產生**（`npm run contract:generate`，`contract:check` 會檢查）：`docs/state-machines/domain.md`（狀態圖與轉移表）、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`。後台的素材、排程、粉專貼文狀態型別改用產生的型別；`admin/src/__tests__/stateMachineLabels.test.ts` 檢查每個狀態都有中文標籤。
+- **後台：粉專貼文快速切換頁籤**時，較晚回來的舊頁籤回應不再蓋掉目前頁籤的清單（`FacebookPostsView.vue` 改用 `useRequestSequence`）。
+- 沒有 migration、沒有 API 變更。
+
 ## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭（`feature/visit-line-contact-20261117`，已部署 main `08287900`）
 
 使用者看線上明華校的「歡迎與明華校聯絡」截圖，要求優化 LINE 聯絡的樣子並拿掉箭頭，預約成功畫面按鈕上的箭頭也一起拿掉。
@@ -56,6 +87,7 @@
 - 測試：`web/tests/visit-line-contact-20261117.spec.ts`；`tests/stack/booking-modes.spec.ts` 兩顆外開按鈕的名稱斷言加上「（另開新視窗）」。規則寫在 DESIGN.md 同名章節。
 
 ## 2026-11-16 環境頁五所校園分頁改直立積木（`feature/env-tour-tabs-20261116`，已部署 main `ffe857e3`）
+
 
 使用者說第四章五校分頁「有點扁」。原因是桌機視窗高不到 760px 時積木被壓成 1:0.66（1280×720 筆電量到 219×145），白框裡的校舍也只佔中間一條。比稿 A–D 選 A：積木改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），兩層線稿 `cover` 貼底放大、依校別往下挪到地面貼齊白框；選中從「3px 墨綠框＋小圓點」改成「按下去＋校名深綠底白字」，鍵盤操作不再出現兩圈黑框。只動 `web/app/assets/css/environment.css`，規則記在 DESIGN.md「五所校園直立積木分頁」，守門測試在 `web/tests/environment.spec.ts`。驗證：web typecheck、`test:unit` 全過；fixture dev server 1440×900、1280×720、1280×650、820、390、320 截圖無溢出，鍵盤左右鍵換校只有一圈焦點框。
 

@@ -6,18 +6,20 @@ import { api, BASE_URL } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import { campusLabel, formatDateTime } from '../api/labels'
 import type { FacebookImportOut, FacebookPostListOut, FacebookPostOut } from '../api/types'
+import type { FacebookPagePostState } from '../../../contracts/generated/state-machines'
 import CampusSelect from '../components/CampusSelect.vue'
 import PageHeader from '../components/PageHeader.vue'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
+import { useRequestSequence } from '../composables/useRequestSequence'
 
 // 各校粉專同步進來的貼文（docs/specs/2026-10-28-facebook-news-sync-design.md）：
 // 挑要放上官網的轉成該校消息草稿，其餘略過。發布照舊在「各校消息與活動」。
 // WEBSITE_INSTAGRAM_ENABLED 開著時，粉專連結的 Instagram 貼文也進同一個收件匣
 // （docs/specs/2026-11-12-external-integrations-design.md §2）：標來源、可依來源篩選、
 // 同步狀態多一行；學校常同一篇兩邊都發，會出現兩則，由人略過一則，不做自動去重。
-type Status = 'new' | 'imported' | 'dismissed'
+type Status = FacebookPagePostState
 const STATUS_LABELS: Record<Status, string> = { new: '未處理', imported: '已轉成消息', dismissed: '已略過' }
 type Source = 'all' | 'facebook' | 'instagram'
 const SOURCE_LABELS: Record<Source, string> = { all: '全部', facebook: 'Facebook', instagram: 'Instagram' }
@@ -77,22 +79,24 @@ function pictureUrl(post: FacebookPostOut): string {
   return `${BASE_URL}/admin/facebook-posts/${post.id}/picture`
 }
 
+const requests = useRequestSequence()
+
 async function load() {
   if (!campus.value) return
+  const request = requests.begin()
   loading.value = true
   loadError.value = null
-  const key = campus.value
   try {
     const sourceQuery = source.value === 'all' ? '' : `&source=${source.value}`
     const result = await api.get<FacebookPostListOut>(
-      `/admin/facebook-posts?campus_key=${encodeURIComponent(key)}&status=${status.value}${sourceQuery}`,
+      `/admin/facebook-posts?campus_key=${encodeURIComponent(campus.value)}&status=${status.value}${sourceQuery}`,
     )
-    // 載入途中換了校區：丟掉舊的回應。
-    if (key === campus.value) data.value = result
+    // 載入途中換了校區、頁籤或來源：丟掉舊的回應，不然清單會和選中的頁籤對不上。
+    if (requests.isCurrent(request)) data.value = result
   } catch (err) {
-    loadError.value = apiErrorMessage(err, '讀不到貼文，請重新載入')
+    if (requests.isCurrent(request)) loadError.value = apiErrorMessage(err, '讀不到貼文，請重新載入')
   } finally {
-    loading.value = false
+    if (requests.isCurrent(request)) loading.value = false
   }
 }
 

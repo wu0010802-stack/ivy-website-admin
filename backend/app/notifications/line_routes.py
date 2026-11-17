@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -37,11 +37,13 @@ from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.config import LINE_CAMPUS_ACCOUNT_KEYS, LINE_MAIN_ACCOUNT, LineAccountCredentials
 from app.notifications import line as line_api
-from app.notifications import line_accounts, line_flex, line_parent
+from app.notifications import line_accounts, line_flex, line_group_actions, line_group_commands, line_parent
+from app.notifications.line_group_settings import STAFF_KINDS
 from app.notifications.parent_email import visit_when
 from app.notifications.models import (
     LineCampusTarget,
     LineGroup,
+    LineGroupSetting,
     LineGroupVerificationCode,
     LineParentCampusAccount,
     LineParentLink,
@@ -155,6 +157,8 @@ async def line_webhook(request: Request, db: AsyncSession = Depends(get_db_sessi
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     events = await _verified_events(request, account)
     await _handle_group_events(request, db, events)
+    await line_group_commands.handle(request, db, events)
+    await line_group_actions.handle(request, db, events)
     await _handle_user_events(request, db, account, events)
     return {}
 
@@ -184,6 +188,13 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
         if event.get("type") == "leave":
             if group is not None and group.left_at is None:
                 group.left_at = now
+            # 離開就不再是總部群組：之後有人再把官方帳號拉回來，不會默默恢復收五校卡片與按鈕寫入權，
+            # 要總管理者在後台重新設定。其他開關（種類、摘要、@所有人）照留。
+            setting = await db.get(LineGroupSetting, target_id)
+            if setting is not None and setting.is_hq:
+                setting.is_hq = False
+                setting.updated_at = now
+                setting.updated_by = None
             continue
         if event.get("type") not in _SEEN_EVENTS:
             continue
@@ -328,6 +339,26 @@ class LineGroupOut(BaseModel):
     # 在群組裡貼過後台驗證碼的時間；NULL 的群組不能被選為校區推播目標
     # （已經綁定的照常推播）。
     verified_at: datetime | None
+    # 每群組的通知設定（沒有設定列＝預設值，由 _settings_out 補上）。
+    kinds: list[str] = list(STAFF_KINDS)
+    digest_enabled: bool = True
+    mention_all_same_day: bool = True
+    is_hq: bool = False
+
+
+class LineGroupSettingsUpdate(BaseModel):
+    kinds: list[str]
+    digest_enabled: bool
+    mention_all_same_day: bool
+    is_hq: bool
+
+    @field_validator("kinds")
+    @classmethod
+    def _known_kinds(cls, value: list[str]) -> list[str]:
+        unknown = [kind for kind in value if kind not in STAFF_KINDS]
+        if unknown:
+            raise ValueError(f"未知的通知種類：{', '.join(unknown)}")
+        return [kind for kind in STAFF_KINDS if kind in value]
 
 
 class LineCampusTargetOut(BaseModel):
@@ -387,6 +418,16 @@ class LineVerificationCodeOut(BaseModel):
     expires_at: datetime
 
 
+def _group_out(group: LineGroup, setting: LineGroupSetting | None) -> LineGroupOut:
+    out = LineGroupOut.model_validate(group, from_attributes=True)
+    if setting is not None:
+        out.kinds = list(setting.kinds or [])
+        out.digest_enabled = setting.digest_enabled
+        out.mention_all_same_day = setting.mention_all_same_day
+        out.is_hq = setting.is_hq
+    return out
+
+
 async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     settings = request.app.state.settings
     groups = (await db.execute(select(LineGroup).order_by(LineGroup.first_seen_at))).scalars().all()
@@ -395,6 +436,9 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     campuses = sorted(
         (await db.execute(select(Campus))).scalars().all(), key=lambda c: (order.get(c.key, len(order)), c.key)
     )
+    group_settings = {
+        row.target_id: row for row in (await db.execute(select(LineGroupSetting))).scalars().all()
+    }
     mapping = dict((await db.execute(select(LineCampusTarget.campus_key, LineCampusTarget.target_id))).all())
     parent_mapping = dict(
         (await db.execute(select(LineParentCampusAccount.campus_key, LineParentCampusAccount.account_key))).all()
@@ -407,7 +451,7 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     return LineSettingsOut(
         enabled=settings.line_messaging_enabled,
         webhook_url=f"{settings.admin_origin.rstrip('/')}{WEBHOOK_PATH}" if settings.admin_origin else None,
-        groups=[LineGroupOut.model_validate(g, from_attributes=True) for g in groups],
+        groups=[_group_out(g, group_settings.get(g.target_id)) for g in groups],
         targets=[
             LineCampusTargetOut(campus_key=c.key, campus_name=c.name, target_id=mapping.get(c.key))
             for c in campuses
@@ -579,6 +623,54 @@ async def update_line_campus_target(
         target_id=campus_key,
         campus_key=campus_key,
         metadata={"before": before, "after": payload.target_id},
+    )
+    await db.commit()
+    return await _settings_out(request, db)
+
+
+@router.put("/admin/line/groups/{target_id}", response_model=LineSettingsOut)
+async def update_line_group_settings(
+    target_id: str,
+    payload: LineGroupSettingsUpdate,
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> LineSettingsOut:
+    """每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。"""
+    require_scope(current_user, "notifications.manage")
+    group = await db.get(LineGroup, target_id)
+    if group is None or group.left_at is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個群組")
+    if payload.is_hq and group.verified_at is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "LINE_GROUP_UNVERIFIED",
+                "message": "這個群組還沒驗證：請先產生驗證碼，貼到要綁定的 LINE 群組裡，再設為總部群組",
+            },
+        )
+    setting = await db.get(LineGroupSetting, target_id, with_for_update=True)
+    if setting is None:
+        setting = LineGroupSetting(target_id=target_id, updated_at=datetime.now(timezone.utc))
+        db.add(setting)
+    setting.kinds = payload.kinds
+    setting.digest_enabled = payload.digest_enabled
+    setting.mention_all_same_day = payload.mention_all_same_day
+    setting.is_hq = payload.is_hq
+    setting.updated_at = datetime.now(timezone.utc)
+    setting.updated_by = current_user.id
+    await audit_service.log_action(
+        db,
+        actor_user_id=current_user.id,
+        action="line.group.settings.update",
+        target_type="line_group",
+        target_id=target_id,
+        metadata={
+            "kinds": payload.kinds,
+            "digest_enabled": payload.digest_enabled,
+            "mention_all_same_day": payload.mention_all_same_day,
+            "is_hq": payload.is_hq,
+        },
     )
     await db.commit()
     return await _settings_out(request, db)

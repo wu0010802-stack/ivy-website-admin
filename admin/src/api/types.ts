@@ -3,6 +3,7 @@
 // 會偵測這份生成檔跟目前 API 是否一致。HomeAboutPayload 等各 kind 的
 // payload 形狀後端目前收 dict、不是獨立 schema，暫時仍手抄維護（見下）。
 import type { components } from '../../../contracts/generated/website-api'
+import type { MediaAssetState } from '../../../contracts/generated/state-machines'
 
 export type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 export type UserOut = components['schemas']['UserOut']
@@ -492,7 +493,7 @@ export interface CampusTourPayload {
 }
 
 export type MediaKind = 'image' | 'video'
-export type MediaStatus = 'processing' | 'ready' | 'failed'
+export type MediaStatus = MediaAssetState
 export type VariantKind = components['schemas']['VariantKind']
 
 export type MediaVariantOut = components['schemas']['MediaVariantOut']

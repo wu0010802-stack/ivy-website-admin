@@ -458,6 +458,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.test_push': '送出 LINE 測試訊息',
   'line.verification_code.create': '產生 LINE 群組驗證碼',
   'line.group.verify': 'LINE 群組完成驗證',
+  'line.group.settings.update': '更新群組通知設定',
+  'line.group.visit_attend': '在 LINE 群組標記已到場',
+  'line.group.visit_no_show': '在 LINE 群組標記未到場',
+  'line.group.recruitment_field': '填寫招生欄位（LINE 群組）',
   'line.parent_account.update': '更新家長 LINE 通知帳號',
   'line.parent.link': '家長開啟 LINE 通知',
   'line.parent.unlink': '家長關閉 LINE 通知',
@@ -657,11 +661,13 @@ export function visitEventLabel(eventType: string): string {
   return VISIT_EVENT_LABELS[eventType] ?? eventType
 }
 
-// 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作。
+// 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作；
+// LINE 群組是園方在群組卡片上按已到場／未到場（2026-11-17，對不到後台帳號）。
 export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
   staff: '園方人員',
   parent: '家長',
   system: '系統自動',
+  line_group: 'LINE 群組',
 }
 
 // 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。
