@@ -1,6 +1,6 @@
 # 園方 LINE 群組互動（2026-11-17）
 
-使用者問「通知在 LINE 群組裡還能做什麼」，看完 13 項清單後挑了 1、2、4、7、8、11、12、13，並對 4 選了做法 A。本文是設計；2026-11-17 已依本文施工完成（尚未 commit、push、部署），施工時與原設計不同之處以「2026-11-17 施工修正」標在各章節，總結見 §9。
+使用者問「通知在 LINE 群組裡還能做什麼」，看完 13 項清單後挑了 1、2、4、7、8、11、12、13，並對 4 選了做法 A。本文是設計；2026-11-17 已依本文施工完成，並由 PR #112 合併至 main `065dc4b9`（部署狀態見 `deploy/README.md`），施工時與原設計不同之處以「2026-11-17 施工修正」標在各章節，總結見 §9。
 
 ## 1. 為什麼做
 
@@ -163,13 +163,13 @@ Flex 排版與文案、`line_group_settings` 的欄位型別與索引、後台�
 
 ## 9. 施工結果與已知限制（2026-11-17）
 
-依本文施工完成，後端、後台、契約都在工作樹，尚未 commit、push、部署；真群組實測（附錄四項）尚未做。留給之後維護者的已知限制（都是 Minor，經評估不阻擋上線）：
+已由 PR #112 合併至 main `065dc4b9`；自動驗證結果見 §9.2，部署狀態見 `deploy/README.md`。真群組實測（附錄四項）尚未做。留給之後維護者的已知限制（都是 Minor，經評估不阻擋上線）：
 
 - 群組設定的首次 PUT 有競態（兩人同時第一次存同一群組，後到的會撞唯一鍵），與既有校區目標設定的寫法一致，沒另外處理。
 - 已到場／未到場的「鎖內重查授權」實際上沒有新作用（授權在鎖外已判斷，鎖內只重驗狀態與時間）；`line_group_actions.py` 開頭 docstring 已改成照實描述。
 - 兩支測試在台灣 23:58 之後會 skip（場次時間跨日），不是失敗；`test_line_group_attend.py` 的 23:59 場次案例同理。
 - 稽核頁對群組動作的操作者顯示「系統」（沒有後台使用者）；要分辨是哪個群組看 metadata 的 `group_id`（只有 `notifications.manage` 看得到，見下方最終審查修正第 1 點）。
-- `backend/.test_durations` 沒有重產，CI 三組分配可能略偏，下次跑 `uv run pytest --store-durations` 即可。
+- `backend/.test_durations` 已隨功能提交 `db5f02ec` 更新，PR CI 三組後端測試均通過。
 - 同一批 webhook 事件裡，後面的事件若丟 DB 例外，前面已處理事件的回覆會遺失（寫入本身不受影響）。
 - 摘要的 `run_cycle` 缺凍結時間的整合測試，只有各段的單元測試。
 - 名單溢位時的「另有 N 筆」說明卡與第 11 筆卡的邊界、結果卡標題重複，都是版型小瑕疵；`_postback_button` 文字超過 20 字會靜默截斷，現有的來源與原因標籤都在限內。
@@ -183,3 +183,12 @@ Flex 排版與文案、`line_group_settings` 的欄位型別與索引、後台�
 4. 未到場的結果改成卡片（altText「已標記未到場」，家長稱呼只在卡片內文）；確認卡按「取消」回「已取消這次標記，沒有寫入」（原本的「已取消」會讀成預約被取消）。
 5. @官方帳號改用 mention 的 `index`／`length` 切（見 §4.2 施工修正）。
 6. 名單與摘要每筆的時段改用和群組卡片相同的寫法（`11/18（三）10:00`）。
+
+### 9.2 合併與驗證紀錄（2026-11-17）
+
+- 功能提交 `db5f02ec`；併入當時最新 main `dd95013b` 後的測試版本為 `83b11fb0`；PR #112 合併為 `065dc4b9`。
+- 已核對原背景測試輸出：後端 5,796 passed／1 skipped，後台 3,661 passed／1 skipped；後台 typecheck、contract:check 與部署腳本測試通過。
+- [PR CI 44040969502](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44040969502)：web 2,466 passed，admin 3,661 passed／1 skipped；兩端型別、建置與依賴檢查通過。後端三組合計 5,794 passed／3 skipped，migration 與 schema guard 核對 `d5e1f7a3b9c2`，契約與 48 項部署腳本測試通過。E2E 完整流程 186 passed／30 skipped，公開站四視口 38 passed／10 skipped。
+- production 上線前唯讀核對：目前只有義華綁定群組，已驗證且未離開。未更改群組設定、未代送真實 LINE 訊息。
+- [main CI/CD 44042656688](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44042656688) 全部成功，API／web 已部署 `065dc4b9`。正式網域 release、production/live health、已發布 CMS、首頁與後台登入入口均回 200；正式 DB 版本已升至 `d5e1f7a3b9c2`，兩張新表均存在。deployment ID 與 snapshot 見 `deploy/README.md`。
+- 真實 LINE 的四項驗收仍由使用者操作，見附錄。

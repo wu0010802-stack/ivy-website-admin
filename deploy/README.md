@@ -14,11 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，**尚未 commit、push 或部署**）
+## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
 
-規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。以下是上線前後的步驟，目前一項都還沒做。
+規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。[PR #112](https://github.com/wu0010802-stack/ivy-website-admin/pull/112) 已在完整 CI 通過後合併；[main CI/CD](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44042656688) 已全部成功，API／web 於台灣時間 16:07 完成部署。上線前已以唯讀交易核對正式庫：目前僅義華綁定群組，已驗證且未離開，沒有需要重新驗證的舊群組。
 
-- migration `d5e1f7a3b9c2`（接在 `c4d2e8a1f6b3` 之後）只新增兩張表（`line_group_settings`、`line_digest_runs`），不改既有資料，不必先備份。
+- API deployment：`1377cbb1-c46d-4048-b1a5-02caf3c44c42`，web deployment：`044914fa-a409-4bfe-bd74-ee6c4bb77e49`，兩者均為 `SUCCESS`。
+- release snapshot：`6e46e69ce0a7d6085a7e225bba6525ec633e181caf13fa3df9c72a2df669d454`；正式網域 `/release.json` 的 `base_commit` 已核對為 `065dc4b9146f454dbf478c639d82ec33ad587124`。
+- migration `d5e1f7a3b9c2`（接在 `c4d2e8a1f6b3` 之後）只新增兩張表（`line_group_settings`、`line_digest_runs`），不改既有資料，不必先備份。啟動紀錄確認 migration 成功；另以唯讀交易核對正式 `alembic_version` 為該版本、兩張新表均存在。
+- 驗證：PR 與 main 的全部 CI 成功，包括 web/admin 型別、單元測試、建置、後端三組 PostgreSQL、契約、部署腳本、兩組 E2E。正式網域的 release、production/live health、已發布 CMS、首頁與後台登入入口均回 200；CI 的 Railway 網址 smoke 亦通過。
+- 本次未變更 Railway 環境變數或群組設定；未代送真實 LINE 訊息。
 - 沒有新的環境變數。群組功能走既有的主官方帳號（`WEBSITE_LINE_MESSAGING_*`）；該帳號的 webhook 要維持「Use webhook」開著，且允許加入群組（原本群組推播就需要）。按鈕（postback）與 @ 偵測不需要在 LINE 後台另外設定。
 - 預設行為變更：已驗證並綁校區的群組，上線後隔天早上起收「每日摘要」，不再逐筆收「即將參觀」卡片；不想要的群組在後台「LINE 通知」關掉該群組的摘要開關。
 - 推播則數：每日摘要每群組每個有參觀的日子 1 則；查名單、確認卡、結果卡、說明、@選單都是 reply，不計則數；@所有人只有當天異動，那一次多 1 則。
