@@ -3,6 +3,7 @@ import { ElMessage } from 'element-plus'
 import { notifyError } from './notify'
 import { api } from '../api/client'
 import type { ContentItemOut } from '../api/types'
+import type { PublishJobState } from '../../../contracts/generated/state-machines'
 import { contentFieldLabel, contentItemLabel, contentPreviewPath, contentPublicPath, HQ_MANAGED_KINDS } from '../api/labels'
 import { contentFieldLabelFor } from '../api/contentFieldLabels'
 import { WEBSITE_ASSET_BASE } from '../config'
@@ -20,7 +21,7 @@ export interface PublishJob {
   revision_version: number
   publish_at: string
   /** skipped＝到期時官網已經是較新的版本，沒有蓋回去 */
-  status: 'scheduled' | 'done' | 'failed' | 'skipped' | 'cancelled'
+  status: PublishJobState
   error: string | null
   created_by_email: string | null
   /** 排程的人設定的顯示名稱（沒設定為 null）；編輯頁的排程列刻意不寫是誰排的 */

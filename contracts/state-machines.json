@@ -1,0 +1,441 @@
+{
+  "_generated": "由 backend/scripts/export_state_machines.py 產生，來源是 backend/app/state_machines.py。不要手改；改登記表後跑 npm run contract:generate。",
+  "machines": {
+    "visit_request": {
+      "title": "預約參觀案件",
+      "field": "status",
+      "states": {
+        "confirmed": "預約正常",
+        "cancelled": "已取消",
+        "no_show": "未到場",
+        "completed": "已到場"
+      },
+      "initial": [
+        "confirmed"
+      ],
+      "terminal": [
+        "cancelled",
+        "no_show",
+        "completed"
+      ],
+      "transitions": [
+        [
+          "confirmed",
+          "cancelled"
+        ],
+        [
+          "confirmed",
+          "completed"
+        ],
+        [
+          "confirmed",
+          "no_show"
+        ]
+      ]
+    },
+    "outbox_message": {
+      "title": "通知 outbox",
+      "field": "status",
+      "states": {
+        "pending": "待寄送",
+        "leased": "寄送中",
+        "sent": "已寄出",
+        "failed": "寄送失敗",
+        "skipped": "已略過"
+      },
+      "initial": [
+        "pending"
+      ],
+      "terminal": [
+        "sent",
+        "skipped"
+      ],
+      "transitions": [
+        [
+          "failed",
+          "pending"
+        ],
+        [
+          "leased",
+          "failed"
+        ],
+        [
+          "leased",
+          "pending"
+        ],
+        [
+          "leased",
+          "sent"
+        ],
+        [
+          "leased",
+          "skipped"
+        ],
+        [
+          "pending",
+          "leased"
+        ]
+      ]
+    },
+    "content_revision": {
+      "title": "內容版本的審核狀態",
+      "field": "review_status",
+      "states": {
+        "draft": "草稿",
+        "pending_review": "待審核",
+        "approved": "已核准",
+        "rejected": "已退回",
+        "superseded": "已被新版取代"
+      },
+      "initial": [
+        "draft"
+      ],
+      "terminal": [
+        "approved",
+        "superseded"
+      ],
+      "transitions": [
+        [
+          "draft",
+          "pending_review"
+        ],
+        [
+          "pending_review",
+          "approved"
+        ],
+        [
+          "pending_review",
+          "rejected"
+        ],
+        [
+          "pending_review",
+          "superseded"
+        ],
+        [
+          "rejected",
+          "pending_review"
+        ]
+      ]
+    },
+    "publish_job": {
+      "title": "排程發布",
+      "field": "status",
+      "states": {
+        "scheduled": "等待發布",
+        "done": "已發布",
+        "failed": "沒有發布",
+        "skipped": "已略過",
+        "cancelled": "已取消"
+      },
+      "initial": [
+        "scheduled"
+      ],
+      "terminal": [
+        "done",
+        "failed",
+        "skipped",
+        "cancelled"
+      ],
+      "transitions": [
+        [
+          "scheduled",
+          "cancelled"
+        ],
+        [
+          "scheduled",
+          "done"
+        ],
+        [
+          "scheduled",
+          "failed"
+        ],
+        [
+          "scheduled",
+          "skipped"
+        ]
+      ]
+    },
+    "media_asset": {
+      "title": "素材",
+      "field": "status",
+      "states": {
+        "processing": "處理中",
+        "ready": "可用",
+        "failed": "失敗"
+      },
+      "initial": [
+        "processing"
+      ],
+      "terminal": [
+        "ready"
+      ],
+      "transitions": [
+        [
+          "failed",
+          "processing"
+        ],
+        [
+          "processing",
+          "failed"
+        ],
+        [
+          "processing",
+          "ready"
+        ]
+      ]
+    },
+    "media_job": {
+      "title": "影片轉檔工作",
+      "field": "status",
+      "states": {
+        "pending": "排隊中",
+        "running": "轉檔中",
+        "done": "完成",
+        "failed": "失敗"
+      },
+      "initial": [
+        "pending"
+      ],
+      "terminal": [
+        "done",
+        "failed"
+      ],
+      "transitions": [
+        [
+          "pending",
+          "running"
+        ],
+        [
+          "running",
+          "done"
+        ],
+        [
+          "running",
+          "failed"
+        ],
+        [
+          "running",
+          "pending"
+        ]
+      ]
+    },
+    "recruitment_stage": {
+      "title": "招生訪視的階段",
+      "field": null,
+      "states": {
+        "visited": "已訪視",
+        "deposited": "已預繳",
+        "enrolled": "已註冊",
+        "withdrawn": "退預繳／退註冊"
+      },
+      "initial": [
+        "visited"
+      ],
+      "terminal": [],
+      "transitions": [
+        [
+          "deposited",
+          "enrolled"
+        ],
+        [
+          "deposited",
+          "visited"
+        ],
+        [
+          "deposited",
+          "withdrawn"
+        ],
+        [
+          "enrolled",
+          "deposited"
+        ],
+        [
+          "enrolled",
+          "visited"
+        ],
+        [
+          "enrolled",
+          "withdrawn"
+        ],
+        [
+          "visited",
+          "deposited"
+        ],
+        [
+          "withdrawn",
+          "deposited"
+        ],
+        [
+          "withdrawn",
+          "visited"
+        ]
+      ]
+    },
+    "roster_student": {
+      "title": "編班的幼生",
+      "field": "status",
+      "states": {
+        "pending": "預繳未入園",
+        "enrolled": "在籍",
+        "left": "已離園",
+        "refunded": "已退預繳"
+      },
+      "initial": [
+        "pending",
+        "enrolled"
+      ],
+      "terminal": [],
+      "transitions": [
+        [
+          "enrolled",
+          "left"
+        ],
+        [
+          "left",
+          "enrolled"
+        ],
+        [
+          "pending",
+          "enrolled"
+        ],
+        [
+          "pending",
+          "refunded"
+        ],
+        [
+          "refunded",
+          "pending"
+        ]
+      ]
+    },
+    "ad_conversion_job": {
+      "title": "廣告轉換回傳",
+      "field": "status",
+      "states": {
+        "pending": "待回傳",
+        "sent": "已回傳",
+        "failed": "回傳失敗",
+        "skipped": "已略過"
+      },
+      "initial": [
+        "pending"
+      ],
+      "terminal": [
+        "sent",
+        "failed",
+        "skipped"
+      ],
+      "transitions": [
+        [
+          "pending",
+          "failed"
+        ],
+        [
+          "pending",
+          "sent"
+        ],
+        [
+          "pending",
+          "skipped"
+        ]
+      ]
+    },
+    "facebook_page_post": {
+      "title": "粉專貼文收件匣",
+      "field": "status",
+      "states": {
+        "new": "未處理",
+        "imported": "已轉成消息",
+        "dismissed": "已略過"
+      },
+      "initial": [
+        "new"
+      ],
+      "terminal": [
+        "imported"
+      ],
+      "transitions": [
+        [
+          "dismissed",
+          "imported"
+        ],
+        [
+          "dismissed",
+          "new"
+        ],
+        [
+          "new",
+          "dismissed"
+        ],
+        [
+          "new",
+          "imported"
+        ]
+      ]
+    }
+  },
+  "derived": {
+    "parent_access": {
+      "title": "家長管理連結與 session",
+      "states": {
+        "active": "有效",
+        "expired": "已過期",
+        "revoked": "已撤銷"
+      }
+    },
+    "visit_slot": {
+      "title": "參觀場次",
+      "states": {
+        "open": "開放",
+        "closed_manual": "園方手動關閉",
+        "closed_exception": "休假日關閉",
+        "closed_rule": "不符合現行每週規則"
+      }
+    },
+    "admin_session": {
+      "title": "後台登入 session",
+      "states": {
+        "usable": "有效",
+        "expired": "已過期",
+        "revoked": "已撤銷"
+      }
+    },
+    "password_reset_token": {
+      "title": "重設密碼連結",
+      "states": {
+        "usable": "可用",
+        "used": "已使用",
+        "revoked": "已作廢",
+        "expired": "已過期"
+      }
+    },
+    "user_account": {
+      "title": "後台帳號",
+      "states": {
+        "active": "啟用",
+        "inactive": "停用"
+      }
+    },
+    "media_deletion": {
+      "title": "素材的刪除",
+      "states": {
+        "kept": "保留",
+        "pending_purge": "已刪除、等待清理"
+      }
+    },
+    "publish_job_resolution": {
+      "title": "沒發布的排程是否已處理",
+      "states": {
+        "unresolved": "待處理",
+        "resolved": "已處理"
+      }
+    },
+    "error_group": {
+      "title": "錯誤回報分組",
+      "states": {
+        "open": "未處理",
+        "resolved": "已處理"
+      }
+    }
+  }
+}
