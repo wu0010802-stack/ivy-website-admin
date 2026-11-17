@@ -122,6 +122,24 @@ STATS_ONLY_ACTIONS = (
 # 分校帳號看自己校的操作紀錄時也要排除（2026-11-11 資安稽核）。
 NOTIFICATION_SETTINGS_ACTIONS = ("line.campus_target.update",)
 
+# LINE 群組按鈕的紀錄（2026-11-17，notifications/line_group_actions.py）：帶校區，分校帳號看自己校的紀錄時
+# 照樣列出（看得到「LINE 群組標記了到場」），但 metadata 的群組 ID 與按的人的 LINE userId 同上只給
+# notifications.manage：回傳時拿掉（visible_metadata），搜尋時這幾種紀錄也只比對 LINE_GROUP_SEARCH_KEYS，
+# 分校帳號不能用搜尋猜群組 ID。
+LINE_GROUP_ACTIONS = ("line.group.visit_attend", "line.group.visit_no_show", "line.group.recruitment_field")
+LINE_GROUP_PRIVATE_KEYS = frozenset({"group_id", "line_user_id"})
+# 上面那幾種紀錄 metadata 其餘的鍵（line_group_actions 只寫這些）；新增鍵要一起加，否則分校帳號搜不到。
+LINE_GROUP_SEARCH_KEYS = ("from_status", "to_status", "field", "value")
+
+
+def visible_metadata(action: str, metadata: dict | None, *, show_line_ids: bool) -> dict:
+    """操作紀錄回傳給這個查詢者的 metadata：沒有 notifications.manage 的人看 LINE 群組按鈕的紀錄時
+    拿掉群組 ID 與 LINE userId，其他紀錄原樣。"""
+    metadata = metadata or {}
+    if show_line_ids or action not in LINE_GROUP_ACTIONS:
+        return metadata
+    return {key: value for key, value in metadata.items() if key not in LINE_GROUP_PRIVATE_KEYS}
+
 
 def _visit_exists(entry: AuditLogEntry, existing: set[uuid.UUID]) -> bool | None:
     # 匯出這類動作的 target_id 是校區代號或 "all"，不是哪一筆案件。
@@ -148,8 +166,24 @@ def _json_text(term: str) -> str:
     return json.dumps(term)[1:-1]
 
 
-def _search_condition(actor, terms: Sequence[str], *, search_ip: bool):
-    """任一個詞出現在動作、對象、校區、操作者、對象帳號、裝置、metadata（與看得到 IP 的人的 IP）就算。"""
+def _metadata_match(term: str, *, hide_line_ids: bool):
+    stored = cast(AuditLogEntry.metadata_json, Text).ilike(_like_pattern(_json_text(term)), escape="\\")
+    if not hide_line_ids:
+        return stored
+    # LINE 群組按鈕的紀錄只比對群組 ID、userId 以外的鍵；->> 取出的是解開轉義的文字，搜尋字不用轉義。
+    pattern = _like_pattern(term)
+    shown = or_(
+        *(AuditLogEntry.metadata_json[key].as_string().ilike(pattern, escape="\\") for key in LINE_GROUP_SEARCH_KEYS)
+    )
+    return or_(
+        and_(AuditLogEntry.action.not_in(LINE_GROUP_ACTIONS), stored),
+        and_(AuditLogEntry.action.in_(LINE_GROUP_ACTIONS), shown),
+    )
+
+
+def _search_condition(actor, terms: Sequence[str], *, search_ip: bool, hide_line_ids: bool = False):
+    """任一個詞出現在動作、對象、校區、操作者、對象帳號、裝置、metadata（與看得到 IP 的人的 IP）就算。
+    hide_line_ids：查詢者沒有 notifications.manage，LINE 群組按鈕紀錄的群組 ID 與 userId 不比對。"""
     target = aliased(User)
     entry_fields = [
         AuditLogEntry.action,
@@ -167,7 +201,7 @@ def _search_condition(actor, terms: Sequence[str], *, search_ip: bool):
     for term in terms:
         pattern = _like_pattern(term)
         conditions += [field.ilike(pattern, escape="\\") for field in entry_fields]
-        conditions.append(cast(AuditLogEntry.metadata_json, Text).ilike(_like_pattern(_json_text(term)), escape="\\"))
+        conditions.append(_metadata_match(term, hide_line_ids=hide_line_ids))
         target_conditions += [target.email.ilike(pattern, escape="\\"), target.display_name.ilike(pattern, escape="\\")]
     # 對哪個帳號（target_type 為 user）：對方的 email 與顯示名稱也搜得到，同畫面上的「對象」。
     target_match = (
@@ -195,6 +229,7 @@ async def list_recent(
     terms: Sequence[str] = (),
     search_ip: bool = False,
     hide_actions: Sequence[str] = (),
+    hide_line_ids: bool = False,
 ) -> list[AuditRow]:
     """新的在前，一次 limit 筆。before 是上一頁最後一筆的 (created_at, id)，
     傳了就接著往更早的讀；同一時間的多筆用 id 排出固定順序，不會漏也不會重複。
@@ -202,7 +237,8 @@ async def list_recent(
 
     actor_filter：某個帳號，或 SYSTEM_ACTOR（沒有操作者的紀錄）。terms：任一個詞符合就列
     （比對範圍見 _search_condition）；search_ip 只給看得到 IP 的人（總部），其他人不能用搜尋猜 IP。
-    hide_actions：查詢者沒有權限看的動作（見 STATS_ONLY_ACTIONS）。"""
+    hide_actions：查詢者沒有權限看的動作（見 STATS_ONLY_ACTIONS）。hide_line_ids：查詢者看不到
+    LINE 群組 ID（見 LINE_GROUP_ACTIONS），搜尋不比對；回傳的 metadata 由路由用 visible_metadata 拿掉。"""
     actor = aliased(User)
     stmt = (
         select(AuditLogEntry, actor.email, actor.display_name)
@@ -217,7 +253,7 @@ async def list_recent(
     elif actor_filter is not None:
         stmt = stmt.where(AuditLogEntry.actor_user_id == actor_filter)
     if terms:
-        stmt = stmt.where(_search_condition(actor, terms, search_ip=search_ip))
+        stmt = stmt.where(_search_condition(actor, terms, search_ip=search_ip, hide_line_ids=hide_line_ids))
     if before is not None:
         stmt = stmt.where(tuple_(AuditLogEntry.created_at, AuditLogEntry.id) < tuple_(*before))
     if exclude_login:

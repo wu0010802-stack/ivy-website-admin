@@ -537,3 +537,60 @@ async def test_campus_audit_log_hides_line_target_changes_from_campus_staff(admi
     assert (await minghua_client.get(f"{url}/actors?campus_key=minghua")).json() == []
     hq = (await admin_client.get(f"{url}?campus_key=minghua")).json()
     assert [e["action"] for e in hq] == ["line.campus_target.update"]
+
+
+@pytest.mark.asyncio
+async def test_campus_audit_log_strips_line_group_ids_for_campus_staff(admin_client, minghua_client, db_session):
+    """群組按鈕的稽核（已到場、未到場、招生結果欄位，2026-11-17）帶校區，分校帳號看得到這筆，但 metadata 的
+    群組 ID 與按的人的 LINE userId 只給 notifications.manage：回傳時拿掉，搜尋也比對不到（同 2026-11-11 資安稽核）。"""
+    import json
+
+    from app.operations.audit_service import LINE_GROUP_ACTIONS
+    from app.operations.models import AuditLogEntry
+    from sqlalchemy import delete
+
+    await db_session.execute(delete(AuditLogEntry))
+    group_id, line_user_id = "C" + "1" * 32, "U" + "2" * 32
+    metadata = {
+        "line.group.visit_attend": {
+            "group_id": group_id, "from_status": "confirmed", "to_status": "completed", "line_user_id": line_user_id,
+        },
+        "line.group.visit_no_show": {"group_id": group_id, "from_status": "confirmed", "to_status": "no_show"},
+        "line.group.recruitment_field": {
+            "field": "rides_bus", "value": True, "group_id": group_id, "line_user_id": line_user_id,
+        },
+    }
+    assert set(metadata) == set(LINE_GROUP_ACTIONS)
+    now = datetime.now(timezone.utc)
+    for offset, (action, meta) in enumerate(metadata.items()):
+        entry = await _audit(db_session, action=action, created_at=now - timedelta(minutes=offset), campus_key="minghua")
+        entry.metadata_json = meta
+    await db_session.commit()
+
+    url = "/api/website/v1/admin/audit-log"
+    campus = await minghua_client.get(f"{url}?campus_key=minghua")
+    assert campus.status_code == 200, campus.text
+    assert [e["action"] for e in campus.json()] == list(metadata)
+    assert [e["metadata"] for e in campus.json()] == [
+        {key: value for key, value in meta.items() if key not in ("group_id", "line_user_id")} for meta in metadata.values()
+    ]
+    assert group_id not in campus.text and line_user_id not in campus.text
+    # 搜尋群組 ID、userId（含片段與鍵名）都比對不到；查詢參數與 header 兩種送法都一樣。其他鍵照常搜得到。
+    for term in (group_id, group_id[:12], line_user_id, "U222222", "group_id", "line_user_id"):
+        assert (await minghua_client.get(url, params={"campus_key": "minghua", "q": term})).json() == [], term
+        headed = await minghua_client.get(
+            url, params={"campus_key": "minghua"}, headers={"X-Ivy-Search": json.dumps({"q": [term]})}
+        )
+        assert headed.status_code == 200 and headed.json() == [], term
+    searched = (await minghua_client.get(url, params={"campus_key": "minghua", "q": "rides_bus"})).json()
+    assert [e["action"] for e in searched] == ["line.group.recruitment_field"]
+    searched = (await minghua_client.get(url, params={"campus_key": "minghua", "q": "completed"})).json()
+    assert [e["action"] for e in searched] == ["line.group.visit_attend"]
+
+    # 總管理者照樣看得到、搜得到。
+    hq = (await admin_client.get(f"{url}?campus_key=minghua")).json()
+    assert [e["metadata"] for e in hq] == list(metadata.values())
+    hq_searched = (await admin_client.get(url, params={"campus_key": "minghua", "q": group_id[:12]})).json()
+    assert [e["action"] for e in hq_searched] == list(metadata)
+    by_user = (await admin_client.get(url, params={"q": line_user_id})).json()
+    assert [e["action"] for e in by_user] == ["line.group.visit_attend", "line.group.recruitment_field"]

@@ -29,6 +29,11 @@ class Actor:
     def staff(cls, user_id: uuid.UUID | None) -> "Actor":
         return cls(VisitEventSource.STAFF.value, user_id)
 
+    @classmethod
+    def line_group(cls) -> "Actor":
+        """園方 LINE 群組的按鈕（2026-11-17 設計 §5）：對不到後台帳號，user_id 為空。"""
+        return cls(VisitEventSource.LINE_GROUP.value, None)
+
 
 PARENT = Actor(VisitEventSource.PARENT.value)
 SYSTEM = Actor(VisitEventSource.SYSTEM.value)

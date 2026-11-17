@@ -220,6 +220,7 @@ describe('案件歷程（第 15 條）', () => {
     expect(visitEventChanges(cancelled)).toEqual(['預約正常 → 已取消', '原參觀時間 2099/10/01（週四）10:00–11:00'])
 
     expect(visitEventActor(event({ event_type: 'hold_expired', source: 'system' }))).toBe('系統自動')
+    expect(visitEventActor(event({ event_type: 'completed', source: 'line_group' }))).toBe('LINE 群組')
     expect(visitEventActor(event({ source: 'staff', actor_user_id: 'gone' }))).toBe('已移除的帳號')
     expect(visitEventTitle(event({ source: 'staff', after: { status: 'new', source: 'phone' } }))).toBe('電話補登')
     expect(visitEventTitle(event({ source: 'parent', after: { status: 'new', slot: null } }))).toBe('家長從官網送出')

@@ -14,6 +14,23 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，**尚未 commit、push 或部署**）
+
+規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。以下是上線前後的步驟，目前一項都還沒做。
+
+- migration `d5e1f7a3b9c2`（接在 `c4d2e8a1f6b3` 之後）只新增兩張表（`line_group_settings`、`line_digest_runs`），不改既有資料，不必先備份。
+- 沒有新的環境變數。群組功能走既有的主官方帳號（`WEBSITE_LINE_MESSAGING_*`）；該帳號的 webhook 要維持「Use webhook」開著，且允許加入群組（原本群組推播就需要）。按鈕（postback）與 @ 偵測不需要在 LINE 後台另外設定。
+- 預設行為變更：已驗證並綁校區的群組，上線後隔天早上起收「每日摘要」，不再逐筆收「即將參觀」卡片；不想要的群組在後台「LINE 通知」關掉該群組的摘要開關。
+- 推播則數：每日摘要每群組每個有參觀的日子 1 則；查名單、確認卡、結果卡、說明、@選單都是 reply，不計則數；@所有人只有當天異動，那一次多 1 則。
+
+**上線後人工檢查（真群組，使用者操作）**
+1. 在真群組按卡片按鈕，看稽核有沒有記到按的人的 `userId`（postback 不保證有，沒有的話稽核只記群組）。
+2. `{everyone}` 在群組是否真的 @到所有人（用一筆今天的預約測新預約或改期）。
+3. 手機 LINE 上卡片按鈕、確認卡、結果卡與原因、來源分類選擇卡的顯示。
+4. 「到後台填完整資料」在手機 LINE 點開後，是否跳到外部瀏覽器、登入後落在案件頁。
+
+另外：招生入學的隱私權政策補招生用途（規格 Q1）仍待處理；本功能沒有新增蒐集的個資種類。
+
 ## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，已部署 main `45d9eb94`）
 
 規格 `docs/specs/2026-11-16-line-integrations-design.md`。migration `b3e8d1c4f9a7` 只新增三張表、放寬 `ad_conversion_jobs.platform` 檢查（加 `'line'`），不改既有資料、不必先備份。除了群組推播改成卡片，其他功能都要設變數或在後台打開才有作用。

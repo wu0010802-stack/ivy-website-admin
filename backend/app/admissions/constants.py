@@ -41,6 +41,19 @@ SOURCE_CATEGORIES: dict[str, str] = {
     "returning": "舊生復學（獎金不計，考核 +1 另行人工）",
 }
 
+# LINE 群組結果卡的來源分類按鈕（2026-11-17，docs/specs/2026-11-17-line-group-interactions-design.md §5.1）。
+# 同後台表單只列六項短標籤（2026-10-06 使用者裁定「來源分類收斂六項」：只改顯示，不改代碼）；順序與文字
+# 和 admin/src/admissions/sourceCategories.ts 的 SOURCE_CATEGORY_CHOICES 逐字相同（admissionsSourceCategories.test.ts
+# 比對）。不列的三類是獎金怎麼分。代碼仍是上面九類之一；按鈕 data 帶的是這裡的索引。
+LINE_SOURCE_CHOICES: tuple[tuple[str, str], ...] = (
+    ("sibling_current", "在校生弟妹"),
+    ("sibling_graduate", "畢業生弟妹"),
+    ("referral", "家長介紹／社區招生"),
+    ("self_report", "自報生（廣告、鄰居、網路、活動）"),
+    ("invite_success", "邀約來園"),
+    ("returning", "舊生復學"),
+)
+
 # 漏斗階段（園務 services/recruitment_funnel.py STAGES）。階段是推導出來的，不存欄位。
 STAGES: tuple[str, ...] = ("visited", "deposited", "enrolled", "withdrawn")
 STAGE_LABELS: dict[str, str] = {

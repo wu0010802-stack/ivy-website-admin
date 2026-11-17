@@ -20,9 +20,9 @@ function settings(overrides: Partial<LineSettingsOut> = {}): LineSettingsOut {
     enabled: true,
     webhook_url: 'https://ivy.example/api/website/v1/line/webhook',
     groups: [
-      { target_id: GROUP, source_type: 'group', name: '義華校務群', first_seen_at: '2026-09-24T01:00:00Z', last_seen_at: '2026-09-24T01:00:00Z', left_at: null, verified_at: '2026-09-24T01:05:00Z' },
-      { target_id: LEFT, source_type: 'group', name: '舊群組', first_seen_at: '2026-09-20T01:00:00Z', last_seen_at: '2026-09-21T01:00:00Z', left_at: '2026-09-22T01:00:00Z', verified_at: null },
-      { target_id: ROOM, source_type: 'room', name: null, first_seen_at: '2026-09-24T02:00:00Z', last_seen_at: '2026-09-24T02:00:00Z', left_at: null, verified_at: null },
+      { target_id: GROUP, source_type: 'group', name: '義華校務群', first_seen_at: '2026-09-24T01:00:00Z', last_seen_at: '2026-09-24T01:00:00Z', left_at: null, verified_at: '2026-09-24T01:05:00Z', kinds: ['visit_request_created', 'visit_request_confirmed', 'visit_request_rescheduled', 'visit_request_cancelled'], digest_enabled: true, mention_all_same_day: true, is_hq: false },
+      { target_id: LEFT, source_type: 'group', name: '舊群組', first_seen_at: '2026-09-20T01:00:00Z', last_seen_at: '2026-09-21T01:00:00Z', left_at: '2026-09-22T01:00:00Z', verified_at: null, kinds: ['visit_request_created', 'visit_request_confirmed', 'visit_request_rescheduled', 'visit_request_cancelled'], digest_enabled: true, mention_all_same_day: true, is_hq: false },
+      { target_id: ROOM, source_type: 'room', name: null, first_seen_at: '2026-09-24T02:00:00Z', last_seen_at: '2026-09-24T02:00:00Z', left_at: null, verified_at: null, kinds: ['visit_request_created', 'visit_request_confirmed', 'visit_request_rescheduled', 'visit_request_cancelled'], digest_enabled: true, mention_all_same_day: true, is_hq: false },
     ],
     targets: [
       { campus_key: 'yihua', campus_name: '義華校', target_id: GROUP },

@@ -32,6 +32,7 @@ from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
 from app.notifications import line_flex, line_parent, reminders, web_push
+from app.notifications.line_group_settings import STAFF_KINDS, targets_for
 from app.notifications.email_adapter import EmailAdapter, outbox_idempotency_key, send_email
 from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email, parent_notice
 from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
@@ -188,6 +189,8 @@ def staff_line_message(
     parent_name: str | None = None,
     *,
     slot: VisitSlot | None = None,
+    kind: str = "visit_request_created",
+    attend_buttons: bool = False,
 ) -> dict:
     """園方群組的卡片訊息（2026-11-16 起取代原本的純文字＋網址）：同樣只帶類型、校區、家長稱呼，
     多了參觀時段；後台連結做成「開啟案件」按鈕。"""
@@ -198,6 +201,8 @@ def staff_line_message(
         parent_name=line_parent_name(parent_name) or None,
         receipt_id=receipt_id,
         url=admin_visit_url(admin_origin, receipt_id, external_browser=True),
+        kind=kind,
+        attend_buttons=attend_buttons,
     )
 
 
@@ -595,6 +600,87 @@ async def _dispatch_push(
         )
 
 
+# 這幾種通知發生在「參觀當天」時，群組要 @所有人（2026-11-17）。確認、提醒不加。
+MENTION_ALL_KINDS = frozenset({"visit_request_created", "visit_request_rescheduled", "visit_request_cancelled"})
+
+
+async def _dispatch_line_groups(
+    db: AsyncSession,
+    line: line_api.LineMessagingClient,
+    *,
+    outbox_message_id: uuid.UUID,
+    campus_key: str,
+    kind: str,
+    payload: dict,
+    label: str,
+    admin_origin: str | None,
+) -> Exception | None:
+    """推到這校的所有群組（校區群組＋總部群組），回傳第一個失敗（沒有就 None）。
+    每個群組各自去重（recipient_key=target_id）：重試只補沒成功的群組，單一群組失敗不擋其他群組與 Email。"""
+    # 即將參觀不在 `kinds` 的四種裡：只看有沒有開每日摘要（開了就由摘要取代，不逐筆推）。
+    if kind == reminders.UPCOMING_VISIT_KIND:
+        targets = [t for t in await targets_for(db, campus_key) if not t.digest_enabled]
+    elif kind in STAFF_KINDS:
+        targets = [t for t in await targets_for(db, campus_key) if kind in t.kinds]
+    else:
+        # 其他種類（改期申請、保留到期、逾期、區域異動等）不受 `kinds` 開關影響，照舊推給所有群組。
+        targets = await targets_for(db, campus_key)
+    first_error: Exception | None = None
+    card: dict | None = None
+    same_day = False
+    campus_name = ""
+    for target in targets:
+        if await _already_delivered(db, outbox_message_id, "line", target.target_id):
+            continue
+        if card is None:
+            receipt_id = payload.get("receipt_id")
+            # 推播當下讀案件：家長改過稱呼就用新的，已匿名化的不帶。
+            visit_request = await _load_visit_request(db, receipt_id)
+            parent_name = (
+                visit_request.parent_name
+                if visit_request is not None and visit_request.anonymized_at is None
+                else None
+            )
+            slot = visit_request.slot if visit_request is not None else None
+            campus_name = await _campus_name(db, campus_key)
+            card = staff_line_message(
+                label,
+                campus_name,
+                receipt_id,
+                admin_origin,
+                parent_name,
+                slot=slot,
+                kind=kind,
+                attend_buttons=(
+                    visit_request is not None
+                    and visit_request.status == VisitRequestStatus.CONFIRMED
+                    and visit_request.slot is not None
+                    and kind != "visit_request_cancelled"
+                ),
+            )
+            same_day = kind in MENTION_ALL_KINDS and slot is not None and slot.slot_date == today_local()
+        messages = [card]
+        if same_day and target.mention_all_same_day:
+            messages.append(line_flex.mention_all_message())
+        try:
+            await line.push(
+                target.target_id, messages, key=line_api.retry_key(outbox_message_id, target.target_id)
+            )
+        except (line_api.LinePushError, httpx.HTTPError) as exc:
+            # LINE 失敗（月額度用完 429、token 失效 401、bot 被移出群組 400、逾時）不能擋住其他
+            # 群組與 email：先處理完，最後再拋出讓整筆重試；已成功的群組由 notification_deliveries 去重。
+            logger.warning(
+                "LINE 推播失敗，仍繼續：outbox=%s campus=%s target=%s error=%s",
+                outbox_message_id, campus_key, target.target_id, exc,
+            )
+            if first_error is None:
+                first_error = exc
+        else:
+            _record_delivery(db, outbox_message_id, "line", target.target_id)
+            await db.commit()
+    return first_error
+
+
 async def dispatch_outbox_message(
     db: AsyncSession,
     *,
@@ -675,38 +761,16 @@ async def dispatch_outbox_message(
 
     line_error: Exception | None = None
     if line is not None:
-        target = await campus_line_target(db, campus_key)
-        if target and not await _already_delivered(db, outbox_message_id, "line", target):
-            receipt_id = payload.get("receipt_id")
-            # 推播當下讀案件：家長改過稱呼就用新的，已匿名化的不帶。
-            visit_request = await _load_visit_request(db, receipt_id)
-            parent_name = (
-                visit_request.parent_name
-                if visit_request is not None and visit_request.anonymized_at is None
-                else None
-            )
-            message = staff_line_message(
-                label,
-                await _campus_name(db, campus_key),
-                receipt_id,
-                admin_origin,
-                parent_name,
-                slot=visit_request.slot if visit_request is not None else None,
-            )
-            try:
-                await line.push(target, [message], key=line_api.retry_key(outbox_message_id, target))
-            except (line_api.LinePushError, httpx.HTTPError) as exc:
-                # LINE 失敗（月額度用完 429、token 失效 401、bot 被移出群組 400、
-                # 逾時）不能擋住 email：先把信寄完，最後再拋出讓整筆重試。重試時
-                # 已寄出的收件人由 notification_deliveries 去重，只會補推 LINE。
-                logger.warning(
-                    "LINE 推播失敗，仍繼續寄信：outbox=%s campus=%s error=%s",
-                    outbox_message_id, campus_key, exc,
-                )
-                line_error = exc
-            else:
-                _record_delivery(db, outbox_message_id, "line", target)
-                await db.commit()
+        line_error = await _dispatch_line_groups(
+            db,
+            line,
+            outbox_message_id=outbox_message_id,
+            campus_key=campus_key,
+            kind=kind,
+            payload=payload,
+            label=label,
+            admin_origin=admin_origin,
+        )
 
     if adapter is not None:
         await _send_pending_emails(

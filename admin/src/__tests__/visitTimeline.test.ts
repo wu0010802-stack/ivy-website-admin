@@ -32,6 +32,13 @@ describe('buildTimeline（2026-10-06 方向 C）', () => {
     expect(other.find((r) => r.kind === 'note')!.followUp).toBeNull()
   })
 
+  it('在 LINE 群組按已到場（source line_group）：操作者寫「LINE 群組」、用同事的顏色、不帶 Email', () => {
+    const [row] = buildTimeline({
+      notes: [], history: [event({ id: 'e7', event_type: 'completed', source: 'line_group', before: { status: 'confirmed' }, after: { status: 'completed' } })], staff: [],
+    })
+    expect(row).toMatchObject({ person: 'LINE 群組', tone: 'staff', personEmail: '' })
+  })
+
   it('新的在上；同一時間聯絡紀錄排在事件前面', () => {
     const same = '2026-10-03T01:00:00Z'
     const rows = buildTimeline({ notes: [note({ created_at: same })], history: [event({ id: 'e9', event_type: 'rescheduled', source: 'staff', created_at: same }), event()], staff: [] })

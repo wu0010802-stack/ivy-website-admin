@@ -14254,10 +14254,33 @@
       },
       "LineGroupOut": {
         "properties": {
+          "digest_enabled": {
+            "default": true,
+            "title": "Digest Enabled",
+            "type": "boolean"
+          },
           "first_seen_at": {
             "format": "date-time",
             "title": "First Seen At",
             "type": "string"
+          },
+          "is_hq": {
+            "default": false,
+            "title": "Is Hq",
+            "type": "boolean"
+          },
+          "kinds": {
+            "default": [
+              "visit_request_created",
+              "visit_request_confirmed",
+              "visit_request_rescheduled",
+              "visit_request_cancelled"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
           },
           "last_seen_at": {
             "format": "date-time",
@@ -14275,6 +14298,11 @@
               }
             ],
             "title": "Left At"
+          },
+          "mention_all_same_day": {
+            "default": true,
+            "title": "Mention All Same Day",
+            "type": "boolean"
           },
           "name": {
             "anyOf": [
@@ -14318,6 +14346,37 @@
           "verified_at"
         ],
         "title": "LineGroupOut",
+        "type": "object"
+      },
+      "LineGroupSettingsUpdate": {
+        "properties": {
+          "digest_enabled": {
+            "title": "Digest Enabled",
+            "type": "boolean"
+          },
+          "is_hq": {
+            "title": "Is Hq",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "mention_all_same_day": {
+            "title": "Mention All Same Day",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kinds",
+          "digest_enabled",
+          "mention_all_same_day",
+          "is_hq"
+        ],
+        "title": "LineGroupSettingsUpdate",
         "type": "object"
       },
       "LineInsightsOut": {
@@ -36146,6 +36205,91 @@
           }
         },
         "summary": "Send Line Test Message",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/groups/{target_id}": {
+      "put": {
+        "description": "每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。",
+        "operationId": "update_line_group_settings_api_website_v1_admin_line_groups__target_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineGroupSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Group Settings",
         "tags": [
           "line"
         ]
