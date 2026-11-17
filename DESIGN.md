@@ -14,6 +14,7 @@
   - 首屏：標題捲一點就自己收到上面一列（不停在半路），拱窗跟著捲動打開；標題收到六成以前窗不動，兩者不會疊。標題最多三行九個字，收成一列放不下時再縮小。
   - 六個空間：同一扇 800×631 的窗在六個形狀之間變形（方、圓、拱、U、半圓、葉形），捲過一站的距離才換站、換站的過程自己走完。右下六顆小積木是進度，也可以按（48px）。六站的內容都在 DOM 裡、只是透明，報讀照順序讀得到。
 - **捲動計算**：同一幀先集中量各段位置，每段只量一次；首屏兩條軌道共用進度、合併畫一次。釘住距離只在版面更新時重算（resize、字型、refresh 與 ResizeObserver），不在每個 scroll frame 讀高度；各段算完目標值再寫樣式，同值不重寫。離頁會取消換校重播的兩層 RAF、清除 SVG 屬性與 observer。`environment-windows-runtime.spec.ts` 真正建立模組並派發事件，驗讀寫次數與卸載清理。
+- **WebKit 的整頁還原時序**：正式版 hydrate 可能早於原生 hash 定位；重新整理／整頁返回先等文件 load，再等模組、字型與高度穩定後還原。開發版測試不能取代正式建置的引擎測試，CI 另外跑正式版的 WebKit 桌機／手機。
 - **整頁位置保存**：環境頁在 beforeunload／pagehide 把座標寫入目前的 history entry；WebKit 整頁返回遺失 history.state 時，備援同分頁 sessionStorage 裡相同完整 URL 的最後位置。只在 reload／back_forward 讀備援，新開連結仍照 hash 定位。沒有全站常駐的平滑捲動。
 - **後台即時預覽不釘住**（`/preview?embed=1&live=1`，根元素 `.renv-still`、模組 `pin: false`）：桌機檢視是 1280 寬，舞台一次只顯示一站，編輯的人改的那一站多半不在畫面上。非即時的整頁草稿預覽照常。props 變了元件呼叫 `refresh()`，每次重量都重新找元素；`IntersectionObserver` 的 `root` 指定 `document`（iframe 裡不指定會量到外層視窗）。
 - **首屏照片兩張**：901 以上是橫的大畫面，用橫幅母檔 `env-hero-hug`；900 以下只有一扇拱窗，用裁好的直幅 `env-hero-hug-arch`（手機不必為了拱窗下載整張橫幅）。`<picture>` 裡帶 `media="(min-width: 901px)"` 的 `<source>` 是橫幅、`<img>` 是直幅；預載也是兩條各帶 `media`。後台換了照片就只有一張，同一個 `<img>` 的 `sizes` 先列大畫面再列拱窗，倍率依那張照片的寬高比算（`media-image.ts` 的 `environmentHeroSources`／`environmentHeroPreloads`，頁面與 `usePageSeo` 共用）。

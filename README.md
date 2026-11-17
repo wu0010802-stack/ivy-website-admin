@@ -1,3 +1,13 @@
+## 2026-11-17 環境頁正式版 WebKit 重整修正（部署狀態見 `deploy/README.md`）
+
+首次部署後的正式網域唯讀驗收，找到 WebKit 在圖片載完前後再次套用原生 hash 定位，蓋掉離開前的捲動位置。正式版 hydrate 比開發版快，原本只等模組、字型與穩定高度不足；整頁重新整理／歷史返回現在先等文件 load，再還原位置，SPA 導航維持原流程。
+
+- 新增延遲圖片的真瀏覽器回歸：已在修正前的正式建置重現 WebKit 桌機／手機失敗，修正後通過。
+- `E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment` 可直接驗正式建置，使用本機 fixture 與一次性 HTTPS 憑證；WebKit 正式版 Secure cookie 也能實際驗證。測試 cookie 網址取自當次 `baseURL`。
+- CI 在完整 stack／公開站 e2e 之後，加跑正式版 WebKit 桌機與手機，失敗時保留 trace。
+- 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full}.log`。
+- 本次只修 Router 與測試環境，沒有 API、migration 或正式環境變數異動。Safari／iPhone 實機仍未驗證。
+
 ## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
 
 接續 Claude 用量中斷的工作，沿用原工作樹 `/Users/yilunwu/Repositories/ivy-website-wt/env-windows-20261117`。開工前快照在 `versions/before-env-windows-fixes-20261117-154219/`，保留原有 B「拱窗打開」設計及所有未提交變更。

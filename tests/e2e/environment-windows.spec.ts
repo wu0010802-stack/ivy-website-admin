@@ -122,8 +122,8 @@ test('沒有 hash 的頁尾重新整理、整頁上一頁與 SPA 上一頁保留
   await expectPosition(page, beforeSpa)
 })
 
-test('五校分頁鍵盤、角落換大窗、下一所與記住的校區', async ({ page, context }) => {
-  await context.addCookies([{ name: 'ivy_campus', value: 'renwu', url: 'http://127.0.0.1:3232' }])
+test('五校分頁鍵盤、角落換大窗、下一所與記住的校區', async ({ page, context, baseURL }) => {
+  await context.addCookies([{ name: 'ivy_campus', value: 'renwu', url: baseURL! }])
   await page.goto('/environment?campus=chongde#campuses')
   await ready(page)
   const tabs = page.getByRole('tablist', { name: '選一所校園' })
@@ -216,4 +216,42 @@ test('捲動模組晚到，直接章節連結仍等釘住版面就緒再定位',
   }
   await ready(page)
   await expectChapter(page, 'meals')
+})
+
+test('重新整理時圖片晚到，原生章節定位不會覆蓋離開位置', async ({ page }) => {
+  let delayImage = false
+  let release!: () => void
+  let intercepted = false
+  const held = new Promise<void>(resolve => { release = resolve })
+  // WebKit 重整可能沿用原照片的記憶體快取；加一張不改版面的圖片，確保真的延後 load。
+  await page.route('**/environment', async route => {
+    if (!delayImage) return route.continue()
+    const response = await route.fetch()
+    const body = (await response.text()).replace('</body>', '<img src="/__e2e_environment_late_image.svg" alt="" width="1" height="1" style="position:absolute;top:0;left:0;opacity:0;pointer-events:none" /></body>')
+    await route.fulfill({ response, body })
+  })
+  await page.route('**/__e2e_environment_late_image.svg', async route => {
+    intercepted = true
+    await held
+    await route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1" />' })
+  })
+  await page.goto('/environment#meals')
+  await ready(page)
+  await expectChapter(page, 'meals')
+  await page.evaluate(() => scrollBy({ top: 220, behavior: 'instant' }))
+  const y = await page.evaluate(() => scrollY)
+  delayImage = true
+  try {
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    // WebKit 的 document.fonts.ready 可能一起等 load，此處只等模組已完成版面。
+    await expect(page.locator('.renv')).toHaveAttribute('data-windows-ready', 'true')
+    await expect.poll(() => intercepted).toBe(true)
+    // 讓 Router 的版面穩定檢查有機會先結束；圖片仍在等，文件還沒 load。
+    await page.evaluate(async () => {
+      for (let i = 0; i < 8; i++) await new Promise<void>(resolve => requestAnimationFrame(() => resolve()))
+    })
+    expect(await page.evaluate(() => document.readyState)).not.toBe('complete')
+  } finally { release() }
+  await page.waitForLoadState('load')
+  await expectPosition(page, y)
 })

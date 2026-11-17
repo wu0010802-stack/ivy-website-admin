@@ -268,6 +268,13 @@ jobs:
       - name: Run public-site Playwright (four viewports)
         if: success() || failure()
         run: npm run test:e2e
+      # 正式版 hydrate 比 dev 快；WebKit 可能在程式還原後才做原生 hash 定位。
+      - name: Install WebKit for production environment-page checks
+        if: success() || failure()
+        run: npx playwright install --with-deps webkit
+      - name: Run environment-page Playwright with production WebKit
+        if: success() || failure()
+        run: E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment -- --project=desktop-webkit --project=mobile-webkit
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -278,6 +285,7 @@ jobs:
             playwright-report/e2e
             test-results/stack
             test-results/e2e
+            test-results/environment-build
             output/e2e-stack/api-prepare.log
             output/e2e-public/api-prepare.log
           retention-days: 7
