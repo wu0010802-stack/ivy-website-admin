@@ -6,7 +6,7 @@
 - **自動產生**（`npm run contract:generate`，`contract:check` 會檢查）：`docs/state-machines/domain.md`（狀態圖與轉移表）、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`。後台的素材、排程、粉專貼文狀態型別改用產生的型別；`admin/src/__tests__/stateMachineLabels.test.ts` 檢查每個狀態都有中文標籤。
 - **後台：粉專貼文快速切換頁籤**時，較晚回來的舊頁籤回應不再蓋掉目前頁籤的清單（`FacebookPostsView.vue` 改用 `useRequestSequence`）。
 - 沒有 migration、沒有 API 變更。
-## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭（`feature/visit-line-contact-20261117`，未部署）
+## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭（`feature/visit-line-contact-20261117`，已部署 main `08287900`）
 
 使用者看線上明華校的「歡迎與明華校聯絡」截圖，要求優化 LINE 聯絡的樣子並拿掉箭頭，預約成功畫面按鈕上的箭頭也一起拿掉。
 

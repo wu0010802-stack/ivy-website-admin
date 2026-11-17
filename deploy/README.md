@@ -363,6 +363,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #108 合併進 main（`08287900`），main run 43999360150 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 第一輪 E2E 紅在自己改的兩個 stack 斷言（讀屏說明前多一個空白，`exact` 比不到），改成正規表示式後綠；期間 main 合進 #105 與它的部署紀錄，rebase、merge 各一次（只有 README／DESIGN.md 頂部日期段落衝突，各段都留）。
+- **內容**：只改 web 前端（`VisitForm.vue`、`VisitCalendarActions.vue`、`visit-booking.css`）：預約頁第二步的「LINE 聯絡○○校」由底線小字改成帶 LINE 圖示的外框鈕；聯絡步驟與預約成功畫面的按鈕拿掉 ↗；外框鈕補 hover。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `08287900`；`/api/website/v1/health` 200。`/visit/minghua` 在 1440×900 與 390×844：致電鈕與 LINE 鈕都是 54px 高，LINE 鈕是 `button outline`、帶 `#i-line` 圖示、連到明華校自己的 LINE、文字裡沒有 ↗；沒有橫向溢出。
+- **沒驗證**：正式站的預約成功畫面（要真的送出一筆預約才看得到，只在本機用模擬 API 確認過按鈕沒有 ↗）；iPhone／Android 實機。
+
 ## 2026-11-17 環境頁五所校園分頁改直立積木上線（main CI 部署，沒有 migration）
 
 - **提交**：PR #105 合併進 main（`ffe857e3`），main run 43993614668 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #104、#106 與 #106 的部署紀錄，rebase 兩次（只有 README 頂部日期段落衝突，各段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
