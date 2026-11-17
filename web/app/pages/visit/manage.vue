@@ -374,6 +374,9 @@ async function submitEdit() {
 .parent-visit-fields label{display:grid;gap:6px}
 /* 修改資料的輸入框原本是瀏覽器預設（35px 高、灰色凹框），和預約表單同一套外觀與 54px 觸控高度（2026-10-12）。 */
 .parent-visit-fields input{display:block;width:100%;min-width:0;min-height:54px;padding:12px 16px;font:400 var(--fs-md)/1.65 var(--font);border:1px solid color-mix(in oklch,var(--green) 72%,var(--white));border-radius:12px;background:var(--white);color:var(--text)}
+/* 2026-11-17 iOS 原生日期欄會被強制成 content-box、比其他欄位寬並撐出右緣，拿掉原生外觀、日期靠左（同 visit-booking.css）。 */
+.parent-visit-fields input[type=date]{-webkit-appearance:none;appearance:none}
+.parent-visit-fields input[type=date]::-webkit-date-and-time-value{text-align:start}
 .parent-visit-fields input:focus{border-color:var(--green)}
 .parent-visit-fields input:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
 .parent-visit-fields input[aria-invalid="true"]{border-color:var(--error)}

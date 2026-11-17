@@ -217,6 +217,11 @@
 .visit-field label {display:block;font-size:var(--fs-md);font-weight:600;line-height:1.6;margin-bottom:8px}
 .visit-field label small {font-size:var(--fs-xs);font-weight:400;color:var(--visit-muted);margin-left:8px}
 .visit-field :is(input,select,textarea) {display:block;width:100%;min-width:0;min-height:54px;padding:12px 16px;font:400 var(--fs-md)/1.65 var(--font);border:1px solid var(--visit-field-border);border-radius:12px;background:var(--visit-surface);color:var(--text)}
+/* 2026-11-17 iPhone 上出生年月日比姓名欄寬 34px、把整頁往右推：iOS Safari 的原生日期欄寬度不是固定 px 時，
+   WebKit 會強制 box-sizing:content-box（RenderThemeIOS adjustInputElementButtonStyle），width:100% 再加 padding、邊框就超出容器。
+   拿掉原生外觀才照上面的 border-box；iOS 預設把日期置中，改回靠左。點了照樣跳系統日期選擇器。守門：tests/visit-date-input-ios-20261117.spec.ts */
+.visit-field input[type=date] {-webkit-appearance:none;appearance:none}
+.visit-field input[type=date]::-webkit-date-and-time-value {text-align:start}
 .visit-field :is(input,textarea)::placeholder {color:var(--visit-muted);opacity:1}
 .visit-field :is(input,select,textarea):focus {border-color:var(--visit-ink)}
 .visit-field :is(input,select,textarea):focus-visible {outline:3px solid var(--leaf);outline-offset:2px}
