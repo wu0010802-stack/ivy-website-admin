@@ -1,3 +1,12 @@
+## 預約頁 LINE 聯絡改成按鈕、按鈕不放 ↗（2026-11-17，`feature/visit-line-contact-20261117`）
+
+使用者要求。適用範圍是預約頁第二步的聯絡區塊（`.visit-contact-step`）與預約成功畫面的按鈕。
+
+- 聯絡管道一律是按鈕，不用底線小字：主要管道金色 `.button.primary`，其餘 `.button.outline`。LINE 用 sprite 的 `#i-line`，墨色單色（不用 LINE 綠，官網顏色只走 token）；它是實心標誌、裡面有字，尺寸比線條圖示大一級（`.icon-line`，1.35em）。
+- 這兩處的按鈕不放 ↗。另開分頁的連結保留 `<span class="sr-only">（另開新視窗）</span>`，可及名稱因此帶這段字（測試的名稱斷言要跟著寫）。
+- 預約頁外框鈕的 hover 是 `var(--visit-soft)` 淡色底。
+- 其他頁面內文裡的外部連結 ↗ 不在這次範圍，照原本的規則。
+
 ## 五所校園直立積木分頁（2026-11-16，`feature/env-tour-tabs-20261116`）
 
 使用者截圖 `/environment` 第四章五校分頁說「有點扁」、要看怎麼優化呈現。比稿 `design/env-tour-tabs-directions-20261116/`（Desktop 工作區，不進版控）A 直立積木、B 拱窗、C 選中展開、D 建築站上積木，**選 A**：結構不變，只修比例與選中樣式。B、C、D 不要再主動提。

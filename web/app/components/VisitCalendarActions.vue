@@ -30,13 +30,13 @@ function downloadIcs() {
     <p id="visit-calendar-title" class="visit-calendar-title">記下參觀時間</p>
     <div class="visit-calendar-actions">
       <a v-if="googleUrl" class="visit-calendar-action" :href="googleUrl" target="_blank" rel="noopener noreferrer">
-        <svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg>加入 Google 日曆<span aria-hidden="true"> ↗</span><span class="sr-only">（另開新視窗）</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg>加入 Google 日曆<span class="sr-only">（另開新視窗）</span>
       </a>
       <button class="visit-calendar-action" type="button" @click="downloadIcs">
         <svg class="icon" aria-hidden="true"><use href="#i-calendar-check" /></svg>加入手機行事曆<small>iPhone、Outlook</small>
       </button>
       <a v-if="navigateUrl" class="visit-calendar-action" :href="navigateUrl" target="_blank" rel="noopener noreferrer">
-        <svg class="icon" aria-hidden="true"><use href="#i-navigation-arrow" /></svg>Google 地圖導航<span aria-hidden="true"> ↗</span><span class="sr-only">（另開新視窗）</span>
+        <svg class="icon" aria-hidden="true"><use href="#i-navigation-arrow" /></svg>Google 地圖導航<span class="sr-only">（另開新視窗）</span>
       </a>
     </div>
     <p class="visit-calendar-note">行程只寫分校、地址與電話，不含寶貝與家長資料；用「加入手機行事曆」存的行程，前一天會提醒。</p>

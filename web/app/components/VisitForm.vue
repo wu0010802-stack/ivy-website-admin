@@ -738,11 +738,13 @@ async function onSubmit() {
                 <h2 id="visit-contact-title">歡迎與{{ selectedCampus.name }}聯絡</h2>
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
-                  <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction">{{ action.label }} <span aria-hidden="true">↗</span></a>
+                  <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction"><svg v-if="action.kind === 'line'" class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>{{ action.label }}<span class="sr-only">（另開新視窗）</span></a>
                   <a v-else-if="action.href" data-booking-cta class="button primary" :href="action.href" @click="trackContactAction"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
                   <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a>
                   <button v-if="action.kind === 'unavailable'" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="retryBookingConfig">重新載入參觀方式</button>
-                  <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="visit-inline-link" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer">LINE 聯絡{{ selectedCampus.name }} ↗</a>
+                  <!-- 2026-11-17 LINE 原本是金色致電鈕旁一條底線小字＋↗，像附註；改成和「重新載入」同一種外框鈕，帶 LINE 圖示、和致電鈕等高。
+                       這一步與預約成功畫面的按鈕都不放 ↗（使用者要求），另開分頁只留給讀屏的說明。 -->
+                  <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="button outline" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer"><svg class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>LINE 聯絡{{ selectedCampus.name }}<span class="sr-only">（另開新視窗）</span></a>
                 </div>
               </section>
 
