@@ -283,20 +283,31 @@ body:has(.renv){background:var(--ivy-env-paper)}
 .renv-day-list small{display:block;margin-top:2px;color:var(--renv-ink-soft);font-size:.95rem;line-height:1.6}
 .renv-day-list p{margin-top:6px;max-width:12em;color:var(--renv-ink-soft);font-size:var(--fs-sm);line-height:1.7}
 
-/* ---------- 04 五所校園：方形積木分頁（放線稿），選中的「按下去」 ---------- */
+/* ---------- 04 五所校園：直立積木分頁（放線稿），選中的「按下去」 ---------- */
 .renv-tour-head .renv-text{margin-top:20px}
-.renv-tour-tabs{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);margin-top:clamp(32px,6svh,52px);padding-bottom:var(--side)}
-.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/.86;padding:12px 12px 14px;border:0;border-radius:22px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:700;font-size:1.12rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
-.renv-tour-art{position:relative;display:block;flex:1;width:100%;min-height:0;border-radius:14px;background:var(--renv-paper);overflow:hidden}
+/* 直立積木（2026-11-16，比稿 design/env-tour-tabs-directions-20261116/ 選 A）：原本 1:0.86、矮視窗還壓到 1:0.66，
+   白框裡的校舍只佔中間一條，使用者說「有點扁」。改成比寬略高（1:1.1，矮視窗 1:0.98，不再壓扁），校舍放大、地面貼齊白框下緣；
+   分頁的側面比其他積木厚一點（9px）。 */
+.renv-tour-tabs{--side:9px;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:clamp(12px,1.6vw,22px);margin-top:clamp(32px,6svh,52px);padding-bottom:var(--side)}
+.renv-tour-tab{display:flex;flex-direction:column;align-items:center;gap:10px;aspect-ratio:1/1.1;padding:12px;border:0;border-radius:24px;background:var(--c);box-shadow:0 var(--side) 0 var(--s);color:var(--renv-ink);font:inherit;font-weight:700;font-size:1.18rem;line-height:1.2;cursor:pointer;transition:transform .25s var(--renv-ease),box-shadow .25s var(--renv-ease);-webkit-tap-highlight-color:transparent}
+.renv-tour-art{position:relative;display:block;flex:1;width:100%;min-height:0;border-radius:16px;background:var(--renv-paper);overflow:hidden}
 /* 透明底墨線版線稿（2026-10-02）：不用 filter／混色，iPhone 合成層會露出底色方塊。
-   2026-11-03 起墊一層透明底淡彩 `-wash`（建築上色），兩層都有定位、照 DOM 順序疊，墨線在上；object-fit 相同才對位。 */
-.renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:contain;object-position:50% 62%}
+   2026-11-03 起墊一層透明底淡彩 `-wash`（建築上色），兩層都有定位、照 DOM 順序疊，墨線在上；object-fit、位移、縮放都相同才對位。
+   2026-11-16 起 cover 貼底、放大 1.08：線稿 3:2、校舍本身約 2.4:1，contain 時上下各空一大塊；左右的樹被裁掉一點。 */
+.renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:cover;object-position:50% 100%;translate:0 var(--gy,0%);scale:1.08;transform-origin:50% 100%}
 .renv-tour-tab .renv-tour-wash{position:absolute;inset:0}
+/* 各校線稿的地面離圖片下緣不一樣遠（內建素材 campus-line-art-<校>-ink，下緣留白 2–15%）：往下挪到差不多貼底，上面才有空間給屋頂。
+   換線稿要重量（墨線 alpha 的 bbox 下緣），義華幾乎貼底不用挪。 */
+.renv-tour-tab[data-key="minghua"]{--gy:9%}
+.renv-tour-tab[data-key="chongde"]{--gy:6%}
+.renv-tour-tab[data-key="international"]{--gy:4%}
+.renv-tour-tab[data-key="renwu"]{--gy:10%}
 @media (hover:hover){.renv-tour-tab:hover{transform:translateY(-2px);box-shadow:0 calc(var(--side) + 2px) 0 var(--s)}}
-/* 選中的小圓點掛在校名左邊、不佔位置：校名在五塊積木裡都對齊正中，換分頁時字不會左右跳 */
-.renv-tour-tab b{position:relative;font-weight:700}
-.renv-tour-tab[aria-selected="true"]{transform:translateY(5px);box-shadow:0 2px 0 var(--s),inset 0 0 0 3px var(--renv-ink)}
-.renv-tour-tab[aria-selected="true"] b::before{content:"";position:absolute;right:100%;top:50%;width:.5em;height:.5em;margin:-.25em .45em 0 0;border-radius:50%;background:var(--renv-ink)}
+/* 選中＝按下去＋校名變深綠底白字（2026-11-16，取代 3px 墨綠框＋校名左邊的小圓點：鍵盤焦點的外框再疊上去會變兩圈黑框）。
+   沒選中的校名也留同樣的內距，換分頁時字不會跳。深綠底白字同章節編號（DESIGN.md「環境頁調亮」）。 */
+.renv-tour-tab b{padding:.3em .95em;border-radius:999px;font-weight:700;white-space:nowrap;transition:background-color .25s var(--renv-ease),color .25s var(--renv-ease)}
+.renv-tour-tab[aria-selected="true"]{transform:translateY(calc(var(--side) - 2px));box-shadow:0 2px 0 var(--s)}
+.renv-tour-tab[aria-selected="true"] b{background:var(--renv-forest);color:var(--renv-paper)}
 .renv-tour-panel{margin-top:clamp(36px,7svh,60px);outline-offset:12px}
 .renv :is(.renv-tour-panel):focus-visible{outline:3px solid var(--leaf);border-radius:8px}
 .renv-tour-panel-head{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 18px;margin-bottom:clamp(24px,5svh,40px)}
@@ -332,10 +343,13 @@ body:has(.renv){background:var(--ivy-env-paper)}
 /* 方塊的高度配成和圓一樣（寬 ÷ 1.2）：三塊底緣切齊，三個標題也落在同一條線上（原本方塊比較扁，「入學資訊」低了 11px） */
 .renv-next-list li:nth-child(3) .renv-next-link{--ar:1.2;width:min(270px,31vw)}
 
-/* 桌機、視窗不到 760px 高：五塊分頁積木壓扁一點，換校之後整張大圖才看得到 */
-@media (width>900px) and (height<760px){.renv-tour-tab{aspect-ratio:1/.66}}
+/* 桌機、視窗不到 760px 高：五塊分頁積木矮一點（1:0.98），換校之後大圖露出多一點。
+   2026-11-16 以前是 1:0.66，壓得太扁（使用者截圖的 1280×720 筆電就是這一條），不要再壓到比正方形扁。 */
+@media (width>900px) and (height<760px){.renv-tour-tab{aspect-ratio:1/.98}}
 
 @media (forced-colors:active){.renv :is(.renv-blk,.renv-frame,.renv-arch-face,.renv-index a,.renv-next-link,.renv-tour-tab){border:2px solid CanvasText}}
+/* 強制色彩下背景色與陰影都被拿掉，選中的校名改用系統的選取色 */
+@media (forced-colors:active){.renv-tour-tab[aria-selected="true"] b{forced-color-adjust:none;background:Highlight;color:HighlightText}}
 
 /* ---------- 900px 以下（平板與手機共用）：積木邊、墊塊錯開量、字級收一級 ---------- */
 @media (width<=900px){
@@ -369,7 +383,9 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-day-list time{font-size:1rem}
   .renv-day-list b{margin-top:16px;font-size:1.15rem}
   .renv-day-list small{font-size:.86rem}
-  .renv-tour-tab{padding:8px 8px 10px;gap:6px;border-radius:18px;font-size:.98rem}
+  .renv-tour-tabs{--side:7px}
+  .renv-tour-tab{padding:8px;gap:6px;border-radius:18px;font-size:1rem}
+  .renv-tour-tab b{padding:.28em .75em}
   .renv-tour-art{border-radius:11px}
 }
 
@@ -432,9 +448,10 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-day-list p{grid-column:2;max-width:none}
 
   .renv-tour-tabs{grid-template-columns:repeat(6,minmax(0,1fr));gap:18px 12px;margin-top:32px}
-  .renv-tour-tab{grid-column:span 2;aspect-ratio:auto;height:116px;padding:8px 8px 10px;gap:6px;border-radius:18px;font-size:.98rem}
+  /* 手機也是直立積木（1:1.14，390 寬約 111×127）；最矮 116px（原本固定的高度）：320 寬時照比例只有 100px，白框會被校名擠到剩 40px 高。
+     width:100% 不能拿掉：有 aspect-ratio 的格線項目預設不拉滿格子、寬度由高度反推（116 ÷ 1.14 ≈ 102），320 寬時三塊積木會撐寬疊在一起 */
+  .renv-tour-tab{grid-column:span 2;width:100%;aspect-ratio:1/1.14;min-height:116px}
   .renv-tour-tab:nth-child(4){grid-column:2/span 2}
-  .renv-tour-art{border-radius:11px}
   .renv-tour-panel{margin-top:40px}
   .renv-tour-panel-head{margin-bottom:26px}
   .renv-scenes{grid-template-columns:minmax(0,1fr);gap:36px}
@@ -451,9 +468,11 @@ body:has(.renv){background:var(--ivy-env-paper)}
   .renv-next-list li:nth-child(1) .renv-next-link{--ar:.86;padding-top:30px}
   .renv-next-list li:nth-child(3) .renv-next-link{--ar:2.4}
 }
-/* 400 以下：心的名稱縮一級 */
+/* 400 以下：心的名稱縮一級；五所校園的校名膠囊內距與字級收小（320 寬時積木內寬只剩 72px，三個字＋原本的內距剛好 72，會被擠成一字一行、線稿被壓沒） */
 @media (width<400px){
   .renv-hearts b{font-size:.86rem}
+  .renv-tour-tab{font-size:.95rem}
+  .renv-tour-tab b{padding:.26em .6em}
 }
 
 /* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。

@@ -372,3 +372,32 @@ describe('常春藤環境頁調亮（2026-11-14：使用者「背景配色有點
     expect(css).not.toMatch(/#[0-9a-f]{3,8}\b|rgba?\((?!var\(--)|oklch\(|hsla?\(/i)
   })
 })
+
+describe('常春藤環境頁五所校園直立積木分頁（2026-11-16：使用者「按鈕有點扁」，比稿選 A）', () => {
+  const css = read('../app/assets/css/environment.css')
+
+  it('桌機比寬略高；矮視窗也不壓得比正方形扁（原本 1:0.66 就是使用者截圖的扁）', () => {
+    expect(css).toMatch(/\.renv-tour-tab\{display:flex;[^}]*aspect-ratio:1\/1\.1;/)
+    expect(css).toContain('@media (width>900px) and (height<760px){.renv-tour-tab{aspect-ratio:1/.98}}')
+    expect(css).not.toContain('aspect-ratio:1/.66')
+  })
+
+  it('選中＝按下去＋校名深綠底白字，不再用墨綠框與小圓點（鍵盤焦點外框會疊成兩圈黑框）', () => {
+    expect(css).toContain('.renv-tour-tab[aria-selected="true"]{transform:translateY(calc(var(--side) - 2px));box-shadow:0 2px 0 var(--s)}')
+    expect(css).toContain('.renv-tour-tab[aria-selected="true"] b{background:var(--renv-forest);color:var(--renv-paper)}')
+    expect(css).not.toMatch(/\.renv-tour-tab\[aria-selected="true"\][^{]*\{[^}]*inset 0 0 0 3px/)
+    expect(css).not.toContain('.renv-tour-tab[aria-selected="true"] b::before')
+    // 強制色彩下背景色被拿掉，選中改用系統選取色
+    expect(css).toContain('.renv-tour-tab[aria-selected="true"] b{forced-color-adjust:none;background:Highlight;color:HighlightText}')
+  })
+
+  it('校名不換行；手機積木寫明 width:100%（有 aspect-ratio 時寬度會由 min-height 反推、320 寬三塊疊在一起）', () => {
+    expect(css).toMatch(/\.renv-tour-tab b\{[^}]*white-space:nowrap/)
+    expect(css).toContain('.renv-tour-tab{grid-column:span 2;width:100%;aspect-ratio:1/1.14;min-height:116px}')
+  })
+
+  it('墨線與淡彩兩層的 cover、位移、縮放寫在同一條規則（對位靠這個）', () => {
+    expect(css).toContain('.renv-tour-tab img{position:relative;width:100%;height:100%;object-fit:cover;object-position:50% 100%;translate:0 var(--gy,0%);scale:1.08;transform-origin:50% 100%}')
+    expect(css).not.toMatch(/\.renv-tour-wash\{[^}]*(translate|scale|object-)/)
+  })
+})
