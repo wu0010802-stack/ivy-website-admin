@@ -1,4 +1,4 @@
-## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`）
+## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`，已部署 main `3d05fa33`）
 
 規格 `docs/specs/2026-11-16-ad-roi-design.md`。
 
