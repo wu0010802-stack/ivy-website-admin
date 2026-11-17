@@ -60,6 +60,7 @@ export const STEP_LABELS: Record<string, string> = {
   audit_client_info: '清除操作紀錄的舊 IP 與裝置',
   stale_auth: '清除失效的登入與重設連結',
   retention: '個資保存清理',
+  digest: 'LINE 群組每日摘要',
 }
 
 // 後端實際只會回後六種；not_configured 走 409 EMAIL_NOT_CONFIGURED，這裡留著當防呆，兩邊同一句。

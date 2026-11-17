@@ -1070,6 +1070,8 @@ async def get_audit_log(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
         )
+    # LINE 群組按鈕紀錄的群組 ID 與 userId 同群組設定只給 notifications.manage（2026-11-17）。
+    show_line_ids = has_capability(current_user, "notifications.manage")
     rows = await audit_service.list_recent(
         db,
         campus_key,
@@ -1082,6 +1084,7 @@ async def get_audit_log(
         terms=terms,
         search_ip=has_capability(current_user, "audit.read_all"),
         hide_actions=_hidden_audit_actions(current_user),
+        hide_line_ids=not show_line_ids,
     )
     show_ip = has_capability(current_user, "audit.read_all")
     return [
@@ -1096,7 +1099,9 @@ async def get_audit_log(
             target_label=row.target_label,
             target_exists=row.target_exists,
             campus_key=row.entry.campus_key,
-            metadata=row.entry.metadata_json or {},
+            metadata=audit_service.visible_metadata(
+                row.entry.action, row.entry.metadata_json, show_line_ids=show_line_ids
+            ),
             created_at=row.entry.created_at,
             ip_address=row.entry.ip_address if show_ip else None,
             user_agent=row.entry.user_agent,

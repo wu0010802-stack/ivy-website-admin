@@ -48,6 +48,8 @@ import {
   AUDIT_FIELD_LABELS,
 } from './labels'
 import { CANCEL_REASON_LABELS } from './analyticsLabels'
+import { NO_DEPOSIT_REASONS } from '../admissions/constants'
+import { SOURCE_CATEGORY_CHOICES } from '../admissions/sourceCategories'
 
 // 數字欄位補上單位，不讓人猜「24」是小時還是天。
 const AUDIT_FIELD_UNITS: Record<string, string> = {
@@ -123,6 +125,10 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'media_id',
   'video_media_id',
   'content_version',
+  // 在 LINE 群組按已到場／未到場（line.group.visit_attend／visit_no_show）：群組與按的人的 LINE 代碼，
+  // 對園方沒有意義，留給追查用（動作名稱已寫明是 LINE 群組）。
+  'group_id',
+  'line_user_id',
   // 舊的 /admin/site-settings（官網從來不讀，2026-10-08 已刪除）留在舊操作紀錄裡的欄位。
   'privacy_policy_version',
 ])
@@ -191,6 +197,33 @@ const ROSTER_FIELD_LABELS: Record<string, string> = {
 
 const AD_SPEND_PLATFORM_LABELS: Record<string, string> = {
   openai: 'ChatGPT', meta: 'Meta', line: 'LINE', other: '其他網路廣告', offline: '離線花費',
+}
+
+const LINE_GROUP_KIND_LABELS: Record<string, string> = {
+  visit_request_created: '新的參觀預約',
+  visit_request_confirmed: '參觀預約已確認',
+  visit_request_rescheduled: '參觀預約已改期',
+  visit_request_cancelled: '參觀預約已取消',
+}
+
+// 在 LINE 群組填招生結果欄位（line.group.recruitment_field，2026-11-17）：一次一個欄位。
+const LINE_RECRUITMENT_FIELD_LABELS: Record<string, string> = {
+  has_deposit: '預繳結果',
+  no_deposit_reason: '未預繳原因',
+  source_category: '來源分類',
+  rides_bus: '搭交通車',
+}
+// 來源分類（2026-10-06 裁定收斂六項）：LINE 群組的分類卡同後台表單只列這六項短標籤（後端 constants.LINE_SOURCE_CHOICES），
+// 稽核記代碼。列成表也讓「家長介紹」這類字在操作紀錄搜得到代碼。
+const SOURCE_CATEGORY_AUDIT_LABELS: Record<string, string> = Object.fromEntries(SOURCE_CATEGORY_CHOICES)
+
+// 值是代碼：預繳與交通車是布林、來源分類是代碼、未預繳原因是索引（後端不把原因文字寫進稽核）。
+function lineRecruitmentValue(field: string, value: unknown): string {
+  if (field === 'has_deposit') return value ? '已預繳' : '未預繳'
+  if (field === 'rides_bus') return value ? '搭' : '不搭'
+  if (field === 'no_deposit_reason') return typeof value === 'number' ? (NO_DEPOSIT_REASONS[value] ?? `第 ${value + 1} 項`) : String(value)
+  if (field === 'source_category') return SOURCE_CATEGORY_AUDIT_LABELS[String(value)] ?? String(value)
+  return String(value)
 }
 
 const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
@@ -338,6 +371,17 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   previous_error_code: (v) => `上次失敗原因：${outboxErrorLabel(String(v))}`,
   // LINE 群組完成驗證（line.group.verify）
   source_type: (v) => `類型：${v === 'room' ? '多人聊天室' : '群組'}`,
+  // 群組通知設定（line.group.settings.update）
+  kinds: (v) => `通知種類：${Array.isArray(v) && v.length ? v.map(kind => LINE_GROUP_KIND_LABELS[String(kind)] ?? String(kind)).join('、') : '全部關閉'}`,
+  digest_enabled: (v) => `每日摘要：${v ? '開' : '關'}`,
+  mention_all_same_day: (v) => `當天異動 @所有人：${v ? '開' : '關'}`,
+  is_hq: (v) => `總部群組：${v ? '是' : '否'}`,
+  // 在 LINE 群組填招生結果欄位（line.group.recruitment_field）：欄位與值寫成一句，value 不另列。
+  // 只在這個動作套用招生欄位的翻法；其他動作日後用到 field／value 時照原值寫，不會被翻成招生欄位。
+  field: (v, action, m) => (action === 'line.group.recruitment_field'
+    ? `${LINE_RECRUITMENT_FIELD_LABELS[String(v)] ?? String(v)}：${lineRecruitmentValue(String(v), m.value)}`
+    : `欄位：${String(v)}`),
+  value: (v, action) => (action === 'line.group.recruitment_field' ? null : `值：${String(v)}`),
   // 舊的全站設定
   noindex: (v) => `搜尋引擎收錄：${v ? '不允許' : '允許'}`,
   // 個資清理
@@ -544,6 +588,10 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   RECRUITMENT_ORIGIN_LABELS,
   RECRUITMENT_FIELD_LABELS,
   CONTACT_CHANNEL_LABELS,
+  // LINE 群組：通知種類設定、在群組填的招生結果欄位與來源分類（2026-11-17）。
+  LINE_GROUP_KIND_LABELS,
+  LINE_RECRUITMENT_FIELD_LABELS,
+  SOURCE_CATEGORY_AUDIT_LABELS,
   // 帳密登入失敗發生的地方、帳號被改的欄位、通知重寄的來源與種類、素材與發布排程的狀態。
   AUDIT_CONTEXT_LABELS,
   USER_FIELD_LABELS,

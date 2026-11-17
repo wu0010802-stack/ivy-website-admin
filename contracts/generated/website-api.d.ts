@@ -1967,6 +1967,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line/groups/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Line Group Settings
+         * @description 每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。
+         */
+        put: operations["update_line_group_settings_api_website_v1_admin_line_groups__target_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
         parameters: {
             query?: never;
@@ -8686,10 +8706,30 @@ export interface components {
         /** LineGroupOut */
         LineGroupOut: {
             /**
+             * Digest Enabled
+             * @default true
+             */
+            digest_enabled: boolean;
+            /**
              * First Seen At
              * Format: date-time
              */
             first_seen_at: string;
+            /**
+             * Is Hq
+             * @default false
+             */
+            is_hq: boolean;
+            /**
+             * Kinds
+             * @default [
+             *       "visit_request_created",
+             *       "visit_request_confirmed",
+             *       "visit_request_rescheduled",
+             *       "visit_request_cancelled"
+             *     ]
+             */
+            kinds: string[];
             /**
              * Last Seen At
              * Format: date-time
@@ -8697,6 +8737,11 @@ export interface components {
             last_seen_at: string;
             /** Left At */
             left_at: string | null;
+            /**
+             * Mention All Same Day
+             * @default true
+             */
+            mention_all_same_day: boolean;
             /** Name */
             name: string | null;
             /** Source Type */
@@ -8705,6 +8750,17 @@ export interface components {
             target_id: string;
             /** Verified At */
             verified_at: string | null;
+        };
+        /** LineGroupSettingsUpdate */
+        LineGroupSettingsUpdate: {
+            /** Digest Enabled */
+            digest_enabled: boolean;
+            /** Is Hq */
+            is_hq: boolean;
+            /** Kinds */
+            kinds: string[];
+            /** Mention All Same Day */
+            mention_all_same_day: boolean;
         };
         /** LineInsightsOut */
         LineInsightsOut: {
@@ -16381,6 +16437,45 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_group_settings_api_website_v1_admin_line_groups__target_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                target_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineGroupSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
             };
             /** @description Validation Error */
             422: {

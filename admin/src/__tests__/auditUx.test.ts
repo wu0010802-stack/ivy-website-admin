@@ -133,6 +133,13 @@ describe('2026-09-28 操作紀錄 UX（H）', () => {
         ['retention_policy.update', { before: { cancelled_days: 365, completed_days: 365, open_overdue_days: 180, auto_run_enabled: false }, after: { cancelled_days: 180, completed_days: 365, open_overdue_days: 180, auto_run_enabled: true } }, '修改：已取消、未到場保留：365 天 → 180 天；每天自動清理：關閉 → 開啟'],
         ['content.reject', { kind: 'home_hero', revision_version: 3, note: '標語太長' }, '內容：首頁大圖標語，退回理由：標語太長'],
         ['notification_outbox.retry', { kind: 'visit_request_created', visit_request_id: 'dce2bd7c-aaaa-4bbb-8ccc-dddddddddddd', previous_attempts: 3, previous_error_code: 'TimeoutError', source: 'admin' }, '通知：新的參觀預約，先前嘗試 3 次，上次失敗原因：連線逾時，在後台手動重寄'],
+        // 2026-11-17 在 LINE 群組填招生結果欄位：值是代碼（原因是索引），群組與按的人的 LINE 代碼不顯示。
+        ['line.group.recruitment_field', { field: 'has_deposit', value: true, group_id: `C${'a'.repeat(32)}`, line_user_id: `U${'9'.repeat(32)}` }, '預繳結果：已預繳'],
+        ['line.group.recruitment_field', { field: 'no_deposit_reason', value: 3, group_id: `C${'a'.repeat(32)}` }, '未預繳原因：距離／地點因素'],
+        // 來源分類同後台表單只有六項短標籤（2026-10-06 裁定）。
+        ['line.group.recruitment_field', { field: 'source_category', value: 'referral', group_id: `C${'a'.repeat(32)}` }, '來源分類：家長介紹／社區招生'],
+        ['line.group.recruitment_field', { field: 'source_category', value: 'self_report', group_id: `C${'a'.repeat(32)}` }, '來源分類：自報生（廣告、鄰居、網路、活動）'],
+        ['line.group.recruitment_field', { field: 'rides_bus', value: false, group_id: `C${'a'.repeat(32)}` }, '搭交通車：不搭'],
       ]
       for (const [action, metadata, expected] of cases) {
         const summary = auditMetadataSummary(metadata, action)
