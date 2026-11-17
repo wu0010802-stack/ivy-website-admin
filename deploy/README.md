@@ -363,6 +363,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 狀態機登記表與守門測試、後台粉專貼文頁籤修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #111 合併進 main（`ae2e177f`），main run 44003543831 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。合併前 main 進了 #105、#108 與它們的部署紀錄，merge 三次（只有 README 頂部日期段落衝突，各段都留）；每次更新後 PR 的 CI 都重跑到綠才合併。
+- **內容**：`backend/app/state_machines.py`（狀態機登記表，不被執行期程式匯入）、`backend/tests/test_state_machines.py`、`backend/scripts/export_state_machines.py` 與它產生的 `docs/state-machines/domain.md`、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`；`contract:generate`／`contract:check` 多跑這一支。後台：三個狀態型別改用產生的型別（只改型別）、粉專貼文頁的載入改用 `useRequestSequence`。沒有 migration、API、環境變數變更，`web/` 沒有變更。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `ae2e177f`；`/api/website/v1/health` 200；首頁 200；`/admin/` 轉到 admin 子網域後 200。
+- **沒驗證**：登入正式站後台實際操作粉專貼文頁的頁籤切換（修正只在本機用測試確認：未修正版紅、修正後綠）。
+- **後續**：盤點時記下的低優先待辦在 issue #110。
+
 ## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭上線（main CI 部署，沒有 migration）
 
 - **提交**：PR #108 合併進 main（`08287900`），main run 43999360150 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 第一輪 E2E 紅在自己改的兩個 stack 斷言（讀屏說明前多一個空白，`exact` 比不到），改成正規表示式後綠；期間 main 合進 #105 與它的部署紀錄，rebase、merge 各一次（只有 README／DESIGN.md 頂部日期段落衝突，各段都留）。

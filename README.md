@@ -1,4 +1,4 @@
-## 2026-11-17 狀態機登記表＋粉專貼文頁籤修正（`feature/state-machines-20261117`，未部署）
+## 2026-11-17 狀態機登記表＋粉專貼文頁籤修正（`feature/state-machines-20261117`，已部署 main `ae2e177f`）
 
 盤點全站的隱性狀態機（狀態與轉移只存在各函式的 `if` 裡），做法與前端流程地圖見 `docs/state-machines/README.md`。
 
