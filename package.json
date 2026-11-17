@@ -10,7 +10,8 @@
     "e2e:build": "bash tests/stack/build.sh",
     "test:e2e:stack": "playwright test -c playwright.stack.config.ts",
     "contract:generate": "cd backend && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_openapi.py && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_state_machines.py && cd .. && npx openapi-typescript contracts/openapi.json -o contracts/generated/website-api.d.ts",
-    "contract:check": "cd backend && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_openapi.py --check && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_state_machines.py --check && cd .. && node scripts/check-contract-types.mjs"
+    "contract:check": "cd backend && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_openapi.py --check && env -i PATH=\"$PATH\" HOME=\"$HOME\" uv run python scripts/export_state_machines.py --check && cd .. && node scripts/check-contract-types.mjs",
+    "test:e2e:environment": "playwright test -c playwright.environment.config.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

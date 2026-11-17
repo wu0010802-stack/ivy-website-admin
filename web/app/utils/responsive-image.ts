@@ -36,35 +36,54 @@ export const HOME_HERO_SIZES = '100vw'
  */
 export const ADMISSION_HERO_IMAGE = 'admission-hello'
 
-/** 常春藤環境頁首屏照片（橫幅原圖 1960×934；後台「常春藤環境頁」顯示的內建照片也是這張）；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
+/**
+ * 常春藤環境頁首屏照片的橫幅母檔（1960×934；後台「常春藤環境頁」顯示的內建照片也是這張）。
+ * 2026-11-17「拱窗打開」起，901 以上的首屏是一幅橫的大畫面（桌機釘住時從右邊一扇拱窗打開成整幕），用的就是這張。
+ */
 export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
 /**
- * 官網首屏實際載入的是這張裁好的直幅（2026-11-13）：拱窗約 4:5、object-position 70%，橫幅原圖只看得到中間偏右的 38%，
- * 手機 DPR3 卻要為了那 38% 下載整張 1960w（AVIF 93 KB）；裁好的直幅 747×934 只要 49 KB，畫出來逐像素相同、首屏照片（LCP）少載一半。
- * 裁法：高度全留，寬＝高 × 0.8＝747，左緣＝(1960 − 747) × 0.7＝849——同一個 70% 套在裁好的檔上，各種拱窗寬度的取景都跟原本一樣。
+ * 900 以下（手機、平板）首屏只有一扇直的拱窗，載入的是這張裁好的直幅（2026-11-13）：拱窗只看得到橫幅中間偏右的四成，
+ * 手機 DPR3 卻要為了那四成下載整張 1960w（AVIF 93 KB）；裁好的直幅 747×934 只要 49 KB、首屏照片（LCP）少載一半。
+ * 裁法：高度全留，寬＝高 × 0.8＝747，左緣＝(1960 − 747) × 0.7＝849——首屏的 object-position 70% 套在裁好的檔上，取景和裁之前一樣。
  * 換內建照片時兩張要一起換：`python3 - <<…` 依上式裁出 `env-hero-hug-arch.webp`（q96），再跑
  * `python3 scripts/optimize-site-images.py --only env-hero-hug env-hero-hug-arch`。
  */
 export const ENVIRONMENT_HERO_ARCH_IMAGE = 'env-hero-hug-arch'
 
 /**
- * 常春藤環境頁的首屏照片在赤陶拱積木的拱窗裡（2026-11-04 起，environment.css 的 `.renv-arch-photo`；之前是彩虹疊疊樂最內圈的拱），
- * object-fit: cover，框是直的（約 4:5）；比框寬的照片左右被裁掉，實際要畫的寬度＝框寬 × (照片寬高比 ÷ 4/5)。
- * 內建照片用裁好的直幅（ENVIRONMENT_HERO_ARCH_IMAGE，倍率 1）；後台換上的橫幅照片照這個倍率放大。
- * 桌機照片最寬 (540 − 26) − 2×20 = 474px → 480px；640px 以下拱在版心裡、往右錯開 13px、邊 14px，
- * 照片寬＝視窗 − 74px（390 寬 316px）；641–900 平板是兩欄（2026-11-13），照片欄＝版心的 44%，不到視窗的 42%。
- * 頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
+ * 首屏照片的兩種框（environment.css 的 `.renv-hw-photo`，都是 object-fit: cover）與各自的 sizes。
+ * 頁面的 <picture> 與 usePageSeo 的預載都從這裡取（media-image.ts 的 environmentHeroSources／environmentHeroPreloads），兩邊才會挑到同一個檔。
+ * - 901 以上：橫的大畫面，框＝版心（最寬 1200）扣掉左右各 12px 的赤陶框邊，最瘦 2.15:1（視窗矮時更扁）。
+ *   版心＝min(1200px, 89vw)（左右留白 5.5vw），1348 以上固定 1176px。比 2.15:1 更寬的照片照框高畫滿，要畫的寬度乘上倍率。
+ * - 900 以下：一扇拱窗，寬＝min(版心, 460) − 20，高 240–470（跟著視窗高），最瘦約 0.7:1；比它寬的照片照窗高畫滿。
+ *   500 以下窗寬約「視窗 − 60px」，以上最寬 440px。內建的直幅是 0.8:1，倍率 1.14。
  */
-export const ENVIRONMENT_HERO_ASPECT = 4 / 5
-/** factor＝原圖寬高比 ÷ 4/5（至少 1）：橫幅被裁成拱框時，要畫的寬度是框寬乘上它。 */
-export function environmentHeroSizes(factor: number) {
-  return `(max-width: 640px) calc((100vw - 74px) * ${factor}), (max-width: 900px) calc(42vw * ${factor}), ${Math.round(480 * factor)}px`
+export const ENVIRONMENT_HERO_WIDE_MEDIA = '(min-width: 901px)'
+export const ENVIRONMENT_HERO_ARCH_MEDIA = '(max-width: 900px)'
+export const ENVIRONMENT_HERO_WIDE_ASPECT = 2.15
+export const ENVIRONMENT_HERO_ARCH_ASPECT = 0.7
+/** factor＝照片寬高比 ÷ 框的寬高比（至少 1）：照片比框寬時，要畫的寬度是框寬乘上它。 */
+export function environmentHeroFactor(width: number | undefined, height: number | undefined, frameAspect: number): number {
+  return width && height ? Number(Math.max(1, width / height / frameAspect).toFixed(2)) : 1
 }
+export function environmentHeroWideSizes(factor: number) {
+  return `(min-width: 1348px) ${Math.round(1176 * factor)}px, ${ENVIRONMENT_HERO_WIDE_MEDIA} calc((89vw - 24px) * ${factor})`
+}
+export function environmentHeroArchSizes(factor: number) {
+  return `(max-width: 500px) calc((100vw - 60px) * ${factor}), ${Math.round(440 * factor)}px`
+}
+function builtinInfo(name: string): ImageInfo | undefined {
+  return Object.hasOwn(manifest, name) ? (manifest as Record<string, ImageInfo>)[name] : undefined
+}
+/** 內建照片、900 以下的拱窗：裁好的直幅。<picture> 裡的 <img> 用這一份。 */
 export function environmentHeroImage() {
-  const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_ARCH_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_ARCH_IMAGE] : undefined
-  const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
-  const factor = Number(scale.toFixed(2))
-  return responsiveImage(ENVIRONMENT_HERO_ARCH_IMAGE, environmentHeroSizes(factor))
+  const info = builtinInfo(ENVIRONMENT_HERO_ARCH_IMAGE)
+  return responsiveImage(ENVIRONMENT_HERO_ARCH_IMAGE, environmentHeroArchSizes(environmentHeroFactor(info?.width, info?.height, ENVIRONMENT_HERO_ARCH_ASPECT)))
+}
+/** 內建照片、901 以上的大畫面：橫幅母檔。<picture> 裡帶 media 的 <source> 用這一份。 */
+export function environmentHeroWideImage() {
+  const info = builtinInfo(ENVIRONMENT_HERO_IMAGE)
+  return responsiveImage(ENVIRONMENT_HERO_IMAGE, environmentHeroWideSizes(environmentHeroFactor(info?.width, info?.height, ENVIRONMENT_HERO_WIDE_ASPECT)))
 }
 
 /**

@@ -8,7 +8,7 @@
  * website/v1/[...].ts 轉給 API，Range 原樣轉送），權限由 API 判斷。
  */
 import type { AboutPageContent, Campus, CurriculumPageContent, EnvironmentPageContent, HeroContent } from '../types/site-content'
-import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, ENVIRONMENT_HERO_ASPECT, HOME_HERO_SIZES, environmentHeroImage, environmentHeroSizes, responsiveImage, type ResponsiveImageAttrs } from './responsive-image'
+import { ABOUT_HERO_IMAGE, ABOUT_HERO_SIZES, CURRICULUM_HERO_IMAGE, CURRICULUM_HERO_SIZES, ENVIRONMENT_HERO_ARCH_ASPECT, ENVIRONMENT_HERO_ARCH_MEDIA, ENVIRONMENT_HERO_WIDE_ASPECT, ENVIRONMENT_HERO_WIDE_MEDIA, HOME_HERO_SIZES, environmentHeroArchSizes, environmentHeroFactor, environmentHeroImage, environmentHeroWideImage, environmentHeroWideSizes, heroPreloadLink, responsiveImage, type ResponsiveImageAttrs } from './responsive-image'
 
 export interface PublicMediaVariant {
   kind: 'thumbnail' | 'medium' | 'large' | 'poster' | 'video_desktop' | 'video_mobile'
@@ -198,13 +198,24 @@ export function aboutHeroAttrs(page: Pick<AboutPageContent, 'heroPhoto'>) {
 }
 
 /**
- * 常春藤環境頁首屏照片：頁面 <img> 與 usePageSeo 的 preload 共用，才不會多下載一張。沒換照片用內建圖
- * （environmentHeroImage）；換了照片，sizes 的倍率依那張照片的寬高比重算（約 4:5 的拱窗 object-fit: cover，
- * 比 4:5 寬的橫幅左右被裁，要畫的寬度＝框寬 × 寬高比 ÷ ENVIRONMENT_HERO_ASPECT）。
+ * 常春藤環境頁首屏照片（2026-11-17「拱窗打開」）：901 以上是橫的大畫面、900 以下是一扇拱窗（兩種框見 responsive-image.ts）。
+ * - 沒換照片：兩張內建圖——`img` 是裁好的直幅（<picture> 裡的 <img>），`wide` 是橫幅母檔（帶 media 的 <source>）。
+ *   手機不必為了拱窗下載整張橫幅，桌機拿到的是完整的橫幅。
+ * - 後台換了照片：只有一張，`wide` 不給；同一個 <img> 的 sizes 先列大畫面的條件、再列拱窗，倍率各依那張照片的寬高比算。
+ * 頁面的 <picture>（EnvironmentContent.vue）與 usePageSeo 的預載（environmentHeroPreloads）共用，才不會多下載一張。
  */
-export function environmentHeroAttrs(page: Pick<EnvironmentPageContent, 'heroPhoto'>) {
+export interface EnvironmentHeroSources { img: ResponsiveImageAttrs; wide?: ResponsiveImageAttrs }
+export function environmentHeroSources(page: Pick<EnvironmentPageContent, 'heroPhoto'>): EnvironmentHeroSources {
   const photo = page.heroPhoto
-  if (!photo) return environmentHeroImage()
-  const factor = photo.width && photo.height ? Number(Math.max(1, photo.width / photo.height / ENVIRONMENT_HERO_ASPECT).toFixed(2)) : 1
-  return mediaImageAttrs(photo, environmentHeroSizes(factor))
+  if (!photo) return { img: environmentHeroImage(), wide: environmentHeroWideImage() }
+  const wide = environmentHeroWideSizes(environmentHeroFactor(photo.width, photo.height, ENVIRONMENT_HERO_WIDE_ASPECT))
+  const arch = environmentHeroArchSizes(environmentHeroFactor(photo.width, photo.height, ENVIRONMENT_HERO_ARCH_ASPECT))
+  return { img: mediaImageAttrs(photo, `${wide}, ${arch}`) }
+}
+
+/** 首屏照片（LCP）的預載：內建照片兩張各帶 media（桌機預載橫幅、手機預載直幅，只會下載其中一張）；後台照片一張。 */
+export function environmentHeroPreloads(page: Pick<EnvironmentPageContent, 'heroPhoto'>) {
+  const { img, wide } = environmentHeroSources(page)
+  if (!wide) return [heroPreloadLink(img)]
+  return [{ ...heroPreloadLink(wide), media: ENVIRONMENT_HERO_WIDE_MEDIA }, { ...heroPreloadLink(img), media: ENVIRONMENT_HERO_ARCH_MEDIA }]
 }

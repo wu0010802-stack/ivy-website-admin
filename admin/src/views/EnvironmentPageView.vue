@@ -48,7 +48,7 @@ const navSections = computed<EditorSection[]>(() => [
 // 其餘內文類欄位是系統字，不需要缺字提示。「大標裡畫螢光的字」是大標的一段，不另外檢查。
 const ENV_HEAD_FONTS: TitleFontSubset[] = ['bd']
 
-const CARE_PHOTO_HELP = '五張照片各裝在一種積木形狀裡（拱、圓、四分之一圓、倒拱；第五張是比較寬的四分之一圓），會裁掉邊緣；重點放在中間，或在下面點選焦點。留空就用官網內建的照片。'
+const CARE_PHOTO_HELP = '五張照片各裝在一扇不同形狀的窗裡（拱、圓、兩種大圓角；第五張是比較寬的窗），會裁掉邊緣；重點放在中間，或在下面點選焦點。留空就用官網內建的照片。'
 
 // 餐點時間：格式（兩位數的時:分）與由早到晚。後端擋存檔時只講整個清單，這裡先在那一個餐點提醒。
 function timeError(index: number): string {
@@ -88,7 +88,7 @@ onMounted(editor.load)
         builtin="官網內建的兩個孩子擁抱的照片"
         :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.hero)"
         :previews="ENVIRONMENT_PHOTO_PREVIEWS.hero"
-        help="放在赤陶拱積木的拱窗裡，裁成直的（約 4:5），左右會被裁掉；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
+        help="桌機一開始是拱窗，往下捲會打開成橫的大畫面（約 2.2:1）；手機只有拱窗（約 3:4，左右會被裁掉）。請用寬 2000 以上的橫式照片，重點放在中間偏右，或在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 
@@ -129,7 +129,7 @@ onMounted(editor.load)
         builtin="官網內建的戴聖誕帽的孩子敲木槌的照片"
         :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.care)"
         :previews="ENVIRONMENT_PHOTO_PREVIEWS.care"
-        help="橫幅積木，右端是半圓，桌機約 2.75:1、手機約 1.7:1（左右會多裁一些）；請用寬 2000 以上的照片。官網內建照片的重點在中間，換成自己的照片後沒設焦點也取中間，請在下面點選焦點。"
+        help="橫跨整個版面的大照片，桌機約 2.34:1、手機約 3:2（左右會多裁一些）；請用寬 2000 以上的照片。官網內建照片的重點在中間，換成自己的照片後沒設焦點也取中間，請在下面點選焦點。"
         :disabled="editor.readOnly.value"
       />
 
@@ -145,7 +145,7 @@ onMounted(editor.load)
             label="照片"
             builtin="官網內建的照顧照片"
             :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.careItems[i]!)"
-            :previews="ENVIRONMENT_PHOTO_PREVIEWS.careItem"
+            :previews="ENVIRONMENT_PHOTO_PREVIEWS.careItem[i] ?? ENVIRONMENT_PHOTO_PREVIEWS.careItem[0]"
             :help="CARE_PHOTO_HELP"
             :disabled="editor.readOnly.value"
           />
@@ -167,11 +167,11 @@ onMounted(editor.load)
           builtin="官網內建的遊樂區照片"
           :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.feature)"
           :previews="ENVIRONMENT_PHOTO_PREVIEWS.feature"
-          help="桌機放在左欄，各種螢幕都裁成 3:2，左下角是大圓角；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
+          help="桌機放在左邊的大窗，約 3:2（手機 4:3），左上角是大圓角；請用寬 2000 以上的照片，重點放在中間，或在下面點選焦點。"
           :disabled="editor.readOnly.value"
         />
       </div>
-      <h4 class="sub-sub-title">圓點小路串起的六個空間</h4>
+      <h4 class="sub-sub-title">六個空間</h4>
       <div data-list="spaces">
         <div v-for="(space, i) in form.spaces" :key="i" class="page-copy__item" :data-list-item="i">
           <p class="page-copy__item-title">第 {{ i + 1 }} 個空間</p>
@@ -184,8 +184,8 @@ onMounted(editor.load)
             label="空間照片"
             builtin="官網內建的空間照片"
             :builtin-src="builtinPhotoSrc(ENVIRONMENT_BUILTIN_PHOTOS.spaces[i]!)"
-            :previews="ENVIRONMENT_PHOTO_PREVIEWS.space"
-            help="六張照片各裝在一種積木形狀裡（圓、拱、半圓等），會裁掉邊緣；重點放在中間，或在下面點選焦點。"
+            :previews="ENVIRONMENT_PHOTO_PREVIEWS.space[i] ?? ENVIRONMENT_PHOTO_PREVIEWS.space[0]"
+            help="六張照片各裝在一扇不同形狀的窗裡（方、圓、拱、半圓等；桌機是同一扇大窗依序變形），會裁掉邊緣；重點放在中間，或在下面點選焦點。"
             :disabled="editor.readOnly.value"
           />
         </div>

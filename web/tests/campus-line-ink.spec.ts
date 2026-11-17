@@ -75,18 +75,24 @@ describe('五校線稿墨線版', () => {
 
   it('環境頁五校分頁：淡彩層在墨線底下，兩層都不用混合模式', () => {
     const env = read('../app/components/EnvironmentContent.vue')
-    const wash = env.indexOf('responsiveImage(`campus-line-art-${tour.campus.key}-wash`')
+    // 2026-11-17「拱窗打開」：分頁的線稿拱窗與「下一所」的小窗都是兩層疊圖，內建線稿走 lineArt(校, 'wash'｜'ink', sizes)
+    expect(env).toContain("const lineArt = (key: string, layer: 'wash' | 'ink', sizes: string) => responsiveImage(`campus-line-art-${key}-${layer}`, sizes)")
+    const wash = env.indexOf("lineArt(tour.campus.key, 'wash', TAB_ART_SIZES)")
     expect(wash).toBeGreaterThanOrEqual(0)
-    expect(wash).toBeLessThan(env.indexOf('responsiveImage(`campus-line-art-${tour.campus.key}-ink`'))
+    expect(wash).toBeLessThan(env.indexOf("lineArt(tour.campus.key, 'ink', TAB_ART_SIZES)"))
+    const nextWash = env.indexOf("lineArt(nextTours[t]!.tour.campus.key, 'wash', '82px')")
+    expect(nextWash).toBeGreaterThanOrEqual(0)
+    expect(nextWash).toBeLessThan(env.indexOf("lineArt(nextTours[t]!.tour.campus.key, 'ink', '82px')"))
     const css = read('../app/assets/css/environment.css')
-    expect(rule(css, '.renv-tour-tab .renv-tour-wash')).not.toMatch(/mix-blend-mode|filter:/)
-    // 兩層都要有定位，淡彩層 absolute 才不會蓋過墨線
-    expect(rule(css, '.renv-tour-tab img')).toContain('position:relative')
+    // 兩層的位置與大小寫在同一條規則（都絕對定位、照 DOM 順序疊，淡彩在下、墨線在上），不用混合模式
+    expect(css).toContain('.renv-tour-art img,.renv-next-win img{position:absolute;left:5%;bottom:5%;width:90%;height:auto}')
+    expect(css).not.toMatch(/\.renv-tour-wash[^{]*\{/)
+    expect(css).not.toMatch(/mix-blend-mode|filter:/)
   })
 
   it('環境頁五校分頁與預約結果也用墨線版', () => {
-    expect(read('../app/components/EnvironmentContent.vue')).toContain('responsiveImage(`campus-line-art-${tour.campus.key}-ink`')
-    expect(rule(read('../app/assets/css/environment.css'), '.renv-tour-tab img')).not.toMatch(/mix-blend-mode|filter:/)
+    expect(read('../app/components/EnvironmentContent.vue')).toContain("lineArt(tour.campus.key, 'ink', TAB_ART_SIZES)")
+    expect(read('../app/assets/css/environment.css')).not.toMatch(/mix-blend-mode|filter:/)
     const visit = read('../app/assets/css/visit-booking.css')
     expect(rule(visit, '.visit-result-art ')).not.toMatch(/mix-blend-mode|filter:/)
     expect(rule(visit, '.visit-result-art.is-blend ')).toContain('mix-blend-mode:multiply')

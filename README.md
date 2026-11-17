@@ -1,3 +1,50 @@
+## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
+
+接續 Claude 用量中斷的工作，沿用原工作樹 `/Users/yilunwu/Repositories/ivy-website-wt/env-windows-20261117`。開工前快照在 `versions/before-env-windows-fixes-20261117-154219/`，保留原有 B「拱窗打開」設計及所有未提交變更。
+
+- **修正導航位置**：直接開 `#care`／`#spaces`／`#meals`／`#campuses`，等釘住版面與字型就緒才定位；重新整理、整頁返回與 SPA 返回還原離開位置。章節連結改由 Router 記錄歷史，保留 href 與修飾鍵操作。Chrome 需在 beforeunload 保存位置；WebKit 整頁返回可能遺失 history.state，補同分頁、相同 URL 的 sessionStorage 備援。首次沒帶 hash 時不補一次延後的 `{0,0}`，避免覆蓋使用者剛開始的捲動。
+- **減少捲動讀寫**：`environment-windows.ts` 每幀先量各段位置、各段只量一次，首屏兩條軌道共用量測且合併繪製；高度與距離在 layout／ResizeObserver 更新，同值樣式不重寫。卸載時取消兩層重播 RAF、清除 SVG 與 observer。
+- **新增真正的互動測試**：`web/tests/environment-windows-runtime.spec.ts` 建立模組並派發事件；`tests/e2e/environment-windows.spec.ts` 實際捲動、點按與鍵盤切換，涵蓋直接連結、重新整理、同頁／整頁／SPA 上下頁、減少動態與延遲模組。新增 `playwright.environment.config.ts` 和 `npm run test:e2e:environment`，用 Chrome、WebKit 各測桌機與手機；同一支 spec 也納入公開站正式版 e2e。
+- **調整檔案**：環境頁元件、捲動模組、Router、相關守門測試，以及上述新增測試與設定。沒有新增內容欄位、沒有再次更動視覺方案；Claude 已完成的裁切預覽與素材規則保留。原實作刪除的 `environment-route.ts` 維持刪除。
+
+本輪實際驗證（Node 22.23.2；同時只跑一組瀏覽器）：
+
+| 指令 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過 |
+| `npm run test:website` | 164 檔、2,474 項通過 |
+| `npm --prefix admin run typecheck` | 通過 |
+| `npm --prefix admin run test:unit -- src/__tests__/environmentPageDraft.test.ts src/__tests__/pageCopyFields.test.ts src/__tests__/engagement.test.ts src/__tests__/previewProtocol.test.ts src/__tests__/environmentPageView.test.ts` | 5 檔、135 項通過 |
+| `npm run test:e2e:environment` | 42 項通過、2 項手機不啟用釘住舞台而略過 |
+| `npm run test:e2e:environment -- --grep '沒有 hash' --repeat-each=5` | 20 項通過，含 Chrome／WebKit 各桌機與手機，沒有重試掩蓋失敗 |
+| `npm run test:e2e:environment -- --grep '模組晚到'` | 正式版攔截修正後再驗 Chrome／WebKit 桌機與手機，4 項通過 |
+| `npm run e2e:build` | 官網與後台正式建置通過 |
+| `PGHOST=localhost E2E_PUBLIC_DB_NAME=ivy_codex_env_public_20261117_test npm run test:e2e` | 79 項通過、13 項依視口條件略過 |
+| `PGHOST=localhost E2E_DB_NAME=ivy_codex_env_stack_20261117_test npm run test:e2e:stack` | 186 項通過、30 項手冊截圖產生器依既定條件略過 |
+| `git diff --check` | 通過 |
+
+正式版測試的第一輪找到延遲載入測試只認開發版檔名，已改為同時辨認正式版模組內容，重跑公開站完整通過。兩組全站 e2e 都只用上述本機隔離測試庫，沒有碰正式資料、推送或部署。日誌：`output/env-windows-public-e2e.log`、`output/env-windows-stack-e2e.log`。
+
+本機驗收預覽：`http://127.0.0.1:3232/environment`（fixture 內容，非正式站）。
+
+本輪桌機／筆電／手機截圖在 Desktop 工作區 `output/env-windows-20261117/codex/`（`desktop-top.png`、`desktop-stage.png`、`laptop-top.png`、`laptop-stage.png`、`mobile-top.png`），已目視檢查。視覺仍依原比稿 B；首屏保持原有 CSS 起始版面，這次只修互動、定位與計算。初次實作的無 JS／有 JS 首屏比對與字數上限結果保留在下一節。
+
+未驗證：Safari／iPhone 實機與低階手機效能；Playwright WebKit 通過不等同實機測試。既有 `MediaImage` 重複匯入提示及測試環境 iframe／localhost 警告仍存在，未造成型別檢查、建置或單元測試失敗。後台舊版面說明文字依原指示未改。
+
+## 2026-11-17 環境頁改成「拱窗打開」（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
+
+使用者說環境頁「不夠有份量、不夠驚豔」，比稿四個方向（`design/environment-grand-directions-20261117/`）選 B「拱窗打開」，又指定優化了一天五餐與五所校園面板左欄後說「ok 實作」。這一輪把比稿頁 `b-windows.html` 做進 `web/`：積木的形狀與顏色照舊，但每塊積木都是一扇窗，捲動時打開。
+
+- **畫面**：桌機首屏是左邊大標＋右邊一扇拱窗，往下捲拱窗打開成約 1,176px 的大畫面；五顆心長成一張 1,200px 的照片；六個空間在同一扇 800px 的窗裡依序變形（釘住的舞台）；一天五餐是墨綠餐桌，圓點小路穿過盤子；五所校園是五扇線稿拱窗分頁，面板左欄有校名、地址（連 Google 地圖）、角落按鈕（按了換大窗）與「下一所」。900 以下（手機、平板）是不釘住的單欄簡化版。
+- **伺服器輸出完整內容**：沒有 JS、減少動態時就是每扇窗都打開的完成畫面；桌機首屏的起始畫面由 CSS 媒體查詢成立，hydrate 前後第一個畫面一樣（關掉 JS 與開著 JS 截圖比對：390×844 逐像素相同，1440×900、1280×720 只有拱頂弧線的反鋸齒差）。捲動敘事在 `web/app/utils/environment-windows.ts`，只在瀏覽器動態載入；後台即時預覽不釘住。
+- **首屏照片**：桌機用橫幅母檔、900 以下用裁好的直幅，`<picture>` 與預載都各帶 `media`；後台換照片照常生效。
+- **第四章先開哪一校**：`?campus=<校>` ＞ 記住的校區（cookie `ivy_campus`）＞ 第一校；點分頁、方向鍵會記住。
+- **文字的差異**（逐字快照 `web/tests/fixtures/environment-text-20261012.json` 重存）：拿掉章節編號 01–04、五件小事與六個空間的編號、各校的「X區・N 個角落」；新增分頁上的行政區、各校地址、每校的角落按鈕、「下一所」＋下一校校名、舞台進度鈕的報讀名稱；「孩子在學校 一天吃這些」拆成兩段。內容欄位與後台欄位都沒有增減。
+- **刪除**：`web/app/utils/environment-route.ts`（六個空間的圓點小路沒有了，餐點的改成純 CSS）與它的測試。
+- **後台**：`EnvironmentPageView.vue` 的裁切預覽比例跟著新的照片框改（五件小事、六個空間每一張各給各的）；欄位與說明文字沒動，其中幾條說明還在講舊版面（見 DESIGN.md）。
+- **驗證**：`web` typecheck 通過；`web` `npm run test:unit` 163 個檔、2,471 個測試全過；`admin` typecheck 通過、指定的五支測試 135 個全過；`scripts/page-copy-stress.cjs /environment`（字數上限）七個寬度、有無動態都通過。fixture dev server 用 Playwright（Chrome）在 1440×900、1280×720、1100×600、820×1180、390×844、320×640 與比稿頁逐屏對照，另量 320–1920 共 14 個視窗：沒有水平溢出、主控台錯誤與 hydration 警告。這是初次實作的驗證紀錄；接手後的導航修正與完整建置／e2e 結果見最上方接手驗收紀錄。
+- 規則寫在 DESIGN.md「環境頁拱窗打開」；守門測試 `web/tests/environment-windows-20261117.spec.ts`。
+
 ## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
 
 規格 `docs/specs/2026-11-17-line-group-interactions-design.md`，計畫 `docs/superpowers/plans/2026-11-17-line-group-interactions.md`。園方 LINE 群組除了收卡片，現在能查名單、按按鈕處理參觀。
@@ -28,6 +75,7 @@
 - **自動產生**（`npm run contract:generate`，`contract:check` 會檢查）：`docs/state-machines/domain.md`（狀態圖與轉移表）、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`。後台的素材、排程、粉專貼文狀態型別改用產生的型別；`admin/src/__tests__/stateMachineLabels.test.ts` 檢查每個狀態都有中文標籤。
 - **後台：粉專貼文快速切換頁籤**時，較晚回來的舊頁籤回應不再蓋掉目前頁籤的清單（`FacebookPostsView.vue` 改用 `useRequestSequence`）。
 - 沒有 migration、沒有 API 變更。
+
 ## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭（`feature/visit-line-contact-20261117`，已部署 main `08287900`）
 
 使用者看線上明華校的「歡迎與明華校聯絡」截圖，要求優化 LINE 聯絡的樣子並拿掉箭頭，預約成功畫面按鈕上的箭頭也一起拿掉。

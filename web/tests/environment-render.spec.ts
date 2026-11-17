@@ -11,8 +11,12 @@ import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 // 改由後台內容模型提供，用 fixture 渲染出來的可見文字（含 alt、aria-label）和整段 <main> 都要和搬家前一字不差。
 // 基準檔在元件還沒改之前存下（toMatchFileSnapshot）；唯一刻意的差異是第四章段落那一句
 // （原本寫「取自各分校頁」，分校頁已拿掉）。2026-10-19 起 <main> 多了蠟筆塗鴉的空位置（.renv-doodle、.renv-tour-paint、.renv-meal-name，
-// 都是 aria-hidden、沒有文字），可見文字照舊一字不差。2026-11-11 各章 <section> 多了內容興趣統計的 data-track-section。Nuxt 的自動匯入在單元測試裡沒有，這裡補上；
-// 手繪線與 GSAP 只在瀏覽器掛載後才動，伺服器渲染不會碰。
+// 都是 aria-hidden、沒有文字），可見文字照舊一字不差。2026-11-11 各章 <section> 多了內容興趣統計的 data-track-section。
+// 2026-11-17「拱窗打開」整頁重寫（DESIGN.md「環境頁拱窗打開」）：兩個基準檔跟著重存。文字的差異只有刻意的那幾項——
+// 拿掉章節編號（01–04）、五件小事與六個空間的編號（1–5、1–6）、各校面板的「X區・N 個角落」；
+// 新增分頁上的行政區、各校地址（連地圖，aria-label）、「下一所」＋下一校校名、每校的角落按鈕（名稱各多出現一次）；
+// 「孩子在學校 一天吃這些」拆成兩段（各自不折行）；結尾三個連結的順序與文字不變。之後改這一頁，這兩個檔照舊當逐字守門。
+// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；捲動敘事只在瀏覽器掛載後才載入，伺服器渲染不會碰。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -22,6 +26,9 @@ vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
 // 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
 vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
+// 2026-11-17 第四章先開哪一校讀網址 ?campus= 與記住的校區（cookie）：單元測試裡沒有路由與 cookie，一律從第一校開始
+vi.stubGlobal('useRoute', () => ({ path: '/environment', query: {} }))
+vi.stubGlobal('useRememberedCampus', () => ({ recall: () => null, remember: () => {} }))
 
 const site = fixture as unknown as SiteContent
 const NuxtLink = defineComponent({
