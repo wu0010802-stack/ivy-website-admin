@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import case, func, literal, select
+from sqlalchemy import Date, case, cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic
@@ -24,7 +24,7 @@ from app.admissions.stats import pct
 from app.booking import exclusion, pending_kinds
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestSource, VisitRequestStatus
 from app.campuses.models import Campus
-from app.common.timezones import now_utc
+from app.common.timezones import OPERATING_TZ, now_utc
 from app.operations.analytics_service import UNKNOWN, FunnelRange
 from app.operations.models import CANCEL_REASONS, ENGAGEMENT_SOURCES
 
@@ -254,6 +254,17 @@ async def attribution_outcomes(
     db: AsyncSession, campus_keys: list[str], period: FunnelRange, touch: str, now: datetime | None = None
 ) -> dict:
     current = now or now_utc()
+    first = VisitRequest.first_touch_source
+    last = VisitRequest.last_touch_source
+    # 台北日界線與 ivy_src 的日期一致；日期缺漏、晚於預約者另列。
+    lead_days = cast(func.timezone(OPERATING_TZ.key, VisitRequest.created_at), Date) - VisitRequest.first_touch_on
+    delay = case(
+        (first.is_(None) | lead_days.is_(None) | (lead_days < 0), UNRECORDED),
+        (lead_days == 0, "same_day"),
+        (lead_days <= 3, "days_1_3"),
+        (lead_days <= 7, "days_4_7"),
+        else_="days_8_plus",
+    )
     if touch == "first":
         source, campaign = VisitRequest.first_touch_source, VisitRequest.first_touch_campaign
     else:
@@ -267,6 +278,7 @@ async def attribution_outcomes(
         select(
             func.coalesce(source, literal(UNRECORDED)).label("source"),
             campaign.label("campaign"),
+            first.label("first_source"), last.label("last_source"), delay.label("delay"),
             _outcome(current).label("outcome"),
             _deposited().label("deposited"),
         )
@@ -280,14 +292,18 @@ async def attribution_outcomes(
     )
     rows = (
         await db.execute(
-            select(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited, func.count())
-            .group_by(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited)
+            select(per_case, func.count()).group_by(*per_case.c)
         )
     ).all()
     sources: dict[str, dict] = {}
     campaigns: dict[tuple[str, str], dict] = {}
     totals = _attribution_counts()
-    for source_key, campaign_key, outcome, deposited, count in rows:
+    delays = dict.fromkeys(("same_day", "days_1_3", "days_4_7", "days_8_plus", UNRECORDED), 0)
+    paths: dict[tuple[str, str], int] = {}
+    for source_key, campaign_key, first_source, last_source, bucket_key, outcome, deposited, count in rows:
+        delays[bucket_key] += count
+        path = (first_source or UNRECORDED, last_source or ("no_external" if first_source else UNRECORDED))
+        paths[path] = paths.get(path, 0) + count
         buckets = [totals, sources.setdefault(source_key, _attribution_counts())]
         if campaign_key:
             buckets.append(campaigns.setdefault((source_key, campaign_key), _attribution_counts()))
@@ -316,4 +332,9 @@ async def attribution_outcomes(
         "touch": touch,
         "rows": out_rows,
         "totals": _attribution_rates(totals),
+        "delays": delays,
+        "source_paths": [
+            {"first": first, "last": last, "cases": count}
+            for (first, last), count in sorted(paths.items(), key=lambda item: (-item[1], item[0]))
+        ],
     }

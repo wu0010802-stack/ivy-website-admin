@@ -45,6 +45,7 @@ from app.operations import (
 )
 from app.operations.models import (
     CTA_ENTRIES,
+    ENGAGEMENT_CAMPUS_ACTIONS,
     ENGAGEMENT_MAX_ACTIVE_MS,
     ENGAGEMENT_MAX_KEYS,
     ENGAGEMENT_MAX_REV,
@@ -219,10 +220,11 @@ class EngagementIn(BaseModel):
     # 最新消息內文頁的消息代號；其他頁不帶。各校消息帶校區前綴（yihua:open-day）。
     item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$")] | None = None
     source: EngagementSource
+    returning: Annotated[bool, Field(strict=True)] | None = None
     active_ms: int = Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)
     scroll: int = Field(ge=0, le=100)
     sections: dict[EngagementKey, Annotated[int, Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
-    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS + len(ENGAGEMENT_CAMPUS_ACTIONS))
     # 這次造訪的第幾頁、進站連結上的活動代碼（utm_campaign）：2026-11-11 第二輪加，
     # 還開著舊版頁面的瀏覽器不會帶，所以都是選填。
     seq: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_SEQ)
@@ -232,6 +234,8 @@ class EngagementIn(BaseModel):
 
     @model_validator(mode="after")
     def _consistent(self) -> "EngagementIn":
+        if len(self.actions.keys() - ENGAGEMENT_CAMPUS_ACTIONS) > ENGAGEMENT_MAX_KEYS:
+            raise ValueError("互動代碼過多")
         if (self.page not in ("campus", "visit") and self.campus is not None) or (self.page == "campus" and self.campus is None):
             raise ValueError("page 與 campus 不一致")
         if self.item is not None and self.page != "news":
@@ -264,7 +268,7 @@ async def record_engagement(
         db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
         item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
         scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
-        seq=payload.seq, campaign=payload.campaign, rev=payload.rev,
+        seq=payload.seq, campaign=payload.campaign, rev=payload.rev, returning=payload.returning,
     )
     await db.commit()
 
@@ -521,6 +525,22 @@ class EngagementCampusOut(BaseModel):
     bookings: int | None
 
 
+class CampusDestinationRowOut(BaseModel):
+    campus_key: str
+    available: int
+    empty: int
+    phone: int
+    line: int
+    booked: int
+    contact_after_empty: int
+
+
+class CampusDestinationsOut(BaseModel):
+    tracked_visits: int
+    first_day: date | None
+    rows: list[CampusDestinationRowOut]
+
+
 class EngagementPageOut(BaseModel):
     page: str
     campus_key: str | None
@@ -574,6 +594,14 @@ class EngagementConversionOut(BaseModel):
     booked_rate: float | None
 
 
+class EngagementCohortOut(BaseModel):
+    returning: bool | None
+    sessions: int
+    campus_sessions: int
+    contact_sessions: int
+    visit_sessions: int
+
+
 class EngagementSummaryOut(BaseModel):
     days: int
     since: date
@@ -583,6 +611,7 @@ class EngagementSummaryOut(BaseModel):
     totals: EngagementTotalsOut
     # 上一期（往前同樣天數）；紀錄只留 90 天，選 90 天時沒有上一期。
     previous: EngagementPeriodOut | None
+    cohorts: list[EngagementCohortOut]
     daily: list[EngagementDailyOut]
     pages: list[EngagementPageOut]
     sections: list[EngagementSectionOut]
@@ -597,6 +626,7 @@ class EngagementSummaryOut(BaseModel):
     journey: EngagementJourneyOut
     hours: list[EngagementHourOut]
     campuses: list[EngagementCampusOut]
+    campus_destinations: CampusDestinationsOut
 
 
 @router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
@@ -831,6 +861,20 @@ class AttributionSourceOut(AttributionCountsOut):
     campaigns: list[AttributionCampaignOut]
 
 
+class AttributionDelayOut(BaseModel):
+    same_day: int
+    days_1_3: int
+    days_4_7: int
+    days_8_plus: int
+    unrecorded: int
+
+
+class AttributionPathOut(BaseModel):
+    first: str
+    last: str
+    cases: int
+
+
 class BookingAttributionOut(BaseModel):
     as_of: datetime
     date_from: date | None
@@ -838,6 +882,8 @@ class BookingAttributionOut(BaseModel):
     touch: Literal["first", "last"]
     rows: list[AttributionSourceOut]
     totals: AttributionCountsOut
+    delays: AttributionDelayOut
+    source_paths: list[AttributionPathOut]
 
 
 @router.get("/admin/analytics/booking-attribution", response_model=BookingAttributionOut)

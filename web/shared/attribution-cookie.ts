@@ -105,6 +105,16 @@ export function decodeAttribution(raw: string | undefined | null): AttributionCo
   return { v: 1, f, ...(l ? { l } : {}), ...(o ? { o } : {}), ...(b ? { b } : {}), ...(n ? { n } : {}) }
 }
 
+/** 僅公開同一瀏覽器是否跨台北日回訪。來源、首次日期與廣告代碼留在 HttpOnly cookie。 */
+export function isReturningVisit(raw: string | undefined, now: Date): boolean | null {
+  const firstDay = decodeAttribution(raw)?.f.d
+  if (!firstDay) return null
+  const parsed = new Date(firstDay + 'T00:00:00Z')
+  const today = taipeiDay(now)
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== firstDay || firstDay > today) return null
+  return firstDay < today
+}
+
 /** 這次進站之後的 cookie 內容。直接進站不蓋掉「最後一次」；點擊代碼只在落地網址有帶時更新。 */
 export function nextAttribution(previous: AttributionCookie | null, landing: Landing, now: Date): AttributionCookie {
   const source = classifySource(landing.referrer, landing.search, NO_ORIGIN, landing.userAgent)

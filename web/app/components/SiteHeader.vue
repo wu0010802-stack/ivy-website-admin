@@ -424,7 +424,7 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
         </a>
         <nav v-if="contactCampus && campusSocialLinks.length" class="menu-campus-socials" :aria-label="`${contactCampus.name}社群`">
           <template v-for="social in campusSocialLinks" :key="social.platform">
-            <a class="menu-campus-social" :href="social.url!" :data-platform="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
+            <a class="menu-campus-social" :href="social.url!" :data-platform="social.platform" :data-contact-channel="social.platform" :data-campus-key="contactCampus.key" target="_blank" rel="noopener noreferrer" :aria-label="`${contactCampus.name} ${social.label}（另開新視窗）`">
               <svg class="icon" aria-hidden="true" focusable="false"><use :href="`#i-${social.platform}`" /></svg>
               <span>{{ social.label }}</span>
             </a>

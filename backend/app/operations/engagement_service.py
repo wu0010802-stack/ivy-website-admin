@@ -8,8 +8,8 @@ from __future__ import annotations
 import uuid
 from datetime import date, timedelta
 
-from sqlalchemy import Integer, and_, case, cast, delete, distinct, extract, func, literal, or_, select, true, union_all
-from sqlalchemy.dialects.postgresql import aggregate_order_by, insert
+from sqlalchemy import Integer, String, column, values, and_, case, cast, delete, distinct, extract, func, literal, or_, select, true, union_all
+from sqlalchemy.dialects.postgresql import aggregate_order_by, array, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.campuses.models import CAMPUS_KEYS
@@ -17,7 +17,12 @@ from app.common.timezones import local_day_bounds_utc, now_utc, today_local
 from app.content import service as content_service
 from app.operations.models import (
     ENGAGEMENT_BOOKED_ACTION,
+    ENGAGEMENT_CONTACT_ACTIONS,
+    ENGAGEMENT_CAMPUS_ACTIONS,
+    ENGAGEMENT_CAMPUS_TRACKING,
     ENGAGEMENT_CLASS_ACTIONS,
+    ENGAGEMENT_CONTACT_AFTER_EMPTY,
+    ENGAGEMENT_FORM_AVAILABLE,
     ENGAGEMENT_FORM_INVALID,
     ENGAGEMENT_FORM_NO_SLOTS,
     ENGAGEMENT_FORM_STEPS,
@@ -48,11 +53,11 @@ async def record_visit(
     db: AsyncSession, *, visit_id: uuid.UUID, session_id: uuid.UUID, page: str, campus_key: str | None,
     item: str | None, device: str, source: str, active_ms: int, scroll_pct: int,
     sections: dict[str, int], actions: dict[str, int], seq: int | None = None, campaign: str | None = None,
-    rev: int | None = None,
+    rev: int | None = None, returning: bool | None = None,
 ) -> None:
     now = now_utc()
     stmt = insert(EngagementVisit).values(
-        id=visit_id, session_id=session_id, day=today_local(now), page=page, campus_key=campus_key or "",
+        id=visit_id, session_id=session_id, day=today_local(now), page=page, campus_key=campus_key or "", returning=returning,
         item=item or "", device=device, source=source, active_ms=min(active_ms, ENGAGEMENT_MAX_ACTIVE_MS),
         scroll_pct=scroll_pct, sections=sections, actions=actions, updated_at=now, seq=seq, campaign=campaign or None, rev=rev,
     )
@@ -68,6 +73,7 @@ async def record_visit(
             "scroll_pct": func.greatest(EngagementVisit.scroll_pct, stmt.excluded.scroll_pct),
             "sections": case((newer, stmt.excluded.sections), else_=EngagementVisit.sections),
             "actions": case((newer, stmt.excluded.actions), else_=EngagementVisit.actions),
+            "returning": func.coalesce(EngagementVisit.returning, stmt.excluded.returning),
             "rev": func.greatest(EngagementVisit.rev, stmt.excluded.rev),
             "updated_at": func.greatest(EngagementVisit.updated_at, stmt.excluded.updated_at),
         },
@@ -91,7 +97,10 @@ async def purge_old_visits_once_a_day(db: AsyncSession, today: date | None = Non
 
 
 def _rate(part: int, whole: int) -> float | None:
-    return round(part / whole, 4) if whole else None
+    if not whole:
+        return None
+    rate = part / whole
+    return round(rate, 4) if rate >= 0.0001 else rate
 
 
 def _median(column):
@@ -147,6 +156,30 @@ def _sessions_subquery(condition, name: str):
     )
 
 
+async def _returning_cohorts(db: AsyncSession, in_range) -> list[dict]:
+    visit = EngagementVisit
+    campus_pages = and_(visit.page.in_(("visit", "campus")), visit.campus_key != "")
+    campus_click = visit.actions.has_any(array([f"campus_{key}" for key in CAMPUS_KEYS]))
+    sessions = select(
+        func.bool_or(visit.returning).label("returning"),
+        func.bool_or(or_(campus_pages, and_(visit.page == "home", campus_click))).label("campus"),
+        func.bool_or(visit.actions.has_any(array(list(ENGAGEMENT_CONTACT_ACTIONS)))).label("contact"),
+        func.bool_or(visit.page == "visit").label("visit"),
+    ).where(in_range).group_by(visit.session_id).subquery()
+    rows = (await db.execute(select(
+        sessions.c.returning, func.count().label("sessions"),
+        func.count().filter(sessions.c.campus).label("campus_sessions"),
+        func.count().filter(sessions.c.contact).label("contact_sessions"),
+        func.count().filter(sessions.c.visit).label("visit_sessions"),
+    ).group_by(sessions.c.returning))).mappings()
+    counts = {row["returning"]: dict(row) for row in rows}
+    return [
+        counts.get(kind, {"returning": kind, "sessions": 0, "campus_sessions": 0,
+                          "contact_sessions": 0, "visit_sessions": 0})
+        for kind in (False, True, None)
+    ]
+
+
 async def _session_totals(db: AsyncSession, sessions) -> dict:
     booked_int = case((sessions.c.booked, 1), else_=0)
     total, booked, page_visits, median_ms = (await db.execute(
@@ -157,6 +190,51 @@ async def _session_totals(db: AsyncSession, sessions) -> dict:
     return {
         "visits": page_visits, "sessions": total, "booked_sessions": booked, "booked_rate": _rate(booked, total),
         "median_session_ms": _int(median_ms), "pages_per_session": round(page_visits / total, 2) if total else None,
+    }
+
+
+async def _campus_destinations(db: AsyncSession, in_range) -> dict:
+    """同一次造訪可以聯絡多校，也可以先後看過有場次與無場次。只用支援全套去向的瀏覽。"""
+    V = EngagementVisit
+    tracked = and_(in_range, V.actions.has_key(ENGAGEMENT_CAMPUS_TRACKING))
+    tracked_visits, first_day = (await db.execute(
+        select(func.count(), func.min(V.day)).where(tracked)
+    )).one()
+    schools = values(column("key", String), name="destination_schools").data([(key,) for key in CAMPUS_KEYS])
+    at_school = and_(V.page == "visit", V.campus_key == schools.c.key)
+    phone = V.actions.has_key(func.concat("contact_phone_", schools.c.key))
+    line = V.actions.has_key(func.concat("contact_line_", schools.c.key))
+    empty = and_(at_school, V.actions.has_key(ENGAGEMENT_FORM_NO_SLOTS))
+    contact = or_(phone, line)
+    by_session = (
+        select(
+            schools.c.key, func.bool_or(and_(at_school, V.actions.has_key(ENGAGEMENT_FORM_AVAILABLE))).label("available"),
+            func.bool_or(empty).label("empty"), func.bool_or(phone).label("phone"), func.bool_or(line).label("line"),
+            func.bool_or(and_(at_school, V.actions.has_key(ENGAGEMENT_BOOKED_ACTION))).label("booked"),
+            # 同一頁內看瀏覽器記下來的順序，跨頁只採用嚴格大於的頁序。封包抵達的時間可能顛倒。
+            or_(
+                func.bool_or(and_(empty, contact, V.actions.has_key(ENGAGEMENT_CONTACT_AFTER_EMPTY))),
+                func.min(V.seq).filter(empty) < func.max(V.seq).filter(contact),
+            ).label("contact_after_empty"),
+        )
+        .select_from(V).join(schools, or_(at_school, contact)).where(tracked)
+        .group_by(schools.c.key, V.session_id).subquery()
+    )
+    flags = ("available", "empty", "phone", "line", "booked", "contact_after_empty")
+    counts = {}
+    if tracked_visits:
+        counts = {
+            row.key: dict(zip(flags, row[1:]))
+            for row in (await db.execute(
+                select(by_session.c.key, *(func.count().filter(by_session.c[flag]) for flag in flags))
+                .group_by(by_session.c.key)
+            )).all()
+        }
+    return {
+        "tracked_visits": tracked_visits, "first_day": first_day,
+        "rows": [
+            {"campus_key": key, **{flag: counts.get(key, {}).get(flag, 0) for flag in flags}} for key in CAMPUS_KEYS
+        ] if tracked_visits else [],
     }
 
 
@@ -239,7 +317,7 @@ async def get_engagement_summary(
     )).all()
     special = {
         ENGAGEMENT_BOOKED_ACTION, ENGAGEMENT_READ_ACTION, ENGAGEMENT_FORM_NO_SLOTS, ENGAGEMENT_FORM_INVALID,
-        *ENGAGEMENT_FORM_STEPS, *ENGAGEMENT_CLASS_ACTIONS,
+        *ENGAGEMENT_FORM_STEPS, *ENGAGEMENT_CLASS_ACTIONS, *ENGAGEMENT_CAMPUS_ACTIONS,
     }
     content = await _news_content(db)
     moment_labels = await _day_moment_labels(db)
@@ -481,6 +559,7 @@ async def get_engagement_summary(
         "device": device,
         "totals": totals,
         "previous": previous,
+        "cohorts": await _returning_cohorts(db, in_range),
         "daily": daily,
         "pages": pages,
         "sections": sections,
@@ -495,4 +574,5 @@ async def get_engagement_summary(
         "journey": journey,
         "hours": hours,
         "campuses": campuses,
+        "campus_destinations": await _campus_destinations(db, in_range),
     }

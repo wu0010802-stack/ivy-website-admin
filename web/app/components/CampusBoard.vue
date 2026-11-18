@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
 import { responsiveImage } from '~/utils/responsive-image'
+import { countEngagementAction } from '~/utils/engagement'
 import { createCarouselClock } from '~/utils/carouselClock'
 import { campusMapUrl } from '~/utils/site-links'
 import { canMorphCampusPhoto, isPlainLeftClick, morphCampusPhoto } from '~/utils/campusPhotoMorph'
@@ -279,9 +280,13 @@ function select(next: number, automatic = false) {
 }
 // 訪客自己切換校區（點分頁、鍵盤、拖曳、點旁邊的卡）：換完記住；自動輪播與內容更新不走這裡。
 function pick(next: number) {
+  const previous = current.value?.key
   select(next)
   const key = current.value?.key
-  if (key) remembered.remember(key, rememberedKeys.value)
+  if (key) {
+    remembered.remember(key, rememberedKeys.value)
+    if (key !== previous) countEngagementAction(`campus_${key}`)
+  }
 }
 function onKey(event: KeyboardEvent, from: number) {
   const total = orderedCampuses.value.length
@@ -550,7 +555,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-tabs" role="tablist" aria-label="選擇分校">
         <button
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
-          type="button" role="tab" :data-campus-tab="i" :data-track-action="`campus_${campus.key}`" :aria-selected="i === index"
+          type="button" role="tab" :data-campus-tab="i" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
           @click="pick(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
           @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
@@ -641,7 +646,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，
              10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「Line」（2026-11-12 使用者要求由「LINE 好友」改短）；不要拿義華的 LINE 代填。 -->
         <div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">
-          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
+          <a v-if="current.line" data-contact-channel="line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
           <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
           <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
           <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
@@ -650,7 +655,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
       <div class="campus-actions">
         <NuxtLink v-if="!visitCta || visitCta.kind === 'visit'" class="booking-link" :to="`/visit/${current.key}`" @click.capture="onBookingClick">預約參觀{{ current.name }}<svg class="icon" aria-hidden="true"><use href="#i-arrow-right" /></svg></NuxtLink>
         <a v-else-if="visitCta.kind === 'phone'" class="booking-link" :href="visitCta.href">{{ visitCta.label }}<svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg></a>
-        <a v-else class="booking-link" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right" /></svg></a>
+        <a v-else :data-contact-channel="visitCta.kind" class="booking-link" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true"><use href="#i-arrow-up-right" /></svg></a>
         <p v-if="visitCta?.note" class="booking-note">{{ visitCta.note }}</p>
       </div>
     </div>

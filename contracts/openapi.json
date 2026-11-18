@@ -7053,6 +7053,62 @@
         "title": "AttributionCountsOut",
         "type": "object"
       },
+      "AttributionDelayOut": {
+        "properties": {
+          "days_1_3": {
+            "title": "Days 1 3",
+            "type": "integer"
+          },
+          "days_4_7": {
+            "title": "Days 4 7",
+            "type": "integer"
+          },
+          "days_8_plus": {
+            "title": "Days 8 Plus",
+            "type": "integer"
+          },
+          "same_day": {
+            "title": "Same Day",
+            "type": "integer"
+          },
+          "unrecorded": {
+            "title": "Unrecorded",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "same_day",
+          "days_1_3",
+          "days_4_7",
+          "days_8_plus",
+          "unrecorded"
+        ],
+        "title": "AttributionDelayOut",
+        "type": "object"
+      },
+      "AttributionPathOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "first": {
+            "title": "First",
+            "type": "string"
+          },
+          "last": {
+            "title": "Last",
+            "type": "string"
+          }
+        },
+        "required": [
+          "first",
+          "last",
+          "cases"
+        ],
+        "title": "AttributionPathOut",
+        "type": "object"
+      },
       "AttributionSourceOut": {
         "properties": {
           "attendance_rate": {
@@ -7421,11 +7477,21 @@
             ],
             "title": "Date To"
           },
+          "delays": {
+            "$ref": "#/components/schemas/AttributionDelayOut"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/AttributionSourceOut"
             },
             "title": "Rows",
+            "type": "array"
+          },
+          "source_paths": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionPathOut"
+            },
+            "title": "Source Paths",
             "type": "array"
           },
           "totals": {
@@ -7446,7 +7512,9 @@
           "date_to",
           "touch",
           "rows",
-          "totals"
+          "totals",
+          "delays",
+          "source_paths"
         ],
         "title": "BookingAttributionOut",
         "type": "object"
@@ -7904,6 +7972,83 @@
           "source"
         ],
         "title": "CalendarVisitOut",
+        "type": "object"
+      },
+      "CampusDestinationRowOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "integer"
+          },
+          "booked": {
+            "title": "Booked",
+            "type": "integer"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "contact_after_empty": {
+            "title": "Contact After Empty",
+            "type": "integer"
+          },
+          "empty": {
+            "title": "Empty",
+            "type": "integer"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "available",
+          "empty",
+          "phone",
+          "line",
+          "booked",
+          "contact_after_empty"
+        ],
+        "title": "CampusDestinationRowOut",
+        "type": "object"
+      },
+      "CampusDestinationsOut": {
+        "properties": {
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/CampusDestinationRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "tracked_visits": {
+            "title": "Tracked Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tracked_visits",
+          "first_day",
+          "rows"
+        ],
+        "title": "CampusDestinationsOut",
         "type": "object"
       },
       "CampusOut": {
@@ -9690,6 +9835,46 @@
         "title": "EngagementClassOut",
         "type": "object"
       },
+      "EngagementCohortOut": {
+        "properties": {
+          "campus_sessions": {
+            "title": "Campus Sessions",
+            "type": "integer"
+          },
+          "contact_sessions": {
+            "title": "Contact Sessions",
+            "type": "integer"
+          },
+          "returning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "visit_sessions": {
+            "title": "Visit Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "returning",
+          "sessions",
+          "campus_sessions",
+          "contact_sessions",
+          "visit_sessions"
+        ],
+        "title": "EngagementCohortOut",
+        "type": "object"
+      },
       "EngagementConversionOut": {
         "properties": {
           "booked_rate": {
@@ -9860,7 +10045,7 @@
         "description": "與 web/shared/engagement.ts 的 validateEngagement 同一套規則（web 端先驗過、這裡再驗一次）。\n一筆是一次頁面瀏覽到目前為止的累計：停留毫秒數、捲動深度、各區塊停留與互動次數。\n只收代碼與數字，不收網址、來源網址或任何家長資料。",
         "properties": {
           "actions": {
-            "maxProperties": 24,
+            "maxProperties": 39,
             "patternProperties": {
               "^[a-z0-9][a-z0-9_:-]{0,47}$": {
                 "maximum": 99.0,
@@ -9951,6 +10136,17 @@
             ],
             "title": "Page",
             "type": "string"
+          },
+          "returning": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Returning"
           },
           "rev": {
             "anyOf": [
@@ -10451,6 +10647,9 @@
             "title": "Campaigns",
             "type": "array"
           },
+          "campus_destinations": {
+            "$ref": "#/components/schemas/CampusDestinationsOut"
+          },
           "campuses": {
             "items": {
               "$ref": "#/components/schemas/EngagementCampusOut"
@@ -10463,6 +10662,13 @@
               "$ref": "#/components/schemas/EngagementClassOut"
             },
             "title": "Classes",
+            "type": "array"
+          },
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/EngagementCohortOut"
+            },
+            "title": "Cohorts",
             "type": "array"
           },
           "conversion": {
@@ -10575,6 +10781,7 @@
           "device",
           "totals",
           "previous",
+          "cohorts",
           "daily",
           "pages",
           "sections",
@@ -10588,7 +10795,8 @@
           "booking_form",
           "journey",
           "hours",
-          "campuses"
+          "campuses",
+          "campus_destinations"
         ],
         "title": "EngagementSummaryOut",
         "type": "object"

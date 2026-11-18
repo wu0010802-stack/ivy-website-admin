@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAttribution, encodeAttribution, isLandingRequest, nextAttribution, taipeiDay, type AttributionCookie } from '../shared/attribution-cookie'
+import { decodeAttribution, encodeAttribution, isLandingRequest, isReturningVisit, nextAttribution, taipeiDay, type AttributionCookie } from '../shared/attribution-cookie'
 
 // 跨次造訪的網站來源 cookie（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §1）。
 // SAMPLE 與 backend/tests/test_cookie_features_20261116.py 同一組：後端解得開官網寫的 cookie。
@@ -25,6 +25,16 @@ const SAMPLE_ADS_COOKIE = 'eyJ2IjoxLCJmIjp7InMiOiJzZWFyY2giLCJkIjoiMjAyNi0xMS0xM
 
 const NOW = new Date('2026-11-16T02:00:00Z')
 const landing = (referrer: string, search = '', userAgent = 'Mozilla/5.0') => ({ referrer, search, userAgent })
+
+it('跨日以台北日期分類，缺少、無效或未來的 cookie 日期列未知', () => {
+  const cookie = (d: string) => encodeAttribution({ v: 1, f: { s: 'direct', d } })
+  const midnight = new Date('2026-11-17T16:00:00Z')
+  expect(isReturningVisit(cookie('2026-11-18'), midnight)).toBe(false)
+  expect(isReturningVisit(cookie('2026-11-17'), midnight)).toBe(true)
+  for (const value of [undefined, cookie('2026-11-19'), cookie('2026-02-30')]) {
+    expect(isReturningVisit(value, midnight)).toBeNull()
+  }
+})
 
 describe('cookie 編碼', () => {
   it('和後端用同一個字串', () => {

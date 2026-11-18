@@ -1,5 +1,5 @@
-import { ENGAGEMENT_CAMPAIGN, ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_MAX_SEQ, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
-import { publicPage } from '#shared/telemetry'
+import { CAMPUS_ACTIONS, CAMPUS_TRACKING, CONTACT_AFTER_EMPTY, ENGAGEMENT_CAMPAIGN, ENGAGEMENT_KEY, ENGAGEMENT_MAX_ACTIVE_MS, ENGAGEMENT_MAX_KEYS, ENGAGEMENT_MAX_SEQ, ENGAGEMENT_SOURCES, newsItemOf, type EngagementEvent, type EngagementSource } from '#shared/engagement'
+import { campusKeys, publicPage } from '#shared/telemetry'
 import { newIdempotencyKey } from './idempotency-key'
 
 // 來源判斷 2026-11-16 起前後端共用（官網伺服器進站時寫跨次來源 cookie 也用它，見 shared/engagement-source.ts）。
@@ -40,28 +40,46 @@ export function storyActionKey(storyId: string): string | null {
 
 const SESSION_KEY = 'ivy-engagement'
 
-export interface EngagementSession { id: string; source: EngagementSource; campaign?: string; /** 這次造訪已經看了幾頁 */ pages: number }
+export interface EngagementSession {
+  id: string
+  source: EngagementSource
+  campaign?: string
+  entryDay?: string
+  returning?: boolean
+  pages: number
+}
 
 /**
  * 分頁內的暫時代碼與進站來源：存在 sessionStorage，關掉分頁就消失，不跨分頁、不跨次造訪。
  * 來源只在這次造訪的第一頁判斷一次，站內換頁不會變成「直接進站」。sessionStorage 不能用
  * （無痕模式的某些設定）時每次載入各算一次造訪。
  */
-export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> | null, classify: () => EngagementSource, campaign?: () => string | undefined): EngagementSession {
+export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> | null, classify: () => EngagementSource, campaign?: () => string | undefined,
+  entry?: { day: string; newArrival: boolean },
+): EngagementSession {
   try {
     const saved = JSON.parse(storage?.getItem(SESSION_KEY) || 'null') as Partial<EngagementSession> | null
-    if (saved && typeof saved.id === 'string' && ENGAGEMENT_SOURCES.some((source) => source === saved.source)) {
+    const nextArrival = entry?.newArrival && saved?.entryDay && saved.entryDay !== entry.day
+    if (!nextArrival && saved && typeof saved.id === 'string' && ENGAGEMENT_SOURCES.some((source) => source === saved.source)) {
       return {
         id: saved.id, source: saved.source!,
+        ...(saved.entryDay || entry ? { entryDay: saved.entryDay ?? entry?.day } : {}),
+        ...(typeof saved.returning === 'boolean' ? { returning: saved.returning } : {}),
         ...(typeof saved.campaign === 'string' && ENGAGEMENT_CAMPAIGN.test(saved.campaign) ? { campaign: saved.campaign } : {}),
         pages: Number.isInteger(saved.pages) && saved.pages! > 0 ? saved.pages! : 0
       }
     }
   } catch { /* 存的內容壞掉就重新產生 */ }
   const code = campaign?.()
-  const session: EngagementSession = { id: newIdempotencyKey(), source: classify(), ...(code ? { campaign: code } : {}), pages: 0 }
+  const session: EngagementSession = { id: newIdempotencyKey(), source: classify(), ...(entry ? { entryDay: entry.day } : {}), ...(code ? { campaign: code } : {}), pages: 0 }
   try { storage?.setItem(SESSION_KEY, JSON.stringify(session)) } catch { /* 寫不進去也照樣統計這一頁 */ }
   return session
+}
+
+/** 同一分頁沿用進站時的分類，跨午夜或重新整理也不把同一次造訪改列回訪。 */
+export function rememberVisitKind(storage: Pick<Storage, 'setItem'> | null, session: EngagementSession, returning: boolean) {
+  session.returning = returning
+  try { storage?.setItem(SESSION_KEY, JSON.stringify(session)) } catch { /* 本頁仍可用 */ }
 }
 
 /** 這次造訪又看了一頁：回傳這一頁是第幾頁，並記回 sessionStorage（重新整理、換頁都接著數）。 */
@@ -82,6 +100,15 @@ export function actionKeyOf(element: Element | null | undefined): string | null 
   return key
 }
 
+// 只有實際的分校聯絡入口才記。LINE 通知綁定與機構社群不屬於分校洽詢。
+export function campusContactOf(element: Element | null) {
+  const link = element?.closest<HTMLAnchorElement>('a[href]')
+  const campus = link?.closest<HTMLElement>('[data-campus-key]')?.dataset.campusKey
+  if (!link || !campus || !campusKeys.some((key) => key === campus)) return null
+  const channel = link.protocol === 'tel:' ? 'phone' : link.dataset.contactChannel === 'line' ? 'line' : null
+  return channel ? { campus, channel } as const : null
+}
+
 /** 畫面中央那一點落在哪個區塊；被對話框、選單蓋住時不算任何區塊。 */
 export function sectionKeyAt(doc: Pick<Document, 'elementFromPoint'>, width: number, height: number): string | null {
   const key = doc.elementFromPoint(width / 2, height / 2)?.closest<HTMLElement>('[data-track-section]')?.dataset.trackSection
@@ -93,6 +120,7 @@ export interface EngagementVisit {
   tick(elapsedMs: number, section: string | null, scrollPct: number): void
   action(key: string): void
   mark(key: string): void
+  contact(campus: string, channel: 'phone' | 'line'): void
   /** 和上次回報比有變動才回傳，沒有就回 null（不重送一樣的內容） */
   takePayload(): EngagementEvent | null
 }
@@ -104,7 +132,17 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
   let activeMs = 0
   let scroll = 0
   const sections: Record<string, number> = {}
-  const actions: Record<string, number> = {}
+  const actions: Record<string, number> = { [CAMPUS_TRACKING]: 1 }
+  let ordinaryActions = 0
+  // 校區去向各有有限的固定代碼，和一般互動分開計上限，避免看過很多卡片後漏記電話。
+  function saveAction(key: string, value: number) {
+    if (!ENGAGEMENT_KEY.test(key)) return
+    if (!Object.hasOwn(actions, key) && !CAMPUS_ACTIONS.has(key)) {
+      if (ordinaryActions >= ENGAGEMENT_MAX_KEYS) return
+      ordinaryActions++
+    }
+    actions[key] = value
+  }
   let sent = ''
   let rev = 0
   const room = (map: Record<string, number>, key: string) => key in map || Object.keys(map).length < ENGAGEMENT_MAX_KEYS
@@ -119,14 +157,21 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
       }
     },
     action(key) {
-      if (ENGAGEMENT_KEY.test(key) && room(actions, key)) actions[key] = Math.min(99, (actions[key] ?? 0) + 1)
+      saveAction(key, Math.min(99, (actions[key] ?? 0) + 1))
     },
     mark(key) {
-      if (ENGAGEMENT_KEY.test(key) && room(actions, key)) actions[key] = 1
+      saveAction(key, 1)
+    },
+    contact(campus, channel) {
+      if (!campusKeys.some((key) => key === campus)) return
+      saveAction(`contact_${channel}_${campus}`, 1)
+      // 同一頁用動作發生順序，跨頁再由後端比較頁序。
+      if (page.page === 'visit' && page.campus === campus && actions[FORM_ACTIONS.noSlots]) saveAction(CONTACT_AFTER_EMPTY, 1)
     },
     takePayload() {
       const payload: EngagementEvent = {
         event: 'engagement', id, session: session.id, ...page, device, ...(item ? { item } : {}), source: session.source,
+        ...(typeof session.returning === 'boolean' ? { returning: session.returning } : {}),
         active_ms: Math.round(activeMs), scroll,
         sections: Object.fromEntries(Object.entries(sections).map(([key, ms]) => [key, Math.round(ms)])),
         actions: { ...actions },
@@ -147,6 +192,29 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
 // （例如預約送出成功）。統計關閉、訪客要求不追蹤時是 null，呼叫了也不會送任何東西。
 let current: EngagementVisit | null = null
 export function setCurrentVisit(visit: EngagementVisit | null): void { current = visit }
-export function trackEngagementAction(key: string): void { current?.mark(key) }
+export function trackEngagementAction(key: string, campus?: string): void {
+  if (current && (!campus || publicPage(current.path)?.campus === campus)) current.mark(key)
+}
+/** 在頁面切換前或收到預約確認時，送該頁目前的累計與回報序號。 */
+export function sendEngagement(visit: EngagementVisit | null): void {
+  const payload = visit?.takePayload()
+  if (!payload) return
+  void fetch('/api/telemetry', {
+    method: 'POST', credentials: 'omit', keepalive: true,
+    headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  }).catch(() => {})
+}
+
+/** 送單時保留原本的瀏覽。等待確認期間切去別校或離開預約頁，仍以原瀏覽的新序號更新。 */
+export function bookingConfirmationReporter(campus: string): (() => void) | undefined {
+  const visit = current
+  const page = visit && publicPage(visit.path)
+  if (!visit || page?.page !== 'visit' || page.campus !== campus) return
+  return () => {
+    visit.mark(BOOKED_ACTION)
+    sendEngagement(visit)
+  }
+}
+
 /** 同一頁做了幾次就算幾次（例如入學試算查了兩個孩子）；trackEngagementAction 則是做過就記 1。 */
 export function countEngagementAction(key: string): void { current?.action(key) }

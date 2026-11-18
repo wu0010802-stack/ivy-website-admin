@@ -6262,6 +6262,28 @@ export interface components {
             /** No Show */
             no_show: number;
         };
+        /** AttributionDelayOut */
+        AttributionDelayOut: {
+            /** Days 1 3 */
+            days_1_3: number;
+            /** Days 4 7 */
+            days_4_7: number;
+            /** Days 8 Plus */
+            days_8_plus: number;
+            /** Same Day */
+            same_day: number;
+            /** Unrecorded */
+            unrecorded: number;
+        };
+        /** AttributionPathOut */
+        AttributionPathOut: {
+            /** Cases */
+            cases: number;
+            /** First */
+            first: string;
+            /** Last */
+            last: string;
+        };
         /** AttributionSourceOut */
         AttributionSourceOut: {
             attendance_rate: components["schemas"]["AdmissionsRate"];
@@ -6380,8 +6402,11 @@ export interface components {
             date_from: string | null;
             /** Date To */
             date_to: string | null;
+            delays: components["schemas"]["AttributionDelayOut"];
             /** Rows */
             rows: components["schemas"]["AttributionSourceOut"][];
+            /** Source Paths */
+            source_paths: components["schemas"]["AttributionPathOut"][];
             totals: components["schemas"]["AttributionCountsOut"];
             /**
              * Touch
@@ -6557,6 +6582,32 @@ export interface components {
             source: string;
             /** Status */
             status: string;
+        };
+        /** CampusDestinationRowOut */
+        CampusDestinationRowOut: {
+            /** Available */
+            available: number;
+            /** Booked */
+            booked: number;
+            /** Campus Key */
+            campus_key: string;
+            /** Contact After Empty */
+            contact_after_empty: number;
+            /** Empty */
+            empty: number;
+            /** Line */
+            line: number;
+            /** Phone */
+            phone: number;
+        };
+        /** CampusDestinationsOut */
+        CampusDestinationsOut: {
+            /** First Day */
+            first_day: string | null;
+            /** Rows */
+            rows: components["schemas"]["CampusDestinationRowOut"][];
+            /** Tracked Visits */
+            tracked_visits: number;
         };
         /** CampusOut */
         CampusOut: {
@@ -7162,6 +7213,19 @@ export interface components {
             /** Visits */
             visits: number;
         };
+        /** EngagementCohortOut */
+        EngagementCohortOut: {
+            /** Campus Sessions */
+            campus_sessions: number;
+            /** Contact Sessions */
+            contact_sessions: number;
+            /** Returning */
+            returning: boolean | null;
+            /** Sessions */
+            sessions: number;
+            /** Visit Sessions */
+            visit_sessions: number;
+        };
         /** EngagementConversionOut */
         EngagementConversionOut: {
             /** Booked Rate */
@@ -7263,6 +7327,8 @@ export interface components {
              * @enum {string}
              */
             page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
+            /** Returning */
+            returning?: boolean | null;
             /** Rev */
             rev?: number | null;
             /** Scroll */
@@ -7412,10 +7478,13 @@ export interface components {
             booking_form: components["schemas"]["EngagementFormOut"];
             /** Campaigns */
             campaigns: components["schemas"]["EngagementCampaignOut"][];
+            campus_destinations: components["schemas"]["CampusDestinationsOut"];
             /** Campuses */
             campuses: components["schemas"]["EngagementCampusOut"][];
             /** Classes */
             classes: components["schemas"]["EngagementClassOut"][];
+            /** Cohorts */
+            cohorts: components["schemas"]["EngagementCohortOut"][];
             /** Conversion */
             conversion: components["schemas"]["EngagementConversionOut"][];
             /** Daily */

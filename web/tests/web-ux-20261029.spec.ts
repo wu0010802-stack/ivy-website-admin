@@ -82,7 +82,7 @@ describe('預約步驟跟著網址走', () => {
     expect(form).toContain("const DRAFT_KEY = 'ivy-visit-draft'")
     expect(form).toContain('sessionStorage.setItem(DRAFT_KEY')
     expect(form).toMatch(/submitted\.value = true\n\s*clearDraft\(\)/)
-    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
+    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })')
   })
 
   // 2026-11-12 QA M4：伺服器已經建好預約、回應卻在路上斷掉時，家長重新整理（暫存連場次一起放回）再按一次
@@ -96,7 +96,7 @@ describe('預約步驟跟著網址走', () => {
     expect(form).toMatch(/const draft: VisitDraft = \{[^}]*idempotencyKey: idempotencyKey\.value/)
     expect(form).toContain('const savedKey = restoredIdempotencyKey(draft.idempotencyKey)')
     expect(form).toContain('if (savedKey) idempotencyKey.value = savedKey')
-    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
+    expect(form).toMatch(/idempotencyKey\.value = newIdempotencyKey\(\)\s+saveDraft\(\)/)
   })
 
   // 2026-11-12 QA M5：預約成功後表單留著資料（方便再約另一校），按上一頁再送同一場次，後端回 ALREADY_BOOKED。

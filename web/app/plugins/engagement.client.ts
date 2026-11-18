@@ -1,8 +1,9 @@
-import { IDLE_MS, READ_ACTION, actionKeyOf, campaignOf, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
+import { IDLE_MS, READ_ACTION, actionKeyOf, campaignOf, campusContactOf, classifySource, engagementSession, nextPage, rememberVisitKind, sectionKeyAt, sendEngagement, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
+import { taipeiDay } from '#shared/attribution-cookie'
 import { trackingAllowed } from '../utils/cta-analytics'
 
 // 內容興趣統計（2026-11-11）：各頁停留、捲動深度、各區塊停留、互動與單篇消息，後台「數據」頁看。
-// 和瀏覽統計同一道閘（部署關閉、DNT／GPC 就不送），不用 cookie；分頁內的暫時代碼放 sessionStorage。
+// 和瀏覽統計同一道閘（部署關閉、DNT／GPC 就不送）；回訪分類沿用 ivy_src，分頁內的暫時代碼放 sessionStorage。
 // 每秒量一次、只在分頁看得見而且最近有操作時累計；切到背景、換頁、關分頁時把累計值送出去
 // （同一次瀏覽會送多次，後端以瀏覽代碼留最新的一次）。
 export default defineNuxtPlugin((app) => {
@@ -12,8 +13,14 @@ export default defineNuxtPlugin((app) => {
   const device = matchMedia('(max-width: 760px)').matches ? 'mobile' as const : 'desktop' as const
   let storage: Storage | null = null
   try { storage = sessionStorage } catch { /* 被瀏覽器擋掉就不跨頁串接 */ }
-  const session = engagementSession(storage, () => classifySource(document.referrer, location.search, location.origin, navigator.userAgent), () => campaignOf(location.search))
+  const navType = (performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined)?.type
+  const newArrival = navType === 'navigate' && (!document.referrer || new URL(document.referrer).origin !== location.origin)
+  const session = engagementSession(storage,
+    () => classifySource(document.referrer, location.search, location.origin, navigator.userAgent),
+    () => campaignOf(location.search), { day: taipeiDay(new Date()), newArrival },
+  )
 
+  let requestedVisitKind = false
   let visit: EngagementVisit | null = null
   let lastTick = performance.now()
   let lastActivity = lastTick
@@ -32,16 +39,21 @@ export default defineNuxtPlugin((app) => {
   }
   function flush() {
     measure()
-    const payload = visit?.takePayload()
-    if (!payload) return
-    void fetch('/api/telemetry', { method: 'POST', credentials: 'omit', keepalive: true,
-      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+    sendEngagement(visit)
   }
   const samePath = (a: string, b: string) => (a.replace(/\/+$/, '') || '/') === (b.replace(/\/+$/, '') || '/')
   function begin(path: string) {
     if (visit && samePath(visit.path, path)) return
     // 不統計的頁面（後台、預約修改頁…）不算進「第幾頁」。
     const started = startVisit(path, session, device)
+    // 僅首次進到可統計頁時讀分類。瀏覽回報仍省略 cookie，舊造訪保留未知。
+    if (started && session.pages === 0 && !requestedVisitKind) {
+      requestedVisitKind = true
+      void $fetch<{ returning: boolean | null }>('/api/visit-kind', { credentials: 'same-origin' })
+        .then(({ returning }) => {
+          if (typeof returning === 'boolean') rememberVisitKind(storage, session, returning)
+        }).catch(() => {})
+    }
     visit = started ? startVisit(path, session, device, undefined, nextPage(storage, session)) : null
     setCurrentVisit(visit)
     lastTick = lastActivity = performance.now()
@@ -71,8 +83,14 @@ export default defineNuxtPlugin((app) => {
     }
     // capture：在元件自己的 click 處理之前讀狀態，才分得出這一下是打開還是收起來。
     document.addEventListener('click', (event) => {
-      const key = actionKeyOf(event.target instanceof Element ? event.target : null)
+      const target = event.target instanceof Element ? event.target : null
+      const key = actionKeyOf(target)
       if (key) visit?.action(key)
+      const contact = campusContactOf(target)
+      if (visit && contact) {
+        visit.contact(contact.campus, contact.channel)
+        flush()
+      }
     }, { capture: true })
   })
 })

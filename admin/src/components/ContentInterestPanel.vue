@@ -58,7 +58,7 @@ const totals = computed(() => summary.value?.totals ?? null)
 const few = (count: number) => count < MIN_ENGAGEMENT_SAMPLES
 // 「造訪」的口徑三類都用得到：看了什麼寫在造訪概況的說明裡，另外兩類寫在開頭那一行下面。
 const VISIT_NOTES = [
-  '「造訪」是同一個瀏覽器分頁從進站到關掉為止；同一位家長隔天再來、或另開分頁，會算成另一次造訪，所以不是人數。',
+  '「造訪」以瀏覽器分頁計算。隔天重新從站外進站或另開分頁算新的一次；同分頁重新整理、繼續逛或按上一頁沿用原造訪。',
   '手機直接滑掉分頁時，最後一段停留可能送不出來，手機的數字會偏低。訪客開啟「不要追蹤」時不計入，所以次數會比「瀏覽與速度」的瀏覽次數少。',
   '「送出預約的造訪」由瀏覽器回報，只用來比較內容，不是正式的預約數；正式數字看「招生統計 → 參觀預約」。',
 ]
@@ -89,7 +89,18 @@ const conversionFew = computed(() => conversion.value.filter((row) => few(row.se
 const aboveOverall = (rate: number | null) => rate !== null && totals.value?.booked_rate != null && rate > totals.value.booked_rate
 
 // ---- 第二輪：趨勢、預約表單、試算班別、首頁消息、瀏覽順序、時段、各校、活動代碼 ----
-const deviceLabel = computed(() => (props.device === 'mobile' ? '手機' : props.device === 'desktop' ? '電腦' : ''))
+const deviceLabel = computed(() => (summary.value?.device === 'mobile' ? '手機' : summary.value?.device === 'desktop' ? '電腦' : ''))
+const cohorts = computed(() => (summary.value?.cohorts ?? []).filter(row => row.returning !== null))
+const unknownSessions = computed(() => summary.value?.cohorts?.find(row => row.returning === null)?.sessions ?? 0)
+const cohortTotal = computed(() => cohorts.value.reduce((total, row) => total + row.sessions, 0))
+const returningTotal = computed(() => cohorts.value.find(row => row.returning)?.sessions ?? 0)
+const cohortMetrics = [
+  { key: 'campus_sessions', label: '查看校區' },
+  { key: 'contact_sessions', label: '點電話或 LINE' },
+  { key: 'visit_sessions', label: '進預約頁' },
+] as const
+const cohortLabel = (returning: boolean | null) => returning ? '跨日回訪' : '首次觀測當天'
+const cohortRate = (count: number, total: number) => formatShare(total ? count / total : null)
 const coverage = computed(() => (deviceLabel.value ? `全站五校合計，只看${deviceLabel.value}` : '全站五校合計，不分校區權限'))
 const previous = computed(() => summary.value?.previous ?? null)
 // 上一期完全沒有紀錄（統計剛上線）時，各表不放「和上一期比」那一欄，免得整欄都是「上一期沒有」。
@@ -142,6 +153,12 @@ const paths = computed(() => {
 
 const hours = computed(() => hourGrid(summary.value?.hours ?? []))
 
+const destinations = computed(() => summary.value?.campus_destinations)
+const destinationColumns = [
+  { key: 'available', label: '有場次可選' }, { key: 'empty', label: '看到無場次' },
+  { key: 'phone', label: '點電話' }, { key: 'line', label: '點 LINE' },
+  { key: 'booked', label: '完成線上預約' }, { key: 'contact_after_empty', label: '無場次後點聯絡' },
+] as const
 const campuses = computed(() => (summary.value?.campuses ?? []).map((row) => ({ ...row, label: `${campusLabel(row.campus_key)}校` })))
 const showBookings = computed(() => campuses.value.some((row) => row.bookings !== null))
 const campusActivity = computed(() => campuses.value.some((row) => row.tab_visits || row.map_visits || row.visit_sessions || row.bookings))
@@ -166,9 +183,22 @@ function exportJourney() {
     ...paths.value.map((row) => ['瀏覽順序', row.label, row.sessions, formatShare(row.rate)]),
   ])
 }
+function exportCohorts() {
+  saveAnalyticsCsv(csv('同一瀏覽器的回訪'), ['造訪分類', '造訪次數', ...cohortMetrics.flatMap(m => [m.label, m.label + '比例'])], [
+    ...cohorts.value.map(row => [cohortLabel(row.returning), row.sessions,
+      ...cohortMetrics.flatMap(m => [row[m.key], cohortRate(row[m.key], row.sessions)])]),
+    ['無法分類', unknownSessions.value, '', '', '', '', '', ''],
+  ])
+}
 function exportHours() {
   saveAnalyticsCsv(csv('瀏覽時段'), ['星期', ...HOUR_BANDS.map((band) => `${band.label}（${band.range} 點）`)],
     hours.value.rows.map((row, day) => [WEEKDAY_LABELS[day]!, ...row]))
+}
+function exportDestinations() {
+  const data = destinations.value
+  if (!data?.rows.length) return
+  saveAnalyticsCsv(csv('各校預約去向'), ['校區', ...destinationColumns.map((item) => item.label), '首筆涵蓋日期', '涵蓋頁面瀏覽數'],
+    data.rows.map((row) => [`${campusLabel(row.campus_key)}校`, ...destinationColumns.map((item) => row[item.key]), data.first_day ?? '', data.tracked_visits]))
 }
 function exportCampuses() {
   saveAnalyticsCsv(csv('各校興趣'), ['校區', '首頁切到這一校', '點地址開地圖', '進預約頁的造訪', ...(showBookings.value ? ['實際送出的預約'] : [])],
@@ -247,7 +277,7 @@ function exportConversion() {
               <p v-for="note in VISIT_NOTES" :key="note">{{ note }}</p>
               <p>停留只算分頁在前景、而且一分鐘內有捲動或點擊的時間；一半的瀏覽比「中位數」久、一半比它短。</p>
               <p>「上一期」是往前同樣天數；紀錄只保留 90 天，所以選近 90 天時沒有上一期可比。一次造訪跨過午夜會在兩天各算一次。</p>
-              <p>不使用 cookie、不記錄 IP 與來源網址；紀錄保留 90 天。</p>
+              <p>內容興趣紀錄保留 90 天。回訪分類沿用官網來源 cookie，只保存分類，不保存 cookie 內容、IP 或來源網址。</p>
             </AnalyticsExplainer>
           </div>
         </section>
@@ -408,6 +438,28 @@ function exportConversion() {
         </div>
         <div class="interest__cols">
           <div class="interest__col">
+            <section class="panel" aria-labelledby="interest-cohorts-title">
+              <div class="panel__head">
+                <h2 id="interest-cohorts-title">同一瀏覽器的回訪</h2>
+                <el-button v-if="cohortTotal" size="small" text aria-label="把回訪統計匯出 CSV" @click="exportCohorts">匯出 CSV</el-button>
+              </div>
+              <div class="panel__body interest__body">
+                <p v-if="cohortTotal" class="hint">可分類的 {{ cohortTotal }} 次造訪中，{{ returningTotal }} 次為跨日回訪（{{ cohortRate(returningTotal, cohortTotal) }}）。</p>
+                <p v-else class="hint">這段期間還沒有可分類的造訪。</p>
+                <div v-if="cohortTotal" class="interest__scroll" role="region" tabindex="0" aria-label="回訪行為比較">
+                  <table class="interest__table"><thead><tr><th scope="col">造訪分類</th><th scope="col">造訪次數</th>
+                    <th v-for="metric in cohortMetrics" :key="metric.key" scope="col">{{ metric.label }}</th>
+                  </tr></thead>
+                    <tbody><tr v-for="row in cohorts" :key="String(row.returning)">
+                      <th scope="row">{{ cohortLabel(row.returning) }}</th><td class="num">{{ row.sessions }}</td>
+                      <td v-for="metric in cohortMetrics" :key="metric.key" class="num">{{ row[metric.key] }}（{{ cohortRate(row[metric.key], row.sessions) }}）</td>
+                    </tr></tbody>
+                  </table>
+                </div>
+                <p class="hint">另有 {{ unknownSessions }} 次無法分類。新版開始記錄，依來源 cookie 與分頁進站時的台北日期判斷；換瀏覽器或清除 cookie 會重新起算。</p>
+                <AnalyticsExplainer><p>查看校區包含切換首頁校區卡或進入個別校區預約頁。每個行為在同一次造訪最多計一次，比例以該列造訪為分母；點聯絡只代表開啟電話或 LINE。</p></AnalyticsExplainer>
+              </div>
+            </section>
             <section class="panel" aria-labelledby="interest-sources-title">
               <div class="panel__head">
                 <h2 id="interest-sources-title">從哪裡來</h2>
@@ -541,6 +593,34 @@ function exportConversion() {
             <p v-for="note in VISIT_NOTES" :key="note">{{ note }}</p>
           </AnalyticsExplainer>
         </div>
+        <section class="panel" aria-labelledby="interest-destinations-title">
+          <div class="panel__head">
+            <h2 id="interest-destinations-title">各校預約去向</h2>
+            <el-button v-if="destinations?.tracked_visits" size="small" text data-test="interest-csv-destinations" aria-label="把「各校預約去向」匯出 CSV" @click="exportDestinations">匯出 CSV</el-button>
+          </div>
+          <div class="panel__body interest__body">
+            <p v-if="!destinations?.tracked_visits" class="hint">{{ totals.visits ? '這段期間的瀏覽都來自舊版頁面，尚無各校去向資料。' : '這段期間還沒有瀏覽紀錄。' }}</p>
+            <template v-else>
+              <p class="hint">以造訪次數計。同一次造訪可列入多校或多欄，在同校同欄只計一次。</p>
+              <div class="interest__scroll" role="region" tabindex="0" aria-label="各校預約去向（可左右捲動）">
+                <table class="interest__table interest__table--rows interest__destinations" data-test="interest-destinations">
+                  <thead><tr><th scope="col">校區</th><th v-for="col in destinationColumns" :key="col.key" scope="col" class="num">{{ col.label }}</th></tr></thead>
+                  <tbody>
+                    <tr v-for="row in destinations.rows" :key="row.campus_key">
+                      <th scope="row">{{ campusLabel(row.campus_key) }}校</th>
+                      <td v-for="col in destinationColumns" :key="col.key" class="num">{{ row[col.key] }}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="hint">本期可辨識去向的瀏覽共 {{ destinations.tracked_visits }}／{{ totals.visits }} 頁，首筆在 {{ destinations.first_day?.replaceAll('-', '/') }}。舊版頁面的瀏覽未列入本表。</p>
+            </template>
+            <AnalyticsExplainer>
+              <p>場次依校區預約頁實際顯示的結果計數。採電話或 LINE 洽詢的校區可直接計入聯絡欄。電話與 LINE 涵蓋納入統計的公開頁面上、有標示校區的洽詢連結，點擊無法確認通話、傳訊或預約結果。</p>
+              <p>「無場次後點聯絡」指同一次造訪在本期先看到該校沒有場次，接著點該校的電話或 LINE。「完成線上預約」由瀏覽器收到該校預約成立的回應時記錄。正式預約件數另依園方權限顯示。</p>
+            </AnalyticsExplainer>
+          </div>
+        </section>
         <div class="interest__cols">
           <div class="interest__col">
             <section class="panel" aria-labelledby="interest-form-title">
@@ -606,7 +686,7 @@ function exportConversion() {
 
         <section class="panel" aria-labelledby="interest-conversion-title">
           <div class="panel__head">
-            <h2 id="interest-conversion-title">看過哪些內容的造訪比較會預約<span class="interest__sub">全部造訪 {{ formatShare(totals.booked_rate) }}</span></h2>
+            <h2 id="interest-conversion-title">看過哪些內容的造訪比較會預約<span class="interest__sub">全部造訪 {{ totals.booked_sessions }}／{{ totals.sessions }}（{{ formatShare(totals.booked_rate) }}）</span></h2>
             <el-button v-if="conversion.length" size="small" text data-test="interest-csv-conversion" aria-label="把「看過哪些內容的造訪比較會預約」匯出 CSV" @click="exportConversion">匯出 CSV</el-button>
           </div>
           <div class="panel__body interest__body">
@@ -748,6 +828,17 @@ function exportConversion() {
 .interest__table tbody th {
   font-weight: 400;
   color: var(--ink);
+}
+
+/* 手機左右捲到預約與聯絡欄時，仍能看見該列是哪一校。 */
+.interest__destinations th:first-child {
+  position: sticky;
+  left: 0;
+  white-space: nowrap;
+}
+
+.interest__destinations tbody th {
+  background: var(--surface);
 }
 
 /* 寬螢幕上名稱和數字離得遠：滑到哪一列，那一列有底色好對。 */

@@ -12,7 +12,8 @@ import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { ctaEntryOf, reportBookingActionClick } from '~/utils/cta-analytics'
 import { reportBookingLead } from '~/utils/third-party-analytics'
-import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
+import { SLOTS_AVAILABLE } from '#shared/engagement'
+import { bookingConfirmationReporter, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey, restoredIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -144,6 +145,9 @@ const availableSlots = ref<PublicVisitSlot[]>([])
 // 顯示「沒有場次」、瀏覽器卻先顯示載入中而造成節點不一致。
 const slotsPending = ref(true)
 const slotsError = ref('')
+const resolvedSlotsCampus = ref('')
+const availableSlotsPanel = ref<HTMLElement | null>(null)
+const emptySlotsPanel = ref<HTMLElement | null>(null)
 const selectedVisitDate = ref('')
 const selectedSlotId = ref('')
 const submittedSlot = ref<PublicVisitSlot | null>(null)
@@ -221,6 +225,7 @@ async function loadSlots() {
   const request = ++slotRequest
   const campusKey = form.campus
   slotsError.value = ''
+  resolvedSlotsCampus.value = ''
   if (action.value.kind !== 'form' || bookingConfig.value?.mode !== 'slots') {
     availableSlots.value = []
     slotsPending.value = false
@@ -234,6 +239,7 @@ async function loadSlots() {
     })
     if (request !== slotRequest) return
     availableSlots.value = slots.filter(slot => slot.remaining > 0).sort((a, b) => `${a.slot_date} ${a.start_time}`.localeCompare(`${b.slot_date} ${b.start_time}`))
+    resolvedSlotsCampus.value = campusKey
     if (!slotDates.value.includes(selectedVisitDate.value)) selectedVisitDate.value = ''
     if (!availableSlots.value.some(slot => slot.id === selectedSlotId.value)) selectedSlotId.value = ''
     if (draftSlot) await restoreDraftSlot(campusKey)
@@ -257,7 +263,12 @@ watch(selectedVisitDate, () => { selectedSlotId.value = ''; clearFieldError('vis
 watch(selectedVisitDate, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.date) })
 watch(selectedSlotId, (value) => { if (value) trackEngagementAction(FORM_ACTIONS.slot) })
 watch(() => Boolean(form.parentName || form.childName || form.phone || form.email), (started) => { if (started) trackEngagementAction(FORM_ACTIONS.contact) })
-watch(() => step.value === 2 && bookingConfig.value?.mode === 'slots' && !slotsPending.value && !slotsError.value && !availableSlots.value.length, (empty) => { if (empty) trackEngagementAction(FORM_ACTIONS.noSlots) })
+// 只有 DOM 顯示這一校已成功讀取的場次結果才計入。讀取失敗、切校中的舊回應都不算無場次。
+watch([availableSlotsPanel, emptySlotsPanel, resolvedSlotsCampus, () => props.routeCampus], ([available, empty, campus, routeCampus]) => {
+  if (!campus || campus !== routeCampus) return
+  if (available) trackEngagementAction(SLOTS_AVAILABLE, campus)
+  if (empty) trackEngagementAction(FORM_ACTIONS.noSlots, campus)
+}, { flush: 'post' })
 onBeforeUnmount(() => { slotsMounted = false; slotRequest++ })
 
 const submitted = ref(false)
@@ -507,7 +518,7 @@ watch(() => form.campus, () => {
   selectedVisitDate.value = ''
   fieldErrors.value = {}
 })
-watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })
+watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
@@ -533,6 +544,10 @@ async function onSubmit() {
     return
   }
 
+  const submittedCampus = form.campus
+  const submittedKey = idempotencyKey.value
+  const submittedEntry = ctaEntryOf(formRef.value)
+  const reportConfirmation = bookingConfirmationReporter(submittedCampus)
   submitting.value = true
   // 送出前把暫存寫好（含這次用的 key）：回應沒收到、家長重新整理時才接得回同一筆。
   saveDraft()
@@ -541,9 +556,9 @@ async function onSubmit() {
   try {
     const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null }>('/api/website/v1/public/visit-requests', {
       method: 'POST',
-      headers: { 'Idempotency-Key': idempotencyKey.value },
+      headers: { 'Idempotency-Key': submittedKey },
       body: {
-        campus_key: form.campus,
+        campus_key: submittedCampus,
         config_version: bookingConfig.value?.version ?? 0,
         parent_name: form.parentName,
         phone: form.phone,
@@ -557,30 +572,36 @@ async function onSubmit() {
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
+    if (created?.status === 'confirmed') {
+      reportConfirmation?.()
+      reportBookingLead(submittedCampus, submittedEntry)
+      if (created.manage_path) rememberedHint.value = true
+    }
+    // 站內換頁或更換校區後才收到回應：保留原校回報，不在別校畫收據或清掉別校草稿。
+    if (slotsMounted && idempotencyKey.value === submittedKey) idempotencyKey.value = newIdempotencyKey()
+    if (!slotsMounted || props.routeCampus !== submittedCampus) {
+      const saved = readDraft()
+      if (saved?.campus === submittedCampus && saved.idempotencyKey === submittedKey) clearDraft()
+      if (slotsMounted && form.campus !== submittedCampus) saveDraft()
+      return
+    }
     // 用 server 回的實際狀態決定文案，不要從 mode 推斷：只有 confirmed 才能
     // 說「預約成立」——規格 197。
     submittedSlot.value = selectedSlot.value ? { ...selectedSlot.value } : null
     resultStatus.value = created?.status ?? null
-    receiptId.value = created?.receipt_id || idempotencyKey.value
+    receiptId.value = created?.receipt_id || submittedKey
     managePath.value = created?.manage_path ?? null
-    // 預約成立時後端發了「這台裝置記住預約」的 cookie（VisitRememberedNotice）：這次造訪再回到選校步驟就查得到。
-    if (created?.status === 'confirmed' && created?.manage_path) rememberedHint.value = true
     linkCopied.value = false
     linkCopyFailed.value = false
     submitted.value = true
     clearDraft()
-    // 內容興趣統計：這次造訪送出了預約（匿名，只用來看「看過什麼內容的造訪比較會預約」）。
-    trackEngagementAction(BOOKED_ACTION)
-    // GA4 generate_lead／Meta Pixel Lead（2026-11-12）：只有伺服器回「預約成立」（confirmed）才算，
-    // 待人工確認或其他狀態不送；參數只有白名單的校區代碼與入口代碼（沒設 ID 或 DNT／GPC 時這行什麼都不做）。
-    if (created?.status === 'confirmed') reportBookingLead(form.campus, ctaEntryOf(formRef.value))
-    idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
     // 比照 focusStage，先不捲動地聚焦，再把頂端對齊到頁首下方（.visit-result 手機不另加 scroll-margin）。
     resultRef.value?.focus({ preventScroll: true })
     resultRef.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
   } catch (err: any) {
+    if (!slotsMounted || props.routeCampus !== submittedCampus) return
     const detail = err?.data?.detail
     const code = typeof detail === 'object' ? detail.code : null
     if (code === 'BOOKING_CONFIG_CHANGED') {
@@ -595,6 +616,7 @@ async function onSubmit() {
       // 同一把 key 但內容不同：代表前一次其實已經送出成功了。叫使用者
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
       idempotencyKey.value = newIdempotencyKey()
+      saveDraft()
       submitError.value =
         (mailedToParent.value
           ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'
@@ -738,13 +760,13 @@ async function onSubmit() {
                 <h2 id="visit-contact-title">歡迎與{{ selectedCampus.name }}聯絡</h2>
                 <p class="visit-status" role="status">{{ action.message || (action.href ? `透過以下方式聯絡園所，一起安排合適的參觀時間。` : '目前無法使用線上表單，請直接聯絡園所確認參觀安排。') }}</p>
                 <div class="visit-contact-actions">
-                  <a v-if="action.href && action.kind !== 'phone'" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction"><svg v-if="action.kind === 'line'" class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>{{ action.label }}<span class="sr-only">（另開新視窗）</span></a>
+                  <a v-if="action.href && action.kind !== 'phone'" :data-contact-channel="action.kind" data-booking-cta class="button primary" :href="action.href" target="_blank" rel="noopener noreferrer" @click="trackContactAction"><svg v-if="action.kind === 'line'" class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>{{ action.label }}<span class="sr-only">（另開新視窗）</span></a>
                   <a v-else-if="action.href" data-booking-cta class="button primary" :href="action.href" @click="trackContactAction"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ action.label }}</a>
                   <a v-if="selectedCampus.phone && (action.kind !== 'phone' || !action.href)" class="button" :class="action.href ? 'outline' : 'primary'" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a>
                   <button v-if="action.kind === 'unavailable'" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="retryBookingConfig">重新載入參觀方式</button>
                   <!-- 2026-11-17 LINE 原本是金色致電鈕旁一條底線小字＋↗，像附註；改成和「重新載入」同一種外框鈕，帶 LINE 圖示、和致電鈕等高。
                        這一步與預約成功畫面的按鈕都不放 ↗（使用者要求），另開分頁只留給讀屏的說明。 -->
-                  <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="button outline" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer"><svg class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>LINE 聯絡{{ selectedCampus.name }}<span class="sr-only">（另開新視窗）</span></a>
+                  <a v-if="selectedCampus.line && selectedCampus.line !== action.href" class="button outline" data-contact-channel="line" :href="selectedCampus.line" target="_blank" rel="noopener noreferrer"><svg class="icon icon-line" aria-hidden="true"><use href="#i-line" /></svg>LINE 聯絡{{ selectedCampus.name }}<span class="sr-only">（另開新視窗）</span></a>
                 </div>
               </section>
 
@@ -763,11 +785,11 @@ async function onSubmit() {
                     <p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">正在讀取可預約場次…</p>
                     <!-- 沒有場次時重新載入幫不上忙：只給寫出號碼的致電主要按鈕；讀取失敗才加「重新載入場次」外框鈕。
                          說明放進和參觀方式步驟同一種淡色底塊（2026-10-13，原本是一行灰字＋大外框鈕＋沒有號碼的小連結）。 -->
-                    <div v-else-if="slotsError || !availableSlots.length" class="visit-slots-empty" role="status">
+                    <div v-else-if="slotsError || !availableSlots.length" ref="emptySlotsPanel" class="visit-slots-empty" role="status">
                       <p>{{ slotsError || '目前沒有開放的參觀場次，歡迎直接聯絡園所安排。' }}</p>
                       <div v-if="selectedCampus.phone || slotsError" class="visit-contact-actions"><a v-if="selectedCampus.phone" class="button primary" :href="`tel:${selectedCampus.phone}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>致電{{ selectedCampus.name }}<span class="visit-call-number">{{ selectedCampus.phone }}</span></a><button v-if="slotsError" type="button" class="button" :class="selectedCampus.phone ? 'outline' : 'primary'" @click="loadSlots">重新載入場次</button></div>
                     </div>
-                    <div v-else class="visit-schedule-fields">
+                    <div v-else ref="availableSlotsPanel" class="visit-schedule-fields">
                       <div class="visit-date-field"><VisitDatePicker v-model="selectedVisitDate" :counts="slotCounts" :invalid="Boolean(fieldErrors.visitDate)" describedby="visit-date-error" @update:model-value="revealSlots" /><p id="visit-date-error" class="visit-field-error">{{ fieldErrors.visitDate }}</p></div>
                       <fieldset ref="slotListRef" class="visit-slot-list" aria-describedby="visit-slot-error"><legend>預約場次<small>必填</small></legend><p v-if="!selectedVisitDate" class="visit-field-hint">先在月曆選一天，再選當天的場次。</p><div v-else class="visit-slot-options"><label v-for="slot in daySlots" :key="slot.id"><input v-model="selectedSlotId" type="radio" name="slotId" :value="slot.id" required :aria-invalid="Boolean(fieldErrors.slotId)" @change="clearFieldError('slotId')"><span>{{ slotTime(slot) }}<small>尚可預約 {{ slot.remaining }} 組</small></span></label></div><p id="visit-slot-error" class="visit-field-error">{{ fieldErrors.slotId }}</p></fieldset>
                     </div>

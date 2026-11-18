@@ -8,6 +8,7 @@ from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, Flo
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.campuses.models import CAMPUS_KEYS
 from app.db import Base
 
 
@@ -298,6 +299,17 @@ ENGAGEMENT_READ_ACTION = "read_end"
 ENGAGEMENT_FORM_STEPS = ("form_date", "form_slot", "form_contact", "form_submit")
 ENGAGEMENT_FORM_NO_SLOTS = "form_no_slots"
 ENGAGEMENT_FORM_INVALID = "form_invalid"
+# 校區去向統計：只有帶版本標記的瀏覽才能區分「沒有點」與舊頁面未記錄。
+ENGAGEMENT_CAMPUS_TRACKING = "campus_tracking"
+ENGAGEMENT_FORM_AVAILABLE = "form_slots_available"
+ENGAGEMENT_CONTACT_AFTER_EMPTY = "contact_after_empty"
+ENGAGEMENT_CONTACT_ACTIONS = tuple(
+    f"contact_{channel}_{campus}" for campus in CAMPUS_KEYS for channel in ("phone", "line")
+)
+ENGAGEMENT_CAMPUS_ACTIONS = frozenset((
+    ENGAGEMENT_CAMPUS_TRACKING, ENGAGEMENT_FORM_AVAILABLE, ENGAGEMENT_CONTACT_AFTER_EMPTY,
+    ENGAGEMENT_FORM_NO_SLOTS, ENGAGEMENT_BOOKED_ACTION, *ENGAGEMENT_CONTACT_ACTIONS,
+))
 # 入學試算查到的班別（入學資訊頁，只記班別不記生日）。順序同官網的分班表，
 # 要和 web/app/utils/engagement.ts 的 CLASS_ACTIONS 一致（web 測試會比對）。
 ENGAGEMENT_CLASS_ACTIONS = ("class_young", "class_toddler", "class_small", "class_middle", "class_big", "class_school")
@@ -335,6 +347,8 @@ class EngagementVisit(Base):
     sections: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
     actions: Mapped[dict[str, int]] = mapped_column(JSONB, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # 進站當天＝False、跨台北日回訪＝True；舊資料或無 cookie＝NULL。
+    returning: Mapped[bool | None] = mapped_column(nullable=True)
     # 這是這次造訪的第幾頁（從 1 起算），用來看進站頁、離開頁與瀏覽順序。2026-11-11 第二輪加，
     # 之前的紀錄與還開著舊版頁面的瀏覽器是 NULL。
     seq: Mapped[int | None] = mapped_column(Integer, nullable=True)

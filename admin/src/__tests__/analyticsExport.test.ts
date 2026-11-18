@@ -289,6 +289,8 @@ const attribution = (over: Partial<BookingAttributionOut> = {}): BookingAttribut
     { source: 'unrecorded', ...touchCounts(4, 1, 0, 0), campaigns: [] },
   ],
   totals: touchCounts(7, 3, 1, 1),
+  delays: { same_day: 2, days_1_3: 1, days_4_7: 0, days_8_plus: 0, unrecorded: 4 },
+  source_paths: [{ first: 'facebook', last: 'ads', cases: 3 }, { first: 'unrecorded', last: 'unrecorded', cases: 4 }],
   ...over,
 })
 
@@ -299,6 +301,8 @@ describe('參觀預約統計：網站來源', () => {
     wrappers.push(wrapper)
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?campus_key=yihua&touch=last')
+    expect(wrapper.text()).toContain('7 件官網預約中，3 件有可用')
+    expect(wrapper.text()).toContain('首次來源與最後非直接來源')
     await click(wrapper, 'stats-csv')
     const { filename, lines } = lastDownload()
     expect(filename).toBe(`招生統計-參觀預約-網站來源-預約前最後來源-義華-開站至今-${today}.csv`)
