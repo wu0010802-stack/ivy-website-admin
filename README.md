@@ -1,3 +1,7 @@
+## 2026-11-18 三輪 QA 修正交接
+
+補齊 CMS 首次開啟的併發處理、通知租約保護，以及家長取消預約時的案件比對。逐項核對與驗證方式見 [QA 修正交接](docs/website-admin/qa-review-2026-11-18.md)。
+
 ## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
 
 接續 Claude 用量中斷的工作，沿用原工作樹 `/Users/yilunwu/Repositories/ivy-website-wt/env-windows-20261117`。開工前快照在 `versions/before-env-windows-fixes-20261117-154219/`，保留原有 B「拱窗打開」設計及所有未提交變更。

@@ -138,14 +138,13 @@ async def _require_parent_session(
 
 
 def _require_same_visit_request(visit_request: VisitRequest, expected_id: uuid.UUID | None) -> None:
-    """同一個瀏覽器的分頁共用一個 session cookie：另一個分頁開了別筆預約的連結後，
-    這個分頁畫面上還是舊的那筆，按取消或改期卻會照 cookie 改到另一筆（2026-09-30
-    E2E）。官網異動一律帶畫面上的案件 id，對不上就拒絕，兩筆都不動。
-
-    沒帶（None）照舊依 session 處理：CD 先部署 API 再部署 web，部署前就開著的家長頁
-    與 web 上線前的空窗都是舊版官網，取消不帶 body；發布版本需前後相容
-    （deploy/CICD.md）。"""
-    if expected_id is not None and visit_request.id != expected_id:
+    """分頁共用 cookie，因此異動必須與畫面上的案件一致。"""
+    if expected_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "PARENT_SESSION_CHANGED", "message": "請重新開啟預約管理連結後再操作"},
+        )
+    if visit_request.id != expected_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "PARENT_SESSION_CHANGED", "message": "這個瀏覽器已改為管理另一筆預約，請重新開啟這筆預約的管理連結"},
