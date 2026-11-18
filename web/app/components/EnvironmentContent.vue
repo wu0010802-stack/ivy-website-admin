@@ -5,7 +5,7 @@
 // 內容：前三章的文字與照片讀後台「常春藤環境頁」（environment_page，預設＝fixture 的 environmentPage），清單照索引對應下面的常數；
 // 第四章「五所校園」讀後台發布的各校校園探索（campuses[].tourScenes）。
 // 照片不放說明與註解（使用者 10-30）：首屏與保育主照片的圖說、照片上的便條、小路與選校提示、校園探索各景的說明句都不畫；
-// 後台欄位照舊保留。戶外廣場的「明華校」是校別標示（後台 campusLabel），照畫。
+// 2026-11-18 起，戶外廣場的校名只在後台欄位留存。
 // 2026-09-28 使用者裁定：這一頁不放預約參觀（全站共用的頁首預約鈕除外）。
 // 伺服器輸出的就是完整內容（每扇窗都是打開的）；捲動敘事在 utils/environment-windows.ts，只在瀏覽器動態載入，
 // 載入失敗、沒有 JS 或偏好減少動態時，頁面就是打開完成的樣子。桌機首屏「拱窗關著＋大標」的起始畫面由 CSS 媒體查詢成立，不等 JS。
@@ -17,7 +17,6 @@ import { pageMarkedLines, pagePhotoAlt, pagePhotoAttrs, pagePhotoStyle, pageTitl
 import { responsiveTourImage } from '~/utils/tour-image'
 import { mealBookLink } from '~/utils/meal-book'
 import { phraseChunks } from '~/utils/phrase'
-import { campusMapUrl } from '~/utils/site-links'
 import { isLivePreview } from '~/utils/draft-preview'
 import type { EnvironmentWindows } from '~/utils/environment-windows'
 
@@ -85,7 +84,7 @@ const CARE_LOOKS: { shape: string; color: Block; ar: number; w: number; nar: num
   { shape: '', color: 'terra', ar: 4 / 3, w: 484, nar: 1, pos: '48% 36%' },
   { shape: '', color: 'sage', ar: 2, w: 688, nar: 2, wide: true, pos: '47% 50%' }
 ]
-// 六個空間。戶外廣場只能用明華校的照片（後台標「明華校」）。
+// 六個空間。戶外廣場使用明華校的照片。
 const SPACES = [
   { image: 'env-space-classroom', alt: '陽光照進木地板教室，牆邊是矮櫃與小桌椅' },
   { image: 'env-space-materials', alt: '女孩坐在桌前，專心組著各式彩色操作教具' },
@@ -159,7 +158,6 @@ const meal = mealBookLink()
 const tours = computed(() => props.campuses
   .map((campus) => ({ campus, scenes: campus.tourScenes }))
   .filter((tour): tour is { campus: Campus; scenes: TourScene[] } => tour.scenes.length > 0))
-const sceneCount = computed(() => tours.value.reduce((sum, tour) => sum + tour.scenes.length, 0))
 const tourKeys = computed(() => tours.value.map((tour) => tour.campus.key))
 // 一開始打開哪一校（同首頁五校 CampusBoard.vue 的優先序）：網址指定 /environment?campus=<校>
 // ＞ 家長上次自己選的（cookie ivy_campus：頁首選單、首頁五校卡、預約頁選校卡都會記；SSR 就讀得到，第一個畫面就是那一校）＞ 第一校。
@@ -196,10 +194,10 @@ const lineArt = (key: string, layer: 'wash' | 'ink', sizes: string) => responsiv
 const TAB_ART_SIZES = '(max-width: 900px) 72px, 170px'
 
 const chapters = computed(() => [
-  { id: 'care', label: props.page.chapterNames[0], hint: '五顆心的照顧' },
-  { id: 'spaces', label: props.page.chapterNames[1], hint: `${SPACES.length + 1} 個孩子的空間` },
-  { id: 'meals', label: props.page.chapterNames[2], hint: `${meal.month} 月菜單` },
-  ...(tours.value.length ? [{ id: 'campuses', label: props.page.chapterNames[3], hint: `${sceneCount.value} 個校園角落` }] : [])
+  { id: 'care', label: props.page.chapterNames[0] },
+  { id: 'spaces', label: props.page.chapterNames[1] },
+  { id: 'meals', label: props.page.chapterNames[2] },
+  ...(tours.value.length ? [{ id: 'campuses', label: props.page.chapterNames[3] }] : [])
 ].map((chapter) => ({ ...chapter, color: CHAPTER_COLORS[chapter.id]! })))
 
 // ---------- 分頁（WAI-ARIA tabs：左右鍵、Home、End） ----------
@@ -307,7 +305,7 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
         </div>
         <nav class="renv-index" aria-label="本頁章節">
           <a v-for="chapter in chapters" :key="chapter.id" class="renv-hb" :class="`c-${chapter.color}`" :href="`#${chapter.id}`" @click="onChapterLink">
-            <b class="renv-index-name">{{ chapter.label }}</b><span class="renv-index-hint">{{ chapter.hint }}</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-down" /></svg>
+            <b class="renv-index-name">{{ chapter.label }}</b>
           </a>
         </nav>
       </div>
@@ -385,7 +383,7 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
                   <div class="renv-ph"><ResponsivePicture v-bind="spacePhoto(space)" :style="pagePhotoStyle(space.look.pos, space.photo)" :alt="pagePhotoAlt(space.alt, space.photo, space.photoAlt)" loading="lazy" /></div>
                 </figure>
                 <div class="renv-stop-tx">
-                  <p v-if="space.campusLabel" class="renv-stop-campus">{{ space.campusLabel }}</p>
+                  <p v-if="space.campusLabel && space.image !== 'env-space-plaza'" class="renv-stop-campus">{{ space.campusLabel }}</p>
                   <h3>{{ space.title }}</h3>
                   <p class="renv-stop-text"><Phrases :text="space.text" /></p>
                 </div>
@@ -407,7 +405,7 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
           <p class="renv-kicker c-mustard">{{ page.chapterNames[2] }}</p>
           <h2 id="meals-title" class="renv-title"><span v-for="(line, i) in pageTitleLines(page.mealsTitle)" :key="i">{{ line }}</span></h2>
           <p class="renv-text renv-meals-p"><Phrases :text="page.mealsText" /></p>
-          <a class="renv-btn c-mustard" :href="meal.href" target="_blank" rel="noopener">{{ meal.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg><span class="sr-only">（另開新視窗）</span></a>
+          <a class="renv-btn c-mustard" :href="meal.href" target="_blank" rel="noopener">{{ meal.label }}<span class="sr-only">（另開新視窗）</span></a>
         </div>
         <div class="renv-book">
           <i class="is-dome" aria-hidden="true" /><i class="is-ball" aria-hidden="true" />
@@ -482,13 +480,9 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
             tabindex="0"
             :hidden="tour.campus.key !== activeKey"
           >
-            <!-- 左欄：校名＋地址（連到 Google 地圖，同預約頁的所選校園）→ 這一校的角落（按哪個哪張換到大窗）→「下一所」 -->
+            <!-- 左欄：校名、這一校的角落（按哪個哪張換到大窗）與「下一所」 -->
             <div class="renv-panel-info">
               <h3>{{ tour.campus.name }}</h3>
-              <a v-if="tour.campus.address" class="renv-tour-map" :href="campusMapUrl(tour.campus)" target="_blank" rel="noopener noreferrer" :aria-label="`${tour.campus.address}，在 Google 地圖開啟（另開分頁）`">
-                <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-map-pin" /></svg><span>{{ tour.campus.address }}</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg>
-              </a>
-              <p v-else-if="tour.campus.district" class="renv-tour-district">{{ tour.campus.district }}</p>
               <ul v-if="tour.scenes.length > 1" class="renv-corners">
                 <li v-for="scene in tour.scenes" :key="scene.key">
                   <button class="renv-corner" type="button" :aria-pressed="scene.key === leadKey(tour)" @click="showScene(tour, scene.key)">

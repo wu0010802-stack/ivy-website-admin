@@ -11,7 +11,7 @@ import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 import { MOTION_QUERY, PIN_QUERY, dayFrame, easeInOut, heartPath, heartsFrame, heartsGeometry, heroProgress, stopShapes, stopsFrame, titleRow } from '../app/utils/environment-windows'
 
 // 環境頁 2026-11-17「拱窗打開」（比稿 design/environment-grand-directions-20261117/ 方向 B）的守門測試：
-// 伺服器輸出的結構、第四章先開哪一校、地址與下一所、水果小盤的位置、關鍵 CSS 規則、捲動敘事的純函式。
+// 伺服器輸出的結構、第四章先開哪一校、校名與下一所、水果小盤的位置、關鍵 CSS 規則、捲動敘事的純函式。
 // 規則記在 DESIGN.md「環境頁拱窗打開」。改版前就有、照舊要守的裁定在 tests/environment.spec.ts。
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
@@ -62,9 +62,9 @@ describe('伺服器輸出完整內容（沒有 JS 也讀得到）', () => {
     ])
     expect(html).toMatch(/<h1 id="environment-title" class="renv-h-title"><span class="renv-h-line">孩子的每一天<\/span><span class="renv-h-line">都在這裡<mark class="renv-mark">安心<\/mark>長大<\/span><\/h1>/)
     expect([...html.matchAll(/<h2 id="([a-z-]+)"/g)].map((m) => m[1])).toEqual(['care-title', 'spaces-title', 'meals-title', 'tour-title', 'next-title'])
-    // 首屏四塊章節積木：章名＋一句提示，連到各章
-    expect([...html.matchAll(/<a class="c-([a-z]+) renv-hb" href="#([a-z]+)"><b class="renv-index-name">([^<]+)<\/b><span class="renv-index-hint">([^<]+)<\/span>/g)].map((m) => m.slice(1))).toEqual([
-      ['pink', 'care', '幼兒保育', '五顆心的照顧'], ['sage', 'spaces', '校園環境', '7 個孩子的空間'], ['mustard', 'meals', '幼兒餐點', '11 月菜單'], ['mist', 'campuses', '五所校園', '15 個校園角落']
+    // 首屏章節積木只顯示章名，整張卡片連到對應章節。
+    expect([...html.matchAll(/<a class="c-([a-z]+) renv-hb" href="#([a-z]+)"><b class="renv-index-name">([^<]+)<\/b><\/a>/g)].map((m) => m.slice(1))).toEqual([
+      ['pink', 'care', '幼兒保育'], ['sage', 'spaces', '校園環境'], ['mustard', 'meals', '幼兒餐點'], ['mist', 'campuses', '五所校園']
     ])
   })
 
@@ -74,7 +74,7 @@ describe('伺服器輸出完整內容（沒有 JS 也讀得到）', () => {
     expect([...html.matchAll(/<li class="c-[a-z]+"><svg class="renv-heart"[\s\S]*?<\/svg>([^<]+)<\/li>/g)].map((m) => m[1])).toEqual(site.environmentPage.hearts)
     expect(html.match(/<li class="renv-ci-\d renv-ci">/g)).toHaveLength(5)
     expect(html.match(/<li class="renv-stop" data-sh="(rect|circle|arch|u|dome|leaf)" data-color="[a-z]+">/g)).toHaveLength(6)
-    expect(html).toContain('<p class="renv-stop-campus">明華校</p><h3>戶外廣場</h3>')
+    expect(html).toContain('<div class="renv-stop-tx"><h3>戶外廣場</h3><p class="renv-stop-text">')
     expect(html.match(/<li class="[^"]*renv-day-i[^"]*">/g)).toHaveLength(5)
     expect(html.match(/<li class="renv-scene">/g)).toHaveLength(15)
     // 不靠腳本填內容：沒有 inline script，也沒有等腳本才有的空殼
@@ -153,18 +153,17 @@ describe('五所校園：五扇線稿拱窗分頁（WAI-ARIA tabs）', () => {
     reset()
   })
 
-  it('每校面板：校名＋地址（連到 Google 地圖、另開分頁），不再寫「X區・N 個角落」', async () => {
+  it('各校面板從校名直接接到校園角落', async () => {
     reset()
     const html = await render()
     for (const campus of site.campuses) {
-      expect(html).toContain(`aria-label="${campus.address}，在 Google 地圖開啟（另開分頁）"`)
-      expect(panelOf(html, campus.key)).toContain(`<h3>${campus.name}</h3><a class="renv-tour-map" href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(campus.address)}" target="_blank" rel="noopener noreferrer"`)
+      const panel = panelOf(html, campus.key)
+      expect(panel).toContain(`<h3>${campus.name}</h3><ul class="renv-corners">`)
+      expect(panel).not.toContain(campus.address)
     }
     expect(html).not.toMatch(/區・\d+ 個角落/)
-    expect(vue).toContain(':href="campusMapUrl(tour.campus)"')
-    // 沒填地址的校退回只寫行政區，不放連不出去的連結
     const noAddress = await render({ campuses: site.campuses.map((campus) => (campus.key === 'yihua' ? { ...campus, address: '' } : campus)) })
-    expect(panelOf(noAddress, 'yihua')).toContain('<h3>義華校</h3><p class="renv-tour-district">三民區</p>')
+    expect(panelOf(noAddress, 'yihua')).toBe(panelOf(html, 'yihua'))
   })
 
   it('下一所依分頁順序、最後一所接回第一所；小窗的框是下一所的分頁色；只有一所時不放', async () => {
@@ -230,7 +229,7 @@ describe('一天五餐：圓點小路穿過盤子、盤子上是食物圖示', (
     const items = [...html.matchAll(/<li class="c-([a-z]+)(?: is-small)? renv-day-i"><time class="renv-day-t" lang="en">([^<]*)<\/time><span class="renv-plate"><svg viewBox="0 0 30 30" aria-hidden="true" focusable="false">[\s\S]*?<\/svg><\/span><b class="renv-day-name">([^<]+)<\/b><span class="renv-day-n">([^<]+)<\/span>/g)].map((m) => m.slice(1))
     expect(items).toEqual([['terra', '08:30', '早餐', '早餐美語'], ['mustard', '10:00', '香蕉', '每日兩蔬果之一'], ['sage', '11:40', '午餐', '廚房每天現煮'], ['pink', '12:00', '蘋果', '每日兩蔬果之二'], ['mist', '15:30', '點心', '西米露、玉米粥']])
     // 「看 N 月菜單」與封面都連到營養餐點書當月那一頁（mealBookLink），另開分頁
-    expect(html).toMatch(/<a class="renv-btn c-mustard" href="https:\/\/online\.flipbuilder\.com\/[^"]+#p=21" target="_blank" rel="noopener">看 11 月菜單<svg/)
+    expect(html).toMatch(/<a class="renv-btn c-mustard" href="https:\/\/online\.flipbuilder\.com\/[^"]+#p=21" target="_blank" rel="noopener">看 11 月菜單<span class="sr-only">（另開新視窗）<\/span><\/a>/)
     expect(html).toMatch(/<a class="renv-book-c" href="https:\/\/online\.flipbuilder\.com\/[^"]+#p=21" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">/)
   })
 
@@ -311,7 +310,6 @@ describe('版面規則（environment.css）', () => {
     // 觸控目標至少 44px
     expect(narrow).toContain('.renv-hb{min-height:66px;')
     expect(rules).toContain('.renv-sn{display:grid;place-items:center;width:48px;height:48px;')
-    expect(rules).toMatch(/\.renv-tour-map\{display:inline-flex;align-items:center;gap:8px;min-height:44px;/)
     expect(rules).toMatch(/\.renv-corner\{[^}]*min-height:56px;/)
   })
 
