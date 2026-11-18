@@ -261,13 +261,6 @@ jobs:
         run: google-chrome --version
       - name: Build admin into web, then web (same as deploy/web.Dockerfile)
         run: npm run e2e:build
-      - name: Run Playwright against the full stack
-        run: npm run test:e2e:stack
-      # 公開站四視口（tests/e2e）：同一份 build，另起自己的 API 與測試庫（tests/e2e/e2e-env.ts）。
-      # stack 紅了也照跑，兩組結果都看得到。
-      - name: Run public-site Playwright (four viewports)
-        if: success() || failure()
-        run: npm run test:e2e
       # 正式版 hydrate 比 dev 快；WebKit 可能在程式還原後才做原生 hash 定位。
       - name: Install WebKit for production environment-page checks
         if: success() || failure()
@@ -275,6 +268,14 @@ jobs:
       - name: Run environment-page Playwright with production WebKit
         if: success() || failure()
         run: E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment -- --project=desktop-webkit --project=mobile-webkit
+      - name: Run Playwright against the full stack
+        if: success() || failure()
+        run: npm run test:e2e:stack
+      # 公開站四視口（tests/e2e）：同一份 build，另起自己的 API 與測試庫（tests/e2e/e2e-env.ts）。
+      # stack 紅了也照跑，兩組結果都看得到。
+      - name: Run public-site Playwright (four viewports)
+        if: success() || failure()
+        run: npm run test:e2e
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

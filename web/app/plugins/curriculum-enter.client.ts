@@ -26,6 +26,10 @@ export default defineNuxtPlugin((nuxtApp) => {
   // 網址先留在這裡，要暈開的那一步（beforeResolve）才寫到 <html>（2026-11-05）：<html> 上的自訂屬性會繼承，一寫就整頁重算樣式
   // （/admission 載入時 826 個元素、4 倍降速 82ms，常剛好碰上開始捲動），而這三個變數只有暈開期間的 ::view-transition-new(root) 讀。
   let masksReady = false
+  let creatingMasks = false
+  let leavingDocument = false
+  let maskGeneration = 0
+  let pendingUrls: string[] = []
   let maskUrls: string[] = []
   const MASK_SEEDS = [11, 23, 37]
   // 跨頁快取（2026-11-05）：主選單與頁尾是一般 <a>（整頁載入），原本每換一頁都重畫三張再 toBlob（手機 4 倍降速每頁 300–400ms）。
@@ -75,8 +79,18 @@ export default defineNuxtPlugin((nuxtApp) => {
   // 改成查好後再排一次閒置、從頭再進來，每一張都只在閒置時段畫。
   let looked: Lookup | undefined = {} // 沒去查（掛上時是減少動態／強制色彩）就當沒命中
   let lookup: Promise<unknown> = Promise.resolve()
+  const cacheMask = async (cache: Cache | undefined, seed: number, blob: Blob, generation: number) => {
+    if (!cache || leavingDocument || generation !== maskGeneration) return
+    try {
+      // WebKit 的 Response(blob) 會透過 Blob URL 讀取；整頁重整取消時會額外回報資源錯誤。
+      // 先取出記憶體資料，再交給 Cache Storage；快取失敗不影響這次的遮罩。
+      const bytes = await blob.arrayBuffer()
+      if (leavingDocument || generation !== maskGeneration) return
+      await cache.put(maskKey(seed), new Response(bytes, { headers: { 'Content-Type': 'image/png' } }))
+    } catch { /* 使用這次已產生的遮罩 */ }
+  }
   const makeMasks = () => {
-    if (masksReady || skipMasks()) return
+    if (masksReady || creatingMasks || leavingDocument || skipMasks()) return
     if (!looked) { void lookup.then(() => whenIdle(makeMasks, 100)); return }
     const { cache, blobs } = looked
     if (blobs) {
@@ -84,20 +98,41 @@ export default defineNuxtPlugin((nuxtApp) => {
       masksReady = true
       return
     }
-    const urls: string[] = []
+    creatingMasks = true
+    const generation = maskGeneration
+    const urls: string[] = pendingUrls = []
     const step = () => {
+      if (leavingDocument || generation !== maskGeneration) return
       const seed = MASK_SEEDS[urls.length]!
       revealMaskCanvas(seed).toBlob((blob) => {
-        if (!blob) return
+        if (!blob || leavingDocument || generation !== maskGeneration) return
         urls.push(URL.createObjectURL(blob))
-        void cache?.put(maskKey(seed), new Response(blob, { headers: { 'Content-Type': 'image/png' } })).catch(() => {})
+        void cacheMask(cache, seed, blob, generation)
         if (urls.length < MASK_SEEDS.length) { whenIdle(step, 100); return }
         maskUrls = urls
+        pendingUrls = []
+        creatingMasks = false
         masksReady = true
       })
     }
     step()
   }
+  // WebKit 在 beforeunload 後就可能拒絕 Blob 讀取，不能等到 pagehide 才停。
+  // 使晚到的 toBlob／閒置工作失效；完整遮罩保留給 bfcache，未完成的網址釋放。
+  const stopPreparingMasks = () => {
+    leavingDocument = true
+    maskGeneration++
+    creatingMasks = false
+    pendingUrls.forEach(url => URL.revokeObjectURL(url))
+    pendingUrls = []
+  }
+  window.addEventListener('beforeunload', stopPreparingMasks)
+  window.addEventListener('pagehide', stopPreparingMasks)
+  window.addEventListener('pageshow', () => {
+    if (!leavingDocument) return
+    leavingDocument = false
+    whenIdle(makeMasks, 1500)
+  })
   nuxtApp.hook('app:mounted', () => {
     if (!skipMasks()) {
       looked = undefined

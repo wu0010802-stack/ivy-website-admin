@@ -1,10 +1,21 @@
+## 2026-11-18 WebKit 重整時停止舊頁面的轉場遮罩工作（部署狀態見 `deploy/README.md`）
+
+正式版 HTTPS 的 WebKit 回歸找到全站轉場外掛的背景快取問題：`beforeunload` 之後，舊頁面仍開始產生遮罩並讀取 Blob；WebKit 此時已拒絕讀取，光接住 Promise 或改快取格式仍會回報資源錯誤。實際時序記錄在 `/private/tmp/ivy-blob-lifecycle.log`，CI trace 留在本機 `output/env-webkit-ci-second/`。
+
+- `curriculum-enter.client.ts` 從 `beforeunload`／`pagehide` 起停止背景遮罩工作，以世代編號使晚到回呼失效，釋放未完成的 Blob URL；bfcache 返回時重新排入閒置工作。已完成的遮罩保留，正常轉場畫面不變。
+- 快取以 ArrayBuffer 寫入，並接住同步／非同步儲存失敗；快取不可用時仍完成這次的三張遮罩。
+- 新增實際掛載外掛的回歸，涵蓋離頁後延遲回呼、返回後重建、快取圖片內容與同步／非同步失敗。離頁測試先在修正前重現兩項失敗，再確認修正後通過。
+- 最終驗證：web typecheck 通過、165 檔 **2,484 項單元測試通過**、官網與後台正式建置通過；正式版 HTTPS 的 Chrome／WebKit 各桌機與手機 **46 項通過、2 項依手機版設計略過**。日誌 `output/env-cache-{typecheck,unit,build,e2e}.log`。
+- WebKit 手機的四個直接連結重整、無 hash 返回、延遲圖片情境各重複三次，**18 項全部通過**，日誌 `output/env-cache-repeat.log`；沒有啟用失敗重試。
+- CI 把正式版 WebKit 提到完整 stack／公開站 e2e 前面，及早顯示引擎差異；三組仍全部執行。沒有 migration、API 或正式環境變數異動。
+
 ## 2026-11-17 環境頁正式版 WebKit 重整修正（部署狀態見 `deploy/README.md`）
 
 首次部署後的正式網域唯讀驗收，找到 WebKit 在圖片載完前後再次套用原生 hash 定位，蓋掉離開前的捲動位置。正式版 hydrate 比開發版快，原本只等模組、字型與穩定高度不足；整頁重新整理／歷史返回現在先等文件 load，再還原位置，SPA 導航維持原流程。
 
 - 新增延遲圖片的真瀏覽器回歸：已在修正前的正式建置重現 WebKit 桌機／手機失敗，修正後通過。
 - `E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment` 可直接驗正式建置，使用本機 fixture 與一次性 HTTPS 憑證；WebKit 正式版 Secure cookie 也能實際驗證。測試 cookie 網址取自當次 `baseURL`。
-- CI 在完整 stack／公開站 e2e 之後，加跑正式版 WebKit 桌機與手機，失敗時保留 trace。首輪 Linux WebKit 抓到測試在初始章節定位／Nuxt manifest 預抓完成前就開始操作；已改成等待實際完成條件，保留錯誤與鍵盤焦點斷言，沒有加入重試或略過。
+- CI 加跑正式版 WebKit 桌機與手機，失敗時保留 trace；11-18 起先跑 WebKit，再跑完整 stack／公開站 e2e。首輪 Linux WebKit 抓到測試在初始章節定位／Nuxt manifest 預抓完成前就開始操作；已改成等待實際完成條件，保留錯誤與鍵盤焦點斷言，沒有加入重試或略過。
 - 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full-final}.log`。
 - 本次只修 Router 與測試環境，沒有 API、migration 或正式環境變數異動。Safari／iPhone 實機仍未驗證。
 
