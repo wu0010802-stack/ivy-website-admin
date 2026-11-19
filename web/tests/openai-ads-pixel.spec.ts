@@ -451,6 +451,7 @@ describe('外掛', () => {
     vi.stubGlobal('defineNuxtPlugin', (setup: Setup) => setup)
     vi.stubGlobal('useRuntimeConfig', () => ({ public: publicConfig }))
     vi.stubGlobal('useRouter', () => ({ beforeEach: () => {}, afterEach: () => {} }))
+    vi.stubGlobal('injectHead', () => ({ hooks: { hook: () => {} } }))
     vi.stubGlobal('navigator', nav)
     setupPlugin({ hook: (name, fn) => { hooks[name] = fn } })
     return hooks

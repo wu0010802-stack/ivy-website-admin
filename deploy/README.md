@@ -135,7 +135,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
 - GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`gbraid`／`wbraid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
 - 預約成功：只有伺服器回 `status === 'confirmed'` 才送 GA `generate_lead`、Pixel `Lead`，參數只有白名單的 `campus_key`（五校之一）與 `entry`（CTA 入口代碼，預約表單是 `visit_page`），不送收據編號、修改連結或任何個資。
-- CSP（`web/server/utils/security-headers.ts`）：哪一個 ID 有設才加哪一家的 `script-src`／`connect-src`／`img-src` 來源，後台 CSP 不動。**沒放行** Google Ads／Google 訊號用的 `stats.g.doubleclick.net`、`www.google.com`：之後要做 Google Ads 或開 Google 訊號，要一起改 CSP。
+- CSP（`web/server/utils/security-headers.ts`）：哪一個 ID 有設才加哪一家的 `script-src`／`connect-src`／`img-src` 來源，後台 CSP 不動。GA 的 `connect-src` 自 2026-11-19 起含 `https://*.google.com`（Google 官方 GA4 CSP 基準）：GA4 連結 Google Ads 之後，`gtag.js` 把事件改送 `analytics.google.com`（`*.analytics.google.com` 配不到裸網域）、失敗再退回 `www.google.com/g/collect`，原本兩個都被擋，GA4 一筆都收不到。**沒放行** Google 訊號／再行銷名單用的 `stats.g.doubleclick.net` 與 `www.google.<國碼>/ads/ga-audiences`（廣告個人化是關的），Console 會看到這兩支 CSP 違規，屬預期。
 
 **上線步驟（每一步都要本人登入，程式不會自己做）**
 
@@ -144,7 +144,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
    - **新建的 GA4 資源會被 Google 自動升級成代碼管理工具容器（`GTM-…`），一定要做這步**：容器裡的「Google Analytics G-…」代碼預設勾著「略過重複的網頁內設定執行個體」，程式的 `send_page_view:false`、`allow_google_signals:false` 都會被忽略，結果每次進站多一筆**未清洗網址**的 `page_view`（2026-11-12 正式站實測）。處理：串流詳情 → Google 代碼「進行代碼設定」→ 代碼 → 該 GA 代碼 → 配置設定 → 配置參數加 `send_page_view`、`allow_google_signals`、`allow_ad_personalization_signals` 三個，值都填 `false` → 儲存 → 提交並發布版本。發布後約 30 分鐘 gtag.js 的 CDN 才換新；驗證時每頁只該有一筆 `en=page_view`、`dl` 只帶 `utm_*`、`npa=1`。
 3. **Meta Pixel**：沿用舊站的 Pixel 或新建（由使用者決定；沿用的話新舊網域的事件會進同一個 Pixel，之後可用網域區分）。Events Manager → 該 Pixel → 設定：**關掉「自動進階比對」與「自動事件」**（程式已把 `autoConfig` 關掉，後台也關才雙保險，預約表單有 Email 與電話欄位）。新建資料集時：要先有「商家資產管理組合」；建立視窗預設勾的「連結到 Meta 的轉換 API」取消；建好後設定頁還要關「自動包含更詳細的頁面和商品資訊」（AI 抓頁面內容）。Pixel 一定送完整網址（`dl`／`rl` 含所有 query，hash 不送），程式管不到。
 4. **Railway web 服務**設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，等重新部署完成。
-5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `google-analytics.com` 的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
+5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `analytics.google.com`（或 `*.google-analytics.com`）的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 除了 `stats.g.doubleclick.net`、`ga-audiences` 兩支之外沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
 
 **程式端沒辦法驗證的**：真實 GA4／Meta 後台是否收得到、強化評估與自動比對的設定是否真的關掉，只能在正式站設好變數後照步驟 5 實測。
 
@@ -162,12 +162,13 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 2. **GA4 → 管理 → 產品連結 → Google Ads 連結**：連到要投廣告的 Google Ads 帳戶（同一個 Google 帳號要同時是 GA4 的編輯者與 Ads 的管理員）。連結設定裡的「個人化廣告」關掉（程式本來就送非個人化）。舊站 ivykids.tw 上有 `AW-16479438373`，園方可能已有 Ads 帳戶，可以沿用。
 3. **Google Ads → 管理 → 帳戶設定 → 自動標記**：確認是開的（廣告點擊才會帶 `gclid`／`gbraid`／`wbraid`）。
 4. **Google Ads → 目標 → 轉換 → 新增轉換動作 → 匯入 → Google Analytics 4 資源（網站）**：勾 `generate_lead`。計算方式選「一次」（同一位家長重複送不重複算），類別選「提交待開發客戶表單」。
-5. **驗證**：在首頁網址後面加 `?gclid=test123` 進站，Network 裡送往 `google-analytics.com` 的 `collect` 其 `dl` 要帶著 `gclid=test123`；Console 不該有 CSP 違規。廣告開跑後，從真的廣告點進來預約一次（驗完到後台取消），24–48 小時內 Google Ads 的轉換欄應該加一。
+5. **驗證**：在首頁網址後面加 `?gclid=test123` 進站，Network 裡送往 `analytics.google.com`（或 `*.google-analytics.com`）的 `collect` 其 `dl` 要帶著 `gclid=test123`；Console 除了 `stats.g.doubleclick.net`、`ga-audiences` 兩支之外不該有 CSP 違規。廣告開跑後，從真的廣告點進來預約一次（驗完到後台取消），24–48 小時內 Google Ads 的轉換欄應該加一。
 
 **還沒驗、要在正式站實測的**
 
 - `allow_google_signals` 關著時，重要事件仍會匯進 Google Ads（Google 文件只說這個設定關掉個人化與再行銷，沒有明講轉換；匯不進來時再評估要不要打開，打開前要改隱私權政策）。
 - GA4 連上 Ads 之後，`gtag.js` 會不會多連 `stats.g.doubleclick.net`、`www.google.com` 而被 CSP 擋（看 Console；被擋不影響 GA4 自己的事件）。
+  - **2026-11-19 實測答案：會，而且影響 GA4 自己的事件。** 11-16 連結之後 `gtag.js` 把 GA4 事件也改送 `analytics.google.com`、退回 `www.google.com/g/collect`，兩個都被 CSP 擋，GA4 每日使用者 11-17 起掉到個位數、28 天內重要事件 0，匯進 Ads 的轉換因此永遠是 0。修正見上面 GA4 段落的 CSP 說明（`fix/tracking-csp-20261119`）；`stats.g.doubleclick.net` 與 `ga-audiences` 維持擋下。
 - 隱私權政策第 5 段目前寫 GA4 用來「了解網站的使用情形與廣告的成效」、預約成功時只告訴 Google 有一筆預約與校區，已涵蓋這個用法；要不要明寫「Google Ads」由園方決定。
 
 ## ChatGPT 廣告：OpenAI 評估像素回報「預約成功」（2026-11-15 程式，`feature/openai-ads-pixel-20261115`；預設關，沒設變數就和現在完全一樣）

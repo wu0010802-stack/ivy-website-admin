@@ -1,6 +1,6 @@
 import { analyticsEnabled, analyticsIdsFromConfig } from '#shared/third-party-analytics'
 import { trackingAllowed } from '../utils/cta-analytics'
-import { createThirdPartyAnalytics, whenPageSettled } from '../utils/third-party-analytics'
+import { afterHeadRendered, createThirdPartyAnalytics, reusesPageInstance, whenPageSettled } from '../utils/third-party-analytics'
 
 // GA4 與 Meta Pixel（2026-11-12，規格 docs/specs/2026-11-12-external-integrations-design.md 第 1 節）。
 // 依 2026-10-03 裁定：有 cookie、不做同意橫幅、尊重 DNT／GPC，揭露寫在隱私權政策第 5 段。
@@ -18,9 +18,16 @@ export default defineNuxtPlugin((app) => {
   const router = useRouter()
   // 換頁前先暫停：GA 強化評估的「瀏覽器歷程變更」會在網址一變（pushState）當下就送，早於 page:finish。
   router.beforeEach((to) => { analytics.hold(to.path) })
-  router.afterEach(() => { analytics.settle(location.pathname) })
   const pageView = () => analytics.pageView(location.href, location.pathname, document.title)
-  // page:finish 時 Nuxt 的 head 已先同步更新 document.title（install-client-head 的 hook 註冊得比這裡早）。
-  app.hook('page:finish', pageView)
+  // SPA 換頁：page:finish 當下新頁標題還沒寫進 DOM（unhead 排在 setTimeout 之後），等 dom:rendered 才送（見 afterHeadRendered）。
+  // 取不到 head（不該發生）時 afterHeadRendered 退回 500ms 保底，不讓整支外掛失效。
+  const pageViewAfterHead = afterHeadRendered(injectHead(app)?.hooks, pageView)
+  router.afterEach((to, from, failure) => {
+    analytics.settle(location.pathname)
+    // 同一個頁面實例換網址（/visit ↔ /visit/<校>）不會有 page:finish：換頁完成後自己排一次。
+    if (!failure && to.path !== from.path && reusesPageInstance(to, from)) pageViewAfterHead()
+  })
+  app.hook('page:finish', pageViewAfterHead)
+  // 第一頁：標題是伺服器渲染好的，hydration 完成就送。
   app.hook('app:mounted', pageView)
 })

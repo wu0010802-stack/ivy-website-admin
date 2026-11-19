@@ -129,8 +129,43 @@ describe('CSP 來源（analyticsCspSources）', () => {
   it('只有 GA：只加 Google 的網域', () => {
     expect(analyticsCspSources(GA)).toEqual({
       script: ['https://www.googletagmanager.com'],
-      connect: ['https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://www.googletagmanager.com'],
+      connect: ['https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.google.com', 'https://www.googletagmanager.com'],
       img: ['https://*.google-analytics.com', 'https://www.googletagmanager.com']
+    })
+  })
+
+  // 2026-11-19 正式站實測：GA4 連結 Google Ads 之後，gtag.js 把事件改送 analytics.google.com（裸網域），失敗再退回
+  // www.google.com/g/collect。CSP 的 *.analytics.google.com 不含裸網域，兩個都被擋，GA4 一筆資料都收不到。
+  // 這裡用 CSP 的 host-source 規則（萬用字元只配子網域）逐一比對 gtag 會連的端點，不只比字串。
+  describe('gtag.js 實際會連的端點', () => {
+    const allows = (sources: string[], url: string) => {
+      const { protocol, hostname } = new URL(url)
+      return sources.some((source) => {
+        const match = /^(https?):\/\/(\*\.)?(.+)$/.exec(source)
+        if (!match || `${match[1]}:` !== protocol) return false
+        return match[2] ? hostname.endsWith(`.${match[3]}`) : hostname === match[3]
+      })
+    }
+    const sources = analyticsCspSources(GA)
+
+    it('送事件（connect-src）：主要端點、各區域端點與退回的 www.google.com 都放行', () => {
+      for (const url of [
+        'https://analytics.google.com/g/collect',
+        'https://region1.analytics.google.com/g/collect',
+        'https://region1.google-analytics.com/g/collect',
+        'https://www.google-analytics.com/g/collect',
+        'https://www.google.com/g/collect'
+      ]) expect(allows(sources.connect, url), url).toBe(true)
+    })
+
+    it('載入 gtag.js（script-src）', () => {
+      expect(allows(sources.script, 'https://www.googletagmanager.com/gtag/js?id=G-TEST123456')).toBe(true)
+    })
+
+    it('Google 信號與再行銷名單的端點刻意不放行（廣告個人化是關的）', () => {
+      expect(allows(sources.connect, 'https://stats.g.doubleclick.net/g/collect')).toBe(false)
+      expect(allows(sources.img, 'https://www.google.com.tw/ads/ga-audiences')).toBe(false)
+      expect(allows(sources.img, 'https://www.google.com/ads/ga-audiences')).toBe(false)
     })
   })
 
@@ -165,7 +200,7 @@ describe('公開頁 CSP', () => {
     const csp = publicCsp([], GA)
     const p = parts(csp)
     expect(p['script-src']).toEqual([...publicScriptSources().split(' '), 'https://www.googletagmanager.com'])
-    expect(p['connect-src']).toEqual(["'self'", 'https://challenges.cloudflare.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://www.googletagmanager.com'])
+    expect(p['connect-src']).toEqual(["'self'", 'https://challenges.cloudflare.com', 'https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.google.com', 'https://www.googletagmanager.com'])
     expect(p['img-src']).toEqual(["'self'", 'data:', 'blob:', 'https://i.ytimg.com', 'https://*.google-analytics.com', 'https://www.googletagmanager.com'])
     expect(p['frame-src']).toEqual(["'self'", 'https://www.youtube-nocookie.com', 'https://challenges.cloudflare.com'])
     expect(csp).not.toMatch(/facebook/)
