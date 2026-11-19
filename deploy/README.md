@@ -14,6 +14,26 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-19 WebKit 重整定位＋離頁停止轉場遮罩（PR #114，已部署 main `ccb1dcc8`）
+
+[PR #114](https://github.com/wu0010802-stack/ivy-website-admin/pull/114) 審查後 squash 合併為 `ccb1dcc8`；[main CI/CD 44541544780](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44541544780) 全部成功，台灣時間 22:25 完成部署。改動內容見 README 的 2026-11-17「環境頁正式版 WebKit 重整修正」與 2026-11-18「WebKit 重整時停止舊頁面的轉場遮罩工作」。
+
+- API deployment：`fc34cebf-c06f-4bb5-b870-e71d6d8abb7f`；web deployment：`42cbcc78-0932-4417-a13c-7fc99c8547d8`，兩者 SUCCESS；部署 smoke（release、live API、CMS、首頁、後台入口）通過。
+- snapshot：`84ae5dbc84805b59caa75afc44f581d90f35443fa48877c07d9821d17f4bc71d`；部署後 GET 正式 `/release.json`，base_commit 為 `ccb1dcc823bd4555aa268534778f4f6bf19b17f4`；`/environment`、`/curriculum`、`/` 皆回 200。
+- 合併前 CI：PR 的 web 資安檢查曾被 GHSA-fc5q-39xc-vjpf（picomatch）擋下，該公告已由 GitHub 撤回（Withdrawn），重跑後 audit 閘門通過，沒有加放行清單。PR 與 push 兩輪重跑全綠：web 型別／165 檔單元／build、admin、後端三組、E2E（含正式版 WebKit 桌機與手機、完整 stack、公開站四視口）。
+- 分支作者的本機驗證（本次未重跑）：正式版 HTTPS 的 Chrome／WebKit 各桌機與手機 46 項通過、2 項依手機設計略過；WebKit 手機重整／返回／延遲圖片各重複三次，18 項通過。
+- 審查後留待觀察、未改碼（頻率×嚴重度 <5）：`beforeunload` 後沒有真的離頁（`tel:`、下載、按停止）且遮罩還沒做好時，該頁不再產生遮罩，下一次整頁載入就恢復；`/environment` 重整／整頁返回改成先等 `load`、沒有上限，慢網路下先捲動可能在 load 後被拉回離開位置（重整與返回多半命中快取，load 很快）。第三方像素在 load 之後才注入，不會拖住這段等待。
+- 沒有 migration、API 或 Railway 環境變數變更。Safari／iPhone 實機未驗證。
+
+## 2026-11-17 環境頁「拱窗打開」部署（main `14900354`）
+
+[PR #113](https://github.com/wu0010802-stack/ivy-website-admin/pull/113) 合併，首次 [main CI/CD 44052734893](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44052734893) 全部成功，環境頁 B 設計、真正互動測試與減少捲動讀寫已於 2026-11-17 台灣時間 17:18 部署。
+
+- API deployment：`3afac61a-6b59-472f-9756-93efa4889517`；web deployment：`88f2da29-ba96-4f62-9ac3-228f0b271901`，兩者 SUCCESS。
+- snapshot：`7a5a3e4f51804ab6de542ad18cd13c0e959c4308acefe1539d0abf7980276f8c`；2026-11-18 重新 GET 正式 `/release.json` 仍確認 base_commit 為 `1490035417baab94928d0dd648d02e9ead6affb5`。
+- 正式 Chrome 桌機／手機唯讀驗收通過；正式 WebKit 驗收找到圖片載入後原生 hash 定位覆蓋還原位置，另修正轉場背景工作在 beforeunload 後讀取 Blob 的問題，兩者由 PR #114 於 11-19 部署（見上段）。
+- 沒有 migration、API 或 Railway 環境變數變更。Safari／iPhone 實機未驗證。
+
 ## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
 
 規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。[PR #112](https://github.com/wu0010802-stack/ivy-website-admin/pull/112) 已在完整 CI 通過後合併；[main CI/CD](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44042656688) 已全部成功，API／web 於台灣時間 16:07 完成部署。上線前已以唯讀交易核對正式庫：目前僅義華綁定群組，已驗證且未離開，沒有需要重新驗證的舊群組。
