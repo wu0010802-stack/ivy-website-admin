@@ -31,12 +31,14 @@ export const useAuthStore = defineStore('auth', () => {
    */
   const previousUserId = ref<string | null>(null)
 
-  async function login(email: string, password: string): Promise<void> {
+  /** remember＝登入頁勾了「記住這台裝置」：後端給 30 天的 session 與 cookie（2026-11-19）。 */
+  async function login(email: string, password: string, remember = false): Promise<void> {
     isLoading.value = true
     try {
       const result = await api.post<LoginResponse>('/auth/login', {
         email,
         password,
+        remember,
       })
       user.value = result.user
       features.value = result.features ?? { admissions: false, password_reset_email: false }
