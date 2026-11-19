@@ -24,7 +24,15 @@ export const FILM_CREDIT = FILM_CREDITS.join('。')
 
 /** 影片下面那一行怎麼斷：一段出處一組；組內只在括號前、「・」後可以換行（不把「內政部國土測繪中心」「Alexander Holm」拆成兩行） */
 export function creditParts(credits: readonly string[] = FILM_CREDITS): string[][] {
-  return credits.map((c, i) => (i < credits.length - 1 ? `${c}。` : c).split(/(?=（)|(?<=・)/))
+  return credits.map((c, i) => splitAfter(i < credits.length - 1 ? `${c}。` : c, '・').flatMap((part) => part.split(/(?=（)/)))
+}
+
+/**
+ * 在某個字的後面切開（那個字留在前一段）。不用正規式的 lookbehind（往回看的斷言）：Safari 16.4 以前沒有，
+ * 整頁的程式會在執行到那一行時丟 SyntaxError（tests/legacy-safari-20261113.spec.ts）。
+ */
+export function splitAfter(text: string, mark: string): string[] {
+  return text.split(mark).map((part, i, all) => (i < all.length - 1 ? part + mark : part)).filter(Boolean)
 }
 
 export interface FilmCue {

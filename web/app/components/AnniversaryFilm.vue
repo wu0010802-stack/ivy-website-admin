@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ANNI_FILM } from '~/utils/anniversary/film-media'
-import { FILM_CUES, FILM_PORTRAIT, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, posterSrcset } from '~/utils/anniversary/film'
+import { FILM_CUES, FILM_PORTRAIT, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, posterSrcset, splitAfter } from '~/utils/anniversary/film'
 import { createAmbient } from '~/utils/anniversary/film-ambient'
 import { mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
 
@@ -15,7 +15,7 @@ const SIZES = `${FILM_PORTRAIT} calc(100vw - 60px), min(1260px, calc(100vw - 116
 const posterDesktop = ANNI_FILM.poster.desktop
 const posterMobile = ANNI_FILM.poster.mobile
 // 句子都很短：只在逗號後換行，不會拆成「長成五所／校園」
-const clauses = (text: string) => text.split(/(?<=，)/)
+const clauses = (text: string) => splitAfter(text, '，')
 // 出處有兩段（配樂、片中地圖）：放不下時先在兩段之間換行，再不夠才在括號前、「・」後換
 const credits = creditParts()
 

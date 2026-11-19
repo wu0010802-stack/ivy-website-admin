@@ -6,7 +6,7 @@ import { ANNI_ARTWORKS, mosaicCells } from '../app/utils/anniversary/gallery'
 import { ANNI_MEDIA } from '../app/utils/anniversary/media'
 import { thirtyStrokes } from '../app/utils/anniversary/crayonPad'
 import { ANNI_FILM } from '../app/utils/anniversary/film-media'
-import { FILM_CREDIT, FILM_CREDITS, FILM_CUES, FILM_FPS, FILM_PORTRAIT, FILM_SECONDS, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, isoDuration, posterSrcset } from '../app/utils/anniversary/film'
+import { FILM_CREDIT, FILM_CREDITS, FILM_CUES, FILM_FPS, FILM_PORTRAIT, FILM_SECONDS, FILM_TITLE, creditParts, cueIndexAt, cueSeconds, durationLabel, formatClock, isoDuration, posterSrcset, splitAfter } from '../app/utils/anniversary/film'
 import { CLIENT_INLINE_SCRIPTS } from '../server/utils/script-csp'
 import { anniversaryEnabled, anniversarySeo, isAnniversaryHref, llmsTxt, sitemapXml } from '../app/utils/seo'
 import { applyContentOverlay } from '../app/utils/content-overlay'
@@ -293,7 +293,11 @@ describe('30 週年分頁：紀念影片', () => {
     expect(filmCss).toContain('@media (min-width: 1101px) {')
     expect(filmCss).toContain('.anni-film-side { flex: 1 1 0; container-type: inline-size; padding-top: 10px; }')
     expect(filmCss).toContain('.anni-film-cues { display: flex; gap: 12px; margin-inline: -20px; padding: 4px 20px; overflow-x: auto;')
-    expect(film).toContain("const clauses = (text: string) => text.split(/(?<=，)/)")
+    expect(film).toContain("const clauses = (text: string) => splitAfter(text, '，')")
+    // 逗號留在前一段；不用 lookbehind（Safari 16.4 以前沒有）
+    expect(splitAfter('從一間幼兒園，長成五所校園。', '，')).toEqual(['從一間幼兒園，', '長成五所校園。'])
+    expect(splitAfter('每一天，', '，')).toEqual(['每一天，'])
+    expect(splitAfter('沒有逗號', '，')).toEqual(['沒有逗號'])
     // 亮著的那一句只捲那一排，不用會連整頁一起捲的 scrollIntoView
     expect(film).toContain('list.scrollTo({ left,')
     expect(film).not.toContain('scrollIntoView')
