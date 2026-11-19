@@ -14,6 +14,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-19 GA4 事件不再被 CSP 擋下＋換頁標題與選校步驟（PR #118，已部署 main `cead8b64`）
+
+[PR #118](https://github.com/wu0010802-stack/ivy-website-admin/pull/118) 以 merge commit 合併為 `cead8b64`；[main CI/CD 44553363616](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44553363616) 全部成功，台灣時間 23:35 完成部署。改動內容見 README 的 2026-11-19「官網追蹤修正」。
+
+- 部署後 GET 正式 `/release.json`：base_commit 為 `cead8b648594e6f790e4ed3f218f69c8ee47a8e5`，snapshot `a1281f130de480442b83b8da4a4ee79142fecfbfdbc36d764eee13ffed0c2f5b`；首頁回應的 CSP `connect-src` 已含 `https://*.google.com`。之後的 #119（main `b0d12fd8`）接著部署，包含這次的修正。
+- 部署後正式站實測（Playwright，不改 CSP；送往 Google／Meta／OpenAI 的請求本機回 204，對官網的 POST 全部本機攔下，不寫正式庫、不發通知）：帶 `gclid` 進站 → `/visit` → `/visit/yihua` → `/curriculum` → `/about`，`page_view` 全部送出、標題正確、同一個 session；預約表單送出後送出 `generate_lead`（`campus_key=yihua`、`entry=visit_page`）與 OpenAI `appointment_scheduled`。剩下的 CSP 違規只有刻意不放行的 `stats.g.doubleclick.net`、`www.google.com.tw/ads/ga-audiences`。
+- 合併前 CI：PR 全綠（web、admin、後端三組、E2E）；合併最新 main 後本機 web typecheck 與 165 檔、2,498 項單元測試通過。
+- GA4 後台（使用者要求、用 Chrome 調整）：「允許廣告個人化的進階設定」307 區 → 0 區，其餘信號相關設定原本就關。Google Ads 轉換欄要等真實預約（匯入延遲 24–48 小時）才看得到，尚未驗證。
+- 沒有 migration、API 或 Railway 環境變數變更。
+
 ## 2026-11-19 三輪 QA 的預約、內容與通知修正（PR #116，已部署 main `f3f886bb`）
 
 [PR #116](https://github.com/wu0010802-stack/ivy-website-admin/pull/116) 以 merge commit 合併為 `f3f886bb`；[main CI/CD 44546520651](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44546520651) 全部成功，台灣時間 22:58 完成部署。改動內容見 README 的 2026-11-18「三輪 QA 修正交接」「ChatGPT（Codex）資安複核」與 2026-11-19「Claude 審查 ChatGPT 分支並修正 CI」。
