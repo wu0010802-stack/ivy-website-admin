@@ -336,6 +336,39 @@ describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12
   })
 })
 
+describe('轉址不露出 API 的內網位址（2026-11-19 資安審查）', () => {
+  function redirectTo(location: string) {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(307, { location })
+      res.end()
+    }
+  }
+
+  it('指回 API 自己的 Location 改成站內路徑（FastAPI 對結尾斜線回 307）', async () => {
+    redirectTo(`${upstreamBase}/api/website/v1/public/slots?campus=yihua`)
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/slots/?campus=yihua')
+    expect(response.status).toBe(307)
+    expect(response.headers.location).toBe('/api/website/v1/public/slots?campus=yihua')
+  })
+
+  it('開頭多個斜線收成一個，瀏覽器不會當成別的主機', async () => {
+    redirectTo(`${upstreamBase}//evil.example/x`)
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/slots/')
+    expect(response.headers.location).toBe('/evil.example/x')
+  })
+
+  it.each([
+    'https://accounts.google.com/o/oauth2/v2/auth?state=abc',
+    'https://admin.example.com/admin/settings/account',
+    '/admin/settings/account?linked=line',
+  ])('外部網址與站內相對路徑原樣保留：%s', async (location) => {
+    redirectTo(location)
+    const response = await rawRequest(proxyPort, '/api/website/v1/auth/google/callback')
+    expect(response.status).toBe(307)
+    expect(response.headers.location).toBe(location)
+  })
+})
+
 describe('上游逾時（2026-11-12）', () => {
   it('API 一直不回應標頭就回 504，並關掉上游連線', async () => {
     runtimeOverrides = { apiProxyTimeoutSeconds: 0.3 }

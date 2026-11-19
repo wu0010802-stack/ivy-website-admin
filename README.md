@@ -15,6 +15,42 @@
 - 授權網址加 `disable_auto_login=true`（登入與綁定都帶）：LINE 不再自動跳 App，流程留在同一個瀏覽器；在這個瀏覽器登入過 LINE 的顯示一鍵 SSO，沒有的要輸入 LINE 的 Email 與密碼。
 - 回呼帶 state 但這個瀏覽器沒有握手 cookie 時，改回 `oauth_error=line_other_browser`，登入頁提示「在這個瀏覽器再按一次」，不再是含糊的「未完成或已逾時」。沒有 state 的隨手請求照舊 `line_failed`。
 
+## 2026-11-19 官網追蹤修正：GA4 事件被 CSP 擋下、換頁標題落後一頁、選校沒記到（PR #118，已部署 main `cead8b64`）
+
+使用者要求確認 GA4、Google Ads、GCLID、跨頁追蹤與招生轉換是否正常。正式站實測（Playwright 的 Chrome、WebKit 各跑一次，加上使用者本人的 Chrome）找到三個問題：
+
+- **GA4 一筆事件都送不出去（最嚴重）**：11-16 GA4 連結 Google Ads 之後，`gtag.js` 把事件改送 `analytics.google.com/g/collect`，失敗再退回 `www.google.com/g/collect`。公開頁 CSP 的 `connect-src` 只有 `*.analytics.google.com`（萬用字元不含裸網域）、沒有 `www.google.com`，兩個都被擋。GA4 報表：每日活躍使用者 11-16 約 30 人、11-17 掉到約 4 人；28 天內重要事件（`generate_lead`）0 筆，所以匯進 Google Ads 的「官網預約參觀 generate_lead」轉換也只會是 0。修正：GA 的 `connect-src` 加 `https://*.google.com`（Google 官方 GA4 CSP 基準）。Google 信號／再行銷名單的 `stats.g.doubleclick.net`、`www.google.<國碼>/ads/ga-audiences` 刻意維持擋下（廣告個人化是關的），主控台會留這兩支 CSP 違規。
+- **換頁的 `page_title` 落後一頁**：11-14 升級的 Nuxt 4.6 帶 unhead v3，head 重繪排在 `setTimeout` 之後，`page:finish` 當下 `document.title` 還是上一頁（正式站 `/visit` 記成首頁標題、`/curriculum` 記成預約頁標題）。改成等 unhead 的 `dom:rendered` 才送 `page_view`，500ms 保底（`afterHeadRendered`）。
+- **`/visit` → `/visit/<校>` 沒有 `page_view`**：預約頁 `definePageMeta({ key: 'visit' })` 讓兩個網址共用同一個頁面實例，不會有 `page:finish`。改成路由換頁完成時，若是同一頁面實例換網址（`reusesPageInstance`）也排一次 `page_view`。Meta Pixel 與 LINE Tag 走同一個掛鉤，一起修好。
+
+確認正常、沒改的：apex／http 轉 `www` 保留 `gclid` 與 utm；落地頁 `page_location` 保留 `gclid`、`_gcl_aw` cookie 寫入、站內換頁維持同一個 session（`sid` 不變）；預約成功送 `generate_lead`（`campus_key`、`entry=visit_page`，網址不帶 token）與 OpenAI `appointment_scheduled`；第一方 `ivy_src` 記成 `ads`／`google`＋活動代碼。Meta Pixel 在真 Chrome 有送 `PageView`（Playwright 看不到是 Meta 對自動化瀏覽器不送）。
+
+驗證（Node 22.23.2）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm run test:website` | 165 檔、2,490 項通過 |
+| 正式站頁面套修正版 CSP（Playwright 攔下文件回應換 CSP，GA／Meta／OpenAI 請求本機回 204） | 帶 `gclid` 進站 → 4 次換頁 → `page_view` 全部送出、同一個 session；只剩上述兩支預期的違規 |
+| 正式站走完預約表單（所有 POST 本機攔下、送出回假的 confirmed，不寫正式庫、不發通知） | 同一個 session 送出 `generate_lead`（`campus_key=yihua`、`entry=visit_page`） |
+| 本機 `nuxt dev`（fixture）首頁 → `/visit` → `/visit/yihua` → `/curriculum` → `/about` → 上一頁 | 6 筆 `page_view` 標題都對到該頁，`/visit/yihua` 有記到 |
+
+GA4 後台（使用者要求、11-19 用 Chrome 調整）：資料收集 →「允許廣告個人化的進階設定」由 307 個區域全開改成 0 個區域，與 11-16「個人化廣告關」的裁定一致；重要事件仍會匯出到 Google Ads，只標成不可用於個人化（官網事件本來就帶 `npa=1`）。Google 信號資料收集、收集使用者提供的資料、Google 代碼容器的三個 `false` 參數、Ads 連結的個人化廣告原本就是關的，沒動。改完 30 分鐘後重測，`stats.g.doubleclick.net` 與 `ga-audiences` 仍會嘗試（gtag 連著 Ads 時固有），繼續由 CSP 擋下。
+
+部署後正式站實測（不改 CSP，送往 Google 的請求本機回 204）：帶 `gclid` 進站 → `/visit` → `/visit/yihua` → `/curriculum` → `/about`，5 筆 `page_view` 全部送出、標題各自正確、同一個 session；走完預約表單（POST 全部本機攔下）送出 `generate_lead`。
+
+未驗證：GA4「即時」與 Google Ads 轉換欄是否真的開始有數字（要等真家長從廣告進來預約，匯入延遲 24–48 小時）。第一方統計外掛（`telemetry.client.ts`）也是掛 `page:finish`，`/visit` → `/visit/<校>` 可能同樣漏記，這輪沒動（另一個 session 正在改第一方統計）。
+
+## 2026-11-19 資安審查三項修正（`fix/security-review-20261119`，部署狀態見 `deploy/README.md`）
+
+對 `origin/main` `14900354` 做資安審查（10-27 稽核之後新增的功能為主），沒有高、中風險；以下三項低風險修掉，修正接在 `6b9b60f1` 之後。
+
+- **API 轉址不再露出內網位址**：路徑結尾多一個斜線時，FastAPI 回 307，`Location` 用 API 收到的內網主機組成，代理原樣轉給瀏覽器。`web/server/utils/api-proxy.ts` 的 `publicRedirectLocation` 把指回 API 自己的 `Location` 改成站內路徑（開頭多個斜線收成一個）；Google／LINE 等外部網址與站內相對路徑照舊。
+- **錯誤通知的節流分成兩類**：`backend/app/notifications/error_alerts.py` 原本全站共用 15 分鐘窗口，匿名的瀏覽器錯誤回報能一直佔住它，連 API 的真實錯誤都不推。現在 API 與瀏覽器回報（官網、後台）各算各的。瀏覽器回報本來就無法辨識真假，這一類仍可能被偽造的回報佔住或重新開啟。
+- **LINE 群組被移出後再拉回，不恢復校區綁定**：總部群組本來就在離開時取消；校區群組改在官方帳號回到群組的那一刻解除綁定，要總管理者在後台重新選（`_unbind_rejoined_group`）。離開期間保留綁定，後台照樣顯示「群組已離開」。解除會記一筆操作紀錄（`line.campus_target.update`，原因 `line_group_rejoined`），後台已加中文說明。
+
+沒有 migration，API 契約不變。驗證（基準 `7095ea05`）：後端全套 5,798 過、1 略過；三條新測試在原版確認失敗；web、admin 型別檢查與 `npm run contract:check` 通過；web 全套 2,483 項中 1 項 CSS 掃描測試在本機高負載下逾時（與修改無關），admin 稽核與 LINE 相關 220 項（1 項負載逾時、單跑通過）。接上 `6b9b60f1` 後以 PR 的 CI 為準。
+
 ## 2026-11-19 Claude 審查 ChatGPT 分支並修正 CI（`feature/chatgpt-security-review-20261118`）
 
 - **修正 LINE 通知端點被誤擋**：11-18 把共用的 `_require_same_visit_request` 改成「沒帶案件 id 就回 409」，但 LINE 通知的查詢、取代碼、解除三個端點也共用它，CI 後端第 3 組 23 項失敗（`test_line_integrations_20261116.py`）。改回「有帶才比對」，「取消一定要帶 id」只在 `parent_cancel` 檢查，QA「A 分頁取消到 B 的預約」的防護不變。正式站官網一直都有帶 id，家長端沒有受到影響。

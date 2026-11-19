@@ -174,6 +174,32 @@ async def test_alerts_are_throttled_site_wide_for_15_minutes(push_app, admin):
     assert len(push_app.state.fake_push.bodies_for(device)) == 2
 
 
+async def test_forged_browser_reports_cannot_hold_back_api_alerts(push_app, admin):
+    """瀏覽器回報走匿名公開端點、任何人都能送：它們佔住的節流窗口不能壓掉 API 真實錯誤的通知，
+    API 與瀏覽器各算各的 15 分鐘（2026-11-19 資安審查）。"""
+    device = await _subscribe(admin)
+
+    @push_app.get(f"{API}/_alert_boom_first")
+    async def _boom_first() -> dict:
+        raise ValueError("first")
+
+    @push_app.get(f"{API}/_alert_boom_second")
+    async def _boom_second() -> dict:
+        raise LookupError("second")
+
+    await _report_error(push_app, kind="ForgedA")  # 瀏覽器這一類剛推過
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=push_app, raise_app_exceptions=False), base_url="http://test") as client:
+        assert (await client.get(f"{API}/_alert_boom_first")).status_code == 500
+        await error_alerts.wait_idle()
+        assert (await client.get(f"{API}/_alert_boom_second")).status_code == 500
+        await error_alerts.wait_idle()
+    await _report_error(push_app, kind="ForgedB")
+    assert [p["body"] for p in push_app.state.fake_push.bodies_for(device)] == [
+        "官網：ForgedA（詳情請到系統狀態頁查看）",
+        "API：ValueError first",  # 第二個 API 錯誤仍受 API 自己的窗口節流
+    ]  # ForgedB 仍在瀏覽器那一類的窗口內
+
+
 async def test_concurrent_new_errors_send_only_one_alert(push_app, admin):
     device = await _subscribe(admin)
     import asyncio
