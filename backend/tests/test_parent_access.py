@@ -194,16 +194,16 @@ async def test_parent_mutation_refuses_request_switched_in_another_tab(admin_cli
 
 
 @pytest.mark.asyncio
-async def test_parent_mutations_without_visit_request_id_still_work_for_old_pages(admin_client, public_client):
-    """CD 先部署 API 再部署 web：部署前就開著的家長頁、web 上線前的空窗都是舊版官網，
-    取消不帶 body，照舊依 session 處理（發布版本需前後相容）。"""
+async def test_parent_cancel_without_visit_request_id_leaves_booking_intact(admin_client, public_client):
     receipt, _slot_id, _slot_date = await _enable_slots_and_book(admin_client, public_client)
     await public_client.post(
         "/api/website/v1/public/visit-manage/exchange", json={"token": await _access_token(admin_client, receipt)}
     )
     cancelled = await public_client.post("/api/website/v1/public/visit-manage/cancel")
-    assert cancelled.status_code == 200, cancelled.text
-    assert cancelled.json()["status"] == "cancelled"
+    assert cancelled.status_code == 409, cancelled.text
+    assert cancelled.json()["detail"]["code"] == "PARENT_SESSION_CHANGED"
+    detail = await admin_client.get(f"/api/website/v1/admin/visit-requests/{receipt}")
+    assert detail.json()["status"] == "confirmed"
 
 
 @pytest.mark.asyncio

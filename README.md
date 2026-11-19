@@ -1,3 +1,27 @@
+## 2026-11-19 Claude 審查 ChatGPT 分支並修正 CI（`feature/chatgpt-security-review-20261118`）
+
+- **修正 LINE 通知端點被誤擋**：11-18 把共用的 `_require_same_visit_request` 改成「沒帶案件 id 就回 409」，但 LINE 通知的查詢、取代碼、解除三個端點也共用它，CI 後端第 3 組 23 項失敗（`test_line_integrations_20261116.py`）。改回「有帶才比對」，「取消一定要帶 id」只在 `parent_cancel` 檢查，QA「A 分頁取消到 B 的預約」的防護不變。正式站官網一直都有帶 id，家長端沒有受到影響。
+- **npm audit 閘門紅燈**：11-18 起各分支 web job 卡在 picomatch 公告 GHSA-fc5q-39xc-vjpf。GitHub 已於 11-18 15:38（UTC）撤回該公告，本機 `npm audit` 回 0，不升套件也不登記放行。
+- **審查記下、這次沒改的通知 worker 行為**（頻率低）：發送途中資料庫斷線時直接中止該批，這筆不記失敗次數，之後靠租約到期重領；一批裡有租約被接手時 drain 會提早結束，等下一個 60 秒；發送鎖讓全站同時只跑一批（API 目前單一副本）。
+- 驗證：後端全套（修正前）5,779 過、23 失敗，失敗全在上述 LINE 測試；修正後 LINE、家長存取、QA 迴歸、預約存取並發、LINE 通知五檔 102 項通過；`web/tests/api-proxy.spec.ts` 43 項通過；`npm run contract:check` 通過。
+
+## 2026-11-18 三輪 QA 修正交接
+
+補齊 CMS 首次開啟的併發處理、通知租約保護，以及家長取消預約時的案件比對。逐項核對與驗證方式見 [QA 修正交接](docs/website-admin/qa-review-2026-11-18.md)。
+
+## 2026-11-18 ChatGPT（Codex）資安複核（11-19 Claude 已審查，見上）
+
+分支為 `feature/chatgpt-security-review-20261118`，基於 GitHub 的 `main` `14900354`。11 月 17 日掃描的版本是較舊的 `feature/website-admin` `d11d7e79`。兩項程式問題的防護已在主分支上。
+
+- **API 代理**在讀取本文前限制大小。超過上限回 `413`，沒有 `Content-Length` 的串流請求回 `411`。ChatGPT 新增兩個走實際代理路由的回歸測試，確認這兩種情況都不會轉送後端。測試使用本機模擬後端。
+- **CSV 匯出**已使用共用的 `csv_export.safe_cell`。前導 TAB、空白、控制字元與全形公式符號由既有防護處理。這一輪複核只新增代理測試與本段交接紀錄；分支另含上面 11-18 三輪 QA 的後端修正（通知 worker、CMS 首次建立、家長取消），合併時要一起看。
+
+驗證結果（Node 22.23.2、Python 3.12.13）
+
+- `npm --prefix web run typecheck` 通過。
+- `npm run test:website` 共 165 檔、2,480 項通過，包含兩個新增案例。
+- 在 `backend/` 以 `WEBSITE_SKIP_DEFAULT_APP=1 python -m pytest --noconftest -q tests/test_csv_export.py` 驗證既有 CSV 防護，38 項通過。這組測試使用合成資料，未連資料庫。
+
 ## 2026-11-18 WebKit 重整時停止舊頁面的轉場遮罩工作（部署狀態見 `deploy/README.md`）
 
 正式版 HTTPS 的 WebKit 回歸找到全站轉場外掛的背景快取問題：`beforeunload` 之後，舊頁面仍開始產生遮罩並讀取 Blob；WebKit 此時已拒絕讀取，光接住 Promise 或改快取格式仍會回報資源錯誤。實際時序記錄在 `/private/tmp/ivy-blob-lifecycle.log`，CI trace 留在本機 `output/env-webkit-ci-second/`。
