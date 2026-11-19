@@ -3553,7 +3553,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Google Login */
+        /**
+         * Google Login
+         * @description remember＝登入頁勾了「記住這台裝置」，放進簽章過的握手，callback 照著建 30 天的 session。
+         */
         get: operations["google_login_api_website_v1_auth_google_login_get"];
         put?: never;
         post?: never;
@@ -3609,7 +3612,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Line Login */
+        /**
+         * Line Login
+         * @description remember＝登入頁勾了「記住這台裝置」，放進簽章過的握手，callback 照著建 30 天的 session。
+         */
         get: operations["line_login_api_website_v1_auth_line_login_get"];
         put?: never;
         post?: never;
@@ -8851,6 +8857,11 @@ export interface components {
             email: string;
             /** Password */
             password: string;
+            /**
+             * Remember
+             * @default false
+             */
+            remember: boolean;
         };
         /** LoginResponse */
         LoginResponse: {
@@ -19692,6 +19703,7 @@ export interface operations {
         parameters: {
             query?: {
                 redirect?: string | null;
+                remember?: boolean;
             };
             header?: never;
             path?: never;
@@ -19811,6 +19823,7 @@ export interface operations {
         parameters: {
             query?: {
                 redirect?: string | null;
+                remember?: boolean;
             };
             header?: never;
             path?: never;

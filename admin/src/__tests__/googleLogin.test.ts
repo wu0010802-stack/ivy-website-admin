@@ -51,7 +51,7 @@ describe('Google 登入入口', () => {
     await wrapper.get('form').trigger('submit')
     await flushPromises()
     expect(login).toHaveBeenCalledTimes(1)
-    expect(login).toHaveBeenCalledWith('staff@gmail.com', 'password')
+    expect(login).toHaveBeenCalledWith('staff@gmail.com', 'password', false)
     expect(router.currentRoute.value.name).toBe('dashboard')
   })
 

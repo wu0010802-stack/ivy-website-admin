@@ -74,6 +74,8 @@ describe('登入頁的 LINE 入口', () => {
     ['line_not_allowed', '尚未綁定後台帳號'],
     ['line_failed', 'LINE 登入未完成'],
     ['line_unavailable', 'LINE 登入尚未啟用'],
+    // 2026-11-19：iPhone 從 Safari 發起、LINE App 把回呼開在預設瀏覽器（Chrome），握手 cookie 不在那邊。
+    ['line_other_browser', '請在這個瀏覽器再按一次「使用 LINE 登入」'],
   ])('顯示 %s 的可操作提示', async (code, message) => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: true })
     const { wrapper } = await mountAt(LoginView, `/login?oauth_error=${code}`)

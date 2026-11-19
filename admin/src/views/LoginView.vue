@@ -33,6 +33,9 @@ const oauthErrors: Record<string, string> = {
   line_cancelled: '已取消 LINE 登入，可重新登入或使用 Email 與密碼。',
   line_not_allowed: '這個 LINE 帳號尚未綁定後台帳號，或綁定的帳號已停用。請先用 Email 與密碼登入，到「我的帳號」綁定 LINE。',
   line_failed: 'LINE 登入未完成或已逾時，請重新登入。',
+  // 回呼帶著 state 卻沒有握手 cookie：多半是 iPhone 從 Safari 發起、LINE App 把結果開在預設瀏覽器（2026-11-19）。
+  // 在這個瀏覽器重按一次就會從這裡發起，LINE 也會回到這裡。
+  line_other_browser: 'LINE 把登入結果開在另一個瀏覽器，這次沒有完成。請在這個瀏覽器再按一次「使用 LINE 登入」；手機上建議用預設的瀏覽器開後台。',
   line_unavailable: 'LINE 登入尚未啟用，請使用 Email 與密碼。',
 }
 const errorMessage = ref<string | null>(
@@ -58,11 +61,18 @@ function reloadPage() {
   window.location.reload()
 }
 const submitting = ref(false)
+// 記住這台裝置（2026-11-19）：保持登入 30 天，期間沒用也不會登出；帳密、Google、LINE 都吃這個選擇。
+// 預設不勾：沒勾時關掉瀏覽器就登出，共用電腦不會留著別人的登入。
+const remember = ref(false)
 const googleEnabled = ref(false)
 const lineEnabled = ref(false)
 // 只接受站內路徑（規則在 nav.ts，router 從書籤恢復登入時也用同一條）。
 const returnTo = computed(() => safeRedirectPath(route.query.redirect) ?? '/')
-const redirectQuery = computed(() => new URLSearchParams({ redirect: returnTo.value }).toString())
+const redirectQuery = computed(() => {
+  const params = new URLSearchParams({ redirect: returnTo.value })
+  if (remember.value) params.set('remember', '1')
+  return params.toString()
+})
 const googleLoginUrl = computed(() => `${BASE_URL}/auth/google/login?${redirectQuery.value}`)
 const lineLoginUrl = computed(() => `${BASE_URL}/auth/line/login?${redirectQuery.value}`)
 // Google 與 LINE 第一次都要先在後台內綁定（2026-10-06 起 Google 不再用 Email 自動綁定），入口旁要講清楚。
@@ -126,7 +136,7 @@ async function handleSubmit() {
   }
   submitting.value = true
   try {
-    await authStore.login(email, form.password)
+    await authStore.login(email, form.password, remember.value)
     // replace 而不是 push：登入頁不留在瀏覽紀錄裡。從通知信點進案件、登入後按
     // 「← 參觀案件」或返回鍵，才不會先退回登入頁、再被送到總覽。
     await router.replace(returnTo.value)
@@ -220,6 +230,10 @@ async function handleSubmit() {
             />
             <p v-if="fieldErrors.password" id="current-password-error" class="login__field-error">{{ fieldErrors.password }}</p>
           </el-form-item>
+          <div class="login__remember">
+            <el-checkbox v-model="remember" data-test="login-remember" :disabled="submitting">記住這台裝置 30 天</el-checkbox>
+            <p>共用的電腦請不要勾</p>
+          </div>
           <el-button type="primary" size="large" native-type="submit" :loading="submitting" class="login__submit">
             登入
           </el-button>
@@ -339,6 +353,25 @@ async function handleSubmit() {
   color: var(--el-color-danger);
   font-size: var(--text-sm);
   line-height: 1.45;
+}
+
+.login__remember {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 12px;
+  margin: -4px 0 16px;
+}
+
+.login__remember :deep(.el-checkbox__label) {
+  color: var(--ink);
+  font-size: var(--text-base);
+}
+
+.login__remember p {
+  margin: 0;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
 }
 
 .login__submit {

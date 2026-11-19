@@ -45,7 +45,7 @@ LINE 的 ID token 沒有 `email_verified`，要取得 email 還得另外向 LINE
 
 ## 安全設計
 
-- 授權請求帶 `state`、`nonce` 與 PKCE（S256）。握手資料放在簽章 cookie `ivy_line_oauth`（HttpOnly、SameSite=Lax、Path 限定 `/api/website/v1/auth/line`、10 分鐘有效，正式環境加 Secure），callback 完成後立即刪除。沒有另外掛 `SessionMiddleware`，避免與 Google 的握手互相覆寫。
+- 授權請求帶 `state`、`nonce` 與 PKCE（S256），並帶 `disable_auto_login=true`（2026-11-19）：有 PKCE 時 LINE 預設「自動登入」，手機上會直接跳 LINE App，App 授權完把回呼開在**預設瀏覽器**；從非預設瀏覽器發起（例如 iPhone 預設是 Chrome、後台卻在 Safari 開）就拿不到握手 cookie 而失敗（正式站 11-17、11-18 各一次）。關掉後整個流程留在同一個瀏覽器：之前在這個瀏覽器登入過 LINE 的顯示一鍵 SSO，沒有的要輸入 LINE 的 Email 與密碼。回呼帶 state 卻沒有握手 cookie 時回 `oauth_error=line_other_browser`，登入頁請使用者在該瀏覽器重按一次。握手資料放在簽章 cookie `ivy_line_oauth`（HttpOnly、SameSite=Lax、Path 限定 `/api/website/v1/auth/line`、10 分鐘有效，正式環境加 Secure），callback 完成後立即刪除。沒有另外掛 `SessionMiddleware`，避免與 Google 的握手互相覆寫。
 - ID token：HS256 用 Channel secret 驗；若 LINE 改發 ES256，就用 `https://api.line.me/oauth2/v2.1/certs` 依 `kid` 驗。金鑰種類跟著演算法走，其他演算法（含 `none`）一律拒絕。另外檢查 `iss=https://access.line.me`、`aud`（Channel ID）、`exp`、`iat` 與 `nonce`。
 - 以登入模式開始的握手不會完成綁定；綁定模式的錯誤導回「我的帳號」，不影響既有 session。
 - 登入起點沿用帳密登入的來源限流。LINE 的 access／refresh／ID token 都不存資料庫、不傳給 SPA、不放進任何 URL；錯誤訊息只回固定代碼，不回顯 LINE 的 `error_description`。

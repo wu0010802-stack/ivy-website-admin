@@ -106,17 +106,24 @@ def _user_out(user: User) -> UserOut:
     )
 
 
-def _set_session_cookie(response: Response, settings: Settings, raw_token: str) -> None:
-    # 不設 max_age／expires：瀏覽器 session cookie，關掉瀏覽器就沒了（共用電腦
-    # 上「關視窗以為已離開」的情境）。伺服器端另有閒置逾時與 12 小時上限。
+def _set_session_cookie(response: Response, settings: Settings, raw_token: str, *, remember: bool = False) -> None:
+    # 沒勾「記住這台裝置」時不設 max_age／expires：瀏覽器 session cookie，關掉瀏覽器就沒了
+    # （共用電腦上「關視窗以為已離開」的情境），伺服器端另有閒置逾時與 12 小時上限。
+    # 勾了（2026-11-19）才帶 30 天的 Max-Age，跟伺服器端上限一致（service.REMEMBER_TTL）。
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
         value=raw_token,
+        max_age=int(service.REMEMBER_TTL.total_seconds()) if remember else None,
         httponly=True,
         secure=settings.environment == "production",
         samesite="lax",
         path="/",
     )
+
+
+def login_audit_metadata(remember: bool) -> dict:
+    """登入稽核記下有沒有勾「記住這台裝置」（30 天的 session 要查得到是誰、什麼時候開的）。"""
+    return {"remember": True} if remember else {}
 
 
 def _features(settings: Settings) -> FeatureFlags:
@@ -166,12 +173,19 @@ async def login(
     previous = request.cookies.get(SESSION_COOKIE_NAME)
     if previous:
         await service.revoke_session(db, previous)
-    raw_token, csrf_token = await service.create_session(db, user, idle=service.session_idle(settings))
+    raw_token, csrf_token = await service.create_session(
+        db, user, idle=service.session_idle(settings), remember=payload.remember
+    )
     await audit_service.log_action(
-        db, actor_user_id=user.id, action="user.login_password", target_type="user", target_id=str(user.id)
+        db,
+        actor_user_id=user.id,
+        action="user.login_password",
+        target_type="user",
+        target_id=str(user.id),
+        metadata=login_audit_metadata(payload.remember),
     )
     await db.commit()
-    _set_session_cookie(response, settings, raw_token)
+    _set_session_cookie(response, settings, raw_token, remember=payload.remember)
 
     result = await db.execute(
         select(User).options(selectinload(User.campus_scopes)).where(User.id == user.id)

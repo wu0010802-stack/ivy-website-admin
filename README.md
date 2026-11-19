@@ -1,3 +1,20 @@
+## 2026-11-19 後台「記住這台裝置」保持登入 30 天＋手機 LINE 登入修正（`feature/admin-remember-20261119`，未部署）
+
+使用者要求後台保持登入、做 30 天。登入頁密碼欄下方加「記住這台裝置 30 天」勾選框（預設不勾，旁邊寫「共用的電腦請不要勾」），帳密、Google、LINE 三種登入都適用：
+
+- **有勾**：session cookie 帶 `Max-Age` 30 天；伺服器端 session 最長 30 天，閒置也是 30 天（使用者裁定，30 天內沒開後台也不會登出；`backend/app/auth/service.py` 的 `REMEMBER_TTL`、`REMEMBER_IDLE`）。
+- **沒勾**：跟原本一樣，是瀏覽器 session cookie（關掉瀏覽器就登出），閒置 120 分鐘失效、最長 12 小時。
+- Google／LINE 的入口網址加 `remember=1`，這個選擇寫進簽章過的握手，回呼時照著建 session。
+- 安全機制照舊：改密碼、重設密碼、停權、解除綁定仍會登出所有裝置；綁定 LINE／Google、改角色這類要重新驗證的動作，看的還是「登入後 10 分鐘內」，session 再長也不能免輸入密碼。
+- 稽核：有勾的登入在 `user.login_password`／`login_google`／`login_line` 記 `{"remember": true}`，操作紀錄顯示「記住這台裝置 30 天」。
+- 到期前 15 分鐘的提醒拿掉「每次登入最長 12 小時」這句（記住的 session 上限是 30 天）。
+- migration `e7a4c1d9b3f2`：`sessions` 加 `remember`（boolean，預設 false），只新增欄位、既有 session 一律當成沒勾，不需要先備份。
+
+**手機 LINE 登入失敗**（使用者回報「明明綁定了，LINE 授權後又無法登入」）：正式站 HTTP 紀錄 11-17 23:13、11-18 23:47 兩次都是 iPhone **Safari** 按 LINE 登入，3 秒後回呼卻從 **Chrome** 打進來。有 PKCE 時 LINE 預設自動登入、直接跳 LINE App，App 把回呼開在預設瀏覽器（使用者的是 Chrome），握手 cookie 在 Safari，於是一律「LINE 登入未完成」。另外使用者 11-17 23:14 在 Chrome 解除了 LINE 綁定、重新綁定沒有完成，正式庫目前沒有任何帳號綁 LINE，要重新綁一次。
+
+- 授權網址加 `disable_auto_login=true`（登入與綁定都帶）：LINE 不再自動跳 App，流程留在同一個瀏覽器；在這個瀏覽器登入過 LINE 的顯示一鍵 SSO，沒有的要輸入 LINE 的 Email 與密碼。
+- 回呼帶 state 但這個瀏覽器沒有握手 cookie 時，改回 `oauth_error=line_other_browser`，登入頁提示「在這個瀏覽器再按一次」，不再是含糊的「未完成或已逾時」。沒有 state 的隨手請求照舊 `line_failed`。
+
 ## 2026-11-19 官網追蹤修正：GA4 事件被 CSP 擋下、換頁標題落後一頁、選校沒記到（PR #118，已部署 main `cead8b64`）
 
 使用者要求確認 GA4、Google Ads、GCLID、跨頁追蹤與招生轉換是否正常。正式站實測（Playwright 的 Chrome、WebKit 各跑一次，加上使用者本人的 Chrome）找到三個問題：

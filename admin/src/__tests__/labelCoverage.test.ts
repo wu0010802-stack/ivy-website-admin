@@ -353,6 +353,8 @@ const METADATA_HELPERS: [RegExp, () => string[]][] = [
   [/^extra$/, transitionExtras],
   // 停權與「解除綁定並登出」記下原本綁了哪些外部登入（2026-09-29 資安修正）。
   [/^unlinked$/, () => returnedKeys(functionBody(source('auth/service.py'), 'def clear_external_logins('), /flags = \{/g)],
+  // 三種登入記下有沒有勾「記住這台裝置」（2026-11-19）。
+  [/^login_audit_metadata\(/, () => returnedKeys(functionBody(source('auth/routes.py'), 'def login_audit_metadata('))],
   // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。
   [/^download\.records_audit_metadata\(/, () => returnedKeys(functionBody(source('admissions/download.py'), 'def records_audit_metadata('))],
   [/^download\.no_deposit_audit_metadata\(/, () => returnedKeys(functionBody(source('admissions/download.py'), 'def no_deposit_audit_metadata('))],

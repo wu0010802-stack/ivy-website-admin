@@ -124,6 +124,9 @@ def _remember(provider, location: str) -> dict[str, list[str]]:
     # Identity is the LINE subject only; email/profile permission is never requested.
     assert query["scope"] == ["openid"]
     assert query["code_challenge_method"] == ["S256"]
+    # 關掉自動登入（2026-11-19）：PKCE 會讓 LINE 在手機上自動跳 App，App 再把回呼開在預設瀏覽器，
+    # 從非預設瀏覽器（例如 iPhone 的 Safari）發起就拿不到握手 cookie。登入與綁定都要帶。
+    assert query["disable_auto_login"] == ["true"]
     assert len(query["state"][0]) >= 32 and len(query["nonce"][0]) >= 32
     provider["nonce"] = query["nonce"][0]
     provider["challenge"] = query["code_challenge"][0]
@@ -283,12 +286,23 @@ async def test_line_callback_errors_are_safe(line_client, line_provider, scenari
         response = await finish(line_client, state, **params)
     assert response.status_code == 303
     expected = "line_cancelled" if scenario.startswith("cancelled") else "line_failed"
+    if scenario == "missing_cookie":
+        # 回呼帶著 state、這個瀏覽器卻沒有握手 cookie：iPhone 從 Safari 發起時，LINE App 會把
+        # 回呼開在預設瀏覽器（2026-11-19 正式站 11-17、11-18 兩次都是這樣），提示在這裡重按一次。
+        expected = "line_other_browser"
     assert response.headers["location"] == f"/admin/login?oauth_error={expected}"
     assert "secret-do-not-echo" not in str(response.headers)
     assert line_client.cookies.get("ivy_admin_session") is None
     assert line_client.cookies.get("ivy_line_oauth") is None
     if scenario not in {"network", "token_rejected"}:
         assert token_requests(line_provider) == 0
+
+
+async def test_line_stray_callback_without_state_or_cookie_is_plain_failure(line_client, line_provider):
+    """沒有 state 也沒有握手的請求（隨手打 callback）不是「開到另一個瀏覽器」，照舊回 line_failed。"""
+    response = await line_client.get(f"{ROOT}/line/callback", params={"code": "test-code"})
+    assert response.headers["location"] == "/admin/login?oauth_error=line_failed"
+    assert token_requests(line_provider) == 0
 
 
 @pytest.mark.parametrize("redirect", ["//evil.example", "https://evil.example", "/../outside", "/%2e%2e/outside", "/\\evil.example", "/login"])
@@ -307,7 +321,8 @@ async def test_line_callback_cannot_replay_after_completion(line_client, line_pr
     state = await start_login(line_client, line_provider)
     await finish(line_client, state)
     count = token_requests(line_provider)
-    assert (await finish(line_client, state)).headers["location"] == "/admin/login?oauth_error=line_failed"
+    # 完成時握手 cookie 已刪：重送看起來跟「開在另一個瀏覽器」一樣（2026-11-19），重點是不再打 LINE。
+    assert (await finish(line_client, state)).headers["location"] == "/admin/login?oauth_error=line_other_browser"
     assert token_requests(line_provider) == count
 
 
@@ -560,7 +575,8 @@ async def test_line_callback_counts_toward_login_rate_limit(line_client, monkeyp
         (await line_client.get(f"{ROOT}/line/callback", params={"state": "x", "code": "y"})).headers["location"]
         for _ in range(4)
     ]
-    assert locations[:3] == ["/admin/login?oauth_error=line_failed"] * 3
+    # 帶 state、沒有握手 cookie 的請求回 line_other_browser（2026-11-19）；第 4 次照樣被來源限流擋下。
+    assert locations[:3] == ["/admin/login?oauth_error=line_other_browser"] * 3
     assert locations[3] == "/admin/login?oauth_error=rate_limited"
 
 

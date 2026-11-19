@@ -26,7 +26,7 @@ from app.auth.models import Session as AuthSession
 from app.auth.models import User
 from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
 from app.auth.reauth import require_recent_auth
-from app.auth.routes import _set_session_cookie
+from app.auth.routes import _set_session_cookie, login_audit_metadata
 from app.auth.schemas import GoogleLinkStart, ReauthRequest
 from app.common.ratelimit import client_key, limiter
 from app.operations import audit_service
@@ -92,7 +92,8 @@ async def _audit_login_failure(db: AsyncSession, reason: str, user_id: uuid.UUID
 
 
 @router.get("/google/login", response_class=RedirectResponse, status_code=302)
-async def google_login(request: Request, redirect: str | None = None) -> Response:
+async def google_login(request: Request, redirect: str | None = None, remember: bool = False) -> Response:
+    """remember＝登入頁勾了「記住這台裝置」，放進簽章過的握手，callback 照著建 30 天的 session。"""
     client = request.app.state.google_oauth
     if client is None:
         return _failure("unavailable")
@@ -101,6 +102,7 @@ async def google_login(request: Request, redirect: str | None = None) -> Respons
         await service.check_login_source_rate_limit(limiter(request), client_key(request))
         request.session["mode"] = "login"
         request.session["return_to"] = safe_admin_path(redirect)
+        request.session["remember"] = remember
         request.session["started_at"] = time.time()
         response = await client.authorize_redirect(
             request, request.app.state.settings.google_redirect_uri, prompt="select_account"
@@ -189,15 +191,21 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
         previous = request.cookies.get(SESSION_COOKIE_NAME)
         if previous:
             await service.revoke_session(db, previous)
+        remember = request.session.get("remember") is True
         raw_token, _ = await service.create_session(
-            db, user, idle=service.session_idle(request.app.state.settings)
+            db, user, idle=service.session_idle(request.app.state.settings), remember=remember
         )
         await audit_service.log_action(
-            db, actor_user_id=user.id, action="user.login_google", target_type="user", target_id=str(user.id)
+            db,
+            actor_user_id=user.id,
+            action="user.login_google",
+            target_type="user",
+            target_id=str(user.id),
+            metadata=login_audit_metadata(remember),
         )
         await db.commit()
         response = RedirectResponse("/admin" + return_to, status_code=303)
-        _set_session_cookie(response, request.app.state.settings, raw_token)
+        _set_session_cookie(response, request.app.state.settings, raw_token, remember=remember)
         return private(response)
     except GoogleLoginRejected as exc:
         await db.rollback()
