@@ -34,7 +34,7 @@ export default <RouterConfig>{
       }
       const stored = entry?.path === to.fullPath && Number.isFinite(entry.top) && Number.isFinite(entry.left) ? { left: entry.left, top: entry.top } : null
       const restored = savedPosition ?? (from === START_LOCATION && _isRestoredLoad() ? stored ?? window.history.state?.scroll : null)
-      await _waitForEnvironmentLayout()
+      await _waitForEnvironmentLayout(from === START_LOCATION && _isRestoredLoad())
       if (router.currentRoute.value.fullPath !== to.fullPath) return false
       if (restored) return { ...restored, behavior: 'instant' }
       if (from === START_LOCATION && (!to.hash || _isRestoredLoad())) return false
@@ -117,7 +117,12 @@ function _waitForStableHeight(ready = () => true, limit = 1000): Promise<void> {
   })
 }
 
-// 最多等三秒；腳本／字型失敗仍可跳到靜態內容。ready 是元件明確完成 layout 的訊號。
-function _waitForEnvironmentLayout(): Promise<void> {
+// 文件載完後，版面最多等三秒；腳本／字型失敗仍可跳到靜態內容。ready 是元件完成 layout 的訊號。
+async function _waitForEnvironmentLayout(restoredDocument = false): Promise<void> {
+  // WebKit 在圖片載完時還會做原生 hash 定位。正式版 hydrate 較快，先還原就會被蓋掉；
+  // 整頁還原先等 load，再量三幀穩定高度。SPA 導航不需要等整份文件。
+  if (restoredDocument && document.readyState !== 'complete') {
+    await new Promise<void>(resolve => window.addEventListener('load', () => resolve(), { once: true }))
+  }
   return _waitForStableHeight(() => Boolean(document.querySelector('.renv[data-windows-ready]')) && document.fonts?.status !== 'loading', 3000)
 }
