@@ -14,6 +14,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-19 三輪 QA 的預約、內容與通知修正（PR #116，已部署 main `f3f886bb`）
+
+[PR #116](https://github.com/wu0010802-stack/ivy-website-admin/pull/116) 以 merge commit 合併為 `f3f886bb`；[main CI/CD 44546520651](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44546520651) 全部成功，台灣時間 22:58 完成部署。改動內容見 README 的 2026-11-18「三輪 QA 修正交接」「ChatGPT（Codex）資安複核」與 2026-11-19「Claude 審查 ChatGPT 分支並修正 CI」。
+
+- API deployment：`4eda0195-fffa-4b31-bc50-44bb97e57d40`；web deployment：`629c7fa6-24f4-490b-b63c-e614c1fe6c48`，兩者 SUCCESS。
+- snapshot：`adb0ad700a67412036791e8e825265cb17f3596cda6cba6b797cf0e89ed155ea`；部署後 GET 正式 `/release.json`，base_commit 為 `f3f886bbe9fda9a1eb560d3db698d1c184ec2692`；`/`、`/visit`、`/api/website/v1/health` 皆回 200。
+- 部署後 API log：定期工作每 60 秒一輪、`failed_steps=[]`，換上新的通知發送鎖後沒有錯誤。期間沒有待送通知，所以實際寄送這一段還沒在正式站觀察到。同時段有門牌資料同步連高雄市資料站 ConnectTimeout 的 Traceback，與本次無關。
+- 合併前 CI：11-18 原提交的後端有 23 項 LINE 測試失敗（共用的案件比對被改成沒帶 id 就回 409），11-19 修正後 PR 全綠；同步 main（#114）後再跑一輪也全綠：web、admin、後端三組、E2E。
+- 審查記下、未改碼（頻率×嚴重度 <5）：寄送途中資料庫斷線時該批直接中止、這筆不記失敗次數，靠 60 秒租約到期後重領；租約被接手時 drain 可能提早結束，等下一輪；`process_outbox_batch` 收 session 但另開連線（正式呼叫端傳的是乾淨 session，不受影響）；家長取消端點的契約仍標 body 選填。
+- 沒有 migration 或 Railway 環境變數變更。家長取消預約時，沒帶案件 id 的舊頁面改回 409（正式站官網一直都有帶 id）。
+
 ## 2026-11-19 WebKit 重整定位＋離頁停止轉場遮罩（PR #114，已部署 main `ccb1dcc8`）
 
 [PR #114](https://github.com/wu0010802-stack/ivy-website-admin/pull/114) 審查後 squash 合併為 `ccb1dcc8`；[main CI/CD 44541544780](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44541544780) 全部成功，台灣時間 22:25 完成部署。改動內容見 README 的 2026-11-17「環境頁正式版 WebKit 重整修正」與 2026-11-18「WebKit 重整時停止舊頁面的轉場遮罩工作」。
