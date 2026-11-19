@@ -175,6 +175,33 @@ async def line_campus_webhook(account_key: str, request: Request, db: AsyncSessi
     return {}
 
 
+async def _unbind_rejoined_group(db: AsyncSession, target_id: str) -> None:
+    """官方帳號被移出後又回到這個群組：解除它原本綁的校區，要總管理者在後台重新選（2026-11-19 資安審查）。
+
+    園方可能就是用「把官方帳號移出群組」來停用這個群組，而群組裡任何人都能再把它拉回來；不解除的話，
+    回來的那一刻就默默恢復收該校卡片、查名單與按鈕寫入。總部群組在離開時就取消（見呼叫端）；校區綁定
+    留到回來才解除，離開期間後台才看得到「群組已離開，目前不會推播」。"""
+    targets = (
+        await db.execute(
+            select(LineCampusTarget)
+            .where(LineCampusTarget.target_id == target_id)
+            .order_by(LineCampusTarget.campus_key)
+            .with_for_update()
+        )
+    ).scalars().all()
+    for target in targets:
+        await db.delete(target)
+        await audit_service.log_action(
+            db,
+            actor_user_id=None,
+            action="line.campus_target.update",
+            target_type="campus",
+            target_id=target.campus_key,
+            campus_key=target.campus_key,
+            metadata={"before": target_id, "after": None, "reason": "line_group_rejoined"},
+        )
+
+
 async def _handle_group_events(request: Request, db: AsyncSession, events: list[dict]) -> None:
     settings = request.app.state.settings
     now = datetime.now(timezone.utc)
@@ -189,7 +216,8 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
             if group is not None and group.left_at is None:
                 group.left_at = now
             # 離開就不再是總部群組：之後有人再把官方帳號拉回來，不會默默恢復收五校卡片與按鈕寫入權，
-            # 要總管理者在後台重新設定。其他開關（種類、摘要、@所有人）照留。
+            # 要總管理者在後台重新設定。其他開關（種類、摘要、@所有人）照留。校區綁定在回來時才解除
+            # （_unbind_rejoined_group）。
             setting = await db.get(LineGroupSetting, target_id)
             if setting is not None and setting.is_hq:
                 setting.is_hq = False
@@ -203,6 +231,8 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
                 target_id=target_id, source_type=source_type, first_seen_at=now, last_seen_at=now
             )
             db.add(group)
+        elif group.left_at is not None:
+            await _unbind_rejoined_group(db, target_id)
         group.last_seen_at = now
         group.left_at = None
         if group.name is None and source_type == "group":

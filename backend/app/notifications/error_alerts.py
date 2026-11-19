@@ -4,10 +4,14 @@
 排一個任務：自己開 session、自己建 httpx client、例外全部吞掉並記 log，不拖慢也不影響錯誤回報的寫入
 與 API 回應。推播沒啟用（沒設 VAPID 金鑰）時什麼都不做。
 
-節流是**全站**的：任何一組的 alerted_at 在 15 分鐘內就不再推（部署壞掉時一次冒出幾十種新錯誤，
+節流以 15 分鐘為窗口：同一類的任何一組 alerted_at 在窗口內就不再推（部署壞掉時一次冒出幾十種新錯誤，
 手機只會響一次）。被節流擋掉的那一組不會補推，它仍在系統狀態頁的錯誤區塊。判斷與「把這一組的
 alerted_at 設成現在」在同一把 advisory lock 與同一個交易裡完成並先 commit，再送出——多個程序
 同時偵測到新錯誤也只會有一個送出。
+
+「同一類」分兩類（2026-11-19 資安審查）：API 自己擷取的例外，與瀏覽器回報的官網／後台錯誤。
+瀏覽器回報走匿名的公開端點，任何人每 15 分鐘送一則假錯誤就能一直佔住窗口；原本全站共用一個窗口時，
+API 的真實錯誤通知會被一起壓掉。分開之後，偽造的回報最多只影響瀏覽器那一類。
 
 推播內容：API 的錯誤（伺服器自己產生）是來源、錯誤類型與訊息前 60 字（入庫前已遮蔽 Email、電話、token 等），
 不放堆疊與網址。官網／後台前端回報的錯誤任何訪客都能偽造，推播只帶來源與「長得像錯誤類別名稱」的類型，
@@ -22,7 +26,7 @@ from datetime import timedelta
 from typing import Any
 
 import httpx
-from sqlalchemy import func, select, text
+from sqlalchemy import ColumnElement, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.auth.models import User
@@ -37,6 +41,8 @@ logger = logging.getLogger("app.notifications.error_alerts")
 ALERT_THROTTLE = timedelta(minutes=15)
 MESSAGE_PREVIEW_CHARS = 60
 SOURCE_LABELS = {"web": "官網", "admin": "後台", "api": "API"}
+# API 自己擷取的例外（operations/error_reports.server_entry）；其餘來源都是瀏覽器經公開端點回報的。
+SERVER_SOURCE = "api"
 ALERT_URL = "/admin/system-status#errors"
 _LOCK_KEY = "ivy-website:error-alert"
 
@@ -53,7 +59,7 @@ def alert_payload(group: ErrorGroup) -> dict[str, str]:
     message = re.sub(r"\s+", " ", group.message or "").strip()[:MESSAGE_PREVIEW_CHARS]
     kind = re.sub(r"\s+", " ", group.kind or "").strip()
     source = SOURCE_LABELS.get(group.source, group.source)
-    if group.source == "api":
+    if group.source == SERVER_SOURCE:
         body = f"{source}：{kind} {message}".strip()
     else:
         safe_kind = kind if _CLIENT_KIND.fullmatch(kind) else "前端錯誤"
@@ -66,9 +72,16 @@ def alert_payload(group: ErrorGroup) -> dict[str, str]:
     }
 
 
+def _same_alert_class(source: str) -> ColumnElement[bool]:
+    """和這個來源共用節流窗口的錯誤組：API 一類，瀏覽器回報的（官網、後台）一類。"""
+    if source == SERVER_SOURCE:
+        return ErrorGroup.source == SERVER_SOURCE
+    return ErrorGroup.source != SERVER_SOURCE
+
+
 async def claim(db: AsyncSession, group_id: int) -> ErrorGroup | None:
-    """全站節流：沒有任何一組在 15 分鐘內推過，才把這一組標成剛推過並 commit。回傳該組，不送就回 None。
-    不推的情況：組不存在、已標為處理、節流中。"""
+    """節流：同一類（API／瀏覽器回報）沒有任何一組在 15 分鐘內推過，才把這一組標成剛推過並 commit。
+    回傳該組，不送就回 None。不推的情況：組不存在、已標為處理、節流中。"""
     # 同一把鎖序列化「檢查＋標記」，commit 時自動釋放（交易層級）。
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": _LOCK_KEY})
     now = now_utc()
@@ -76,7 +89,7 @@ async def claim(db: AsyncSession, group_id: int) -> ErrorGroup | None:
     if group is None or group.resolved_at is not None:
         await db.rollback()
         return None
-    latest = await db.scalar(select(func.max(ErrorGroup.alerted_at)))
+    latest = await db.scalar(select(func.max(ErrorGroup.alerted_at)).where(_same_alert_class(group.source)))
     if latest is not None and now - latest < ALERT_THROTTLE:
         await db.rollback()
         return None

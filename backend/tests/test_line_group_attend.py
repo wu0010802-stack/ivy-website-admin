@@ -20,6 +20,7 @@ from app.admissions.models import RecruitmentVisit
 from app.booking.models import VisitRequest, VisitRequestEvent, VisitSlot
 from app.common.timezones import OPERATING_TZ, today_local
 from app.notifications import line_group_actions as actions
+from app.notifications import line_group_settings
 from app.notifications.models import LineCampusTarget, LineGroup, LineGroupSetting
 from app.operations.audit_service import LINE_GROUP_ACTIONS, LINE_GROUP_PRIVATE_KEYS, LINE_GROUP_SEARCH_KEYS
 from app.operations.models import AuditLogEntry
@@ -562,6 +563,46 @@ async def test_hq_group_that_leaves_loses_hq(app, fake_line, admin_client, publi
         assert (await db.get(LineGroupSetting, HQ_GROUP)).is_hq is False
     assert fake_line.replies == []
     assert await _status(app, receipt) == "confirmed"
+
+
+async def test_campus_group_pulled_back_after_leaving_loses_its_campus(app, fake_line, admin_client, public_client):
+    """校區群組被移出（leave）後，群組裡的人再把官方帳號拉回來（join），不會默默恢復收該校卡片、查名單與
+    按鈕寫入，要總管理者在後台重新選（2026-11-19 資安審查）。離開期間綁定保留，後台才看得到「群組已離開」。"""
+    await _groups(app)
+    receipt = await _case(app, admin_client, public_client)
+
+    def _event(kind: str) -> dict:
+        event = _postback(None, YIHUA_GROUP, user=None)
+        event["type"] = kind
+        if kind == "leave":
+            del event["replyToken"]
+        return event
+
+    await _press(app, _event("leave"))
+    async with app.state.session_factory() as db:
+        assert (await db.get(LineGroup, YIHUA_GROUP)).left_at is not None
+        assert (await db.get(LineCampusTarget, "yihua")).target_id == YIHUA_GROUP
+    assert await _audits(app, "line.campus_target.update") == []
+
+    await _press(app, _event("join"), _postback(_ok(app, actions.ATTEND_OK, receipt)))
+    async with app.state.session_factory() as db:
+        group = await db.get(LineGroup, YIHUA_GROUP)
+        assert group.left_at is None and group.verified_at is not None
+        assert await db.get(LineCampusTarget, "yihua") is None
+        assert await line_group_settings.campuses_served(db, YIHUA_GROUP) is None
+        # 義華的卡片只剩總部群組收。
+        assert [target.target_id for target in await line_group_settings.targets_for(db, "yihua")] == [HQ_GROUP]
+    [audit] = await _audits(app, "line.campus_target.update")
+    assert audit.actor_user_id is None and audit.campus_key == "yihua" and audit.target_id == "yihua"
+    assert audit.metadata_json == {"before": YIHUA_GROUP, "after": None, "reason": "line_group_rejoined"}
+    assert fake_line.replies == []
+    assert await _status(app, receipt) == "confirmed"
+
+    # 一直在群組裡的群組照常：總部群組按按鈕不會被解除任何設定。
+    await _press(app, _postback(actions.encode(actions.CANCEL), HQ_GROUP))
+    async with app.state.session_factory() as db:
+        assert (await db.get(LineGroupSetting, HQ_GROUP)).is_hq is True
+    assert len(await _audits(app, "line.campus_target.update")) == 1
 
 
 async def test_cancelled_case_replies_its_state(app, fake_line, admin_client, public_client):
