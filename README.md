@@ -1,3 +1,48 @@
+## 2026-11-19 Claude 審查 ChatGPT 分支並修正 CI（`feature/chatgpt-security-review-20261118`）
+
+- **修正 LINE 通知端點被誤擋**：11-18 把共用的 `_require_same_visit_request` 改成「沒帶案件 id 就回 409」，但 LINE 通知的查詢、取代碼、解除三個端點也共用它，CI 後端第 3 組 23 項失敗（`test_line_integrations_20261116.py`）。改回「有帶才比對」，「取消一定要帶 id」只在 `parent_cancel` 檢查，QA「A 分頁取消到 B 的預約」的防護不變。正式站官網一直都有帶 id，家長端沒有受到影響。
+- **npm audit 閘門紅燈**：11-18 起各分支 web job 卡在 picomatch 公告 GHSA-fc5q-39xc-vjpf。GitHub 已於 11-18 15:38（UTC）撤回該公告，本機 `npm audit` 回 0，不升套件也不登記放行。
+- **審查記下、這次沒改的通知 worker 行為**（頻率低）：發送途中資料庫斷線時直接中止該批，這筆不記失敗次數，之後靠租約到期重領；一批裡有租約被接手時 drain 會提早結束，等下一個 60 秒；發送鎖讓全站同時只跑一批（API 目前單一副本）。
+- 驗證：後端全套（修正前）5,779 過、23 失敗，失敗全在上述 LINE 測試；修正後 LINE、家長存取、QA 迴歸、預約存取並發、LINE 通知五檔 102 項通過；`web/tests/api-proxy.spec.ts` 43 項通過；`npm run contract:check` 通過。
+
+## 2026-11-18 三輪 QA 修正交接
+
+補齊 CMS 首次開啟的併發處理、通知租約保護，以及家長取消預約時的案件比對。逐項核對與驗證方式見 [QA 修正交接](docs/website-admin/qa-review-2026-11-18.md)。
+
+## 2026-11-18 ChatGPT（Codex）資安複核（11-19 Claude 已審查，見上）
+
+分支為 `feature/chatgpt-security-review-20261118`，基於 GitHub 的 `main` `14900354`。11 月 17 日掃描的版本是較舊的 `feature/website-admin` `d11d7e79`。兩項程式問題的防護已在主分支上。
+
+- **API 代理**在讀取本文前限制大小。超過上限回 `413`，沒有 `Content-Length` 的串流請求回 `411`。ChatGPT 新增兩個走實際代理路由的回歸測試，確認這兩種情況都不會轉送後端。測試使用本機模擬後端。
+- **CSV 匯出**已使用共用的 `csv_export.safe_cell`。前導 TAB、空白、控制字元與全形公式符號由既有防護處理。這一輪複核只新增代理測試與本段交接紀錄；分支另含上面 11-18 三輪 QA 的後端修正（通知 worker、CMS 首次建立、家長取消），合併時要一起看。
+
+驗證結果（Node 22.23.2、Python 3.12.13）
+
+- `npm --prefix web run typecheck` 通過。
+- `npm run test:website` 共 165 檔、2,480 項通過，包含兩個新增案例。
+- 在 `backend/` 以 `WEBSITE_SKIP_DEFAULT_APP=1 python -m pytest --noconftest -q tests/test_csv_export.py` 驗證既有 CSV 防護，38 項通過。這組測試使用合成資料，未連資料庫。
+
+## 2026-11-18 WebKit 重整時停止舊頁面的轉場遮罩工作（部署狀態見 `deploy/README.md`）
+
+正式版 HTTPS 的 WebKit 回歸找到全站轉場外掛的背景快取問題：`beforeunload` 之後，舊頁面仍開始產生遮罩並讀取 Blob；WebKit 此時已拒絕讀取，光接住 Promise 或改快取格式仍會回報資源錯誤。實際時序記錄在 `/private/tmp/ivy-blob-lifecycle.log`，CI trace 留在本機 `output/env-webkit-ci-second/`。
+
+- `curriculum-enter.client.ts` 從 `beforeunload`／`pagehide` 起停止背景遮罩工作，以世代編號使晚到回呼失效，釋放未完成的 Blob URL；bfcache 返回時重新排入閒置工作。已完成的遮罩保留，正常轉場畫面不變。
+- 快取以 ArrayBuffer 寫入，並接住同步／非同步儲存失敗；快取不可用時仍完成這次的三張遮罩。
+- 新增實際掛載外掛的回歸，涵蓋離頁後延遲回呼、返回後重建、快取圖片內容與同步／非同步失敗。離頁測試先在修正前重現兩項失敗，再確認修正後通過。
+- 最終驗證：web typecheck 通過、165 檔 **2,484 項單元測試通過**、官網與後台正式建置通過；正式版 HTTPS 的 Chrome／WebKit 各桌機與手機 **46 項通過、2 項依手機版設計略過**。日誌 `output/env-cache-{typecheck,unit,build,e2e}.log`。
+- WebKit 手機的四個直接連結重整、無 hash 返回、延遲圖片情境各重複三次，**18 項全部通過**，日誌 `output/env-cache-repeat.log`；沒有啟用失敗重試。
+- CI 把正式版 WebKit 提到完整 stack／公開站 e2e 前面，及早顯示引擎差異；三組仍全部執行。沒有 migration、API 或正式環境變數異動。
+
+## 2026-11-17 環境頁正式版 WebKit 重整修正（部署狀態見 `deploy/README.md`）
+
+首次部署後的正式網域唯讀驗收，找到 WebKit 在圖片載完前後再次套用原生 hash 定位，蓋掉離開前的捲動位置。正式版 hydrate 比開發版快，原本只等模組、字型與穩定高度不足；整頁重新整理／歷史返回現在先等文件 load，再還原位置，SPA 導航維持原流程。
+
+- 新增延遲圖片的真瀏覽器回歸：已在修正前的正式建置重現 WebKit 桌機／手機失敗，修正後通過。
+- `E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment` 可直接驗正式建置，使用本機 fixture 與一次性 HTTPS 憑證；WebKit 正式版 Secure cookie 也能實際驗證。測試 cookie 網址取自當次 `baseURL`。
+- CI 加跑正式版 WebKit 桌機與手機，失敗時保留 trace；11-18 起先跑 WebKit，再跑完整 stack／公開站 e2e。首輪 Linux WebKit 抓到測試在初始章節定位／Nuxt manifest 預抓完成前就開始操作；已改成等待實際完成條件，保留錯誤與鍵盤焦點斷言，沒有加入重試或略過。
+- 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full-final}.log`。
+- 本次只修 Router 與測試環境，沒有 API、migration 或正式環境變數異動。Safari／iPhone 實機仍未驗證。
+
 ## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
 
 接續 Claude 用量中斷的工作，沿用原工作樹 `/Users/yilunwu/Repositories/ivy-website-wt/env-windows-20261117`。開工前快照在 `versions/before-env-windows-fixes-20261117-154219/`，保留原有 B「拱窗打開」設計及所有未提交變更。

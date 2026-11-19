@@ -30,15 +30,19 @@ class VersionConflict(Exception):
 async def get_or_create_content_item(
     db: AsyncSession, kind: str, campus_key: str | None
 ) -> ContentItem:
-    result = await db.execute(
-        select(ContentItem).where(ContentItem.kind == kind, ContentItem.campus_key == campus_key)
+    query = select(ContentItem).where(ContentItem.kind == kind, ContentItem.campus_key == campus_key)
+    item = (await db.execute(query)).scalar_one_or_none()
+    if item is not None:
+        return item
+
+    # 首次開啟同一編輯器時，兩個請求都可能查不到資料。由既有的兩個
+    # partial unique index 決定哪個請求建列，再用新查詢讀回同一筆。
+    await db.execute(
+        pg_insert(ContentItem)
+        .values(id=uuid.uuid4(), kind=kind, campus_key=campus_key, latest_version=0)
+        .on_conflict_do_nothing()
     )
-    item = result.scalar_one_or_none()
-    if item is None:
-        item = ContentItem(id=uuid.uuid4(), kind=kind, campus_key=campus_key, latest_version=0)
-        db.add(item)
-        await db.flush()
-    return item
+    return (await db.execute(query)).scalar_one()
 
 
 async def create_revision(

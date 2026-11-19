@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, createError, defineEventHandler, getHeader, toNodeListener } from 'h3'
 import { trustedClientIp } from '../server/utils/client-ip'
+import { DEFAULT_BODY_LIMIT } from '../shared/request-guard'
 
 const servers: Server[] = []
 async function listen(server: Server) {
@@ -113,6 +114,31 @@ describe('/public/client-errors 同樣只給伺服器內部轉送（2026-11-05 �
   it.each(['/api/website/v1/public/client-errors', '/api/website/v1/public/client-errors/', '/api/website/v1/public/%63lient-errors', '/api/website/v1//public//client-errors'])('%s → 404', async (path) => {
     const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
     expect(response.status).toBe(404)
+    expect(upstreamHits).toEqual([])
+  })
+})
+
+describe('同源 API 請求本文大小限制', () => {
+  const LOGIN = '/api/website/v1/auth/login'
+
+  it('宣告大小超過上限時，只收到標頭就回 413', async () => {
+    const response = await rawRequest(proxyPort, LOGIN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(DEFAULT_BODY_LIMIT + 1) },
+    })
+
+    expect(response.status).toBe(413)
+    expect(upstreamHits).toEqual([])
+  })
+
+  it('缺少 Content-Length 的串流請求回 411', async () => {
+    const response = await rawRequest(proxyPort, LOGIN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
+      body: '{}',
+    })
+
+    expect(response.status).toBe(411)
     expect(upstreamHits).toEqual([])
   })
 })
