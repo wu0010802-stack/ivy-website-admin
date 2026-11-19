@@ -1,3 +1,13 @@
+## 2026-11-19 資安審查三項修正（`fix/security-review-20261119`，部署狀態見 `deploy/README.md`）
+
+對 `origin/main` `14900354` 做資安審查（10-27 稽核之後新增的功能為主），沒有高、中風險；以下三項低風險修掉，修正接在 `6b9b60f1` 之後。
+
+- **API 轉址不再露出內網位址**：路徑結尾多一個斜線時，FastAPI 回 307，`Location` 用 API 收到的內網主機組成，代理原樣轉給瀏覽器。`web/server/utils/api-proxy.ts` 的 `publicRedirectLocation` 把指回 API 自己的 `Location` 改成站內路徑（開頭多個斜線收成一個）；Google／LINE 等外部網址與站內相對路徑照舊。
+- **錯誤通知的節流分成兩類**：`backend/app/notifications/error_alerts.py` 原本全站共用 15 分鐘窗口，匿名的瀏覽器錯誤回報能一直佔住它，連 API 的真實錯誤都不推。現在 API 與瀏覽器回報（官網、後台）各算各的。瀏覽器回報本來就無法辨識真假，這一類仍可能被偽造的回報佔住或重新開啟。
+- **LINE 群組被移出後再拉回，不恢復校區綁定**：總部群組本來就在離開時取消；校區群組改在官方帳號回到群組的那一刻解除綁定，要總管理者在後台重新選（`_unbind_rejoined_group`）。離開期間保留綁定，後台照樣顯示「群組已離開」。解除會記一筆操作紀錄（`line.campus_target.update`，原因 `line_group_rejoined`），後台已加中文說明。
+
+沒有 migration，API 契約不變。驗證（基準 `7095ea05`）：後端全套 5,798 過、1 略過；三條新測試在原版確認失敗；web、admin 型別檢查與 `npm run contract:check` 通過；web 全套 2,483 項中 1 項 CSS 掃描測試在本機高負載下逾時（與修改無關），admin 稽核與 LINE 相關 220 項（1 項負載逾時、單跑通過）。接上 `6b9b60f1` 後以 PR 的 CI 為準。
+
 ## 2026-11-19 Claude 審查 ChatGPT 分支並修正 CI（`feature/chatgpt-security-review-20261118`）
 
 - **修正 LINE 通知端點被誤擋**：11-18 把共用的 `_require_same_visit_request` 改成「沒帶案件 id 就回 409」，但 LINE 通知的查詢、取代碼、解除三個端點也共用它，CI 後端第 3 組 23 項失敗（`test_line_integrations_20261116.py`）。改回「有帶才比對」，「取消一定要帶 id」只在 `parent_cancel` 檢查，QA「A 分頁取消到 B 的預約」的防護不變。正式站官網一直都有帶 id，家長端沒有受到影響。
