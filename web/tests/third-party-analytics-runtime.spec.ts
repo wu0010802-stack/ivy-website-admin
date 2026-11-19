@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AnalyticsIds } from '../shared/third-party-analytics'
-import { createThirdPartyAnalytics, leadEventParams, reportBookingLead, whenPageSettled } from '../app/utils/third-party-analytics'
+import { afterHeadRendered, createThirdPartyAnalytics, leadEventParams, reportBookingLead, reusesPageInstance, whenPageSettled } from '../app/utils/third-party-analytics'
 
 // GA4＋Meta Pixel 的瀏覽器端（2026-11-12）：載入時機、gtag／fbq 收到什麼、哪些頁面完全不送、預約成功事件的參數。
 // 純函式與 CSP 在 third-party-analytics.spec.ts。外部腳本一律不真的載入（假的 document，或攔下 appendChild）。
@@ -443,6 +443,58 @@ describe('預約成功事件', () => {
 })
 
 // plugins/third-party-analytics.client.ts：掛載條件與換頁掛鉤。
+/** vue-router 的路由物件只取用到的欄位；每次呼叫都是新的路由紀錄（＝不同頁面元件）。 */
+interface RouteLike { path: string; matched: { meta?: Record<string, unknown> }[] }
+const route = (path: string, record: { meta?: Record<string, unknown> } = { meta: {} }): RouteLike => ({ path, matched: [record] })
+
+describe('reusesPageInstance（換網址但頁面元件不重掛，就不會有 page:finish）', () => {
+  it('同一筆路由紀錄、definePageMeta 給固定 key（/visit 與 /visit/<校> 共用 visit）：沿用', () => {
+    const visit = { meta: { key: 'visit' } }
+    expect(reusesPageInstance(route('/visit/yihua', visit), route('/visit', visit))).toBe(true)
+  })
+  it('key 是函式：兩邊算出來一樣才沿用（消息頁以網址當 key，換篇會重掛）', () => {
+    const news = { meta: { key: (r: { path: string }) => r.path } }
+    expect(reusesPageInstance(route('/news/2', news), route('/news/1', news))).toBe(false)
+    const fixed = { meta: { key: () => 'news' } }
+    expect(reusesPageInstance(route('/news/2', fixed), route('/news/1', fixed))).toBe(true)
+  })
+  it('沒給 key（Nuxt 以網址當 key）或換了路由紀錄：會重掛', () => {
+    const plain = { meta: {} }
+    expect(reusesPageInstance(route('/news/2', plain), route('/news/1', plain))).toBe(false)
+    expect(reusesPageInstance(route('/about'), route('/'))).toBe(false)
+    expect(reusesPageInstance({ path: '/', matched: [] }, { path: '/x', matched: [] })).toBe(false)
+  })
+})
+
+describe('afterHeadRendered', () => {
+  it('觸發後等 dom:rendered 才跑，一次觸發只跑一次；沒觸發時的重繪不跑', () => {
+    vi.useFakeTimers()
+    const listeners: (() => void)[] = []
+    const run = vi.fn()
+    const trigger = afterHeadRendered({ hook: (_name, fn) => listeners.push(fn) }, run)
+    listeners.forEach(fn => fn())
+    expect(run).not.toHaveBeenCalled()
+    trigger()
+    expect(run).not.toHaveBeenCalled()
+    listeners.forEach(fn => fn())
+    listeners.forEach(fn => fn())
+    expect(run).toHaveBeenCalledTimes(1)
+    vi.advanceTimersByTime(1000)
+    expect(run).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+  it('沒有 head（hooks 是 undefined）：退回保底時間', () => {
+    vi.useFakeTimers()
+    const run = vi.fn()
+    afterHeadRendered(undefined, run, window, 300)()
+    vi.advanceTimersByTime(299)
+    expect(run).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1)
+    expect(run).toHaveBeenCalledTimes(1)
+    vi.useRealTimers()
+  })
+})
+
 describe('外掛（plugins/third-party-analytics.client.ts）', () => {
   type Setup = (app: { hook: (name: string, fn: () => void) => void }) => void
   let setupPlugin: Setup
@@ -467,13 +519,20 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
   function mount(publicConfig: Record<string, unknown>, nav: Record<string, unknown> = { doNotTrack: null }) {
     const hooks: Record<string, () => void> = {}
     const before: ((to: { path: string }) => void)[] = []
-    const after: (() => void)[] = []
+    const after: ((to: RouteLike, from: RouteLike, failure?: unknown) => void)[] = []
+    // unhead 的 hooks：只模擬 dom:rendered（head 真的寫進 DOM 之後）。
+    const headRendered: (() => void)[] = []
+    const renderHead = (title?: string) => {
+      if (title !== undefined) document.title = title
+      for (const fn of headRendered) fn()
+    }
     vi.stubGlobal('defineNuxtPlugin', (setup: Setup) => setup)
     vi.stubGlobal('useRuntimeConfig', () => ({ public: publicConfig }))
-    vi.stubGlobal('useRouter', () => ({ beforeEach: (fn: (to: { path: string }) => void) => before.push(fn), afterEach: (fn: () => void) => after.push(fn) }))
+    vi.stubGlobal('useRouter', () => ({ beforeEach: (fn: (to: { path: string }) => void) => before.push(fn), afterEach: (fn: (to: RouteLike, from: RouteLike, failure?: unknown) => void) => after.push(fn) }))
+    vi.stubGlobal('injectHead', () => ({ hooks: { hook: (name: string, fn: () => void) => { if (name === 'dom:rendered') headRendered.push(fn) } } }))
     vi.stubGlobal('navigator', nav)
     setupPlugin({ hook: (name, fn) => { hooks[name] = fn } })
-    return { hooks, before, after }
+    return { hooks, before, after, renderHead }
   }
   afterEach(() => { vi.useRealTimers() })
   const settle = () => { vi.advanceTimersByTime(8000) }
@@ -522,6 +581,73 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     ])
   })
 
+  // 2026-11-19 正式站實測：Nuxt 4.6 的 unhead 在 page:finish 之後才（setTimeout）把新頁標題寫進 DOM，
+  // 原本 page:finish 當下讀 document.title，page_view 的標題整個落後一頁（/visit 記成首頁的標題）。
+  it('SPA 換頁：等 head 寫進 DOM（dom:rendered）才送 page_view，標題是新頁的', () => {
+    const { hooks, before, after, renderHead } = mount(configured)
+    document.title = '常春藤幼兒園｜首頁'
+    go('/')
+    hooks['app:mounted']!()
+    before[0]!({ path: '/visit' })
+    go('/visit')
+    after[0]!(route(location.pathname), route('/prev'))
+    hooks['page:finish']!()
+    // page:finish 當下 head 還沒重繪：先不送
+    expect(events('page_view').map(event => event.page_location)).toEqual([`${ORIGIN}/`])
+    renderHead('預約校園參觀｜常春藤幼兒園')
+    expect(events('page_view').slice(1)).toEqual([{ page_location: `${ORIGIN}/visit`, page_title: '預約校園參觀｜常春藤幼兒園', page_referrer: `${ORIGIN}/` }])
+    // 之後 head 再重繪（同一頁）不重送
+    renderHead()
+    vi.advanceTimersByTime(1000)
+    expect(events('page_view')).toHaveLength(2)
+  })
+
+  // 2026-11-19 正式站實測：/visit 選校 → /visit/yihua 沒有 page_view（預約頁 definePageMeta key 固定為 visit，不重掛、沒有 page:finish）。
+  it('同一頁面實例換網址（/visit → /visit/yihua）：沒有 page:finish 也送 page_view，標題等 head 重繪', () => {
+    const { hooks, before, after, renderHead } = mount(configured)
+    const visit = { meta: { key: 'visit' } }
+    document.title = '預約校園參觀｜常春藤幼兒園'
+    go('/visit')
+    hooks['app:mounted']!()
+    before[0]!({ path: '/visit/yihua' })
+    go('/visit/yihua')
+    after[0]!(route('/visit/yihua', visit), route('/visit', visit))
+    expect(events('page_view')).toHaveLength(1)
+    renderHead('預約參觀義華校｜常春藤幼兒園')
+    expect(events('page_view').at(-1)).toEqual({ page_location: `${ORIGIN}/visit/yihua`, page_title: '預約參觀義華校｜常春藤幼兒園', page_referrer: `${ORIGIN}/visit` })
+
+    // 換頁失敗（被導航守衛擋下）或只換 query／hash：不送
+    after[0]!(route('/visit/mingde', visit), route('/visit/yihua', visit), new Error('aborted'))
+    after[0]!(route('/visit/yihua', visit), route('/visit/yihua', visit))
+    renderHead()
+    vi.advanceTimersByTime(1000)
+    expect(events('page_view')).toHaveLength(2)
+  })
+
+  it('head 遲遲沒有重繪：page:finish 後 500ms 照樣送，不漏這一頁', () => {
+    const { hooks, before, after } = mount(configured)
+    go('/')
+    hooks['app:mounted']!()
+    before[0]!({ path: '/about' })
+    go('/about')
+    document.title = '關於常春藤'
+    after[0]!(route(location.pathname), route('/prev'))
+    hooks['page:finish']!()
+    vi.advanceTimersByTime(499)
+    expect(events('page_view')).toHaveLength(1)
+    vi.advanceTimersByTime(1)
+    expect(events('page_view').at(-1)).toMatchObject({ page_location: `${ORIGIN}/about`, page_title: '關於常春藤' })
+  })
+
+  it('沒換頁時的 head 重繪（例如首頁內容更新）不會送出 page_view', () => {
+    const { hooks, renderHead } = mount(configured)
+    go('/')
+    hooks['app:mounted']!()
+    renderHead('別的標題')
+    vi.advanceTimersByTime(1000)
+    expect(events('page_view')).toHaveLength(1)
+  })
+
   it('page:finish 與 app:mounted 都觸發同一頁只送一次 page_view，標題取 document.title', () => {
     const { hooks } = mount(configured)
     go('/about?utm_source=line#x')
@@ -541,7 +667,7 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
 
     before[0]!({ path: '/' })
     go('/')
-    after[0]!()
+    after[0]!(route(location.pathname), route('/prev'))
     hooks['page:finish']!()
     expect(appended).toEqual([])
     settle()
@@ -551,7 +677,7 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
   })
 
   it('已載入後 SPA 換到 /visit/manage：先在 beforeEach 暫停，修改頁不送事件，離開後恢復', () => {
-    const { hooks, before, after } = mount(configured)
+    const { hooks, before, after, renderHead } = mount(configured)
     go('/visit/yihua')
     hooks['app:mounted']!()
     settle()
@@ -561,15 +687,17 @@ describe('外掛（plugins/third-party-analytics.client.ts）', () => {
     before[0]!({ path: '/visit/manage' })
     expect((win as unknown as Record<string, unknown>)[`ga-disable-${GA}`]).toBe(true)
     go('/visit/manage#token=SECRET')
-    after[0]!()
+    after[0]!(route(location.pathname), route('/prev'))
     hooks['page:finish']!()
+    renderHead()
     expect(layer().length).toBe(sent)
     expect(pixelQueue().at(-1)).toEqual(['consent', 'revoke'])
 
     before[0]!({ path: '/' })
     go('/')
-    after[0]!()
+    after[0]!(route(location.pathname), route('/prev'))
     hooks['page:finish']!()
+    renderHead()
     expect((win as unknown as Record<string, unknown>)[`ga-disable-${GA}`]).toBe(false)
     expect(events('page_view')).toHaveLength(2)
     expect(JSON.stringify(layer())).not.toMatch(/SECRET|manage/)

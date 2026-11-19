@@ -21,7 +21,7 @@
   - 預約成功：只在 `created.status === 'confirmed'` 送 GA `generate_lead`、Pixel `Lead`，參數只用白名單 `campus_key`（五校之一）與 `entry`，不送 receipt、manage path、任何個資。若現有程式有「預約成功」的 telemetry 事件位置，掛在同一處。
   - 進入 `/visit/manage`、`/admin` 時不送事件（SPA 換頁到那裡也一樣）。
 - CSP（`web/server/utils/security-headers.ts`、`script-csp.ts`）：只有在對應 ID 有設定時才加來源，未設定時 CSP 字串與現在完全相同。
-  - GA：script-src `https://www.googletagmanager.com`；connect-src `https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com`；img-src `https://*.google-analytics.com https://www.googletagmanager.com`。
+  - GA：script-src `https://www.googletagmanager.com`；connect-src `https://*.google-analytics.com https://*.analytics.google.com https://*.google.com https://www.googletagmanager.com`；img-src `https://*.google-analytics.com https://www.googletagmanager.com`。（`https://*.google.com` 為 2026-11-19 補上：GA4 連結 Google Ads 後事件改送 `analytics.google.com`／`www.google.com`，原本全被擋。）
   - Pixel：script-src `https://connect.facebook.net`；connect-src `https://www.facebook.com https://connect.facebook.net`；img-src `https://www.facebook.com`。
   - 後台 CSP 不動。
 - 文件：`docs/website-admin/seo-performance.md:33` 的「未新增 Cookie／外部分析服務」改寫成現況；後台隱私權政策初稿 `admin/src/composables/privacyPolicyDraft.ts` 第 5 段（Cookie／分析）寫進 GA4、Meta Pixel 用途、DNT／GPC 不載、可用瀏覽器設定拒絕。

@@ -88,7 +88,9 @@ function setupGa(win: AnalyticsWindow, doc: Document, id: string): void {
   }
   win.gtag('js', new Date())
   // send_page_view:false：config 不自動送 page_view，由換頁掛鉤自己送（page_location 已清洗）。
-  // 關掉 Google 訊號與廣告個人化：這次不做 Google Ads，也就用不到 doubleclick／google.com 那幾個端點（CSP 沒放行）。
+  // 關掉 Google 訊號與廣告個人化：Google Ads 只用「GA4 重要事件匯入」計轉換（2026-11-13 裁定，不裝 AW- 代碼），
+  // 靠 page_location 保留的 gclid／gbraid／wbraid 歸因，用不到再行銷名單與跨裝置信號。
+  // 事件送往 analytics.google.com／www.google.com 要 CSP 放行 *.google.com（見 shared/third-party-analytics.ts）。
   win.gtag('config', id, { send_page_view: false, allow_google_signals: false, allow_ad_personalization_signals: false })
 }
 
@@ -232,6 +234,56 @@ export function whenPageSettled(run: () => void, win: Window = window, doc: Docu
   const fallback = win.setTimeout(once, 8000)
   if (doc.readyState === 'complete') idle()
   else win.addEventListener('load', idle, { once: true })
+}
+
+/** unhead 的 hooks，只用到 dom:rendered（head 真的寫進 DOM 之後）。 */
+export interface HeadRenderHooks {
+  hook: (name: 'dom:rendered', fn: () => void) => unknown
+}
+
+/**
+ * 換頁後等新頁面的 head 寫進 DOM 才叫 run（2026-11-19）。回傳值在換頁完成時呼叫（page:finish，或同一頁面實例換網址時的 afterEach）。
+ * Nuxt 4.6 帶的 unhead 把 head 重繪排在 setTimeout 之後：page:finish 當下 document.title 還是上一頁，
+ * page_view 的 page_title 會整個落後一頁（正式站實測 /visit 記成首頁的標題）。所以 page:finish 只記「有一頁要送」，
+ * 等 dom:rendered 才送；head 沒有重繪（被暫停、渲染出錯）時 fallbackMs 後照送，不漏這一頁。
+ * 沒換頁時的 head 重繪（內容更新）不會觸發。
+ */
+export function afterHeadRendered(hooks: HeadRenderHooks | undefined, run: () => void, win: Pick<Window, 'setTimeout' | 'clearTimeout'> = window, fallbackMs = 500): () => void {
+  let pending = false
+  let timer: ReturnType<Window['setTimeout']> | undefined
+  const flush = () => {
+    if (!pending) return
+    pending = false
+    if (timer !== undefined) win.clearTimeout(timer)
+    timer = undefined
+    run()
+  }
+  hooks?.hook('dom:rendered', flush)
+  return () => {
+    pending = true
+    if (timer !== undefined) win.clearTimeout(timer)
+    timer = win.setTimeout(flush, fallbackMs)
+  }
+}
+
+/** vue-router 路由物件用到的欄位。 */
+export interface PageRouteLike {
+  path: string
+  matched: readonly { meta?: Record<string, unknown> }[]
+}
+
+/**
+ * 換網址之後頁面元件是不是沿用同一個實例（2026-11-19）。沿用就不會有 page:finish，page_view 要由換頁完成自己排。
+ * Nuxt 的 NuxtPage 以 definePageMeta 的 key 決定要不要重掛：預約頁給固定的 'visit'，/visit 與 /visit/<校> 之間換來換去不重掛
+ * （正式站實測選校後沒有 page_view）；沒給 key 時以網址當 key，一定重掛。
+ */
+export function reusesPageInstance(to: PageRouteLike, from: PageRouteLike): boolean {
+  const record = to.matched.at(-1)
+  if (!record || record !== from.matched.at(-1)) return false
+  const key = record.meta?.key
+  const keyOf = (route: PageRouteLike) => (typeof key === 'function' ? (key as (route: PageRouteLike) => unknown)(route) : key)
+  const current = keyOf(to)
+  return current !== undefined && current === keyOf(from)
 }
 
 export interface ThirdPartyAnalytics {

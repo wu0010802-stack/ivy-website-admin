@@ -96,7 +96,13 @@ export function analyticsCspSources(ids: AnalyticsIds): AnalyticsCspSources {
   const sources: AnalyticsCspSources = { script: [], connect: [], img: [] }
   if (ids.gaMeasurementId) {
     sources.script.push(GA_SCRIPT_ORIGIN)
-    sources.connect.push('https://*.google-analytics.com', 'https://*.analytics.google.com', GA_SCRIPT_ORIGIN)
+    // *.google.com（2026-11-19）：GA4 連結 Google Ads 之後，gtag.js 把事件改送 analytics.google.com（裸網域，
+    // *.analytics.google.com 配不到），失敗再退回 www.google.com/g/collect。少了這條，GA4 收不到任何事件，
+    // 匯進 Google Ads 的 generate_lead 轉換也就永遠是 0（正式站 Chrome 與 WebKit 都實測全被擋）。
+    // Google 官方的 GA4 CSP 基準（沒開廣告功能也一樣）就是 connect-src 含 https://*.google.com。
+    // Google 信號／再行銷名單的端點（stats.g.doubleclick.net、www.google.<國碼>/ads/ga-audiences）刻意不放行：
+    // 廣告個人化是關的，那幾支被擋只會在主控台留下 CSP 違規，不影響 GA4 收資料與轉換匯入。
+    sources.connect.push('https://*.google-analytics.com', 'https://*.analytics.google.com', 'https://*.google.com', GA_SCRIPT_ORIGIN)
     sources.img.push('https://*.google-analytics.com', GA_SCRIPT_ORIGIN)
   }
   if (ids.metaPixelId) {
