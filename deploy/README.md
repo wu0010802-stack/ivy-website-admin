@@ -14,6 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-19 資安審查三項修正（PR #119，已部署 main `b0d12fd8`）
+
+[PR #119](https://github.com/wu0010802-stack/ivy-website-admin/pull/119) 以 merge commit 合併為 `b0d12fd8`（接在 #118 `cead8b64` 之後，兩邊沒有重疊檔案）；[main CI/CD 44556385449](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44556385449) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 23:53 完成部署。改動內容見 README 的 2026-11-19「資安審查三項修正」。
+
+- API deployment：`faf92994-d547-45ac-8a22-1e4360a6f836`；web deployment：`620d7b21-6cef-49e5-8d58-e171694994df`，兩者 SUCCESS；部署 smoke（release、API、CMS、首頁、後台入口）通過。
+- 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `b0d12fd86c0aff21386455af35d477f656bb46cc`；`/api/website/v1/public/slots/`、`/public/site/`、`/public/booking-config/yihua/` 的 307 `Location` 改成站內路徑（部署前帶 API 內網主機），跟著轉址回 200；`/`、`/visit`、`/api/website/v1/health` 回 200。
+- 沒驗：錯誤推播的兩類節流與 LINE 群組拉回解除綁定只有自動測試，正式站沒有實際觸發（不製造假錯誤、不動真群組）。
+- 沒有 migration 或 Railway 環境變數變更。
+
 ## 2026-11-19 GA4 事件不再被 CSP 擋下＋換頁標題與選校步驟（PR #118，已部署 main `cead8b64`）
 
 [PR #118](https://github.com/wu0010802-stack/ivy-website-admin/pull/118) 以 merge commit 合併為 `cead8b64`；[main CI/CD 44553363616](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44553363616) 全部成功，台灣時間 23:35 完成部署。改動內容見 README 的 2026-11-19「官網追蹤修正」。
