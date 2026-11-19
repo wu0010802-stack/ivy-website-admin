@@ -6,10 +6,11 @@ import type { SiteContent } from '../app/types/site-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
-// 2026-10-12 即時預覽補洞，2026-10-30 木頭積木版沿用：後台即時預覽換字、換照片或換場景之後版面高度會變，
-// 圓點小路（utils/environment-route.ts，依照片與時間站的位置撒點）要跟著重算。元件要在 page／campuses 變動、
-// 畫面更新完之後呼叫 routes.refresh()；正式頁的 props 不會變，所以不受影響。
-// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；圓點小路換成假的（refresh 怎麼重算由 environment-route 自己負責，見 environment.spec）。
+// 2026-10-12 即時預覽補洞，2026-11-17「拱窗打開」版沿用：後台即時預覽換字、換照片或換場景之後版面會變，
+// 捲動敘事（utils/environment-windows.ts：首屏標題收成一列要移多少、五顆心與舞台的尺寸、各段的進度）要跟著重算。
+// 元件要在 page／campuses 變動、畫面更新完之後呼叫 windows.refresh()；正式頁的 props 不會變，所以不受影響。
+// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；捲動敘事換成假的（refresh 怎麼重算由 environment-windows 自己負責，見 environment-windows-20261117.spec）。
+// 2026-11-17 以前這裡守的是圓點小路（utils/environment-route.ts，已刪），測的事情一樣：建一次、內容變了重算一次、卸載時拆掉。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -17,15 +18,21 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
+// 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
+vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
+// 第四章先開哪一校讀網址 ?campus= 與記住的校區（cookie）：這裡一律從第一校開始
+vi.stubGlobal('useRoute', () => ({ path: '/environment', query: {} }))
+vi.stubGlobal('useRememberedCampus', () => ({ recall: () => null, remember: () => {} }))
 
-const routes = vi.hoisted(() => ({ refresh: vi.fn(), destroy: vi.fn(), create: vi.fn() }))
-vi.mock('../app/utils/environment-route', () => ({
-  createEnvironmentRoutes: (...args: unknown[]) => {
+const routes = vi.hoisted(() => ({ refresh: vi.fn(), replay: vi.fn(), destroy: vi.fn(), create: vi.fn(), endJump: vi.fn() }))
+vi.mock('../app/utils/environment-windows', () => ({
+  createEnvironmentWindows: (...args: unknown[]) => {
     routes.create(...args)
-    return { refresh: routes.refresh, destroy: routes.destroy }
-  }
+    return { refresh: routes.refresh, replay: routes.replay, destroy: routes.destroy }
+  },
+  smoothNextHashJump: vi.fn(),
+  endSmoothHashJump: routes.endJump
 }))
-// 字型樣式表交給瀏覽器去抓；這裡不要讓 happy-dom 真的發請求
 
 const site = fixture as unknown as SiteContent
 const NuxtLink = defineComponent({
@@ -39,11 +46,13 @@ afterEach(() => {
   app = null
   document.body.innerHTML = ''
   routes.refresh.mockReset()
+  routes.replay.mockReset()
   routes.destroy.mockReset()
   routes.create.mockReset()
+  routes.endJump.mockReset()
 })
 
-/** 掛起來，等圓點小路建好（onMounted 裡要動態載入）。 */
+/** 掛起來，等捲動敘事建好（onMounted 裡要動態載入）。 */
 async function mountEnvironment() {
   const state = reactive({ page: structuredClone(site.environmentPage), campuses: structuredClone(site.campuses) })
   const host = document.createElement('div')
@@ -58,20 +67,60 @@ async function mountEnvironment() {
   return state
 }
 
-describe('環境頁即時預覽換內容後重算圓點小路', () => {
-  it('圓點小路建在整個 main 上；卸載時拆掉', async () => {
+describe('環境頁即時預覽換內容後重算捲動敘事', () => {
+  it('捲動敘事建在整個 main 上（正式頁可以釘住）；卸載時拆掉，暫時開的平滑捲動也收掉', async () => {
     await mountEnvironment()
-    expect(routes.create).toHaveBeenCalledWith(document.querySelector('main.renv'), { reducedMotion: false })
+    expect(routes.create).toHaveBeenCalledWith(document.querySelector('main.renv'), { pin: true })
     app!.unmount()
     app = null
     expect(routes.destroy).toHaveBeenCalledOnce()
+    expect(routes.endJump).toHaveBeenCalledOnce()
+  })
+
+  it('換校：新面板的窗重新打開；按角落：那張換到大窗、那一校的窗重新打開；下一所：換到下一校', async () => {
+    await mountEnvironment()
+    const panel = (key: string) => document.querySelector<HTMLElement>(`#tour-${key}`)!
+    document.querySelector<HTMLElement>('#tour-tab-minghua')!.click()
+    await vi.waitFor(() => expect(routes.replay).toHaveBeenCalledOnce())
+    expect(routes.replay).toHaveBeenLastCalledWith(panel('minghua'))
+    expect([panel('yihua').hidden, panel('minghua').hidden]).toEqual([true, false])
+    // 再點同一個分頁：沒有換校，不重播
+    document.querySelector<HTMLElement>('#tour-tab-minghua')!.click()
+    await nextTick()
+    expect(routes.replay).toHaveBeenCalledOnce()
+    const corners = [...panel('minghua').querySelectorAll<HTMLElement>('.renv-corner')]
+    corners[2]!.click()
+    await vi.waitFor(() => expect(routes.replay).toHaveBeenCalledTimes(2))
+    expect(routes.replay).toHaveBeenLastCalledWith(panel('minghua').querySelector('.renv-scenes'))
+    expect([...panel('minghua').querySelectorAll('.renv-scene-n')].map((el) => el.textContent)).toEqual(['紅磚迴廊中庭', '戶外廣場', '學習區教室'])
+    expect(corners.map((corner) => corner.getAttribute('aria-pressed'))).toEqual(['false', 'false', 'true'])
+    // 已經在大窗的那一張再按一次：不動
+    corners[2]!.click()
+    await nextTick()
+    expect(routes.replay).toHaveBeenCalledTimes(2)
+    // 別校的順序不受影響（各校各記各的）
+    expect([...panel('yihua').querySelectorAll('.renv-scene-n')].map((el) => el.textContent)).toEqual(['戶外廣場', '共創教室', '生態花園'])
+    panel('minghua').querySelector<HTMLElement>('.renv-panel-next')!.click()
+    await vi.waitFor(() => expect(panel('chongde').hidden).toBe(false))
+    expect(document.querySelector('#tour-tab-chongde')!.getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('後台即時預覽（/preview?embed=1&live=1）不做釘住的敘事：改到哪一個空間，預覽要直接看得到', async () => {
+    vi.stubGlobal('useRoute', () => ({ path: '/preview', query: { embed: '1', live: '1' } }))
+    try {
+      await mountEnvironment()
+      expect(routes.create).toHaveBeenCalledWith(document.querySelector('main.renv'), { pin: false })
+      expect(document.querySelector('main.renv')!.classList.contains('renv-still')).toBe(true)
+    } finally {
+      vi.stubGlobal('useRoute', () => ({ path: '/environment', query: {} }))
+    }
   })
 
   it('page 的文字變了：畫面更新完之後重算一次，呼叫的當下新的文字已經在畫面上', async () => {
     const state = await mountEnvironment()
     expect(routes.refresh).not.toHaveBeenCalled()
     let seen = ''
-    routes.refresh.mockImplementation(() => { seen = document.querySelector('#meals .renv-text')?.textContent ?? '' })
+    routes.refresh.mockImplementation(() => { seen = document.querySelector('#meals .renv-meals-p')?.textContent ?? '' })
     state.page.mealsText = '新的餐點說明（預覽時多寫了一大段）'
     await vi.waitFor(() => expect(routes.refresh).toHaveBeenCalledOnce())
     expect(seen).toBe('新的餐點說明（預覽時多寫了一大段）')
@@ -116,7 +165,7 @@ describe('環境頁即時預覽換內容後重算圓點小路', () => {
     expect(warnings.filter((message) => /duplicate/i.test(message))).toEqual([])
   })
 
-  it('圓點小路還沒建好時內容就變了：不丟錯（建的時候本來就量最新版面）', async () => {
+  it('捲動敘事還沒建好時內容就變了：不丟錯（建的時候本來就量最新版面）', async () => {
     const state = reactive({ page: structuredClone(site.environmentPage) })
     const host = document.createElement('div')
     document.body.append(host)

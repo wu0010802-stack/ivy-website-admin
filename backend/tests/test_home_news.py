@@ -62,6 +62,61 @@ def test_article_rejects_missing_or_unsafe_fields(article):
         HomeNewsPayload.model_validate({"sample_note": "", "articles": [article], "events": []})
 
 
+@pytest.mark.parametrize(
+    "image",
+    [
+        "https://example.com/cover.jpg",  # 外部網址會被接成 /assets/https://….webp，破圖
+        "http://example.com/cover.jpg",
+        "//example.com/cover.jpg",
+        "/assets/garden.webp",  # 以 / 開頭
+        "assets/garden",  # 含路徑
+        "../garden",
+        "..",
+        "a..b/c",
+        "garden.webp",  # 代號不含副檔名，官網會自己加 .webp
+        "gar den",  # 含空白
+        " garden",
+        "garden ",
+        "gar\tden",
+        "garden\n",
+        "花園",
+        "__proto__",
+        "-garden",  # 代號第一碼要英數
+        "javascript:alert(1)",
+    ],
+)
+def test_article_cover_rejects_urls_paths_and_malformed_codes(image):
+    """2026-11-12 QA L21：封面欄位只收素材庫 UUID 或官網內建的圖片代號。"""
+    with pytest.raises(ValidationError):
+        HomeNewsPayload.model_validate({"sample_note": "", "articles": [_article(image=image)], "events": []})
+
+
+@pytest.mark.parametrize(
+    "image, stored",
+    [
+        ("garden", "garden"),  # 官網內建圖片代號
+        ("tour-yihua-pond", "tour-yihua-pond"),
+        ("yihua-exterior-v2", "yihua-exterior-v2"),
+        ("0b9c1a0e-6f55-4a52-9c6e-2f7a5f8f6a11", "0b9c1a0e-6f55-4a52-9c6e-2f7a5f8f6a11"),
+        ("0B9C1A0E-6F55-4A52-9C6E-2F7A5F8F6A11", "0b9c1a0e-6f55-4a52-9c6e-2f7a5f8f6a11"),  # UUID 一律存成小寫標準寫法
+        ("0b9c1a0e6f554a529c6e2f7a5f8f6a11", "0b9c1a0e-6f55-4a52-9c6e-2f7a5f8f6a11"),  # 沒連字號的 UUID 也補成標準寫法
+    ],
+)
+def test_article_cover_accepts_media_ids_and_builtin_codes(image, stored):
+    payload = HomeNewsPayload.model_validate({"sample_note": "", "articles": [_article(image=image)], "events": []})
+    assert payload.articles[0].image == stored
+
+
+def test_tour_scene_image_follows_the_same_rule():
+    from app.content.schemas import CampusTourPayload
+
+    scene = {"key": "hall", "name": "大廳", "intro": "介紹"}
+    assert CampusTourPayload.model_validate({"scenes": [{**scene, "image": "campus"}]}).scenes[0].image == "campus"
+    for bad in ("https://example.com/hall.jpg", "/assets/campus.webp", "../campus", "cam pus"):
+        with pytest.raises(ValidationError):
+            CampusTourPayload.model_validate({"scenes": [{**scene, "image": bad}]})
+
+
 def test_duplicate_ids_and_limits_rejected():
     with pytest.raises(ValidationError):
         HomeNewsPayload.model_validate({"sample_note": "", "articles": [_article(), _article()], "events": []})

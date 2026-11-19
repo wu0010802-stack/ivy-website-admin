@@ -243,13 +243,22 @@ const institutionSocials = computed(() => (props.content.siteMeta.socialLinks ??
   const url = httpsUrl(social.url)
   return url ? [{ ...social, url }] : []
 }))
-const menuCampusKey = ref<string | null>(null)
+// 預設顯示家長上次自己選的那一校（cookie ivy_campus，SSR 就讀得到）；沒記住才照 headerPhone 對應的那一校。
+const remembered = useRememberedCampus()
+const campusKeys = computed(() => campuses.value.map(campus => campus.key))
+const menuCampusKey = ref<string | null>(remembered.recall(campusKeys.value))
+function chooseMenuCampus(key: string) {
+  menuCampusKey.value = key
+  remembered.remember(key, campusKeys.value)
+}
 const contactCampus = computed(() =>
   campuses.value.find(campus => campus.key === menuCampusKey.value)
   ?? campuses.value.find(campus => campus.phone === headerPhone.value.number)
 )
+// 參觀專線只出現選中那一校的電話（2026-11-13 使用者）：上面五校是切換，電話與社群都跟著那一校。
+// 11-12 改過五校並列（怕家長以為只有一支電話），11-13 五校改成一眼看得出是切換之後改回一校一行。
 const menuPhone = computed(() => contactCampus.value
-  ? { number: contactCampus.value.phone.trim(), note: `${contactCampus.value.name}參觀專線` }
+  ? { number: contactCampus.value.phone?.trim() ?? '', note: `${contactCampus.value.name}參觀專線` }
   : headerPhone.value
 )
 const campusSocials = computed(() => getCampusSocials(contactCampus.value, institutionSocials.value))
@@ -387,21 +396,23 @@ function onCampusPointerEnter(event: PointerEvent, key: string) {
         </a>
       </nav>
       <div class="menu-campuses">
-        <p>找到你的校園</p>
-        <!-- 五校是連結（2026-10-29）：滑過、聚焦預覽下方的參觀專線與社群，點下去到首頁五校區塊的那一校。
-             用一般 <a>（同上面的選單卡）：首頁的章節補捲要整頁載入才跑得到。 -->
-        <div id="menu-campuses">
-          <a
+        <p id="menu-campuses-label">找到你的校園</p>
+        <!-- 五校只切換（2026-11-13 使用者：不要做成按鈕，單純切換就好）：滑過、聚焦、點一下都只換下方反白的參觀專線與社群，
+             不再連到首頁五校區塊（10-29 的連結拿掉）。外觀是一列純文字，選中的那校畫底線，沒有底盤與反白方塊。 -->
+        <div id="menu-campuses" role="group" aria-labelledby="menu-campuses-label">
+          <button
             v-for="c in campuses"
             :key="c.key"
-            :href="`/?campus=${c.key}#campuses`"
+            type="button"
             :class="{ 'is-active': contactCampus?.key === c.key }"
+            :aria-pressed="contactCampus?.key === c.key"
             @pointerenter="onCampusPointerEnter($event, c.key)"
             @focus="menuCampusKey = c.key"
+            @click="chooseMenuCampus(c.key)"
           >
             <span>{{ c.name }}</span>
             <small>{{ c.district }}</small>
-          </a>
+          </button>
         </div>
       </div>
       <div v-if="menuPhone.number || (contactCampus && campusSocialLinks.length)" class="menu-foot">

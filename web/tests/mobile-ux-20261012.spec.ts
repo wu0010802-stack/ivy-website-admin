@@ -12,15 +12,18 @@ const visitCss = read('../app/assets/css/visit-booking.css')
 const visitForm = read('../app/components/VisitForm.vue')
 
 describe('預約第一步：矮手機第一屏看得到選校卡', () => {
-  it('手機黏底列只留按鈕，狀態字改成只給讀屏', () => {
-    expect(visitCss).toMatch(/@media\(max-width:760px\) \{\n {2}\.visit-next-row>p \{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset\(50%\)/)
-    expect(visitForm).toContain('<p role="status">{{ selectedCampus ? `已選擇${selectedCampus.name}`')
+  // 2026-11-13 選校卡改成點一下就進第二步，黏底的「下一步」列與「已選擇○○校」整個拿掉
+  // （原本這裡鎖的是「黏底列只留按鈕，狀態字改成只給讀屏」），見 visit-campus-links-20261113.spec.ts。
+  it('手機沒有黏底列，也沒有「已選擇○○校」', () => {
+    expect(visitCss).not.toContain('visit-next-row')
+    expect(visitForm).not.toContain('已選擇${selectedCampus.name}')
   })
   // 導言與選校說明 2026-10-30 全站拿掉（使用者要版面乾淨），矮手機只剩眉標要藏。
-  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿），見 visit-mobile-first-screen-20261111.spec.ts。
-  it('矮手機拿掉眉標', () => {
-    const shorter = visitCss.slice(visitCss.indexOf('@media(max-width:760px) and (max-height:760px)'))
-    expect(shorter).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
+  // 2026-11-11 起可視高度 760 以下就拿掉（原本 620 以下才拿）；2026-11-13 起手機一律不顯示（色帶改左文右圖，
+  // 大標欄只有五個字寬），見 visit-mobile-first-screen-20261111.spec.ts。
+  it('手機拿掉眉標', () => {
+    const mobile = visitCss.slice(visitCss.indexOf('@media(max-width:760px) {'))
+    expect(mobile).toContain(".visit-page[data-step='1'] .visit-eyebrow {display:none}")
     expect(visitForm).not.toContain('visit-lead')
   })
 })
@@ -55,9 +58,9 @@ describe('預約第二步', () => {
 })
 
 describe('Email 錯誤字不承諾寄信（寄信看各校設定，正式站 10-02 起是關的）', () => {
-  it('空白與格式錯誤都不提「確認信與修改連結會寄到這裡」', () => {
+  it('空白不算錯（2026-11-13 起選填）；格式錯誤不提「確認信與修改連結會寄到這裡」', () => {
     const errors = validateVisitContact({ parentName: '陳媽媽', phone: '0912345678', email: '' })
-    expect(errors.email).toBe('請填寫 Email。')
+    expect(errors.email).toBeUndefined()
     expect(validateVisitContact({ parentName: '陳媽媽', phone: '0912345678', email: 'abc' }).email).toBe('請填寫有效的 Email，例如 name@example.com。')
     expect(apiFieldErrors([{ loc: ['body', 'email'] }]).email).toBe('請填寫有效的 Email，例如 name@example.com。')
   })
@@ -141,9 +144,9 @@ describe('入學頁生日工具', () => {
 })
 
 // 2026-10-30 關於頁換版拿掉結尾緞帶，?campus= 改由頁首五校選單帶（2026-10-29）
-describe('頁首五校選單連到那所校園', () => {
-  it('連結帶 ?campus=，首頁五校從那所開始', () => {
-    expect(read('../app/components/SiteHeader.vue')).toContain(':href="`/?campus=${c.key}#campuses`"')
+describe('網址帶 ?campus= 時首頁五校從那所開始', () => {
+  // 頁首五校選單 2026-11-13 改回只切換、不再連過來（見 web-ux-20261029.spec.ts），首頁讀參數的行為保留。
+  it('首頁五校讀 ?campus=，從那所開始', () => {
     const board = read('../app/components/CampusBoard.vue')
     expect(board).toContain("const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''")
     expect(board).toContain('campus.key === startCampus')

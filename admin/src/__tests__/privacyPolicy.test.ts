@@ -12,7 +12,7 @@ import {
 } from '../composables/privacyPolicyDraft'
 
 describe('隱私權政策（privacy_policy）', () => {
-  it('側欄在「全站與素材」、只給 super_admin，標籤與網址對得上', () => {
+  it('側欄在「全站共用」、只給 super_admin，標籤與網址對得上', () => {
     const group = NAV_GROUPS.find((g) => g.key === 'site')!
     const item = group.items.find((i) => i.name === 'privacy-policy')!
     expect(item.path).toBe('/content/privacy-policy')
@@ -53,6 +53,31 @@ describe('隱私權政策（privacy_policy）', () => {
     expect(auto.body).toContain('Cloudflare Turnstile')
     expect(auto.body).toContain('IP')
     expect(vendors.body).toMatch(/^- Cloudflare：/m)
+  })
+
+  it('初稿第 5 段：寫明 GA4 與 Meta 像素的用途、預約成功只傳校區、DNT／GPC 不載入、可用瀏覽器設定拒絕（2026-11-12）', () => {
+    const cookies = privacyPolicyDraft().sections.find((s) => s.heading.startsWith('5.'))!
+    expect(cookies.body).toContain('Google Analytics 4')
+    expect(cookies.body).toContain('Meta 像素')
+    expect(cookies.body).toContain('_ga')
+    expect(cookies.body).toContain('_fbp')
+    expect(cookies.body).toContain('預約成功')
+    expect(cookies.body).toContain('不會傳送您的姓名、電話、Email、孩子的資料')
+    expect(cookies.body).toContain('預約修改連結')
+    expect(cookies.body).toContain('Do Not Track')
+    expect(cookies.body).toContain('Global Privacy Control')
+    expect(cookies.body).toContain('瀏覽器設定')
+    // 不能再留舊承諾，否則和實際載入的工具矛盾
+    expect(cookies.body).not.toContain('沒有使用第三方分析')
+    expect(cookies.body).not.toContain('目前只使用')
+  })
+
+  // 2026-11-12 QA L24：正式站（production）的登入相關 cookie 一律加 __Host- 前綴
+  // （backend/app/common/host_cookies.py），政策要寫瀏覽器裡實際看到的名稱。
+  it('初稿第 5 段：家長改期連結的 cookie 寫正式站的名稱 __Host-ivy_parent_session', () => {
+    const cookies = privacyPolicyDraft().sections.find((s) => s.heading.startsWith('5.'))!
+    expect(cookies.body).toContain('- __Host-ivy_parent_session：')
+    expect(cookies.body).not.toMatch(/(?<!__Host-)ivy_parent_session/)
   })
 
   it('待確認計數：標題與各段都算，補完後歸零', () => {

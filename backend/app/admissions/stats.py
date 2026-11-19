@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import deposit_pace, estimation, intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
-from app.admissions.constants import NO_DEPOSIT_PRIORITY, WITHDRAW_REASON_CATEGORIES, split_tour_guides
+from app.admissions.constants import MISSING_CHILD_NAME, NO_DEPOSIT_PRIORITY, WITHDRAW_REASON_CATEGORIES, split_tour_guides
 from app.admissions.models import RecruitmentVisit
 from app.common.timezones import now_utc, today_local
 
@@ -210,10 +210,14 @@ def _merge(rows: Iterable[Any], key: Callable[[Any], Any]) -> dict[Any, dict[str
 async def _unique_counts(db: AsyncSession, filters: list[Any]) -> tuple[int, int]:
     """園務 stats.py:122-139：coalesce(姓名,'')||'|'||coalesce(生日字串,'')，不 trim、不分大小寫。
     已匿名化的列姓名都是同一段固定文字、生日為空，照園務的鍵會被併成同一個孩子；
-    改用列 id 當鍵，一筆算一個。"""
+    改用列 id 當鍵，一筆算一個。到場時自動建立、還沒補姓名的訪視也一樣：姓名都是
+    「（未填姓名）」、生日為空，不同家庭會被算成同一個孩子（2026-11-12 QA M7），同樣一筆算一個；
+    有填生日的照舊用鍵。"""
     person_key = func.coalesce(RecruitmentVisit.child_name, "") + "|" + func.coalesce(cast(RecruitmentVisit.birthday, String), "")
+    unnamed = and_(RecruitmentVisit.child_name == MISSING_CHILD_NAME, RecruitmentVisit.birthday.is_(None))
     key = case(
         (RecruitmentVisit.anonymized_at.is_not(None), "anonymized|" + cast(RecruitmentVisit.id, String)),
+        (unnamed, "unnamed|" + cast(RecruitmentVisit.id, String)),
         else_=person_key,
     )
     deposit_key = case((RecruitmentVisit.has_deposit.is_(True), key), else_=None)

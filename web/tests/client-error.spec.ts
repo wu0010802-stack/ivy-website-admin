@@ -4,6 +4,7 @@ import {
   buildClientError,
   createClientErrorReporter,
   describeThrown,
+  isAutomatedUserAgent,
   redactClientPath,
   redactClientText,
   shouldIgnoreClientError,
@@ -106,6 +107,41 @@ describe('忽略規則', () => {
   })
 })
 
+describe('自動化瀏覽器與爬蟲的 User-Agent（server/api/client-errors.post.ts 用，不轉送）', () => {
+  it('爬蟲、無畫面瀏覽器、檢測工具', () => {
+    for (const ua of [
+      'Lightpanda/1.0', // 2026-11-13 正式站：/admission 的 Illegal invocation 就是它（DOM 實作不完整）
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+      'Mozilla/5.0 AppleWebKit/537.36 (KHTML, like Gecko; compatible; GPTBot/1.2; +https://openai.com/gptbot)',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15 (Applebot/0.1; +http://www.apple.com/go/applebot)',
+      'Mozilla/5.0 (Linux; Android 5.0) AppleWebKit/537.36 (KHTML, like Gecko) Mobile Safari/537.36 (compatible; Bytespider; spider-feedback@bytedance.com)',
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'meta-externalagent/1.1 (+https://developers.facebook.com/docs/sharing/webmasters/crawler)',
+      'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/141.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 11; moto g power) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36 Chrome-Lighthouse',
+      'Mozilla/5.0 (compatible; Google-InspectionTool/1.0;)',
+      'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)',
+      'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+      'Mozilla/5.0 (Unknown; Linux x86_64) AppleWebKit/538.1 (KHTML, like Gecko) PhantomJS/2.1.1 Safari/538.1',
+    ]) expect(isAutomatedUserAgent(ua), ua).toBe(true)
+  })
+  it('真人的瀏覽器照收：新舊 iPhone、Android、桌機、LINE／FB 內建瀏覽器，沒有 User-Agent 也照收', () => {
+    for (const ua of [
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 15_8_8 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.6.8 Mobile/15E148 Safari/604.1',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Safari/604.1 Line/15.9.0',
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 18_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/22F76 [FBAN/FBIOS;FBAV/512.0.0;FBDV/iPhone15,2]',
+      'Mozilla/5.0 (Linux; Android 14; SM-A546E) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Mobile Safari/537.36',
+      'Mozilla/5.0 (Linux; Android 11; CUBOT NOTE 20 PRO) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36', // 手機品牌名裡剛好有 bot
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:132.0) Gecko/20100101 Firefox/132.0',
+      '',
+      undefined,
+    ]) expect(isAutomatedUserAgent(ua), String(ua)).toBe(false)
+  })
+})
+
 describe('describeThrown：任何被丟出的值', () => {
   it('Error、字串、物件、空值；不展開物件內容', () => {
     expect(describeThrown(new RangeError('bad'), 'x')).toMatchObject({ kind: 'RangeError', message: 'bad' })
@@ -188,5 +224,55 @@ describe('每頁最多 5 筆、同一個只送一次', () => {
     pathname = '/b'
     reporter.capture(thrown('two'), 'Error')
     expect(sent.map((r) => r.path)).toEqual(['/a', '/b'])
+  })
+})
+
+// 2026-11-12 QA L18：String.slice 以 UTF-16 單位截斷，截在 emoji（surrogate pair）中間會留下孤立的 high surrogate，
+// JSON.stringify 會把它寫成 \ud83d，後端存不進去、整筆回報 422 遺失。截斷點若落在 pair 中間就往前退一格。
+describe('截斷不切斷 emoji（surrogate pair）', () => {
+  const context = { source: 'web' as const, origin: 'https://site.example', pathname: '/x', release: 'build-1' }
+  const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/
+  const EMOJI = '😀'
+  /** 不會被遮蔽規則改寫的填充字（短單字加空白），剛好 n 個 UTF-16 單位。 */
+  const filler = (n: number) => 'ab '.repeat(Math.ceil(n / 3)).slice(0, n)
+
+  it('訊息：第 500 個單位剛好是 emoji 的前半，整個 emoji 拿掉', () => {
+    const built = buildClientError({ kind: 'E', message: filler(499) + EMOJI + 'tail' }, context)
+    expect(built.message).toBe(filler(499))
+    expect(built.message.length).toBe(499)
+    expect(LONE_SURROGATE.test(built.message)).toBe(false)
+    expect(validateClientError(built)).not.toBeNull()
+  })
+
+  it('堆疊、類型、路徑、版本都一樣', () => {
+    const built = buildClientError({
+      kind: 'K'.repeat(119) + EMOJI + 'tail',
+      message: 'm',
+      stack: filler(5999) + EMOJI + 'tail'
+    }, { ...context, pathname: '/a'.repeat(149) + 'x' + EMOJI + 'tail', release: 'r'.repeat(63) + EMOJI + 'tail' })
+    expect(built.kind).toBe('K'.repeat(119))
+    expect(built.stack).toBe(filler(5999))
+    expect(built.path).toBe('/a'.repeat(149) + 'x')
+    expect(built.release).toBe('r'.repeat(63))
+    for (const value of [built.kind, built.message, built.stack!, built.path, built.release!]) expect(LONE_SURROGATE.test(value)).toBe(false)
+    expect(validateClientError(built)).not.toBeNull()
+  })
+
+  it('emoji 完整落在上限內就保留，剛好用滿上限也不多切', () => {
+    const exact = filler(498) + EMOJI
+    expect(exact.length).toBe(500)
+    expect(buildClientError({ kind: 'E', message: exact + 'tail' }, context).message).toBe(exact)
+    expect(buildClientError({ kind: 'E', message: filler(498) + EMOJI }, context).message).toBe(exact)
+  })
+
+  it('沒超過上限的字串原樣不動，序列化後是合法 JSON 且還原得回來', () => {
+    const built = buildClientError({ kind: 'E', message: `按鈕壞了 ${EMOJI}${EMOJI}` }, context)
+    expect(built.message).toBe(`按鈕壞了 ${EMOJI}${EMOJI}`)
+    expect(JSON.parse(JSON.stringify(built)).message).toBe(built.message)
+  })
+
+  it('每個欄位的上限不變（純 ASCII 的長度仍等於上限）', () => {
+    const built = buildClientError({ kind: 'K'.repeat(300), message: filler(900), stack: 'at x (/_nuxt/a.js:1:2)\n' + filler(9000) }, { ...context, pathname: '/a'.repeat(400), release: 'r'.repeat(200) })
+    expect([built.kind.length, built.message.length, built.stack!.length, built.path.length, built.release!.length]).toEqual([120, 500, 6000, 300, 64])
   })
 })

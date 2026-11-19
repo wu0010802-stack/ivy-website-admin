@@ -277,3 +277,30 @@ async def test_backfilled_recruitment_visit_uses_the_arrival_day_not_today(admin
     backfill = await admin_client.post(f"{API}/admin/admissions/from-visit-request/{case_id}")
     assert backfill.status_code == 200, backfill.text
     assert (await _recruitment_visit(db_session, case_id)).visit_date == date(2026, 10, 13)
+
+
+@pytest.mark.asyncio
+async def test_export_carries_the_visited_day_of_early_completed_cases(admin_client):
+    """2026-11-12 QA M8：提早到場會釋出場次，匯出原本只讀場次，已到場的家庭就像沒有參觀日期。
+    「參觀日期」和列表同一個算法（沒有場次、已完成的取完成當天），開始與結束時間沒有場次仍留空。"""
+    import csv
+    import io
+
+    early_slot = await _slot(admin_client, days_ahead=5)
+    kept_slot = await _slot(admin_client, days_ahead=4)
+    early = await _case(admin_client, "export-early", slot_id=early_slot["id"])
+    await _case(admin_client, "export-kept", slot_id=kept_slot["id"])
+    assert (await admin_client.post(f"{BASE}/visit-requests/{early}/complete-early")).status_code == 200
+
+    response = await admin_client.get(f"{BASE}/visit-requests/export?campus_key=yihua")
+    assert response.status_code == 200, response.text
+    table = list(csv.reader(io.StringIO(response.content.decode("utf-8-sig"))))
+    header, rows = table[0], table[1:]
+    day, start, end, status = (header.index(name) for name in ("參觀日期", "開始", "結束", "狀態"))
+    by_status = {row[status]: row for row in rows}
+    assert len(rows) == 2 and len(by_status) == 2
+    done = next(row for row in rows if row[day] == today_local().strftime("%Y/%m/%d"))
+    assert (done[start], done[end]) == ("", "")
+    kept = next(row for row in rows if row is not done)
+    assert kept[day] == kept_slot["slot_date"].replace("-", "/")
+    assert (kept[start], kept[end]) == ("10:00", "11:00")

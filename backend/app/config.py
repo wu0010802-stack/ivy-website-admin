@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import re
+from dataclasses import dataclass
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -17,6 +19,56 @@ _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 # 一看就是範例或佔位的 session secret 字眼（.env.example 的值就是公開的）。
 # production 用這種值等於任何人都能簽出 OAuth 握手 cookie、算出限流 HMAC key。
 _PLACEHOLDER_SECRET_MARKERS = ("change-me", "changeme", "change_me", "example", "placeholder")
+
+
+# 可以設 LINE 官方帳號的鍵：main＝園方群組推播用的帳號（WEBSITE_LINE_MESSAGING_*），其餘是五校各自的帳號
+# （WEBSITE_LINE_<校>_*，2026-11-16 docs/specs/2026-11-16-line-integrations-design.md §2）。順序＝後台顯示順序。
+LINE_MAIN_ACCOUNT = "main"
+LINE_CAMPUS_ACCOUNT_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
+LINE_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, *LINE_CAMPUS_ACCOUNT_KEYS)
+
+
+@dataclass(frozen=True, repr=False)
+class LineAccountCredentials:
+    """一個 LINE 官方帳號的 Messaging API 金鑰。repr 不印金鑰。"""
+
+    key: str
+    channel_secret: str
+    access_token: str
+
+    def __repr__(self) -> str:
+        return f"LineAccountCredentials({self.key})"
+
+
+@dataclass(frozen=True, repr=False)
+class GoogleServiceAccount:
+    """服務帳戶金鑰 JSON 裡用得到的三個欄位。repr 刻意不印任何內容（私鑰）。"""
+
+    client_email: str
+    private_key: str
+    private_key_id: str | None = None
+
+    def __repr__(self) -> str:
+        return "GoogleServiceAccount(…)"
+
+
+def parse_google_service_account(raw: str) -> GoogleServiceAccount | None:
+    """合法就回欄位，任何不合就回 None；呼叫端自己決定訊息，這裡不帶輸入內容。"""
+    try:
+        data = json.loads(raw)
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    email, key, key_id = data.get("client_email"), data.get("private_key"), data.get("private_key_id")
+    if not isinstance(email, str) or "@" not in email or not email.strip():
+        return None
+    if not isinstance(key, str) or not re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", key):
+        return None
+    return GoogleServiceAccount(email.strip(), key, key_id if isinstance(key_id, str) and key_id else None)
+
+
+_SEARCH_CONSOLE_PROPERTY = re.compile(r"sc-domain:[A-Za-z0-9.-]+|https?://[^\s/]+(/\S*)?")
 
 
 class Settings(BaseSettings):
@@ -70,6 +122,19 @@ class Settings(BaseSettings):
     # 類型的 channel，金鑰也不同，所以另外命名。兩個都有才啟用。
     line_messaging_channel_secret: str | None = Field(default=None, repr=False)
     line_messaging_access_token: str | None = Field(default=None, repr=False)
+    # 各校自己的 LINE 官方帳號（2026-11-16）：家長通知、「我的預約」、好友數。和上面的園方群組推播帳號分開設，
+    # 同一校兩個都設才算有；webhook 網址是 /api/website/v1/line/webhook/<校>（後台 LINE 通知頁會列出）。
+    # 沒設的校區，家長通知只能選用上面那個帳號或關閉（後台 LINE 通知頁）。
+    line_yihua_channel_secret: str | None = Field(default=None, repr=False)
+    line_yihua_access_token: str | None = Field(default=None, repr=False)
+    line_minghua_channel_secret: str | None = Field(default=None, repr=False)
+    line_minghua_access_token: str | None = Field(default=None, repr=False)
+    line_chongde_channel_secret: str | None = Field(default=None, repr=False)
+    line_chongde_access_token: str | None = Field(default=None, repr=False)
+    line_international_channel_secret: str | None = Field(default=None, repr=False)
+    line_international_access_token: str | None = Field(default=None, repr=False)
+    line_renwu_channel_secret: str | None = Field(default=None, repr=False)
+    line_renwu_access_token: str | None = Field(default=None, repr=False)
     retention_allow_real_run: bool = False
     # 招生入學模組（2026-10）。預設關閉：規格 §15 Q1（預約同意書是否涵蓋參觀後的
     # 招生聯繫、招生訪視保存幾天）裁定前，正式站不可開啟。關閉時「標記已到場」
@@ -100,6 +165,37 @@ class Settings(BaseSettings):
     facebook_pages: str | None = None
     facebook_graph_version: str = Field(default="v27.0", pattern=r"^v\d{1,2}\.\d$")
     facebook_sync_seconds: int = Field(default=3600, ge=600, le=86400)
+    # 同一把 Page token 再讀粉專連結的 Instagram 專業帳號貼文，進同一個收件匣
+    # （docs/specs/2026-11-12-external-integrations-design.md §2）。預設關；要先有 Facebook 同步，
+    # 而且 Page token 要有 instagram_basic（見 deploy/README.md）。
+    instagram_enabled: bool = False
+    # Google Search Console（2026-11-12，docs/specs/2026-11-12-external-integrations-design.md §3）：
+    # 服務帳戶金鑰整份 JSON ＋ 資源（sc-domain:網域 或 https://網址前置）。兩個都設才啟用、只設一個拒絕啟動。
+    # JSON 在啟動時驗證；任何錯誤訊息都不帶內容。
+    google_sc_service_account_json: str | None = Field(default=None, repr=False)
+    google_sc_property: str | None = None
+    # GA4 資源編號（純數字）；與上面的服務帳戶共用，唯讀讀 Google 廣告花費（docs/specs/2026-11-16-ad-roi-design.md §6.1）。
+    ga4_property_id: str | None = None
+    # CrUX（Chrome 使用者體驗報告）API 金鑰（§4）：沒設就不查。查的網站是 public_origin（沒設用 admin_origin）。
+    crux_api_key: str | None = Field(default=None, repr=False)
+    # 到場、預繳回傳廣告平台（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §2）：每家都是
+    # 「ID＋伺服器端金鑰」兩個都設才啟用、只設一個拒絕啟動；都沒設就不記點擊識別碼、不建待送工作。
+    # GA4 Measurement Protocol：評估 ID（G-XXXX）＋ API 密鑰（GA4 管理 → 資料串流 → Measurement Protocol API 密鑰）。
+    ga4_measurement_id: str | None = None
+    ga4_api_secret: str | None = Field(default=None, repr=False)
+    # Meta Conversions API：像素 ID（純數字）＋ 存取權杖（事件管理工具 → 設定 → 轉換 API）。
+    meta_pixel_id: str | None = None
+    meta_capi_token: str | None = Field(default=None, repr=False)
+    meta_graph_version: str = "v26.0"
+    # OpenAI Conversions API：像素 ID ＋ Conversions API 金鑰（廣告管理平台 → 轉換）。
+    openai_pixel_id: str | None = None
+    openai_capi_key: str | None = Field(default=None, repr=False)
+    # LINE 廣告 Conversion API（2026-11-16，docs/specs/2026-11-16-line-integrations-design.md §8）：LINE Tag ID（UUID，
+    # 和官網的 NUXT_PUBLIC_LINE_TAG_ID 同一個）＋ LINE 企業管理平台發的 Conversion API 存取權杖。台灣帳號能不能用要在
+    # 企業管理平台確認；line_capi_test 為 true 時事件帶 test_flag（LINE 後台只當測試、不算轉換），先用它驗。
+    line_tag_id: str | None = None
+    line_capi_token: str | None = Field(default=None, repr=False)
+    line_capi_test: bool = False
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -246,15 +342,48 @@ class Settings(BaseSettings):
 
     @field_validator(
         "line_messaging_channel_secret", "line_messaging_access_token",
+        "line_yihua_channel_secret", "line_yihua_access_token",
+        "line_minghua_channel_secret", "line_minghua_access_token",
+        "line_chongde_channel_secret", "line_chongde_access_token",
+        "line_international_channel_secret", "line_international_access_token",
+        "line_renwu_channel_secret", "line_renwu_access_token",
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
+        "google_sc_service_account_json", "google_sc_property", "crux_api_key", "ga4_property_id",
+        "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
+        "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
         if value is None:
             return None
         return value.strip() or None
+
+    @field_validator("google_sc_service_account_json")
+    @classmethod
+    def _check_service_account_json(cls, value: str | None) -> str | None:
+        # 訊息不帶輸入內容（私鑰）；hide_input_in_errors 也已開。
+        if value is not None and parse_google_service_account(value) is None:
+            raise ValueError(
+                "WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON 必須是服務帳戶金鑰的 JSON，"
+                "要有 client_email 與 private_key"
+            )
+        return value
+
+    @field_validator("google_sc_property")
+    @classmethod
+    def _check_search_console_property(cls, value: str | None) -> str | None:
+        if value is not None and _SEARCH_CONSOLE_PROPERTY.fullmatch(value) is None:
+            raise ValueError("WEBSITE_GOOGLE_SC_PROPERTY 格式是 sc-domain:網域（例 sc-domain:example.com）或 https:// 網址")
+        return value
+
+    @field_validator("ga4_property_id")
+    @classmethod
+    def _check_ga4_property_id(cls, value: str | None) -> str | None:
+        if value is not None and re.fullmatch(r"[0-9]{6,12}", value) is None:
+            raise ValueError("WEBSITE_GA4_PROPERTY_ID 應為 GA4 資源編號（純數字）")
+        return value
 
     @field_validator("facebook_pages")
     @classmethod
@@ -341,6 +470,21 @@ class Settings(BaseSettings):
     def line_messaging_enabled(self) -> bool:
         return bool(self.line_messaging_channel_secret and self.line_messaging_access_token)
 
+    def _line_pair(self, key: str) -> tuple[str | None, str | None]:
+        if key == LINE_MAIN_ACCOUNT:
+            return self.line_messaging_channel_secret, self.line_messaging_access_token
+        return getattr(self, f"line_{key}_channel_secret"), getattr(self, f"line_{key}_access_token")
+
+    @property
+    def line_accounts(self) -> dict[str, LineAccountCredentials]:
+        """設好的 LINE 官方帳號（main＝園方群組推播用的那個），依 LINE_ACCOUNT_KEYS 的順序。"""
+        accounts: dict[str, LineAccountCredentials] = {}
+        for key in LINE_ACCOUNT_KEYS:
+            secret, token = self._line_pair(key)
+            if secret and token:
+                accounts[key] = LineAccountCredentials(key, secret, token)
+        return accounts
+
     @property
     def background_jobs_interval(self) -> int:
         """0 代表不在 API 程序內跑定期工作。本機開發與測試預設關閉，避免
@@ -358,6 +502,46 @@ class Settings(BaseSettings):
     @property
     def facebook_enabled(self) -> bool:
         return bool(self.facebook_access_token and self.facebook_pages)
+
+    @property
+    def search_console_enabled(self) -> bool:
+        return bool(self.google_sc_service_account_json and self.google_sc_property)
+
+    @property
+    def ga4_ads_enabled(self) -> bool:
+        return bool(self.google_sc_service_account_json and self.ga4_property_id)
+
+    @property
+    def google_sc_service_account(self) -> GoogleServiceAccount | None:
+        """啟動時已驗證過格式；沒設定回 None。"""
+        if not self.google_sc_service_account_json:
+            return None
+        return parse_google_service_account(self.google_sc_service_account_json)
+
+    @property
+    def crux_enabled(self) -> bool:
+        return bool(self.crux_api_key)
+
+    @property
+    def ad_conversion_platforms(self) -> tuple[str, ...]:
+        """設定了伺服器端金鑰、要回傳到場與預繳的平台（順序固定：ga4、meta、openai、line）。"""
+        enabled = {
+            "ga4": bool(self.ga4_measurement_id and self.ga4_api_secret),
+            "meta": bool(self.meta_pixel_id and self.meta_capi_token),
+            "openai": bool(self.openai_pixel_id and self.openai_capi_key),
+            "line": bool(self.line_tag_id and self.line_capi_token),
+        }
+        return tuple(platform for platform, on in enabled.items() if on)
+
+    @property
+    def crux_origin(self) -> str | None:
+        """CrUX 查哪個網站：家長看得到的官網 origin（public_origin，沒設就是 admin_origin）；都沒設回 None。"""
+        return self.parent_origin
+
+    @property
+    def instagram_sync_enabled(self) -> bool:
+        """開關開著而且 Facebook 同步也啟用（model_validator 保證兩者同時成立）。"""
+        return self.instagram_enabled and self.facebook_enabled
 
     @property
     def facebook_page_ids(self) -> dict[str, str]:
@@ -454,14 +638,49 @@ class Settings(BaseSettings):
             )
         if bool(self.facebook_access_token) != bool(self.facebook_pages):
             raise ValueError("Facebook 粉專同步必須同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES")
+        if bool(self.google_sc_service_account_json) != bool(self.google_sc_property):
+            raise ValueError(
+                "Search Console 必須同時設定 WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON 與 WEBSITE_GOOGLE_SC_PROPERTY"
+            )
+        if self.instagram_enabled and not self.facebook_enabled:
+            raise ValueError(
+                "WEBSITE_INSTAGRAM_ENABLED 要搭配 Facebook 粉專同步："
+                "請同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES"
+            )
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):
             raise ValueError("Turnstile 必須同時設定 WEBSITE_TURNSTILE_SITE_KEY 與 WEBSITE_TURNSTILE_SECRET_KEY")
         if bool(self.line_messaging_channel_secret) != bool(self.line_messaging_access_token):
             raise ValueError(
                 "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
             )
+        for key in LINE_CAMPUS_ACCOUNT_KEYS:
+            secret, token = self._line_pair(key)
+            if bool(secret) != bool(token):
+                env = f"WEBSITE_LINE_{key.upper()}"
+                raise ValueError(f"LINE 官方帳號必須同時設定 {env}_CHANNEL_SECRET 與 {env}_ACCESS_TOKEN")
         if bool(self.vapid_public_key) != bool(self.vapid_private_key):
             raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
+        # 回傳廣告平台（2026-11-16）：ID 與金鑰成對；ID 格式和官網前端的同名變數一樣嚴格，打錯不會默默送到別的帳戶。
+        for label, ident, secret, env in (
+            ("GA4", self.ga4_measurement_id, self.ga4_api_secret, "WEBSITE_GA4_MEASUREMENT_ID 與 WEBSITE_GA4_API_SECRET"),
+            ("Meta", self.meta_pixel_id, self.meta_capi_token, "WEBSITE_META_PIXEL_ID 與 WEBSITE_META_CAPI_TOKEN"),
+            ("OpenAI", self.openai_pixel_id, self.openai_capi_key, "WEBSITE_OPENAI_PIXEL_ID 與 WEBSITE_OPENAI_CAPI_KEY"),
+            ("LINE", self.line_tag_id, self.line_capi_token, "WEBSITE_LINE_TAG_ID 與 WEBSITE_LINE_CAPI_TOKEN"),
+        ):
+            if bool(ident) != bool(secret):
+                raise ValueError(f"{label} 轉換回傳必須同時設定 {env}")
+        if self.ga4_measurement_id and not re.fullmatch(r"G-[A-Z0-9]{4,20}", self.ga4_measurement_id):
+            raise ValueError("WEBSITE_GA4_MEASUREMENT_ID 格式應為 G-XXXXXXXXXX")
+        if self.meta_pixel_id and not re.fullmatch(r"[0-9]{5,20}", self.meta_pixel_id):
+            raise ValueError("WEBSITE_META_PIXEL_ID 應為純數字")
+        if self.openai_pixel_id and not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", self.openai_pixel_id):
+            raise ValueError("WEBSITE_OPENAI_PIXEL_ID 格式不符")
+        if self.line_tag_id and not re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", self.line_tag_id
+        ):
+            raise ValueError("WEBSITE_LINE_TAG_ID 格式應為 UUID（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）")
+        if not re.fullmatch(r"v[0-9]{2,3}\.0", self.meta_graph_version):
+            raise ValueError("WEBSITE_META_GRAPH_VERSION 格式應為 v26.0 這種寫法")
         if self.vapid_subject and not vapid.valid_subject(self.vapid_subject):
             raise ValueError("WEBSITE_VAPID_SUBJECT 必須是 https:// 網址（不含路徑）或 mailto: 信箱")
         if self.vapid_public_key and self.vapid_private_key:

@@ -311,14 +311,14 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
   it('區域分析的畫面狀態（模式、里、表格分頁）經 areaView 傳給 AreaTab 的 view，AreaTab 改了再往上傳；沒給就是預設', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const standalone = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
-    expect(standalone.wrapper.findComponent({ name: 'AreaTab' }).props('view')).toEqual({ map: null, village: '', table: 'village' })
+    expect(standalone.wrapper.findComponent({ name: 'AreaTab' }).props('view')).toEqual({ map: null, village: '', table: 'village', year: null })
     cleanup()
     mockGet({ '/admin/admissions/stats': stats() })
-    const areaView = { map: 'trend', village: '64000050015', table: 'school' }
+    const areaView = { map: 'trend', village: '64000050015', table: 'school', year: null }
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area', areaView }) })
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props('view')).toEqual(areaView)
-    const next = { map: 'peers', village: '', table: 'village' }
+    const next = { map: 'peers', village: '', table: 'village', year: null }
     tab.vm.$emit('update:view', next)
     expect(wrapper.emitted('update:areaView')).toEqual([[next]])
   })
@@ -335,7 +335,7 @@ describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', ()
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'booking', campusKeys: ['yihua', 'minghua'] }) })
     expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入'])
+      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入', '廣告成效'])
     const pane = wrapper.findComponent({ name: 'BookingStatsPane' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', campusKeys: ['yihua', 'minghua'] })
     expect(wrapper.find('.stats-toolbar').exists()).toBe(false)

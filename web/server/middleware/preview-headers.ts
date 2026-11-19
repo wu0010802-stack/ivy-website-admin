@@ -1,6 +1,7 @@
 export default defineEventHandler((event) => {
-  // Nuxt 路由不分大小寫（/Visit/Manage 也會渲染同一頁），標頭判斷也要一樣。
-  const path = (event.path.split('?')[0] ?? '/').toLowerCase()
+  // Nuxt 路由不分大小寫（/Visit/Manage 也會渲染同一頁），標頭判斷也要一樣；連續斜線先收成一個
+  // （2026-11-12：//preview 以前拿不到 no-store。正規寫法另由 plugins/url-canonical.ts 301）。
+  const path = (event.path.split('?')[0] ?? '/').toLowerCase().replace(/\/{2,}/g, '/')
   if (path === '/visit/manage' || path === '/visit/manage/') {
     setResponseHeader(event, 'Cache-Control', 'private, no-store')
     setResponseHeader(event, 'X-Robots-Tag', 'noindex, nofollow')

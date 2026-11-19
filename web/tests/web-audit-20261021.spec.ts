@@ -30,6 +30,7 @@ describe('three 不進任何頁面的 SSR prefetch', () => {
 
 // 2026-11-11：「30 週年開場影片的連線閘門」隨 30 秒開場動畫一起拿掉。新的紀念影片的無聲預告用 media-policy 的 mayAutoplay 判斷
 // （省流量、2G／3G、偏好減少動態都不播），正片按了才下載（tests/anniversary.spec.ts）。
+// main 在 2026-11-16 加的「30 天內看過（cookie ivy_seen_anni_intro）不自動播」那一條測的也是這支閘門，一起拿掉。
 
 describe('鍵盤焦點看得見', () => {
   it('米白膠囊裡的焦點框用膠囊字色，不是米白', () => {

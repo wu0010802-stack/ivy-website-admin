@@ -14,6 +14,7 @@ import {
   RETENTION_CATEGORY_LABELS,
   SLOT_CLOSED_SOURCE_LABELS,
   VISIT_SOURCE_LABELS,
+  VISIT_EVENT_SOURCE_LABELS,
   NOTIFICATION_KIND_LABELS,
   NOTIFICATION_REASON_LABELS,
   notificationLabel,
@@ -108,6 +109,15 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     // 狀態轉換經 _audit_transition 記，也要掃得到。
     expect(actions).toContain('visit_request.cancel')
     expect([...actions].filter((action) => !AUDIT_ACTION_LABELS[action])).toEqual([])
+  })
+
+  it('案件歷程的操作來源（VisitEventSource）都有中文', () => {
+    // 2026-11-17 新增 line_group（在 LINE 群組按已到場／未到場），時間線要寫「LINE 群組」而不是代碼。
+    const bookingModels = source('booking/models.py')
+    const block = bookingModels.slice(bookingModels.indexOf('class VisitEventSource'), bookingModels.indexOf('class VisitRequestEvent'))
+    const sources = [...block.matchAll(/^\s+[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
+    expect(sources).toEqual(['staff', 'parent', 'system', 'line_group'])
+    expect(sources.filter((value) => !VISIT_EVENT_SOURCE_LABELS[value])).toEqual([])
   })
 
   it('每一種稽核對象都有中文', () => {

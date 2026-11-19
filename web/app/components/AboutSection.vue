@@ -7,6 +7,10 @@ import { aboutCopy } from '~/utils/about-copy'
 
 const props = defineProps<{ about: AboutContent }>()
 const expanded = ref(false)
+// 停用 JS 時（2026-11-12 QA L32）：手機版內文後半段靠 .is-expanded 收起來，「閱讀完整介紹」要有 JS 才按得動。
+// 內文本來就在 SSR 的 HTML 裡，這時直接全部展開、藏起展開鈕（規則和列印時一樣），寫在下面 <style> 的
+// @media (scripting: none)。不用 head 的 noscript 樣式：公開頁的 CSP 只放行登記過的 inline 內容（tests/script-csp.spec.ts）；
+// 不支援這個媒體查詢的舊瀏覽器維持原狀。
 // 摘要＝第一段的第一句；內文可以換行分段（2026-11-04，規則在 utils/about-copy.ts）。
 const copy = computed(() => aboutCopy(props.about.bodyText))
 const hasMore = computed(() => Boolean(copy.value.rest || copy.value.more.length))
@@ -92,4 +96,6 @@ useCurtain(rootEl, trackEl, panelEl, 'belief', useRelayProgress(panelEl))
   .belief-copy-toggle{position:relative;z-index:1;display:inline-flex;align-items:center;min-height:44px;margin-top:8px;padding:4px 0;border:0;border-bottom:1px solid currentColor;background:var(--belief-bg,transparent);color:var(--green);font-size:var(--fs-md)}
 }
 @media print{.belief-more{display:inline!important}.belief-paras{display:grid!important}.belief-copy-toggle{display:none}}
+/* 停用 JS 時（2026-11-12 QA L32）：和列印一樣全部展開、藏起沒有作用的展開鈕。不支援這個媒體查詢的舊瀏覽器維持原狀。 */
+@media (scripting:none){.belief-more{display:inline!important}.belief-paras{display:grid!important}.belief-copy-toggle{display:none!important}}
 </style>

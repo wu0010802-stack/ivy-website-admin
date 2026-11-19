@@ -189,3 +189,49 @@ async def test_restore_rejects_payload_that_no_longer_validates(admin_client, db
     )
     assert response.status_code == 422
     assert response.json()["detail"]["code"] == "CONTENT_REVISION_OUTDATED"
+
+
+# 總管理者的 require_scope 對任何校區代號都放行；不存在的校區代號一路寫到外鍵才變 500
+# （2026-11-12 QA L6）。每支吃 campus_key 的端點都要在碰資料庫前回 404。
+_UNKNOWN_CAMPUS_CASES = ["zzz", "yi%00hua"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("campus_key", _UNKNOWN_CAMPUS_CASES)
+@pytest.mark.parametrize("kind", ["campus_news", "campus_tour"])
+async def test_unknown_campus_key_is_404_not_500_on_every_campus_endpoint(admin_client, db_session, kind, campus_key):
+    from sqlalchemy import func
+
+    from app.content.models import ContentItem
+
+    query = f"?campus_key={campus_key}"
+    fake_id = str(uuid.uuid4())
+    calls = [
+        ("get", f"{BASE}/{kind}{query}", None),
+        ("post", f"{BASE}/{kind}/revisions{query}", {"expected_version": 0, "payload": _campus_news("x")}),
+        ("get", f"{BASE}/{kind}/revisions{query}", None),
+        ("get", f"{BASE}/{kind}/revisions/{fake_id}{query}", None),
+        ("post", f"{BASE}/{kind}/revisions/{fake_id}/restore{query}", {"expected_version": 0}),
+        ("post", f"{BASE}/{kind}/publish{query}", {"revision_id": fake_id}),
+        ("post", f"{BASE}/{kind}/submit{query}", {"revision_id": fake_id}),
+        ("post", f"{BASE}/{kind}/review{query}", {"revision_id": fake_id, "decision": "approve"}),
+        ("get", f"{BASE}/{kind}/schedules{query}", None),
+        ("post", f"{BASE}/{kind}/schedules{query}", {"revision_id": fake_id, "publish_at": "2099-01-01T00:00:00+08:00"}),
+        ("delete", f"{BASE}/{kind}/schedules/{fake_id}{query}", None),
+        ("post", f"{BASE}/{kind}/schedules/{fake_id}/acknowledge{query}", None),
+    ]
+    for method, url, body in calls:
+        response = await getattr(admin_client, method)(url, **({"json": body} if body is not None else {}))
+        assert response.status_code == 404, (method, url, response.status_code, response.text[:200])
+
+    stray = await db_session.scalar(
+        select(func.count()).select_from(ContentItem).where(ContentItem.campus_key == "zzz")
+    )
+    assert stray == 0
+
+
+@pytest.mark.asyncio
+async def test_real_campus_key_still_works_after_the_existence_check(admin_client):
+    response = await admin_client.get(f"{BASE}/campus_news?campus_key=minghua")
+    assert response.status_code == 200, response.text
+    assert response.json()["campus_key"] == "minghua"

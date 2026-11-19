@@ -18,6 +18,10 @@ const VIEWPORTS = [
   ['1024', { width: 1024, height: 768 }],
   ['1440', { width: 1440, height: 900 }]
 ]
+// 只有某一頁要多量的寬度。環境頁 2026-11-17 起 900 以下是單欄（320 是最窄的手機）、1100 是桌機釘住敘事最窄的寬度。
+const EXTRA_VIEWPORTS = {
+  '/environment': [['320', { width: 320, height: 640 }], ['1100', { width: 1100, height: 700 }]]
+}
 const SAMPLE = [...'常春藤的孩子，在這裡快樂學習、慢慢長大。']
 const fill = (n) => Array.from({ length: n }, (_, i) => SAMPLE[i % SAMPLE.length]).join('')
 
@@ -26,6 +30,8 @@ const fill = (n) => Array.from({ length: n }, (_, i) => SAMPLE[i % SAMPLE.length
 // 量；上下換成字的墨跡：Range 的矩形是字型的 content area（ascent＋descent），LINE Seed TW 在 901 寬 63px 高、
 // 墨跡只有約 36px，照原框量，內建標題第二行在 901 寬也算重疊 9px，截圖上字離金幣還有空隙。
 // 墨跡用 canvas measureText：fontBoundingBoxAscent 從矩形上緣換算基線，actualBoundingBox 是整個標題的字最高最低處；
+// ensure：內建內容把這一欄留空（官網輸出時拿掉，元件就不畫）但後台填得進去的欄位——頁面上找不到時，照元件的結構補一個再量：
+//   { in: 放進哪個元素, html: 要補的標籤, after: 接在哪個兄弟元素後面（沒寫就放最後）, each: true＝每個符合 in 的元素都補 }；
 // textNode：只換元素自己的第一個文字節點（元素裡還有 <b>／<small> 等子元素時用）；box：不能超出的外框；
 // paint：印在顏料上的字，每一行的四個角都要落在 box 裡這團顏料的實心範圍內：utils/watercolor.ts blotCanvas
 // 的基底橢圓（半徑為顏料框的 0.34 × 0.31），頂點本身有 ±17.5% 的起伏，所以容許到 (x/rx)²+(y/ry)² ≤ 1.1
@@ -81,35 +87,37 @@ const RULES = {
     { sel: '.abh-fine-source', chars: 30 },
     { sel: '.abh-quote p', chars: 70 }
   ],
-  // 常春藤環境頁（2026-10-12 開放前三章；2026-10-30 木頭積木版拿掉圖說、便條、小腳印與選校提示）：數字是 page_schemas.py 的 ENVIRONMENT_* 上限。
+  // 常春藤環境頁（2026-10-12 開放前三章；2026-11-17「拱窗打開」版換了結構，選擇器跟著改）：數字是 page_schemas.py 的 ENVIRONMENT_* 上限。
+  // 預設用減少動態量（完成的畫面）；桌機釘住的起始畫面與舞台要另外加 STRESS_MOTION=1 再跑一次。
   '/environment': [
-    { sel: '#environment-title', lines: 3, perLine: 9 },
-    { sel: '.renv-lede', chars: 33 },
-    { sel: '.renv-notice', chars: 30 },
-    { sel: '.renv-index-name', chars: 6, box: '.renv-index li' },
-    { sel: '.renv-kicker', chars: 6, textNode: true },
+    // 首屏大標每一行是一個不折行的 .renv-h-line；字數與行數要一起交給舞台（--n／--l，元件平常會算），桌機起始畫面的字級才對
+    { sel: '#environment-title', lines: 3, perLine: 9, lineClass: 'renv-h-line', vars: { on: '.renv-hero-stage', set: { '--n': '9', '--l': '3' } } },
+    { sel: '.renv-lede', chars: 33, ensure: { in: '.renv-hero-txt-in', html: '<p class="renv-text renv-lede"></p>' } },
+    { sel: '.renv-notice', chars: 30, ensure: { in: '.renv-hero-txt-in', html: '<p class="renv-notice"></p>' } },
+    { sel: '.renv-index-name', chars: 6, box: '.renv-hb' },
+    { sel: '.renv-kicker', chars: 6 },
     { sel: '#care-title', lines: 3, perLine: 9 },
-    { sel: '.renv-hearts-box > .renv-text:first-child', chars: 21 },
-    { sel: '.renv-hearts b', chars: 4, box: '.renv-hearts li' },
-    { sel: '.renv-hearts + .renv-text', chars: 57 },
-    { sel: '.renv-care-txt h3', chars: 9, textNode: true, box: '.renv-cares > li' },
-    { sel: '.renv-care-txt p', chars: 30, box: '.renv-cares > li' },
+    { sel: '.renv-care-head .renv-lead', chars: 21 },
+    { sel: '.renv-hnames li', chars: 4, textNode: true },
+    { sel: '.renv-care-text', chars: 57, ensure: { in: '#care .renv-wrap', html: '<p class="renv-text renv-care-text"></p>', after: '.renv-hearts' } },
+    { sel: '.renv-ci-tx h3', chars: 9, box: '.renv-ci' },
+    { sel: '.renv-ci-tx p', chars: 30, box: '.renv-ci' },
     { sel: '#spaces-title', lines: 3, perLine: 10 },
-    { sel: '#spaces .renv-wrap > .renv-text', chars: 51 },
-    { sel: '.renv-tag', chars: 10 },
-    { sel: '.renv-feature-copy h3', lines: 3, perLine: 7 },
-    { sel: '.renv-feature-copy > p:last-child', chars: 70, box: '.renv-feature' },
-    { sel: '.renv-stop-copy h3', chars: 10, box: '.renv-stop' },
-    { sel: '.renv-stop-copy p', chars: 69, box: '.renv-stop' },
-    { sel: '.renv-campus', chars: 4 },
+    { sel: '.renv-sp-head .renv-text', chars: 51, ensure: { in: '.renv-sp-head', html: '<p class="renv-text"></p>' } },
+    { sel: '.renv-feat-tag', chars: 10 },
+    { sel: '.renv-feat-card h3', lines: 3, perLine: 7, lineClass: '', vars: { on: '.renv-feat-card h3', set: { '--n': '7' } } },
+    { sel: '.renv-feat-text', chars: 70, box: '.renv-feat-card' },
+    { sel: '.renv-stop-tx h3', chars: 10, box: '.renv-stop' },
+    { sel: '.renv-stop-text', chars: 69, box: '.renv-stop' },
+    { sel: '.renv-stop-campus', chars: 4 },
     { sel: '#meals-title', lines: 3, perLine: 9 },
-    { sel: '.renv-meals-top .renv-text', chars: 78 },
+    { sel: '.renv-meals-p', chars: 78 },
     { sel: '.renv-day-title', chars: 16 },
-    { sel: '.renv-day-list b', chars: 3, box: '.renv-day-list > li' },
-    { sel: '.renv-day-list small', chars: 10, box: '.renv-day-list > li' },
-    { sel: '.renv-day-list p', chars: 28, box: '.renv-day-list > li' },
+    { sel: '.renv-day-name', chars: 3, box: '.renv-day-i' },
+    { sel: '.renv-day-n', chars: 10, box: '.renv-day-i' },
+    { sel: '.renv-day-x', chars: 28, box: '.renv-day-i', ensure: { in: '.renv-day-i', html: '<p class="renv-day-x"></p>', each: true } },
     { sel: '#tour-title', lines: 3, perLine: 10 },
-    { sel: '#campuses .renv-tour-head .renv-text', chars: 45 }
+    { sel: '#campuses .renv-tour-head .renv-lead', chars: 45 }
   ]
 }
 
@@ -125,7 +133,7 @@ const RULES = {
   const browser = await chromium.launch({ channel: 'chrome' })
   let failed = 0
   try {
-    for (const [device, viewport] of VIEWPORTS) {
+    for (const [device, viewport] of [...VIEWPORTS, ...(EXTRA_VIEWPORTS[route] ?? [])]) {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: process.env.STRESS_MOTION ? 'no-preference' : 'reduce' })
       const page = await context.newPage()
       await page.goto(BASE + route, { waitUntil: 'networkidle' })
@@ -133,6 +141,13 @@ const RULES = {
         const fillIn = (n) => Array.from({ length: n }, (_, i) => sample[i % sample.length]).join('')
         const touched = []
         for (const rule of rules) {
+          if (rule.ensure && !document.querySelector(rule.sel)) {
+            for (const host of [...document.querySelectorAll(rule.ensure.in)].slice(0, rule.ensure.each ? undefined : 1)) {
+              const after = rule.ensure.after ? host.querySelector(rule.ensure.after) : null
+              if (after) after.insertAdjacentHTML('afterend', rule.ensure.html)
+              else host.insertAdjacentHTML('beforeend', rule.ensure.html)
+            }
+          }
           const els = [...document.querySelectorAll(rule.sel)]
           if (els.length === 0) touched.push({ rule, missing: true })
           for (const el of els) {
@@ -144,6 +159,9 @@ const RULES = {
                 const before = fillIn(perLine - rule.mark)
                 return `${before}<span class="cur-swash"><span class="cur-blot cur-swash-paint" data-blot="orange" aria-hidden="true"></span>${fillIn(rule.mark)}</span>`
               }).join('<br>')
+              // lineClass：每一行各包一個 <span>（環境頁的標題一行一塊，不是 <br>）；vars：順便把元件會算的 CSS 變數設好
+              if (rule.lineClass !== undefined) el.innerHTML = el.innerHTML.split('<br>').map((line) => `<span${rule.lineClass ? ` class="${rule.lineClass}"` : ''}>${line}</span>`).join('')
+              if (rule.vars) for (const host of document.querySelectorAll(rule.vars.on)) for (const [name, value] of Object.entries(rule.vars.set)) host.style.setProperty(name, value)
             }
             else if (rule.textNode) {
               const node = [...el.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim())
@@ -152,6 +170,8 @@ const RULES = {
             touched.push({ rule, el })
           }
         }
+        // 有些版面由腳本量（環境頁首屏標題收成一列的位移）：換完字通知一聲
+        window.dispatchEvent(new Event('resize'))
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))
         await document.fonts.ready
         const out = []

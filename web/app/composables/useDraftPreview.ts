@@ -2,6 +2,7 @@ import type { SiteContent } from '~/types/site-content'
 import type { ContentOverlay } from '~/utils/content-overlay'
 import { previewMedia, previewOverlay, type AdminMediaAsset, type HiddenNewsEntry } from '~/utils/draft-preview'
 import { applyLiveDraft, type LiveOverride } from '~/utils/preview-live'
+import type { LivePublicSite } from '~/utils/published-content'
 
 interface MeResponse {
   csrf_token: string
@@ -59,6 +60,8 @@ const SHARED_KINDS: SharedKind[] = [
 ]
 type CampusKind = 'campus_profile' | 'campus_tour' | 'campus_news'
 const CAMPUS_KINDS: CampusKind[] = ['campus_profile', 'campus_tour', 'campus_news']
+// 分校帳號只讀得到自己校的這兩種（後台 API 對別校回 404）；校園探索由總部管理，每個人都讀得到五校的。
+const OWN_CAMPUS_KINDS: readonly CampusKind[] = ['campus_profile', 'campus_news']
 
 interface AdminMediaPage {
   items: AdminMediaAsset[]
@@ -99,6 +102,9 @@ async function loadAllMedia(): Promise<AdminMediaAsset[]> {
  * `campus_profile`／`campus_tour`／`campus_news` 是每校各一份，`/admin/content-items`
  * 沒有一次拿全部校區的端點，所以逐校打（校區清單直接讀 fixture 現有的
  * `campuses`，不在這裡另外寫死一份清單，避免兩份清單以後漂移）。
+ *
+ * 分校帳號讀不到別校的分校介紹與消息：那幾校不向後台要（原本每開一次編輯器就是 8 個 404），改用
+ * 官網已發布的內容，預覽裡的別校才會和官網一樣，而不是退回內建內容（2026-11-12 QA L8）。
  */
 export async function useDraftPreview(): Promise<DraftPreviewResult> {
   let me: MeResponse
@@ -128,9 +134,19 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   }
 
   const campusKeys = content.campuses.map((c) => c.key)
+  const ownCampuses = me.user.role === 'super_admin' ? null : new Set(me.user.campus_keys ?? [])
+  const readable = (kind: CampusKind, campusKey: string) => !ownCampuses || !OWN_CAMPUS_KINDS.includes(kind) || ownCampuses.has(campusKey)
+  // 有讀不到的校區才去拿官網已發布的那一份（走公開 API，後台主機上也開著）；拿不到就照舊用內建內容。
+  const published = ownCampuses && campusKeys.some((key) => !ownCampuses.has(key))
+    ? await $fetch<LivePublicSite>('/api/website/v1/public/site').catch(() => null)
+    : null
   for (const kind of CAMPUS_KINDS) {
     const perCampus = await Promise.all(
       campusKeys.map(async (campusKey) => {
+        if (!readable(kind, campusKey)) {
+          const live = (published?.content?.[kind] as Record<string, unknown> | undefined)?.[campusKey]
+          return [campusKey, live ?? null] as const
+        }
         const campusItem = await $fetch<ContentItemOut>(
           `/api/website/v1/admin/content-items/${kind}?campus_key=${encodeURIComponent(campusKey)}`
         ).catch(() => null)
@@ -147,7 +163,8 @@ export async function useDraftPreview(): Promise<DraftPreviewResult> {
   }
 
   // 素材的尺寸、衍生檔與預設焦點（讀不到就只用原檔，畫面照樣出得來）。
-  const media = previewMedia(await loadAllMedia().catch(() => [] as AdminMediaAsset[]))
+  // 別校已發布內容引用的素材不在這個帳號的素材清單裡，尺寸與衍生檔用公開 API 給的。
+  const media = { ...(published?.media ?? {}), ...previewMedia(await loadAllMedia().catch(() => [] as AdminMediaAsset[])) }
 
   return {
     authorized: true,

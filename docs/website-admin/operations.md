@@ -50,7 +50,7 @@ export WEBSITE_RESEND_FROM='常春藤幼兒園 <noreply@send.example.org>'   # �
 
 寄信未設定（沒有 SMTP、沒有 Resend，也沒有 sink）時，outbox 照常處理、只寫站內通知，email 管道略過；不會把訊息留著等日後設好寄信再一次寄出一堆舊通知；超過 24 小時才輪到的訊息也只寫站內通知、不寄信。寄信（SMTP 與 Resend 都是）在背景 thread 執行，不會卡住 API 的請求。
 
-LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。LINE 推播失敗（月額度用完、token 失效、bot 被移出群組、逾時）不會擋住 email：信照寄，整筆再以失敗重試，重試時只補推 LINE（2026-09-29 起；之前 LINE 一失敗 email 就一封都不寄）。啟用步驟見 `deploy/README.md`「LINE 群組推播」。
+LINE 群組推播：設定 `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`／`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN` 後，每則通知會先推到該校在後台「LINE 通知」頁指定的群組，再寄 email。沒指定群組、或官方帳號已被移出群組的校區直接略過。LINE 推播失敗（月額度用完、token 失效、bot 被移出群組、逾時）不會擋住 email：信照寄，整筆再以失敗重試，重試時只補推 LINE（2026-09-29 起；之前 LINE 一失敗 email 就一封都不寄）。啟用步驟見 `deploy/README.md`「LINE 群組推播」。2026-11-16 起群組訊息是卡片（附「開啟案件」按鈕）；家長可以選擇用 LINE 收自己的預約通知（後台「LINE 通知 → 家長 LINE 通知」每校打開），額度用到八成會在系統狀態列為要注意，見 `docs/specs/2026-11-16-line-integrations-design.md`。
 
 失敗的通知會在 `outbox_messages` 表留下 `status=failed`、`error_code`，可在 admin「站內通知」頁面看到對應的站內通知已產生（一般的案件狀態通知跟寄信是分開的：站內通知一定會建立，寄信才會重試/失敗）。**例外是提醒類通知**（`visit_upcoming`／`visit_request_overdue`）：寄送當下會重新判斷是否仍然成立（改期、取消、已處理、占位已換過或過期），不成立就整筆標成 `status=skipped`，連站內通知都不會建立——這是刻意設計，避免園方在後台看到「參觀已改期／已取消」但通知還說「即將參觀」的過期訊息。
 
@@ -210,6 +210,13 @@ npm run test:e2e   # 公開站四視口 Playwright（先 npm run e2e:build；自
 - **之後再補寄**：月曆點那一天，面板上的「寄停課通知（N 組）」。已經寄過的不會重寄。
 - **停課取消了**：月曆點那一天按「取消休假」，場次重新開放；還沒寄出的停課通知寄送前會發現那天已不是休假日，自動略過。已經寄出的信收不回，請來電說明。
 - 操作紀錄：「匯入國定假日」「停班停課」每校各一筆，細節寫建了幾天、寄給幾位、幾位要來電。
+
+## 每月填廣告花費（2026-11-16）
+
+- **誰、何時**：總管理者，每月初把上個月各平台的花費填進招生統計 → 廣告成效 → 「其他平台花費（每月手填）」→ 新增（月份、平台、新台幣金額、備註）。同月同平台再填會覆蓋；可編輯、刪除。Google 由 GA4 自動讀，不用填。
+- **平台**：ChatGPT、Meta、LINE、其他網路廣告、離線花費。「離線花費」指不在網路上的招生花費（例如傳單、海報、活動攤位），不對應任何官網進站，所以只列出花費，官網記不到它帶來的預約，不算成本。
+- **沒填的呈現**：有預約但整段期間都沒填，花費顯示「未填」、成本欄「—」；只缺部分月份就照已填的加總並註「缺 N 個月」。
+- **Meta 廣告網址**：之後投 Meta 廣告時，廣告網址要帶 `utm_medium=paid&utm_source=facebook` 才算得進來；只有 `fbclid` 會被當成一般 Facebook 分享。
 
 ## 已知限制（誠實列出，2026-09-25／26 更新）
 

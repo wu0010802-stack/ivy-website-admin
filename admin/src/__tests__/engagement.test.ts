@@ -327,6 +327,23 @@ describe('內容興趣面板', () => {
     expect(campuses).toEqual([['12', '5', '20', '6'], ['30', '9', '8', '—']])
   })
 
+  // 2026-11-12 QA L34：「實際預約」欄只有看得到預約數的人才有；說明文字不能對其他人還講那一欄。
+  it('各校的興趣與預約：沒有「實際預約」欄的人，說明也不提那一欄', async () => {
+    const panelOf = (wrapper: VueWrapper) => wrapper.get('[aria-labelledby="interest-campuses-title"]')
+    const withoutBookings = summary()
+    withoutBookings.campuses = withoutBookings.campuses.map((row) => ({ ...row, bookings: null }))
+    const { wrapper: other } = await mountPanel(withoutBookings, 'convert')
+    expect(other.findAll('[data-test="interest-campuses"] thead th').map((th) => th.text())).toEqual(['校區', '首頁切到這一校', '點地址', '進預約頁'])
+    expect(panelOf(other).text()).not.toContain('實際預約')
+    // 說明其他兩段照舊。
+    expect(panelOf(other).text()).toContain('前兩欄是首頁五校區塊的點擊')
+    expect(panelOf(other).text()).toContain('首頁一打開就顯示的那一校')
+
+    const { wrapper: admin } = await mountPanel(summary(), 'convert')
+    expect(admin.findAll('[data-test="interest-campuses"] thead th').map((th) => th.text())).toContain('實際預約')
+    expect(panelOf(admin).text()).toContain('「實際預約」是這段期間官網真的送出的預約')
+  })
+
   it('第二輪：瀏覽順序、時段、活動代碼', async () => {
     const { wrapper } = await mountPanel(summary(), 'journey')
     const entries = wrapper.findAll('[data-test="interest-entries"] tbody tr').map((row) => row.text())

@@ -90,8 +90,13 @@ RIS_SAMPLE_MONTH = "11509"
 RIS_SAMPLE_PAGES = (FIXTURES / "ris-odrp014-11509-p1.json", FIXTURES / "ris-odrp014-11509-p2.json")
 # 樣本裡高雄市的里數（另有 3 筆外縣市要被篩掉）。
 RIS_SAMPLE_VILLAGES = 24
-_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP(?:01[14]|061))/([0-9]{5})")
-RIS_SERIES_FIXTURES = {"ODRP061": FIXTURES / "ris-odrp061-11509.json", "ODRP011": FIXTURES / "ris-odrp011-11509.json"}
+_RIS_PATH = re.compile(re.escape(series_io.RIS_ROOT) + r"/(ODRP(?:01[14]|06[01]))/([0-9]{5})")
+RIS_SERIES_FIXTURES = {
+    "ODRP061": FIXTURES / "ris-odrp061-11509.json",
+    # 2026-11-16 各里結婚：ODRP060 欄位照實測（無 household_no 等）；數字是合成的。
+    "ODRP060": FIXTURES / "ris-odrp060-11509.json",
+    "ODRP011": FIXTURES / "ris-odrp011-11509.json",
+}
 
 
 def ris_sample_pages(month: str = RIS_SAMPLE_MONTH) -> list[dict]:

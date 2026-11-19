@@ -16,6 +16,8 @@ import { newsDescription } from '../app/utils/seo'
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('onMounted', onMounted)
+// 消息頁結尾的參觀入口會在瀏覽器讀那一校的預約方式（2026-11-12）；這裡是 SSR，只要 setup 拿得到 nuxtApp。
+vi.stubGlobal('useNuxtApp', () => ({ payload: { data: {} }, static: { data: {} } }))
 
 const site = fixture as unknown as SiteContent
 const VIDEO = '7c1d9f3a-2b6e-4c58-8a17-5e0f4d2b9c33'

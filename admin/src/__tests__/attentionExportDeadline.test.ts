@@ -163,6 +163,58 @@ describe('待人工處理的入口', () => {
     expect(String(success.mock.calls.at(-1)![0])).toContain('已取消休假')
   })
 
+  // 2026-11-12 QA L13：後端不收開始時間已過的場次；加開的時間選單不能再讓人選今天已經過去的時段。
+  describe('加開一場：今天已經過去的開始時間不能選', () => {
+    const startTimes = (wrapper: VueWrapper) =>
+      wrapper.findAllComponents({ name: 'ElOption' }).map(option => String(option.props('label'))).filter(label => /^\d{2}:\d{2}$/.test(label))
+    const openAdd = async (day: string) => {
+      const { wrapper } = await mountAt(DayPanel, '/', { day, campusKey: 'yihua', slots: [], holiday: null, canManage: true })
+      await wrapper.findAll('button').find(button => button.text() === '＋加開一場')!.trigger('click')
+      await flushPromises()
+      return wrapper
+    }
+    afterEach(() => { vi.useRealTimers() })
+
+    it('台北今天 14:10：只剩 14:30 以後；預設時間跟著落在可選的第一個，送出的就是它', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-12T14:10:00+08:00'))
+      const post = vi.spyOn(api, 'post').mockResolvedValue({} as never)
+      const wrapper = await openAdd('2026-11-12')
+      const times = startTimes(wrapper)
+      expect(times[0]).toBe('14:30')
+      expect(times).not.toContain('14:00')
+      expect(times).not.toContain('07:00')
+      expect(times.at(-1)).toBe('18:00')
+      await wrapper.get('form.day-panel__add').trigger('submit')
+      await flushPromises()
+      expect(post).toHaveBeenCalledWith('/admin/slots?campus_key=yihua', expect.objectContaining({ slot_date: '2026-11-12', start_time: '14:30:00' }))
+    })
+
+    it('以台北時間為準：UTC 還是前一天的早上 7:45（台北），07:00、07:30 已過', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-11T23:45:00Z'))
+      const times = startTimes(await openAdd('2026-11-12'))
+      expect(times[0]).toBe('08:00')
+    })
+
+    it('之後的日期整天都能選', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-12T14:10:00+08:00'))
+      const times = startTimes(await openAdd('2026-11-13'))
+      expect(times[0]).toBe('07:00')
+      expect(times).toHaveLength(23)
+    })
+
+    it('今天最後一個時段（18:00）也過了：不顯示空的時間選單，說明今天沒有時段可加開', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-11-12T18:10:00+08:00'))
+      const wrapper = await openAdd('2026-11-12')
+      expect(startTimes(wrapper)).toEqual([])
+      expect(wrapper.text()).toContain('今天已經沒有可以加開的時段')
+      expect(wrapper.findAll('button').some(button => button.text() === '加開')).toBe(false)
+    })
+  })
+
   it('停用中的分校連到該校待人工處理的案件', async () => {
     vi.spyOn(api, 'get').mockResolvedValue({ key: 'yihua', name: '義華', active: false, deactivated_at: null, deactivated_reason: null } as never)
     const { wrapper, router } = await mountAt(CampusStatusCard, '/booking', { campusKey: 'yihua' })

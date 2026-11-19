@@ -75,8 +75,8 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
     await pickVisitDay(page, slotDate)
     await expect(page.locator('.visit-slot-options input[type="radio"]')).toHaveCount(1)
     await page.locator('.visit-slot-options input[type="radio"]').first().check()
-    await page.getByLabel('孩子姓名').fill(CHILD)
-    await page.getByLabel('孩子出生年月日').fill(BIRTHDAY)
+    await page.getByLabel('寶貝姓名').fill(CHILD)
+    await page.getByLabel('寶貝出生年月日').fill(BIRTHDAY)
     await page.getByLabel('家長稱呼').fill(PARENT)
     await page.getByLabel('聯絡電話').fill(PHONE)
     await page.getByLabel('聯絡 Email').fill(EMAIL)
@@ -154,7 +154,7 @@ test('家長自選場次 → 時間過了看板提示去標記到場 → 案件�
   // 統計分析 2026-10-16 抽成獨立的招生統計頁，只有總管理者看得到。
   await test.step('分校管理者開舊連結 tab=stats：留在招生入學的漏斗看板，沒有統計分頁', async () => {
     await gotoAdmin(page, `/admissions?campus=${SLOTS_CAMPUS}&tab=stats`, '招生入學')
-    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細'])
+    await expect(page.locator('.admissions__tabs .el-tabs__item')).toHaveText(['漏斗看板', '訪視明細', '編班與缺額Beta'])
     await expect(page.getByRole('tab', { name: '漏斗看板', selected: true })).toBeVisible()
   })
 

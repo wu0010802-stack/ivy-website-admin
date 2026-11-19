@@ -32,8 +32,8 @@ describe('預計入學時間的選項', () => {
   it('家長看的短文字：盡快、還不確定、學期換成月份；認不得的值原樣顯示', () => {
     expect(expectedStartText('asap')).toBe('盡快')
     expect(expectedStartText('unsure')).toBe('還不確定')
-    expect(expectedStartText('115-2')).toBe('2027 年 2 月')
-    expect(expectedStartText('116-1')).toBe('2027 年 9 月')
+    expect(expectedStartText('115-2')).toBe('115 學年下學期')
+    expect(expectedStartText('116-1')).toBe('116 學年上學期')
     expect(expectedStartText('x')).toBe('x')
   })
 

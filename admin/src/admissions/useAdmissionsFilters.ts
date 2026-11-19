@@ -10,14 +10,14 @@ import { DEFAULT_JOURNEY_FILTER, journeyQuery, parseJourneyQuery, type JourneyFi
 // 名額規劃（intake）與官網預約（arrivals）2026-10-05 拿掉、待追蹤（followups）2026-10-06 拿掉，
 // 舊連結的 tab=intake、tab=arrivals、tab=followups 退回漏斗看板。統計分析 2026-10-16 抽成獨立的
 // 招生統計頁（限總管理者）：舊連結 tab=stats 由路由轉過去（router/index.ts），看不到的人退回漏斗看板。
-export const ADMISSIONS_TABS = ['funnel', 'records'] as const
+export const ADMISSIONS_TABS = ['funnel', 'records', 'roster'] as const
 export type AdmissionsTab = (typeof ADMISSIONS_TABS)[number]
 export type Semester = 1 | 2
 // 招生統計的子分頁（StatsTab 的 pane 名稱去掉 stats- 前綴）；overview 是預設，不寫進網址。
 // 順序同園務：區域分析在接待之後、未預繳之前（2026-10-08 起官網也做）。官網延伸的「參觀預約」
-// （2026-10-13 從成效統計搬來）、「預約全程」（2026-10-15）、「招生潛力與市佔率」（2026-10-20）與「資料匯入」（2026-10-21）排最後，
+// （2026-10-13 從成效統計搬來）、「預約全程」（2026-10-15）、「招生潛力與市佔率」（2026-10-20）「資料匯入」（2026-10-21）與「廣告成效」（2026-11-16）排最後，
 // 園務有的子分頁順序不動。
-export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential', 'imports'] as const
+export const STATS_SUBS = ['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential', 'imports', 'ads'] as const
 export type StatsSub = (typeof STATS_SUBS)[number]
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -154,11 +154,11 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     journey.value = { ...fresh }
   }
 
-  // 離開區域分析就放掉模式、里與表格分頁；已經是預設就不重新指派（同 resetJourney）。
+  // 離開區域分析就放掉模式、里、表格分頁與年份；已經是預設就不重新指派（同 resetJourney）。
   function resetAreaView() {
-    const { map, village, table } = areaView.value
+    const { map, village, table, year } = areaView.value
     const fresh = DEFAULT_AREA_VIEW
-    if (map === fresh.map && village === fresh.village && table === fresh.table) return
+    if (map === fresh.map && village === fresh.village && table === fresh.table && year === fresh.year) return
     areaView.value = { ...fresh }
   }
 

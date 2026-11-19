@@ -154,7 +154,7 @@ describe('30 週年分頁：入口、開關與素材', () => {
     expect(page).toMatch(/if \(!anniversaryEnabled\(data\.value\?\.content\.siteMeta\)\) \{\n\s+throw createError\(\{ statusCode: 404/)
     const home = read('app/pages/index.vue')
     expect(home).toContain('<EntranceCurtain v-if="curtain" />')
-    expect(home).toContain("script: () => (curtain.value ? [{ key: 'entrance-curtain'")
+    expect(home).toContain("script: () => (entranceDue.value ? [{ key: 'entrance-curtain'")
     expect(read('server/routes/sitemap.xml.get.ts')).toContain('anniversary: anniversaryEnabled(published.content.siteMeta)')
   })
 

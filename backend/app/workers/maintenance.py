@@ -36,9 +36,11 @@ from app.config import Settings
 from app.notifications.email_adapter import EmailNotConfigured, deployment_email_adapter
 from app.notifications import reminders
 from app.notifications.line import LineMessagingClient
+from app.notifications.line_digest import send_due_digests
 from app.notifications.web_push import PushSender, new_client as new_push_client
 from app.operations import audit_service, retention_service
 from app.operations.models import RetentionRunTrigger
+from app.notifications.line_parent import LineClients
 from app.workers.runner import process_outbox_until_drained
 
 logger = logging.getLogger("app.maintenance")
@@ -67,7 +69,10 @@ class CycleResult:
     notifications_sent: int = 0
     notifications_failed: int = 0
     notifications_skipped: int = 0
+    digests_sent: int = 0
     rate_limit_rows_purged: int = 0
+    ad_conversions_sent: int = 0
+    ad_conversions_failed: int = 0
     media_purged: int = 0
     # 這一輪清掉來源 IP／User-Agent 的操作紀錄筆數；刪掉的失效 session、重設連結、家長 session 筆數。
     audit_client_info_cleared: int = 0
@@ -215,12 +220,14 @@ async def _run_steps(
         result.line_configured = True
     # 手機推播（2026-11-05）：金鑰設好才建；送出失敗不影響其他管道（services.dispatch_outbox_message）。
     push = PushSender(settings, new_push_client(push_transport)) if settings.web_push_enabled else None
+    # 家長 LINE 通知（2026-11-16）：任何一個官方帳號有設就建；各帳號的 client 用到才開。
+    line_clients = LineClients(settings, transport=line_transport) if settings.line_accounts else None
     try:
         async with session_factory() as db:
             outbox = await process_outbox_until_drained(
                 db, adapter, worker_id=worker_id, line=line, admin_origin=settings.admin_origin,
                 public_origin=settings.parent_origin,
-                access_secret=settings.session_secret, push=push,
+                access_secret=settings.session_secret, push=push, line_clients=line_clients,
             )
         result.notifications_sent = outbox["sent"]
         result.notifications_failed = outbox["failed"]
@@ -231,8 +238,36 @@ async def _run_steps(
     finally:
         if line is not None:
             await line.aclose()
+        if line_clients is not None:
+            await line_clients.aclose()
         if push is not None:
             await push.client.aclose()
+
+    # 每日早上的參觀摘要（2026-11-17）：只用主帳號、不走 outbox，推成功才記 line_digest_runs。
+    if settings.line_messaging_enabled:
+        assert settings.line_messaging_access_token is not None
+        digest_line = LineMessagingClient(settings.line_messaging_access_token, transport=line_transport)
+        try:
+            async with session_factory() as db:
+                result.digests_sent = await send_due_digests(db, settings, line_client=digest_line)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：每日摘要失敗")
+            result.failed_steps.append("digest")
+        finally:
+            await digest_line.aclose()
+
+    # 到場、預繳回傳廣告平台（2026-11-16，app/ad_conversions/）。平台都沒設定時也要跑：之前排入、後來拿掉設定的列
+    # 要記成 skipped，不能一直掛著。
+    try:
+        from app.ad_conversions import service as ad_conversions
+
+        async with session_factory() as db:
+            conversions = await ad_conversions.process_due(db, settings)
+        result.ad_conversions_sent = conversions["sent"]
+        result.ad_conversions_failed = conversions["failed"]
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：回傳廣告平台失敗")
+        result.failed_steps.append("ad_conversions")
 
     try:
         async with session_factory() as db:

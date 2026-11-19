@@ -23,7 +23,7 @@ export const REFERRAL_OPTIONS = [
   { value: 'other', label: '其他' }
 ] as const
 
-// 2026-10-15 預計入學時間（選填）：盡快、接下來四個學期的開學月份、還不確定。學期規則同後端
+// 2026-10-15 預計入學時間（選填）：盡快、接下來四個學期、還不確定。2026-11-12 選項文字由開學月份改「115 學年下學期」。學期規則同後端
 // app/admissions/academic.py 的 current_term（8/1 起上學期、2/1 起下學期、1 月仍屬上學期）；值是「民國學年-學期」，
 // 和後端 app/booking/expected_start.py 讀同一份案例 contracts/expected-start-cases.json。
 export interface ExpectedStartOption { value: string; label: string }
@@ -35,8 +35,8 @@ function currentTerm(today: string): [number, number] {
   return [year - 1912, 1]
 }
 
-function termMonthText(schoolYear: number, semester: number): string {
-  return semester === 1 ? `${schoolYear + 1911} 年 9 月` : `${schoolYear + 1912} 年 2 月`
+function termText(schoolYear: number, semester: number): string {
+  return `${schoolYear} 學年${semester === 1 ? '上' : '下'}學期`
 }
 
 /** today 是台北日期（YYYY-MM-DD，taipeiDate()）。 */
@@ -48,7 +48,7 @@ export function expectedStartOptions(today: string): ExpectedStartOption[] {
     const index = current + offset
     const termYear = Math.floor(index / 2)
     const termSemester = (index % 2) + 1
-    options.push({ value: `${termYear}-${termSemester}`, label: termMonthText(termYear, termSemester) })
+    options.push({ value: `${termYear}-${termSemester}`, label: termText(termYear, termSemester) })
   }
   options.push({ value: 'unsure', label: '還不確定' })
   return options
@@ -59,7 +59,7 @@ export function expectedStartText(value: string): string {
   if (value === 'asap') return '盡快'
   if (value === 'unsure') return '還不確定'
   const match = /^(1\d{2})-([12])$/.exec(value)
-  return match ? termMonthText(Number(match[1]), Number(match[2])) : value
+  return match ? termText(Number(match[1]), Number(match[2])) : value
 }
 
 // 規格 190：方便聯絡時段是固定選項，送代碼、顯示中文。API 也接受舊的
@@ -128,9 +128,27 @@ export function isValidDate(value: string) {
   return Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value
 }
 
-/** 接受手機自動填入、複製貼上的空格與連字號，API 仍收到 09 開頭的十碼。 */
+/**
+ * 接受手機自動填入、複製貼上的空格與連字號，以及輸入法在全形狀態打出的數字（０-９），API 仍收到 09 開頭的十碼。
+ * 全形數字只做明確的 U+FF10–FF19 對照，不用 NFKC（它會連圈圈、上標數字都當成數字）。
+ * backend/app/booking/schemas.py 的 normalize_phone 是同一個規則。
+ */
 export function normalizeVisitPhone(phone: string) {
-  return phone.replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
+  return phone
+    .replace(/[\uFF10-\uFF19]/g, digit => String.fromCharCode(digit.charCodeAt(0) - 0xFEE0))
+    .replace(/[\s\-\u2010-\u2015\u2212\uFF0D\u3000]/g, '')
+}
+
+/** 孩子生日的下限：今天（台北）往前 18 年，只擋 1900-01-01 這類明顯打錯的年份。today 是 YYYY-MM-DD。 */
+export const CHILD_BIRTHDATE_MAX_YEARS = 18
+
+/** 今天是 2/29、18 年前沒有 2/29 時，下限落在 2/28。backend 的 earliest_child_birthdate 是同一個規則。 */
+export function earliestChildBirthdate(today: string) {
+  const [year = 0, month = 0, day = 0] = today.split('-').map(Number)
+  const target = year - CHILD_BIRTHDATE_MAX_YEARS
+  const leap = (target % 4 === 0 && target % 100 !== 0) || target % 400 === 0
+  const earliestDay = month === 2 && day === 29 && !leap ? 28 : day
+  return `${String(target).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(earliestDay).padStart(2, '0')}`
 }
 
 export function validateVisitContact(contact: VisitContact, today = taipeiDate()): VisitErrors {
@@ -140,20 +158,18 @@ export function validateVisitContact(contact: VisitContact, today = taipeiDate()
   if (!/^09[0-9]{8}$/.test(normalizeVisitPhone(contact.phone))) errors.phone = '請填寫 09 開頭的 10 碼手機號碼。'
   // 舊呼叫端不帶兒童欄位；新版表單帶空字串時才套用必填驗證。
   if (contact.childName !== undefined) {
-    if (!contact.childName.trim()) errors.childName = '請填寫孩子姓名。'
-    else if (contact.childName.trim().length > 64) errors.childName = '孩子姓名請在 64 字以內。'
+    if (!contact.childName.trim()) errors.childName = '請填寫寶貝姓名。'
+    else if (contact.childName.trim().length > 64) errors.childName = '寶貝姓名請在 64 字以內。'
   }
   if (contact.childBirthdate !== undefined) {
     if (!isValidDate(contact.childBirthdate)) errors.childBirthdate = '請填寫完整的出生年月日。'
     else if (contact.childBirthdate > today) errors.childBirthdate = '出生日期不能晚於今天。'
+    else if (contact.childBirthdate < earliestChildBirthdate(today)) errors.childBirthdate = '請確認寶貝的出生日期，年份看起來不太對。'
   }
-  // 新版表單一律帶 email 欄位（2026-09-30 起必填）；舊呼叫端不帶。錯誤字不提「確認信會寄到這裡」：
-  // 寄信看各校 parent_email_enabled（10-02 正式站是關的），欄位說明才跟著設定換句子（2026-10-12）。
-  if (contact.email !== undefined) {
-    const email = contact.email.trim()
-    if (!email) errors.email = '請填寫 Email。'
-    else if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.email = '請填寫有效的 Email，例如 name@example.com。'
-  }
+  // Email 選填（2026-11-13 業主裁定；2026-09-30～11-13 是必填）：沒填就過，有填才驗格式。
+  // 錯誤字不提「確認信會寄到這裡」：寄信看各校 parent_email_enabled，欄位說明才跟著設定換句子（2026-10-12）。
+  const email = contact.email?.trim()
+  if (email && (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) errors.email = '請填寫有效的 Email，例如 name@example.com。'
   return errors
 }
 
@@ -166,8 +182,8 @@ const API_FIELD_MESSAGES: Partial<Record<VisitField, string>> = {
   email: '請填寫有效的 Email，例如 name@example.com。',
   phone: '請填寫 09 開頭的 10 碼手機號碼。',
   parentName: '請填寫家長稱呼。',
-  childName: '請填寫孩子姓名。',
-  childBirthdate: '請填寫完整的出生年月日，且不能晚於今天。',
+  childName: '請填寫寶貝姓名。',
+  childBirthdate: '請確認寶貝的出生年月日是否填寫正確，不能晚於今天。',
   expectedStart: '這個入學時間已過期，請重新選擇。'
 }
 

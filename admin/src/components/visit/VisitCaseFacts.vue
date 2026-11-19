@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { ageLabel, consentRecordLabel, contactTimeLabel, expectedStartLabel, formatDate, formatDateTime, partySizeLabel, referralSourceLabels } from '../../api/labels'
+import { ageLabel, consentRecordLabel, contactTimeLabel, expectedStartLabel, formatDate, formatDateTime, partySizeLabel, referralSourceLabels, websiteTouchText } from '../../api/labels'
 import { injectVisitCase } from '../../composables/useVisitCase'
 import { taipeiDay } from '../../utils/visitSchedule'
 
@@ -27,6 +27,9 @@ const facts = computed<Fact[]>(() => {
   ]
   if (props.compact) return rows
   rows.push({ label: '得知管道', text: referralSourceLabels(d.referral_sources) })
+  // 網站來源（2026-11-16）：官網送單時自動記下的，和家長自己勾的「得知管道」不同；人工補登與舊案件沒有。
+  const touch = websiteTouchText(d)
+  if (touch) rows.push({ label: '網站來源', text: touch })
   if (d.party_size) rows.push({ label: '參觀人數', text: partySizeLabel(d.party_size) })
   if (d.expected_start) rows.push({ label: '預計入學', text: expectedStartLabel(d.expected_start, taipeiDay(Date.parse(d.created_at))) })
   if (d.age) rows.push({ label: '家長填的年齡', text: ageLabel(d.age) })

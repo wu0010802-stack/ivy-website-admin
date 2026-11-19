@@ -116,3 +116,25 @@ describe('外掛排在靜態檔之前', () => {
     }
   })
 })
+
+// 2026-11-12 QA L4：路徑先把連續斜線收成一個、比對不分大小寫。正規寫法由 plugins/url-canonical.ts 301，
+// 這裡是轉址被繞過時的第二道（靜態處理器連 ///admin/ 都找得到後台入口，Nuxt 路由不分大小寫）。
+describe('多重斜線與大小寫不能繞過分流', () => {
+  it.each(['///admin/', '//admin', '/admin//x', '/Admin/', '/ADMIN/users', '/Preview', '/PREVIEW?page=home', '//preview', '///Preview', '/%61dmin/', '/api/site-fixture//x', '/API/Site-Fixture'])('官網主機：%s 轉到後台主機', (url) => {
+    expect(decide('www.ivykidschool.com', url)).toEqual({ action: 'redirect', location: `https://admin.ivykidschool.com${url}`, status: 301 })
+  })
+
+  it.each(['/api//website/v1/admin/users', '/api/website//v1///admin/users', '/API/Website/V1/Admin/users', '/api/website/v1/Auth/login', '//api/website/v1/admin/users'])('官網主機：後台 API %s 一律 404', (url) => {
+    expect(decide('www.ivykidschool.com', url, 'POST')).toEqual({ action: 'not-found' })
+  })
+
+  it.each(['///admin/', '/Admin/', '/Preview', '//preview?page=news'])('後台主機：%s 照常服務', (url) => {
+    expect(decide('admin.ivykidschool.com', url)).toEqual({ action: 'pass' })
+  })
+
+  it('不是後台的路徑不受影響', () => {
+    for (const url of ['//administrator', '/Previews', '//visit//', '/Visit/manage']) {
+      expect(decide('www.ivykidschool.com', url, 'POST'), url).toEqual({ action: 'pass' })
+    }
+  })
+})

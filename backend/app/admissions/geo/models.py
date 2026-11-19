@@ -42,6 +42,7 @@ from sqlalchemy import (
     SmallInteger,
     String,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -63,6 +64,7 @@ STREET_KINDS = ("road", "area")
 # kindergarten_penalties、kindergarten_evaluations：幼兒園裁罰與評鑑（2026-10-20），migration b8e2d6a4f931 加進約束
 # （名稱超過原本的 20 字，同一支 migration 把 dataset 欄放寬到 32 字）。
 # elementary：教育部國民小學各校一年級人數（2026-10-20 招生潛力與市佔率），migration 76c4bf84b907 加進約束。
+# marriages：各里每月結婚對數（2026-11-16 廣告成效，docs/specs/2026-11-16-ad-roi-design.md），migration c4d2e8a1f6b3 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -78,6 +80,7 @@ DATASETS = (
     "kindergarten_penalties",
     "kindergarten_evaluations",
     "elementary",
+    "marriages",
 )
 # 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
 # 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
@@ -364,6 +367,14 @@ class GeoVillageBirths(_VillageMonth, Base):
     births: Mapped[int] = mapped_column(Integer, nullable=False)
 
 
+class GeoVillageMarriages(_VillageMonth, Base):
+    """各里每月結婚對數（2026-11-16 廣告成效，docs/specs/2026-11-16-ad-roi-design.md），結構同 GeoVillageBirths。"""
+
+    __tablename__ = "geo_village_marriages"
+
+    marriages: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
 class GeoVillageMigration(_VillageMonth, Base):
     """各里每月遷入遷出（內政部戶政司 ODRP011），都是男＋女：moved_in／moved_out＝跨區遷入、遷出合計
     （他區、他縣市、國外、初設、廢止），address_in／address_out＝住址變更（同區換址），
@@ -547,3 +558,28 @@ class RecruitmentVisitGeo(Base):
     distance_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
     doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
     matched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class GeoChangeNotice(Base):
+    """園所異動與裁罰通知的記帳（2026-11-16 規格 §7.2）：每看過一件事記一列，dedupe_key（含校區）唯一，
+    同一件事不會發兩則；notified＝false 是只記帳不發（首輪、日期太舊）。通知本身在 notification_inbox_items。"""
+
+    __tablename__ = "geo_change_notices"
+    __table_args__ = (Index("ix_geo_change_notices_campus_kind", "campus_key", "kind", "created_at"),)
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
+    campus_key: Mapped[str] = mapped_column(String(32), ForeignKey("campuses.key", ondelete="CASCADE"), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(400), nullable=False, unique=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    notified: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
+
+
+class GeoChangeNoticeBaseline(Base):
+    """某校某一種通知（異動／裁罰）的首輪已做過：有這一列之後才會發通知（規格 §7.2）。"""
+
+    __tablename__ = "geo_change_notice_baselines"
+
+    campus_key: Mapped[str] = mapped_column(String(32), ForeignKey("campuses.key", ondelete="CASCADE"), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), primary_key=True)
+    established_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

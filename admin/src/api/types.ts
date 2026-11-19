@@ -3,6 +3,7 @@
 // 會偵測這份生成檔跟目前 API 是否一致。HomeAboutPayload 等各 kind 的
 // payload 形狀後端目前收 dict、不是獨立 schema，暫時仍手抄維護（見下）。
 import type { components } from '../../../contracts/generated/website-api'
+import type { MediaAssetState } from '../../../contracts/generated/state-machines'
 
 export type Role = 'super_admin' | 'campus_admin' | 'editor' | 'reception' | 'readonly'
 export type UserOut = components['schemas']['UserOut']
@@ -492,7 +493,7 @@ export interface CampusTourPayload {
 }
 
 export type MediaKind = 'image' | 'video'
-export type MediaStatus = 'processing' | 'ready' | 'failed'
+export type MediaStatus = MediaAssetState
 export type VariantKind = components['schemas']['VariantKind']
 
 export type MediaVariantOut = components['schemas']['MediaVariantOut']
@@ -531,6 +532,10 @@ export type VisitStaffOut = components['schemas']['VisitStaffOut']
 export type LineSettingsOut = components['schemas']['LineSettingsOut']
 export type LineGroupOut = components['schemas']['LineGroupOut']
 export type LineVerificationCodeOut = components['schemas']['LineVerificationCodeOut']
+export type LineAccountOut = components['schemas']['LineAccountOut']
+export type LineParentCampusOut = components['schemas']['LineParentCampusOut']
+export type LineInsightsOut = components['schemas']['LineInsightsOut']
+export type LineFollowerAccountOut = components['schemas']['LineFollowerAccountOut']
 export type PublishJobListOut = components['schemas']['PublishJobListOut']
 export type ReleaseOut = components['schemas']['ReleaseOut']
 export type ReleaseChangeOut = components['schemas']['ReleaseChangeOut']
@@ -540,6 +545,7 @@ export type UserNotificationOut = components['schemas']['UserNotificationOut']
 export type ContentRevisionSummaryOut = components['schemas']['ContentRevisionSummaryOut']
 export type AnalyticsFunnelOut = components['schemas']['AnalyticsFunnelOut']
 export type BookingOutcomesOut = components['schemas']['BookingOutcomesOut']
+export type BookingAttributionOut = components['schemas']['BookingAttributionOut']
 export type CampusOutcomeOut = components['schemas']['CampusOutcomeOut']
 export type OutcomeCountsOut = components['schemas']['OutcomeCountsOut']
 export type PendingNowOut = components['schemas']['PendingNowOut']
@@ -615,6 +621,13 @@ export type AreaOpportunityRow = components['schemas']['AreaOpportunityRowOut']
 /** 半徑內、但各里人口沒有這個里：沒有孩子數，參觀不算進附近平均，也不是半徑外。 */
 export type AreaOpportunityMissing = components['schemas']['AreaOpportunityMissingOut']
 export type OpportunitySignal = AreaOpportunityRow['signal']
+// 歷年 2–5 歲人口（2026-11-16 規格 §5.2）：區域分析年份滑桿。
+export type AreaChildrenHistory = components['schemas']['AreaChildrenHistoryOut']
+export type AreaChildrenHistoryVillage = components['schemas']['AreaChildrenHistoryVillageOut']
+export type AreaChildrenHistoryRetired = components['schemas']['AreaChildrenHistoryRetiredOut']
+// 五校周邊環境比較（2026-11-16 規格 §6）：五校並排，每校一列。
+export type AreaCompare = components['schemas']['AreaCompareOut']
+export type AreaCompareRow = components['schemas']['AreaCompareRowOut']
 // 里的變化（2026-10-14 規格 §6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與淨遷入。
 export type AreaTrends = components['schemas']['AreaTrendsOut']
 /** 半徑內一個里，或同區里界調整過的一組（merged）。 */
@@ -707,3 +720,13 @@ export type HistoryPreviewRequest = components['schemas']['HistoryPreviewIn']
 export type HistoryPreview = components['schemas']['HistoryPreviewOut']
 export type EnrollmentHistoryPayload = components['schemas']['EnrollmentHistoryIn']
 export type HistoryApplyResult = components['schemas']['HistoryApplyOut']
+
+// 廣告成效（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：各平台花費對預約／到場／預繳，與每月手填花費。
+export type AdRoi = components['schemas']['AdRoiOut']
+export type AdRoiRow = components['schemas']['AdRoiRowOut']
+export type AdRoiGoogleCampaign = components['schemas']['AdRoiGoogleCampaignOut']
+export type AdRoiCampus = components['schemas']['AdRoiCampusOut']
+export type AdRoiPending = components['schemas']['AdRoiPendingOut']
+export type AdSpendEntry = components['schemas']['AdSpendEntryOut']
+export type AdSpendList = components['schemas']['AdSpendListOut']
+export type AdSpendPlatform = 'openai' | 'meta' | 'line' | 'other' | 'offline'

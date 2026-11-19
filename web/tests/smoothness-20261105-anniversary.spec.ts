@@ -612,3 +612,64 @@ describe('A9 拼圖：只在看得到時輪詢，--gold 掛載時取一次', () 
     delete (document as { fonts?: unknown }).fonts
   })
 })
+
+// 2026-11-12 QA L28：容器寬或高變成 0（display:none、整頁截圖時被收起）時，字形遮罩的 mh 會是 NaN／0，
+// 離屏 canvas 的 getImageData 在瀏覽器裡丟 IndexSizeError／TypeError，變成未捕捉的例外。
+// 寬或高 ≤ 0 就跳過這次取樣與繪製，尺寸恢復時（ResizeObserver）照常重畫。
+describe('拼圖：容器寬或高為 0 時不丟例外，尺寸恢復後照常重畫', () => {
+  it('掛載時、縮到 0 時都不丟例外；恢復尺寸後格子畫得出來', async () => {
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { load: async () => [] } })
+    // 真的瀏覽器：取樣尺寸不是正數時 getImageData 會丟例外（假 context 預設不丟）
+    const original = vi.mocked(HTMLCanvasElement.prototype.getContext).getMockImplementation()!
+    vi.mocked(HTMLCanvasElement.prototype.getContext).mockImplementation(function (this: HTMLCanvasElement, type: string) {
+      const context = original.call(this, type as never) as unknown as Record<string, unknown>
+      return new Proxy(context, {
+        get: (target, key) => key === 'getImageData'
+          ? (x: number, y: number, w: number, h: number) => {
+              if (!(w > 0 && h > 0)) throw new DOMException(`The source ${w > 0 ? 'height' : 'width'} is 0.`, 'IndexSizeError')
+              return (target.getImageData as (...a: number[]) => unknown)(x, y, w, h)
+            }
+          : target[key as string]
+      })
+    } as never)
+
+    const box = document.createElement('div')
+    const canvas = document.createElement('canvas')
+    box.append(canvas)
+    document.body.append(box)
+    const size = { w: 0, h: 0 }
+    Object.defineProperty(box, 'clientWidth', { configurable: true, get: () => size.w })
+    Object.defineProperty(box, 'clientHeight', { configurable: true, get: () => size.h })
+
+    const { mountMosaic } = await import('../app/utils/anniversary/mosaic')
+    // 1) 掛載當下就是 0×0
+    const dispose = await mountMosaic(canvas, { reduce: true, onHover: () => {}, onPick: () => {}, active: () => -1 })
+    const io = ios.at(-1)!, ro = ros.at(-1)!
+    io.cb([{ target: canvas, isIntersecting: true }])
+    expect(() => runFrame()).not.toThrow()
+    expect(ctx2d(canvas).ops.some((o) => o.op === 'drawImage')).toBe(false)
+
+    // 2) 尺寸恢復：ResizeObserver 重新取樣、排進重畫，格子畫出來
+    size.w = 600; size.h = 400
+    expect(() => ro.cb([])).not.toThrow()
+    expect(() => runFrame()).not.toThrow()
+    const drawn = () => ctx2d(canvas).ops.filter((o) => o.op === 'drawImage').length
+    expect(drawn()).toBeGreaterThan(0)
+
+    // 3) 又被收起來（高度 0、寬度 0 各一次）：不丟例外、不畫；再恢復又畫得出來
+    for (const [w, h] of [[600, 0], [0, 400], [0, 0]]) {
+      size.w = w; size.h = h
+      expect(() => ro.cb([])).not.toThrow()
+      const before = drawn()
+      expect(() => runFrame()).not.toThrow()
+      expect(drawn()).toBe(before)
+    }
+    size.w = 600; size.h = 400
+    ro.cb([])
+    const before = drawn()
+    runFrame()
+    expect(drawn()).toBeGreaterThan(before)
+    dispose()
+    delete (document as { fonts?: unknown }).fonts
+  })
+})

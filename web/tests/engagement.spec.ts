@@ -2,6 +2,7 @@
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
+import { adPlatformOf } from '../shared/engagement-source'
 import { ENGAGEMENT_KEY, ENGAGEMENT_SOURCES, newsItemOf, validateEngagement } from '../shared/engagement'
 import { BOOKED_ACTION, CLASS_ACTIONS, countEngagementAction, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
 
@@ -49,6 +50,23 @@ describe('內容興趣統計（2026-11-11）', () => {
     expect(classifySource('', '', ORIGIN, 'Mozilla/5.0 (iPhone) Safari Line/14.1.0')).toBe('line')
     expect(classifySource('', '', ORIGIN, 'Mozilla/5.0 [FBAN/FBIOS;FBAV/450.0]')).toBe('facebook')
     expect(classifySource('not a url', '', ORIGIN)).toBe('direct')
+  })
+
+  // 2026-11-12 QA L22：Meta 會在 Instagram 的外連連結上也加 fbclid，以前 fbclid 的判斷在 Instagram 之前，全算成 Facebook。
+  it('帶 fbclid 的 Instagram 流量算 Instagram，Facebook 與沒有線索的 fbclid 仍算 Facebook', () => {
+    expect(classifySource('https://l.instagram.com/', '?fbclid=xyz', ORIGIN)).toBe('instagram')
+    expect(classifySource('https://www.instagram.com/p/abc/', '?fbclid=xyz', ORIGIN)).toBe('instagram')
+    expect(classifySource('', '?fbclid=xyz', ORIGIN, 'Mozilla/5.0 (iPhone) Instagram 300.0.0.21.109 (iPhone14,2)')).toBe('instagram')
+    expect(classifySource('', '?utm_source=instagram&fbclid=xyz', ORIGIN)).toBe('instagram')
+    expect(classifySource('', '?utm_source=ig&fbclid=xyz', ORIGIN)).toBe('instagram')
+    expect(classifySource('https://l.facebook.com/', '?fbclid=xyz', ORIGIN)).toBe('facebook')
+    expect(classifySource('', '?fbclid=xyz', ORIGIN, 'Mozilla/5.0 [FBAN/FBIOS;FBAV/450.0]')).toBe('facebook')
+    expect(classifySource('https://blog.example.org/post', '?fbclid=xyz', ORIGIN)).toBe('facebook')
+    // 沒有 fbclid 的判斷不變
+    expect(classifySource('', '', ORIGIN, 'Mozilla/5.0 (iPhone) Instagram 300.0.0.21.109')).toBe('instagram')
+    // 廣告參數與 utm_source 照舊優先
+    expect(classifySource('https://l.instagram.com/', '?fbclid=xyz&utm_medium=cpc', ORIGIN)).toBe('ads')
+    expect(classifySource('https://l.instagram.com/', '?fbclid=xyz&utm_source=line', ORIGIN)).toBe('line')
   })
 
   it('分頁內的代碼與來源存 sessionStorage，換頁沿用、壞掉重來', () => {
@@ -174,5 +192,23 @@ describe('內容興趣統計（2026-11-11）', () => {
       { ...base, actions: { faq: 0 } },
       { ...base, sections: Object.fromEntries(Array.from({ length: 25 }, (_, i) => [`s${i}`, 1])) }
     ]) expect(validateEngagement(bad)).toBeNull()
+  })
+})
+
+describe('廣告平台判斷（2026-11-16）', () => {
+  it.each([
+    ['?gclid=abc', 'google'], ['?gbraid=x', 'google'], ['?wbraid=x', 'google'],
+    ['?oppref=tok', 'openai'], ['?ldtag_cl=tok', 'line'],
+    ['?utm_medium=paid&utm_source=facebook', 'meta'], ['?utm_medium=cpc&utm_source=IG', 'meta'],
+    ['?utm_medium=cpc&utm_source=newsletter', 'other'], ['?gclid=a&utm_medium=paid&utm_source=facebook', 'google'],
+    ['?utm_source=chatgpt&utm_medium=cpc', 'openai'], ['?utm_source=OpenAI&utm_medium=paid', 'openai'],
+    ['?utm_source=line&utm_medium=cpc', 'line'], ['?utm_source=newsletter&utm_medium=cpc', 'other']
+  ])('adPlatformOf(%s) = %s', (search, platform) => expect(adPlatformOf(search)).toBe(platform))
+
+  it('fbclid alone is not an ad', () => expect(adPlatformOf('?fbclid=abc')).toBeUndefined())
+
+  it('ChatGPT and LINE ad clicks count as ads', () => {
+    expect(classifySource('https://chatgpt.com/', '?oppref=tok', 'https://www.ivykidschool.com')).toBe('ads')
+    expect(classifySource('', '?ldtag_cl=tok', 'https://www.ivykidschool.com', 'Line/14.0')).toBe('ads')
   })
 })

@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 from app.booking import access_service, history, schedule_service, slot_service, workflow_service
 from app.booking.history import Actor
 from app.booking.models import OutboxMessage, VisitException, VisitRequest, VisitRequestStatus, VisitSlot
+from app.notifications import line_parent
 from app.booking.outbox import day_closed_dedupe_key, enqueue_day_closed_email
 
 CLOSURE_NOTICE_EVENT = "closure_notice"
@@ -38,6 +39,8 @@ class CampusClosureResult:
     already_notified: int = 0
     # 沒有 Email、要櫃台來電的。
     no_email: int = 0
+    # 沒有 Email、但綁了 LINE 通知（這校有開家長 LINE 通知，2026-11-16）：停課通知走 LINE，不必來電。
+    with_line: int = 0
 
 
 async def _confirmed_visits(db: AsyncSession, campus_key: str, day: date) -> list[VisitRequest]:
@@ -76,8 +79,16 @@ async def close_day(
     notify: bool,
     secret: str,
     dry_run: bool,
+    email_enabled: bool = True,
+    line_account: str | None = None,
+    notify_line: bool = False,
 ) -> CampusClosureResult:
-    """一校停課。notify＝要寄信（呼叫端已確認正式站有設寄信）。呼叫端負責 commit 與操作紀錄。"""
+    """一校停課。notify＝要寄信（呼叫端已確認正式站有設寄信）；email_enabled＝正式站有沒有設寄信；
+    line_account＝這校的家長 LINE 通知帳號（沒開是 None）；notify_line＝這次要推 LINE。呼叫端負責 commit 與操作紀錄。
+
+    分類（2026-11-16）：有 Email 而且有設寄信→with_email；否則綁了 LINE→with_line（停課通知走 LINE、不必來電）；
+    否則有 Email（正式站沒設寄信）→with_email（後台會算進要來電）；都沒有→no_email。with_line 不看這次勾不勾
+    通知，後台才知道取消勾選後有幾位要改成來電。"""
     out = CampusClosureResult(campus_key=campus_key)
     existing = await db.scalar(
         select(VisitException.id).where(
@@ -113,13 +124,27 @@ async def close_day(
 
     out.confirmed_requests = len(visits)
     notified_before = await _notified_ids(db, visits, day)
+    linked = (
+        await line_parent.linked_visit_ids(db, [visit.id for visit in visits], line_account)
+        if line_account is not None
+        else set()
+    )
     actor = Actor.staff(actor_id)
     for visit in visits:
-        if not visit.email:
+        on_line = visit.id in linked
+        if visit.email and email_enabled:
+            out.with_email += 1
+            reachable = notify or (notify_line and on_line)
+        elif on_line:
+            out.with_line += 1
+            reachable = notify_line
+        elif visit.email:
+            out.with_email += 1
+            reachable = notify
+        else:
             out.no_email += 1
             continue
-        out.with_email += 1
-        if not notify:
+        if not reachable:
             continue
         if visit.id in notified_before:
             out.already_notified += 1

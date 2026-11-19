@@ -42,7 +42,7 @@ describe('送出前確認', () => {
   })
 
   it('沒開寄信時，Email 說明不承諾確認信', () => {
-    expect(form).toMatch(/const emailHint = computed\(\(\) => bookingConfig\.value\?\.parent_email_enabled\s*\? '確認信與修改連結會寄到這裡。'/)
+    expect(form).toMatch(/const emailHint = computed\(\(\) => bookingConfig\.value\?\.parent_email_enabled\s*\? '有填的話，確認信與修改連結會寄到這裡。'\s*: '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'\)/)
     expect(form).toContain('<p id="visit-email-hint" class="visit-field-hint">{{ emailHint }}</p>')
   })
 })
@@ -59,8 +59,9 @@ describe('選校與迎賓區', () => {
     expect(css).toMatch(/\.visit-eyebrow \{[^}]*letter-spacing:\.06em/)
   })
 
-  it('手機的「下一步」黏在畫面底部', () => {
-    const mobile = css.slice(css.indexOf('@media(max-width:760px)'))
-    expect(mobile).toMatch(/\.visit-next-row \{position:sticky;bottom:0/)
+  // 2026-11-13 選校卡點一下就進第二步，10-02 加的黏底「下一步」列拿掉（見 visit-campus-links-20261113.spec.ts）。
+  it('手機不再有黏底的「下一步」', () => {
+    expect(css).not.toContain('visit-next-row')
+    expect(form).not.toContain('下一步：')
   })
 })

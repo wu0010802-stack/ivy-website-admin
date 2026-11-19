@@ -15,7 +15,15 @@ EXPORT_HEADERS = (
     "校區", "狀態", "來源", "家長", "手機", "送出時間",
     "孩子姓名", "孩子生日", "Email", "得知管道", "人數", "預計入學",
     "參觀日期", "開始", "結束", "已排除",
+    # 2026-11-16 網站來源（booking/attribution.py）：官網送單時第一方 cookie 記下的，人工補登與舊案件留空。
+    "第一次進站來源", "第一次進站活動", "預約前最後來源", "預約前最後活動",
 )
+
+# 網站來源代碼（和後端 operations/models.py 的 ENGAGEMENT_SOURCES、後台 api/engagement.ts 的 SOURCE_LABELS 同一組）。
+TOUCH_SOURCE_LABELS = {
+    "direct": "直接進站", "search": "搜尋引擎", "facebook": "Facebook", "instagram": "Instagram",
+    "line": "LINE", "youtube": "YouTube", "ads": "付費廣告", "other": "其他網站",
+}
 
 STATUS_LABELS = {
     VisitRequestStatus.CONFIRMED.value: "預約正常",
@@ -65,6 +73,10 @@ def source_label(value: str) -> str:
 
 def exclude_label(reason: str | None) -> str:
     return EXCLUDE_REASON_LABELS.get(reason, reason) if reason else ""
+
+
+def touch_source_label(value: str | None) -> str:
+    return TOUCH_SOURCE_LABELS.get(value, value) if value else ""
 
 
 def referral_label(values: list[str]) -> str:

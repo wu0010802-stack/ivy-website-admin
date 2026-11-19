@@ -31,28 +31,59 @@ export const HOME_HERO_SIZES = '100vw'
  * 入學資訊頁首屏照片；2026-09-28 入學護照版起不是滿版，見 admissionHeroImage()。
  * 2026-11-12 早上曾換成逆光女孩 admission-hero，同日使用者要改回「早安」兩個男孩手牽手；
  * 逆光女孩移到「新生準備」02 快樂曲的縮圖（AdmissionContent.vue PHASE_PHOTOS）。
+ * 2026-11-13 首頁「早安入園」拍立得換照（day-hello 改成背書包牽手走進校園），這裡要留兩個男孩，
+ * 所以另立代號 admission-hello（母檔就是換照前的 day-hello），兩處不再共用同一張。
  */
-export const ADMISSION_HERO_IMAGE = 'day-hello'
-
-/** 常春藤環境頁首屏照片；2026-09-28 手繪版起不是滿版，見 environmentHeroImage()。 */
-export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
+export const ADMISSION_HERO_IMAGE = 'admission-hello'
 
 /**
- * 常春藤環境頁的首屏照片在赤陶拱積木的拱窗裡（2026-11-04 起，environment.css 的 `.renv-arch-photo`；之前是彩虹疊疊樂最內圈的拱），
- * object-fit: cover，框是直的（約 4:5）；橫幅原圖（1960×934）左右被裁掉，實際要畫的寬度＝框寬 × (原圖寬高比 ÷ 4/5)。
- * 桌機照片最寬 (540 − 26) − 2×20 = 474px → 480px；900px 以下拱在版心裡、往右錯開 13px、邊 14px，
- * 照片寬＝視窗 − 74px（390 寬 316px）。頁面 <img> 與 usePageSeo 的預載都用這個，兩邊 sizes 才會一致。
+ * 常春藤環境頁首屏照片的橫幅母檔（1960×934；後台「常春藤環境頁」顯示的內建照片也是這張）。
+ * 2026-11-17「拱窗打開」起，901 以上的首屏是一幅橫的大畫面（桌機釘住時從右邊一扇拱窗打開成整幕），用的就是這張。
  */
-export const ENVIRONMENT_HERO_ASPECT = 4 / 5
-/** factor＝原圖寬高比 ÷ 4/5（至少 1）：橫幅被裁成拱框時，要畫的寬度是框寬乘上它。 */
-export function environmentHeroSizes(factor: number) {
-  return `(max-width: 900px) calc((100vw - 74px) * ${factor}), ${Math.round(480 * factor)}px`
+export const ENVIRONMENT_HERO_IMAGE = 'env-hero-hug'
+/**
+ * 900 以下（手機、平板）首屏只有一扇直的拱窗，載入的是這張裁好的直幅（2026-11-13）：拱窗只看得到橫幅中間偏右的四成，
+ * 手機 DPR3 卻要為了那四成下載整張 1960w（AVIF 93 KB）；裁好的直幅 747×934 只要 49 KB、首屏照片（LCP）少載一半。
+ * 裁法：高度全留，寬＝高 × 0.8＝747，左緣＝(1960 − 747) × 0.7＝849——首屏的 object-position 70% 套在裁好的檔上，取景和裁之前一樣。
+ * 換內建照片時兩張要一起換：`python3 - <<…` 依上式裁出 `env-hero-hug-arch.webp`（q96），再跑
+ * `python3 scripts/optimize-site-images.py --only env-hero-hug env-hero-hug-arch`。
+ */
+export const ENVIRONMENT_HERO_ARCH_IMAGE = 'env-hero-hug-arch'
+
+/**
+ * 首屏照片的兩種框（environment.css 的 `.renv-hw-photo`，都是 object-fit: cover）與各自的 sizes。
+ * 頁面的 <picture> 與 usePageSeo 的預載都從這裡取（media-image.ts 的 environmentHeroSources／environmentHeroPreloads），兩邊才會挑到同一個檔。
+ * - 901 以上：橫的大畫面，框＝版心（最寬 1200）扣掉左右各 12px 的赤陶框邊，最瘦 2.15:1（視窗矮時更扁）。
+ *   版心＝min(1200px, 89vw)（左右留白 5.5vw），1348 以上固定 1176px。比 2.15:1 更寬的照片照框高畫滿，要畫的寬度乘上倍率。
+ * - 900 以下：一扇拱窗，寬＝min(版心, 460) − 20，高 240–470（跟著視窗高），最瘦約 0.7:1；比它寬的照片照窗高畫滿。
+ *   500 以下窗寬約「視窗 − 60px」，以上最寬 440px。內建的直幅是 0.8:1，倍率 1.14。
+ */
+export const ENVIRONMENT_HERO_WIDE_MEDIA = '(min-width: 901px)'
+export const ENVIRONMENT_HERO_ARCH_MEDIA = '(max-width: 900px)'
+export const ENVIRONMENT_HERO_WIDE_ASPECT = 2.15
+export const ENVIRONMENT_HERO_ARCH_ASPECT = 0.7
+/** factor＝照片寬高比 ÷ 框的寬高比（至少 1）：照片比框寬時，要畫的寬度是框寬乘上它。 */
+export function environmentHeroFactor(width: number | undefined, height: number | undefined, frameAspect: number): number {
+  return width && height ? Number(Math.max(1, width / height / frameAspect).toFixed(2)) : 1
 }
+export function environmentHeroWideSizes(factor: number) {
+  return `(min-width: 1348px) ${Math.round(1176 * factor)}px, ${ENVIRONMENT_HERO_WIDE_MEDIA} calc((89vw - 24px) * ${factor})`
+}
+export function environmentHeroArchSizes(factor: number) {
+  return `(max-width: 500px) calc((100vw - 60px) * ${factor}), ${Math.round(440 * factor)}px`
+}
+function builtinInfo(name: string): ImageInfo | undefined {
+  return Object.hasOwn(manifest, name) ? (manifest as Record<string, ImageInfo>)[name] : undefined
+}
+/** 內建照片、900 以下的拱窗：裁好的直幅。<picture> 裡的 <img> 用這一份。 */
 export function environmentHeroImage() {
-  const info = Object.hasOwn(manifest, ENVIRONMENT_HERO_IMAGE) ? (manifest as Record<string, ImageInfo>)[ENVIRONMENT_HERO_IMAGE] : undefined
-  const scale = info ? Math.max(1, info.width / info.height / ENVIRONMENT_HERO_ASPECT) : 1
-  const factor = Number(scale.toFixed(2))
-  return responsiveImage(ENVIRONMENT_HERO_IMAGE, environmentHeroSizes(factor))
+  const info = builtinInfo(ENVIRONMENT_HERO_ARCH_IMAGE)
+  return responsiveImage(ENVIRONMENT_HERO_ARCH_IMAGE, environmentHeroArchSizes(environmentHeroFactor(info?.width, info?.height, ENVIRONMENT_HERO_ARCH_ASPECT)))
+}
+/** 內建照片、901 以上的大畫面：橫幅母檔。<picture> 裡帶 media 的 <source> 用這一份。 */
+export function environmentHeroWideImage() {
+  const info = builtinInfo(ENVIRONMENT_HERO_IMAGE)
+  return responsiveImage(ENVIRONMENT_HERO_IMAGE, environmentHeroWideSizes(environmentHeroFactor(info?.width, info?.height, ENVIRONMENT_HERO_WIDE_ASPECT)))
 }
 
 /**
@@ -68,6 +99,24 @@ export function admissionHeroImage() {
   return responsiveImage(ADMISSION_HERO_IMAGE, `(max-width: 760px) calc((100vw - 86px) * ${factor}), ${Math.round(490 * factor)}px`)
 }
 
+/**
+ * 首頁「孩子的一天」拍立得照片的 sizes（DayMomentCard.vue；2026-11-13 Playwright 實測 320–1920 寬）。
+ * 相框是正方形、object-fit: cover，寬度：
+ * - 760px 以下：卡片佔版心（視窗 − 40px）的 84%、相紙左右各留 7% → 0.7224 ×（視窗 − 40px）（390 寬 253px、760 寬 520px）。
+ * - 761–1100px：兩欄，0.42 ×（視窗 − 104px）（761 寬 276px、1100 寬 418px）。
+ * - 1101px 以上：卡片最寬 460px → 386.4px。
+ * 橫幅照片是照框高畫滿、左右被裁，要畫的寬度＝框寬 × 原圖寬高比（4:3 是 1.33 倍）；正方形與直幅就是框寬。
+ * 原本整段寫 `(max-width: 760px) 100vw, 540px`：手機高估約 1.5 倍、桌機 1.4 倍，正方形照片在 DPR 3 手機抓到
+ * 1200w（素材庫照片抓到 1600 的大圖），其實 800w／960 的中圖就夠。4:3 的照片算出來接近原本的數字，多數寬度選到的檔不變。
+ * WebGL 紙張（paperPrints.ts）的貼圖直接用這張 <img>，所以這裡只能估準、不能低估。
+ */
+export function dayPrintSizes(width: number | undefined, height: number | undefined): string {
+  const aspect = width && height ? Math.max(1, width / height) : 1
+  // 無條件進位到千分位：寧可多估 0.1%，不要因為四捨五入少估。
+  const factor = (frame: number) => Math.ceil(Number((frame * aspect * 1000).toFixed(6))) / 1000
+  return `(max-width: 760px) calc((100vw - 40px) * ${factor(0.7224)}), (max-width: 1100px) calc((100vw - 104px) * ${factor(0.42)}), ${Math.ceil(386.4 * aspect)}px`
+}
+
 /** 特色教學頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 CURRICULUM_HERO_SIZES）。 */
 export const CURRICULUM_HERO_IMAGE = 'cur-hero'
 
@@ -78,8 +127,10 @@ export const CURRICULUM_HERO_IMAGE = 'cur-hero'
  * - 900px 以下：框改成 4:3、寬 = 視窗減左右留白（20px × 2），需要寬度 = 框寬 × (16/9 ÷ 4/3) ≈ 1.34 × 框寬
  *   （390 寬約 469px）。761–900 寬的留白較寬、橫拿手機的照片改在右欄，這個寫法只會高估、不會變糊。
  *   2026-09-29 以前寫成以視窗寬算的 vw，340–370 寬的 DPR2 手機會多抓一級。
+ * 2026-11-12：DPR 2.5 以上的手機把寬度估成七成（做法同預約頁校區卡，VisitForm.vue），390 寬 DPR3 從 1600w（181 KB）
+ *   改挑 1200w（122 KB）；照片在框裡仍有約 2.5 倍密度。這張是手機的 LCP，六頁裡原本最大。DPR 2 與桌機照舊。
  */
-export const CURRICULUM_HERO_SIZES = '(max-width: 900px) calc((100vw - 40px) * 1.34), 1070px'
+export const CURRICULUM_HERO_SIZES = '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .94), (max-width: 900px) calc((100vw - 40px) * 1.34), 1070px'
 
 /** 關於常春藤頁 hero；頁面 <img> 與 usePageSeo 預載共用（sizes 見 ABOUT_HERO_SIZES）。 */
 export const ABOUT_HERO_IMAGE = 'about-hero'

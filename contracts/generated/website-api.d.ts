@@ -4,6 +4,69 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/ad-roi": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ad Roi
+         * @description 各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。
+         *     只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。
+         */
+        get: operations["get_ad_roi_api_website_v1_admin_admissions_ad_roi_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/ad-spend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ad Spend
+         * @description 列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。
+         */
+        get: operations["list_ad_spend_api_website_v1_admin_admissions_ad_spend_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/ad-spend/{month}/{platform}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Put Ad Spend
+         * @description 新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），
+         *     稽核帶更新前的金額。
+         */
+        put: operations["put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put"];
+        post?: never;
+        /** Delete Ad Spend */
+        delete: operations["delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area": {
         parameters: {
             query?: never;
@@ -81,6 +144,48 @@ export interface paths {
          *     只讀，不寫稽核；半徑規則同 /area/kindergartens。
          */
         get: operations["get_admissions_area_changes_api_website_v1_admin_admissions_area_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/children-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Children History
+         * @description 歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）：本校半徑內各里歷年九月底與最新月份的 2–5 歲人數。
+         *     只讀，不寫稽核；只有里層級的公開人口資料。
+         */
+        get: operations["get_admissions_area_children_history_api_website_v1_admin_admissions_area_children_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/compare": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Compare
+         * @description 五校周邊環境比較（2026-11-16 規格 §6）：每校半徑內的 2–5 歲孩子、一年增減、附近幼兒園與托嬰家數、本校 3 歲收費
+         *     排名、近 12 個月異動件數。權限同 /compare（只列授權範圍內的校區）；各校各自成敗。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_area_compare_api_website_v1_admin_admissions_area_compare_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -771,6 +876,214 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/roster": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Roster
+         * @description 整張編班表、預繳名單與缺額統計。名單永遠是現在的狀態；統計數字跟著 as_of 回算。
+         */
+        get: operations["get_roster_api_website_v1_admin_admissions_roster_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/classes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Class */
+        post: operations["create_class_api_website_v1_admin_admissions_roster_classes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/classes/{class_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Class */
+        delete: operations["delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Class */
+        patch: operations["update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/snapshots": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Snapshot */
+        post: operations["create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Students */
+        post: operations["create_students_api_website_v1_admin_admissions_roster_students_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Student */
+        patch: operations["update_student_api_website_v1_admin_admissions_roster_students__student_id__patch"];
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/enter": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enter Student */
+        post: operations["enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/leave": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Leave Student */
+        post: operations["leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/move": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Move Student */
+        post: operations["move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/refund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Refund Student */
+        post: operations["refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Student */
+        post: operations["restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/roster/tier-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Tier Targets */
+        put: operations["save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/staff": {
         parameters: {
             query?: never;
@@ -803,6 +1116,26 @@ export interface paths {
          * @description 統計分析（規格第 9 節；2026-10-16 起是獨立的招生統計頁，限總管理者）。只讀，不寫稽核。
          */
         get: operations["get_admissions_stats_api_website_v1_admin_admissions_stats_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/booking-attribution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Booking Attribution
+         * @description 官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。
+         */
+        get: operations["get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1290,6 +1623,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/crux": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Crux
+         * @description Chrome 真實使用者的 LCP、INP、CLS（官網 origin，手機與電腦各一份，最近 25 週）。
+         */
+        get: operations["get_crux_api_website_v1_admin_crux_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/dashboard": {
         parameters: {
             query?: never;
@@ -1370,7 +1723,8 @@ export interface paths {
         };
         /**
          * List Facebook Posts
-         * @description 這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。
+         * @description 這校粉專（與連結的 Instagram）同步進來的貼文（新到舊，最多 100 則）與同步狀態；
+         *     source 篩選來源，不給就是全部。
          */
         get: operations["list_facebook_posts_api_website_v1_admin_facebook_posts_get"];
         put?: never;
@@ -1392,7 +1746,8 @@ export interface paths {
         put?: never;
         /**
          * Sync Facebook Posts
-         * @description 立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。
+         * @description 立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error（Instagram 是
+         *     sync.instagram.last_error），不回錯誤碼。
          */
         post: operations["sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post"];
         delete?: never;
@@ -1555,6 +1910,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Line Insights
+         * @description LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。
+         */
+        get: operations["get_line_insights_api_website_v1_admin_line_insights_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
         parameters: {
             query?: never;
@@ -1586,6 +1961,48 @@ export interface paths {
          * @description 送一則測試訊息到這校指定的群組，確認設定真的通。
          */
         post: operations["send_line_test_message_api_website_v1_admin_line_campus_targets__campus_key__test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/groups/{target_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Line Group Settings
+         * @description 每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。
+         */
+        put: operations["update_line_group_settings_api_website_v1_admin_line_groups__target_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Line Parent Account
+         * @description 選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；
+         *     main 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
+         *     關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。
+         */
+        put: operations["update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2279,6 +2696,26 @@ export interface paths {
          *     天數試算的，確認框開著時別人把天數改短，執行範圍會比確認的大，而匿名化無法復原（2026-10-20 稽核）。
          */
         post: operations["retention_run_api_website_v1_admin_retention_run_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/search-insights": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Insights
+         * @description Google 搜尋成效：總計、前 25 個搜尋字詞、前 25 個頁面、裝置別。資料有 2–3 天延遲。
+         */
+        get: operations["get_search_insights_api_website_v1_admin_search_insights_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -3517,6 +3954,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/visit-manage/line-notify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Parent Line Notify */
+        get: operations["get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Parent Line Notify
+         * @description 不再用 LINE 接收這筆預約的通知（Email 照舊）。
+         */
+        delete: operations["delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-manage/line-notify/code": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Parent Line Code
+         * @description 產生一次性綁定代碼（30 分鐘、用一次）。家長把它傳給官方帳號就完成綁定。
+         */
+        post: operations["create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/visit-manage/me": {
         parameters: {
             query?: never;
@@ -3546,6 +4024,51 @@ export interface paths {
         put?: never;
         /** Parent Reschedule */
         post: operations["parent_reschedule_api_website_v1_public_visit_manage_reschedule_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-remembered": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Remembered Visit
+         * @description 只回日期、場次與校區。案件已不是「已確認」（取消、完成、未到場時連結也已撤銷）、場次已結束、
+         *     連結被園方重新產生或過期，都當作沒有，並清掉 cookie。
+         */
+        get: operations["get_remembered_visit_api_website_v1_public_visit_remembered_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Forget Remembered Visit
+         * @description 「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。
+         */
+        delete: operations["forget_remembered_visit_api_website_v1_public_visit_remembered_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/visit-remembered/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Open Remembered Visit
+         * @description 用記住的那條修改連結換 2 小時的家長 session（和點信裡的連結同一個流程），前端接著整頁開 /visit/manage。
+         */
+        post: operations["open_remembered_visit_api_website_v1_public_visit_remembered_open_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3587,6 +4110,147 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdRoiCampusOut */
+        AdRoiCampusOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            /** Deposited */
+            deposited: number;
+            /** Platform */
+            platform: string;
+        };
+        /** AdRoiGoogleCampaignOut */
+        AdRoiGoogleCampaignOut: {
+            /** Campaign Id */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Clicks */
+            clicks: number;
+            /** Cost */
+            cost: number;
+            /** Cost Per Click */
+            cost_per_click: number | null;
+            /** Impressions */
+            impressions: number;
+            /** Leads */
+            leads: number;
+        };
+        /** AdRoiGoogleOut */
+        AdRoiGoogleOut: {
+            /** Campaigns */
+            campaigns: components["schemas"]["AdRoiGoogleCampaignOut"][];
+            /** Configured */
+            configured: boolean;
+            /** Currency */
+            currency: string | null;
+            /** Error */
+            error: string | null;
+            /** Fetched At */
+            fetched_at: string | null;
+            /** Time Zone */
+            time_zone: string | null;
+        };
+        /**
+         * AdRoiOut
+         * @description 廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。
+         */
+        AdRoiOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** By Campus */
+            by_campus: components["schemas"]["AdRoiCampusOut"][];
+            google: components["schemas"]["AdRoiGoogleOut"];
+            /** Months */
+            months: string[];
+            pending: components["schemas"]["AdRoiPendingOut"];
+            /** Rows */
+            rows: components["schemas"]["AdRoiRowOut"][];
+            /**
+             * Touch
+             * @enum {string}
+             */
+            touch: "last" | "first";
+        };
+        /** AdRoiPendingOut */
+        AdRoiPendingOut: {
+            /** Awaiting Attendance */
+            awaiting_attendance: number;
+            /** Considering */
+            considering: number;
+            /** Upcoming */
+            upcoming: number;
+        };
+        /** AdRoiRowOut */
+        AdRoiRowOut: {
+            /** Cases */
+            cases: number;
+            /** Clicks */
+            clicks: number | null;
+            /** Completed */
+            completed: number;
+            /** Cost Partial */
+            cost_partial: boolean;
+            /** Cost Per Case */
+            cost_per_case: number | null;
+            /** Cost Per Completed */
+            cost_per_completed: number | null;
+            /** Cost Per Deposit */
+            cost_per_deposit: number | null;
+            /** Deposited */
+            deposited: number;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "google" | "openai" | "meta" | "line" | "other" | "unknown" | "offline" | "organic" | "unrecorded";
+            /** Missing Months */
+            missing_months: number;
+            /** No Show */
+            no_show: number;
+            /** Spend */
+            spend: number | null;
+            /**
+             * Spend State
+             * @enum {string}
+             */
+            spend_state: "ok" | "unset" | "not_configured" | "error" | "none";
+        };
+        /** AdSpendEntryOut */
+        AdSpendEntryOut: {
+            /** Amount */
+            amount: number;
+            /** Month */
+            month: string;
+            /** Note */
+            note: string | null;
+            /** Platform */
+            platform: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** AdSpendIn */
+        AdSpendIn: {
+            /** Amount */
+            amount: number;
+            /** Note */
+            note?: string | null;
+        };
+        /** AdSpendListOut */
+        AdSpendListOut: {
+            /** Entries */
+            entries: components["schemas"]["AdSpendEntryOut"][];
+        };
         /**
          * AdminDetailsUpdate
          * @description 後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄
@@ -3681,6 +4345,14 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -3690,6 +4362,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -4473,6 +5153,130 @@ export interface components {
             window_months: number;
         };
         /**
+         * AreaChildrenHistoryLatestOut
+         * @description 「最新」那一格：人口狀態的月份（如 115-10）與同步時間。
+         */
+        AreaChildrenHistoryLatestOut: {
+            /** Label */
+            label: string | null;
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /** AreaChildrenHistoryOut */
+        AreaChildrenHistoryOut: {
+            campus: components["schemas"]["AreaCampusOut"];
+            latest: components["schemas"]["AreaChildrenHistoryLatestOut"] | null;
+            /** Max Children */
+            max_children: number;
+            /** Radius Km */
+            radius_km: number;
+            /** Retired */
+            retired: components["schemas"]["AreaChildrenHistoryRetiredOut"][];
+            /** Unavailable */
+            unavailable: ("no_campus_point" | "no_history") | null;
+            /** Villages */
+            villages: components["schemas"]["AreaChildrenHistoryVillageOut"][];
+            /** Years */
+            years: number[];
+        };
+        /**
+         * AreaChildrenHistoryRetiredOut
+         * @description 九月表有資料、現行里界沒有的代碼（已廢止的里），只列和半徑內的里同一區的；years＝有資料的民國年。
+         */
+        AreaChildrenHistoryRetiredOut: {
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+            /** Years */
+            years: number[];
+        };
+        /**
+         * AreaChildrenHistoryVillageOut
+         * @description 半徑內一個里。counts 的鍵是民國年字串與 "latest"，某年沒有這個里的資料（例如新設的里）是 null；
+         *     adjusted＝行政區域調整人數過門檻的月份（如 115-07），前後年份不可直接比。
+         */
+        AreaChildrenHistoryVillageOut: {
+            /** Adjusted */
+            adjusted: string[];
+            /** Counts */
+            counts: {
+                [key: string]: number | null;
+            };
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+        };
+        /**
+         * AreaCompareKindergartensOut
+         * @description 半徑內各類型幼兒園家數，不含常春藤各校。
+         */
+        AreaCompareKindergartensOut: {
+            /** Nonprofit */
+            nonprofit: number;
+            /** Private */
+            private: number;
+            /** Public */
+            public: number;
+            /** Quasi Public */
+            quasi_public: number;
+        };
+        /** AreaCompareOut */
+        AreaCompareOut: {
+            /** Fee School Year */
+            fee_school_year: number | null;
+            /** Population Version */
+            population_version: string | null;
+            /** Radius Km */
+            radius_km: number;
+            /** Rows */
+            rows: components["schemas"]["AreaCompareRowOut"][];
+        };
+        /**
+         * AreaCompareRowOut
+         * @description 一校一列。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝這一校計算失敗；
+         *     兩種情況數字都是 null。fee_*：本校 3 歲一學期公告收費和半徑內私立一般的比較；本校不是私立一般時沒有排名
+         *     （fee_rank 是 null，own_kind 寫實際類型），own_missing 是本校沒找到或沒有收費資料的原因。
+         */
+        AreaCompareRowOut: {
+            /** Babycare */
+            babycare: number | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Changes 12M */
+            changes_12m: number | null;
+            /** Children */
+            children: number | null;
+            /** Fee Median */
+            fee_median: number | null;
+            /** Fee Rank */
+            fee_rank: number | null;
+            /** Fee Rank Total */
+            fee_rank_total: number | null;
+            /** Kids Net */
+            kids_net: number | null;
+            /** Kids Unavailable */
+            kids_unavailable: string | null;
+            kindergartens: components["schemas"]["AreaCompareKindergartensOut"] | null;
+            /** Locate Error */
+            locate_error: string | null;
+            /** Own Fee */
+            own_fee: number | null;
+            /** Own Kind */
+            own_kind: ("public" | "nonprofit" | "quasi_public" | "private") | null;
+            /** Own Missing */
+            own_missing: ("not_found" | "no_fee") | null;
+            /** Unavailable */
+            unavailable: ("no_campus_point" | "error") | null;
+        };
+        /**
          * AreaDataStatusOut
          * @description 公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、
          *     各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。
@@ -4882,6 +5686,11 @@ export interface components {
         /** AreaPeerFeeOwnOut */
         AreaPeerFeeOwnOut: {
             items: components["schemas"]["AreaFeeItemsOut"];
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "public" | "nonprofit" | "quasi_public" | "private";
             /** Monthly Average */
             monthly_average: number | null;
             /** Months */
@@ -5150,6 +5959,10 @@ export interface components {
             kids_base: number | null;
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
+            /** Marriages Months */
+            marriages_months: number;
             /** Migration Months */
             migration_months: number;
             /** Migration Net 12M */
@@ -5185,6 +5998,8 @@ export interface components {
             change_pct: number | null;
             /** Ends */
             ends: string;
+            /** Marriages */
+            marriages: number | null;
             /** Missing */
             missing: string[];
             /** Months */
@@ -5320,6 +6135,7 @@ export interface components {
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
             income: components["schemas"]["AreaTrendsIncomeSourceOut"];
+            marriages: components["schemas"]["AreaTrendsMonthsOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
             new_homes: components["schemas"]["AreaTrendsNewHomesSourceOut"];
             /** Note */
@@ -5360,6 +6176,8 @@ export interface components {
             kids_level: "up2" | "up1" | "flat" | "down1" | "down2" | "few" | "unknown";
             /** Kids Net */
             kids_net: number | null;
+            /** Marriages 12M */
+            marriages_12m: number | null;
             /** Merged */
             merged: boolean;
             /** Migration Net 12M */
@@ -5415,6 +6233,51 @@ export interface components {
             visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
             /** Visit To Deposit Rate */
             visit_to_deposit_rate: number | null;
+        };
+        /** AttributionCampaignOut */
+        AttributionCampaignOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Campaign */
+            campaign: string;
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+        };
+        /** AttributionCountsOut */
+        AttributionCountsOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+        };
+        /** AttributionSourceOut */
+        AttributionSourceOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Campaigns */
+            campaigns: components["schemas"]["AttributionCampaignOut"][];
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
+            /** No Show */
+            no_show: number;
+            /** Source */
+            source: string;
         };
         /**
          * AuditActorOut
@@ -5505,6 +6368,26 @@ export interface components {
             kind: string;
             /** Source Attribution */
             source_attribution?: string | null;
+        };
+        /** BookingAttributionOut */
+        BookingAttributionOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Date From */
+            date_from: string | null;
+            /** Date To */
+            date_to: string | null;
+            /** Rows */
+            rows: components["schemas"]["AttributionSourceOut"][];
+            totals: components["schemas"]["AttributionCountsOut"];
+            /**
+             * Touch
+             * @enum {string}
+             */
+            touch: "first" | "last";
         };
         /** BookingConfigOut */
         BookingConfigOut: {
@@ -5749,6 +6632,30 @@ export interface components {
             /** Reason */
             reason?: string | null;
         };
+        /** ClassCreate */
+        ClassCreate: {
+            /** Assistant Teacher */
+            assistant_teacher?: string | null;
+            /** Class Code */
+            class_code: string;
+            /** English Name */
+            english_name?: string | null;
+            /** English Teacher */
+            english_teacher?: string | null;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班";
+            /** Head Teacher */
+            head_teacher?: string | null;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Target Seats */
+            target_seats?: number | null;
+        };
         /** ClassDistributionOut */
         ClassDistributionOut: {
             /**
@@ -5782,6 +6689,98 @@ export interface components {
             unit: "visit_request";
             /** Unrecorded */
             unrecorded: number;
+        };
+        /** ClassOut */
+        ClassOut: {
+            /** Assistant Teacher */
+            assistant_teacher: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Class Code */
+            class_code: string;
+            /** English Name */
+            english_name: string | null;
+            /** English Teacher */
+            english_teacher: string | null;
+            /** Grade */
+            grade: string;
+            /** Head Teacher */
+            head_teacher: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Target Seats */
+            target_seats: number | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * ClassUpdate
+         * @description 年級不能改（不收 grade 欄位，送了是 422）；只送要改的欄位。
+         */
+        ClassUpdate: {
+            /** Assistant Teacher */
+            assistant_teacher?: string | null;
+            /** Class Code */
+            class_code?: string | null;
+            /** English Name */
+            english_name?: string | null;
+            /** English Teacher */
+            english_teacher?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Head Teacher */
+            head_teacher?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Target Seats */
+            target_seats?: number | null;
+        };
+        /** ClassWithStudentsOut */
+        ClassWithStudentsOut: {
+            /** Assistant Teacher */
+            assistant_teacher: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Class Code */
+            class_code: string;
+            /** Count */
+            count: number;
+            /** English Name */
+            english_name: string | null;
+            /** English Teacher */
+            english_teacher: string | null;
+            /** Gap */
+            gap: number | null;
+            /** Grade */
+            grade: string;
+            /** Head Teacher */
+            head_teacher: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** School Year */
+            school_year: number;
+            /** Sort Order */
+            sort_order: number;
+            /** Students */
+            students: components["schemas"]["StudentOut"][];
+            /** Target Seats */
+            target_seats: number | null;
+            /** Version */
+            version: number;
         };
         /**
          * ClientErrorIn
@@ -6053,6 +7052,60 @@ export interface components {
             schema_version: number;
             /** Version */
             version: number;
+        };
+        /** CruxDeviceOut */
+        CruxDeviceOut: {
+            /**
+             * Form Factor
+             * @enum {string}
+             */
+            form_factor: "phone" | "desktop";
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "ok" | "insufficient";
+            /** Weeks */
+            weeks: components["schemas"]["CruxWeekOut"][];
+        };
+        /** CruxOut */
+        CruxOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Devices */
+            devices?: components["schemas"]["CruxDeviceOut"][];
+            /** Error */
+            error?: string | null;
+            /** Origin */
+            origin?: string | null;
+        };
+        /**
+         * CruxValueOut
+         * @description 一個指標在一個 28 天視窗的 p75（LCP、INP 單位毫秒；CLS 無單位）與好／需要改善／不佳的比例（0～1）。
+         *     那個視窗沒有資料時四個欄位都是 null。
+         */
+        CruxValueOut: {
+            /** Good */
+            good: number | null;
+            /** Needs Improvement */
+            needs_improvement: number | null;
+            /** P75 */
+            p75: number | null;
+            /** Poor */
+            poor: number | null;
+        };
+        /** CruxWeekOut */
+        CruxWeekOut: {
+            cls: components["schemas"]["CruxValueOut"];
+            inp: components["schemas"]["CruxValueOut"];
+            /**
+             * Last Date
+             * Format: date
+             */
+            last_date: string;
+            lcp: components["schemas"]["CruxValueOut"];
         };
         /**
          * DisplayNameUpdateRequest
@@ -6673,6 +7726,13 @@ export interface components {
             /** Target */
             target: number | null;
         };
+        /** EnterRequest */
+        EnterRequest: {
+            /** Enrollment Date */
+            enrollment_date?: string | null;
+            /** Expected Version */
+            expected_version: number;
+        };
         /** ErrorGroupListOut */
         ErrorGroupListOut: {
             /** Items */
@@ -6810,6 +7870,8 @@ export interface components {
             /** Configured */
             configured: boolean;
             counts: components["schemas"]["FacebookPostCounts"];
+            /** Instagram Enabled */
+            instagram_enabled: boolean;
             /** Posts */
             posts: components["schemas"]["FacebookPostOut"][];
             sync: components["schemas"]["FacebookSyncStatusOut"] | null;
@@ -6843,6 +7905,11 @@ export interface components {
              */
             posted_at: string;
             /**
+             * Source
+             * @enum {string}
+             */
+            source: "facebook" | "instagram";
+            /**
              * Status
              * @enum {string}
              */
@@ -6855,6 +7922,7 @@ export interface components {
         };
         /** FacebookSyncStatusOut */
         FacebookSyncStatusOut: {
+            instagram: components["schemas"]["InstagramSyncStatusOut"] | null;
             /** Last Attempt At */
             last_attempt_at: string | null;
             /** Last Count */
@@ -6876,6 +7944,8 @@ export interface components {
              * @default false
              */
             password_reset_email: boolean;
+            /** Public Site Origin */
+            public_site_origin?: string | null;
         };
         /** FollowUpListOut */
         FollowUpListOut: {
@@ -7065,6 +8135,28 @@ export interface components {
             /** Source */
             source: string;
         };
+        /** GapBlockOut */
+        GapBlockOut: {
+            /** Achievement */
+            achievement: {
+                [key: string]: number | null;
+            };
+            /** Gap */
+            gap: {
+                [key: string]: number | null;
+            };
+            /** Rows */
+            rows: {
+                [key: string]: {
+                    [key: string]: number;
+                };
+            };
+            /** Targets */
+            targets: {
+                [key: string]: number | null;
+            };
+            tier: components["schemas"]["TierOut"];
+        };
         /** GoogleLinkStart */
         GoogleLinkStart: {
             /** Authorize Url */
@@ -7076,6 +8168,17 @@ export interface components {
             count: number;
             /** Grade */
             grade: string;
+        };
+        /** GradeTotalOut */
+        GradeTotalOut: {
+            /** Count */
+            count: number;
+            /** New */
+            new: number;
+            /** Pending */
+            pending: number;
+            /** Returning */
+            returning: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -7258,6 +8361,20 @@ export interface components {
             active_doorplate_version: string | null;
             enrolled: components["schemas"]["EnrolledImportStatusOut"] | null;
             history: components["schemas"]["HistoryImportStatusOut"] | null;
+        };
+        /**
+         * InstagramSyncStatusOut
+         * @description 同一次同步裡 Instagram 那一段的結果；失敗不影響 Facebook 那一段。
+         */
+        InstagramSyncStatusOut: {
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Count */
+            last_count: number | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
         };
         /** IntakePlanOut */
         IntakePlanOut: {
@@ -7501,6 +8618,41 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** LeaveRequest */
+        LeaveRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Left Date */
+            left_date?: string | null;
+        };
+        /**
+         * LineAccountOut
+         * @description 一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。
+         */
+        LineAccountOut: {
+            /** Basic Id */
+            basic_id: string | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Key */
+            key: string;
+            quota: components["schemas"]["LineQuotaOut"] | null;
+            /** Quota Error Status */
+            quota_error_status?: number | null;
+            /** Webhook Url */
+            webhook_url: string | null;
+        };
+        /** LineCampusClicksOut */
+        LineCampusClicksOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Campus Name */
+            campus_name: string;
+            /** Line Clicks */
+            line_clicks: number;
+            /** Linked */
+            linked: number;
+        };
         /** LineCampusTargetOut */
         LineCampusTargetOut: {
             /** Campus Key */
@@ -7515,13 +8667,69 @@ export interface components {
             /** Target Id */
             target_id: string | null;
         };
+        /**
+         * LineFollowerAccountOut
+         * @description 一個 LINE 官方帳號在期間內的好友數（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵。
+         */
+        LineFollowerAccountOut: {
+            /** Basic Id */
+            basic_id: string | null;
+            /** Blocks */
+            blocks?: number | null;
+            /** Blocks Change */
+            blocks_change?: number | null;
+            /** Display Name */
+            display_name: string | null;
+            /** Error Status */
+            error_status?: number | null;
+            /** Followers */
+            followers?: number | null;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /** Key */
+            key: string;
+            /** New Followers */
+            new_followers?: number | null;
+            /** Ready */
+            ready?: boolean | null;
+            /** Targeted Reaches */
+            targeted_reaches?: number | null;
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
         /** LineGroupOut */
         LineGroupOut: {
+            /**
+             * Digest Enabled
+             * @default true
+             */
+            digest_enabled: boolean;
             /**
              * First Seen At
              * Format: date-time
              */
             first_seen_at: string;
+            /**
+             * Is Hq
+             * @default false
+             */
+            is_hq: boolean;
+            /**
+             * Kinds
+             * @default [
+             *       "visit_request_created",
+             *       "visit_request_confirmed",
+             *       "visit_request_rescheduled",
+             *       "visit_request_cancelled"
+             *     ]
+             */
+            kinds: string[];
             /**
              * Last Seen At
              * Format: date-time
@@ -7529,6 +8737,11 @@ export interface components {
             last_seen_at: string;
             /** Left At */
             left_at: string | null;
+            /**
+             * Mention All Same Day
+             * @default true
+             */
+            mention_all_same_day: boolean;
             /** Name */
             name: string | null;
             /** Source Type */
@@ -7538,17 +8751,82 @@ export interface components {
             /** Verified At */
             verified_at: string | null;
         };
+        /** LineGroupSettingsUpdate */
+        LineGroupSettingsUpdate: {
+            /** Digest Enabled */
+            digest_enabled: boolean;
+            /** Is Hq */
+            is_hq: boolean;
+            /** Kinds */
+            kinds: string[];
+            /** Mention All Same Day */
+            mention_all_same_day: boolean;
+        };
+        /** LineInsightsOut */
+        LineInsightsOut: {
+            /** Accounts */
+            accounts: components["schemas"]["LineFollowerAccountOut"][];
+            /** Campuses */
+            campuses: components["schemas"]["LineCampusClicksOut"][];
+            /** Configured */
+            configured: boolean;
+            /**
+             * End
+             * Format: date
+             */
+            end: string;
+            /**
+             * Start
+             * Format: date
+             */
+            start: string;
+        };
         /** LineLinkStart */
         LineLinkStart: {
             /** Authorize Url */
             authorize_url: string;
         };
+        /** LineParentCampusOut */
+        LineParentCampusOut: {
+            /** Account Key */
+            account_key: string | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /** Linked Upcoming */
+            linked_upcoming: number;
+        };
+        /** LineParentCampusUpdate */
+        LineParentCampusUpdate: {
+            /** Account Key */
+            account_key: string | null;
+        };
+        /** LineQuotaOut */
+        LineQuotaOut: {
+            /** Limit */
+            limit: number | null;
+            /** Used */
+            used: number;
+            /** Warning */
+            warning: boolean;
+        };
         /** LineSettingsOut */
         LineSettingsOut: {
+            /**
+             * Accounts
+             * @default []
+             */
+            accounts: components["schemas"]["LineAccountOut"][];
             /** Enabled */
             enabled: boolean;
             /** Groups */
             groups: components["schemas"]["LineGroupOut"][];
+            /**
+             * Parent Campuses
+             * @default []
+             */
+            parent_campuses: components["schemas"]["LineParentCampusOut"][];
             /** Targets */
             targets: components["schemas"]["LineCampusTargetOut"][];
             /** Webhook Url */
@@ -8182,6 +9460,39 @@ export interface components {
              */
             visit_request_id: string;
         };
+        /** ParentLineCodeOut */
+        ParentLineCodeOut: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Add Friend Url */
+            add_friend_url: string;
+            /** Basic Id */
+            basic_id: string;
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Message Url */
+            message_url: string;
+            /** Text */
+            text: string;
+        };
+        /** ParentLineNotifyOut */
+        ParentLineNotifyOut: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Add Friend Url */
+            add_friend_url?: string | null;
+            /** Available */
+            available: boolean;
+            /** Basic Id */
+            basic_id?: string | null;
+            /** Linked */
+            linked: boolean;
+        };
         /** ParentRescheduleRequest */
         ParentRescheduleRequest: {
             /**
@@ -8324,6 +9635,30 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /**
+         * PendingFields
+         * @description 補登預繳未入園時共用的欄位（一次貼多個姓名共用同一組）。
+         */
+        PendingFields: {
+            /** Birthday */
+            birthday?: string | null;
+            /**
+             * Deposit Date
+             * Format: date
+             */
+            deposit_date: string;
+            /**
+             * Grade
+             * @enum {string}
+             */
+            grade: "幼幼班" | "小班" | "中班" | "大班";
+            /** Planned Entry Date */
+            planned_entry_date?: string | null;
+            /** Target School Year */
+            target_school_year: number;
+            /** Target Semester */
+            target_semester: number;
         };
         /**
          * PendingNowOut
@@ -8604,6 +9939,11 @@ export interface components {
             campus_key: string;
             /** External Url */
             external_url: string | null;
+            /**
+             * Line Notify Enabled
+             * @default false
+             */
+            line_notify_enabled: boolean;
             /** Line Url */
             line_url: string | null;
             /** Message */
@@ -9140,6 +10480,13 @@ export interface components {
             /** Withdraw Reason Category */
             withdraw_reason_category?: ("抽中公幼／非營利" | "改讀其他私立幼兒園" | "搬家／距離因素" | "費用考量" | "家庭照顧安排改變" | "孩子健康／適應因素" | "課程／環境有疑慮" | "未註明／聯絡不上") | null;
         };
+        /** RefundRequest */
+        RefundRequest: {
+            /** Expected Version */
+            expected_version: number;
+            /** Refunded Date */
+            refunded_date?: string | null;
+        };
         /** ReleaseChangeOut */
         ReleaseChangeOut: {
             /** Campus Key */
@@ -9207,12 +10554,48 @@ export interface components {
             expected_current_release_id?: string | null;
         };
         /**
+         * RememberedVisitOut
+         * @description 這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、
+         *     Email——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。
+         */
+        RememberedVisitOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /**
+             * End Time
+             * Format: time
+             */
+            end_time: string;
+            /**
+             * Slot Date
+             * Format: date
+             */
+            slot_date: string;
+            /**
+             * Start Time
+             * Format: time
+             */
+            start_time: string;
+        };
+        /**
          * ResendConfirmationOut
          * @description 重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。
          */
         ResendConfirmationOut: {
             /** Queued */
             queued: boolean;
+        };
+        /**
+         * RestoreRequest
+         * @description 已退預繳的恢復成還沒編班（忽略 class_id）；已離園的恢復成在籍，要選一個班。
+         */
+        RestoreRequest: {
+            /** Class Id */
+            class_id?: string | null;
+            /** Expected Version */
+            expected_version: number;
         };
         /** RetentionCountsOut */
         RetentionCountsOut: {
@@ -9354,6 +10737,47 @@ export interface components {
          * @enum {string}
          */
         Role: "super_admin" | "campus_admin" | "editor" | "reception" | "readonly";
+        /** RosterOut */
+        RosterOut: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Classes */
+            classes: components["schemas"]["ClassWithStudentsOut"][];
+            current: components["schemas"]["GapBlockOut"];
+            /** Gone */
+            gone: components["schemas"]["StudentOut"][];
+            /** Grade Totals */
+            grade_totals: {
+                [key: string]: components["schemas"]["GradeTotalOut"];
+            };
+            /** Incomplete */
+            incomplete: number;
+            /** Missing Birthday */
+            missing_birthday: number;
+            next: components["schemas"]["GapBlockOut"];
+            /** Next Year */
+            next_year: components["schemas"]["StudentOut"][];
+            /** School Year */
+            school_year: number;
+            /** Snapshots */
+            snapshots: components["schemas"]["SnapshotOut"][];
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /** Unassigned */
+            unassigned: components["schemas"]["StudentOut"][];
+            /** Underage Enrolled */
+            underage_enrolled: number;
+            /** Underage Pending */
+            underage_pending: number;
+        };
         /** ScheduleRequest */
         ScheduleRequest: {
             /**
@@ -9366,6 +10790,79 @@ export interface components {
              * Format: uuid
              */
             revision_id: string;
+        };
+        /** SearchDeviceRowOut */
+        SearchDeviceRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /**
+             * Device
+             * @enum {string}
+             */
+            device: "mobile" | "desktop" | "tablet";
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number;
+        };
+        /** SearchInsightsOut */
+        SearchInsightsOut: {
+            /** As Of */
+            as_of?: string | null;
+            /** Configured */
+            configured: boolean;
+            /** Devices */
+            devices?: components["schemas"]["SearchDeviceRowOut"][];
+            /** End */
+            end?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Pages */
+            pages?: components["schemas"]["SearchPageRowOut"][];
+            /** Queries */
+            queries?: components["schemas"]["SearchQueryRowOut"][];
+            /** Start */
+            start?: string | null;
+            totals?: components["schemas"]["SearchMetricsOut"] | null;
+        };
+        /** SearchMetricsOut */
+        SearchMetricsOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number | null;
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number | null;
+        };
+        /** SearchPageRowOut */
+        SearchPageRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /** Impressions */
+            impressions: number;
+            /** Page */
+            page: string;
+            /** Position */
+            position: number;
+        };
+        /** SearchQueryRowOut */
+        SearchQueryRowOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number;
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number;
+            /** Query */
+            query: string;
         };
         /**
          * SeatOut
@@ -9497,6 +10994,169 @@ export interface components {
             /** Rarely Booked Rate */
             rarely_booked_rate: number;
         };
+        /** SnapshotOut */
+        SnapshotOut: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Enrolled */
+            enrolled: {
+                [key: string]: number;
+            };
+            /** Estimate Total */
+            estimate_total: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Total Enrolled */
+            total_enrolled: number;
+        };
+        /** SnapshotRequest */
+        SnapshotRequest: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite: boolean;
+            /** School Year */
+            school_year: number;
+        };
+        /** StudentMove */
+        StudentMove: {
+            /** Class Id */
+            class_id: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Position */
+            position: number;
+        };
+        /** StudentOut */
+        StudentOut: {
+            /** Birthday */
+            birthday: string | null;
+            /** Board Notice */
+            board_notice: ("deposit_removed" | "enrolled") | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Child Name */
+            child_name: string;
+            /** Class Id */
+            class_id: string | null;
+            /** Deposit Date */
+            deposit_date: string | null;
+            /** Enrollment Date */
+            enrollment_date: string | null;
+            /** From Funnel */
+            from_funnel: boolean;
+            /** Grade */
+            grade: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Indigenous */
+            is_indigenous: boolean;
+            /** Is New */
+            is_new: boolean;
+            /** Is New Manual */
+            is_new_manual: boolean;
+            /** Is Special Education */
+            is_special_education: boolean;
+            /** Is Underage */
+            is_underage: boolean | null;
+            /** Left Date */
+            left_date: string | null;
+            /** Next Year */
+            next_year: string;
+            /** Note */
+            note: string | null;
+            /** Planned Entry Date */
+            planned_entry_date: string | null;
+            /** Position */
+            position: number | null;
+            /** Refunded Date */
+            refunded_date: string | null;
+            /** School Year */
+            school_year: number;
+            /** Status */
+            status: string;
+            /** Target School Year */
+            target_school_year: number | null;
+            /** Target Semester */
+            target_semester: number | null;
+            /** Underage Manual */
+            underage_manual: boolean;
+            /** Version */
+            version: number;
+        };
+        /**
+         * StudentUpdate
+         * @description 只送要改的欄位。可以清空的只有 birthday、note、enrollment_date、planned_entry_date。
+         */
+        StudentUpdate: {
+            /** Birthday */
+            birthday?: string | null;
+            /** Child Name */
+            child_name?: string | null;
+            /** Deposit Date */
+            deposit_date?: string | null;
+            /** Enrollment Date */
+            enrollment_date?: string | null;
+            /** Expected Version */
+            expected_version: number;
+            /** Grade */
+            grade?: ("幼幼班" | "小班" | "中班" | "大班") | null;
+            /** Is Indigenous */
+            is_indigenous?: boolean | null;
+            /** Is New Manual */
+            is_new_manual?: boolean | null;
+            /** Is Special Education */
+            is_special_education?: boolean | null;
+            /** Next Year */
+            next_year?: ("continue" | "leave" | "repeat") | null;
+            /** Note */
+            note?: string | null;
+            /** Planned Entry Date */
+            planned_entry_date?: string | null;
+            /** Target School Year */
+            target_school_year?: number | null;
+            /** Target Semester */
+            target_semester?: number | null;
+            /** Underage Manual */
+            underage_manual?: boolean | null;
+        };
+        /** StudentsCreate */
+        StudentsCreate: {
+            /** Class Id */
+            class_id?: string | null;
+            /** Names */
+            names: string[];
+            pending?: components["schemas"]["PendingFields"] | null;
+            /** School Year */
+            school_year: number;
+        };
+        /** StudentsCreated */
+        StudentsCreated: {
+            /** Duplicates */
+            duplicates: string[];
+            /** Students */
+            students: components["schemas"]["StudentOut"][];
+        };
         /** SubmitReviewRequest */
         SubmitReviewRequest: {
             /**
@@ -9613,6 +11273,34 @@ export interface components {
             semester: 1 | 2;
             /** Target */
             target?: number | null;
+        };
+        /** TierOut */
+        TierOut: {
+            /** Base */
+            base: number | null;
+            /** Boost */
+            boost: number | null;
+            /** Next */
+            next: ("base" | "boost" | "top") | null;
+            /** Reached */
+            reached: ("base" | "boost" | "top") | null;
+            /** Short */
+            short: number | null;
+            /** Top */
+            top: number | null;
+        };
+        /** TierTargetsRequest */
+        TierTargetsRequest: {
+            /** Base */
+            base?: number | null;
+            /** Boost */
+            boost?: number | null;
+            /** School Year */
+            school_year: number;
+            /** Semester */
+            semester: number;
+            /** Top */
+            top?: number | null;
         };
         /** TokenExchangeRequest */
         TokenExchangeRequest: {
@@ -9831,6 +11519,11 @@ export interface components {
             notified: number;
             /** With Email */
             with_email: number;
+            /**
+             * With Line
+             * @default 0
+             */
+            with_line: number;
         };
         /** VisitClosureIn */
         VisitClosureIn: {
@@ -10030,11 +11723,8 @@ export interface components {
             consent_given: boolean;
             /** Consent Revision Id */
             consent_revision_id?: string | null;
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
+            /** Email */
+            email?: string | null;
             /** Expected Start */
             expected_start?: string | null;
             /** Parent Name */
@@ -10104,6 +11794,14 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /**
@@ -10111,6 +11809,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -10212,6 +11918,14 @@ export interface components {
             excluded_at?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** First Touch Ad Platform */
+            first_touch_ad_platform?: string | null;
+            /** First Touch Campaign */
+            first_touch_campaign?: string | null;
+            /** First Touch On */
+            first_touch_on?: string | null;
+            /** First Touch Source */
+            first_touch_source?: string | null;
             /** Follow Up At */
             follow_up_at: string | null;
             /** History */
@@ -10221,6 +11935,14 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Last Touch Ad Platform */
+            last_touch_ad_platform?: string | null;
+            /** Last Touch Campaign */
+            last_touch_campaign?: string | null;
+            /** Last Touch On */
+            last_touch_on?: string | null;
+            /** Last Touch Source */
+            last_touch_source?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -10562,6 +12284,153 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ad_roi_api_website_v1_admin_admissions_ad_roi_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                touch?: "last" | "first";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdRoiOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_ad_spend_api_website_v1_admin_admissions_ad_spend_get: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdSpendIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdSpendEntryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                month: string;
+                platform: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_admissions_area_api_website_v1_admin_admissions_area_get: {
         parameters: {
             query: {
@@ -10701,6 +12570,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaChangesOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_children_history_api_website_v1_admin_admissions_area_children_history_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaChildrenHistoryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_compare_api_website_v1_admin_admissions_area_compare_get: {
+        parameters: {
+            query?: {
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaCompareOut"];
                 };
             };
             /** @description Validation Error */
@@ -12140,6 +14082,507 @@ export interface operations {
             };
         };
     };
+    get_roster_api_website_v1_admin_admissions_roster_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                school_year: number;
+                as_of?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RosterOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_class_api_website_v1_admin_admissions_roster_classes_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete: {
+        parameters: {
+            query: {
+                expected_version: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                class_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                class_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ClassOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SnapshotRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SnapshotOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_students_api_website_v1_admin_admissions_roster_students_post: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentsCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentsCreated"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_student_api_website_v1_admin_admissions_roster_students__student_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LeaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StudentMove"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RefundRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                student_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put: {
+        parameters: {
+            query: {
+                campus_key: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TierTargetsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TierOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_admissions_staff_api_website_v1_admin_admissions_staff_get: {
         parameters: {
             query: {
@@ -12202,6 +14645,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdmissionsStatsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get: {
+        parameters: {
+            query?: {
+                /** @description 送出日期起（台北，含），省略＝不限 */
+                from?: string | null;
+                /** @description 送出日期迄（台北，含），省略＝不限 */
+                to?: string | null;
+                /** @description first＝第一次進站；last＝預約前最後一次不是直接進站 */
+                touch?: "first" | "last";
+                /** @description 只看一校；省略＝授權範圍內的全部校區 */
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingAttributionOut"];
                 };
             };
             /** @description Validation Error */
@@ -13324,6 +15809,39 @@ export interface operations {
             };
         };
     };
+    get_crux_api_website_v1_admin_crux_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CruxOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_dashboard_api_website_v1_admin_dashboard_get: {
         parameters: {
             query?: never;
@@ -13468,6 +15986,7 @@ export interface operations {
             query: {
                 campus_key: string;
                 status?: "new" | "imported" | "dismissed";
+                source?: ("facebook" | "instagram") | null;
             };
             header?: {
                 "x-csrf-token"?: string | null;
@@ -13820,6 +16339,44 @@ export interface operations {
             };
         };
     };
+    get_line_insights_api_website_v1_admin_line_insights_get: {
+        parameters: {
+            query?: {
+                /** @description 台北日期（含），省略＝結束日往前 28 天 */
+                start?: string | null;
+                /** @description 台北日期（含），省略＝今天；不能是未來 */
+                end?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineInsightsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put: {
         parameters: {
             query?: never;
@@ -13880,6 +16437,84 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_group_settings_api_website_v1_admin_line_groups__target_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                target_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineGroupSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                campus_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineParentCampusUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
             };
             /** @description Validation Error */
             422: {
@@ -15238,6 +17873,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RetentionReportOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_insights_api_website_v1_admin_search_insights_get: {
+        parameters: {
+            query?: {
+                /** @description 台北日期（含），省略＝結束日往前 28 天 */
+                start?: string | null;
+                /** @description 台北日期（含），省略＝今天；不能是未來 */
+                end?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchInsightsOut"];
                 };
             };
             /** @description Validation Error */
@@ -17765,6 +20438,110 @@ export interface operations {
             };
         };
     };
+    get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentLineNotifyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post: {
+        parameters: {
+            query?: {
+                /** @description 畫面上的案件；對不上目前 session 的案件就拒絕 */
+                visit_request_id?: string | null;
+            };
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_parent_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentLineCodeOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_own_visit_request_api_website_v1_public_visit_manage_me_get: {
         parameters: {
             query?: never;
@@ -17849,6 +20626,108 @@ export interface operations {
                 "application/json": components["schemas"]["ParentRescheduleRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ParentVisitRequestOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_remembered_visit_api_website_v1_public_visit_remembered_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_visit_remember?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RememberedVisitOut"];
+                };
+            };
+            /** @description 這台裝置沒有記住預約，或記住的那筆已失效（同時清掉 cookie） */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    forget_remembered_visit_api_website_v1_public_visit_remembered_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    open_remembered_visit_api_website_v1_public_visit_remembered_open_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Ivy-Parent"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_visit_remember?: string | null;
+            };
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {

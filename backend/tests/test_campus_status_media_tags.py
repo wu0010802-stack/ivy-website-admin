@@ -110,3 +110,86 @@ async def test_media_tags_caption_license_and_search(admin_client):
 
     too_long = await admin_client.patch(f"{API}/admin/media/{media_id}", json={"expected_version": 1, "tags": ["x" * 31]})
     assert too_long.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_media_text_with_control_chars_is_rejected_and_library_keeps_listing(admin_client):
+    """2026-11-12 QA M2：標籤含 NUL 時 PATCH 回 200，之後素材庫列表把 tags 轉 jsonb 就整個 500，
+    而且從 UI 修不回來（壞的正是要列出這筆素材的列表）；說明、圖說、來源、授權含 NUL 則
+    直接打到 PostgreSQL 變 500。控制字元一律擋在 schema。"""
+    up = await admin_client.post(
+        f"{API}/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("nul.png", _png(), "image/png")},
+    )
+    assert up.status_code == 201, up.text
+    media_id = up.json()["id"]
+
+    for field, value in (
+        ("tags", ["QA\u0000nul"]),
+        ("tags", ["bell\u0007"]),
+        ("alt_text", "孩子\u0000在操場"),
+        ("caption", "午後\u0000"),
+        ("source_attribution", "園方\u0000"),
+        ("license_note", "可公開\u0000"),
+    ):
+        bad = await admin_client.patch(
+            f"{API}/admin/media/{media_id}", json={"expected_version": 1, field: value}
+        )
+        assert bad.status_code == 422, (field, bad.text)
+
+    listing = await admin_client.get(f"{API}/admin/media?campus=yihua")
+    assert listing.status_code == 200, listing.text
+    assert [item["id"] for item in listing.json()["items"]] == [media_id]
+
+
+@pytest.mark.asyncio
+async def test_media_upload_rejects_control_chars_and_unknown_campus(admin_client):
+    """上傳表單的說明、來源含 NUL，或校區代碼不存在（外鍵），原本都是 500。"""
+    for data in (
+        {"kind": "image", "campus_key": "yihua", "alt_text": "孩子\u0000"},
+        {"kind": "image", "campus_key": "yihua", "source_attribution": "園方\u0000"},
+    ):
+        bad = await admin_client.post(
+            f"{API}/admin/media", data=data, files={"file": ("a.png", _png(), "image/png")}
+        )
+        assert bad.status_code == 422, (data, bad.text)
+
+    unknown = await admin_client.post(
+        f"{API}/admin/media",
+        data={"kind": "image", "campus_key": "zzz"},
+        files={"file": ("a.png", _png(), "image/png")},
+    )
+    assert unknown.status_code == 404, unknown.text
+
+    # 檔名裡的控制字元直接拿掉，不退件（檔名只是下載時的顯示名稱）。
+    named = await admin_client.post(
+        f"{API}/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("pho\u0000to.png", _png(), "image/png")},
+    )
+    assert named.status_code == 201, named.text
+
+
+@pytest.mark.asyncio
+async def test_library_lists_even_when_a_stored_tag_holds_nul(admin_client, db_session):
+    """擋輸入之前就存進去的壞標籤，不能讓列表一直 500。"""
+    import uuid
+
+    from app.media.models import MediaAsset
+
+    up = await admin_client.post(
+        f"{API}/admin/media",
+        data={"kind": "image", "campus_key": "yihua"},
+        files={"file": ("old.png", _png(), "image/png")},
+    )
+    assert up.status_code == 201, up.text
+    asset = await db_session.get(MediaAsset, uuid.UUID(up.json()["id"]))
+    asset.tags = ["舊\u0000標籤"]
+    await db_session.commit()
+
+    listing = await admin_client.get(f"{API}/admin/media")
+    assert listing.status_code == 200, listing.text
+    assert len(listing.json()["items"]) == 1
+    searched = await admin_client.get(f"{API}/admin/media?q=操場")
+    assert searched.status_code == 200, searched.text

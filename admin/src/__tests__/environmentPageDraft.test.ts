@@ -98,17 +98,33 @@ describe('內建照片與官網裁切', () => {
     }
   })
 
-  // 2026-10-30 官網木頭積木版：照片裝在積木形狀裡，預覽給最接近的矩形比例；空間照片也會裁切，所以也給預覽
+  // 2026-11-17 官網「拱窗打開」版：照片裝在各種形狀的窗裡，預覽給最接近的矩形比例；五件小事與六個空間每一張的窗不同，各給各的
   it('照片焦點預覽的比例和官網 environment.css 一致', () => {
-    expect(css).toContain('.renv-arch{--ar:.8;')
-    expect(css).toContain('.renv-care-main .renv-ph{--ar:2.75;')
-    expect(css).toContain('.renv-care-main .renv-ph{--ar:2.2;')
-    expect(css).toContain('.renv-feature .renv-ph{--ar:1.5;')
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['4 / 5'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2.75 / 1', '2.2 / 1'])
+    // 首屏：桌機大畫面寬÷高 2.15（矮視窗放寬到 2.4），預覽取 2.2；手機是一扇拱窗（寬約 330、高 240–470），預覽取 3:4
+    expect(css).toContain('--fh:max(220px,min(calc(var(--renv-cw) / 2.15),calc(var(--renv-sh) - 244px)));')
+    expect(css).toContain('--fw:min(var(--renv-cw),calc(var(--fh) * 2.4));')
+    expect(css).toContain('.renv-h-slot{width:min(100%,460px);height:clamp(250px,calc(var(--renv-sh) - 326px),480px);margin:0 auto 26px}')
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.hero.map((p) => p.ratio)).toEqual(['2.2 / 1', '3 / 4'])
+    // 保育主照片：桌機 2.34:1、900 以下 3:2
+    expect(css).toContain('.renv-hwin{position:relative;aspect-ratio:2.34/1;')
+    expect(css).toContain('.renv-hwin{aspect-ratio:3/2;max-height:none}')
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.care.map((p) => p.ratio)).toEqual(['2.34 / 1', '3 / 2'])
+    // 主打區：桌機約 880×600（1.47:1）、手機 4:3，預覽給 3:2
+    expect(css).toContain('.renv-feat-win{aspect-ratio:4/3}')
     expect(ENVIRONMENT_PHOTO_PREVIEWS.feature.map((p) => p.ratio)).toEqual(['3 / 2'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem.map((p) => p.ratio)).toEqual(['4 / 5'])
-    expect(ENVIRONMENT_PHOTO_PREVIEWS.space.map((p) => p.ratio)).toEqual(['1 / 1'])
+    // 五件照顧的小事：拱 4:5、圓、4:3（手機 1:1）兩張、最寬的 2:1
+    expect(css).toContain('.renv .sh-arch{aspect-ratio:4/5;')
+    expect(css).toContain('.renv-ci-2 .renv-win{aspect-ratio:4/3;')
+    expect(css).toContain('.renv-ci-3 .renv-win{aspect-ratio:4/3;')
+    expect(css).toContain('.renv-ci-4 .renv-win{aspect-ratio:2/1;')
+    expect(css).toContain('.renv-ci-2 .renv-win{aspect-ratio:1;')
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem.map((list) => list.map((p) => p.ratio))).toEqual([['4 / 5'], ['1 / 1'], ['4 / 3', '1 / 1'], ['4 / 3', '1 / 1'], ['2 / 1']])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.careItem).toHaveLength(ENVIRONMENT_BUILTIN_PHOTOS.careItems.length)
+    // 六個空間：方 5:4、圓、拱 4:5、U 形 1:1、半圓 2:1、方 5:4（順序同官網元件的 STOP_LOOKS）
+    for (const rule of ['.renv .sh-rect{aspect-ratio:5/4;', '.renv .sh-circle{aspect-ratio:1;', '.renv .sh-u{aspect-ratio:1;', '.renv .sh-dome{aspect-ratio:2/1;', '.renv .sh-leaf{aspect-ratio:5/4;']) expect(css).toContain(rule)
+    expect([...component.matchAll(/\{ sh: '([a-z]+)', color: '[a-z]+', ar: ([\d. /]+)[,} ]/g)].map((m) => m[1])).toEqual(['rect', 'circle', 'arch', 'u', 'dome', 'leaf'])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.space.map((list) => list.map((p) => p.ratio))).toEqual([['5 / 4'], ['1 / 1'], ['4 / 5'], ['1 / 1'], ['2 / 1'], ['5 / 4']])
+    expect(ENVIRONMENT_PHOTO_PREVIEWS.space).toHaveLength(ENVIRONMENT_BUILTIN_PHOTOS.spaces.length)
     expect(Object.keys(ENVIRONMENT_PHOTO_PREVIEWS)).toEqual(['hero', 'care', 'feature', 'careItem', 'space'])
   })
 
@@ -204,15 +220,15 @@ describe('餐點時間檢查', () => {
 })
 
 describe('側欄、標籤與網址', () => {
-  it('側欄在「全站與素材」，關於常春藤頁之後，只有總管理者', () => {
-    const items = NAV_GROUPS.find((g) => g.key === 'site')!.items
+  it('側欄在「各分頁」，特色教學頁之後，只有總管理者', () => {
+    const items = NAV_GROUPS.find((g) => g.key === 'pages')!.items
     const item = items.find((i) => i.name === 'environment-page')!
     expect(item.path).toBe('/content/environment-page')
     expect(item.title).toBe('常春藤環境頁')
     expect(item.roles).toEqual(['super_admin'])
     expect(item.shared).toBe(true)
     for (const word of ['環境', '餐點', '保育', '校園']) expect(item.keywords, word).toContain(word)
-    expect(items.findIndex((i) => i.name === 'environment-page')).toBe(items.findIndex((i) => i.name === 'about-page') + 1)
+    expect(items.findIndex((i) => i.name === 'environment-page')).toBe(items.findIndex((i) => i.name === 'curriculum-page') + 1)
   })
 
   it('內容種類標籤與官網網址', () => {

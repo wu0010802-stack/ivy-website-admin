@@ -6,6 +6,8 @@
 // 2026-11-10：內文第一塊是影片（粉專影片貼文轉來的）時，影片放在封面的位置、內文從第二塊開始——
 // 這種消息的封面就是影片的某一格，兩個都放等於同一個畫面出現兩次。封面照舊用在列表、卡片與分享圖。
 import type { Campus, NewsArticle, NewsContent } from '~/types/site-content'
+import { loadCampusBooking } from '~/composables/useCampusBooking'
+import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
 import { isSampleNews, isTallImage, NEWS_PATH, newsPath, relatedArticles, tidyNewsText, titleClauses } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 
@@ -14,6 +16,22 @@ const sample = computed(() => isSampleNews(props.article, props.news.sampleNote)
 const campus = computed(() => props.article.campusKeys?.length === 1 ? props.campuses.find((c) => c.key === props.article.campusKeys![0]) : undefined)
 const listLink = computed(() => campus.value ? { path: NEWS_PATH, query: { campus: campus.value.key } } : NEWS_PATH)
 const formatDate = (date: string) => date.replaceAll('-', '.')
+
+// 單校消息結尾的參觀入口跟著那一校的預約方式（2026-11-12）：原本一律寫「預約○○校參觀」，暫停線上預約、
+// 只能來電的校區在首頁五校卡寫的是「致電○○校預約參觀」。和五校卡同一個判斷（campusVisitCta）：只在瀏覽器讀，
+// 讀到之前與讀不到時照舊連預約頁；讀到的設定放進同一個快取，點進預約頁不再重抓。
+const nuxtApp = useNuxtApp()
+const bookingAction = ref<BookingAction | null>(null)
+const visitCta = computed(() => (campus.value ? campusVisitCta(campus.value, bookingAction.value) : null))
+onMounted(async () => {
+  const key = campus.value?.key
+  if (!key) return
+  try {
+    bookingAction.value = resolveBookingAction(key, await loadCampusBooking(nuxtApp, key))
+  } catch {
+    // 讀不到就維持預約頁的連結。
+  }
+})
 
 const imageOf = (item: NewsArticle, sizes: string) => responsiveTourImage(item.image, sizes, false, item.imageMedia)
 const imageStyle = (item: NewsArticle) => (item.imageMedia?.position ? { objectPosition: item.imageMedia.position } : undefined)
@@ -47,7 +65,9 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
       </article>
       <div class="np-article-foot">
         <NuxtLink class="np-back" :to="listLink"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>{{ campus ? `回${campus.name}的消息` : '回消息列表' }}</NuxtLink>
-        <NuxtLink class="np-book" :to="campus ? `/visit/${campus.key}` : '/visit'">預約{{ campus ? campus.name : '校園' }}參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+        <NuxtLink v-if="!visitCta || visitCta.kind === 'visit'" class="np-book" :to="campus ? `/visit/${campus.key}` : '/visit'">預約{{ campus ? campus.name : '校園' }}參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
+        <a v-else-if="visitCta.kind === 'phone'" class="np-book" :href="visitCta.href">{{ visitCta.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a>
+        <a v-else class="np-book" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg></a>
       </div>
       <section v-if="related.length" class="np-related" data-track-section="related" aria-labelledby="np-related-title">
         <h2 id="np-related-title">其他消息</h2>

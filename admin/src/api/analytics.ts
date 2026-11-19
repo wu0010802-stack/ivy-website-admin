@@ -1,7 +1,7 @@
 // 成效統計補強（2026-09-30 招生分析報告階段 1）的 API 與顯示規則。
 // 後端：backend/app/operations/booking_outcomes_service.py、analytics_service.get_event_trend。
 import { api } from './client'
-import type { AdmissionsRate, BookingOutcomesOut, ClassDistributionOut, EventTrendOut } from './types'
+import type { AdmissionsRate, BookingAttributionOut, BookingOutcomesOut, ClassDistributionOut, EventTrendOut } from './types'
 import { NO_VALUE, formatRate, rateCsvCell } from '../admissions/statsFormat'
 
 export interface DateRange {
@@ -35,6 +35,11 @@ export function getBookingOutcomes(range: DateRange | null): Promise<BookingOutc
 
 export function getEventTrend(campusKey: string, range: DateRange | null): Promise<EventTrendOut> {
   return api.get<EventTrendOut>(withQuery('/admin/analytics/event-trend', { campus_key: campusKey }, range))
+}
+
+/** 官網預約依網站來源分組的到場與預繳（2026-11-16）。touch：last＝預約前最後一次不是直接進站、first＝第一次進站。 */
+export function getBookingAttribution(campusKey: string, touch: 'first' | 'last', range: DateRange | null): Promise<BookingAttributionOut> {
+  return api.get<BookingAttributionOut>(withQuery('/admin/analytics/booking-attribution', { campus_key: campusKey, touch }, range))
 }
 
 export function getClassDistribution(campusKey: string, schoolYear: number, range: DateRange | null): Promise<ClassDistributionOut> {

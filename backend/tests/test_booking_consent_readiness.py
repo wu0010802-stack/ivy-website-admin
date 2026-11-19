@@ -166,7 +166,9 @@ async def test_cached_page_with_consent_is_still_accepted(admin_client, public_c
     await _publish_booking(admin_client)
     version, slot_id = await _open_slot(admin_client)
     for key, revision in (("cached-garbage", str(uuid.uuid4())), ("cached-none", None)):
-        created = await _submit(public_client, version, key, slot_id, consent_revision_id=revision)
+        # 同一支手機不能把同一個場次約兩次（2026-11-12）：兩筆用不同的手機。
+        phone = "0912000111" if revision else "0912000222"
+        created = await _submit(public_client, version, key, slot_id, consent_revision_id=revision, phone=phone)
         assert created.status_code == 201, created.text
         stored = await db_session.get(VisitRequest, uuid.UUID(created.json()["receipt_id"]))
         assert stored.consent_given is True
@@ -368,8 +370,9 @@ async def test_impact_counts_confirmed_visits_already_past_separately(admin_clie
     early = await _slot(admin_client, days_ahead=2)
     later = await _slot(admin_client, days_ahead=6)
     version = (await set_booking_mode(admin_client, mode="slots")).json()["version"]
-    for key, slot in (("past-a", early), ("past-b", early), ("upcoming", later)):
-        created = await _submit(public_client, version, key, slot["id"])
+    # 同一支手機不能把同一個場次約兩次（2026-11-12）：同場次的兩組用不同手機。
+    for key, slot, phone in (("past-a", early, "0912345678"), ("past-b", early, "0912345679"), ("upcoming", later, "0912345678")):
+        created = await _submit(public_client, version, key, slot["id"], phone=phone)
         assert created.status_code == 201, created.text
         assert created.json()["status"] == "confirmed"
 

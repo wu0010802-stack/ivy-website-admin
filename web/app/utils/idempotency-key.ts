@@ -12,3 +12,11 @@ export function newIdempotencyKey(): string {
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
+
+/**
+ * 從分頁暫存（sessionStorage）拿回來的 key 能不能沿用：只收 newIdempotencyKey 產生的樣子（v4 UUID）。
+ * 暫存的內容使用者改得到，不是這個樣子的一律不用，換一把新的。
+ */
+export function restoredIdempotencyKey(value: unknown): string | null {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value) ? value : null
+}

@@ -27,7 +27,11 @@ HOST_PREFIX = "__Host-"
 
 # 後台 session（auth/deps.py）、家長改期連結 session（booking/access_routes.py）、
 # LINE 與 Google 的 OAuth 握手（auth/line.py、auth/google.py）。
-HOST_PREFIXED_COOKIES = frozenset({"ivy_admin_session", "ivy_parent_session", "ivy_line_oauth", "ivy_google_oauth"})
+HOST_PREFIXED_COOKIES = frozenset({
+    "ivy_admin_session", "ivy_parent_session", "ivy_line_oauth", "ivy_google_oauth",
+    # 2026-11-16 這台裝置記住預約（booking/remember.py）：值是修改連結 token，同樣不能讓子網域塞或蓋。
+    "ivy_visit_remember",
+})
 
 _PATH_ATTR = re.compile(r";\s*path=[^;]*", re.IGNORECASE)
 _DOMAIN_ATTR = re.compile(r";\s*domain=[^;]*", re.IGNORECASE)

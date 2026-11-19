@@ -66,10 +66,10 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
   const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)) }
   const storyTitle = (html: string) => /<h2 id="story-title"[^>]*>(.*?)<\/h2>/.exec(html)![1]!.replace(/<br[^>]*>/g, '\n').replace(/<!--.*?-->/g, '')
 
-  it('2026 年：第一章「走到今年⏎是第 30 年」（標題不放逗號句號），首屏介紹照原文「近三十年來」', async () => {
+  it('2026 年：第一章「走到今年⏎邁向 30 週年」（標題不放逗號句號），首屏介紹照原文「近三十年來」', async () => {
     at('2026-10-31T04:00:00Z')
     const html = await render(site.aboutPage)
-    expect(storyTitle(html)).toBe('走到今年\n是第 30 年')
+    expect(storyTitle(html)).toBe('走到今年\n邁向 30 週年')
     expect(html).toContain('近三十年來，我們守著')
     expect(html).not.toContain('長出五所校園')
   })
@@ -118,7 +118,7 @@ describe('關於常春藤頁：年數、30 週年、六大領域', () => {
     for (const scene of site.campuses.flatMap((c) => c.tourScenes)) expect(html).not.toContain(`>${scene.name}<`)
     const now = html.slice(html.indexOf('abh-finale'), html.indexOf('id="whole-child"'))
     expect(now).toMatch(/<span class="sr-only"[^>]*>2026<\/span>/)
-    expect(now).toMatch(/<span[^>]*>民國 115 年<\/span><b[^>]*>第 30 年<\/b>/)
+    expect(now).toMatch(/<span[^>]*>民國 115 年<\/span><b[^>]*>邁向 30 週年<\/b>/)
     expect(now).toMatch(/<h3[^>]*>五所校園<\/h3>/)
     expect(now).not.toContain('<a ')
     expect(now.match(/<span class="abh-sky-art"/g)).toHaveLength(5)

@@ -22,6 +22,7 @@ from app.auth.permissions import (
     can_publish_shared_content,
     require_scope,
 )
+from app.booking.schemas import has_control_chars
 from app.content import notices, service
 from app.content import publish_jobs
 from app.campuses.models import Campus
@@ -87,6 +88,15 @@ def _campus_key_for(config, campus_key: str | None) -> str | None:
             detail={"code": "CAMPUS_KEY_REQUIRED", "message": "這項內容是各校各一份，請指定校區"},
         )
     return campus_key
+
+
+async def _get_or_create_item(db: AsyncSession, kind: str, campus_key: str | None) -> ContentItem:
+    """取內容項，沒有就建。總管理者的 require_scope 對任何校區代號都放行，不存在的
+    代號一路寫到外鍵才變 500，所以建列之前先確認校區存在，不存在回 404。含控制字元
+    （例如網址上的 %00）的代號不可能是校區，PostgreSQL 又拒收 NUL，同樣回 404。"""
+    if campus_key is not None and (has_control_chars(campus_key) or await db.get(Campus, campus_key) is None):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="找不到這個校區")
+    return await service.get_or_create_content_item(db, kind, campus_key)
 
 
 def _require_read_scope(user: User, kind: str, campus_key: str | None) -> None:
@@ -258,7 +268,7 @@ async def get_content_item(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, kind, campus_key)
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     await db.commit()
     item, latest = await _get_item_with_latest_revision(db, item.id)
     return _item_out(item, latest)
@@ -279,7 +289,7 @@ async def create_content_revision(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
 
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
     await _save_draft(db, config, kind, item, payload.payload, payload.expected_version, current_user)
     await db.commit()
@@ -345,7 +355,7 @@ async def list_content_revisions(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, kind, campus_key)
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     await db.commit()
     limit = max(1, min(limit, 200))
 
@@ -397,7 +407,7 @@ async def get_content_revision(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, kind, campus_key)
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     await db.commit()
     result = await db.execute(
         select(ContentRevision).where(
@@ -433,7 +443,7 @@ async def restore_content_revision(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
 
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     _require_shared_or_scope(current_user, item)
     if payload.publish:
         _require_publish(current_user, item)
@@ -506,7 +516,7 @@ async def publish_content_item(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
 
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     _require_publish(current_user, item)
     # 先拿站台鎖再鎖住版本重讀（與審核 review_submission 同順序）：同時有人退回這一版時，
     # 這裡會等退回 commit 後讀到 rejected 而擋下，不會拿鎖前讀到的待審狀態把它發上去。
@@ -667,7 +677,7 @@ async def get_public_site(
 async def _item_for(db: AsyncSession, kind: str, campus_key: str | None):
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     return config, item
 
 
@@ -850,7 +860,7 @@ async def list_schedules(
     config = _get_kind_config(kind)
     campus_key = _campus_key_for(config, campus_key)
     _require_read_scope(current_user, kind, campus_key)
-    item = await service.get_or_create_content_item(db, kind, campus_key)
+    item = await _get_or_create_item(db, kind, campus_key)
     await db.commit()
     result = await db.execute(
         select(PublishJob)

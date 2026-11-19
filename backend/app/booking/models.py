@@ -122,6 +122,35 @@ class VisitRequest(Base):
             name="ck_visit_requests_exclude_reason",
         ),
         CheckConstraint("(excluded_at IS NULL) = (exclude_reason IS NULL)", name="ck_visit_requests_excluded_pair"),
+        # 2026-11-16 網站來源：代碼與第一方統計的 ENGAGEMENT_SOURCES 相同（app/booking/attribution.py）。
+        CheckConstraint(
+            "first_touch_source IS NULL OR first_touch_source IN "
+            "('direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
+            name="ck_visit_requests_first_touch_source",
+        ),
+        CheckConstraint(
+            "last_touch_source IS NULL OR last_touch_source IN "
+            "('direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
+            name="ck_visit_requests_last_touch_source",
+        ),
+        # 2026-11-16 廣告平台（docs/specs/2026-11-16-ad-roi-design.md）：代碼與 attribution.AD_PLATFORMS 相同，
+        # 且只有來源是 ads 才可能有平台。
+        CheckConstraint(
+            "first_touch_ad_platform IS NULL OR first_touch_ad_platform IN ('google', 'openai', 'meta', 'line', 'other')",
+            name="ck_visit_requests_first_touch_ad_platform",
+        ),
+        CheckConstraint(
+            "last_touch_ad_platform IS NULL OR last_touch_ad_platform IN ('google', 'openai', 'meta', 'line', 'other')",
+            name="ck_visit_requests_last_touch_ad_platform",
+        ),
+        CheckConstraint(
+            "first_touch_ad_platform IS NULL OR first_touch_source = 'ads'",
+            name="ck_visit_requests_first_touch_ad_platform_ads",
+        ),
+        CheckConstraint(
+            "last_touch_ad_platform IS NULL OR last_touch_source = 'ads'",
+            name="ck_visit_requests_last_touch_ad_platform_ads",
+        ),
         # 後台列表、CSV 匯出依 created_at 由新到舊排序。
         Index("ix_visit_requests_created_at", "created_at"),
         # 送單時「同校同一支手機在窗口內已建立幾筆」的計數（在設定列鎖內執行）。
@@ -208,6 +237,22 @@ class VisitRequest(Base):
     # 說明（「其他」必填）；自由文字，保存政策匿名化時清掉（E11）。
     exclude_note: Mapped[str | None] = mapped_column(String(200), nullable=True)
     anonymized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 2026-11-16 網站來源（docs/specs/2026-11-16-cookie-features-design.md §1，app/booking/attribution.py）：
+    # 官網送單時從第一方 cookie ivy_src 讀出「第一次進站」與「預約前最後一次不是直接進站」的來源代碼、
+    # 活動代碼（utm_campaign）與日期。只有代碼，不存網址；訪客開了 DNT／GPC、人工補登、
+    # 2026-11-16 以前的案件都是 NULL。不是個資，匿名化不清。
+    first_touch_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    first_touch_campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    first_touch_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    last_touch_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    last_touch_campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_touch_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
+    # 2026-11-16 廣告平台（docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時，web 端判斷的平台。
+    first_touch_ad_platform: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    last_touch_ad_platform: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    # 到場、預繳回傳廣告平台用的點擊識別碼（同規格 §2，app/ad_conversions/）：GA4 client_id、
+    # Meta fbc／fbp、OpenAI oppref／obref。只有該平台設了伺服器端金鑰才記；匿名化時清掉。
+    ad_click_ids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     events: Mapped[list["VisitRequestEvent"]] = relationship(
         back_populates="visit_request", cascade="all, delete-orphan"
@@ -367,11 +412,15 @@ class VisitContactNote(Base):
 
 
 class VisitEventSource(str, enum.Enum):
-    """歷程是誰做的。staff 另記 actor_user_id；家長沒有帳號，只記來源。"""
+    """歷程是誰做的。staff 另記 actor_user_id；家長沒有帳號，只記來源。
+    line_group＝園方 LINE 群組裡按按鈕（2026-11-17 設計 §5）：群組裡誰按的對不到後台帳號，
+    actor_user_id 為空，群組與 LINE userId 記在稽核。visit_request_events.source 是 String(16)、
+    沒有 CHECK 限制，新增值不必 migration。"""
 
     STAFF = "staff"
     PARENT = "parent"
     SYSTEM = "system"
+    LINE_GROUP = "line_group"
 
 
 class VisitRequestEvent(Base):

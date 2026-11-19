@@ -1,6 +1,449 @@
 {
   "components": {
     "schemas": {
+      "AdRoiCampusOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "platform",
+          "cases",
+          "completed",
+          "deposited"
+        ],
+        "title": "AdRoiCampusOut",
+        "type": "object"
+      },
+      "AdRoiGoogleCampaignOut": {
+        "properties": {
+          "campaign_id": {
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "cost": {
+            "title": "Cost",
+            "type": "integer"
+          },
+          "cost_per_click": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Click"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "leads": {
+            "title": "Leads",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "campaign_name",
+          "cost",
+          "clicks",
+          "impressions",
+          "leads",
+          "cost_per_click"
+        ],
+        "title": "AdRoiGoogleCampaignOut",
+        "type": "object"
+      },
+      "AdRoiGoogleOut": {
+        "properties": {
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiGoogleCampaignOut"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "fetched_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fetched At"
+          },
+          "time_zone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time Zone"
+          }
+        },
+        "required": [
+          "configured",
+          "error",
+          "currency",
+          "time_zone",
+          "fetched_at",
+          "campaigns"
+        ],
+        "title": "AdRoiGoogleOut",
+        "type": "object"
+      },
+      "AdRoiOut": {
+        "description": "廣告成效（§7）：touch 是歸屬口徑；rows 照 ROW_KEYS 順序。",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "by_campus": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiCampusOut"
+            },
+            "title": "By Campus",
+            "type": "array"
+          },
+          "google": {
+            "$ref": "#/components/schemas/AdRoiGoogleOut"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "pending": {
+            "$ref": "#/components/schemas/AdRoiPendingOut"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AdRoiRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "touch": {
+            "enum": [
+              "last",
+              "first"
+            ],
+            "title": "Touch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "touch",
+          "months",
+          "google",
+          "rows",
+          "pending",
+          "by_campus"
+        ],
+        "title": "AdRoiOut",
+        "type": "object"
+      },
+      "AdRoiPendingOut": {
+        "properties": {
+          "awaiting_attendance": {
+            "title": "Awaiting Attendance",
+            "type": "integer"
+          },
+          "considering": {
+            "title": "Considering",
+            "type": "integer"
+          },
+          "upcoming": {
+            "title": "Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "upcoming",
+          "awaiting_attendance",
+          "considering"
+        ],
+        "title": "AdRoiPendingOut",
+        "type": "object"
+      },
+      "AdRoiRowOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "clicks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clicks"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "cost_partial": {
+            "title": "Cost Partial",
+            "type": "boolean"
+          },
+          "cost_per_case": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Case"
+          },
+          "cost_per_completed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Completed"
+          },
+          "cost_per_deposit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Per Deposit"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "key": {
+            "enum": [
+              "google",
+              "openai",
+              "meta",
+              "line",
+              "other",
+              "unknown",
+              "offline",
+              "organic",
+              "unrecorded"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "missing_months": {
+            "title": "Missing Months",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "spend": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spend"
+          },
+          "spend_state": {
+            "enum": [
+              "ok",
+              "unset",
+              "not_configured",
+              "error",
+              "none"
+            ],
+            "title": "Spend State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "spend",
+          "spend_state",
+          "missing_months",
+          "clicks",
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "cost_per_case",
+          "cost_per_completed",
+          "cost_per_deposit",
+          "cost_partial"
+        ],
+        "title": "AdRoiRowOut",
+        "type": "object"
+      },
+      "AdSpendEntryOut": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "platform": {
+            "title": "Platform",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "month",
+          "platform",
+          "amount",
+          "note",
+          "updated_at"
+        ],
+        "title": "AdSpendEntryOut",
+        "type": "object"
+      },
+      "AdSpendIn": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "maximum": 10000000.0,
+            "minimum": 0.0,
+            "title": "Amount",
+            "type": "integer"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "amount"
+        ],
+        "title": "AdSpendIn",
+        "type": "object"
+      },
+      "AdSpendListOut": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/AdSpendEntryOut"
+            },
+            "title": "Entries",
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries"
+        ],
+        "title": "AdSpendListOut",
+        "type": "object"
+      },
       "AdminDetailsUpdate": {
         "additionalProperties": false,
         "description": "後台人員修改家長資料（2026-10-12 規格 3.1）；只送有改的欄位，只收這六欄\n（2026-10-15 加預計入學時間；人數與想了解的事是家長自己的表達，後台不改；多送的欄位 422）。\n\n驗證沿用家長端 ParentDetailsUpdate，差異：Email、孩子姓名、孩子生日可以清空\n（送 null 或空字串；補登本來就允許沒有 Email），稱呼與手機不可以。預計入學時間也可以清空。\nexpected_version 是案件的 details_version，和家長端共用。",
@@ -332,6 +775,51 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -355,6 +843,51 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",
@@ -2933,6 +3466,466 @@
         "title": "AreaChangesOut",
         "type": "object"
       },
+      "AreaChildrenHistoryLatestOut": {
+        "description": "「最新」那一格：人口狀態的月份（如 115-10）與同步時間。",
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "required": [
+          "label",
+          "synced_at"
+        ],
+        "title": "AreaChildrenHistoryLatestOut",
+        "type": "object"
+      },
+      "AreaChildrenHistoryOut": {
+        "properties": {
+          "campus": {
+            "$ref": "#/components/schemas/AreaCampusOut"
+          },
+          "latest": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaChildrenHistoryLatestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "max_children": {
+            "title": "Max Children",
+            "type": "integer"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "retired": {
+            "items": {
+              "$ref": "#/components/schemas/AreaChildrenHistoryRetiredOut"
+            },
+            "title": "Retired",
+            "type": "array"
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_campus_point",
+                  "no_history"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaChildrenHistoryVillageOut"
+            },
+            "title": "Villages",
+            "type": "array"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campus",
+          "radius_km",
+          "unavailable",
+          "latest",
+          "years",
+          "villages",
+          "retired",
+          "max_children"
+        ],
+        "title": "AreaChildrenHistoryOut",
+        "type": "object"
+      },
+      "AreaChildrenHistoryRetiredOut": {
+        "description": "九月表有資料、現行里界沒有的代碼（已廢止的里），只列和半徑內的里同一區的；years＝有資料的民國年。",
+        "properties": {
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "title": "Village Code",
+            "type": "string"
+          },
+          "years": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Years",
+            "type": "array"
+          }
+        },
+        "required": [
+          "village_code",
+          "district",
+          "village",
+          "years"
+        ],
+        "title": "AreaChildrenHistoryRetiredOut",
+        "type": "object"
+      },
+      "AreaChildrenHistoryVillageOut": {
+        "description": "半徑內一個里。counts 的鍵是民國年字串與 \"latest\"，某年沒有這個里的資料（例如新設的里）是 null；\nadjusted＝行政區域調整人數過門檻的月份（如 115-07），前後年份不可直接比。",
+        "properties": {
+          "adjusted": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Adjusted",
+            "type": "array"
+          },
+          "counts": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "title": "Village Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_code",
+          "district",
+          "village",
+          "distance_m",
+          "counts",
+          "adjusted"
+        ],
+        "title": "AreaChildrenHistoryVillageOut",
+        "type": "object"
+      },
+      "AreaCompareKindergartensOut": {
+        "description": "半徑內各類型幼兒園家數，不含常春藤各校。",
+        "properties": {
+          "nonprofit": {
+            "title": "Nonprofit",
+            "type": "integer"
+          },
+          "private": {
+            "title": "Private",
+            "type": "integer"
+          },
+          "public": {
+            "title": "Public",
+            "type": "integer"
+          },
+          "quasi_public": {
+            "title": "Quasi Public",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "private",
+          "quasi_public",
+          "public",
+          "nonprofit"
+        ],
+        "title": "AreaCompareKindergartensOut",
+        "type": "object"
+      },
+      "AreaCompareOut": {
+        "properties": {
+          "fee_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee School Year"
+          },
+          "population_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population Version"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AreaCompareRowOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "radius_km",
+          "population_version",
+          "fee_school_year",
+          "rows"
+        ],
+        "title": "AreaCompareOut",
+        "type": "object"
+      },
+      "AreaCompareRowOut": {
+        "description": "一校一列。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝這一校計算失敗；\n兩種情況數字都是 null。fee_*：本校 3 歲一學期公告收費和半徑內私立一般的比較；本校不是私立一般時沒有排名\n（fee_rank 是 null，own_kind 寫實際類型），own_missing 是本校沒找到或沒有收費資料的原因。",
+        "properties": {
+          "babycare": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Babycare"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "changes_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes 12M"
+          },
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "fee_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Median"
+          },
+          "fee_rank": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Rank"
+          },
+          "fee_rank_total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Rank Total"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "kids_unavailable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Unavailable"
+          },
+          "kindergartens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaCompareKindergartensOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locate_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locate Error"
+          },
+          "own_fee": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Fee"
+          },
+          "own_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "public",
+                  "nonprofit",
+                  "quasi_public",
+                  "private"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Kind"
+          },
+          "own_missing": {
+            "anyOf": [
+              {
+                "enum": [
+                  "not_found",
+                  "no_fee"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own Missing"
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_campus_point",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable"
+          }
+        },
+        "required": [
+          "campus_key",
+          "unavailable",
+          "locate_error",
+          "children",
+          "kids_net",
+          "kids_unavailable",
+          "kindergartens",
+          "babycare",
+          "own_fee",
+          "own_kind",
+          "own_missing",
+          "fee_median",
+          "fee_rank",
+          "fee_rank_total",
+          "changes_12m"
+        ],
+        "title": "AreaCompareRowOut",
+        "type": "object"
+      },
       "AreaDataStatusOut": {
         "description": "公開資料的版本：門牌（民國年-月，例 115-10；還沒匯入是 null）、幼兒園更新時間、里界版本、\n各里人口月份（例 115-09，2026-10-13 招生機會；還沒匯入是 null）、托嬰名單更新時間（2026-10-14；還沒匯入是 null）。",
         "properties": {
@@ -4323,6 +5316,16 @@
           "items": {
             "$ref": "#/components/schemas/AreaFeeItemsOut"
           },
+          "kind": {
+            "enum": [
+              "public",
+              "nonprofit",
+              "quasi_public",
+              "private"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
           "monthly_average": {
             "anyOf": [
               {
@@ -4372,6 +5375,7 @@
         "required": [
           "source_id",
           "name",
+          "kind",
           "semester_total",
           "months",
           "monthly_average",
@@ -5102,6 +6106,21 @@
             ],
             "title": "Kids Net"
           },
+          "marriages_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages 12M"
+          },
+          "marriages_months": {
+            "title": "Marriages Months",
+            "type": "integer"
+          },
           "migration_months": {
             "title": "Migration Months",
             "type": "integer"
@@ -5185,6 +6204,8 @@
           "births_compared_months",
           "births_change_pct",
           "births_series",
+          "marriages_12m",
+          "marriages_months",
           "migration_net_12m",
           "migration_months",
           "new_homes",
@@ -5218,6 +6239,17 @@
             "title": "Ends",
             "type": "string"
           },
+          "marriages": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages"
+          },
           "missing": {
             "items": {
               "type": "string"
@@ -5240,7 +6272,8 @@
           "months",
           "missing",
           "births",
-          "change_pct"
+          "change_pct",
+          "marriages"
         ],
         "title": "AreaTrendsBirthPeriodOut",
         "type": "object"
@@ -5604,6 +6637,9 @@
           "income": {
             "$ref": "#/components/schemas/AreaTrendsIncomeSourceOut"
           },
+          "marriages": {
+            "$ref": "#/components/schemas/AreaTrendsMonthsOut"
+          },
           "migration": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
@@ -5627,6 +6663,7 @@
         "required": [
           "population",
           "births",
+          "marriages",
           "migration",
           "note",
           "income",
@@ -5731,6 +6768,17 @@
             ],
             "title": "Kids Net"
           },
+          "marriages_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Marriages 12M"
+          },
           "merged": {
             "title": "Merged",
             "type": "boolean"
@@ -5817,6 +6865,7 @@
           "kids_base",
           "kids_level",
           "births_12m",
+          "marriages_12m",
           "migration_net_12m",
           "income_median",
           "income_boundary_changed",
@@ -5925,6 +6974,132 @@
           "visit_to_deposit_range"
         ],
         "title": "AreaVillageRowOut",
+        "type": "object"
+      },
+      "AttributionCampaignOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "campaign": {
+            "title": "Campaign",
+            "type": "string"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate",
+          "campaign"
+        ],
+        "title": "AttributionCampaignOut",
+        "type": "object"
+      },
+      "AttributionCountsOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate"
+        ],
+        "title": "AttributionCountsOut",
+        "type": "object"
+      },
+      "AttributionSourceOut": {
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionCampaignOut"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
+            "type": "integer"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate",
+          "source",
+          "campaigns"
+        ],
+        "title": "AttributionSourceOut",
         "type": "object"
       },
       "AuditActorOut": {
@@ -6213,6 +7388,67 @@
           "kind"
         ],
         "title": "Body_upload_media_api_website_v1_admin_media_post",
+        "type": "object"
+      },
+      "BookingAttributionOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "date_from": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date From"
+          },
+          "date_to": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date To"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionSourceOut"
+            },
+            "title": "Rows",
+            "type": "array"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AttributionCountsOut"
+          },
+          "touch": {
+            "enum": [
+              "first",
+              "last"
+            ],
+            "title": "Touch",
+            "type": "string"
+          }
+        },
+        "required": [
+          "as_of",
+          "date_from",
+          "date_to",
+          "touch",
+          "rows",
+          "totals"
+        ],
+        "title": "BookingAttributionOut",
         "type": "object"
       },
       "BookingConfigOut": {
@@ -6886,6 +8122,106 @@
         "title": "CampusStatusUpdate",
         "type": "object"
       },
+      "ClassCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "class_code": {
+            "maxLength": 20,
+            "title": "Class Code",
+            "type": "string"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "name": {
+            "maxLength": 50,
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "school_year",
+          "grade",
+          "name",
+          "class_code"
+        ],
+        "title": "ClassCreate",
+        "type": "object"
+      },
       "ClassDistributionOut": {
         "properties": {
           "as_of": {
@@ -6968,6 +8304,350 @@
           "unrecorded"
         ],
         "title": "ClassDistributionOut",
+        "type": "object"
+      },
+      "ClassOut": {
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "class_code": {
+            "title": "Class Code",
+            "type": "string"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "grade",
+          "name",
+          "class_code",
+          "english_name",
+          "head_teacher",
+          "assistant_teacher",
+          "english_teacher",
+          "target_seats",
+          "sort_order",
+          "version"
+        ],
+        "title": "ClassOut",
+        "type": "object"
+      },
+      "ClassUpdate": {
+        "additionalProperties": false,
+        "description": "年級不能改（不收 grade 欄位，送了是 422）；只送要改的欄位。",
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "class_code": {
+            "anyOf": [
+              {
+                "maxLength": 20,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Code"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "ClassUpdate",
+        "type": "object"
+      },
+      "ClassWithStudentsOut": {
+        "properties": {
+          "assistant_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assistant Teacher"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "class_code": {
+            "title": "Class Code",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "english_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Name"
+          },
+          "english_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "English Teacher"
+          },
+          "gap": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gap"
+          },
+          "grade": {
+            "title": "Grade",
+            "type": "string"
+          },
+          "head_teacher": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Head Teacher"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "sort_order": {
+            "title": "Sort Order",
+            "type": "integer"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Students",
+            "type": "array"
+          },
+          "target_seats": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Seats"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "grade",
+          "name",
+          "class_code",
+          "english_name",
+          "head_teacher",
+          "assistant_teacher",
+          "english_teacher",
+          "target_seats",
+          "sort_order",
+          "version",
+          "students",
+          "count",
+          "gap"
+        ],
+        "title": "ClassWithStudentsOut",
         "type": "object"
       },
       "ClientErrorIn": {
@@ -7679,6 +9359,177 @@
           "last_published_at"
         ],
         "title": "ContentRevisionSummaryOut",
+        "type": "object"
+      },
+      "CruxDeviceOut": {
+        "properties": {
+          "form_factor": {
+            "enum": [
+              "phone",
+              "desktop"
+            ],
+            "title": "Form Factor",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "insufficient"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "weeks": {
+            "items": {
+              "$ref": "#/components/schemas/CruxWeekOut"
+            },
+            "title": "Weeks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "form_factor",
+          "status",
+          "weeks"
+        ],
+        "title": "CruxDeviceOut",
+        "type": "object"
+      },
+      "CruxOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/CruxDeviceOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "CruxOut",
+        "type": "object"
+      },
+      "CruxValueOut": {
+        "description": "一個指標在一個 28 天視窗的 p75（LCP、INP 單位毫秒；CLS 無單位）與好／需要改善／不佳的比例（0～1）。\n那個視窗沒有資料時四個欄位都是 null。",
+        "properties": {
+          "good": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Good"
+          },
+          "needs_improvement": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needs Improvement"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "poor": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poor"
+          }
+        },
+        "required": [
+          "p75",
+          "good",
+          "needs_improvement",
+          "poor"
+        ],
+        "title": "CruxValueOut",
+        "type": "object"
+      },
+      "CruxWeekOut": {
+        "properties": {
+          "cls": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          },
+          "inp": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          },
+          "last_date": {
+            "format": "date",
+            "title": "Last Date",
+            "type": "string"
+          },
+          "lcp": {
+            "$ref": "#/components/schemas/CruxValueOut"
+          }
+        },
+        "required": [
+          "last_date",
+          "lcp",
+          "inp",
+          "cls"
+        ],
+        "title": "CruxWeekOut",
         "type": "object"
       },
       "DisplayNameUpdateRequest": {
@@ -9563,6 +11414,33 @@
         "title": "EnrollmentHistoryRowOut",
         "type": "object"
       },
+      "EnterRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "EnterRequest",
+        "type": "object"
+      },
       "ErrorGroupListOut": {
         "properties": {
           "items": {
@@ -9875,6 +11753,10 @@
           "counts": {
             "$ref": "#/components/schemas/FacebookPostCounts"
           },
+          "instagram_enabled": {
+            "title": "Instagram Enabled",
+            "type": "boolean"
+          },
           "posts": {
             "items": {
               "$ref": "#/components/schemas/FacebookPostOut"
@@ -9899,6 +11781,7 @@
         },
         "required": [
           "configured",
+          "instagram_enabled",
           "sync_seconds",
           "sync",
           "counts",
@@ -9976,6 +11859,14 @@
             "title": "Posted At",
             "type": "string"
           },
+          "source": {
+            "enum": [
+              "facebook",
+              "instagram"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
           "status": {
             "enum": [
               "new",
@@ -9989,6 +11880,7 @@
         "required": [
           "id",
           "campus_key",
+          "source",
           "message",
           "posted_at",
           "permalink_url",
@@ -10016,6 +11908,16 @@
       },
       "FacebookSyncStatusOut": {
         "properties": {
+          "instagram": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstagramSyncStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "last_attempt_at": {
             "anyOf": [
               {
@@ -10067,7 +11969,8 @@
           "last_attempt_at",
           "last_success_at",
           "last_error",
-          "last_count"
+          "last_count",
+          "instagram"
         ],
         "title": "FacebookSyncStatusOut",
         "type": "object"
@@ -10083,6 +11986,17 @@
             "default": false,
             "title": "Password Reset Email",
             "type": "boolean"
+          },
+          "public_site_origin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Site Origin"
           }
         },
         "required": [
@@ -10692,6 +12606,74 @@
         "title": "FunnelSourceOut",
         "type": "object"
       },
+      "GapBlockOut": {
+        "properties": {
+          "achievement": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Achievement",
+            "type": "object"
+          },
+          "gap": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Gap",
+            "type": "object"
+          },
+          "rows": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "integer"
+              },
+              "type": "object"
+            },
+            "title": "Rows",
+            "type": "object"
+          },
+          "targets": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Targets",
+            "type": "object"
+          },
+          "tier": {
+            "$ref": "#/components/schemas/TierOut"
+          }
+        },
+        "required": [
+          "rows",
+          "targets",
+          "achievement",
+          "gap",
+          "tier"
+        ],
+        "title": "GapBlockOut",
+        "type": "object"
+      },
       "GoogleLinkStart": {
         "properties": {
           "authorize_url": {
@@ -10721,6 +12703,34 @@
           "count"
         ],
         "title": "GradeCountOut",
+        "type": "object"
+      },
+      "GradeTotalOut": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "new": {
+            "title": "New",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "returning": {
+            "title": "Returning",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "returning",
+          "new",
+          "pending"
+        ],
+        "title": "GradeTotalOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -11220,6 +13230,65 @@
           "history"
         ],
         "title": "ImportStatusOut",
+        "type": "object"
+      },
+      "InstagramSyncStatusOut": {
+        "description": "同一次同步裡 Instagram 那一段的結果；失敗不影響 Facebook 那一段。",
+        "properties": {
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Count"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "last_attempt_at",
+          "last_success_at",
+          "last_error",
+          "last_count"
+        ],
+        "title": "InstagramSyncStatusOut",
         "type": "object"
       },
       "IntakePlanOut": {
@@ -11872,6 +13941,140 @@
         "title": "JourneyWithdrawnOut",
         "type": "object"
       },
+      "LeaveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "left_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Date"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "LeaveRequest",
+        "type": "object"
+      },
+      "LineAccountOut": {
+        "description": "一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。",
+        "properties": {
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "quota": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineQuotaOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quota_error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quota Error Status"
+          },
+          "webhook_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Webhook Url"
+          }
+        },
+        "required": [
+          "key",
+          "webhook_url",
+          "display_name",
+          "basic_id",
+          "quota"
+        ],
+        "title": "LineAccountOut",
+        "type": "object"
+      },
+      "LineCampusClicksOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "line_clicks": {
+            "title": "Line Clicks",
+            "type": "integer"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "line_clicks",
+          "linked"
+        ],
+        "title": "LineCampusClicksOut",
+        "type": "object"
+      },
       "LineCampusTargetOut": {
         "properties": {
           "campus_key": {
@@ -11922,12 +14125,162 @@
         "title": "LineCampusTargetUpdate",
         "type": "object"
       },
+      "LineFollowerAccountOut": {
+        "description": "一個 LINE 官方帳號在期間內的好友數（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵。",
+        "properties": {
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "blocks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocks"
+          },
+          "blocks_change": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocks Change"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "followers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Followers"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "new_followers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "New Followers"
+          },
+          "ready": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready"
+          },
+          "targeted_reaches": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Targeted Reaches"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "display_name",
+          "basic_id",
+          "from_date",
+          "to_date"
+        ],
+        "title": "LineFollowerAccountOut",
+        "type": "object"
+      },
       "LineGroupOut": {
         "properties": {
+          "digest_enabled": {
+            "default": true,
+            "title": "Digest Enabled",
+            "type": "boolean"
+          },
           "first_seen_at": {
             "format": "date-time",
             "title": "First Seen At",
             "type": "string"
+          },
+          "is_hq": {
+            "default": false,
+            "title": "Is Hq",
+            "type": "boolean"
+          },
+          "kinds": {
+            "default": [
+              "visit_request_created",
+              "visit_request_confirmed",
+              "visit_request_rescheduled",
+              "visit_request_cancelled"
+            ],
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
           },
           "last_seen_at": {
             "format": "date-time",
@@ -11945,6 +14298,11 @@
               }
             ],
             "title": "Left At"
+          },
+          "mention_all_same_day": {
+            "default": true,
+            "title": "Mention All Same Day",
+            "type": "boolean"
           },
           "name": {
             "anyOf": [
@@ -11990,6 +14348,78 @@
         "title": "LineGroupOut",
         "type": "object"
       },
+      "LineGroupSettingsUpdate": {
+        "properties": {
+          "digest_enabled": {
+            "title": "Digest Enabled",
+            "type": "boolean"
+          },
+          "is_hq": {
+            "title": "Is Hq",
+            "type": "boolean"
+          },
+          "kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kinds",
+            "type": "array"
+          },
+          "mention_all_same_day": {
+            "title": "Mention All Same Day",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "kinds",
+          "digest_enabled",
+          "mention_all_same_day",
+          "is_hq"
+        ],
+        "title": "LineGroupSettingsUpdate",
+        "type": "object"
+      },
+      "LineInsightsOut": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/LineFollowerAccountOut"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/LineCampusClicksOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "end": {
+            "format": "date",
+            "title": "End",
+            "type": "string"
+          },
+          "start": {
+            "format": "date",
+            "title": "Start",
+            "type": "string"
+          }
+        },
+        "required": [
+          "configured",
+          "start",
+          "end",
+          "accounts",
+          "campuses"
+        ],
+        "title": "LineInsightsOut",
+        "type": "object"
+      },
       "LineLinkStart": {
         "properties": {
           "authorize_url": {
@@ -12003,8 +14433,101 @@
         "title": "LineLinkStart",
         "type": "object"
       },
+      "LineParentCampusOut": {
+        "properties": {
+          "account_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Key"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "linked_upcoming": {
+            "title": "Linked Upcoming",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "account_key",
+          "linked_upcoming"
+        ],
+        "title": "LineParentCampusOut",
+        "type": "object"
+      },
+      "LineParentCampusUpdate": {
+        "properties": {
+          "account_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Key"
+          }
+        },
+        "required": [
+          "account_key"
+        ],
+        "title": "LineParentCampusUpdate",
+        "type": "object"
+      },
+      "LineQuotaOut": {
+        "properties": {
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "used": {
+            "title": "Used",
+            "type": "integer"
+          },
+          "warning": {
+            "title": "Warning",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "limit",
+          "used",
+          "warning"
+        ],
+        "title": "LineQuotaOut",
+        "type": "object"
+      },
       "LineSettingsOut": {
         "properties": {
+          "accounts": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineAccountOut"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
           "enabled": {
             "title": "Enabled",
             "type": "boolean"
@@ -12014,6 +14537,14 @@
               "$ref": "#/components/schemas/LineGroupOut"
             },
             "title": "Groups",
+            "type": "array"
+          },
+          "parent_campuses": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineParentCampusOut"
+            },
+            "title": "Parent Campuses",
             "type": "array"
           },
           "targets": {
@@ -13830,6 +16361,107 @@
         "title": "ParentDetailsUpdate",
         "type": "object"
       },
+      "ParentLineCodeOut": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "add_friend_url": {
+            "title": "Add Friend Url",
+            "type": "string"
+          },
+          "basic_id": {
+            "title": "Basic Id",
+            "type": "string"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "message_url": {
+            "title": "Message Url",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "expires_at",
+          "message_url",
+          "text",
+          "basic_id",
+          "add_friend_url"
+        ],
+        "title": "ParentLineCodeOut",
+        "type": "object"
+      },
+      "ParentLineNotifyOut": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "add_friend_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Add Friend Url"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "basic_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Basic Id"
+          },
+          "linked": {
+            "title": "Linked",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "linked"
+        ],
+        "title": "ParentLineNotifyOut",
+        "type": "object"
+      },
       "ParentRescheduleRequest": {
         "properties": {
           "slot_id": {
@@ -14189,6 +16821,71 @@
           "expires_at"
         ],
         "title": "PasswordResetVerifyOut",
+        "type": "object"
+      },
+      "PendingFields": {
+        "additionalProperties": false,
+        "description": "補登預繳未入園時共用的欄位（一次貼多個姓名共用同一組）。",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "deposit_date": {
+            "format": "date",
+            "title": "Deposit Date",
+            "type": "string"
+          },
+          "grade": {
+            "enum": [
+              "幼幼班",
+              "小班",
+              "中班",
+              "大班"
+            ],
+            "title": "Grade",
+            "type": "string"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "target_school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "Target School Year",
+            "type": "integer"
+          },
+          "target_semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Target Semester",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "grade",
+          "target_school_year",
+          "target_semester",
+          "deposit_date"
+        ],
+        "title": "PendingFields",
         "type": "object"
       },
       "PendingNowOut": {
@@ -15075,6 +17772,11 @@
               }
             ],
             "title": "External Url"
+          },
+          "line_notify_enabled": {
+            "default": false,
+            "title": "Line Notify Enabled",
+            "type": "boolean"
           },
           "line_url": {
             "anyOf": [
@@ -17052,6 +19754,33 @@
         "title": "RecruitmentVisitUpdate",
         "type": "object"
       },
+      "RefundRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "refunded_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded Date"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RefundRequest",
+        "type": "object"
+      },
       "ReleaseChangeOut": {
         "properties": {
           "campus_key": {
@@ -17256,6 +19985,43 @@
         "title": "ReleaseRestoreRequest",
         "type": "object"
       },
+      "RememberedVisitOut": {
+        "description": "這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、\nEmail——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "end_time": {
+            "format": "time",
+            "title": "End Time",
+            "type": "string"
+          },
+          "slot_date": {
+            "format": "date",
+            "title": "Slot Date",
+            "type": "string"
+          },
+          "start_time": {
+            "format": "time",
+            "title": "Start Time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "slot_date",
+          "start_time",
+          "end_time"
+        ],
+        "title": "RememberedVisitOut",
+        "type": "object"
+      },
       "ResendConfirmationOut": {
         "description": "重寄確認信：已排入寄信佇列（實際寄出由定期工作處理）。",
         "properties": {
@@ -17268,6 +20034,34 @@
           "queued"
         ],
         "title": "ResendConfirmationOut",
+        "type": "object"
+      },
+      "RestoreRequest": {
+        "additionalProperties": false,
+        "description": "已退預繳的恢復成還沒編班（忽略 class_id）；已離園的恢復成在籍，要選一個班。",
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "RestoreRequest",
         "type": "object"
       },
       "RetentionCountsOut": {
@@ -17659,6 +20453,112 @@
         "title": "Role",
         "type": "string"
       },
+      "RosterOut": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/ClassWithStudentsOut"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/GapBlockOut"
+          },
+          "gone": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Gone",
+            "type": "array"
+          },
+          "grade_totals": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/GradeTotalOut"
+            },
+            "title": "Grade Totals",
+            "type": "object"
+          },
+          "incomplete": {
+            "title": "Incomplete",
+            "type": "integer"
+          },
+          "missing_birthday": {
+            "title": "Missing Birthday",
+            "type": "integer"
+          },
+          "next": {
+            "$ref": "#/components/schemas/GapBlockOut"
+          },
+          "next_year": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Next Year",
+            "type": "array"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "snapshots": {
+            "items": {
+              "$ref": "#/components/schemas/SnapshotOut"
+            },
+            "title": "Snapshots",
+            "type": "array"
+          },
+          "today": {
+            "format": "date",
+            "title": "Today",
+            "type": "string"
+          },
+          "unassigned": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Unassigned",
+            "type": "array"
+          },
+          "underage_enrolled": {
+            "title": "Underage Enrolled",
+            "type": "integer"
+          },
+          "underage_pending": {
+            "title": "Underage Pending",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "school_year",
+          "today",
+          "as_of",
+          "classes",
+          "unassigned",
+          "next_year",
+          "gone",
+          "grade_totals",
+          "current",
+          "next",
+          "underage_enrolled",
+          "underage_pending",
+          "missing_birthday",
+          "incomplete",
+          "snapshots"
+        ],
+        "title": "RosterOut",
+        "type": "object"
+      },
       "ScheduleRequest": {
         "properties": {
           "publish_at": {
@@ -17677,6 +20577,243 @@
           "publish_at"
         ],
         "title": "ScheduleRequest",
+        "type": "object"
+      },
+      "SearchDeviceRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "device": {
+            "enum": [
+              "mobile",
+              "desktop",
+              "tablet"
+            ],
+            "title": "Device",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          }
+        },
+        "required": [
+          "device",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchDeviceRowOut",
+        "type": "object"
+      },
+      "SearchInsightsOut": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/SearchDeviceRowOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/SearchPageRowOut"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "queries": {
+            "items": {
+              "$ref": "#/components/schemas/SearchQueryRowOut"
+            },
+            "title": "Queries",
+            "type": "array"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "totals": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchMetricsOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "configured"
+        ],
+        "title": "SearchInsightsOut",
+        "type": "object"
+      },
+      "SearchMetricsOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctr"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "required": [
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchMetricsOut",
+        "type": "object"
+      },
+      "SearchPageRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          }
+        },
+        "required": [
+          "page",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchPageRowOut",
+        "type": "object"
+      },
+      "SearchQueryRowOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "title": "Ctr",
+            "type": "number"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "title": "Position",
+            "type": "number"
+          },
+          "query": {
+            "title": "Query",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchQueryRowOut",
         "type": "object"
       },
       "SeatOut": {
@@ -18004,6 +21141,628 @@
           "rarely_booked_rate"
         ],
         "title": "SlotUsageThresholdsOut",
+        "type": "object"
+      },
+      "SnapshotOut": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "enrolled": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Enrolled",
+            "type": "object"
+          },
+          "estimate_total": {
+            "title": "Estimate Total",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "total_enrolled": {
+            "title": "Total Enrolled",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "as_of",
+          "enrolled",
+          "total_enrolled",
+          "estimate_total",
+          "created_at"
+        ],
+        "title": "SnapshotOut",
+        "type": "object"
+      },
+      "SnapshotRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "as_of"
+        ],
+        "title": "SnapshotRequest",
+        "type": "object"
+      },
+      "StudentMove": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "position": {
+            "minimum": 0.0,
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "class_id",
+          "position",
+          "expected_version"
+        ],
+        "title": "StudentMove",
+        "type": "object"
+      },
+      "StudentOut": {
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "board_notice": {
+            "anyOf": [
+              {
+                "enum": [
+                  "deposit_removed",
+                  "enrolled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Board Notice"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "child_name": {
+            "title": "Child Name",
+            "type": "string"
+          },
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "deposit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Date"
+          },
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "from_funnel": {
+            "title": "From Funnel",
+            "type": "boolean"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_indigenous": {
+            "title": "Is Indigenous",
+            "type": "boolean"
+          },
+          "is_new": {
+            "title": "Is New",
+            "type": "boolean"
+          },
+          "is_new_manual": {
+            "title": "Is New Manual",
+            "type": "boolean"
+          },
+          "is_special_education": {
+            "title": "Is Special Education",
+            "type": "boolean"
+          },
+          "is_underage": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Underage"
+          },
+          "left_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Left Date"
+          },
+          "next_year": {
+            "title": "Next Year",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "refunded_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refunded Date"
+          },
+          "school_year": {
+            "title": "School Year",
+            "type": "integer"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "underage_manual": {
+            "title": "Underage Manual",
+            "type": "boolean"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "school_year",
+          "class_id",
+          "position",
+          "grade",
+          "child_name",
+          "birthday",
+          "note",
+          "status",
+          "enrollment_date",
+          "planned_entry_date",
+          "deposit_date",
+          "left_date",
+          "refunded_date",
+          "target_school_year",
+          "target_semester",
+          "is_special_education",
+          "is_indigenous",
+          "is_new_manual",
+          "underage_manual",
+          "next_year",
+          "from_funnel",
+          "version",
+          "is_new",
+          "is_underage",
+          "board_notice"
+        ],
+        "title": "StudentOut",
+        "type": "object"
+      },
+      "StudentUpdate": {
+        "additionalProperties": false,
+        "description": "只送要改的欄位。可以清空的只有 birthday、note、enrollment_date、planned_entry_date。",
+        "properties": {
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "maxLength": 50,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "deposit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Date"
+          },
+          "enrollment_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enrollment Date"
+          },
+          "expected_version": {
+            "minimum": 1.0,
+            "title": "Expected Version",
+            "type": "integer"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "enum": [
+                  "幼幼班",
+                  "小班",
+                  "中班",
+                  "大班"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "is_indigenous": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Indigenous"
+          },
+          "is_new_manual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is New Manual"
+          },
+          "is_special_education": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Special Education"
+          },
+          "next_year": {
+            "anyOf": [
+              {
+                "enum": [
+                  "continue",
+                  "leave",
+                  "repeat"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Year"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 1000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "planned_entry_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Entry Date"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "maximum": 200.0,
+                "minimum": 100.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "maximum": 2.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "underage_manual": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underage Manual"
+          }
+        },
+        "required": [
+          "expected_version"
+        ],
+        "title": "StudentUpdate",
+        "type": "object"
+      },
+      "StudentsCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "class_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Class Id"
+          },
+          "names": {
+            "items": {
+              "maxLength": 500,
+              "type": "string"
+            },
+            "maxItems": 60,
+            "minItems": 1,
+            "title": "Names",
+            "type": "array"
+          },
+          "pending": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PendingFields"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "school_year",
+          "names"
+        ],
+        "title": "StudentsCreate",
+        "type": "object"
+      },
+      "StudentsCreated": {
+        "properties": {
+          "duplicates": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Duplicates",
+            "type": "array"
+          },
+          "students": {
+            "items": {
+              "$ref": "#/components/schemas/StudentOut"
+            },
+            "title": "Students",
+            "type": "array"
+          }
+        },
+        "required": [
+          "students",
+          "duplicates"
+        ],
+        "title": "StudentsCreated",
         "type": "object"
       },
       "SubmitReviewRequest": {
@@ -18406,6 +22165,158 @@
           "registered"
         ],
         "title": "TermRowIn",
+        "type": "object"
+      },
+      "TierOut": {
+        "properties": {
+          "base": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "boost": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boost"
+          },
+          "next": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "boost",
+                  "top"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next"
+          },
+          "reached": {
+            "anyOf": [
+              {
+                "enum": [
+                  "base",
+                  "boost",
+                  "top"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reached"
+          },
+          "short": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          }
+        },
+        "required": [
+          "base",
+          "boost",
+          "top",
+          "reached",
+          "next",
+          "short"
+        ],
+        "title": "TierOut",
+        "type": "object"
+      },
+      "TierTargetsRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "base": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base"
+          },
+          "boost": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Boost"
+          },
+          "school_year": {
+            "maximum": 200.0,
+            "minimum": 100.0,
+            "title": "School Year",
+            "type": "integer"
+          },
+          "semester": {
+            "maximum": 2.0,
+            "minimum": 1.0,
+            "title": "Semester",
+            "type": "integer"
+          },
+          "top": {
+            "anyOf": [
+              {
+                "maximum": 9999.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top"
+          }
+        },
+        "required": [
+          "school_year",
+          "semester"
+        ],
+        "title": "TierTargetsRequest",
         "type": "object"
       },
       "TokenExchangeRequest": {
@@ -19135,6 +23046,11 @@
           "with_email": {
             "title": "With Email",
             "type": "integer"
+          },
+          "with_line": {
+            "default": 0,
+            "title": "With Line",
+            "type": "integer"
           }
         },
         "required": [
@@ -19706,10 +23622,17 @@
             "title": "Consent Revision Id"
           },
           "email": {
-            "format": "email",
-            "maxLength": 254,
-            "title": "Email",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "email",
+                "maxLength": 254,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
           },
           "expected_start": {
             "anyOf": [
@@ -19816,7 +23739,6 @@
           "campus_key",
           "parent_name",
           "phone",
-          "email",
           "slot_id",
           "config_version"
         ],
@@ -20006,6 +23928,51 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -20022,6 +23989,51 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_name": {
             "title": "Parent Name",
@@ -20414,6 +24426,51 @@
             ],
             "title": "Expected Start"
           },
+          "first_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Ad Platform"
+          },
+          "first_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Campaign"
+          },
+          "first_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch On"
+          },
+          "first_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Touch Source"
+          },
           "follow_up_at": {
             "anyOf": [
               {
@@ -20437,6 +24494,51 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "last_touch_ad_platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Ad Platform"
+          },
+          "last_touch_campaign": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Campaign"
+          },
+          "last_touch_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch On"
+          },
+          "last_touch_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Touch Source"
           },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",
@@ -21335,6 +25437,370 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/ad-roi": {
+      "get": {
+        "description": "各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。\n只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。",
+        "operationId": "get_ad_roi_api_website_v1_admin_admissions_ad_roi_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "title": "From",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "title": "To",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "touch",
+            "required": false,
+            "schema": {
+              "default": "last",
+              "enum": [
+                "last",
+                "first"
+              ],
+              "title": "Touch",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdRoiOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ad Roi",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/ad-spend": {
+      "get": {
+        "description": "列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。",
+        "operationId": "list_ad_spend_api_website_v1_admin_admissions_ad_spend_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdSpendListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/ad-spend/{month}/{platform}": {
+      "delete": {
+        "operationId": "delete_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      },
+      "put": {
+        "description": "新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），\n稽核帶更新前的金額。",
+        "operationId": "put_ad_spend_api_website_v1_admin_admissions_ad_spend__month___platform__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "month",
+            "required": true,
+            "schema": {
+              "title": "Month",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "platform",
+            "required": true,
+            "schema": {
+              "title": "Platform",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdSpendIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdSpendEntryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Put Ad Spend",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/area": {
       "get": {
         "description": "區域分析（2026-10-08 區域分析規格 §8.1）：行政區／里／距離分組的參觀與預繳人數。\n母體同 /stats。只讀，不寫稽核；不含家長個資。",
@@ -21682,6 +26148,171 @@
           }
         },
         "summary": "Get Admissions Area Changes",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/children-history": {
+      "get": {
+        "description": "歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）：本校半徑內各里歷年九月底與最新月份的 2–5 歲人數。\n只讀，不寫稽核；只有里層級的公開人口資料。",
+        "operationId": "get_admissions_area_children_history_api_website_v1_admin_admissions_area_children_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaChildrenHistoryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Children History",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/compare": {
+      "get": {
+        "description": "五校周邊環境比較（2026-11-16 規格 §6）：每校半徑內的 2–5 歲孩子、一年增減、附近幼兒園與托嬰家數、本校 3 歲收費\n排名、近 12 個月異動件數。權限同 /compare（只列授權範圍內的校區）；各校各自成敗。只讀，不寫稽核。",
+        "operationId": "get_admissions_area_compare_api_website_v1_admin_admissions_area_compare_get",
+        "parameters": [
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaCompareOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Compare",
         "tags": [
           "admissions"
         ]
@@ -25901,6 +30532,1116 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/roster": {
+      "get": {
+        "description": "整張編班表、預繳名單與缺額統計。名單永遠是現在的狀態；統計數字跟著 as_of 回算。",
+        "operationId": "get_roster_api_website_v1_admin_admissions_roster_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "school_year",
+            "required": true,
+            "schema": {
+              "maximum": 999,
+              "minimum": 1,
+              "title": "School Year",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "as_of",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "As Of"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RosterOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Roster",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/classes": {
+      "post": {
+        "operationId": "create_class_api_website_v1_admin_admissions_roster_classes_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/classes/{class_id}": {
+      "delete": {
+        "operationId": "delete_class_api_website_v1_admin_admissions_roster_classes__class_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expected_version",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Expected Version",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      },
+      "patch": {
+        "operationId": "update_class_api_website_v1_admin_admissions_roster_classes__class_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "class_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Class Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClassOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Class",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/snapshots": {
+      "post": {
+        "operationId": "create_snapshot_api_website_v1_admin_admissions_roster_snapshots_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SnapshotRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SnapshotOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Snapshot",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students": {
+      "post": {
+        "operationId": "create_students_api_website_v1_admin_admissions_roster_students_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentsCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentsCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Students",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}": {
+      "patch": {
+        "operationId": "update_student_api_website_v1_admin_admissions_roster_students__student_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/enter": {
+      "post": {
+        "operationId": "enter_student_api_website_v1_admin_admissions_roster_students__student_id__enter_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EnterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Enter Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/leave": {
+      "post": {
+        "operationId": "leave_student_api_website_v1_admin_admissions_roster_students__student_id__leave_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LeaveRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Leave Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/move": {
+      "post": {
+        "operationId": "move_student_api_website_v1_admin_admissions_roster_students__student_id__move_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StudentMove"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Move Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/refund": {
+      "post": {
+        "operationId": "refund_student_api_website_v1_admin_admissions_roster_students__student_id__refund_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Refund Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/students/{student_id}/restore": {
+      "post": {
+        "operationId": "restore_student_api_website_v1_admin_admissions_roster_students__student_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "student_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Student Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StudentOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Student",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/roster/tier-targets": {
+      "put": {
+        "operationId": "save_tier_targets_api_website_v1_admin_admissions_roster_tier_targets_put",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TierTargetsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TierOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Tier Targets",
+        "tags": [
+          "admissions-roster"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/staff": {
       "get": {
         "description": "可以當這個校區追蹤負責人的帳號（規格 6.4、9）：啟用中、有 admissions.write、涵蓋該校區。",
@@ -26109,6 +31850,144 @@
         "summary": "Get Admissions Stats",
         "tags": [
           "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/booking-attribution": {
+      "get": {
+        "description": "官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。",
+        "operationId": "get_booking_attribution_api_website_v1_admin_analytics_booking_attribution_get",
+        "parameters": [
+          {
+            "description": "送出日期起（台北，含），省略＝不限",
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期起（台北，含），省略＝不限",
+              "title": "From"
+            }
+          },
+          {
+            "description": "送出日期迄（台北，含），省略＝不限",
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "送出日期迄（台北，含），省略＝不限",
+              "title": "To"
+            }
+          },
+          {
+            "description": "first＝第一次進站；last＝預約前最後一次不是直接進站",
+            "in": "query",
+            "name": "touch",
+            "required": false,
+            "schema": {
+              "default": "last",
+              "description": "first＝第一次進站；last＝預約前最後一次不是直接進站",
+              "enum": [
+                "first",
+                "last"
+              ],
+              "title": "Touch",
+              "type": "string"
+            }
+          },
+          {
+            "description": "只看一校；省略＝授權範圍內的全部校區",
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只看一校；省略＝授權範圍內的全部校區",
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingAttributionOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Booking Attribution",
+        "tags": [
+          "operations"
         ]
       }
     },
@@ -28928,6 +34807,72 @@
         ]
       }
     },
+    "/api/website/v1/admin/crux": {
+      "get": {
+        "description": "Chrome 真實使用者的 LCP、INP、CLS（官網 origin，手機與電腦各一份，最近 25 週）。",
+        "operationId": "get_crux_api_website_v1_admin_crux_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CruxOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Crux",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/website/v1/admin/dashboard": {
       "get": {
         "operationId": "get_dashboard_api_website_v1_admin_dashboard_get",
@@ -29229,7 +35174,7 @@
     },
     "/api/website/v1/admin/facebook-posts": {
       "get": {
-        "description": "這校粉專同步進來的貼文（新到舊，最多 100 則）與同步狀態。",
+        "description": "這校粉專（與連結的 Instagram）同步進來的貼文（新到舊，最多 100 則）與同步狀態；\nsource 篩選來源，不給就是全部。",
         "operationId": "list_facebook_posts_api_website_v1_admin_facebook_posts_get",
         "parameters": [
           {
@@ -29256,6 +35201,26 @@
               ],
               "title": "Status",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "source",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "facebook",
+                    "instagram"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Source"
             }
           },
           {
@@ -29321,7 +35286,7 @@
     },
     "/api/website/v1/admin/facebook-posts/sync": {
       "post": {
-        "description": "立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error，不回錯誤碼。",
+        "description": "立即同步這一校（不等每小時的自動同步）。失敗寫在回應的 sync.last_error（Instagram 是\nsync.instagram.last_error），不回錯誤碼。",
         "operationId": "sync_facebook_posts_api_website_v1_admin_facebook_posts_sync_post",
         "parameters": [
           {
@@ -29989,6 +35954,110 @@
         ]
       }
     },
+    "/api/website/v1/admin/line-insights": {
+      "get": {
+        "description": "LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。",
+        "operationId": "get_line_insights_api_website_v1_admin_line_insights_get",
+        "parameters": [
+          {
+            "description": "台北日期（含），省略＝結束日往前 28 天",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝結束日往前 28 天",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝今天；不能是未來",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝今天；不能是未來",
+              "title": "End"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineInsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Insights",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
       "put": {
         "operationId": "update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put",
@@ -30136,6 +36205,176 @@
           }
         },
         "summary": "Send Line Test Message",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/groups/{target_id}": {
+      "put": {
+        "description": "每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。",
+        "operationId": "update_line_group_settings_api_website_v1_admin_line_groups__target_id__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineGroupSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Group Settings",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
+      "put": {
+        "description": "選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；\nmain 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。\n關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。",
+        "operationId": "update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineParentCampusUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Parent Account",
         "tags": [
           "line"
         ]
@@ -33214,6 +39453,110 @@
         "summary": "Retention Run",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/search-insights": {
+      "get": {
+        "description": "Google 搜尋成效：總計、前 25 個搜尋字詞、前 25 個頁面、裝置別。資料有 2–3 天延遲。",
+        "operationId": "get_search_insights_api_website_v1_admin_search_insights_get",
+        "parameters": [
+          {
+            "description": "台北日期（含），省略＝結束日往前 28 天",
+            "in": "query",
+            "name": "start",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝結束日往前 28 天",
+              "title": "Start"
+            }
+          },
+          {
+            "description": "台北日期（含），省略＝今天；不能是未來",
+            "in": "query",
+            "name": "end",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "台北日期（含），省略＝今天；不能是未來",
+              "title": "End"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchInsightsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Search Insights",
+        "tags": [
+          "insights"
         ]
       }
     },
@@ -38718,6 +45061,235 @@
         ]
       }
     },
+    "/api/website/v1/public/visit-manage/line-notify": {
+      "delete": {
+        "description": "不再用 LINE 接收這筆預約的通知（Email 照舊）。",
+        "operationId": "delete_parent_line_notify_api_website_v1_public_visit_manage_line_notify_delete",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Parent Line Notify",
+        "tags": [
+          "line"
+        ]
+      },
+      "get": {
+        "operationId": "get_parent_line_notify_api_website_v1_public_visit_manage_line_notify_get",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentLineNotifyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Parent Line Notify",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-manage/line-notify/code": {
+      "post": {
+        "description": "產生一次性綁定代碼（30 分鐘、用一次）。家長把它傳給官方帳號就完成綁定。",
+        "operationId": "create_parent_line_code_api_website_v1_public_visit_manage_line_notify_code_post",
+        "parameters": [
+          {
+            "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+            "in": "query",
+            "name": "visit_request_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "畫面上的案件；對不上目前 session 的案件就拒絕",
+              "title": "Visit Request Id"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_parent_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Parent Session"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentLineCodeOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Parent Line Code",
+        "tags": [
+          "line"
+        ]
+      }
+    },
     "/api/website/v1/public/visit-manage/me": {
       "get": {
         "operationId": "get_own_visit_request_api_website_v1_public_visit_manage_me_get",
@@ -38910,6 +45482,182 @@
           }
         },
         "summary": "Parent Reschedule",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-remembered": {
+      "delete": {
+        "description": "「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。",
+        "operationId": "forget_remembered_visit_api_website_v1_public_visit_remembered_delete",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Remembered Visit",
+        "tags": [
+          "parent-access"
+        ]
+      },
+      "get": {
+        "description": "只回日期、場次與校區。案件已不是「已確認」（取消、完成、未到場時連結也已撤銷）、場次已結束、\n連結被園方重新產生或過期，都當作沒有，並清掉 cookie。",
+        "operationId": "get_remembered_visit_api_website_v1_public_visit_remembered_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_visit_remember",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Visit Remember"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RememberedVisitOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "204": {
+            "description": "這台裝置沒有記住預約，或記住的那筆已失效（同時清掉 cookie）"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Remembered Visit",
+        "tags": [
+          "parent-access"
+        ]
+      }
+    },
+    "/api/website/v1/public/visit-remembered/open": {
+      "post": {
+        "description": "用記住的那條修改連結換 2 小時的家長 session（和點信裡的連結同一個流程），前端接著整頁開 /visit/manage。",
+        "operationId": "open_remembered_visit_api_website_v1_public_visit_remembered_open_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Ivy-Parent",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_visit_remember",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Visit Remember"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParentVisitRequestOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Open Remembered Visit",
         "tags": [
           "parent-access"
         ]

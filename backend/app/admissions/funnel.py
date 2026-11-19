@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import constants, records
 from app.admissions.models import RecruitmentVisit
+from app.admissions.roster import sync as roster_sync
 from app.common.timezones import today_local
 
 Stage = Literal["visited", "deposited", "enrolled", "withdrawn"]
@@ -219,6 +220,17 @@ async def transition(
     visit.version += 1
     visit.updated_at = now
     await db.flush()
+    if (from_stage, to_stage) == ("visited", "deposited") and visit.visit_request_id is not None:
+        # 預繳回傳廣告平台（2026-11-16 規格 §2）：只有從官網預約來、送單時記了點擊識別碼的才排；
+        # 退預繳後再預繳、取消退出都不重送（每案件×事件×平台唯一）。
+        from app.ad_conversions import service as ad_conversions
+        from app.booking.models import VisitRequest
+
+        visit_request = await db.get(VisitRequest, visit.visit_request_id)
+        if visit_request is not None:
+            await ad_conversions.enqueue(db, visit_request, ad_conversions.DEPOSIT_PAID, now=now)
+    # 已預繳的幼生自動進編班表等待編班（單向，編班表的動作不回頭改看板；規格 7）。
+    await roster_sync.on_stage_changed(db, visit, from_stage=from_stage, to_stage=to_stage, today=today_local())
     return from_stage
 
 

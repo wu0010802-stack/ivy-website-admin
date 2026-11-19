@@ -57,18 +57,24 @@ _MEDIA_CODE_PATTERN = re.compile(r"[A-Za-z0-9][A-Za-z0-9-]*")
 
 
 def _require_safe_media_ref(value: str) -> str:
-    """場景圖片欄位同時相容素材庫 UUID、舊 fixture 代號與外部網址
-    （見 content/registry.py 的說明）。沒有 scheme 的純代號原樣放行，
-    看起來像網址的才套允許清單。"""
-    candidate = _strip_invisible(value)
-    if ":" not in candidate:
-        # 代號會被前端拿去查圖片 manifest（一般物件），`__proto__`、
-        # `constructor` 這類鍵會查到原型而讓校區頁渲染失敗；素材代號與
-        # UUID 都只用英數與連字號，其他字元一律拒絕。
-        if candidate and not _MEDIA_CODE_PATTERN.fullmatch(candidate):
-            raise ValueError("圖片代號只能是英數字與連字號，或素材庫 UUID")
+    """場景圖片、消息封面欄位：素材庫的媒體 UUID，或官網內建圖片的代號（舊 fixture 代號，
+    官網會接成 `/assets/<代號>.webp`）。外部網址、路徑、含空白的值接成 `/assets/…` 一定
+    破圖，所以不收；原本因為「看起來像網址的套允許清單」放行 https:// 網址，那條路是破圖的來源。
+
+    代號會被前端拿去查圖片 manifest（一般物件），`__proto__`、`constructor` 這類鍵會查到
+    原型而讓校區頁渲染失敗；素材代號與 UUID 都只用英數與連字號，其他字元（含前後空白）一律
+    拒絕，比對的是原始值，不先清掉不可見字元。後端沒有官網圖片 manifest，不檢查代號本身存不存在。
+    UUID 一律存成小寫標準寫法（官網用有連字號的格式辨認素材庫的圖）。"""
+    if value == "":
         return value
-    return _require_safe_url(value)
+    if not _MEDIA_CODE_PATTERN.fullmatch(value):
+        if "/" in value or ":" in value:
+            raise ValueError("圖片請從素材庫選擇，不能直接填網址或路徑")
+        raise ValueError("圖片代號只能是英數字與連字號，或素材庫 UUID")
+    try:
+        return str(uuid.UUID(value))
+    except ValueError:
+        return value
 
 
 # 內容欄位會被公開 API 整份聚合、每個頁面的 SSR 都帶著跑，所以每個文字

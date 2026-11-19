@@ -1,3 +1,5 @@
+import { ENTRANCE_SEEN_COOKIE, seenCookieTest, seenCookieWrite } from './seen-cookie'
+
 export const ENTRANCE_SESSION_KEY = 'ivy-entrance-a-seen'
 
 // Stills of the WebGL curtain's first frame (progress 0), one per aspect band.
@@ -36,7 +38,12 @@ export const entranceBootstrap = `(()=>{
     if(matchMedia('(prefers-reduced-motion: reduce)').matches||matchMedia('(forced-colors: active)').matches)return;
     const c=navigator.connection;
     if(c&&(c.saveData||/^(slow-2g|2g|3g)$/.test(c.effectiveType||'')))return;
-    try{if(sessionStorage.getItem('${ENTRANCE_SESSION_KEY}')==='1')return;sessionStorage.setItem('${ENTRANCE_SESSION_KEY}','1')}catch{}
+    // 30 天內回訪（cookie）或同一分頁看過（sessionStorage 後備）都不再播；播的這一刻兩個一起記。
+    // 伺服器看到 cookie 時根本不輸出這支 script（pages/index.vue），這裡是 SSR 之外的保險。
+    if(${seenCookieTest(ENTRANCE_SEEN_COOKIE)})return;
+    try{if(sessionStorage.getItem('${ENTRANCE_SESSION_KEY}')==='1')return}catch{}
+    try{sessionStorage.setItem('${ENTRANCE_SESSION_KEY}','1')}catch{}
+    ${seenCookieWrite(ENTRANCE_SEEN_COOKIE)}
     window.__ivyEntranceSeen=true;
     document.documentElement.dataset.ivyEntrance='pending';
     document.documentElement.dataset.ivyEntranceStarted=String(Date.now());

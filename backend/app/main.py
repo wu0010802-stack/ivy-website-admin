@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -15,6 +16,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+# 回傳廣告平台的待送表（2026-11-16）只在函式內匯入，這裡先註冊模型（schema 比對、測試清表都靠 Base.metadata）。
+from app.ad_conversions import models as _ad_conversion_models  # noqa: F401
 from app.auth.routes import router as auth_router
 from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware
@@ -26,13 +29,19 @@ from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.admissions.geo import boundaries as geo_boundaries
+from app.admissions.ad_roi_routes import router as admissions_ad_roi_router
 from app.admissions.import_routes import router as admissions_import_router
+from app.admissions.roster.routes import router as admissions_roster_router
 from app.admissions.routes import router as admissions_router
 from app.booking.routes import router as booking_router
 from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
 from app.contact_phrases.routes import router as contact_phrases_router
 from app.facebook.routes import router as facebook_router
+from app.insights.crux import CruxHistory
+from app.insights.ga4_ads import Ga4Ads
+from app.insights.routes import router as insights_router
+from app.insights.search_console import SearchConsole
 from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -68,6 +77,24 @@ def _error_body(detail, request_id: str | None) -> dict:
     if request_id:
         body["request_id"] = request_id
     return body
+
+
+def _json_safe(value):
+    """把 422 要帶回去的原始輸入整理成一定寫得出去的 JSON。
+
+    json.loads 會收孤立的 surrogate（"\\ud800"）與 1e999／NaN／Infinity，pydantic 退回時
+    把原值放進 errors() 的 input；這些值編不成 UTF-8、JSONResponse（allow_nan=False）也
+    寫不出去，回應就從 422 變成 500——匿名訪客能藉此在系統狀態頁製造錯誤群組、觸發
+    總管理者推播（2026-11-12 QA M1）。編不出去的字元換成 U+FFFD，非有限數字換成 None。"""
+    if isinstance(value, str):
+        return value.encode("utf-8", "replace").decode("utf-8", "replace") if not value.isascii() else value
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, dict):
+        return {_json_safe(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
 
 
 def _error_response(request: Request, status_code: int, detail, headers: dict | None = None) -> JSONResponse:
@@ -111,7 +138,7 @@ def _register_exception_handlers(app: FastAPI) -> None:
             "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
         )
         return _error_response(
-            request, status.HTTP_422_UNPROCESSABLE_ENTITY, jsonable_encoder(exc.errors())
+            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _json_safe(jsonable_encoder(exc.errors()))
         )
 
     @app.exception_handler(SQLAlchemyError)
@@ -201,6 +228,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.geo_sync = None
     app.state.facebook_sync = None
     app.state.facebook_transport = None
+    # Search Console 與 CrUX（app/insights）：權杖與結果快取各自在這兩個物件裡，測試注入 google_transport。
+    app.state.search_console = SearchConsole()
+    app.state.crux = CruxHistory()
+    app.state.ga4_ads = Ga4Ads()
+    app.state.google_transport = None
     app.state.settings = settings
     app.state.engine = create_engine(settings)
     app.state.session_factory: async_sessionmaker = create_session_factory(
@@ -263,10 +295,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(operations_router)
     app.include_router(contact_phrases_router)
     app.include_router(facebook_router)
+    app.include_router(insights_router)
     if settings.admissions_enabled:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)
         app.include_router(admissions_import_router)
+        app.include_router(admissions_ad_roi_router)
+        app.include_router(admissions_roster_router)
 
     return app
 

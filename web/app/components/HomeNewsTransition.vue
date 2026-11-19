@@ -188,4 +188,8 @@ useNewsTransition(root, previous, paper)
   .news-transition :deep(.home-news)::before,
   .news-transition :deep(.home-news)::after { display: none; }
 }
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (overflow:clip) {
+  .news-transition[data-news-motion]:not([data-news-motion="off"]) .news-transition-sheet { overflow: hidden; }
+}
 </style>

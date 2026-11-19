@@ -87,13 +87,24 @@ const source = computed(() => {
   min-width: 0;
 }
 
+/* 家長稱呼、孩子姓名、登錄者與最後處理的人都是使用者輸入的字：很長又沒有空格時（390px 寬會把頁面
+   撐出橫向捲軸）讓它在任何位置斷行，整串字照樣讀得到，不用省略號吃掉姓名。 */
 .detail__title {
+  min-width: 0;
   font-size: var(--text-4xl);
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .case-hero__sub {
+  min-width: 0;
   margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.detail__handled {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .detail__when {

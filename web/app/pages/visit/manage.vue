@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useParentVisit } from '~/composables/useParentVisit'
-import { changeDeadlineRule, expectedStartOptions, expectedStartText, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
+import { changeDeadlineRule, earliestChildBirthdate, expectedStartOptions, expectedStartText, focusNextFieldOnEnter, taipeiDate, type VisitErrors } from '~/utils/visit-form'
 import { slotRange, slotWhen } from '~/utils/visit-session'
 import { shortDateLabel, slotCountsByDate } from '~/utils/visit-month'
 import { editBaseFrom, editedChanges, rebaseEdit, validateEdit, type EditForm } from '~/utils/visit-edit'
@@ -68,7 +68,10 @@ function consumeLink(initial = false) {
   if (!initial && !token) return
   // fragment 只用來交換 HttpOnly session。用 router.replace 清掉：router 自己記著目前位置（含 token），
   // 只改瀏覽器網址的話，之後任何導覽寫進 history.state 的 back／current 還是帶著 token。
-  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '' })
+  // force：同一個分頁再開第二條連結（或改了 hash）時，router 記的位置還是上次清乾淨的那個，目標和它
+  // 一模一樣；不加 force 會被當成重複導覽直接略過，還順便取消瀏覽器那次換 hash 的導覽——token 就留在
+  // 網址列、history.state 與上一頁裡（2026-11-12 QA M6）。
+  if (window.location.hash) void router.replace({ path: route.path, query: route.query, hash: '', force: true })
   showCancel.value = false
   showReschedule.value = false
   showEdit.value = false
@@ -215,7 +218,7 @@ async function submitEdit() {
               <div><dt>家長稱呼</dt><dd>{{ visit.parent_name }}</dd></div>
               <div><dt>聯絡手機</dt><dd>{{ visit.phone }}</dd></div>
               <div v-if="visit.email"><dt>Email</dt><dd>{{ visit.email }}</dd></div>
-              <div v-if="visit.child_name"><dt>孩子姓名</dt><dd>{{ visit.child_name }}</dd></div>
+              <div v-if="visit.child_name"><dt>寶貝姓名</dt><dd>{{ visit.child_name }}</dd></div>
               <div v-if="visit.child_birthdate"><dt>出生年月日</dt><dd>{{ visit.child_birthdate }}</dd></div>
               <div v-if="visit.expected_start"><dt>預計入學</dt><dd>{{ expectedStartText(visit.expected_start) }}</dd></div>
               <div v-if="visit.questions"><dt>想了解的事</dt><dd>{{ visit.questions }}</dd></div>
@@ -225,6 +228,7 @@ async function submitEdit() {
               {{ visitCampus.name || '這所分校' }}目前暫停開放，暫不受理線上預約與改期。<template v-if="visitCampus.phone">如需協助，請來電 <a :data-campus-key="visitCampus.key" :href="`tel:${visitCampus.phone}`">{{ visitCampus.phone }}</a>。</template><template v-else>如需協助，請直接聯絡園所。</template>
             </p>
             <VisitCalendarActions v-if="calendarCampus && visit.slot" :campus="calendarCampus" :slot="visit.slot" :uid="`visit-${visit.id}@ivy-website`" />
+            <VisitLineNotify v-if="visit.status === 'confirmed' && !dayClosed" :key="visit.id" :visit-id="visit.id" check />
             <p v-if="visit.can_edit && !visit.can_reschedule" class="parent-visit-muted">目前不開放線上改場次，要改時間請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>；資料修改與取消仍可在這裡進行。</p>
             <p v-if="changeClosed" class="parent-visit-muted">已超過線上修改時間{{ deadlineRule ? `（${deadlineRule}截止）` : '' }}。要更改請來電<template v-if="campusPhone"> <a :href="`tel:${campusPhone}`">{{ campusPhone }}</a></template><template v-else>聯絡園所</template>。</p>
             <p v-else-if="deadlineLabel && visit.can_cancel" class="parent-visit-muted">線上修改截止：{{ deadlineLabel }}（台灣時間）。</p>
@@ -279,9 +283,9 @@ async function submitEdit() {
                 <p class="parent-visit-error">{{ editErrors.phone }}</p>
                 <label>Email<input v-model="editForm.email" type="email" inputmode="email" autocomplete="email" maxlength="254" enterkeyhint="next" :aria-invalid="Boolean(editErrors.email)"></label>
                 <p class="parent-visit-error">{{ editErrors.email }}</p>
-                <label>孩子姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
+                <label>寶貝姓名<input v-model="editForm.childName" maxlength="64" enterkeyhint="next" :aria-invalid="Boolean(editErrors.childName)"></label>
                 <p class="parent-visit-error">{{ editErrors.childName }}</p>
-                <label>孩子出生年月日<input v-model="editForm.childBirthdate" type="date" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
+                <label>寶貝出生年月日<input v-model="editForm.childBirthdate" type="date" :min="earliestChildBirthdate(taipeiDate())" :max="taipeiDate()" :aria-invalid="Boolean(editErrors.childBirthdate)"></label>
                 <p class="parent-visit-error">{{ editErrors.childBirthdate }}</p>
                 <fieldset class="parent-visit-start"><legend>預計入學時間（選填）</legend><div><label v-for="option in editStartChoices" :key="option.value"><input type="radio" name="editExpectedStart" :value="option.value" :checked="editForm.expectedStart === option.value" @click="toggleEditStart(option.value)" @keydown.space.prevent="toggleEditStart(option.value)" @keyup.space.prevent><span>{{ option.label }}</span></label></div></fieldset>
                 <p class="parent-visit-error">{{ editErrors.expectedStart }}</p>
@@ -370,6 +374,9 @@ async function submitEdit() {
 .parent-visit-fields label{display:grid;gap:6px}
 /* 修改資料的輸入框原本是瀏覽器預設（35px 高、灰色凹框），和預約表單同一套外觀與 54px 觸控高度（2026-10-12）。 */
 .parent-visit-fields input{display:block;width:100%;min-width:0;min-height:54px;padding:12px 16px;font:400 var(--fs-md)/1.65 var(--font);border:1px solid color-mix(in oklch,var(--green) 72%,var(--white));border-radius:12px;background:var(--white);color:var(--text)}
+/* 2026-11-17 iOS 原生日期欄會被強制成 content-box、比其他欄位寬並撐出右緣，拿掉原生外觀、日期靠左（同 visit-booking.css）。 */
+.parent-visit-fields input[type=date]{-webkit-appearance:none;appearance:none}
+.parent-visit-fields input[type=date]::-webkit-date-and-time-value{text-align:start}
 .parent-visit-fields input:focus{border-color:var(--green)}
 .parent-visit-fields input:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
 .parent-visit-fields input[aria-invalid="true"]{border-color:var(--error)}
@@ -383,4 +390,6 @@ async function submitEdit() {
 .parent-visit-fields .parent-visit-start label{display:flex;align-items:center;gap:8px;min-height:44px;margin:0;padding:6px 16px 6px 12px;border:1px solid var(--line);border-radius:999px;cursor:pointer}
 .parent-visit-fields .parent-visit-start label:has(input:checked){border-color:var(--green);background:var(--cream)}
 .parent-visit-fields .parent-visit-start input[type="radio"]{flex-shrink:0;display:inline-block;width:18px;min-width:0;height:18px;min-height:0;margin:0;padding:0;border:0;accent-color:var(--green)}
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)) { .parent-visit-fields input { border:1px solid var(--leaf); } }
 </style>

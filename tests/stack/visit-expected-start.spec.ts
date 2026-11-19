@@ -6,9 +6,9 @@ import { startVisitSlot } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs, pickVisitDay } from './pages'
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
-// 2026-10-15 預計入學時間：家長在官網選一個月份送出 → 成功頁與後台明細看得到 → 標到場後招生訪視的入學學期就是那一學期；
+// 2026-10-15 預計入學時間：家長在官網選一個學期送出 → 成功頁與後台明細看得到 → 標到場後招生訪視的入學學期就是那一學期；
 // 表單在 1440 與 390 都不橫向溢出（截圖存 output/playwright）。
-// 選項依台北今天動態算，所以不寫死學期：取頁面上第一個不是「盡快」「還不確定」的月份，斷言它的顯示文字與值。
+// 選項依台北今天動態算，所以不寫死學期：取頁面上第一個不是「盡快」「還不確定」的學期，斷言它的顯示文字與值。
 // 公開送單用自己的來源 IP（每來源每校每小時 5 筆，不吃別支 spec 的額度）。
 const SHOTS = path.join(ROOT, 'output/playwright')
 const PARENT = '預計入學家長'
@@ -28,14 +28,14 @@ test('家長選預計入學時間 → 後台明細看得到 → 到場後帶進�
     await page.goto(`/visit/${SLOTS_CAMPUS}`)
     await pickVisitDay(page, slotDate)
     await page.locator('.visit-slot-options label', { hasText: '16:40' }).locator('input').check()
-    await page.getByLabel('孩子姓名').fill(CHILD)
-    await page.getByLabel('孩子出生年月日').fill('2023-03-15')
+    await page.getByLabel('寶貝姓名').fill(CHILD)
+    await page.getByLabel('寶貝出生年月日').fill('2023-03-15')
     const start = page.getByRole('group', { name: /預計入學時間/ })
     const option = start.locator('input[type="radio"]:not([value="asap"]):not([value="unsure"])').first()
     chosen = await option.inputValue()
     chosenText = (await option.locator('xpath=following-sibling::span').innerText()).trim()
     expect(chosen).toMatch(/^1\d{2}-[12]$/)
-    expect(chosenText).toMatch(/^\d{4} 年 \d{1,2} 月$/)
+    expect(chosenText).toMatch(/^1\d{2} 學年[上下]學期$/)
     await option.check()
     await expect(option).toBeChecked()
     // 再點一次就取消，再點回來。
@@ -87,7 +87,7 @@ for (const { name, device } of [
     const start = page.getByRole('group', { name: /預計入學時間/ })
     // 盡快＋四個學期＋還不確定；表單真的渲染、字型載完才量與截圖（不在骨架畫面上量）。
     await expect(start.getByRole('radio')).toHaveCount(6)
-    await expect(page.getByLabel('孩子出生年月日')).toBeVisible()
+    await expect(page.getByLabel('寶貝出生年月日')).toBeVisible()
     await page.evaluate(() => document.fonts.ready)
     await expectNoHorizontalOverflow(page)
     mkdirSync(SHOTS, { recursive: true })

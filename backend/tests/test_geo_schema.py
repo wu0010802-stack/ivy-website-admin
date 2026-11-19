@@ -48,6 +48,7 @@ from tests.geo_helpers import add_visit
 
 BACKEND = Path(__file__).resolve().parents[1]
 MIGRATION = BACKEND / "migrations" / "versions" / "e7a1c4d9b2f6_admissions_area_geo.py"
+AD_ROI_MIGRATION = BACKEND / "migrations" / "versions" / "c4d2e8a1f6b3_ad_roi_and_marriages.py"
 POPULATION_MIGRATION = BACKEND / "migrations" / "versions" / "f3c8a2d47b19_admissions_village_population.py"
 HISTORY_MIGRATION = BACKEND / "migrations" / "versions" / "c5e9a1f3b7d2_admissions_village_history.py"
 INCOME_MIGRATION = BACKEND / "migrations" / "versions" / "d8b3f6a2c914_admissions_village_income.py"
@@ -64,7 +65,8 @@ POTENTIAL_MIGRATION = BACKEND / "migrations" / "versions" / "76c4bf84b907_admiss
 # 並新增預售建案的比對等級約束；同日裁罰與評鑑再多收 kindergarten_penalties、kindergarten_evaluations，並新增裁罰的
 # 處分種類與對象類別約束；10-20 招生潛力與市佔率再多收 elementary（接在裁罰與評鑑之後）。
 CONSTRAINT_MIGRATIONS = {
-    "ck_geo_dataset_status_dataset": POTENTIAL_MIGRATION,
+    # marriages 是 2026-11-16 廣告成效那支 migration 加進去的（接在 elementary 之後）。
+    "ck_geo_dataset_status_dataset": AD_ROI_MIGRATION,
     "ck_geo_kindergarten_penalties_kind": PENALTIES_MIGRATION,
     "ck_geo_kindergarten_penalties_subject": PENALTIES_MIGRATION,
     "ck_geo_presale_buildcases_match_level": PRESALE_MIGRATION,
@@ -404,6 +406,7 @@ async def test_tables_exist(db_session):
         "geo_village_births", "geo_village_migration", "geo_village_ages", "geo_village_income", "geo_new_home_sales",
         "geo_babycare", "geo_provider_events", "geo_kindergarten_fees", "geo_presale_buildcases", "geo_parcel_points",
         "geo_kindergarten_penalties", "geo_kindergarten_evaluations", "geo_village_ages_september", "geo_elementary_grade1",
+        "geo_change_notices", "geo_change_notice_baselines", "geo_village_marriages",
     }
 
 

@@ -10,6 +10,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import AnalyticsMeta from './AnalyticsMeta.vue'
+import BookingAttributionPanel from './BookingAttributionPanel.vue'
 import BookingOutcomesSection from './BookingOutcomesSection.vue'
 import ClassDistributionPanel from './ClassDistributionPanel.vue'
 import EventTrendPanel from './EventTrendPanel.vue'
@@ -338,6 +339,7 @@ function exportEntries() {
       <div class="booking-grid__main analytics__stack">
         <EventTrendPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
         <ClassDistributionPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
+        <BookingAttributionPanel :campus-key="campusKey" :range="range" :period-label="periodLabel" :refresh-token="refreshToken" />
       </div>
 
       <div v-if="showFunnel && funnel" class="booking-grid__side analytics__stack" :class="{ 'is-updating': updating }" :aria-busy="loading">

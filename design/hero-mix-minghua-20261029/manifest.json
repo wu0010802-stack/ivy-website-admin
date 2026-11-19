@@ -10,96 +10,6 @@
   "shots": [
     {
       "shot": 1,
-      "start": 3.02,
-      "end": 3.68,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "老師擁抱"
-    },
-    {
-      "shot": 2,
-      "start": 3.75,
-      "end": 4.75,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "盪架上的男孩"
-    },
-    {
-      "shot": 3,
-      "start": 36.7,
-      "end": 37.6,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "制服女孩大笑"
-    },
-    {
-      "shot": 4,
-      "start": 8.1,
-      "end": 9.1,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "圍著樂器大笑"
-    },
-    {
-      "shot": 5,
-      "start": 13.25,
-      "end": 13.9,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "舉手"
-    },
-    {
-      "shot": 6,
-      "start": 14.45,
-      "end": 15.35,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "圍看色盤"
-    },
-    {
-      "shot": 7,
-      "start": 25.4,
-      "end": 26.4,
-      "crop_x": 190,
-      "crop_y": 700,
-      "crop_width": 1780,
-      "note": "跪坐聽講"
-    },
-    {
-      "shot": 8,
-      "start": 27.4,
-      "end": 28.7,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "大笑"
-    },
-    {
-      "shot": 9,
-      "start": 6.2,
-      "end": 6.95,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "老師抱孩子"
-    },
-    {
-      "shot": 10,
-      "start": 33.45,
-      "end": 34.45,
-      "crop_x": 0,
-      "crop_y": 461,
-      "crop_width": 2160,
-      "note": "紫色手掌"
-    },
-    {
-      "shot": 11,
       "start": 34.75,
       "end": 35.65,
       "crop_x": 0,
@@ -108,7 +18,7 @@
       "note": "抬頭大笑"
     },
     {
-      "shot": 12,
+      "shot": 2,
       "start": 37.85,
       "end": 38.85,
       "crop_x": 0,
@@ -117,13 +27,105 @@
       "note": "踢足球"
     },
     {
-      "shot": 13,
+      "shot": 3,
       "start": 40.1,
       "end": 40.7,
       "crop_x": 0,
       "crop_y": 461,
       "crop_width": 2160,
-      "note": "抱籃球"
+      "note": "抱籃球",
+      "slow_to_frames": 30
+    },
+    {
+      "shot": 4,
+      "start": 3.02,
+      "end": 3.68,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "老師擁抱",
+      "slow_to_frames": 30
+    },
+    {
+      "shot": 5,
+      "start": 3.75,
+      "end": 4.75,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "盪架上的男孩"
+    },
+    {
+      "shot": 6,
+      "start": 36.7,
+      "end": 37.6,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "制服女孩大笑"
+    },
+    {
+      "shot": 7,
+      "start": 8.1,
+      "end": 9.1,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "圍著樂器大笑"
+    },
+    {
+      "shot": 8,
+      "start": 13.25,
+      "end": 13.9,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "舉手"
+    },
+    {
+      "shot": 9,
+      "start": 14.45,
+      "end": 15.35,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "圍看色盤"
+    },
+    {
+      "shot": 10,
+      "start": 25.4,
+      "end": 26.4,
+      "crop_x": 190,
+      "crop_y": 700,
+      "crop_width": 1780,
+      "note": "跪坐聽講"
+    },
+    {
+      "shot": 11,
+      "start": 27.4,
+      "end": 28.7,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "大笑"
+    },
+    {
+      "shot": 12,
+      "start": 6.2,
+      "end": 6.95,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "老師抱孩子"
+    },
+    {
+      "shot": 13,
+      "start": 33.45,
+      "end": 34.45,
+      "crop_x": 0,
+      "crop_y": 461,
+      "crop_width": 2160,
+      "note": "紫色手掌"
     }
   ],
   "variants": [
@@ -134,11 +136,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 3833753,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 3866447,
       "crf": 24,
-      "sha256": "fc2fbbdcc2b5b48d0d8cd720b76c13a4bcd9ab2f080b5ad1d12030c68f4537d8"
+      "sha256": "3c17d1bb474f73049474a79a5c3f42650a2fa359f594fdfa839ad3d33fb8d133"
     },
     {
       "file": "hero-desktop-h264.mp4",
@@ -147,11 +149,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 6233075,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 6414818,
       "crf": 18,
-      "sha256": "6b437749d45fd1fdb93a66b983d98d713a648b388d68b036530b2546fae08aad"
+      "sha256": "74a26dab21e41512048f0120bc5d7d9a15347f6f9dfbca7f7d827ffd82d68748"
     },
     {
       "file": "hero-mobile-av1.mp4",
@@ -160,11 +162,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 1522571,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 1526983,
       "crf": 38,
-      "sha256": "099a8da2947dc712c5f9231d9e502f0e915cac8273d27bc9f47f1a4efa4d3390"
+      "sha256": "ba49f5af143d28c082c9d2b0e45ad3a06d08f9cbfe90eb386ff9ea2754a52036"
     },
     {
       "file": "hero-mobile-h264.mp4",
@@ -173,11 +175,11 @@
       "width": 1080,
       "height": 800,
       "fps": "30/1",
-      "frames": "352",
-      "duration": "11.733333",
-      "bytes": 2213951,
+      "frames": "373",
+      "duration": "12.433333",
+      "bytes": 2268416,
       "crf": 26,
-      "sha256": "654af2db8704e5671a27479489300feaeca724accb8101e03ebef0cfd6cb665b"
+      "sha256": "9478c8c1e127f80ed1b49a8afb08a960f7e4f1b9d809dc95871d68ccb04c913f"
     }
   ]
 }

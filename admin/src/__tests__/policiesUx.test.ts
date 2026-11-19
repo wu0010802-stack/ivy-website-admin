@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import { computed, defineComponent } from 'vue'
@@ -274,6 +276,22 @@ describe('個資與搜尋設定：保存政策的保護', () => {
     expect(seo.textContent).not.toContain('立即')
     expect(wrapper.text()).not.toContain('隱私政策版本')
     expect(patch).not.toHaveBeenCalled()
+  })
+
+  // 2026-11-12 QA L35：「家長同意的版本」那一段的連結夾在句子中間，只有顏色和內文不同（axe link-in-text-block，serious）。
+  // jsdom 不套樣式，沒辦法算顏色對比；這裡確認連結在該段裡，而且樣式規則給它底線（WCAG 1.4.1）。
+  it('夾在文字裡的連結加底線，不只靠顏色分辨', async () => {
+    const { wrapper } = await setup()
+    expect(wrapper.find('.seo-summary dd a[href="/content/booking-content"]').exists()).toBe(true)
+    const css = readFileSync(join(__dirname, '../views/PoliciesView.vue'), 'utf8')
+    const style = css.slice(css.indexOf('<style')).replace(/\/\*[\s\S]*?\*\//g, '')
+    const underlined = (selector: string) =>
+      [...style.matchAll(/([^{}]+)\{([^}]*)\}/g)].some(([, selectors, body]) =>
+        selectors!.split(',').some((part) => part.trim() === selector) && /text-decoration:\s*underline/.test(body!))
+    // 家長同意的版本（.seo-summary）、未結案提醒（.retention__overdue）、官網還沒發布過的提示（.site-unpublished）。
+    for (const selector of ['.seo-summary dd a', '.retention__overdue a', '.site-unpublished a']) {
+      expect(underlined(selector), selector).toBe(true)
+    }
   })
 
   it('官網還沒發布過 site_meta 時說明沿用內建設定（允許收錄）', async () => {

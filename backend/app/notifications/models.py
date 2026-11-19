@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -135,6 +136,53 @@ class LineCampusTarget(Base):
     )
 
 
+class LineGroupSetting(Base):
+    """每個 LINE 群組的通知設定（2026-11-17）。沒有設定列＝全部預設值（四種通知全開、摘要與
+    @所有人開、非總部群組）。`is_hq` 的群組額外收所有校區的通知，和校區群組並存。"""
+
+    __tablename__ = "line_group_settings"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    kinds: Mapped[list[str]] = mapped_column(
+        JSONB,
+        nullable=False,
+        default=lambda: [
+            "visit_request_created",
+            "visit_request_confirmed",
+            "visit_request_rescheduled",
+            "visit_request_cancelled",
+        ],
+        server_default=text(
+            """'["visit_request_created", "visit_request_confirmed", "visit_request_rescheduled", "visit_request_cancelled"]'::jsonb"""
+        ),
+    )
+    digest_enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    mention_all_same_day: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("true")
+    )
+    is_hq: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class LineDigestRun(Base):
+    """某群組某天的參觀摘要已經推過（避免重複推送）。"""
+
+    __tablename__ = "line_digest_runs"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    digest_date: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class PushSubscription(Base):
     """後台手機推播（Web Push）的訂閱：一台裝置的瀏覽器一列（2026-11-05）。
 
@@ -159,3 +207,65 @@ class PushSubscription(Base):
     last_success_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_failure_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failure_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+
+
+class LineParentCampusAccount(Base):
+    """某校的家長 LINE 通知用哪個官方帳號（2026-11-16，docs/specs/2026-11-16-line-integrations-design.md §4）。
+
+    account_key 是設定裡的帳號鍵：main（園方群組推播那個）或某校自己的帳號（WEBSITE_LINE_<校>_*）。
+    沒有列＝這校沒開家長 LINE 通知。設定拿掉金鑰後列還在，但 helpers 會當成沒開。"""
+
+    __tablename__ = "line_parent_campus_accounts"
+
+    campus_key: Mapped[str] = mapped_column(
+        ForeignKey("campuses.key", ondelete="CASCADE"), primary_key=True
+    )
+    account_key: Mapped[str] = mapped_column(String(20), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+
+
+class LineParentLink(Base):
+    """家長把一筆參觀預約綁到自己的 LINE（傳代碼給官方帳號）。一筆預約最多一個 LINE；
+    同一個 LINE 可以綁多筆。userId 依官方帳號所在的 provider 而不同，所以記下是哪個帳號。
+
+    unfollowed_at：家長封鎖或刪除官方帳號（webhook unfollow）；再加回好友（follow）時清掉。
+    封鎖期間不推（LINE 也會回 200 但收不到）。案件匿名化時整列刪掉（retention_service.anonymize）。"""
+
+    __tablename__ = "line_parent_links"
+    __table_args__ = (
+        UniqueConstraint("visit_request_id", name="uq_line_parent_links_visit_request_id"),
+        Index("ix_line_parent_links_account_user", "account_key", "line_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    visit_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("visit_requests.id", ondelete="CASCADE", name="fk_line_parent_links_visit_request_id"),
+        nullable=False,
+    )
+    account_key: Mapped[str] = mapped_column(String(20), nullable=False)
+    line_user_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    unfollowed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class LineParentLinkCode(Base):
+    """家長頁產生、要傳給官方帳號的一次性綁定代碼（LN-XXXXXXXX）。只存 HMAC 雜湊；
+    30 分鐘過期、用過一次就作廢。account_key 是產生當下這校用的帳號，從別的帳號傳來不算。"""
+
+    __tablename__ = "line_parent_link_codes"
+    __table_args__ = (UniqueConstraint("code_hash", name="uq_line_parent_link_codes_code_hash"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    visit_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("visit_requests.id", ondelete="CASCADE", name="fk_line_parent_link_codes_visit_request_id"),
+        nullable=False,
+        index=True,
+    )
+    account_key: Mapped[str] = mapped_column(String(20), nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

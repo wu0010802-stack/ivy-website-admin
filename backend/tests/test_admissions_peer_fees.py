@@ -48,7 +48,7 @@ async def test_the_radius_decides_who_counts(db_session, peers):
 async def test_own_school_and_items(db_session, peers):
     result = await peer_fees.query_peer_fees(db_session, "yihua", radius_km=3, age=3)
     assert result["own"] == {
-        "source_id": "own", "name": "高雄市私立常春藤幼兒園", "semester_total": 89750, "months": 5.5,
+        "source_id": "own", "name": "高雄市私立常春藤幼兒園", "kind": "private", "semester_total": 89750, "months": 5.5,
         "monthly_average": 16318, "items": OWN_ITEMS, "transport_note": "單 770 雙 1540",
     }
     assert result["own_missing"] is None

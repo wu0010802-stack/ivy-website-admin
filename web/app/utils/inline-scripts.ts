@@ -11,3 +11,4 @@
 export const MOTION_LAYOUT_SCRIPT = "document.documentElement.dataset.ivyMotion='ready'"
 
 // 2026-11-11：/anniversary 開場影片的閘門（ANNI_INTRO_GATE_SCRIPT）隨 30 秒開場動畫一起拿掉；新的紀念影片按了才播，不需要第一次繪製前的腳本。
+// main 在 2026-11-16 替那支閘門加的「30 天內看過不重播」（cookie ivy_seen_anni_intro）也就沒有地方用了；常數仍留在 seen-cookie.ts。

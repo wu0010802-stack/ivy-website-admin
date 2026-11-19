@@ -1,7 +1,7 @@
 import type { NewsArticle, SiteContent } from '~/types/site-content'
 import { aboutSeo, admissionSeo, anniversarySeo, newsArticleSeo, newsListSeo, privacySeo, crawlerIndexable, curriculumSeo, environmentSeo, normalizeSiteOrigin, pageSeo, serializeJsonLd, type StaticPage } from '~/utils/seo'
 import { admissionHeroImage, heroPreloadLink } from '~/utils/responsive-image'
-import { aboutHeroAttrs, curriculumHeroAttrs, environmentHeroAttrs, heroImageAttrs } from '~/utils/media-image'
+import { aboutHeroAttrs, curriculumHeroAttrs, environmentHeroPreloads, heroImageAttrs } from '~/utils/media-image'
 import { isSampleNews } from '~/utils/news-content'
 import { responsiveTourImage } from '~/utils/tour-image'
 
@@ -31,13 +31,18 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
   const hero = computed(() => {
     if (!site.value) return undefined
     if (page === 'admission') return admissionHeroImage()
-    if (page === 'environment') return environmentHeroAttrs(site.value.environmentPage)
     if (page === 'curriculum') return curriculumHeroAttrs(site.value.curriculumPage)
     if (page === 'about') return aboutHeroAttrs(site.value.aboutPage)
     // 消息頁沒有滿版 hero，不預載。
     // 30 週年首屏是紀念影片的封面，圖已設 fetchpriority=high，不另外預載。
-    if (page === 'news' || page === 'privacy' || page === 'anniversary') return undefined
+    // 常春藤環境頁的首屏照片桌機、手機各一張（帶 media），另外處理（heroLinks）。
+    if (page === 'news' || page === 'privacy' || page === 'anniversary' || page === 'environment') return undefined
     return heroImageAttrs(site.value.home.hero)
+  })
+  const heroLinks = computed(() => {
+    if (!site.value) return []
+    if (page === 'environment') return environmentHeroPreloads(site.value.environmentPage)
+    return hero.value ? [heroPreloadLink(hero.value)] : []
   })
   // 只有單篇消息（newsArticleSeo）會回 ogType／publishedTime。
   const articleMeta = computed(() => seo.value as { ogType?: 'article'; publishedTime?: string } | undefined)
@@ -63,7 +68,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
   useHead(() => ({
     link: [
       ...(seo.value?.canonical ? [{ rel: 'canonical' as const, href: seo.value.canonical }] : []),
-      ...(hero.value ? [heroPreloadLink(hero.value)] : [])
+      ...heroLinks.value
     ],
     script: seo.value?.graph.length ? [{ key: 'public-structured-data', type: 'application/ld+json', innerHTML: serializeJsonLd({ '@context': 'https://schema.org', '@graph': seo.value.graph }) }] : []
   }))

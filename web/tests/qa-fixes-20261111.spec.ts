@@ -23,9 +23,11 @@ describe('預約選校卡：手機上義華的撥號膠囊排到最左', () => {
   it('只有那一條規則換順序：336 以下兩顆疊成兩行、直卡（761 以上）上下疊，都照範本順序', () => {
     expect(css.replace(reorder, '')).not.toContain('order:-1')
   })
-  it('點擊範圍不變：細條卡上下各補 10px，直卡往上只補 6px', () => {
-    expect(css).toContain('@media(max-width:760px),(max-width:960px) and (max-height:500px) and (orientation:landscape) {\n  .visit-campus-mode.is-online + .visit-campus-mode.is-call::before {inset:-10px -6px}\n}')
-    expect(css).toContain('.visit-campus-mode.is-online + .visit-campus-mode.is-call::before {inset:-6px -6px -14px}')
+  // 2026-11-13 直卡的金色膠囊移到卡片左上角，撥號膠囊上方不再有別的膠囊：
+  // 「直卡往上只補 6px」的例外拿掉，所有卡片的撥號膠囊都是上下各補 10px（44px 高）。
+  it('點擊範圍：撥號膠囊上下各補 10px，沒有直卡的例外', () => {
+    expect(css).toContain(".visit-campus-mode.is-call::before {content:'';position:absolute;inset:-10px -6px}")
+    expect(css).not.toContain('.visit-campus-mode.is-online + .visit-campus-mode.is-call::before')
   })
   it('範本順序不變（金色膠囊在前、撥號在後），讀屏與鍵盤順序不受影響', () => {
     const form = read('app/components/VisitForm.vue')

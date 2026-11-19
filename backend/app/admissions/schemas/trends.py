@@ -136,6 +136,8 @@ class AreaTrendsPresaleSourceOut(BaseModel):
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
+    # 各里結婚對數（2026-11-16 廣告成效 §9）：近 12 個月窗口以結婚資料自己的最新月份算；五校並排不讀，維持 null、空陣列。
+    marriages: AreaTrendsMonthsOut
     migration: AreaTrendsMonthsOut
     # 內政部戶政司三個資料集的來源（一句）。
     note: str
@@ -156,6 +158,8 @@ class AreaTrendsBirthPeriodOut(BaseModel):
     missing: list[str]
     births: int
     change_pct: float | None
+    # 同一期 12 個月裡結婚有資料的月份不到 10 個月、或沒有結婚資料時 null（2026-11-16 廣告成效 §9）。
+    marriages: int | None
 
 
 class AreaTrendsBaselineOut(BaseModel):
@@ -175,6 +179,9 @@ class AreaTrendsBaselineOut(BaseModel):
     births_change_pct: float | None
     # 每 12 個月一期，最新一期在前；沒有出生資料或湊不滿 10 個月時是空陣列。
     births_series: list[AreaTrendsBirthPeriodOut]
+    # 各里結婚對數近 12 個月合計與有資料的月數（廣告成效 §9）；沒有結婚資料是 null、0。
+    marriages_12m: int | None
+    marriages_months: int
     migration_net_12m: int | None
     migration_months: int
     # 新成屋交屋（B2 段）：近 4 季到里的筆數、最近一季的筆數、近 4 季裡有資料的季數；沒匯入新成屋是 null、0。
@@ -214,6 +221,7 @@ class AreaTrendsVillageOut(BaseModel):
     kids_base: int | None
     kids_level: Literal["up2", "up1", "flat", "down1", "down2", "few", "unknown"]
     births_12m: int | None
+    marriages_12m: int | None
     migration_net_12m: int | None
     # 所得中位數（千元，規格 V9：只當背景，不排序、不分級）。沒有所得的里（115-07 新設）與合併組是 null（中位數
     # 不能相加）；income_boundary_changed＝里界在所得年度之後調整過（數字是調整前的範圍）。
@@ -315,3 +323,45 @@ class AreaPresaleOut(BaseModel):
     summary: AreaPresaleSummaryOut
     # 依預計交屋由近到遠（已過預計時間的在最前），同值依距離、區、案名。
     items: list[AreaPresaleItemOut]
+
+
+# ---- 歷年 2–5 歲人口（2026-11-16 區域分析年份滑桿規格 §5.2）----
+
+
+class AreaChildrenHistoryLatestOut(BaseModel):
+    """「最新」那一格：人口狀態的月份（如 115-10）與同步時間。"""
+
+    label: str | None
+    synced_at: datetime | None
+
+
+class AreaChildrenHistoryVillageOut(BaseModel):
+    """半徑內一個里。counts 的鍵是民國年字串與 "latest"，某年沒有這個里的資料（例如新設的里）是 null；
+    adjusted＝行政區域調整人數過門檻的月份（如 115-07），前後年份不可直接比。"""
+
+    village_code: str
+    district: str
+    village: str
+    distance_m: int
+    counts: dict[str, int | None]
+    adjusted: list[str]
+
+
+class AreaChildrenHistoryRetiredOut(BaseModel):
+    """九月表有資料、現行里界沒有的代碼（已廢止的里），只列和半徑內的里同一區的；years＝有資料的民國年。"""
+
+    village_code: str
+    district: str
+    village: str
+    years: list[int]
+
+
+class AreaChildrenHistoryOut(BaseModel):
+    campus: AreaCampusOut
+    radius_km: int
+    unavailable: Literal["no_campus_point", "no_history"] | None
+    latest: AreaChildrenHistoryLatestOut | None
+    years: list[int]
+    villages: list[AreaChildrenHistoryVillageOut]
+    retired: list[AreaChildrenHistoryRetiredOut]
+    max_children: int

@@ -103,6 +103,19 @@ export function shouldIgnoreClientError(error: RawClientError): boolean {
   return false
 }
 
+// 爬蟲、無畫面瀏覽器、檢測工具：名稱後面接 / ; - ) 或在結尾的「…bot」（Googlebot/2.1、bingbot/2.0、Slackbot-LinkExpanding；
+// 手機品牌 CUBOT 後面接空白，不算），以及幾個不叫 bot 的。
+const AUTOMATED_USER_AGENT = /bot(?:[/;)-]|$)|spider|crawl|headless|lightpanda|phantomjs|lighthouse|facebookexternalhit|externalagent|google-inspectiontool|googleother/i
+
+/**
+ * 這個 User-Agent 是不是爬蟲或自動化瀏覽器（2026-11-13）。它們的 DOM 實作常不完整（Lightpanda 在入學頁掛載時丟
+ * Illegal invocation），回報進來只會讓總管理者手機跳通知，沒有可以修的東西；搜尋引擎用的是新版 Chromium，
+ * 真的壞了一般訪客也會回報。只在伺服器（server/api/client-errors.post.ts）用，看的是請求標頭，不是頁面裡的 navigator。
+ */
+export function isAutomatedUserAgent(userAgent: string | undefined): boolean {
+  return !!userAgent && AUTOMATED_USER_AGENT.test(userAgent)
+}
+
 /** 任何被丟出來的值（Error、字串、物件）轉成 kind／message／stack；不展開物件內容，免得把 API 回應或表單資料帶出去。 */
 export function describeThrown(value: unknown, fallbackKind: string): RawClientError {
   if (value instanceof Error) return { kind: value.name || fallbackKind, message: value.message ?? '', stack: value.stack }
@@ -139,15 +152,26 @@ export interface ClientErrorContext {
   release?: string
 }
 
+/**
+ * 截到最多 max 個 UTF-16 單位（和 validateClientError 的 .length 同一種算法），但不切斷 surrogate pair：
+ * 截斷點若落在 emoji 中間（第 max 個單位是 high surrogate），往前退一格把整個 emoji 拿掉。
+ * 孤立的 surrogate 序列化成 JSON 是 \ud83d 這種跳脫，後端存不進去、整筆回報 422 遺失（2026-11-12）。
+ */
+export function clipClientText(text: string, max: number): string {
+  if (text.length <= max) return text
+  const last = text.charCodeAt(max - 1)
+  return text.slice(0, last >= 0xd800 && last <= 0xdbff ? max - 1 : max)
+}
+
 export function buildClientError(raw: RawClientError, context: ClientErrorContext): ClientErrorReport {
-  const stack = raw.stack ? redactClientText(stripOrigin(raw.stack, context.origin)).slice(0, CLIENT_ERROR_LIMITS.stack) : ''
-  const release = context.release?.slice(0, CLIENT_ERROR_LIMITS.release)
+  const stack = raw.stack ? clipClientText(redactClientText(stripOrigin(raw.stack, context.origin)), CLIENT_ERROR_LIMITS.stack) : ''
+  const release = context.release === undefined ? undefined : clipClientText(context.release, CLIENT_ERROR_LIMITS.release)
   return {
     source: context.source,
-    kind: redactClientText(raw.kind, { tokens: false }).slice(0, CLIENT_ERROR_LIMITS.kind) || 'Error',
-    message: redactClientText(raw.message ?? '').slice(0, CLIENT_ERROR_LIMITS.message),
+    kind: clipClientText(redactClientText(raw.kind, { tokens: false }), CLIENT_ERROR_LIMITS.kind) || 'Error',
+    message: clipClientText(redactClientText(raw.message ?? ''), CLIENT_ERROR_LIMITS.message),
     ...(stack ? { stack } : {}),
-    path: redactClientPath(context.pathname).slice(0, CLIENT_ERROR_LIMITS.path),
+    path: clipClientText(redactClientPath(context.pathname), CLIENT_ERROR_LIMITS.path),
     ...(release ? { release } : {}),
   }
 }

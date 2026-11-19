@@ -13,6 +13,9 @@ import {
   VISIT_SOURCE_LABELS,
   visitSourceLabel,
   mediaStatus,
+  MEDIA_STATUS,
+  PUBLISH_JOB_STATUS,
+  NOTIFICATION_KIND_LABELS,
   BOOKING_MODE_LABELS,
   notificationKindLabel,
   outboxErrorLabel,
@@ -45,6 +48,8 @@ import {
   AUDIT_FIELD_LABELS,
 } from './labels'
 import { CANCEL_REASON_LABELS } from './analyticsLabels'
+import { NO_DEPOSIT_REASONS } from '../admissions/constants'
+import { SOURCE_CATEGORY_CHOICES } from '../admissions/sourceCategories'
 
 // 數字欄位補上單位，不讓人猜「24」是小時還是天。
 const AUDIT_FIELD_UNITS: Record<string, string> = {
@@ -120,6 +125,10 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'media_id',
   'video_media_id',
   'content_version',
+  // 在 LINE 群組按已到場／未到場（line.group.visit_attend／visit_no_show）：群組與按的人的 LINE 代碼，
+  // 對園方沒有意義，留給追查用（動作名稱已寫明是 LINE 群組）。
+  'group_id',
+  'line_user_id',
   // 舊的 /admin/site-settings（官網從來不讀，2026-10-08 已刪除）留在舊操作紀錄裡的欄位。
   'privacy_policy_version',
 ])
@@ -176,6 +185,47 @@ type AuditFormatter = (value: unknown, action: string, metadata: Record<string, 
 
 // 各鍵的寫法。回 null 表示這一項不值得寫（例如「沒有」的布林值）。
 // kind、status、source 在不同動作代表不同東西，依 action 分開翻。
+export const ROSTER_STATUS_LABELS: Record<string, string> = { pending: '預繳未入園', enrolled: '在籍', left: '已離園', refunded: '已退預繳' }
+// 編班與缺額的修改欄位（只記欄位名，不記值）。
+const ROSTER_FIELD_LABELS: Record<string, string> = {
+  child_name: '姓名', birthday: '生日', note: '備註', enrollment_date: '入園日', planned_entry_date: '預定入園日',
+  deposit_date: '預繳日期', target_school_year: '入學學年', target_semester: '入學學期', grade: '年級',
+  is_special_education: '特教生標記', is_indigenous: '原住民標記', is_new_manual: '新生標記', underage_manual: '不足齡標記',
+  next_year: '下學年去向', name: '班級名稱', class_code: '班序', english_name: '英文班名', head_teacher: '班導',
+  assistant_teacher: '副班導', english_teacher: '美師', target_seats: '目標人數',
+}
+
+const AD_SPEND_PLATFORM_LABELS: Record<string, string> = {
+  openai: 'ChatGPT', meta: 'Meta', line: 'LINE', other: '其他網路廣告', offline: '離線花費',
+}
+
+const LINE_GROUP_KIND_LABELS: Record<string, string> = {
+  visit_request_created: '新的參觀預約',
+  visit_request_confirmed: '參觀預約已確認',
+  visit_request_rescheduled: '參觀預約已改期',
+  visit_request_cancelled: '參觀預約已取消',
+}
+
+// 在 LINE 群組填招生結果欄位（line.group.recruitment_field，2026-11-17）：一次一個欄位。
+const LINE_RECRUITMENT_FIELD_LABELS: Record<string, string> = {
+  has_deposit: '預繳結果',
+  no_deposit_reason: '未預繳原因',
+  source_category: '來源分類',
+  rides_bus: '搭交通車',
+}
+// 來源分類（2026-10-06 裁定收斂六項）：LINE 群組的分類卡同後台表單只列這六項短標籤（後端 constants.LINE_SOURCE_CHOICES），
+// 稽核記代碼。列成表也讓「家長介紹」這類字在操作紀錄搜得到代碼。
+const SOURCE_CATEGORY_AUDIT_LABELS: Record<string, string> = Object.fromEntries(SOURCE_CATEGORY_CHOICES)
+
+// 值是代碼：預繳與交通車是布林、來源分類是代碼、未預繳原因是索引（後端不把原因文字寫進稽核）。
+function lineRecruitmentValue(field: string, value: unknown): string {
+  if (field === 'has_deposit') return value ? '已預繳' : '未預繳'
+  if (field === 'rides_bus') return value ? '搭' : '不搭'
+  if (field === 'no_deposit_reason') return typeof value === 'number' ? (NO_DEPOSIT_REASONS[value] ?? `第 ${value + 1} 項`) : String(value)
+  if (field === 'source_category') return SOURCE_CATEGORY_AUDIT_LABELS[String(value)] ?? String(value)
+  return String(value)
+}
+
 const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 帳號
   role: (v) => `角色：${auditValueLabel('role', v)}`,
@@ -222,11 +272,15 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 系統狀態頁「全部標為已處理」（system.error_resolve_all）：這次標了幾種錯誤。
   resolved_count: (v) => `標為已處理 ${countOf(v)} 種錯誤`,
   // 聯絡片語（contact_phrases.update）：存檔後共有幾句；片語內容不進稽核。
-  count: (v) => `共 ${countOf(v)} 句`,
+  count: (v, action) => (action.startsWith('roster_student.') ? `新增 ${countOf(v)} 位幼生` : `共 ${countOf(v)} 句`),
   // 立即同步 Facebook 貼文（facebook_posts.sync）。
   synced_posts: (v) => `讀到 ${countOf(v)} 則貼文`,
   sync_failed: (v) => (v ? '同步失敗' : null),
+  // 同一次同步裡 Instagram 那一段（WEBSITE_INSTAGRAM_ENABLED 開著才有這兩個鍵）。
+  instagram_posts: (v) => `讀到 ${countOf(v)} 則 Instagram 貼文`,
+  instagram_failed: (v) => (v ? 'Instagram 同步失敗' : null),
   status: (v, action) => {
+    if (action.startsWith('roster_student.')) return `幼生狀態：${ROSTER_STATUS_LABELS[String(v)] ?? String(v)}`
     if (action.startsWith('media.')) return `素材狀態：${mediaStatus(String(v)).label}`
     if (action.startsWith('content.')) return `排程狀態：${publishJobStatus(String(v)).label}`
     return `篩選狀態：${visitStatus(String(v)).label}`
@@ -268,6 +322,10 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   already_closed: (v) => (v ? '這天原本就是休假日' : null),
   notified: (v) => (countOf(v) ? `寄停課通知給 ${countOf(v)} 位家長` : '沒有寄停課通知'),
   no_email: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，要來電` : null),
+  with_line: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，用 LINE 通知` : null),
+  dropped_links: (v) => (countOf(v) ? `解除 ${countOf(v)} 筆家長的 LINE 綁定（換帳號或關閉後推不到）` : null),
+  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，其餘是校區鍵。
+  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
   open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,
@@ -294,7 +352,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     if (!Array.isArray(v)) return null
     const names = action.startsWith('recruitment_visit.')
       ? RECRUITMENT_FIELD_LABELS
-      : action.startsWith('visit_request.') ? VISIT_DETAIL_FIELD_LABELS : MEDIA_FIELD_LABELS
+      : action.startsWith('roster_')
+        ? ROSTER_FIELD_LABELS
+        : action.startsWith('visit_request.') ? VISIT_DETAIL_FIELD_LABELS : MEDIA_FIELD_LABELS
     return `修改：${Array.from(new Set(v.map((field) => names[String(field)] ?? String(field)))).join('、')}`
   },
   imported: (v) => `匯入 ${countOf(v)} 個`,
@@ -311,6 +371,17 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   previous_error_code: (v) => `上次失敗原因：${outboxErrorLabel(String(v))}`,
   // LINE 群組完成驗證（line.group.verify）
   source_type: (v) => `類型：${v === 'room' ? '多人聊天室' : '群組'}`,
+  // 群組通知設定（line.group.settings.update）
+  kinds: (v) => `通知種類：${Array.isArray(v) && v.length ? v.map(kind => LINE_GROUP_KIND_LABELS[String(kind)] ?? String(kind)).join('、') : '全部關閉'}`,
+  digest_enabled: (v) => `每日摘要：${v ? '開' : '關'}`,
+  mention_all_same_day: (v) => `當天異動 @所有人：${v ? '開' : '關'}`,
+  is_hq: (v) => `總部群組：${v ? '是' : '否'}`,
+  // 在 LINE 群組填招生結果欄位（line.group.recruitment_field）：欄位與值寫成一句，value 不另列。
+  // 只在這個動作套用招生欄位的翻法；其他動作日後用到 field／value 時照原值寫，不會被翻成招生欄位。
+  field: (v, action, m) => (action === 'line.group.recruitment_field'
+    ? `${LINE_RECRUITMENT_FIELD_LABELS[String(v)] ?? String(v)}：${lineRecruitmentValue(String(v), m.value)}`
+    : `欄位：${String(v)}`),
+  value: (v, action) => (action === 'line.group.recruitment_field' ? null : `值：${String(v)}`),
   // 舊的全站設定
   noindex: (v) => `搜尋引擎收錄：${v ? '不允許' : '允許'}`,
   // 個資清理
@@ -341,9 +412,17 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   semester: (v) => `入學學期：${v === 1 ? '上學期' : v === 2 ? '下學期' : String(v)}`,
   grades: (v) => (Array.isArray(v) ? `調整的年級：${v.map(String).join('、')}` : null),
   // 招生名單匯出（2026-10-03）：只記套用了哪些篩選。來源、介紹者、搜尋字只記有沒有篩，負責人只記類別。
-  month: (v) => `篩選月份：${String(v)}`,
+  month: (v, action) => (action.startsWith('ad_spend.') ? `月份：${String(v)}` : `篩選月份：${String(v)}`),
+  // 廣告花費（2026-11-16 規格 §6.2）：手填的月花費，平台翻成後台用的名稱。
+  platform: (v) => `平台：${AD_SPEND_PLATFORM_LABELS[String(v)] ?? String(v)}`,
+  amount: (v) => `金額：NT$${Number(v).toLocaleString('en-US')}`,
+  before_amount: (v) => (v === null || v === undefined ? null : `原本：NT$${Number(v).toLocaleString('en-US')}`),
   // 未預繳名單的原因、班別篩選收任意字串；不在選項內的後端只記 other，不把輸入原文寫進紀錄。
-  grade: (v) => `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`,
+  grade: (v, action) => (action.startsWith('roster_') ? `年級：${String(v)}` : `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`),
+  // 編班與缺額（2026-11-15）：不記姓名、生日與身分標記。
+  class_code: (v) => `班序：${String(v)}`,
+  class_changed: (v) => (v ? '換了班級' : '同班內調整順序'),
+  as_of: (v) => `統計日期：${auditWhen(v)}`,
   has_source: (v) => (v ? '有篩選來源' : null),
   has_referrer: (v) => (v ? '有篩選家長介紹' : null),
   has_deposit: (v) => `篩選預繳：${v ? '是' : '否'}`,
@@ -472,10 +551,16 @@ export function auditMetadataSummary(metadata: Record<string, unknown> | null | 
 // ---- 操作紀錄的伺服器端搜尋（2026-10-14 規格 §4）----
 // 後端比對動作、對象、校區、操作者、裝置與 metadata 原文（代碼與園方填的字）；中文名稱只存在這份檔案，
 // 所以把搜尋字展開成「原字＋名稱含這個字的代碼」一起送，例如「休假」→ visit_exception.create…。
+// 細節欄用到的每一張「代碼 → 中文」標籤表都要在這裡；少一張，搜那張表裡的字就找不到
+// （2026-11-12 QA L19：家長稱呼、孩子姓名、預計入學時間）。新增標籤表時一併加進來，
+// holidayClosure.test.ts 的「操作紀錄搜尋詞展開」會掃這份檔案比對。
+const statusLabels = (table: Record<string, { label: string }>): Record<string, string> =>
+  Object.fromEntries(Object.entries(table).map(([code, meta]) => [code, meta.label]))
+
 const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   AUDIT_ACTION_LABELS,
   // 案件狀態（狀態：預約正常 → 未到場 這類修改前後值）：「未到場」→ no_show。
-  Object.fromEntries(Object.entries(VISIT_STATUS).map(([code, meta]) => [code, meta.label])),
+  statusLabels(VISIT_STATUS),
   AUDIT_TARGET_LABELS,
   CAMPUS_LABELS,
   ROLE_LABELS,
@@ -483,13 +568,37 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   BOOKING_MODE_LABELS,
   GRANT_LABELS,
   AUDIT_FIELD_LABELS,
+  AD_SPEND_PLATFORM_LABELS,
   BOOKING_CONFIG_FIELD_LABELS,
+  ROSTER_STATUS_LABELS,
+  ROSTER_FIELD_LABELS,
   AUDIT_REASON_LABELS,
   RETENTION_CATEGORY_LABELS,
   RETENTION_TRIGGER_LABELS,
   VISIT_SOURCE_LABELS,
   CANCEL_REASON_LABELS,
   MEDIA_FIELD_LABELS,
+  // 預約案件被改的欄位（家長稱呼、孩子姓名、預計入學時間…）、排除原因與列表篩選。
+  VISIT_DETAIL_FIELD_LABELS,
+  VISIT_EXCLUDE_REASON_LABELS,
+  VISIT_GROUP_LABELS,
+  VISIT_VIEW_LABELS,
+  // 招生訪視：階段、建立方式、被改的欄位；參觀後的聯絡方式。
+  RECRUITMENT_STAGE_LABELS,
+  RECRUITMENT_ORIGIN_LABELS,
+  RECRUITMENT_FIELD_LABELS,
+  CONTACT_CHANNEL_LABELS,
+  // LINE 群組：通知種類設定、在群組填的招生結果欄位與來源分類（2026-11-17）。
+  LINE_GROUP_KIND_LABELS,
+  LINE_RECRUITMENT_FIELD_LABELS,
+  SOURCE_CATEGORY_AUDIT_LABELS,
+  // 帳密登入失敗發生的地方、帳號被改的欄位、通知重寄的來源與種類、素材與發布排程的狀態。
+  AUDIT_CONTEXT_LABELS,
+  USER_FIELD_LABELS,
+  OUTBOX_RETRY_SOURCE_LABELS,
+  NOTIFICATION_KIND_LABELS,
+  statusLabels(MEDIA_STATUS),
+  statusLabels(PUBLISH_JOB_STATUS),
 ]
 
 /** 和後端 audit_service.MAX_SEARCH_TERMS 一致。 */

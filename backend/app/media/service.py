@@ -5,6 +5,7 @@ import functools
 import hashlib
 import logging
 import os
+import re
 import tempfile
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -165,7 +166,12 @@ def s3_storage(settings: Settings) -> S3MediaStorage:
 FILENAME_MAX = 255
 
 
+# 檔名裡的控制字元直接拿掉：PostgreSQL 的 text 不收 NUL，其餘的也只會讓後台顯示出亂碼。
+_FILENAME_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f]")
+
+
 def stored_filename(name: str) -> str:
+    name = _FILENAME_CONTROL_RE.sub("", name) or "unnamed"
     if len(name) <= FILENAME_MAX:
         return name
     stem, dot, ext = name.rpartition(".")

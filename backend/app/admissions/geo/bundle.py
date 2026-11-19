@@ -29,7 +29,7 @@ VERSION = 1
 # 2026-10-20 裁罰與評鑑規格 C10；2026-10-20 起 september＝每年九月底的各里人口，107 年起每年一份，只寫九月底人口表；
 # elementary＝教育部國小校別資料，檔名「114_basec.csv」帶學年，107 學年起每學年一份）。
 KINDS = (
-    "population", "births", "migration", "income", "new_homes", "presale_buildcases", "presale_parcels",
+    "population", "births", "marriages", "migration", "income", "new_homes", "presale_buildcases", "presale_parcels",
     "kindergarten_penalties", "kindergarten_evaluations", "september", "elementary",
 )
 # 只能有一個檔的種類：所得只存最新一個年度，年度取檔名（「112_165-E.csv」，sync 的 income.year_of_filename）；

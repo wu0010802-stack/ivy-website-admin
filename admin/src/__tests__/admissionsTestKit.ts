@@ -9,7 +9,7 @@ import ElementPlus from 'element-plus'
 import { api } from '../api/client'
 import { UNCLASSIFIED_LABEL, WITHDRAW_REASON_CATEGORIES } from '../admissions/constants'
 import type {
-  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
+  AdmissionsArea, AdmissionsJourney, AreaBabycare, AreaBabycareItem, AreaChange, AreaChanges, AreaChildrenHistory, AreaCompare, AreaCompareRow, AreaEnrolled, AreaFeeItems, AreaKindergarten, AreaKindergartens, AreaOpportunity, AreaPeerFeeSchool, AreaPeerFees, AreaPresale, AreaPresaleItem, AreaTrends,
   EnrolledPreview, HistoryPreview, ImportStatus, Potential, PotentialClosureSource, PotentialEstimate, PotentialPresaleSource, PotentialShareYear, PotentialVillageSource, UserOut,
   VillageBoundaries,
 } from '../api/types'
@@ -201,6 +201,54 @@ const buildAreaOpportunity = () => ({
 /** 每次呼叫都是一份新的；changes 整欄換掉。 */
 export const areaOpportunity = (changes: Partial<AreaOpportunity> = {}): AreaOpportunity => ({ ...buildAreaOpportunity(), ...changes })
 
+// 歷年 2–5 歲（2026-11-16）：107、108、114、115 四個九月＋最新 115-10；寶業里 114 以前還沒有（新設）、
+// 本上里 115-07 界線調整過；已廢止的廍北里、廍南里同區有 107、108 年的資料。
+const buildChildrenHistory = () => ({
+  campus: { key: 'yihua', name: '義華校', lat: 22.64, lng: 120.34, locate_error: null, district: '三民區' },
+  radius_km: 3,
+  unavailable: null,
+  latest: { label: '115-10', synced_at: '2026-11-10T04:00:00Z' },
+  years: [107, 108, 114, 115],
+  villages: [
+    { village_code: '64000050015', district: '三民區', village: '本揚里', distance_m: 300,
+      counts: { '107': 360, '108': 380, '114': 390, '115': 392, latest: 400 }, adjusted: [] },
+    { village_code: '64000050025', district: '三民區', village: '寶業里', distance_m: 300,
+      counts: { '107': null, '108': null, '114': null, '115': 196, latest: 200 }, adjusted: [] },
+    { village_code: '64000050001', district: '三民區', village: '鼎金里', distance_m: 800,
+      counts: { '107': 480, '108': 500, '114': 520, '115': 490, latest: 500 }, adjusted: ['115-07'] },
+  ],
+  retired: [
+    { village_code: '64000050991', district: '三民區', village: '廍北里', years: [107, 108] },
+    { village_code: '64000050992', district: '三民區', village: '廍南里', years: [107] },
+  ],
+  max_children: 520,
+} satisfies AreaChildrenHistory)
+export const areaChildrenHistory = (changes: Partial<AreaChildrenHistory> = {}): AreaChildrenHistory => ({ ...buildChildrenHistory(), ...changes })
+
+// 五校周邊環境（2026-11-16）：義華一般列；明華本校準公共（沒有排名）；崇德沒有座標；國際計算失敗；仁武本校沒公布收費。
+export const areaCompareRow = (changes: Partial<AreaCompareRow> = {}): AreaCompareRow => ({
+  campus_key: 'yihua', unavailable: null, locate_error: null, children: 1200, kids_net: -412, kids_unavailable: null,
+  kindergartens: { private: 14, quasi_public: 9, public: 3, nonprofit: 2 }, babycare: 5, own_fee: 89750, own_kind: 'private',
+  own_missing: null, fee_median: 75000, fee_rank: 2, fee_rank_total: 15, changes_12m: 1, ...changes,
+})
+const buildAreaCompare = () => ({
+  radius_km: 3, population_version: '115-10', fee_school_year: 114,
+  rows: [
+    areaCompareRow(),
+    areaCompareRow({ campus_key: 'minghua', children: 900, kids_net: 35, own_kind: 'quasi_public', fee_rank: null, fee_rank_total: null, changes_12m: 0 }),
+    areaCompareRow({
+      campus_key: 'chongde', unavailable: 'no_campus_point', locate_error: 'no_doorplate', children: null, kids_net: null, kids_unavailable: null,
+      kindergartens: null, babycare: null, own_fee: null, own_kind: null, own_missing: null, fee_median: null, fee_rank: null, fee_rank_total: null, changes_12m: null,
+    }),
+    areaCompareRow({
+      campus_key: 'international', unavailable: 'error', children: null, kids_net: null, kindergartens: null, babycare: null, own_fee: null,
+      own_kind: null, fee_median: null, fee_rank: null, fee_rank_total: null, changes_12m: null,
+    }),
+    areaCompareRow({ campus_key: 'renwu', children: 300, kids_net: 0, own_fee: null, own_kind: null, own_missing: 'no_fee', fee_rank: null, fee_rank_total: null }),
+  ],
+} satisfies AreaCompare)
+export const areaCompare = (changes: Partial<AreaCompare> = {}): AreaCompare => ({ ...buildAreaCompare(), ...changes })
+
 // 里的變化（2026-10-14）：本揚里淨增最多、鼎金里減少；寶業里與龍子里因里界調整合併（代碼含一個已廢止的舊代碼）。
 const buildAreaTrends = () => ({
   as_of: '2026-10-14T02:00:00Z',
@@ -210,6 +258,7 @@ const buildAreaTrends = () => ({
   sources: {
     population: { month: '115-09', year_ago_month: '114-09' },
     births: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
+    marriages: { latest: null, months: [] as string[], missing: [] as string[] },
     migration: { latest: '115-09', months: ['114-10', '114-11', '114-12', '115-01', '115-02', '115-03', '115-04', '115-05', '115-06', '115-07', '115-08', '115-09'], missing: [] },
     note: '資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口',
     income: {
@@ -227,27 +276,27 @@ const buildAreaTrends = () => ({
   },
   baseline: {
     villages: 4, villages_outside: 0, children: 1400, kids_net: 26, kids_base: 1374, births_12m: 180, births_months: 12, births_compared_months: 9,
-    births_change_pct: -20.7, migration_net_12m: -160, migration_months: 12,
+    births_change_pct: -20.7, marriages_12m: null, marriages_months: 0, migration_net_12m: -160, migration_months: 12,
     births_series: [
-      { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 180, change_pct: -20.7 },
-      { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2 },
-      { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null },
+      { starts: '114-10', ends: '115-09', months: 12, missing: [], births: 180, change_pct: -20.7, marriages: null },
+      { starts: '113-10', ends: '114-09', months: 12, missing: [], births: 227, change_pct: -5.2, marriages: null },
+      { starts: '112-10', ends: '113-09', months: 11, missing: ['113-03'], births: 215, change_pct: null, marriages: null },
     ],
     new_homes: 130, new_homes_latest: 41, new_homes_seasons: 4,
     presale_households: 376, presale_cases: 5,
   },
   kids_unavailable: null,
   villages: [
-    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
+    { key: '64000050015', district: '三民區', village: '本揚里', codes: ['64000050015'], merged: false, distance_m: 300, children: 317, kids_net: 36, kids_base: 281, kids_level: 'up2', births_12m: 36, marriages_12m: null, migration_net_12m: -122, income_median: 458, income_boundary_changed: false, new_homes: 24, new_homes_latest: 9, new_homes_by_code: { '64000050015': 24 } as Record<string, number>,
       presale_households: 156, presale_by_code: { '64000050015': 156 } as Record<string, number>,
       schools: [{ code: '593615', name: '東光國小', district: '三民區', partial: false, free_zone: false }] },
-    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
+    { key: 'group:三民區:64000050025', district: '三民區', village: '寶業里、龍子里', codes: ['64000050025', '64000020015', '64000059999'], merged: true, distance_m: 300, children: 583, kids_net: 12, kids_base: 600, kids_level: 'flat', births_12m: 90, marriages_12m: null, migration_net_12m: 30, income_median: null, income_boundary_changed: false, new_homes: 0, new_homes_latest: 0, new_homes_by_code: {} as Record<string, number>,
       presale_households: 0, presale_by_code: {} as Record<string, number>,
       schools: [
         { code: '553608', name: '光武國小', district: '三民區', partial: true, free_zone: false },
         { code: '523606', name: '龍華國小', district: '鼓山區', partial: true, free_zone: false },
       ] },
-    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
+    { key: '64000050001', district: '三民區', village: '鼎金里', codes: ['64000050001'], merged: false, distance_m: 800, children: 500, kids_net: -22, kids_base: 493, kids_level: 'down1', births_12m: 54, marriages_12m: null, migration_net_12m: -68, income_median: 512, income_boundary_changed: true, new_homes: 106, new_homes_latest: 32, new_homes_by_code: { '64000050001': 106 } as Record<string, number>,
       presale_households: 220, presale_by_code: { '64000050001': 220 } as Record<string, number>,
       schools: [
         { code: '553604', name: '獅湖國小', district: '三民區', partial: false, free_zone: false },
@@ -489,7 +538,7 @@ export const areaPeerFees = (changes: Partial<AreaPeerFees> = {}): AreaPeerFees 
   synced_at: '2026-10-15T03:00:00Z',
   source_note: '資料來源：全國教保資訊網（kiang 整理），園所公告收費',
   own: {
-    source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', semester_total: 89750, months: 5.5, monthly_average: 16318,
+    source_id: 'kg-own', name: '高雄市私立常春藤幼兒園', kind: 'private', semester_total: 89750, months: 5.5, monthly_average: 16318,
     items: feeItems({ tuition: 19900, misc_fee: 5500, materials: 24750, activities: 23100, lunch: 8250, snack: 8250, after_care_monthly: 1200 }),
     transport_note: '單 770 雙 1540',
   },

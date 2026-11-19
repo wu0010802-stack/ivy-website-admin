@@ -68,9 +68,10 @@ describe('預約步驟跟著網址走', () => {
     expect(page).toMatch(/watch\(campusKey, \(key\) => \{ if \(key && !campus\.value\) showError\(NOT_FOUND\) \}\)/)
   })
 
-  it('下一步換到 /visit/<校>、更換校區回 /visit，第幾步由網址決定', () => {
+  // 2026-11-13 起進第二步的是選校卡上的連結（原本是「下一步」按鈕呼叫 router.push）。
+  it('選校卡連到 /visit/<校>、更換校區回 /visit，第幾步由網址決定', () => {
     expect(form).toContain("const step = computed<1 | 2>(() => props.routeCampus ? 2 : 1)")
-    expect(form).toContain('await router.push(`/visit/${key}`)')
+    expect(form).toContain('<NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`"')
     expect(form).toContain("await router.push('/visit')")
     expect(form).not.toMatch(/step\.value = [12]/)
     // 同一校的結果頁「重新選擇場次」是按鈕：連到目前網址點了不會動。
@@ -81,7 +82,28 @@ describe('預約步驟跟著網址走', () => {
     expect(form).toContain("const DRAFT_KEY = 'ivy-visit-draft'")
     expect(form).toContain('sessionStorage.setItem(DRAFT_KEY')
     expect(form).toMatch(/submitted\.value = true\n\s*clearDraft\(\)/)
-    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })')
+    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
+  })
+
+  // 2026-11-12 QA M4：伺服器已經建好預約、回應卻在路上斷掉時，家長重新整理（暫存連場次一起放回）再按一次
+  // 「確認預約」，原本是一把新的 key，同一家庭就約了兩次。key 跟著暫存走，重送才會拿回同一張收據。
+  it('送出用的 key 跟著暫存走：重新整理後再送是同一把', async () => {
+    const { newIdempotencyKey, restoredIdempotencyKey } = await import('../app/utils/idempotency-key')
+    const key = newIdempotencyKey()
+    expect(restoredIdempotencyKey(key)).toBe(key)
+    for (const bad of [undefined, null, 42, '', 'admin:1', 'x'.repeat(200), `${key} `]) expect(restoredIdempotencyKey(bad)).toBeNull()
+
+    expect(form).toMatch(/const draft: VisitDraft = \{[^}]*idempotencyKey: idempotencyKey\.value/)
+    expect(form).toContain('const savedKey = restoredIdempotencyKey(draft.idempotencyKey)')
+    expect(form).toContain('if (savedKey) idempotencyKey.value = savedKey')
+    expect(form).toContain('watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })')
+  })
+
+  // 2026-11-12 QA M5：預約成功後表單留著資料（方便再約另一校），按上一頁再送同一場次，後端回 ALREADY_BOOKED。
+  it('同一支電話重複約同一場次：說明已經約過，不寫成送出失敗', () => {
+    const branch = form.slice(form.indexOf("code === 'ALREADY_BOOKED'"), form.indexOf("code === 'BOT_CHECK_FAILED'"))
+    expect(branch).toContain('這支電話已經預約過這個場次')
+    expect(branch).not.toContain('submitRetryHint.value = true')
   })
 
   it('選好日期後把場次捲進畫面（已經看得到就不動）', () => {
@@ -101,17 +123,38 @@ describe('選單「找到你的校園」', () => {
   const header = read('../app/components/SiteHeader.vue')
   const template = header.replace(/<!--[\s\S]*?-->/g, '')
 
-  it('五校是連到首頁五校區塊那一校的連結，滑過與聚焦仍預覽參觀專線', () => {
-    expect(header).toContain(':href="`/?campus=${c.key}#campuses`"')
+  it('五校只切換下方的參觀專線與社群，不離開選單、不做成按鈕的樣子（2026-11-13）', () => {
+    // 10-29 是連到首頁五校區塊的連結；11-13 使用者：不要做成按鈕，單純切換就好。
+    expect(template).not.toContain('?campus=${c.key}#campuses')
+    expect(template).toMatch(/<div id="menu-campuses" role="group" aria-labelledby="menu-campuses-label">\s*<button\s+v-for="c in campuses"/)
+    expect(header).toContain(':aria-pressed="contactCampus?.key === c.key"')
     expect(header).toContain('@pointerenter="onCampusPointerEnter($event, c.key)"')
     expect(header).toContain('@focus="menuCampusKey = c.key"')
-    expect(header).not.toContain('@click="menuCampusKey = c.key"')
+    // Safari 點按鈕不會給焦點，手機也沒有滑過，要靠 click；點了另外記住這一校（2026-11-16，cookie ivy_campus）。
+    expect(header).toContain('@click="chooseMenuCampus(c.key)"')
+    expect(header).toMatch(/function chooseMenuCampus\(key: string\) \{\s*menuCampusKey\.value = key/)
+    const css = read('../app/assets/css/studio.css')
+    const rules = css.split('\n').filter((line) => line.includes('#menu-campuses'))
+    expect(rules.length).toBeGreaterThan(0)
+    expect(css).not.toContain('#menu-campuses a')
+    // 沒有底盤、沒有滑過／選中的反白方塊：選中只加深字色、校名畫底線。
+    const block = css.slice(css.indexOf('#menu-campuses {display:grid'), css.indexOf('.menu-socials {display:flex'))
+    expect(block).not.toMatch(/background:var\(/)
+    expect(block).toContain('#menu-campuses button.is-active>span {text-decoration:underline')
+  })
+
+  it('參觀專線只出現選中那一校的電話，跟著上面五校切換（2026-11-13）', () => {
+    // 11-12 改成五校並列，11-13 使用者要只出現那間分校的電話。
+    expect(template).toContain(':href="`tel:${menuPhone.number}`"')
+    expect(template).toContain('<small>{{ menuPhone.note }}</small><strong>{{ menuPhone.number }}</strong>')
+    expect(template).not.toContain('campusPhones')
+    expect(header).toContain("? { number: contactCampus.value.phone?.trim() ?? '', note: `${contactCampus.value.name}參觀專線` }")
+    expect(read('../app/assets/css/studio.css')).not.toContain('.menu-phones')
   })
 
   it('沒有的社群帳號與電話不出現，不寫「待提供」', () => {
     expect(template).not.toContain('待提供')
     expect(template).not.toContain('待園方提供')
-    expect(read('../app/assets/css/studio.css')).not.toContain('#menu-campuses button')
   })
 
   it('首頁五校卡也一樣：沒有 LINE 的校區不寫「待園方提供」，整列沒有社群時不留空列（2026-11-04）', () => {

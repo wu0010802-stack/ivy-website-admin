@@ -654,7 +654,10 @@ async def get_dashboard(
     summary["system_attention"] = None
     if has_capability(current_user, "system.status"):
         try:
-            status_now = await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+            status_now = await system_status.build_status(
+                db, request.app.state, request.app.state.settings, now_utc(),
+                line_transport=getattr(request.app.state, "line_transport", None),
+            )
         except Exception:  # noqa: BLE001
             logger.exception("營運總覽：系統狀態查詢失敗")
             await db.rollback()
@@ -803,6 +806,56 @@ async def get_booking_outcomes(
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     return await booking_outcomes_service.booking_outcomes(
         db, campus_keys, analytics_service.FunnelRange(date_from, date_to)
+    )
+
+
+class AttributionCountsOut(BaseModel):
+    cases: int
+    completed: int
+    no_show: int
+    # 招生訪視預繳過（現在已預繳、已轉正式，或從這兩種退出）。
+    deposited: int
+    # 已到場 ÷（已到場＋未到場）。
+    attendance_rate: AdmissionsRate
+    # 預繳 ÷ 已到場。
+    deposit_rate: AdmissionsRate
+
+
+class AttributionCampaignOut(AttributionCountsOut):
+    campaign: str
+
+
+class AttributionSourceOut(AttributionCountsOut):
+    # 第一方統計的來源代碼（direct、search、facebook…），或 unrecorded（送單時沒有記錄）。
+    source: str
+    campaigns: list[AttributionCampaignOut]
+
+
+class BookingAttributionOut(BaseModel):
+    as_of: datetime
+    date_from: date | None
+    date_to: date | None
+    touch: Literal["first", "last"]
+    rows: list[AttributionSourceOut]
+    totals: AttributionCountsOut
+
+
+@router.get("/admin/analytics/booking-attribution", response_model=BookingAttributionOut)
+async def get_booking_attribution(
+    date_from: date | None = Query(None, alias="from", description="送出日期起（台北，含），省略＝不限"),
+    date_to: date | None = Query(None, alias="to", description="送出日期迄（台北，含），省略＝不限"),
+    touch: Literal["first", "last"] = Query("last", description="first＝第一次進站；last＝預約前最後一次不是直接進站"),
+    campus_key: str | None = Query(None, description="只看一校；省略＝授權範圍內的全部校區"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> dict:
+    """官網預約依網站來源分組的到場與預繳（2026-11-16，去識別統計）。權限與校區範圍同預約結果。"""
+    # 指定校區時同班別分布的檢查（require_scope 帶 campus_keys）；不指定就是授權範圍內的全部校區。
+    require_scope(current_user, "admissions.stats", campus_keys=[campus_key] if campus_key is not None else None)
+    _validate_range(date_from, date_to)
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key) and campus_key in (None, key)]
+    return await booking_outcomes_service.attribution_outcomes(
+        db, campus_keys, analytics_service.FunnelRange(date_from, date_to), touch
     )
 
 
@@ -1017,6 +1070,8 @@ async def get_audit_log(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "INVALID_DATE_RANGE", "message": "開始日期不能晚於結束日期"},
         )
+    # LINE 群組按鈕紀錄的群組 ID 與 userId 同群組設定只給 notifications.manage（2026-11-17）。
+    show_line_ids = has_capability(current_user, "notifications.manage")
     rows = await audit_service.list_recent(
         db,
         campus_key,
@@ -1029,6 +1084,7 @@ async def get_audit_log(
         terms=terms,
         search_ip=has_capability(current_user, "audit.read_all"),
         hide_actions=_hidden_audit_actions(current_user),
+        hide_line_ids=not show_line_ids,
     )
     show_ip = has_capability(current_user, "audit.read_all")
     return [
@@ -1043,7 +1099,9 @@ async def get_audit_log(
             target_label=row.target_label,
             target_exists=row.target_exists,
             campus_key=row.entry.campus_key,
-            metadata=row.entry.metadata_json or {},
+            metadata=audit_service.visible_metadata(
+                row.entry.action, row.entry.metadata_json, show_line_ids=show_line_ids
+            ),
             created_at=row.entry.created_at,
             ip_address=row.entry.ip_address if show_ip else None,
             user_agent=row.entry.user_agent,
@@ -1325,7 +1383,10 @@ async def get_system_status(
 ) -> system_status.SystemStatusOut:
     """總管理者的系統狀態（2026-10-15 規格）：設定有沒有設、背景工作、公開資料、寄送與發布失敗。唯讀。"""
     require_scope(current_user, "system.status")
-    return await system_status.build_status(db, request.app.state, request.app.state.settings, now_utc())
+    return await system_status.build_status(
+        db, request.app.state, request.app.state.settings, now_utc(),
+        line_transport=getattr(request.app.state, "line_transport", None),
+    )
 
 
 @router.post("/admin/system-status/test-email", response_model=system_status.SystemEmailTestOut)

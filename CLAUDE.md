@@ -22,7 +22,8 @@
 | `web/` | 正式公開官網（Nuxt 4 SSR），設計迭代都在這裡；樣式 `web/app/assets/css/`、元件 `web/app/components/` | 顏色走 `web/app/assets/css/tokens.css`；改完跑 `npm --prefix web run typecheck`、`test:unit` |
 | `admin/` | 後台 SPA（Vue 3＋Element Plus），build 後併進 web 的 `/admin/` | 型別取自 `contracts/generated`；`npm --prefix admin run typecheck`、`test:unit` |
 | `backend/` | FastAPI API＋Alembic migration | 合進 `main` 的 migration 部署時自動套到正式 DB，撰寫規則見 `deploy/CICD.md` |
-| `contracts/` | `openapi.json` 與產生的 TS 型別 | 改 API 後 `npm run contract:generate`；CI 跑 `contract:check` |
+| `contracts/` | `openapi.json`、狀態機清單 `state-machines.json` 與產生的 TS 型別 | 改 API 或狀態機登記表後 `npm run contract:generate`；CI 跑 `contract:check` |
+| `docs/state-machines/` | 全站狀態機：`domain.md`（自動產生的狀態圖與轉移表）、`README.md`（做法、前端流程在哪） | 動到任何狀態或轉移前先讀；`domain.md` 不要手改 |
 | `deploy/` | Dockerfile、api 啟動腳本、Railway CI、部署紀錄 | 正式站變數、上線步驟、當月起的部署記在 `deploy/README.md`，更早的在 `docs/changelog/deploy-YYYY-MM.md` |
 | `docs/specs|superpowers/plans|handoff/2026-09-19-website-admin*`、`docs/website-admin/` | 官網後台規格、計畫、執行提示（已實作）、驗收表與維運手冊 | 見「官網後台」 |
 | `docs/changelog/` | README 與 deploy/README 的過往月份日期段落（2026-10-16 起每月封存） | 每到新的月份，把 `README.md`、`deploy/README.md` 裡上個月的 `## YYYY-MM-…` 段落整段移過來（參考章節留在原檔），連結補 `../../` |
@@ -58,7 +59,6 @@
 - hero 遮罩對比要對**實際照片像素**量，桌機與手機分開量；手機首屏不做滿版壓字。
 - 頁首貼視窗右緣的做法是 `.header-top` 滿版＋補 gutter，包在 `@media(min-width:901px)`；**禁止**用 `.header-book` 負邊距（自訂屬性裡的 % 在使用端解析）。
 - 膠囊內任何 `span` 規則要明寫 `width/height/background`，否則被站內選擇器壓成白條。
-- 五校底板卡地圖抽屜桌機固定 `order:99`，不要改成插在被點卡片下方（Grid 斷行整批跑版，已實測）。
 - 已否決、勿再主動提：孩子的一天大標鏤空／白框、logo 雙濾鏡疊圖去背、拍立得捲動時的動態（起風掀角、順風微擺，10-03 拿掉）。
 - 圖示只用 Phosphor Regular，sprite 內嵌 `index.html`；英文只留 `lang="en"` 副標與外部連結 ↗。
 - `ui-ux-pro-max` 之類的通用 UI 套件對本案不適用（會撞 PRODUCT.md 的反參考）。
@@ -71,8 +71,8 @@
 - 頁首捲過 40px 收成靠右的深綠膠囊：首頁、入學資訊、特色教學、關於常春藤、週年頁（`/anniversary`）這五頁任何寬度都收；900px 以下全站各頁也收；其餘桌機內頁（環境、消息、預約、隱私權政策等）不收（以 `SiteHeader.vue` 的 `PILL_PAGES` 為準）。**30 週年版尚未拍板**，不能順便上線（`?pill=`、`?autohide=1`、`?anni=a|b|c` 是凍結原型 `app.js` 的比稿參數，`web/` 沒有）。
 - 30 週年頁（`/anniversary`）首屏是紀念影片《長成自己喜歡的樣子》的放映區（2026-11-11，`AnniversaryFilm.vue`）：按了才播、播放時整頁關燈、直拿播直式版；10-04 的 30 秒開場動畫與 `AnniversaryIntro.vue` 已拿掉。影片、預告、封面由 `scripts/build-anniversary-film.py` 產生到 `web/public/assets/anniversary-film/`（單檔 < 50 MB），時間軸的素材場另由 `build-anniversary-media.py` 產生到 `assets/anniversary/`，兩個資料夾不要混。
 - `web/` 的預約表單會真的送出（`POST /api/website/v1/public/visit-requests`），語意規則見「官網後台」；凍結原型的表單仍只是示範。localStorage 只放動效偏好。
-- 只有義華有 LINE／FB，其他四校留待補，**不能拿義華的代填**。
-- `/about` 桌機手機是**同一份 DOM**（`AboutContent.vue`，2026-10-30 起；900px 以下改單欄，樣式在 `about.css`）。立體書（09-29）、上翻畫冊（10-19）、手機卡紙疊（10-25）都已取代並刪除（`AboutFlipBook`、`AboutSheets`、`about-m-` 前綴都不存在了），DESIGN.md 裡講翻頁、釘住、卡紙疊分頁的舊章節不再適用；現行風格是 11-10「乾淨留白」。章節 id `story`、`whole-child`、`hope`、`voices` 維持不變（頁內目次與後台預覽 `#voices` 會用）。
+- FB 五校各有自己的粉專連結；fixture 裡 LINE、IG 只有義華的，其他校缺的連結留空，**不能拿義華的代填**。
+- `/about` 桌機手機是**同一份 DOM**（`AboutContent.vue`，2026-10-30 起；900px 以下改單欄，樣式在 `about.css`）。立體書（09-29）、上翻畫冊（10-19）、手機卡紙疊（10-25）都已取代並刪除（`AboutFlipBook`、`AboutSheets`、`about-m-` 前綴都不存在了），DESIGN.md 裡講翻頁、釘住、卡紙疊分頁的舊章節不再適用；現行版是 11-12 整頁重做的「紅磚上的常春藤」（`eafd0c5d`）。章節 id `story`、`whole-child`、`hope`、`voices` 維持不變（頁內目次與後台預覽 `#voices` 會用）。
 - 後台「招生入學」（`/admin/admissions`）階段 A／B／C 於 2026-10-02 併入 main 並部署；功能開關 `WEBSITE_ADMISSIONS_ENABLED` 預設關（關閉時 API 404、標記已到場不建招生訪視），但 **2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，repo 沒有開啟紀錄、隱私權政策也還沒發布，見 `deploy/README.md` 頂部；不要擅自改正式站變數。參觀後追蹤（待追蹤分頁〔10-06 已拿掉〕、聯絡紀錄、批次標記到場）10-04 由 PR #31 併入 main（`bd22112`）並部署，規格 `docs/specs/2026-10-04-admissions-follow-up-design.md`。比照園務招生：預約標記「已到場」在同一交易建立招生訪視；表名沿用園務，`campus_key` 不是 tenant_id；統計比率分母 0 回 `null`（畫面「—」），與園務刻意不同之處記在 `contracts/ivy-recruitment/README.md`。開啟前要先過規格 Q1（隱私權政策補招生用途與保存天數，擬稿在追蹤規格附錄 A），步驟見 `deploy/README.md`「招生入學」。
 
 ## 驗證工具的本機繞法
@@ -91,8 +91,9 @@
 - **技術棧**（不要再重開選型，背景在 `docs/analysis/2026-09-19-frontend-stack-assessment.md`）：公開官網 Nuxt 4 + Vue 3 + TS（SSR）、後台 Vue 3 + Pinia + Element Plus + Vite、API FastAPI **0.136.1 釘版**＋SQLAlchemy 2.0＋Alembic＋PostgreSQL。
 - **部署**：Railway 的 web、api 兩個服務＋官網專用 PostgreSQL；api 沒有公開網域，瀏覽器只打 web 的同源代理 `/api/website/v1/**`。**push `main`＝CI 通過後正式部署**，API 啟動時自動 `alembic upgrade head` 套到正式 DB。工作留在 `feature/**`，未經使用者明確要求不 push、不合併進 `main`；部署後在 `deploy/README.md` 補紀錄。
 - 官網用獨立 DB，不連 `ivymanagement`（`backend/app/config.py` 會拒絕啟動）；不發真實通知、不建付費服務或外部資源——SMTP、LINE、S3 的金鑰都由使用者在部署平台設定。
-- 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 必填、確認信與修改連結寄給家長；舊的 inquiry／待確認 10-06 連同資料刪除，案件狀態只剩已確認、已取消、未到場、已完成）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
+- 預約語意（2026-09-30 起官網只有自選場次、送出即「預約成功」，Email 2026-11-13 起改選填，確認信與修改連結只寄給有留 Email 的家長；舊的 inquiry／待確認 10-06 連同資料刪除，案件狀態只剩已確認、已取消、未到場、已完成）、idempotency、最後名額並發要用真 PostgreSQL 驗證等不可違反規則，逐條見 handoff「預約不可違反的規則」；家長確認信與修改連結規則見 `docs/specs/2026-09-30-parent-self-booking-design.md`。
 - 權限一律走 `backend/app/auth/permissions.py` 的 capability 表與 `campus_scope`／`covers_campus`，不在路由寫 `role != SUPER_ADMIN`（`tests/test_permission_table.py` 會擋）。
+- 狀態機（預約案件、通知 outbox、內容審核、排程發布、素材、轉檔、招生階段、編班、廣告回傳、粉專貼文）登記在 `backend/app/state_machines.py`：加狀態、加轉移、或讓新的檔案寫 `status`／`review_status`，都要先改登記表再 `npm run contract:generate`，不在路由直接寫狀態（`tests/test_state_machines.py` 會擋）。前端新流程用單一具名狀態、不堆布林，寫法見 `docs/state-machines/README.md`。
 - 排程發布、延展場次、即將參觀提醒、通知 outbox、清限流計數、素材清理、個資保存清理由 API 內建定期工作執行（`backend/app/workers/maintenance.py`，production 每 60 秒）；限流計數存在 PostgreSQL，不要再放 process 記憶體。
 - **測試**：後端 `cd backend && WEBSITE_TEST_DATABASE_URL=postgresql+asyncpg://localhost/<測試庫> uv run pytest`。本機常有多個 session 並行，各自 `createdb` 一個名稱含 `test` 的庫並先 `alembic upgrade head`（需 `WEBSITE_ENVIRONMENT=test` 與 DATABASE_URL／SESSION_SECRET），共用同一個庫會互相清表。conftest 的 app 共用同一批路由（`backend/tests/route_cache.py`），測試要用 `dependency_overrides` 時改用 `uncached_create_app`；新增很多測試後用 `uv run pytest --store-durations` 重產 `backend/.test_durations`，CI 三組才會平均。前端 `npm --prefix web run test:unit`、`npm --prefix admin run test:unit`；全站 e2e `npm run e2e:build` 後 `npm run test:e2e:stack`（`tests/stack`），公開站四視口 `npm run test:e2e`（`tests/e2e`）；CI 的 E2E job 兩組都跑（`tests/e2e` 自 2026-10-21 起），E2E 不擋部署；契約 `npm run contract:check`；部署腳本 `python3 -m unittest discover -s deploy/tests`。
 - 根目錄 vanilla 原型已在 `63a0c05` 凍結（階段 A 閘門，使用者同意）；設計迭代一律在 `web/`，不回寫根目錄。`preview.html` 保留為原型離線快照。

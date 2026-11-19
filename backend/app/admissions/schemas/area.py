@@ -271,6 +271,8 @@ class AreaFeeItemsOut(BaseModel):
 class AreaPeerFeeOwnOut(BaseModel):
     source_id: str
     name: str
+    # 收費公告那一學年的類型（準公共期間重算過）；只有私立一般才有排名。
+    kind: KindergartenKind
     semester_total: int
     months: float | None
     monthly_average: int | None
@@ -361,3 +363,44 @@ class AreaChangesOut(BaseModel):
     window_months: int
     tracking_since: AreaTrackingSinceOut
     items: list[AreaChangeItemOut]
+
+
+# ---- 五校周邊環境比較（2026-11-16 規格 §6）----
+
+
+class AreaCompareKindergartensOut(BaseModel):
+    """半徑內各類型幼兒園家數，不含常春藤各校。"""
+
+    private: int
+    quasi_public: int
+    public: int
+    nonprofit: int
+
+
+class AreaCompareRowOut(BaseModel):
+    """一校一列。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝這一校計算失敗；
+    兩種情況數字都是 null。fee_*：本校 3 歲一學期公告收費和半徑內私立一般的比較；本校不是私立一般時沒有排名
+    （fee_rank 是 null，own_kind 寫實際類型），own_missing 是本校沒找到或沒有收費資料的原因。"""
+
+    campus_key: str
+    unavailable: Literal["no_campus_point", "error"] | None
+    locate_error: str | None
+    children: int | None
+    kids_net: int | None
+    kids_unavailable: str | None
+    kindergartens: AreaCompareKindergartensOut | None
+    babycare: int | None
+    own_fee: int | None
+    own_kind: KindergartenKind | None
+    own_missing: Literal["not_found", "no_fee"] | None
+    fee_median: int | None
+    fee_rank: int | None
+    fee_rank_total: int | None
+    changes_12m: int | None
+
+
+class AreaCompareOut(BaseModel):
+    radius_km: int
+    population_version: str | None
+    fee_school_year: int | None
+    rows: list[AreaCompareRowOut]

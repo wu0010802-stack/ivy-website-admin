@@ -26,12 +26,16 @@ describe('splitTrailingParen（標題結尾括號整段換行）', () => {
 
 // 2026-11-11：「30 週年開場飛進相框不算版面位移」兩條隨 30 秒開場動畫（AnniversaryIntro.vue）一起拿掉；首屏改成按了才播的紀念影片。
 
-describe('常春藤環境頁首屏大標兩欄時不擠出孤字', () => {
-  // 2026-10-30 木頭積木版：首屏右欄是 540px 的照片欄（11-04 起 1180 以下 46%），字欄寬不再是 vw 的固定比例，改用容器單位（字欄寬 ÷ 9.6）
-  it('字級上限跟著字欄寬（10.4cqi，一行 9 字），字欄是 inline-size 容器', () => {
+describe('常春藤環境頁首屏大標不擠出孤字', () => {
+  // 2026-11-17「拱窗打開」：桌機起始畫面的大標在拱窗左邊，字級＝拱左邊的空位 ÷ 最長那一行的字數（--n，元件依標題算，至少 8），
+  // 所以每一行都放得下、不會折出孤字；不再用容器單位（10-30 木頭積木版是字欄寬 ÷ 9.6 的 10.4cqi）。
+  it('字級跟著拱窗左邊的空位與最長那一行的字數；每一行不折行', () => {
     const css = read('app/assets/css/environment.css')
-    expect(css).toContain('.renv h1{font-size:clamp(1.75rem,min(1rem + 3.6vw,10.4cqi),3.85rem);')
-    expect(css).toMatch(/\.renv-hero-txt\{[^}]*container-type:inline-size/)
+    expect(css).toContain('--F:min(clamp(var(--f) * 1.3,(var(--al) - 44px) / var(--n,8),var(--f) * 2),(var(--hbt) - 28px) / (var(--l,2) * 1.16));')
+    expect(css).toContain('.renv-h-line{display:block;white-space:nowrap;transform-origin:0 0}')
+    expect(css).not.toMatch(/cq[iwh]\b|container-type/)
+    const component = read('app/components/EnvironmentContent.vue')
+    expect(component).toContain("'--n': Math.max(8, ...heroLines.value.map((line) => [...`${line.before}${line.mark}${line.after}`].length)),")
   })
 })
 
@@ -76,7 +80,8 @@ describe('入學頁第二批（2026-10-13 逐頁檢查）', () => {
   })
   it('退費條文一組一列、焦點框用葉綠', () => {
     expect(css).toContain('.ap-clause-body > div { display: grid; grid-template-columns: 7em minmax(0, 1fr); gap: 2px 16px; }')
-    expect(css).toContain('.ap-field input:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }')
+    // 2026-11-13 生日欄改成三個下拉，焦點框規則跟著換選擇器
+    expect(css).toContain('.ap-select select:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }')
   })
 })
 

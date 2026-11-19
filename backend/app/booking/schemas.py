@@ -39,6 +39,9 @@ _REFERRAL_SOURCE_ORDER = (
 )
 
 _PHONE_PATTERN = re.compile(r"09[0-9]{8}")
+# 全形數字（U+FF10–FF19）轉半形。刻意不用 NFKC：它還會把圈圈數字、上標數字也當成數字收進來，
+# 只想補輸入法切到全形時打出的數字。web/app/utils/visit-form.ts 的 normalizeVisitPhone 是同一張對照。
+_FULLWIDTH_DIGITS = {ord("０") + i: str(i) for i in range(10)}
 # 規格 190：「先移除空格與連字號」。含全形空白與各種破折號變體，家長從
 # 通訊錄貼過來的 0912-345-678 或 0912 345 678 都要能通過。
 _PHONE_STRIP_RE = re.compile(r"[\s\-\u2010-\u2015\u2212\uFF0D\u3000]")
@@ -88,12 +91,37 @@ ManualVisitSource = Literal["phone", "line", "walk_in", "external"]
 def normalize_phone(value: str) -> str:
     # 回傳正規化後的值：validator 的回傳值就是實際落庫的內容，這樣
     # DB 裡一律是乾淨的 10 碼，後台搜尋與匯出才不會被空格分岔。
-    normalized = _PHONE_STRIP_RE.sub("", value)
+    normalized = _PHONE_STRIP_RE.sub("", value.translate(_FULLWIDTH_DIGITS))
     # fullmatch 而不是 match：`$` 會允許結尾多一個換行，
     # "0912345678\n" 原本可以通過驗證。
     if not _PHONE_PATTERN.fullmatch(normalized):
         raise ValueError("手機號碼格式錯誤，需為 09 開頭的 10 碼數字")
     return normalized
+
+
+# 孩子生日的下限：今天（台北）往前 18 年。幼兒園 2–6 歲、課後班到國小，18 年很寬鬆，
+# 只擋 1900-01-01、打錯年份這類明顯的錯誤。web/app/utils/visit-form.ts 的 earliestChildBirthdate 是同一個規則。
+CHILD_BIRTHDATE_MAX_YEARS = 18
+
+
+def earliest_child_birthdate(today: date) -> date:
+    year = today.year - CHILD_BIRTHDATE_MAX_YEARS
+    try:
+        return today.replace(year=year)
+    except ValueError:  # 今天是 2/29、18 年前沒有 2/29：下限落在 2/28
+        return date(year, 2, 28)
+
+
+def check_child_birthdate(value: date | None) -> date | None:
+    """四個入口（官網送單、後台補登、家長改資料、後台改家長資料）共用：不能晚於今天，也不能早於 18 年前。"""
+    if value is None:
+        return value
+    today = today_local()
+    if value > today:
+        raise ValueError("寶貝出生日期不能晚於今天")
+    if value < earliest_child_birthdate(today):
+        raise ValueError("請確認寶貝的出生日期，年份看起來不太對")
+    return value
 
 
 # 自由文字不收控制字元（換行、歸位、TAB 除外）。PostgreSQL 的 text 不收 NUL，
@@ -220,6 +248,8 @@ class PublicBookingConfigOut(BaseModel):
     external_url: str | None
     message: str | None
     parent_email_enabled: bool = False
+    # 這校有開家長 LINE 通知（2026-11-16）：預約完成頁據此顯示「用 LINE 接收通知」。
+    line_notify_enabled: bool = False
     # 2026-10-02 起官網預約不用勾選同意，不再回同意文字與版本。
     # 預約文案發布中的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
     privacy_notice: PrivacyNoticeOut | None = None
@@ -285,10 +315,8 @@ class _VisitRequestFields(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("referral_sources")
     @classmethod
@@ -311,8 +339,9 @@ class _VisitRequestFields(BaseModel):
 
 
 class VisitRequestCreate(_VisitRequestFields):
-    # 2026-09-30 起官網只剩自選場次：場次與 Email 必填（確認信與修改連結寄到這裡）。
-    email: EmailStr = Field(max_length=254)
+    # 2026-09-30 起官網只剩自選場次：場次必填。Email 在 2026-09-30～11-13 也必填，
+    # 2026-11-13 業主裁定改回選填（沿用父類別的 EmailStr | None）：沒填就不寄確認信，
+    # 修改連結照樣顯示在預約完成頁（回應的 manage_path）。
     slot_id: uuid.UUID
     config_version: int
     # party_size（繼承）：2026-10-03 起官網表單不再問參觀人數，維持選填只為了
@@ -323,6 +352,14 @@ class VisitRequestCreate(_VisitRequestFields):
     # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def _blank_email_is_none(cls, value):
+        # 選填欄位留白：官網不帶這個欄位，但其他呼叫端可能送空字串，不能回「Email 格式錯誤」。
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
 
     @field_validator("expected_start")
     @classmethod
@@ -481,6 +518,17 @@ class VisitRequestDetailOut(BaseModel):
     party_size: int | None = None
     # 預計入學時間（2026-10-15）；舊案件與沒選的為 None。
     expected_start: str | None = None
+    # 網站來源（2026-11-16，booking/attribution.py）：官網送單時第一方 cookie 記下的「第一次進站」與
+    # 「預約前最後一次不是直接進站」。來源是第一方統計的代碼，活動代碼是 utm_campaign；沒有就是 None。
+    first_touch_source: str | None = None
+    first_touch_campaign: str | None = None
+    first_touch_on: date | None = None
+    last_touch_source: str | None = None
+    last_touch_campaign: str | None = None
+    last_touch_on: date | None = None
+    # 廣告平台（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時才可能有值。
+    first_touch_ad_platform: str | None = None
+    last_touch_ad_platform: str | None = None
     # 排除標記（2026-10-15）：測試或重複的案件；列表不回說明（計畫裁定 P12）。
     excluded_at: datetime | None = None
     exclude_reason: str | None = None
@@ -576,10 +624,8 @@ class ParentDetailsUpdate(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("expected_start", mode="before")
     @classmethod
@@ -659,10 +705,8 @@ class AdminDetailsUpdate(BaseModel):
 
     @field_validator("child_birthdate")
     @classmethod
-    def _birthdate_not_future(cls, value: date | None) -> date | None:
-        if value is not None and value > today_local():
-            raise ValueError("寶貝出生日期不能晚於今天")
-        return value
+    def _birthdate_in_range(cls, value: date | None) -> date | None:
+        return check_child_birthdate(value)
 
     @field_validator("expected_start")
     @classmethod
@@ -682,6 +726,17 @@ class AdminDetailsUpdate(BaseModel):
     def changes(self) -> dict:
         """請求裡有送的欄位與值（不含 expected_version）；清空的欄位值是 None。"""
         return {field: getattr(self, field) for field in self.model_fields_set if field != "expected_version"}
+
+
+class RememberedVisitOut(BaseModel):
+    """這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、
+    Email——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。"""
+
+    campus_key: str
+    campus_name: str
+    slot_date: date
+    start_time: time
+    end_time: time
 
 
 class ParentVisitRequestOut(BaseModel):
@@ -911,8 +966,21 @@ class VisitContactNoteCreateRequest(BaseModel):
 
     @field_validator("note")
     @classmethod
-    def _note_no_control_chars(cls, value: str) -> str:
-        return _reject_control_chars(value)
+    def _note_not_blank(cls, value: str) -> str:
+        # 回傳值就是落庫的內容：前後空白不留，只有空白（含全形空格）的不收。
+        value = _reject_control_chars(value).strip()
+        if not value:
+            raise ValueError("請填寫聯絡內容")
+        return value
+
+    @field_validator("follow_up_at")
+    @classmethod
+    def _follow_up_has_timezone(cls, value: datetime | None) -> datetime | None:
+        # 沒有時區的時間會被當成 UTC，後台顯示差 8 小時。後台送出一律帶 +08:00，
+        # 缺時區就是送錯了，直接擋下，不猜時區。
+        if value is not None and value.tzinfo is None:
+            raise ValueError("下次聯絡時間需要包含時區，請重新選擇時間")
+        return value
 
     @property
     def clears_follow_up(self) -> bool:
@@ -1178,6 +1246,8 @@ class VisitClosureCampusOut(BaseModel):
     notified: int
     already_notified: int
     no_email: int
+    # 沒有 Email、但停課通知會走 LINE 的（2026-11-16）。
+    with_line: int = 0
 
 
 class VisitClosureOut(BaseModel):

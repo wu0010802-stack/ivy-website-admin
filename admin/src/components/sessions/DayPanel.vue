@@ -4,7 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { api } from '../../api/client'
 import { isVersionConflict, apiErrorMessage } from '../../api/errors'
-import { formatDate, formatTime, formatWeekday, slotClosedLabel, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
+import { formatDate, formatTime, formatWeekday, slotClosedLabel, slotStarted, visitDisplay, visitDisplayStatus, visitSourceLabel, type StatusMeta } from '../../api/labels'
 import StatusTag from '../StatusTag.vue'
 import { slotEnded, type CalendarSlot } from '../../utils/calendarChips'
 import { sessionName } from '../../utils/sessions'
@@ -19,6 +19,17 @@ const adding = ref(false)
 const addingBusy = ref(false)
 const newSlot = ref({ start: '10:00', minutes: 60, capacity: 1 })
 const TIME_OPTIONS = Array.from({ length: 23 }, (_, i) => { const t = 7 * 60 + i * 30; return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}` })
+// 加開的開始時間：今天（台北時間）已經過去的不能選，後端也不收開始時間已過的場次。
+// 現在幾點在打開表單時才取一次；開著放很久再送出，由後端把關。
+const clock = ref(Date.now())
+const startOptions = computed(() => TIME_OPTIONS.filter(t => !slotStarted({ slot_date: props.day, start_time: `${t}:00` }, clock.value)))
+function openAdd() {
+  clock.value = Date.now()
+  const options = startOptions.value
+  // 預設的時間已經過了，改成第一個還能選的；整天都過了就留著，表單會改說明沒有時段可加開。
+  if (options.length && !options.includes(newSlot.value.start)) newSlot.value.start = options[0]!
+  adding.value = true
+}
 const sorted = computed(() => [...props.slots].sort((a, b) => a.start_time.localeCompare(b.start_time)))
 const bookedToday = computed(() => props.slots.reduce((sum, s) => sum + s.visits.filter(v => v.status === 'confirmed').length, 0))
 const dayPast = computed(() => new Date(`${props.day}T23:59:59+08:00`).getTime() < Date.now())
@@ -149,9 +160,10 @@ async function addSlot() {
       </ul>
     </div>
     <template v-if="canManage && !dayPast && !holiday">
-      <el-button v-if="!adding" text @click="adding = true">＋加開一場</el-button>
+      <el-button v-if="!adding" text @click="openAdd">＋加開一場</el-button>
+      <p v-else-if="!startOptions.length" class="hint day-panel__no-start">今天已經沒有可以加開的時段。<el-button text size="small" @click="adding = false">關閉</el-button></p>
       <form v-else class="day-panel__add" @submit.prevent="addSlot">
-        <el-select v-model="newSlot.start" aria-label="加開場次時間" :disabled="addingBusy"><el-option v-for="t in TIME_OPTIONS" :key="t" :label="t" :value="t" /></el-select>
+        <el-select v-model="newSlot.start" aria-label="加開場次時間" :disabled="addingBusy"><el-option v-for="t in startOptions" :key="t" :label="t" :value="t" /></el-select>
         <el-select v-model="newSlot.capacity" aria-label="加開場次組數" :disabled="addingBusy"><el-option v-for="n in 10" :key="n" :label="`${n} 組`" :value="n" /></el-select>
         <el-button type="primary" native-type="submit" :loading="addingBusy" :disabled="addingBusy">加開</el-button>
         <el-button :disabled="addingBusy" @click="adding = false">取消</el-button>

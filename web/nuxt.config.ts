@@ -24,9 +24,23 @@ if (indexingEnabled && !normalizeSiteOrigin(process.env.NUXT_PUBLIC_SITE_ORIGIN 
   throw new Error('啟用正式索引時必須設定有效 HTTPS origin（NUXT_PUBLIC_SITE_ORIGIN）')
 }
 
+// 打包目標（2026-11-13）：Vite 預設（chrome111、edge111、firefox114、safari16.4、ios16.4）把 Safari 降到 15.4，
+// 讓停在 iOS 15 的手機（iPhone 6s／7／初代 SE，最高 15.8）看得到網站。改之前這些手機整站是「500 網站暫時無法顯示」：
+// - Nuxt 預設用 import map 把各 chunk 裡的 `#entry` 對到進入點，Safari 16.4 以前沒有 import map，
+//   chunk 全部載入失敗（Module specifier, '#entry' does not start with "/"…），頁面被換成錯誤頁。
+//   目標含 16.4 以前的 Safari 時 Nuxt 會自己關掉，下面 experimental.entryImportMap 再明寫一次，
+//   免得之後有人調整目標又悄悄打開。代價：進入點一變，import 它的 chunk 檔名跟著變，部署後重新下載的檔案變多。
+// - CSS 的 `@media (max-width:760px)` 會被縮寫成 `(width<=760px)`，Safari 16.4 以前不認得，手機版樣式整批不套用。
+// 停在 15.4 不降到 15.0：oklch()、svh、:has() 都是 15.4 才有，全站色票是 oklch，降到 15.0 每個顏色會多一份 rgb 後備。
+// 守在 tests/legacy-safari-20261113.spec.ts。
+const BUILD_TARGET = ['chrome111', 'edge111', 'firefox114', 'safari15.4', 'ios15.4']
+
 export default defineNuxtConfig({
   compatibilityDate: '2025-07-15',
   devtools: { enabled: true },
+
+  experimental: { entryImportMap: false },
+  vite: { build: { target: BUILD_TARGET, cssTarget: BUILD_TARGET } },
 
   css: ['~/assets/css/tokens.css', '~/assets/css/styles.css', '~/assets/css/font-subsets.css', '~/assets/css/studio.css', '~/assets/css/performance.css', '~/assets/css/typography.css'],
 
@@ -116,6 +130,11 @@ export default defineNuxtConfig({
     // 訪客與這支 server 之間的可信代理層數（Railway edge 一層）；用來從
     // X-Forwarded-For 右邊取訪客 IP，見 server/utils/client-ip.ts。
     trustedProxyHops: Number(process.env.NUXT_TRUSTED_PROXY_HOPS ?? 1),
+    // 平台代理會覆寫、訪客偽造不了的訪客 IP header（2026-11-12）：正式站設 "x-real-ip"。
+    // Railway edge 前面多了一層 CDN（CDN77），會把自己的節點接在 X-Forwarded-For 最後面，
+    // 只靠 trustedProxyHops 會取到 CDN 節點；X-Real-IP 由 Railway 覆寫成真正連線來源（實測）。
+    // 預設空白＝不看任何 header，照舊從 X-Forwarded-For 取（本機與測試環境沒有可信的代理）。
+    clientIpHeader: process.env.NUXT_CLIENT_IP_HEADER ?? '',
     // www 經過 Cloudflare 代理（橘雲）時設 true：上一跳是 Cloudflare 節點才採信 CF-Connecting-IP
     // （2026-11-12，server/utils/client-ip.ts）。預設關；灰雲時開著也無害（上一跳不是 Cloudflare）。
     cloudflareClientIp: parseBoolean(process.env.NUXT_CLOUDFLARE_CLIENT_IP, false),
@@ -143,7 +162,17 @@ export default defineNuxtConfig({
       indexingEnabled,
       telemetryEnabled: parseBoolean(process.env.NUXT_PUBLIC_TELEMETRY_ENABLED, websiteEnv === 'production'),
       // 前端外掛（plugins/error-report.client.ts）讀這個；預設同上，沒開就不掛 window 的錯誤監聽。
-      errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production')
+      errorReportsEnabled: parseBoolean(process.env.NUXT_ERROR_REPORTS_ENABLED, websiteEnv === 'production'),
+      // GA4 與 Meta Pixel（2026-11-12，plugins/third-party-analytics.client.ts、server/utils/security-headers.ts 的 CSP）。
+      // 預設空白＝全關：不載任何外部腳本、CSP 不變。刻意不讀 process.env：Nuxt 在執行期依鍵名對應
+      // NUXT_PUBLIC_GA_MEASUREMENT_ID／NUXT_PUBLIC_META_PIXEL_ID，改了重啟即生效、刪掉變數重啟即關
+      // （若在這裡讀 build 時的值，刪掉變數還要重建映像）。格式不符（G-XXXXXXXXXX／純數字）視同未設定。
+      gaMeasurementId: '',
+      metaPixelId: '',
+      // ChatGPT 廣告的 OpenAI 評估像素（2026-11-15）：NUXT_PUBLIC_OPENAI_PIXEL_ID，規則同上（預設空白＝關）。
+      openaiPixelId: '',
+      // LINE Tag（2026-11-16）：NUXT_PUBLIC_LINE_TAG_ID（UUID），規則同上（預設空白＝關）。
+      lineTagId: ''
     }
   }
 

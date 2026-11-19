@@ -3,7 +3,11 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { defineComponent, h } from 'vue'
 import { createMemoryHistory, createRouter, type LocationQueryRaw } from 'vue-router'
+import { createPinia } from 'pinia'
+import type { Role } from '../api/types'
+import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import { testUser } from './fixtures'
 
 // 成效統計（2026-11-12）：18 張表分成四類、整頁共用一組期間與裝置，三個選擇都寫在網址。
 // 兩個面板各自讀資料（traffic.test.ts、engagement.test.ts），這裡換成只顯示收到的 props 的替身。
@@ -23,21 +27,40 @@ const InterestStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'interest', 'data-days': props.days, 'data-device': props.device, 'data-view': props.view }),
 })
 
-async function mountView(query: LocationQueryRaw = {}) {
+const CruxStub = defineComponent({
+  name: 'CruxPanel',
+  props: { active: Boolean },
+  setup: (props) => () => h('div', { 'data-stub': 'crux', 'data-active': String(props.active) }),
+})
+const SearchStub = defineComponent({
+  name: 'SearchInsightsPanel',
+  props: { days: Number, active: Boolean },
+  emits: ['updating'],
+  setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
+})
+
+async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
   await router.isReady()
+  const pinia = createPinia()
+  useAuthStore(pinia).user = testUser(role, { campus_keys: role === 'super_admin' ? [] : ['yihua'] })
   const wrapper = mount(AnalyticsView, {
     attachTo: document.body,
-    global: { plugins: [router, ElementPlus], stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub } },
+    global: {
+      plugins: [router, ElementPlus, pinia],
+      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub },
+    },
   })
   wrappers.push(wrapper)
   await flushPromises()
   const traffic = () => wrapper.find('[data-stub="traffic"]')
   const interest = () => wrapper.find('[data-stub="interest"]')
+  const crux = () => wrapper.find('[data-stub="crux"]')
+  const search = () => wrapper.find('[data-stub="search"]')
   const tabs = () => wrapper.findAll('.status-tab')
   const pressed = () => tabs().filter((tab) => tab.attributes('aria-pressed') === 'true').map((tab) => tab.text())
-  return { wrapper, router, traffic, interest, tabs, pressed }
+  return { wrapper, router, traffic, interest, crux, search, tabs, pressed }
 }
 
 describe('成效統計的分類與條件', () => {
@@ -116,5 +139,65 @@ describe('成效統計的分類與條件', () => {
     wrapper.findComponent(InterestStub).vm.$emit('updating', false)
     await flushPromises()
     expect(status()).toBe('')
+  })
+  it('Chrome 真實使用者在「瀏覽與速度」、Google 搜尋在「怎麼來、怎麼逛」，只有切到那一類才叫它們讀', async () => {
+    const { router, crux, search, tabs } = await mountView()
+    expect(crux().isVisible()).toBe(true)
+    expect(crux().attributes('data-active')).toBe('true')
+    expect(search().isVisible()).toBe(false)
+    expect(search().attributes('data-active')).toBe('false')
+
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toEqual({ tab: 'journey' })
+    expect(crux().isVisible()).toBe(false)
+    expect(crux().attributes('data-active')).toBe('false')
+    expect(search().isVisible()).toBe(true)
+    expect(search().attributes('data-active')).toBe('true')
+
+    // 其他兩類兩個都不顯示。
+    await tabs()[1]!.trigger('click')
+    await flushPromises()
+    expect(crux().isVisible()).toBe(false)
+    expect(search().isVisible()).toBe(false)
+  })
+
+  // 2026-11-12 QA M3：這兩支 API 要 admissions.stats（只有總管理者有），其他角色一律 403，
+  // 面板會永遠停在紅色的「請重新載入」。沒有這個權限就不放面板。
+  it.each(['campus_admin', 'editor', 'reception', 'readonly'] as const)('%s 看不到 Chrome 真實使用者與 Google 搜尋兩個面板', async (role) => {
+    const { crux, search, traffic, interest, tabs } = await mountView({}, role)
+    expect(traffic().exists()).toBe(true)
+    expect(interest().exists()).toBe(true)
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(crux().exists()).toBe(false)
+    expect(search().exists()).toBe(false)
+  })
+
+  it('Google 搜尋跟著整頁的期間；Chrome 真實使用者是 28 天滾動，不吃期間', async () => {
+    const { wrapper, search } = await mountView({ tab: 'journey' })
+    expect(search().attributes('data-days')).toBe('28')
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 7)
+    await flushPromises()
+    expect(search().attributes('data-days')).toBe('7')
+    expect(wrapper.findComponent(CruxStub).props()).toEqual({ active: false })
+  })
+
+  it('「更新中…」依目前這一類看：Google 搜尋在「怎麼來、怎麼逛」才算', async () => {
+    const { wrapper } = await mountView({ tab: 'journey' })
+    const status = () => wrapper.find('.analytics__bar [role="status"]').text()
+    wrapper.findComponent(SearchStub).vm.$emit('updating', true)
+    await flushPromises()
+    expect(status()).toBe('更新中…')
+    wrapper.findComponent(SearchStub).vm.$emit('updating', false)
+    await flushPromises()
+    expect(status()).toBe('')
+    // 在別的分類，Google 搜尋在背景更新不用提示。
+    const other = await mountView({ tab: 'content' })
+    other.wrapper.findComponent(SearchStub).vm.$emit('updating', true)
+    await flushPromises()
+    expect(other.wrapper.find('.analytics__bar [role="status"]').text()).toBe('')
   })
 })

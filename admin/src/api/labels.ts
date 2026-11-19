@@ -110,6 +110,15 @@ export function visitDisplay(row: { status: string; display_status: string; canc
   }
 }
 
+/**
+ * 寫在一句話裡的狀態：和案件頁首、列表同一個說法，時間已過的要帶副標（「預約時間已過・已到場」），
+ * 只寫「預約時間已過」會讓人以為還沒標記到場。取消的副標是取消時間，不放進句子裡。
+ */
+export function visitDisplayLabel(row: Parameters<typeof visitDisplay>[0]): string {
+  const shown = visitDisplay(row)
+  return row.display_status === 'past' && shown.sub ? `${shown.label}・${shown.sub}` : shown.label
+}
+
 export function visitStatus(status: string): StatusMeta {
   return VISIT_STATUS[status] ?? { label: status, tone: 'info' }
 }
@@ -353,6 +362,9 @@ export const BOOKING_MODE_LABELS: Record<string, string> = {
 
 // 與後端 notifications/service.py 的 _KIND_LABELS 同一組（labels.test.ts 會比對）。
 export const NOTIFICATION_KIND_LABELS: Record<string, string> = {
+  // 區域分析：五校 3 公里內的園所異動與裁罰（2026-11-16，只有總管理者看得到）。
+  area_provider_change: '附近園所異動',
+  area_penalty: '附近幼兒園裁罰',
   visit_request_created: '新的參觀預約',
   visit_request_confirmed: '參觀預約已確認',
   visit_request_cancelled: '參觀預約已取消',
@@ -446,6 +458,13 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.test_push': '送出 LINE 測試訊息',
   'line.verification_code.create': '產生 LINE 群組驗證碼',
   'line.group.verify': 'LINE 群組完成驗證',
+  'line.group.settings.update': '更新群組通知設定',
+  'line.group.visit_attend': '在 LINE 群組標記已到場',
+  'line.group.visit_no_show': '在 LINE 群組標記未到場',
+  'line.group.recruitment_field': '填寫招生欄位（LINE 群組）',
+  'line.parent_account.update': '更新家長 LINE 通知帳號',
+  'line.parent.link': '家長開啟 LINE 通知',
+  'line.parent.unlink': '家長關閉 LINE 通知',
   'user.create': '新增帳號',
   'user.set_active': '變更帳號啟用狀態',
   'user.set_scope': '變更負責校區',
@@ -530,6 +549,19 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'recruitment_visit.transition': '變更招生階段',
   'recruitment_visit.seat': '保留或釋放座位',
   'grade_intake_target.update': '設定計畫名額',
+  // 編班與缺額（2026-11-15）
+  'roster_class.create': '新增編班表班級',
+  'roster_class.update': '修改編班表班級',
+  'roster_class.delete': '刪除編班表班級',
+  'roster_student.create': '新增編班表幼生',
+  'roster_student.update': '修改編班表幼生資料',
+  'roster_student.move': '移動編班表幼生的班級或順序',
+  'roster_student.enter': '標記幼生已入園',
+  'roster_student.leave': '標記幼生離園',
+  'roster_student.refund': '標記幼生退預繳',
+  'roster_student.restore': '恢復離園或退預繳的幼生',
+  'roster_tier.update': '設定全校三段目標',
+  'roster_snapshot.create': '存成結算紀錄',
   'recruitment_visit.create_from_booking': '由官網預約建立招生訪視',
   'recruitment_visit.synced_from_visit_request': '預約資料修改後同步到招生訪視',
   // 參觀後追蹤（2026-10-04）
@@ -541,6 +573,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   // 後台資料匯入（2026-10-21）
   'enrolled_roster.import': '匯入在籍清冊',
   'enrolled_roster.clear': '清除在籍資料',
+  'ad_spend.upsert': '填寫廣告花費',
+  'ad_spend.delete': '刪除廣告花費',
   'enrollment_history.import': '匯入歷年註冊',
 }
 
@@ -627,11 +661,13 @@ export function visitEventLabel(eventType: string): string {
   return VISIT_EVENT_LABELS[eventType] ?? eventType
 }
 
-// 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作。
+// 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作；
+// LINE 群組是園方在群組卡片上按已到場／未到場（2026-11-17，對不到後台帳號）。
 export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
   staff: '園方人員',
   parent: '家長',
   system: '系統自動',
+  line_group: 'LINE 群組',
 }
 
 // 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。
@@ -710,7 +746,12 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   line_verification_code: 'LINE 群組驗證碼',
   recruitment_visit: '招生訪視',
   grade_intake_target: '計畫名額',
+  roster_class: '編班表班級',
+  roster_student: '編班表幼生',
+  roster_tier: '全校三段目標',
+  roster_snapshot: '結算紀錄',
   enrolled_roster: '在籍清冊',
+  ad_spend: '廣告花費',
   enrollment_history: '歷年註冊',
   error_group: '錯誤回報',
 }
@@ -1226,6 +1267,51 @@ export const AUDIT_FIELD_LABELS: Record<string, string> = {
 
 // 官網問前六個（2026-10-03 起四個，2026-10-05 加兄姊、傳單）；後三個是舊選項，舊案件仍會有。
 export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: '親友介紹', sibling: '哥哥姊姊讀過或正在讀', nearby: '住附近／路過看到', flyer: '傳單／DM', online: '網路上看到', other: '其他', facebook: 'Facebook', google_reviews: 'Google 評論', parent_community: '媽媽社團' }
+
+// 網站來源（2026-11-16）：官網送單時第一方 cookie 記下的來源代碼，和第一方統計（api/engagement.ts 的 SOURCE_LABELS）同一組，
+// 這裡用短名稱。unrecorded 是統計表的「送單時沒有記錄」。
+export const TOUCH_SOURCE_LABELS: Record<string, string> = {
+  direct: '直接進站',
+  search: '搜尋引擎',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  line: 'LINE',
+  youtube: 'YouTube',
+  ads: '付費廣告',
+  other: '其他網站',
+  unrecorded: '沒有記錄',
+}
+
+// 廣告平台（2026-11-16，docs/specs/2026-11-16-ad-roi-design.md）：來源是 ads 時，web 端判斷的平台代碼。
+export const AD_PLATFORM_LABELS: Record<string, string> = {
+  google: 'Google',
+  openai: 'ChatGPT',
+  meta: 'Meta',
+  line: 'LINE',
+  other: '其他網路廣告',
+}
+
+function touchLabel(
+  source: string, campaign: string | null | undefined, on: string | null | undefined, platform?: string | null,
+): string {
+  const base = TOUCH_SOURCE_LABELS[source] || source
+  const name = source === 'ads' && platform ? `${base}・${AD_PLATFORM_LABELS[platform] || platform}` : base
+  const when = on ? `，${Number(on.slice(5, 7))}/${Number(on.slice(8, 10))}` : ''
+  return `${name}${campaign ? `（${campaign}）` : ''}${when}`
+}
+
+/** 案件明細的「網站來源」：第一次進站與預約前最後一次；兩次一樣只寫一次。沒有記錄回空字串（不顯示這一列）。 */
+export function websiteTouchText(d: {
+  first_touch_source?: string | null; first_touch_campaign?: string | null; first_touch_on?: string | null
+  last_touch_source?: string | null; last_touch_campaign?: string | null; last_touch_on?: string | null
+  first_touch_ad_platform?: string | null; last_touch_ad_platform?: string | null
+}): string {
+  if (!d.first_touch_source) return ''
+  const first = touchLabel(d.first_touch_source, d.first_touch_campaign, d.first_touch_on, d.first_touch_ad_platform)
+  if (!d.last_touch_source) return `第一次${first}`
+  const last = touchLabel(d.last_touch_source, d.last_touch_campaign, d.last_touch_on, d.last_touch_ad_platform)
+  return first === last ? first : `第一次${first}；預約前${last}`
+}
 
 export function referralSourceLabels(sources: string[] | null | undefined): string {
   return sources?.length ? sources.map(source => REFERRAL_SOURCE_LABELS[source] || source).join('、') : '未填寫'

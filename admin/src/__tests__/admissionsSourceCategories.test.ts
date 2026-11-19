@@ -25,6 +25,15 @@ describe('六項選單', () => {
     expect(SOURCE_CATEGORY_CHOICES.map(([, label]) => label)).toEqual(SIX)
   })
 
+  it('LINE 群組的分類卡（後端 LINE_SOURCE_CHOICES）與表單六項的代碼、順序、文字逐字相同', () => {
+    // 2026-11-17：群組結果卡的按鈕帶索引，後端照這張表把索引換成代碼；兩邊漂移就會寫錯分類。
+    const start = source.indexOf('LINE_SOURCE_CHOICES:')
+    expect(start).toBeGreaterThanOrEqual(0)
+    const lineBlock = source.slice(start, source.indexOf('\n)', start))
+    const lineChoices = [...lineBlock.matchAll(/\("(\w+)",\s*"([^"]+)"\)/g)].map((m) => [m[1]!, m[2]!])
+    expect(lineChoices).toEqual(SOURCE_CATEGORY_CHOICES.map(([code, label]) => [code, label]))
+  })
+
   it('文字：六項用短標籤，不列的三類用園務原文，都查不到就顯示代碼', () => {
     expect(sourceCategoryLabel('referral', IVY_LABELS)).toBe('家長介紹／社區招生')
     expect(sourceCategoryLabel('home_deposit', IVY_LABELS)).toBe('到家中收預繳')

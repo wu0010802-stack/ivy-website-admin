@@ -55,6 +55,9 @@ if (indexable) {
   // 預約頁 2026-11-11 起開放收錄，robots.txt 不能整個擋掉；修改預約頁照舊不給爬。
   assert.ok(!/^Disallow: \/visit$/m.test(robots), 'robots.txt: 不擋 /visit')
   assert.match(robots, /^Disallow: \/visit\/manage$/m, 'robots.txt: 擋 /visit/manage')
+  // 公開素材 2026-11-13 起單獨放行（頁面上的照片走這個路徑），其餘 API 照舊擋。
+  assert.match(robots, /^Allow: \/api\/website\/v1\/public\/media\/$/m, 'robots.txt: 放行公開素材')
+  assert.match(robots, /^Disallow: \/api\/$/m, 'robots.txt: 擋其餘 API')
   const llms = await fetch(base + '/llms.txt')
   assert.equal(llms.status, 200, '/llms.txt')
   const text = await llms.text()

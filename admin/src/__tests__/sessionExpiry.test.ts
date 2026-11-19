@@ -5,7 +5,9 @@ import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import ElementPlus, { ElMessage, ElMessageBox } from 'element-plus'
 import LoginView from '../views/LoginView.vue'
-import { ApiError, api, setUnauthorizedHandler, setCsrfToken } from '../api/client'
+import { ApiError, CSRF_INVALID_DETAIL, api, setUnauthorizedHandler, setCsrfToken } from '../api/client'
+import { SESSION_CHANGED_MESSAGE, apiErrorMessage } from '../api/errors'
+import { notifyError } from '../composables/notify'
 import { redirectToLoginOnUnauthorized, resetUnauthorizedForTests } from '../router/unauthorized'
 import { registerUnsavedChanges, useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { KEEPALIVE_INTERVAL_MS, startSessionKeepAlive } from '../composables/sessionKeepAlive'
@@ -511,6 +513,42 @@ describe('2026-10-03 第八輪：登入逾時時未儲存的修改', () => {
       expect(auth.user).toBeNull()
       expect(router.currentRoute.value.name).toBe('login')
       expect(router.currentRoute.value.query.reason).toBe('session-changed')
+    })
+
+    // 2026-11-12 QA L11：client 已經把登入提示（登入頁的說明或接續對話框）交給 unauthorized handler，
+    // 頁面的 catch 再把原始的「CSRF token 無效」toast 一次，畫面上就有兩個提示、其中一個是技術字串。
+    it('換帳號的 403：錯誤文字是白話說明、不是「CSRF token 無效」原字', () => {
+      const text = apiErrorMessage(new ApiError(403, CSRF_INVALID_DETAIL), '儲存失敗')
+      expect(text).toBe(SESSION_CHANGED_MESSAGE)
+      expect(text).not.toContain('CSRF')
+      // 其他 403 照舊。
+      expect(apiErrorMessage(new ApiError(403, '沒有權限'), '儲存失敗')).toBe('沒有權限')
+    })
+
+    it('頁面的 catch 照常 notifyError(apiErrorMessage(...))：只剩登入提示，不再另外跳 toast', async () => {
+      setActivePinia(createPinia())
+      const auth = useAuthStore()
+      auth.user = testUser('editor', { id: 'u1' })
+      const router = createRouter({ history: createMemoryHistory(), routes: [
+        { path: '/login', name: 'login', component: defineComponent({ template: '<div />' }) },
+        { path: '/:p(.*)*', component: defineComponent({ template: '<div />' }) },
+      ] })
+      await router.push('/account'); await router.isReady()
+      setUnauthorizedHandler(redirectToLoginOnUnauthorized(router))
+      const toast = vi.spyOn(ElMessage, 'error').mockImplementation((() => undefined) as never)
+      vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(JSON.stringify({ detail: CSRF_INVALID_DETAIL }), { status: 403 }) as never)
+      try {
+        await api.patch('/auth/me', { display_name: '小美' })
+      } catch (err) {
+        notifyError(apiErrorMessage(err, '顯示名稱沒有更新，請再試一次'))
+      }
+      await flushPromises()
+      expect(router.currentRoute.value.name).toBe('login')
+      expect(router.currentRoute.value.query.reason).toBe('session-changed')
+      expect(toast).not.toHaveBeenCalled()
+      // 一般錯誤照樣跳。
+      notifyError('顯示名稱沒有更新，請再試一次')
+      expect(toast).toHaveBeenCalledTimes(1)
     })
 
     it('其他 403（沒權限、Origin 不符）：行為不變，不觸發登入處理', async () => {

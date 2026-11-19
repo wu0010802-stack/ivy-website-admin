@@ -2,8 +2,12 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
+import CruxPanel from '../components/CruxPanel.vue'
+import LineInsightsPanel from '../components/LineInsightsPanel.vue'
 import PageHeader from '../components/PageHeader.vue'
+import SearchInsightsPanel from '../components/SearchInsightsPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
+import { usePermissions } from '../composables/usePermissions'
 import {
   ANALYTICS_DAY_OPTIONS, ANALYTICS_DEVICE_OPTIONS, ANALYTICS_TABS, DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, DEFAULT_ANALYTICS_TAB,
   type AnalyticsDays, type AnalyticsDevice, type AnalyticsTab, type InterestView,
@@ -45,8 +49,21 @@ watch(tab, (value) => {
 })
 
 // 只提示正在看的那一類：另一類在背景重讀不用寫出來。
-const updating = reactive({ traffic: false, interest: false })
-const statusText = computed(() => ((onInterest.value ? updating.interest : updating.traffic) ? '更新中…' : ''))
+// 2026-11-12 起兩個外部數據各掛在一類底下：Chrome 真實使用者（CrUX）在「瀏覽與速度」、Google 搜尋（Search Console）
+// 在「怎麼來、怎麼逛」，切到那一類才向後端要（後端另有快取）。Google 搜尋跟著整頁的期間；CrUX 是 28 天滾動，
+// 不隨期間變，所以不會有「更新中」。
+// 這兩支外部數據的 API 要 admissions.stats（只有總管理者有，backend/app/insights/routes.py）；
+// 其他角色一律 403，面板會永遠停在「請重新載入」，所以沒有權限就不放（2026-11-12 QA M3）。
+const { can } = usePermissions()
+const showExternal = computed(() => can('admissions.stats'))
+const updating = reactive({ traffic: false, interest: false, search: false })
+const statusText = computed(() => {
+  const busy =
+    tab.value === 'traffic' ? updating.traffic
+    : tab.value === 'journey' ? updating.interest || updating.search
+    : updating.interest
+  return busy ? '更新中…' : ''
+})
 </script>
 
 <template>
@@ -80,7 +97,11 @@ const statusText = computed(() => ((onInterest.value ? updating.interest : updat
     </div>
 
     <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
+    <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
+    <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
+    <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
+    <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
   </div>
 </template>
 

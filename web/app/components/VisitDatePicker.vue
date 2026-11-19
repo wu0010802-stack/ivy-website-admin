@@ -109,4 +109,6 @@ fieldset:disabled .visit-day.is-open {cursor:default}
 @media(forced-colors:active) {
   .visit-day.is-open:has(input:checked) {outline:3px solid Highlight}
 }
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)){.visit-day.is-open{border:1px solid var(--line)}}
 </style>

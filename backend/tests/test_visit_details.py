@@ -75,8 +75,8 @@ def test_new_optional_defaults_preserve_legacy_payload_hash():
     body = VisitRequestCreate.model_validate(_payload()).model_dump(
         mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
     )
-    # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。Email 現在必填、
-    # 一定有值，所以進 hash；孩子姓名、生日、得知管道與人數沒填時仍不進 hash。
+    # 參觀人數（2026-09-25）也是之後才加的選填欄位，空值不能改變舊 hash。Email 有填才進 hash
+    # （2026-11-13 起選填，這裡的 payload 有填）；孩子姓名、生日、得知管道與人數沒填時仍不進 hash。
     # 預計入學時間（2026-10-15）也是之後才加的選填欄位：沒選時不進 hash，舊頁面與重送的 hash 不變。
     optional_when_empty = (_DETAIL_FIELDS - {"email"}) | {"party_size", "expected_start"}
     legacy_body = {key: value for key, value in body.items() if key not in optional_when_empty}
@@ -122,8 +122,6 @@ def test_details_normalize_names_email_and_referral_order():
     # 跨過台北午夜時「明天」變成今天而不報錯（2026-09-26 run 36157022816 發生過）。
     {"child_birthdate": lambda: (today_local() + timedelta(days=1)).isoformat()},
     {"email": "parent@"},
-    {"email": ""},
-    {"email": None},
     {"referral_sources": ["untrusted_source"]},
     {"referral_sources": ["facebook"] * 10},
     {"referral_sources": "facebook"},
@@ -132,6 +130,15 @@ def test_invalid_details_are_rejected(changes):
     changes = {key: value() if callable(value) else value for key, value in changes.items()}
     with pytest.raises(ValidationError):
         VisitRequestCreate.model_validate(_payload(**changes))
+
+
+@pytest.mark.parametrize("email", ["", "  ", None])
+def test_email_can_be_left_empty(email):
+    # 2026-11-13 起官網預約的 Email 選填：不帶、null、空白都當成沒填（存 None）。
+    assert VisitRequestCreate.model_validate(_payload(email=email)).email is None
+    without_key = _payload()
+    without_key.pop("email")
+    assert VisitRequestCreate.model_validate(without_key).email is None
 
 
 def test_birthdate_uses_taipei_today_at_utc_day_boundary(monkeypatch):

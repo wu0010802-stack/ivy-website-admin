@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch, type Component } from 'vue'
 import { RouterLink, useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { AlarmClock, Bell, Check, CircleCheck, CircleClose, CirclePlus, RefreshRight, Switch, Timer, Warning } from '@element-plus/icons-vue'
+import { AlarmClock, Bell, Check, CircleCheck, CircleClose, CirclePlus, OfficeBuilding, RefreshRight, Switch, Timer, Warning, WarningFilled } from '@element-plus/icons-vue'
 import { notifyError } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import {
@@ -10,6 +10,7 @@ import {
   notificationLabel, outboxErrorLabel,
 } from '../api/labels'
 import type { NotificationCountsOut, NotificationInboxItemOut, NotificationOutboxOut, NotificationOutboxPageOut, NotificationReadAllOut, NotificationRetryBatchOut } from '../api/types'
+import { areaNoticeLink, areaNoticeMeta, areaNoticeTitle, isAreaNotice } from '../admissions/areaNotices'
 import { useCampusScope } from '../composables/useCampusScope'
 import { usePermissions } from '../composables/usePermissions'
 import { useOpenRequestsStore } from '../stores/openRequests'
@@ -257,6 +258,9 @@ const KIND_META: Record<string, { tone: Tone; icon: Component }> = {
   // 人工確認時期、家長改期申請（2026-10-08 刪除）留下的舊種類：舊資料仍會出現。
   visit_reschedule_requested: { tone: 'warning', icon: Switch },
   visit_request_hold_expired: { tone: 'info', icon: Timer },
+  // 區域分析的附近園所異動與裁罰（2026-11-16，只有總管理者看得到）。
+  area_provider_change: { tone: 'primary', icon: OfficeBuilding },
+  area_penalty: { tone: 'warning', icon: WarningFilled },
 }
 function kindMeta(kind: string) {
   return KIND_META[kind] ?? { tone: 'info' as Tone, icon: Bell }
@@ -302,8 +306,19 @@ function visitRequestId(n: NotificationOut): string | null {
 function summary(n: NotificationOut): string {
   const parts: string[] = []
   if (multiCampus.value && !campusFilter.value) parts.push(campusLabel(n.campus_key))
+  if (isAreaNotice(n.kind)) parts.push(areaNoticeMeta(n.kind, n.payload ?? {}))
   if (n.slot) parts.push(`參觀 ${formatShortSlotWhen(n.slot)}`)
-  return parts.join('・')
+  return parts.filter(Boolean).join('・')
+}
+
+// 整列連到哪裡：參觀通知到案件；區域分析的異動與裁罰到該校的區域分析（同業模式）。
+function noticeLink(n: NotificationOut): string | null {
+  if (isAreaNotice(n.kind)) return areaNoticeLink(n.campus_key)
+  const id = visitRequestId(n)
+  return id ? `/visit-requests/${id}` : null
+}
+function noticeTitle(n: NotificationOut): string {
+  return isAreaNotice(n.kind) ? areaNoticeTitle(n.kind, n.payload ?? {}) : notificationLabel(n.kind, n.payload)
 }
 
 function listMatches(campus: string): boolean {
@@ -561,14 +576,14 @@ async function retryAll() {
                 <span class="notice__dot"><span v-if="!row.read_at" class="dot" role="img" aria-label="未讀" /></span>
                 <span class="notice__icon" aria-hidden="true"><el-icon><component :is="kindMeta(row.kind).icon" /></el-icon></span>
                 <component
-                  :is="visitRequestId(row) ? RouterLink : 'div'"
-                  :to="visitRequestId(row) ? `/visit-requests/${visitRequestId(row)}` : undefined"
+                  :is="noticeLink(row) ? RouterLink : 'div'"
+                  :to="noticeLink(row) ?? undefined"
                   class="notice__main"
-                  @click="visitRequestId(row) && markReadOnOpen(row, $event)"
-                  @auxclick="visitRequestId(row) && markReadOnOpen(row, $event)"
+                  @click="noticeLink(row) && markReadOnOpen(row, $event)"
+                  @auxclick="noticeLink(row) && markReadOnOpen(row, $event)"
                 >
                   <span class="notice__head">
-                    <span class="notice__title">{{ notificationLabel(row.kind, row.payload) }}</span>
+                    <span class="notice__title">{{ noticeTitle(row) }}</span>
                     <span v-if="row.parent_name" class="notice__who">{{ row.parent_name }}</span>
                   </span>
                   <span v-if="summary(row)" class="notice__meta num">{{ summary(row) }}</span>

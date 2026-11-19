@@ -159,8 +159,8 @@ describe('全站消息編輯頁', () => {
     const hidden = await mountAs(HomeNewsView, superAdmin(), '/content/home-news')
     expect(get).toHaveBeenCalledWith('/public/site')
     expect(hidden.get('.news-hidden-alert').text()).toContain(notice)
-    expect(hidden.get('.news-hidden-alert').text()).toContain('全站與素材 → 網站標題與電話')
-    expect(NAV_GROUPS.find((group) => group.label === '全站與素材')!.items.some((item) => item.title === '網站標題與電話')).toBe(true)
+    expect(hidden.get('.news-hidden-alert').text()).toContain('全站共用 → 網站標題與電話')
+    expect(NAV_GROUPS.find((group) => group.label === '全站共用')!.items.some((item) => item.title === '網站標題與電話')).toBe(true)
     // 只是提醒：照常可以編輯
     expect(hidden.text()).toContain('首頁最多放幾則消息')
     const campus = await mountAs(CampusNewsView, testUser('campus_admin', { id: 'c', email: 'c@example.invalid', campus_keys: ['yihua'] } as never), '/content/campus-news?campus=yihua')

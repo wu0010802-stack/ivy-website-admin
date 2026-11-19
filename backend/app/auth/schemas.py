@@ -76,6 +76,10 @@ class FeatureFlags(BaseModel):
     admissions: bool
     # 能不能寄重設密碼連結：有後台網址與寄信管道才是 True（password_reset.email_enabled）。
     password_reset_email: bool = False
+    # 官網的 origin（WEBSITE_PUBLIC_ORIGIN）：後台在獨立子網域時才有值。後台主機的「/」會轉回
+    # /admin/，後台連到官網的連結（頁首「查看官網」、發布後的「查看官網此頁」）要用它組絕對網址。
+    # 沒設（後台與官網同一個網域）是 None，後台照舊用相對路徑。
+    public_site_origin: str | None = None
 
 
 class LoginResponse(BaseModel):

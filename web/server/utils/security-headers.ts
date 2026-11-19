@@ -1,3 +1,4 @@
+import { analyticsCspSources, type AnalyticsIds } from '../../shared/third-party-analytics'
 import { publicScriptSources } from './script-csp'
 
 // 全站共用的資安標頭（前台、/admin、同源 /api 代理、靜態資源）。由
@@ -28,16 +29,32 @@ import { publicScriptSources } from './script-csp'
 // - connect-src：同源 API、telemetry；Turnstile（公開預約的機器人驗證）。
 // - frame-src：同源（/preview 的手機寬度預覽）、youtube-nocookie（影片按了才插）、Turnstile。
 // 新增外部嵌入或圖片來源時要一起改，tests/stack/public-csp.spec.ts 會抓到違規。
-export const PUBLIC_RESOURCE_CSP = [
-  "img-src 'self' data: blob: https://i.ytimg.com",
-  "connect-src 'self' https://challenges.cloudflare.com",
-  "frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com"
-].join('; ')
+// 2026-11-12 起 GA4／Meta Pixel：對應的 ID 有設定（runtimeConfig.public.gaMeasurementId／metaPixelId，執行期變數）
+// 才多放行那一家的 script-src／connect-src／img-src 來源，見 shared/third-party-analytics.ts 的 analyticsCspSources。
+// 2026-11-15 加 OpenAI 評估像素（openaiPixelId）、2026-11-16 加 LINE Tag（lineTagId）。全都沒設時三條和下面的字串一字不差（tests/third-party-analytics.spec.ts 鎖住）。後台 CSP 不放行。
+const PUBLIC_IMG_SRC = ["'self'", 'data:', 'blob:', 'https://i.ytimg.com']
+const PUBLIC_CONNECT_SRC = ["'self'", 'https://challenges.cloudflare.com']
+const NO_ANALYTICS: AnalyticsIds = { gaMeasurementId: null, metaPixelId: null, openaiPixelId: null, lineTagId: null }
+
+/** 公開頁「資源從哪裡來」三條；analytics 是啟用中的 GA4／Meta Pixel（可省略）。 */
+export function publicResourceCsp(analytics?: AnalyticsIds): string {
+  const extra = analyticsCspSources(analytics ?? NO_ANALYTICS)
+  return [
+    `img-src ${[...PUBLIC_IMG_SRC, ...extra.img].join(' ')}`,
+    `connect-src ${[...PUBLIC_CONNECT_SRC, ...extra.connect].join(' ')}`,
+    "frame-src 'self' https://www.youtube-nocookie.com https://challenges.cloudflare.com"
+  ].join('; ')
+}
+export const PUBLIC_RESOURCE_CSP = publicResourceCsp()
 const PUBLIC_CSP_BASE = "frame-ancestors 'self'; base-uri 'self'; object-src 'none'"
 
-/** 公開頁的完整 CSP；pageHashes 是這一頁 SSR inline script 的 hash-source（見 script-csp.ts）。 */
-export function publicCsp(pageHashes: Iterable<string> = []): string {
-  return `script-src ${publicScriptSources(pageHashes)}; script-src-attr 'none'; form-action 'self'; ${PUBLIC_RESOURCE_CSP}; ${PUBLIC_CSP_BASE}`
+/**
+ * 公開頁的完整 CSP；pageHashes 是這一頁 SSR inline script 的 hash-source（見 script-csp.ts）。
+ * analytics 是啟用中的 GA4／Meta Pixel；省略或兩個 ID 都沒設就是原本的字串。
+ */
+export function publicCsp(pageHashes: Iterable<string> = [], analytics?: AnalyticsIds): string {
+  const scripts = publicScriptSources(pageHashes, analyticsCspSources(analytics ?? NO_ANALYTICS).script)
+  return `script-src ${scripts}; script-src-attr 'none'; form-action 'self'; ${publicResourceCsp(analytics)}; ${PUBLIC_CSP_BASE}`
 }
 
 const PUBLIC_CSP = publicCsp()
@@ -88,13 +105,15 @@ const BASE_HEADERS: Readonly<Record<string, string>> = {
   'Permissions-Policy': PERMISSIONS
 }
 
-const ADMIN_PATH = /^\/admin(?:\/|$)/
+// 後台路徑不分大小寫、連續斜線先收成一個再比對（2026-11-12 QA L4）：靜態處理器連 ///admin/ 都找得到後台入口，
+// 以前這種寫法只帶公開頁的 CSP、沒有 no-store 與 noindex。正規寫法另由 plugins/url-canonical.ts 301，這裡是第二道。
+const ADMIN_PATH = /^\/admin(?:\/|$)/i
 // 後台入口 HTML（靜態 index.html）；深層路由由 routes/admin/[...path].get.ts
 // 自己設 no-store。/admin/assets/* 有內容雜湊，照常快取。
-const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/
+const ADMIN_ENTRY = /^\/admin(?:\/(?:index\.html)?)?$/i
 // Service worker 與 manifest 的檔名固定（沒有內容雜湊）：no-cache＝可以存、但每次都向伺服器確認有沒有新版，
 // 後台發版後手機上的 worker 與 manifest 才會跟著更新（瀏覽器本來就不讓 worker 腳本吃 HTTP 快取超過 24 小時）。
-const ADMIN_REVALIDATE = /^\/admin\/(?:sw\.js|manifest\.webmanifest)$/
+const ADMIN_REVALIDATE = /^\/admin\/(?:sw\.js|manifest\.webmanifest)$/i
 
 // nitro 的靜態資源處理器先 decodePath 再找檔，/%61dmin/ 一樣拿到後台入口；
 // 判斷是不是後台要用解碼後的路徑，否則會只帶公開頁的寬鬆 CSP（2026-10-22 資安稽核）。
@@ -107,25 +126,34 @@ function decodedPathname(pathname: string): string {
   }
 }
 
+function collapseSlashes(pathname: string): string {
+  return pathname.replace(/\/{2,}/g, '/')
+}
+
 /**
  * path 可含 query；websiteEnv 取執行期設定（NUXT_WEBSITE_ENV）。
  * scriptPolicy：公開頁 CSP 要不要帶 script-src；只有 nuxt dev 傳 false（見檔頭）。
+ * analytics：啟用中的 GA4／Meta Pixel（執行期設定，analyticsIdsFromConfig 取得）；省略或都沒設就是預設 CSP。
  */
 export function securityHeadersFor(
   path: string,
   websiteEnv: string,
-  { scriptPolicy = true }: { scriptPolicy?: boolean } = {}
+  { scriptPolicy = true, analytics }: { scriptPolicy?: boolean; analytics?: AnalyticsIds } = {}
 ): Record<string, string> {
   const pathname = path.split('?')[0] ?? '/'
   const decoded = decodedPathname(pathname)
+  // 後台判斷用「原字串」與「解碼後」各自收過斜線的版本；麥克風頁維持原寫法（只有 /anniversary 本身開麥克風）。
+  const adminPaths = [pathname, decoded].map(collapseSlashes)
+  const isAdmin = (pattern: RegExp) => adminPaths.some(candidate => pattern.test(candidate))
   const headers: Record<string, string> = { ...BASE_HEADERS }
+  if (analytics) headers['Content-Security-Policy'] = publicCsp([], analytics)
   if (!scriptPolicy) headers['Content-Security-Policy'] = PUBLIC_CSP_BASE
   if (MIC_PAGE.test(pathname)) headers['Permissions-Policy'] = PERMISSIONS.replace('microphone=()', 'microphone=(self)')
-  if (ADMIN_PATH.test(pathname) || ADMIN_PATH.test(decoded)) {
+  if (isAdmin(ADMIN_PATH)) {
     headers['Content-Security-Policy'] = ADMIN_CSP
     headers['X-Robots-Tag'] = 'noindex, nofollow'
-    if (ADMIN_ENTRY.test(pathname) || ADMIN_ENTRY.test(decoded)) headers['Cache-Control'] = 'private, no-store'
-    else if (ADMIN_REVALIDATE.test(pathname) || ADMIN_REVALIDATE.test(decoded)) headers['Cache-Control'] = 'no-cache'
+    if (isAdmin(ADMIN_ENTRY)) headers['Cache-Control'] = 'private, no-store'
+    else if (isAdmin(ADMIN_REVALIDATE)) headers['Cache-Control'] = 'no-cache'
   }
   // HSTS 只在正式環境送；本機是 http，瀏覽器本來就會忽略，但測試環境
   // 用自簽 https 時送了會讓 localhost 被鎖一年。includeSubDomains（2026-11-12，正式網域

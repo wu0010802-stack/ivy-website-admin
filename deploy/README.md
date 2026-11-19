@@ -14,6 +14,305 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-17 園方 LINE 群組互動（`feature/line-group-20261117`，已部署 main `065dc4b9`）
+
+規格 `docs/specs/2026-11-17-line-group-interactions-design.md`。[PR #112](https://github.com/wu0010802-stack/ivy-website-admin/pull/112) 已在完整 CI 通過後合併；[main CI/CD](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44042656688) 已全部成功，API／web 於台灣時間 16:07 完成部署。上線前已以唯讀交易核對正式庫：目前僅義華綁定群組，已驗證且未離開，沒有需要重新驗證的舊群組。
+
+- API deployment：`1377cbb1-c46d-4048-b1a5-02caf3c44c42`，web deployment：`044914fa-a409-4bfe-bd74-ee6c4bb77e49`，兩者均為 `SUCCESS`。
+- release snapshot：`6e46e69ce0a7d6085a7e225bba6525ec633e181caf13fa3df9c72a2df669d454`；正式網域 `/release.json` 的 `base_commit` 已核對為 `065dc4b9146f454dbf478c639d82ec33ad587124`。
+- migration `d5e1f7a3b9c2`（接在 `c4d2e8a1f6b3` 之後）只新增兩張表（`line_group_settings`、`line_digest_runs`），不改既有資料，不必先備份。啟動紀錄確認 migration 成功；另以唯讀交易核對正式 `alembic_version` 為該版本、兩張新表均存在。
+- 驗證：PR 與 main 的全部 CI 成功，包括 web/admin 型別、單元測試、建置、後端三組 PostgreSQL、契約、部署腳本、兩組 E2E。正式網域的 release、production/live health、已發布 CMS、首頁與後台登入入口均回 200；CI 的 Railway 網址 smoke 亦通過。
+- 本次未變更 Railway 環境變數或群組設定；未代送真實 LINE 訊息。
+- 沒有新的環境變數。群組功能走既有的主官方帳號（`WEBSITE_LINE_MESSAGING_*`）；該帳號的 webhook 要維持「Use webhook」開著，且允許加入群組（原本群組推播就需要）。按鈕（postback）與 @ 偵測不需要在 LINE 後台另外設定。
+- 預設行為變更：已驗證並綁校區的群組，上線後隔天早上起收「每日摘要」，不再逐筆收「即將參觀」卡片；不想要的群組在後台「LINE 通知」關掉該群組的摘要開關。
+- 推播則數：每日摘要每群組每個有參觀的日子 1 則；查名單、確認卡、結果卡、說明、@選單都是 reply，不計則數；@所有人只有當天異動，那一次多 1 則。
+
+**上線後人工檢查（真群組，使用者操作）**
+1. 在真群組按卡片按鈕，看稽核有沒有記到按的人的 `userId`（postback 不保證有，沒有的話稽核只記群組）。
+2. `{everyone}` 在群組是否真的 @到所有人（用一筆今天的預約測新預約或改期）。
+3. 手機 LINE 上卡片按鈕、確認卡、結果卡與原因、來源分類選擇卡的顯示。
+4. 「到後台填完整資料」在手機 LINE 點開後，是否跳到外部瀏覽器、登入後落在案件頁。
+
+另外：招生入學的隱私權政策補招生用途（規格 Q1）仍待處理；本功能沒有新增蒐集的個資種類。
+
+## 2026-11-16 後台與 LINE 串聯七項（`feature/line-integrations-20261116`，已部署 main `45d9eb94`）
+
+規格 `docs/specs/2026-11-16-line-integrations-design.md`。migration `b3e8d1c4f9a7` 只新增三張表、放寬 `ad_conversion_jobs.platform` 檢查（加 `'line'`），不改既有資料、不必先備份。除了群組推播改成卡片，其他功能都要設變數或在後台打開才有作用。
+
+| 服務 | 變數 | 用途 |
+|---|---|---|
+| api | `WEBSITE_LINE_<YIHUA\|MINGHUA\|CHONGDE\|INTERNATIONAL\|RENWU>_CHANNEL_SECRET`、`…_ACCESS_TOKEN` | 各校自己的官方帳號（Messaging API 的 Channel secret 與長效 Channel access token），兩個一起設；家長 LINE 通知、我的預約、好友數。沒設的校區只能用 `WEBSITE_LINE_MESSAGING_*` 那個帳號 |
+| api | `WEBSITE_LINE_TAG_ID`、`WEBSITE_LINE_CAPI_TOKEN`、`WEBSITE_LINE_CAPI_TEST` | 到場、預繳回傳 LINE 廣告（Conversion API）。TAG_ID 和 web 的 `NUXT_PUBLIC_LINE_TAG_ID` 同一個；TOKEN 由 LINE 企業管理平台發；TEST=true 時事件帶 test_flag |
+
+**上線步驟（使用者）**
+1. 先發布隱私權政策（規格附錄 A 兩段），再做下面任何一步。
+2. 家長 LINE 通知用各校帳號時：LINE Developers → 該校官方帳號 → Messaging API，取 Channel secret 與 long-lived access token 設進 Railway api；Webhook URL 填後台「LINE 通知 → 官方帳號與本月額度」列出的 `…/line/webhook/<校>`，開「Use webhook」。OA Manager 的回應模式若是「聊天」，存檔後回 LINE Developers 確認 Use webhook 仍開著。
+3. 後台「LINE 通知 → 家長 LINE 通知」替該校選帳號；用自己的手機預約一筆、按「用 LINE 接收通知」、傳送代碼，確認收到「已開啟 LINE 通知」，再在官方帳號傳「我的預約」。取消那筆，確認 LINE 收到取消卡片。
+4. 圖文選單：OA Manager → 圖文選單，新增一格動作「文字」、內容「我的預約」；不要另設同字的關鍵字自動回應。
+5. 系統狀態「LINE 官方帳號」一列看得到每個帳號本月用量；用到八成會列為要注意。免費的輕用量每月 200 則，推到群組依群組人數計。
+6. LINE 廣告轉換回傳：先確認台灣帳號能在 LINE 企業管理平台發 Conversion API token，設三個變數（TEST=true），標記一筆有 LINE 廣告點擊的預約到場，到 LINE 後台看測試事件，再把 TEST 拿掉。
+
+## 編班與缺額（2026-11-15，`feature/admissions-roster-20261114`；**未合併、未部署**，合併與部署等業主開口）
+
+招生入學多第三個分頁「編班與缺額」，設計見 `docs/specs/2026-11-14-admissions-roster-gap-design.md`。
+
+- **migration `d4b7e1a95c26`**：只新增四張表（`roster_classes`、`roster_students`、`roster_tier_targets`、`roster_snapshots`），不改既有資料，上一版程式不讀新表，**不需要部署前備份閘門**。可逆（downgrade 刪四張表）。
+- **功能開關**：跟著 `WEBSITE_ADMISSIONS_ENABLED`，關閉時路由不掛、分頁不出現。**2026-10-04 唯讀實測正式站招生路由已掛（開關是開的）**，合併上線後分頁會直接出現給有 `admissions.read` 的人；要先確認是否要等園方準備好再合併。
+- **沒有新環境變數、沒有新排程、沒有新外部服務。**
+- **個資**：新增在籍幼生的姓名、生日與特教生、原住民標記（比姓名生日更敏感），可見範圍與編班表相同（該校分校管理者、接待、總管理者）；稽核紀錄不放這些值。隱私權政策目前沒有寫在籍幼生資料的用途與保存，上線前請業主確認要不要補。
+- **上線前只查、不改**（唯讀；正式庫沒有對外位址，請使用者用 `!` 在已 `railway link` 的目錄跑）：下學年年級目標會直接讀 `grade_intake_targets` 的 (下一學年, 上學期)，正式站若留有 10-05 以前設定的名額會直接顯示成「目標人數」。查詢：
+
+  ```sh
+  cd ~/Desktop/ivy-website-admin
+  cat > /tmp/roster-intake-check.sql <<'SQL'
+  SELECT campus_key, school_year, semester, grade, target_seats
+  FROM grade_intake_targets
+  WHERE school_year >= 116
+  ORDER BY campus_key, school_year, semester, grade;
+  SQL
+  B64=$(base64 < /tmp/roster-intake-check.sql | tr -d '\n')
+  railway ssh --service Postgres --environment production -- \
+    "echo $B64 | base64 -d | PGOPTIONS='-c default_transaction_read_only=on' psql \"\${DATABASE_URL:-postgresql:///railway?user=postgres}\" -X -P pager=off"
+  ```
+
+  有 (116, 1) 的列：列給業主，不要自行刪。沒有列就不用處理。
+- **規格 §13 待業主回覆**：已離園、已退預繳的紀錄要留多久（目前一直留著、只在收合的清單裡看得到）。
+- **正式站的看板目前是測試資料**：上線時不回補既有的已預繳卡片（規格 §7），編班表一開始是空的，要請各校自己建班與貼上名單。
+
+## GA4 與 Meta Pixel（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
+
+依 2026-10-03 裁定（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 1 節。**只動 web**：沒有 migration、api 不用動；Google Ads、LINE Tag 這次不做。
+
+**兩個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_GA_MEASUREMENT_ID` | `G-` 加大寫英數，例如 `G-ABC123DEF4` | GA4 網站資料串流的評估 ID |
+| `NUXT_PUBLIC_META_PIXEL_ID` | 純數字（8–20 碼） | Meta Pixel ID（可沿用舊站 ivykids.tw 的 Pixel，由使用者決定） |
+
+- Nitro 把環境變數灌進設定時會先當 JSON 解析，純數字的 Pixel ID 因此變成數字，程式已處理。**例外**：大於 `9007199254740991` 的 Pixel ID（16 位且開頭 `9007` 以上）解析時就失真了，程式偵測到會視同未設定、**不會載入**；這種 ID 要連雙引號一起填成變數值（例如 `"9876543210987654"`），才會被當字串保留完整。驗證步驟 5 一定要確認 Meta 的請求真的送出。
+
+- 兩個可以只設一個。格式不符（例如貼成舊版 `UA-…` 或 GTM 的 `GTM-…`）視同未設定，什麼都不會載入。
+- 都是執行期讀取的變數（`nuxt.config.ts` 的預設是空字串，不讀建置時的值）：存檔、讓 web 重新部署就生效，程式不用改。**關閉**：刪掉變數並確認 web 有重新部署（用 CLI 刪變數不會自動重新部署）；訪客瀏覽器裡已存的 `_ga*`、`_fbp` cookie 留到各自到期。
+- 兩個都沒設：頁面不載任何外部腳本，公開頁 CSP 字串與現在一字不差（`web/tests/third-party-analytics.spec.ts` 鎖住）。
+
+**程式做了什麼**（`web/app/plugins/third-party-analytics.client.ts`、`web/app/utils/third-party-analytics.ts`、`web/shared/third-party-analytics.ts`）
+
+- 直接載 `gtag.js` 與 `fbevents.js`（`createElement`），**不用 GTM**（GTM 讓有容器權限的人能注入任意腳本到和後台同源的網站）、不用 inline script。
+- 2026-11-13 起兩支外部腳本等整頁 `load` 之後、主執行緒有空才載入（`whenPageSettled`，手機效能）；事件先排在 queue 裡。進站 2–3 秒內就離開的訪客 GA／Pixel 不會記到。驗證時要等頁面載完再看 Network。
+- 瀏覽器開了「不要追蹤」（DNT）或 Global Privacy Control 就整個不載入。只看自己的 ID 與 DNT／GPC，`NUXT_PUBLIC_TELEMETRY_ENABLED` 關掉不影響這兩個。
+- `/visit/manage`（修改連結的識別碼在網址 hash）、`/admin`、`/preview` 完全不送事件：第一頁就是這些頁面時連腳本都不載入；載入後 SPA 換頁進去，換頁前先暫停（GA 用 `ga-disable-<ID>`、Pixel 用 `consent revoke`），離開再恢復。
+- GA：`send_page_view:false`，換頁自己送 `page_view`，`page_location` 自組為「origin＋pathname＋只留 `utm_*`／`gclid`／`gbraid`／`wbraid`／`fbclid`」，不帶 hash；`allow_google_signals`、`allow_ad_personalization_signals` 都關。Pixel：`autoConfig` 關（不自動偵測按鈕點擊、頁面 metadata），每次換頁 `PageView`。
+- 預約成功：只有伺服器回 `status === 'confirmed'` 才送 GA `generate_lead`、Pixel `Lead`，參數只有白名單的 `campus_key`（五校之一）與 `entry`（CTA 入口代碼，預約表單是 `visit_page`），不送收據編號、修改連結或任何個資。
+- CSP（`web/server/utils/security-headers.ts`）：哪一個 ID 有設才加哪一家的 `script-src`／`connect-src`／`img-src` 來源，後台 CSP 不動。**沒放行** Google Ads／Google 訊號用的 `stats.g.doubleclick.net`、`www.google.com`：之後要做 Google Ads 或開 Google 訊號，要一起改 CSP。
+
+**上線步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **先發布隱私權政策**：後台「全站與素材 → 隱私權政策」。初稿第 5 段已寫入 GA4 與 Meta 像素（用途、預約成功只傳校區、DNT／GPC 不載入、可用瀏覽器設定拒絕）；補完【待確認】、填日期、發布。若只打算開其中一個，發布前把另一個的條列與相關句子刪掉；兩個都不開就不必發布這一版第 5 段。截至 2026-11-12 正式站還沒發布政策（`/privacy` 404）。
+2. **GA4**：建立資源與「網站」資料串流，複製評估 ID。在該串流的「強化評估」（齒輪）：**關掉「頁面變更（根據瀏覽器記錄事件）」**——程式已自己送 `page_view`，開著會讓每次換頁（含首頁章節錨點 `#…`）多算一筆，而且那一筆是 Google 的腳本送的，沒有經過程式的 `page_location` 清洗；建議也關「表單互動」。管理 → 資料收集中的 Google 訊號維持關閉。
+   - **新建的 GA4 資源會被 Google 自動升級成代碼管理工具容器（`GTM-…`），一定要做這步**：容器裡的「Google Analytics G-…」代碼預設勾著「略過重複的網頁內設定執行個體」，程式的 `send_page_view:false`、`allow_google_signals:false` 都會被忽略，結果每次進站多一筆**未清洗網址**的 `page_view`（2026-11-12 正式站實測）。處理：串流詳情 → Google 代碼「進行代碼設定」→ 代碼 → 該 GA 代碼 → 配置設定 → 配置參數加 `send_page_view`、`allow_google_signals`、`allow_ad_personalization_signals` 三個，值都填 `false` → 儲存 → 提交並發布版本。發布後約 30 分鐘 gtag.js 的 CDN 才換新；驗證時每頁只該有一筆 `en=page_view`、`dl` 只帶 `utm_*`、`npa=1`。
+3. **Meta Pixel**：沿用舊站的 Pixel 或新建（由使用者決定；沿用的話新舊網域的事件會進同一個 Pixel，之後可用網域區分）。Events Manager → 該 Pixel → 設定：**關掉「自動進階比對」與「自動事件」**（程式已把 `autoConfig` 關掉，後台也關才雙保險，預約表單有 Email 與電話欄位）。新建資料集時：要先有「商家資產管理組合」；建立視窗預設勾的「連結到 Meta 的轉換 API」取消；建好後設定頁還要關「自動包含更詳細的頁面和商品資訊」（AI 抓頁面內容）。Pixel 一定送完整網址（`dl`／`rl` 含所有 query，hash 不送），程式管不到。
+4. **Railway web 服務**設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`、`NUXT_PUBLIC_META_PIXEL_ID`，等重新部署完成。
+5. **驗證**（用沒開 DNT 的瀏覽器）：開首頁，DevTools 的 Network 看得到 `googletagmanager.com/gtag/js`、送往 `google-analytics.com` 的 `collect`（`en=page_view`，`dl` 沒有 hash）與 `facebook.com/tr`；Console 沒有 CSP 違規；GA4「即時」與 Meta Pixel Helper 看得到 `page_view`／`PageView`。開一個預約修改連結，Network 不應出現任何送往這兩家的請求。用測試資料預約一次成功（驗完到後台取消這筆預約），看到 `generate_lead`／`Lead`。開 DNT 再開首頁，不應載入任何一家。
+
+**程式端沒辦法驗證的**：真實 GA4／Meta 後台是否收得到、強化評估與自動比對的設定是否真的關掉，只能在正式站設好變數後照步驟 5 實測。
+
+## Google Ads：把 GA4 的「預約成立」匯進去當轉換（2026-11-13，`feature/ads-click-ids-20261113`；不加新代碼、不加新變數）
+
+**做法**：不裝 Google Ads 自己的轉換代碼（`AW-…`）。GA4 已在正式站運作，官網每筆線上預約成立都會送 `generate_lead`（官網送單一建立就是 `confirmed`）；把這個事件在 GA4 標成重要事件、連結 GA4 與 Google Ads、再到 Google Ads 匯入成轉換即可。沒選 `AW-` 代碼的理由：要多放行 CSP 網域（`googleadservices.com`、`doubleclick.net`、`www.google.com`）、訪客瀏覽器多一組廣告 cookie、隱私權政策第 5 段要再改，換到的只是回報快一點。
+
+**程式只改一處**：`page_location` 保留的參數多了 `gbraid`、`wbraid`（`web/shared/third-party-analytics.ts`）。Google 廣告在 iOS 上拿不到 `gclid` 時改帶這兩個點擊代碼，原本會被濾掉。
+
+**現況限制**：線上預約只有義華校開放（`slots`），明華、崇德、國際、仁武是 `paused`，那四校的廣告量不到預約，只能看點擊數與電話。廣告的到達頁用 `/visit/yihua`，最終網址可加 `?utm_campaign=<代碼>`（小寫英數、底線、連字號，32 字內），後台「成效統計」會分開算。
+
+**步驟（都要本人登入；選單名稱以當時畫面為準）**
+
+1. **GA4 → 管理 → 重要事件**：把 `generate_lead` 設成重要事件（清單裡還沒有就手動新增這個名稱）。
+2. **GA4 → 管理 → 產品連結 → Google Ads 連結**：連到要投廣告的 Google Ads 帳戶（同一個 Google 帳號要同時是 GA4 的編輯者與 Ads 的管理員）。連結設定裡的「個人化廣告」關掉（程式本來就送非個人化）。舊站 ivykids.tw 上有 `AW-16479438373`，園方可能已有 Ads 帳戶，可以沿用。
+3. **Google Ads → 管理 → 帳戶設定 → 自動標記**：確認是開的（廣告點擊才會帶 `gclid`／`gbraid`／`wbraid`）。
+4. **Google Ads → 目標 → 轉換 → 新增轉換動作 → 匯入 → Google Analytics 4 資源（網站）**：勾 `generate_lead`。計算方式選「一次」（同一位家長重複送不重複算），類別選「提交待開發客戶表單」。
+5. **驗證**：在首頁網址後面加 `?gclid=test123` 進站，Network 裡送往 `google-analytics.com` 的 `collect` 其 `dl` 要帶著 `gclid=test123`；Console 不該有 CSP 違規。廣告開跑後，從真的廣告點進來預約一次（驗完到後台取消），24–48 小時內 Google Ads 的轉換欄應該加一。
+
+**還沒驗、要在正式站實測的**
+
+- `allow_google_signals` 關著時，重要事件仍會匯進 Google Ads（Google 文件只說這個設定關掉個人化與再行銷，沒有明講轉換；匯不進來時再評估要不要打開，打開前要改隱私權政策）。
+- GA4 連上 Ads 之後，`gtag.js` 會不會多連 `stats.g.doubleclick.net`、`www.google.com` 而被 CSP 擋（看 Console；被擋不影響 GA4 自己的事件）。
+- 隱私權政策第 5 段目前寫 GA4 用來「了解網站的使用情形與廣告的成效」、預約成功時只告訴 Google 有一筆預約與校區，已涵蓋這個用法；要不要明寫「Google Ads」由園方決定。
+
+## ChatGPT 廣告：OpenAI 評估像素回報「預約成功」（2026-11-15 程式，`feature/openai-ads-pixel-20261115`；預設關，沒設變數就和現在完全一樣）
+
+規格見 `docs/specs/2026-11-15-openai-ads-pixel-design.md`。**只動 web**：沒有 migration、api 不用動。沿用 GA4／Meta Pixel 的規則（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。
+
+**一個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_OPENAI_PIXEL_ID` | 英數、底線、連字號，6–64 字 | 廣告管理平台（ads.openai.com）「轉換 → 資料來源」那顆 Web Pixel 的 Pixel ID |
+
+- 執行期變數：設好、web 重新部署就生效；刪掉並重新部署就關。格式不符視同未設定。沒設時不載任何 OpenAI 的腳本，公開頁 CSP 一字不變（`web/tests/openai-ads-pixel.spec.ts` 鎖住）。
+- 設了之後 CSP 多放行 `script-src https://bzrcdn.openai.com`、`connect-src https://bzr.openai.com`、`img-src https://bzr.openai.com`；後台 CSP 不動。官方文件另外要求的 `connect-src https://bzrcdn.openai.com` **刻意不放行**（見下面「自動進階比對」）。訪客瀏覽器多三個第一方 cookie：`__oppref`（廣告點擊代碼，30 天）、`__obref`（隨機瀏覽器代碼，365 天）、`__oaiq_consent`（SDK 記目前是不是暫停中；官方文件沒列，2026-11-15 實測看到）。
+
+**程式做了什麼**（和 GA4／Pixel 同一組檔案）
+
+- 用 `createElement` 載 `https://bzrcdn.openai.com/sdk/oaiq.min.js`，和另外兩家一樣等整頁 `load` 之後、主執行緒有空才載；DNT 或 Global Privacy Control 開著就不載。
+- **只回報一件事**：伺服器回 `status === 'confirmed'` 時送標準事件 `appointment_scheduled`（`{ type: 'customer_action' }`），不帶校區、入口、收據編號、修改連結或任何個資。不送 `page_viewed`。
+- 廣告點擊代碼（落地頁網址上的 `oppref`，平台在廣告點擊時自動加）在進站當下就讀出來傳給 SDK 的 `init`：SDK 延後載入，家長在那之前站內換頁的話網址上已經沒有它。
+- `/visit/manage`、`/admin`、`/preview` 完全不送：第一頁就是這些頁面時不載；載入後 SPA 換頁進去，換頁前先 `oaiq('consent', false)` 暫停，離開再 `consent(true)`。SDK 平常會自己送診斷事件（載入、分頁切到背景），暫停後一筆都不送（2026-11-15 以真的 SDK 實測）。暫停會把 `__oppref` 刪掉，所以程式先把廣告點擊代碼記在記憶體，離開時重新 `init` 帶回去，同一次造訪的歸因不會斷；家長若就在修改頁關掉分頁，下次回來的預約就歸因不到廣告（那時通常已經預約過了）。事件帶的網址本來就只有 origin＋pathname，不含 query 與 hash。
+- **「自動進階比對」由官網關掉**：這個功能會掃頁面上的 Email／電話／姓名欄位，雜湊後跟事件一起送。平台上沒有開關——網頁像素一律啟用，`https://bzrcdn.openai.com/pixel-config/v1/<PIXEL_ID>.json` 回的是 `"automatic_advanced_matching_enabled":true`（2026-11-15 建好像素後實測；編輯像素的視窗裡也沒有這個選項）。預約表單有這些欄位、隱私權政策寫明不傳送，所以官網在載入 SDK 前包一層 `fetch`（`keepOpenaiAutoMatchingOff`），只攔 SDK 取那份設定檔的請求、直接回「關」，不連外；CSP 不放行 bzrcdn 的 `connect-src` 當第二道（攔截失效時請求會被 CSP 擋掉，主控台會出現違規，功能仍然是關的）。對照實驗（`output/openai-ads-pixel/verify-aam.cjs`，真的 SDK、假資料、事件在本機攔下）：沒有攔截時事件帶著 Email、電話、名字的雜湊；有攔截時 SDK 自己回報 `automatic_advanced_matching: disabled`，事件裡沒有任何使用者欄位。
+- 廣告的追蹤參數（行銷活動層已填）：`utm_source=chatgpt&utm_medium=cpc&utm_campaign=chatgpt-five-campuses&utm_id={campaign_id}&utm_content={ad_id}`。`utm_medium=cpc` 讓後台「成效統計」把這些造訪歸在「廣告」，`utm_campaign` 是後台看得到的活動代碼（小寫英數、底線、連字號，32 字內）。`oppref` 是平台的保留參數，不能自己寫進範本。
+
+**上線步驟（都要本人登入）**
+
+1. **隱私權政策第 5 段補上第三項工具**再開變數（規則同 GA4／Pixel：先發布政策再開）。建議的條列與句子：
+   - 「OpenAI 評估像素（OpenAI，ChatGPT 的經營者）：計算 ChatGPT 廣告帶來多少人預約。OpenAI 會在您的瀏覽器設定 cookie（名稱以 `__o` 開頭），用來辨識這次造訪是不是從 ChatGPT 的廣告來的。」
+   - 原本「Google 與 Meta 會收到您的 IP 與瀏覽器資訊」「這兩項工具」等句子要改成涵蓋三家；對 OpenAI 只告知「有一筆預約成功」，不含校區。
+2. **廣告管理平台 → 轉換 → 建立資料來源**（Web Pixel）。按「建立」等於同意 OpenAI 的《轉換條款》。2026-11-15 已建：名稱「常春藤官網」，Pixel ID `H3LXGVGDAfgHkdJ1svTjbe`（Pixel ID 會出現在公開頁面裡，不是機密）。
+3. 「自動進階比對」平台上關不掉，由官網擋（見上）。上線後要確認它真的沒開：見步驟 6。
+4. **轉換 → 轉換事件 → 建立**：基準事件選「已排定預約」（`appointment_scheduled`）、資料來源選那顆像素、點擊後歸因 30 天。2026-11-15 已建：「官網預約參觀成功」。
+5. **Railway web 服務**設 `NUXT_PUBLIC_OPENAI_PIXEL_ID`，等重新部署完成（改變數前先看有沒有別的部署在跑）。
+6. **驗證**：資料來源的三點選單 →「測試」，填官網網址開始測試；在開出來的官網用測試資料預約一次成功（驗完到後台取消這筆預約），回「事件串流」要看到一筆帶 Test 標籤的 `appointment_scheduled`。DevTools 的 Network 看得到 `bzrcdn.openai.com/sdk/oaiq.min.js` 與送往 `bzr.openai.com` 的請求，**不應該有** `bzrcdn.openai.com/pixel-config/…` 的請求（被官網攔下了）；Console 沒有 CSP 違規（有的話代表攔截失效、靠 CSP 擋下，要查 SDK 是不是改了取設定檔的方式）。送往 `bzr.openai.com` 的內容裡要看到 `"automatic_advanced_matching":"disabled"`，預約成功那一筆不應該有 `"user"` 欄位。開一個預約修改連結，不應有送往 `bzr.openai.com` 的事件。
+7. **行銷活動 → 編輯 → 轉換事件 → 新增事件**，把步驟 4 的事件掛上去，行銷活動的「轉換次數」欄才會有數字。
+
+**程式端沒辦法驗證的**：平台是否真的收得到事件、轉換是否歸到行銷活動，只能在正式站設好變數後照步驟 6 實測。SDK 是 OpenAI 的外部腳本，行為可能隨版本改變；上面「只帶 origin＋pathname」「不掛換頁事件」「從 `window.fetch` 取設定檔」是 2026-11-15 當時的版本，SDK 大改版後要重跑 `output/openai-ads-pixel/verify-aam.cjs` 那個對照實驗。
+
+## LINE Tag：LINE 廣告回報頁面瀏覽與「預約成功」（2026-11-16 程式，`feature/cookie-web-prefs-20261116`；預設關，沒設變數就和現在完全一樣）
+
+第四家第三方追蹤，沿用 GA4／Meta Pixel／OpenAI 的整套規則（有 cookie、不做同意橫幅、尊重 DNT／GPC、揭露放隱私權政策）。**只動 web**：沒有 migration、api 不用動。
+
+**一個變數（web 服務）**
+
+| 變數 | 格式 | 說明 |
+| --- | --- | --- |
+| `NUXT_PUBLIC_LINE_TAG_ID` | UUID（`xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`，大小寫不拘） | LINE 廣告管理後台（`admanager.line.biz`）「事件管理（Event Manager）→ LINE Tag」裡那顆 Tag 的 Tag ID（也出現在後台給的安裝程式碼 `_lt('init', { customerType: 'account', tagId: '…' })` 裡） |
+
+- 執行期變數：設好、web 重新部署就生效；刪掉並重新部署就關。格式不符視同未設定。沒設時不載任何 LINE 的腳本，公開頁 CSP 一字不變（`web/tests/line-tag.spec.ts` 與 `third-party-analytics.spec.ts` 鎖住）。
+- **CSP 設了之後多放行**：`script-src https://d.line-scdn.net https://tag.flvcdn.net`（`lt.js` 與它再載入的 `ltag.js`）、`img-src https://tr.line.me`（事件是 1x1 圖片請求 `tr.line.me/tag.gif`）。`connect-src` 不動；後台 CSP 不動。**刻意不放行** `apm.yahoo.co.jp`：`ltag.js` 是 LINE Yahoo 共用的標籤引擎，內有往那個網域送資料的程式，而且它讀的是完整網址（含 hash），不受下面的網址清洗影響；台灣站用不到，被 CSP 擋下時主控台會有違規訊息，屬預期。
+- 訪客瀏覽器多第一方 cookie：`__lt__cid`（瀏覽器代碼，約兩年）、`__lt__sid`（工作階段，30 分鐘），localStorage 另有一份 `__lt__cid`。隱私權政策第 5 段要補第四項工具（見上線步驟 1）。
+
+**程式做了什麼**（和另外三家同一組檔案：`web/shared/third-party-analytics.ts`、`web/app/utils/third-party-analytics.ts`、`web/app/plugins/third-party-analytics.client.ts`、`web/server/utils/security-headers.ts`）
+
+- 用 `createElement` 載 `https://d.line-scdn.net/n/line_tag/public/release/v1/lt.js`，等整頁 `load` 之後、主執行緒有空才載；`_lt` 的 queue stub 與官方 snippet 相同，事件先排在 queue。DNT 或 Global Privacy Control 開著就不載。
+- **兩種事件**：每個頁面送一次 `_lt('send', 'pv', [tagId])`；伺服器回 `status === 'confirmed'` 時（與 GA／Pixel／OpenAI 同一個呼叫點 `reportBookingLead`）送 `_lt('send', 'cv', { type: 'Conversion' })`。轉換不帶校區、入口、金額、收據編號、修改連結或任何個資。
+- **不送個資、不開進階比對**：`init` 只有 `customerType`、`tagId`、`allowSync: false`、`$location`；不帶 `tel`、`email`、`externalId`、`deduplicationKey`（LINE 的進階比對／重複事件比對就是靠這幾個欄位，傳了才會雜湊後送出），也不設 `autoLink`、`syncByLCS`、`syncByLIFF`（跨網域同步）。
+- **網址清洗**：`lt.js` 預設把完整網址放進每個請求（`b_u`、`b_q`、`b_h`＝hash）。`init` 另外傳一個自己的 `$location`（`lineTagLocation`）：origin＋pathname＋只留 `utm_*`、`gclid`、`gbraid`、`wbraid`、`fbclid` 與 LINE 廣告自己的點擊代碼（`ldtag_m`、`ldtag_cl`、`ldtag_t`、`lt_r`、`srclt`，`lt.js` 在 init 時從網址讀，濾掉會歸因不到廣告），hash 一律空。實測：預設會送 `b_h=%23hash-id`、`b_q=…secret=1`；帶 `$location` 後兩者都沒有。例外：`lt.js` 自己出錯時的 `err.gif` 會帶完整網址（內建、改不了），修改頁因為根本不載入而不受影響。
+- `/visit/manage`、`/admin`、`/preview` 完全不送：第一頁就是這些頁面時不載；載入後 SPA 換頁進去就不呼叫 `send`（`lt.js` 沒有同意／暫停 API，也不掛 `pushState`／`popstate`，實測 `history.pushState` 到修改頁後 3 秒內 0 個請求）。
+- 載入前不把 `pv` 排進 queue（queue 載入時才依序處理，所有 `pv` 都會讀到載入當下的網址），只記「有一次要送」，載入時補送當下那一頁，與 Meta Pixel 同一個做法。
+
+**2026-11-16 實測紀錄**（臨時腳本 `output/cookie-web-prefs/line-tag-probe.cjs`，真的 `lt.js` 3.7.0、假 Tag ID、送往 LINE 的追蹤請求一律 `route.fulfill(204)`，沒有真的送出事件）：載入的 script 只有 `https://d.line-scdn.net/n/line_tag/public/release/v1/lt.js` 與 `https://tag.flvcdn.net/ltag.js`；打到的網域只有 `tr.line.me`（`/tag.gif?…&e=pv`、`&e=cv&d0=Conversion`，皆為 img 請求）；沒有 fetch／XHR／sendBeacon；ltag.js 在 5 秒內沒有額外請求。**沒驗到的**：真實的 `tr.line.me` 回應若帶 `X-Z-BurlS` 標頭，`ltag.js` 會去 fetch 標頭裡列的網址（`no-cors`），那些網址 CSP 不會放行、會被擋；上線後要在 DevTools Console 看有沒有 CSP 違規，有的話再決定是否放行（先確認是什麼網域）。
+
+**上線步驟（都要本人登入）**
+
+1. **隱私權政策第 5 段補上第四項工具**再開變數（規則同 GA4／Pixel：先發布政策再開）。建議的條列：「LINE Tag（LINE 廣告）：計算 LINE 廣告帶來多少人瀏覽與預約。LINE 會在您的瀏覽器設定 cookie（名稱以 `__lt__` 開頭）。」對 LINE 只告知頁面瀏覽與「有一筆預約成功」，不含校區與個資。
+2. **LINE 廣告管理後台 → 事件管理 → LINE Tag**：建立（或取用）Tag，複製 Tag ID。**關掉**後台上的自動功能：進階比對（Advanced Matching）、自動事件蒐集等 Tag 設定裡有的開關。
+3. **轉換（Conversion）**：在 LINE Tag 底下建立「預約參觀成功」的轉換，事件類型選 Conversion（對應程式送的 `cv`）。
+4. **Railway web 服務**設 `NUXT_PUBLIC_LINE_TAG_ID`，等重新部署完成（改變數前先看有沒有別的部署在跑）。
+5. **驗證**：DevTools Network 要看到 `lt.js`、`ltag.js` 與送往 `tr.line.me/tag.gif` 的圖片請求（`e=pv`）；請求的 `b_u` 沒有 hash、`b_q` 只有歸因參數；Console 沒有 CSP 違規（除了預期的 `apm.yahoo.co.jp`，若出現）。在官網用測試資料預約一次成功（驗完到後台取消），要看到一筆 `e=cv`、`d0=Conversion`；LINE 廣告後台「事件管理」的測試工具（Tag 詳細頁的事件檢視）要看到 Page View 與 Conversion。開一個預約修改連結，不應有送往 `tr.line.me` 的請求。
+
+**程式端沒辦法驗證的**：LINE 後台是否真的收得到事件、轉換是否歸到廣告，只能在正式站設好變數後照步驟 5 實測。`lt.js` 是 LINE 的外部腳本，行為可能隨版本改變；上面「只在 init 與送事件時讀 `$location`」「圖片請求」「不掛換頁事件」是 3.7.0 當時的行為，大改版後要重跑上面的實測腳本。
+
+## 網站來源、這台裝置記住預約、到場與預繳回傳廣告平台（2026-11-16 程式，`feature/cookie-features-20261116`；migration `a7c3e9f1b250` 只新增欄位與表）
+
+規格 `docs/specs/2026-11-16-cookie-features-design.md`。前兩項不用設變數，部署後就生效；第三項預設全關。
+
+- **網站來源**（`ivy_src`，web 的 `server/middleware/01.attribution.ts`）：跟著 `NUXT_PUBLIC_TELEMETRY_ENABLED`（正式站本來就開）。送出預約時寫進 `visit_requests.first_touch_*`／`last_touch_*`；後台案件明細多一列「網站來源」、招生統計「參觀預約」多一張「網站來源」表、案件匯出多四欄。上線前的預約都是「沒有記錄」。代理多轉 `DNT`、`Sec-GPC` 兩個標頭給 api。
+- **這台裝置記住預約**（`ivy_visit_remember`，正式站是 `__Host-ivy_visit_remember`）：送單成立時發，值是修改連結的 token、期限同連結；預約頁上方顯示「您已預約…」，按「修改或取消預約」換家長 session 進 `/visit/manage`。園方重新產生連結、案件取消或完成時自動失效。
+- **到場、預繳回傳廣告平台**（`backend/app/ad_conversions/`）：每家「ID＋伺服器端金鑰」兩個都設才啟用、只設一個 api 拒絕啟動。設了之後新的預約才會記點擊識別碼（之前的預約不會回傳）；「標記已到場」與招生訪視「已預繳」排入 `ad_conversion_jobs`，API 定期工作每 60 秒送出，失敗重試 5 次，原因記在 `last_error`。不送姓名、電話、Email 或它們的雜湊。
+
+| 平台 | Railway api 變數 | 去哪裡拿 |
+|---|---|---|
+| GA4（再匯入 Google Ads） | `WEBSITE_GA4_MEASUREMENT_ID`（同 web 的 `G-KERZKPSV2H`）、`WEBSITE_GA4_API_SECRET` | GA4 管理 → 資料串流 → 網站串流 → Measurement Protocol API 密鑰 → 建立 |
+| Meta | `WEBSITE_META_PIXEL_ID`（同 web 的像素 ID）、`WEBSITE_META_CAPI_TOKEN`；`WEBSITE_META_GRAPH_VERSION` 預設 `v26.0` | 事件管理工具 → 資料集（像素）→ 設定 → 轉換 API → 產生存取權杖 |
+| ChatGPT 廣告 | `WEBSITE_OPENAI_PIXEL_ID`（同 web 的 `H3LXGVGDAfgHkdJ1svTjbe`）、`WEBSITE_OPENAI_CAPI_KEY` | 廣告管理平台 → 轉換 → 資料來源「常春藤官網」→ Conversions API 金鑰 |
+
+**開啟步驟**：1. 隱私權政策第 5 段補上「到場、預繳會以點擊識別碼回傳廣告平台」（擬稿在規格附錄 A）並發布。2. 一次把要開的那家兩個變數設好（只設一個 api 會起不來；2026-11-13 曾因變數分兩次設造成停機，相依變數一次到位）。3. 在平台後台把事件設成轉換：GA4 把 `visit_attended`、`deposit_paid` 標成重要事件再匯入 Google Ads；Meta 用自訂事件 `VisitAttended`、`DepositPaid` 建自訂轉換；ChatGPT 廣告建自訂事件 `visit_attended`、`deposit_paid`。4. 用測試資料走一次：預約（從帶 `?utm_source=test` 的網址進站）→ 後台標記到場 → 一分鐘後查 `ad_conversion_jobs.status`。
+
+**未驗證**：GA4 Measurement Protocol 送的事件沒有帶 session_id，GA 報表裡這兩個事件的「工作階段來源」可能是 (not set)，匯進 Google Ads 後能不能歸到原本的廣告點擊要實測；Meta 只靠 fbc／fbp 比對，比對率會比帶雜湊個資低（業主不送個資的取捨）。
+
+## Google Search Console 與 CrUX（2026-11-12 程式，`feature/integrations-20261112`；預設全關，沒設變數就和現在完全一樣）
+
+規格見 `docs/specs/2026-11-12-external-integrations-design.md` 第 3、4 節。**只動 api 與後台**：沒有 migration、不存任何資料到資料庫（查到的結果只放 api 程序記憶體）、不新增依賴；web 不用動。後台「成效統計」兩處用到：**「瀏覽與速度」多一區「Chrome 真實使用者」**（CrUX：Google 從 Chrome 使用者蒐集的官網速度，手機與電腦的 p75 與好／需要改善／不佳比例，附近 25 週走勢）、**「怎麼來、怎麼逛」多一區「Google 搜尋」**（Search Console：點進官網、出現次數、點進去的比例、平均排名，前 25 個搜尋字詞、前 25 個頁面、裝置別，期間跟著整頁的近 7／28／90 天）。兩者都只有總管理者看得到（權限同成效統計其他全站數據 `admissions.stats`），沒設定時只顯示一行「尚未設定」。
+
+**四個變數（api 服務）**
+
+| 變數 | 內容 | 說明 |
+| --- | --- | --- |
+| `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` | 服務帳戶金鑰**整份 JSON** | 要有 `client_email` 與 `private_key`；啟動時驗證，格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。只放 Railway，不進 repo、不貼進對話或文件 |
+| `WEBSITE_GOOGLE_SC_PROPERTY` | `sc-domain:ivykidschool.com` 或 `https://www.ivykidschool.com/` | Search Console 資源。**要和 Search Console 左上角那個資源的類型一致**：「網域」資源寫 `sc-domain:網域`，「網址前置字元」資源寫完整網址（含結尾斜線）。**和上一個要同時設**，只設一個 api 拒絕啟動 |
+| `WEBSITE_GA4_PROPERTY_ID` | `563982090` | GA4 資源編號（純數字 6–12 位，管理 → 資源設定）。選填；與 Search Console 共用同一個服務帳戶（要把它加進該 GA4 資源的「檢視者」），用來唯讀讀 Google 廣告各活動每月花費與預約轉換（`app/insights/ga4_ads.py`）。格式不對 api 拒絕啟動，錯誤訊息不含值 |
+| `WEBSITE_CRUX_API_KEY` | GCP 的 API key | 只用來呼叫 Chrome UX Report API。查的網站是 `WEBSITE_PUBLIC_ORIGIN`（沒設就是 `WEBSITE_ADMIN_ORIGIN`，正式站是 `https://www.ivykidschool.com`） |
+
+**GA4 廣告花費（2026-11-16，`feature/ad-roi-20261116`，未部署）**：招生統計 → 廣告成效的 Google 花費來源，選填，沒設時 Google 列顯示「未設定」，其他功能不受影響。
+
+1. GA4 資源 `563982090` → 管理 → 資源設定：確認幣別是新台幣（TWD）、時區是台北（Asia/Taipei）；不是的話畫面會提醒：幣別不是 TWD 時，Google 列花費後面標幣別、表下多一行「Google 花費以 X 計。」；時區不是台北時多一行「Google 花費依 <時區> 切月份。」。
+2. GA4 資源 `563982090` → 管理 → 資源存取管理：把 Search Console 服務帳戶的 email（`WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON` 裡的 `client_email`）加為「檢視者」。
+3. 該服務帳戶所屬的 Google Cloud 專案：啟用「Google Analytics Data API」。
+4. Railway api 服務設 `WEBSITE_GA4_PROPERTY_ID=563982090`（需先有服務帳戶變數；改變數會重新部署，先確認沒有人在部署）。
+5. 驗證：後台招生統計 → 廣告成效，Google 列的花費顯示數字而不是「未設定」或「讀取失敗」。
+6. 各里結婚對數隨既有「公開地理資料同步」一起抓，不需要新變數。
+
+四個變數分三組：Search Console 要服務帳戶 JSON 與資源兩個一起設；CrUX 只要金鑰；GA4 廣告花費要同一個服務帳戶 JSON 加 `WEBSITE_GA4_PROPERTY_ID`（沒有服務帳戶時只設編號不會生效）。三組互不影響：只設 CrUX 的金鑰就只有「Chrome 真實使用者」有資料，Google 搜尋仍顯示「尚未設定」。
+
+**程式做了什麼**（`backend/app/insights/`）
+
+- **Search Console**：用服務帳戶金鑰簽 RS256 JWT（既有的 `joserfc`，scope `https://www.googleapis.com/auth/webmasters.readonly`）向 `oauth2.googleapis.com/token` 換 access token，記憶體快取到過期前 5 分鐘。`searchAnalytics.query` 一次查四種（總計、搜尋字詞、頁面、裝置，每種最多 25 列、一次只問一個維度），結果依「資源＋期間＋維度」快取 6 小時，同一份同時只向 Google 要一次。頁面只回路徑（不含網域、查詢字串）。期間最長回到 16 個月前、結束日不能是未來。
+- **CrUX**：History API `records:queryHistoryRecord`，origin 層級，PHONE 與 DESKTOP 各查一次，LCP／INP／CLS 的 p75 與好／需要改善／不佳比例，最近 25 個視窗（每週一格、各涵蓋 28 天），每個裝置快取 12 小時。Google 回 404 代表 Chrome 使用者數量不夠，後台顯示「Chrome 使用者數量還不夠，Google 尚未提供這個網站的數據」（不是錯誤）。
+- **金鑰不外洩**：CrUX 的 API key 只放 `X-Goog-Api-Key` 標頭，不放網址（httpx 的 INFO 紀錄會印出完整網址，2026-11-10 Facebook 同步曾因此把 token 寫進 log）。access token、JWT、私鑰都不進網址、log、例外訊息與 API 回應；Google 失敗時後台只看到「<步驟>（HTTP n）」，不帶 Google 的回應內容。外部請求的 User-Agent 是 `Mozilla/5.0 (compatible; ivy-website-search-insights/1.0)` 與 `…ivy-website-crux/1.0`，不帶帳號或 email。
+- **資料延遲**：Search Console 的資料約晚 2–3 天，期間最後兩三天的數字會偏少（後台區塊有一句小字）。CrUX 是 28 天滾動、每週更新；網域 2026-11-11 才從 Wix 換過來，前幾週混有舊站資料（後台也有一句小字）。
+
+**上線步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **GCP 建專案**：<https://console.cloud.google.com/> 建一個新專案（例如 `ivy-website-insights`；沿用 Google 登入用的專案也可以，由使用者決定）。這兩支 API 都不收費，用量遠低於免費額度。
+2. **啟用兩支 API**：APIs & Services → Library，搜尋並啟用「Google Search Console API」與「Chrome UX Report API」。
+3. **建服務帳戶與 JSON 金鑰**：IAM & Admin → Service Accounts → Create（不用授予任何 IAM 角色）→ 建好後進該帳戶 → Keys → Add key → Create new key → JSON，下載到本機（下面叫 `~/Downloads/ivy-sc-key.json`）。記下帳戶的 email（`…@….iam.gserviceaccount.com`）。
+4. **在 Search Console 把服務帳戶加成使用者**：<https://search.google.com/search-console/> 選官網的資源 → 設定 → 使用者和權限 → 新增使用者 → 貼服務帳戶 email → 權限選「**受限**」（唯讀）。沒做這步查詢會回 HTTP 403。
+5. **建 API key 並限制**：APIs & Services → Credentials → Create credentials → API key → 建好後 Edit → API restrictions → Restrict key → **只勾「Chrome UX Report API」**。（Railway 的出口 IP 不固定，不設應用程式限制。）
+6. **Railway api 設三個變數**：三個都要加 `--skip-deploys`，全設完再重新部署一次——只設其中一個再部署會因為成對檢查讓 api 起不來（本檔「2026-10-06 預約方式拿掉 inquiry」那段記過 Google OAuth 變數打錯、重部署後 api 回 502 的前例）。JSON 金鑰從檔案讀入，不要貼在命令列（會留在 shell 歷史）：
+
+   ```bash
+   railway variable set WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON --stdin --skip-deploys -s api -e production < ~/Downloads/ivy-sc-key.json
+   railway variable set 'WEBSITE_GOOGLE_SC_PROPERTY=sc-domain:ivykidschool.com' --skip-deploys -s api -e production
+   railway variable set WEBSITE_CRUX_API_KEY --stdin --skip-deploys -s api -e production   # 貼上 API key 後按 Ctrl-D
+   rm ~/Downloads/ivy-sc-key.json                  # 設完就刪本機檔（金鑰只該留在 Railway）
+   railway redeploy -s api -y                      # 或在 Railway 後台按 Redeploy
+   ```
+
+7. **驗收**：後台「成效統計」。「瀏覽與速度」最下面的「Chrome 真實使用者」有手機與電腦的數字（或寫「Chrome 使用者數量還不夠」）；「怎麼來、怎麼逛」最下面的「Google 搜尋」有四個數字與兩張表。畫面上若寫「暫時讀不到…」，括號內是步驟與 HTTP 狀態：
+
+   | 訊息 | 常見原因 |
+   | --- | --- |
+   | 取得 Google 權杖（HTTP 400／401） | 金鑰 JSON 不對、金鑰已在 GCP 刪除，或服務帳戶被停用 |
+   | 簽署服務帳戶憑證（金鑰無法使用） | JSON 裡的 `private_key` 損壞（例如貼的時候換行被弄壞） |
+   | 查詢 Search Console（HTTP 403） | 服務帳戶沒加成 Search Console 使用者、`WEBSITE_GOOGLE_SC_PROPERTY` 和資源類型不一致，或沒啟用 Search Console API |
+   | 查詢 Search Console（HTTP 400） | 期間超出 Google 保留的 16 個月（正常使用不會遇到） |
+   | 查詢 CrUX（HTTP 400／403） | API key 打錯、沒啟用 Chrome UX Report API，或 key 的 API 限制沒勾它 |
+   | 查詢 CrUX（HTTP 429） | 超過 Google 的每分鐘查詢上限（預設 150；後台頁面有快取，正常用量遠低於此） |
+   | 查詢 CrUX（沒有官網網址…） | api 沒設 `WEBSITE_PUBLIC_ORIGIN`／`WEBSITE_ADMIN_ORIGIN` |
+
+   api log 對應只有一行 `Search Console 查詢失敗：…` 或 `CrUX 查詢失敗：…`（同樣只有步驟與狀態），確認沒有金鑰、token 或 Google 回應內容：`railway logs -s api | grep -E "Search Console|CrUX"`。
+
+**關閉／回退**：刪掉三個變數（用 CLI 刪變數不會自動重新部署，要另外 redeploy）；後台立刻回到「尚未設定」。程式沒有 migration，回退舊版程式不受影響。金鑰外洩或換人時：在 GCP 刪掉該金鑰、重新建一把，再照第 6 步換進 Railway。
+
+**程式端沒辦法驗證的**：測試用 `httpx.MockTransport` 照 Google 文件的回應形狀假造（簽章用測試時現產的 RSA 金鑰，假 Google 會真的驗 JWT 的簽章、`iss`、`scope`、`aud`），**沒有用真實的服務帳戶、Search Console 資源或 CrUX 資料連過 Google**。設好變數後請照第 7 步實測，特別是 `WEBSITE_GOOGLE_SC_PROPERTY` 的資源類型寫法與 CrUX 對新網域（2026-11-11 才換過來）是否已有足夠樣本。
+
+## 外部存活監測：UptimeRobot（2026-11-12 規格第 5 節，不寫程式，帳號與通知收件人由使用者決定）
+
+正式站已有 GitHub Actions 的 `.github/workflows/uptime.yml`（每 10 分鐘，見下方「前端錯誤回報與外部存活監測」）。UptimeRobot 免費方案是**另一條獨立的外部監測**，補它三個不足：5 分鐘一次、通知收件人不用綁在「最後改排程的人」、不依賴 GitHub 的排程（GitHub 負載高時會略過）。兩個可以並存。**這個帳號不能由 agent 代辦**——需要本人註冊並決定誰收通知。
+
+1. 到 <https://uptimerobot.com/> 註冊免費帳號（免費方案：50 個監測、5 分鐘一次、email 通知）。**註冊前請本人看一眼 <https://uptimerobot.com/terms>**：免費方案 2024 年曾限非商業用途，2026-11-12 查到的官方條款已改成任何用途（含商業）都可用，但說明中心與定價頁仍有舊說法；若條款又改回去，改用同類服務（例如 Better Stack 的免費方案），下面三個監測的設定通用。
+2. 建三個監測（Add New Monitor，間隔 5 分鐘）：
+
+   | 名稱 | 類型 | 網址 | 期望 |
+   | --- | --- | --- | --- |
+   | 官網首頁 | HTTP(s) | `https://www.ivykidschool.com/` | 200 |
+   | API 健康 | Keyword | `https://www.ivykidschool.com/api/website/v1/health` | 200，且內容**含**關鍵字 `"status":"ok"`（含引號） |
+   | 後台 | HTTP(s) | `https://www.ivykidschool.com/admin/` | 200 |
+
+   健康檢查實際回應（2026-11-12 實測）是 `{"status":"ok","environment":"production","fixture_enabled":false}`；關鍵字選「Alert when keyword **does not exist**」。只寫 `ok` 太鬆（錯誤頁的文字裡也可能出現），所以連同欄位名稱一起比對。
+3. Alert Contacts 加通知收件人（email 為主；要 LINE 通知得另接 webhook，LINE Notify 已於 2025-03 終止服務）；三個監測都選它。
+4. 驗收：在 UptimeRobot 把其中一個監測的關鍵字暫時改成不存在的字，確認收得到失敗通知，再改回來。
+
+不要把這三個網址之外的路徑加進去（例如 `/api/public-site` 會讀資料庫，GitHub Actions 那條已經在檢查）。
+
 ## 寄信：Resend（程式 2026-11-12 已上線；11-12 後台系統狀態已顯示經 Resend 寄出）
 
 正式站 2026-11-12 已照下面設好並開始寄信：寄件地址 `常春藤幼兒園 <noreply@send.ivykidschool.com>`，Resend 網域 `send.ivykidschool.com`（區域 Tokyo），公開預約設定的 `parent_email_enabled` 為 `true`。下面的步驟留給日後換網域或換金鑰時參考；每一步都要本人登入，程式不會自己做。
@@ -85,6 +384,393 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 回退：拿掉 `NUXT_ADMIN_HOST`，api 的 `WEBSITE_ADMIN_ORIGIN` 與兩個 `REDIRECT_URI` 改回 www，`WEBSITE_PUBLIC_ORIGIN` 可留可拿。
 
+## 2026-11-17 iPhone 預約表單出生年月日欄比姓名欄寬修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #109 合併進 main（`7524b700`），main run 44008630281 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。等待期間 main 先後合進 #105、#108、#111 與它們的部署紀錄，README／DESIGN.md 頂部日期段落連續衝突三次；最後把 README／DESIGN.md 段落從 PR 拿出來，改跟這筆部署紀錄一起推。每次重推都遇到推送那組 run 被 PR 那組取消、PR 被擋，`gh run rerun` 重跑後才合得進去。
+- **內容**：只改 web 前端（`visit-booking.css`、`pages/visit/manage.vue`）：預約表單與家長修改預約的日期欄 `appearance:none`、日期文字靠左，避開 iOS Safari 對原生日期欄強制 `content-box` 造成比姓名欄寬 34px、整頁被往右推。守門測試 `web/tests/visit-date-input-ios-20261117.spec.ts`。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉非 GET、分析、廣告像素與遙測）：`/release.json` base_commit `7524b700`；`/api/website/v1/health` 200；`/visit/yihua` 的 HTML 帶 `input[type=date]{appearance:none}`（打包目標 Safari 15.4，`-webkit-` 前綴被拿掉，屬預期）。Chrome、WebKit 在 390×844 與 1440×900：日期欄 `appearance:none`、`border-box`，寬度與姓名欄相同（350／354px），截圖與部署前一致，Chrome 日曆圖示還在。
+- **沒驗證**：iPhone 實機（本機沒有 iOS 模擬器）、Android 實機、家長修改預約頁（要有效的修改連結）。
+
+## 2026-11-17 狀態機登記表與守門測試、後台粉專貼文頁籤修正上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #111 合併進 main（`ae2e177f`），main run 44003543831 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。合併前 main 進了 #105、#108 與它們的部署紀錄，merge 三次（只有 README 頂部日期段落衝突，各段都留）；每次更新後 PR 的 CI 都重跑到綠才合併。
+- **內容**：`backend/app/state_machines.py`（狀態機登記表，不被執行期程式匯入）、`backend/tests/test_state_machines.py`、`backend/scripts/export_state_machines.py` 與它產生的 `docs/state-machines/domain.md`、`contracts/state-machines.json`、`contracts/generated/state-machines.d.ts`；`contract:generate`／`contract:check` 多跑這一支。後台：三個狀態型別改用產生的型別（只改型別）、粉專貼文頁的載入改用 `useRequestSequence`。沒有 migration、API、環境變數變更，`web/` 沒有變更。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `ae2e177f`；`/api/website/v1/health` 200；首頁 200；`/admin/` 轉到 admin 子網域後 200。
+- **沒驗證**：登入正式站後台實際操作粉專貼文頁的頁籤切換（修正只在本機用測試確認：未修正版紅、修正後綠）。
+- **後續**：盤點時記下的低優先待辦在 issue #110。
+
+## 2026-11-17 預約頁 LINE 聯絡改成按鈕、按鈕拿掉箭頭上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #108 合併進 main（`08287900`），main run 43999360150 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 第一輪 E2E 紅在自己改的兩個 stack 斷言（讀屏說明前多一個空白，`exact` 比不到），改成正規表示式後綠；期間 main 合進 #105 與它的部署紀錄，rebase、merge 各一次（只有 README／DESIGN.md 頂部日期段落衝突，各段都留）。
+- **內容**：只改 web 前端（`VisitForm.vue`、`VisitCalendarActions.vue`、`visit-booking.css`）：預約頁第二步的「LINE 聯絡○○校」由底線小字改成帶 LINE 圖示的外框鈕；聯絡步驟與預約成功畫面的按鈕拿掉 ↗；外框鈕補 hover。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `08287900`；`/api/website/v1/health` 200。`/visit/minghua` 在 1440×900 與 390×844：致電鈕與 LINE 鈕都是 54px 高，LINE 鈕是 `button outline`、帶 `#i-line` 圖示、連到明華校自己的 LINE、文字裡沒有 ↗；沒有橫向溢出。
+- **沒驗證**：正式站的預約成功畫面（要真的送出一筆預約才看得到，只在本機用模擬 API 確認過按鈕沒有 ↗）；iPhone／Android 實機。
+
+## 2026-11-17 環境頁五所校園分頁改直立積木上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #105 合併進 main（`ffe857e3`），main run 43993614668 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #104、#106 與 #106 的部署紀錄，rebase 兩次（只有 README 頂部日期段落衝突，各段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
+- **內容**：只改 web 前端（`web/app/assets/css/environment.css`）：第四章五校分頁比例改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），線稿 cover 貼底放大，選中改成按下去＋校名深綠底白字。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit `ffe857e3`；`/api/website/v1/health` 200。`/environment` 點崇德校後：1280×720 五塊 219×215、1440×900 230×253、390 寬 111×127、320 寬 88×116；選中的校名背景是深綠、沒有 inset 框；線稿 `object-fit: cover`；四種寬度都沒有橫向溢出、積木不重疊、沒有頁面錯誤。
+- **沒驗證**：iPhone／Android 實機。
+
+## 2026-11-16 廣告成效與各里結婚對數上線（main CI 部署，migration `c4d2e8a1f6b3` 只新增）
+
+- **提交**：PR #106 合併進 main（`3d05fa33`），main run 43866225960 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 期間 main 先後合進 #103、#104，各合一次 main（只有 README 頂部日期段落衝突，兩段都留）；push 那組被 concurrency 取消、擋住合併，重跑後綠。
+- **內容**：招生統計新子分頁「廣告成效」（`/admin/admissions/ad-roi`、手填花費 `/admin/admissions/ad-spend`，限總管理者）；官網進站記下廣告平台（`visit_requests.first_touch_ad_platform`／`last_touch_ad_platform`）；GA4 Data API 讀 Google 廣告花費（新變數 `WEBSITE_GA4_PROPERTY_ID`，**尚未設定**，畫面 Google 列顯示「未設定」）；各里結婚對數（戶政 ODRP060）隨公開地理資料同步，下一輪每日同步會從 109-09 回補。migration `c4d2e8a1f6b3`：`visit_requests` 兩欄、`ad_spend_entries`、`geo_village_marriages`、放寬 `geo_dataset_status` 的 dataset 檢查，不改既有資料、沒有備份。
+- **正式站唯讀驗證**（11-17）：`/release.json` base_commit `3d05fa33`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 上 `ad-roi`、`ad-spend` 未登入回 401（和既有招生端點相同，www 主機的後台 API 一律 404 是預期）；後台 `AdmissionsStatsView` chunk 有「廣告成效」與「近 12 個月結婚」。
+- **沒驗證**：登入正式後台看畫面；GA4 真的連線（要先照「GA4 廣告花費」設定）；結婚資料第一次同步結果（之後查 `geo_dataset_status` 的 `marriages` 列與 `geo_village_marriages` 筆數）。
+
+## 2026-11-16 特色教學手機版美術館進度條＋尾端留白上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #104 合併進 main（`5dc63a87`），main run 43833722836 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功。PR 上 push 那組被 concurrency 取消、擋住合併，重跑後綠；第一次 `gh pr merge` 回 502、接著回「Merge already in progress」卻一直沒合，GitHub 狀態正常，再送一次才合併。
+- **內容**：只改 web 前端（`CurriculumContent.vue`、`curriculum.css`）760px 以下：「1 / 8　左右滑動」換成進度條按鈕、清單尾端留白讓最後一件停在起點、清單顏料收小、美術館地板畫往下 16px。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**（11-17，擋掉分析、廣告像素與遙測）：`/release.json` base_commit 已是之後 PR #106 的 `3d05fa33`（包含 `5dc63a87`）。`/curriculum` 390／320 寬有 8 段進度條、沒有「左右滑動」與 `.cur-count`；點第 5 段停在第 5 件；滑到底最後一件左緣 20px（與第一件起點相同）。1440 寬進度條 `display: none`、作品牆不橫捲。
+- **沒驗證**：iPhone／Android 實機。
+
+## 2026-11-16 招生入學「編班與缺額」分頁掛 Beta 標籤上線（main CI 部署，沒有 migration）
+
+- **提交**：PR #103 合併進 main（`bcd507ea`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43817039105）。PR 上同一個 commit 的 push 那組因為連推兩次被取消、擋住合併，重跑後綠。
+- **內容**：只改後台前端（`admin/src/views/AdmissionsView.vue`）：分頁名後面加一顆 Beta 標籤，359px 以下分頁留白收到 12px。沒有 migration、API、環境變數變更。
+- **正式站唯讀驗證**：`/release.json` base_commit `bcd507ea`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 的 `AdmissionsView` chunk 有 `admissions__beta` 與「Beta」，對應的 CSS 也在。
+- **沒驗證**：登入正式後台看畫面（未登入只能看到程式包）。
+
+## 2026-11-16 後台與 LINE 串聯七項上線（main CI 部署，migration `b3e8d1c4f9a7` 只新增三張表＋放寬一個檢查）
+
+- **提交**：PR #102 合併進 main（`45d9eb94`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43812365946）。PR 第一輪後端 2/3 紅在 `test_google_oauth.py::test_google_login_is_not_blocked_by_the_password_lock`（帳密鎖定在 CI 偶發沒鎖上，本機單獨跑 54 過，和這次無關），重跑後綠。規格 `docs/specs/2026-11-16-line-integrations-design.md`。
+- **migration**：`b3e8d1c4f9a7` 接在 `a9c4e7b2d815` 之後，只新增 `line_parent_campus_accounts`、`line_parent_links`、`line_parent_link_codes`，`ad_conversion_jobs.platform` 檢查加 `'line'`；不改既有資料，沒有備份。沒有新設任何環境變數。
+- **正式站唯讀驗證**：`/release.json` base_commit `45d9eb94`；`/api/website/v1/health` ok；`/public/booking-config/yihua` 多了 `line_notify_enabled: false`；`/public/visit-manage/line-notify`、`/admin/line-insights` 未登入回 401（路由已掛）；後台 `LineNotificationsView` chunk 有「官方帳號與本月額度」「家長 LINE 通知」，`AnalyticsView` chunk 有 LINE 面板；官網 chunk 有「用 LINE 接收參觀通知」。
+- **已生效**：園方群組推播改成卡片（正式站若有設 `WEBSITE_LINE_MESSAGING_*` 且有綁群組，下一則參觀通知就是卡片）；系統狀態「LINE 官方帳號」一列會查額度。
+- **還沒生效（等使用者）**：家長 LINE 通知每校預設不開放；開之前先發布隱私權政策（規格附錄 A），再照本檔頂部 11-16 段落設帳號與 webhook。LINE 廣告轉換回傳沒設變數＝關。
+- **沒驗證**：登入正式後台看畫面；真的推一則卡片到群組；家長真機綁定與「我的預約」；聊天模式下 webhook 是否還開著；Conversion API 台灣可用性。
+
+## 2026-11-16 區域分析：年份滑桿、五校周邊環境、異動通知上線（main CI 部署，migration `a9c4e7b2d815` 只新增兩張表）
+
+- **提交**：PR #101 合併進 main（`94a84e8d`），CI 全綠（後端三組、E2E、前端兩組）、Deploy Railway production 成功（run 43799180432，含公開 smoke）。分支 `feature/area-compare-notices-20261116`，規格 `docs/specs/2026-11-16-area-compare-notices-design.md`。
+- **migration**：`a9c4e7b2d815` 只新增 `geo_change_notices`、`geo_change_notice_baselines`，接在 cookie 功能的 `a7c3e9f1b250` 之後（兩個 PR 原本都接在 `d4b7e1a95c26`，第一輪 CI 因兩個 head 全紅，改接後解決）；沒有備份、沒有新環境變數、沒有依賴檔變動。API 啟動時自動套用。
+- **還沒生效／要看的**：異動通知在公開資料同步尾端檢查，要等下一輪自動同步（`WEBSITE_GEO_AUTO_SYNC` 開著、每天一輪）；**第一輪只記帳不發通知**，每校每種各寫一列基準。檢查（使用者在 Railway Postgres 的 Database 分頁）：`select campus_key, kind, established_at from geo_change_notice_baselines order by 1,2;`（有座標的校區兩種各一列）、`select campus_key, kind, notified, count(*) from geo_change_notices group by 1,2,3;`；CLI 手動同步的總結行末尾會多「異動通知：updated（這次發出 N 則）」。
+- **沒驗證**：登入正式站實際看畫面（區域分析 2–5 歲滑桿、五校比較的周邊環境表、站內通知）；390 寬度手機排版從沒人工看過。
+- **已知取捨**：新設幼兒園以設立日套 90 天時間窗，來源晚收錄的新園會只記帳不發通知（要不要改 365 天待使用者決定）。
+
+## 2026-11-16 官網 cookie 六項功能上線（main CI 部署，migration `a7c3e9f1b250` 只新增欄位與表）
+
+- **內容**：`a6aa9a00`（PR #100，`feature/cookie-features-20261116`）。跨次造訪的網站來源（`ivy_src`）寫進預約＋後台案件明細「網站來源」與招生統計「參觀預約」的網站來源表；到場、預繳回傳 GA4／Meta／ChatGPT 廣告（`ad_conversion_jobs`，**預設全關**）；這台裝置記住預約（`__Host-ivy_visit_remember`，預約頁「您已預約…」）；記住看過的校區（`ivy_campus`）；開場動畫 30 天內不重播；LINE Tag（**預設關**）。規格 `docs/specs/2026-11-16-cookie-features-design.md`，變數與開啟步驟見上面「網站來源、這台裝置記住預約、到場與預繳回傳廣告平台」「LINE Tag」兩節。migration 只新增，沒有備份。
+- **推前**：backend 全套 5476 passed；web 2421；admin 3555（1 個負載逾時，單獨重跑過）；web／admin typecheck、`contract:check`、`deploy/tests` 48；stack e2e 新 `cookie-features.spec.ts` 7 個＋hydration、booking-flow、booking-stats、public-csp、roles 等 180 個；預約頁提示列桌機／手機與後台表格截圖對照。
+- **CI**：PR 兩輪 pull_request 全綠（中間 main 併了 #99，README 頂部衝突，README 段落改成部署後補）；push 那組被取消擋住合併，`gh run rerun 43792800268` 後 CLEAN。main run 43795556282 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**（唯讀，沒有送預約）：`/release.json` base_commit `a6aa9a00`、`/api/website/v1/health` ok；帶 `?utm_source=chatgpt&utm_medium=cpc&utm_campaign=…&oppref=…` 進首頁回 `Set-Cookie: ivy_src=…; Max-Age=7776000; Path=/; HttpOnly; Secure; SameSite=Lax`，解出來是 ads／活動代碼／oppref；帶 `DNT: 1` 不寫、帶 `Sec-GPC: 1` 把已有的清掉；`/public/visit-remembered` 沒 cookie 回 204、假 cookie 回 204 並清掉 `__Host-ivy_visit_remember`；帶 `ivy_campus=minghua` 的首頁 SSR 就選在明華；公開頁 CSP 與前一版相同（沒有 LINE 網域）。
+- **沒驗**：真的預約一筆後的提示列與來源寫入（會發真的通知，留給使用者或測試預約時一起看）；正式站 30 週年開關是關的（首頁沒有布幕、`/anniversary` 404），開場不重播要等開關打開才有作用；第 2、6 項沒設變數，維持關閉。
+- **隱私權政策**：同日使用者登入正式後台後，由我改第 4 段（拿掉「不使用 cookie 識別您」、補 `ivy_src` 與預約一起保存來源）、第 5 段（必要 cookie 補 `ivy_visit_remember`；分頁暫存那段改成列 `ivy_src`、`ivy_campus`、開場 cookie 與分頁暫存）與最後更新日期 2026-11-16，發布後 `/privacy` 已是新版。第 7 段（廣告點擊代碼的保存）與第三方工具清單等開第 2、6 項時再補。
+- **待使用者**：要開第 2、6 項時自己拿金鑰／Tag ID 設 Railway 變數，開之前隱私權政策要再補附錄 A 對應的句子。
+
+## 2026-11-16 後台側欄「官網內容」重新分組上線（main CI 部署，沒有 migration）
+
+- **內容**：`79d48894`（PR #99，`feature/admin-nav-groups-20261116`）。後台側欄「官網內容」從首頁／各校／全站與素材三個子組，改成首頁、各分頁（關於常春藤頁、特色教學頁、常春藤環境頁、校園探索、入學資訊頁、預約文案）、各校、全站共用（網站標題與電話、頁尾文字、隱私權政策）四個子組；素材庫與發布紀錄不收在分組裡，直接列在區段最下面。只動 `admin/`（`router/nav.ts`、`AdminSidebar.vue`、一句提醒文案與測試）和兩支 stack spec；項目名稱、網址、權限都沒變，沒有改 API、變數與資料庫。細節見 `README.md` 同日段落與 DESIGN.md「官網內容的分組」。
+- **推前**：admin typecheck；admin vitest 184 檔 3557 項（本機負載高，逾時放寬到 60 秒跑）；vite dev＋假 `/auth/me` 的 Playwright 截圖對照（總管理者收合／全展開、內容編輯、搜尋、圖示欄）。本機沒跑 stack e2e（另一個 session 正在跑）。PR 的 CI 全綠（含 E2E 的 `roles`、`sidebar-collapse`）；推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun` 跑綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43792134933 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**（唯讀，沒有登入）：`/release.json` base_commit `79d48894`；`https://admin.ivykidschool.com/admin/` 入口 JS（`index-DpL4qAuY.js`）裡有「各分頁」「全站共用」「素材與發布」，已經沒有「全站與素材」。
+- **沒驗**：登入正式後台實際看側欄；`tests/stack/visual.spec.ts` 的四張 macOS 基準圖還沒重拍（側欄多三列，CI 在 Linux 不比對像素）。重拍：`npm run e2e:build` 後 `npm run test:e2e:stack -- visual --update-snapshots=changed`。
+
+## 2026-11-16 /about 年數改「邁向 30 週年」＋結尾五張線稿去掉接縫上線（main CI 部署，沒有 migration）
+
+- **內容**：`5f010d67`（PR #98，`feature/about-years-20261116`）。/about「一路走來」結尾年份底下與第一章標題第二行，從「第 30 年」改成「邁向 30 週年」（之後一律「滿 N 年」，差一年滿整十年寫「邁向 N 週年」）；結尾五張線稿左右各淡出 8%，去掉圖與圖之間的直線。只動 `web/` 的 `utils/about-content.ts`、`assets/css/about.css` 與兩支測試；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
+- **推前**：web typecheck、`test:website` 154 檔 2375 項；fixture dev 上 Playwright 1440／820／390 截圖，標題與年份那行 320–1920 共 11 個寬度量過行數。PR 的 CI 全綠（含 E2E）；推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun --failed` 跑綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43787363148 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `5f010d67`。Playwright（真 Chrome，1440 與 390 寬，遙測與第三方分析一律攔下回 204、只發 GET）開 `/about`：回 200，結尾「民國 115 年 邁向 30 週年」、第一章標題「走到今年 邁向 30 週年」（正式站 about_page 的第一章標題仍是原文，走自動換算），線稿 10 張圖（淡彩＋墨線）都有左右淡出遮罩，沒有水平溢出、沒有頁面錯誤。
+- **沒驗**：iOS／Safari 實機。
+
+## 2026-11-15 ChatGPT 廣告的 OpenAI 評估像素上線並開啟（main CI 部署＋Railway web 變數，沒有 migration）
+
+- **內容**：`143fc9c8`（PR #96，`feature/openai-ads-pixel-20261115`）。只動 `web/`：GA4／Meta Pixel 的架構加第三家，預約成功時送 `appointment_scheduled`。做法與規則見上面「ChatGPT 廣告：OpenAI 評估像素」一節與 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 154 檔 2375 項；本機用真的 `oaiq.min.js` 跑四支驗證腳本（事件在本機攔下）。分支連推三次，前兩組 run 被新的取代而取消，PR 顯示 BLOCKED；重跑被取消的 push 那組（43620292360）全綠後轉 CLEAN 才合併。
+- **CI**：main run 43622853729 全綠，含 E2E 與 Deploy Railway production。部署當下變數還沒設，官網行為與 CSP 不變。
+- **隱私權政策**：合併後、main 部署進行中，在後台改第 5 段（兩項工具改三項、加 OpenAI 評估像素的條列、三處句子涵蓋三家）與最後更新日期（2026-11-15），發布。正式站 `/api/website/v1/public/site` 的第 5 段與備好的新版逐字相同，其餘十一段字數不變。
+- **變數**：政策發布、main 部署完成後，`railway variable set NUXT_PUBLIC_OPENAI_PIXEL_ID=H3LXGVGDAfgHkdJ1svTjbe`（web、production）。web 重新部署 01:57:12 開始、約 40 秒完成，期間首頁一直 200。
+- **廣告管理平台**（同一晚）：資料來源「常春藤官網」、轉換事件「官網預約參觀成功」（已排定預約）並掛到行銷活動「常春藤幼兒園｜認識高雄五所校園」；行銷活動層的廣告素材強化關掉、追蹤參數與情境提示填好、每日預算 NT$360 → NT$1,000（使用者指定）。
+- **部署後正式站驗證**（Playwright 真 Chrome；第一方統計與 GA／Meta 的請求在本機回 204，送往 OpenAI 的照常送）：首頁與 `/visit` 的 CSP 多了 `script-src https://bzrcdn.openai.com`、`connect-src`／`img-src https://bzr.openai.com`；`oaiq.min.js` 有載入；送往 `bzr.openai.com` 的內容帶這顆 Pixel ID、`"automatic_advanced_matching":"disabled"`、`source_url` 只有 origin＋pathname、沒有 `user` 欄位（在 `/visit` 插了填好 Email 與電話的欄位也一樣）；沒有任何 `pixel-config` 請求出去；主控台沒有 CSP 違規。`/visit/manage` 當第一頁：沒有載 SDK、沒有 `oaiq`、沒有送往 OpenAI 的請求。
+- **沒驗**：真的預約成功那一筆有沒有進平台（要用測試資料預約一次再到後台取消，會發通知，留給園方做，步驟見上一節第 6 步）；轉換有沒有歸到行銷活動（要等廣告 11-16 開跑後有真的點擊）；iOS／Safari 實機。
+
+## 2026-11-15 特色教學美術創作換成戶外滾筒畫上線（main CI 部署，沒有 migration）
+
+- **內容**：`a61af11d`（PR #95，`feature/curriculum-art-20261114`）。`/curriculum` 五件事・美術創作的內建照片 `cur-daily-art` 從男孩剪紙換成兩個幼幼在草地上用滾筒刷畫畫（Drive「官網」資料夾義華校原檔，母檔去 EXIF），替代文字同步改。只動 `web/` 的一張照片、衍生檔、manifest 與元件一行；沒有改 API、變數與資料庫。細節見 `README.md` 同日段落。
+- **推前**：web typecheck、`test:unit` 153 檔 2341 項；fixture dev 上 Playwright 1440／390 截圖。推送自動起的那組 run 被取消、PR 顯示 BLOCKED，重跑後 PR 那組的 E2E 反被取消；`gh run rerun --failed` 後其餘 job 全綠、狀態轉 CLEAN 才合併。
+- **CI**：main run 43616736526 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `a61af11d`。Playwright（真 Chrome，1440 與 390 寬）開 `/curriculum`，美術創作那格載入新雜湊 `cur-daily-art-1bed1e9e63e9-*.avif`、畫面是新照片。正式站特色教學頁沒有後台覆寫這張照片。
+- **沒驗**：iOS／Safari 實機。
+
+## 2026-11-14 常春藤環境頁調亮＋11-13 版面精修上線（main CI 部署，沒有 migration）
+
+- **內容**：`3f7325e6`（PR #94，`feature/env-bright-20261114`）。環境頁的積木色整組換成乾淨的高明度色、頁面底接近純白、章節底色從四條滿版色帶改成三塊圓角底板；同一個 PR 帶著 11-13 還沒上線的版面精修（原 `feature/env-polish-20261113`）。只動 `web/` 的環境頁樣式、元件、兩張內建照片與後台環境頁編輯畫面的兩句說明；沒有改 API、變數與資料庫。細節見 `README.md` 同日兩段與 `DESIGN.md`「環境頁調亮」「環境頁精修」。
+- **推前**：web typecheck、`test:website` 153 檔 2341 項；admin typecheck 與 177 檔 3461 項；正式建置上 18 種寬度 × 2 種高度的版面檢查、axe 三種寬度 0 違規、字數壓力測試六種寬度、舊版 Safari 模擬。PR 的 CI 全綠（含 E2E）。當天依賴稽核閘門因新公告全紅，等 #93 升級套件併入後才接上 main 重跑；之後又讓 #92 先部署，前後 rebase 兩次，README 頂部各衝突一次（兩邊段落都留）。推送自動起的那組 run 被 PR 的 run 取消、PR 顯示 BLOCKED，`gh run rerun` 那組跑綠後才合併。
+- **CI**：main run 43555620835 全綠，含 E2E 與 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `3f7325e6`。Playwright（真 Chrome，1440 與 390 寬，遙測與第三方分析一律攔下回 204、只發 GET）開 `/environment` 共 29 項全過：01 章是粉色圓角底板、02 章白底、積木色是新色票、章節編號深綠底白字、手機目次排成一列、圓點小路有畫、沒有水平溢出、圖片都載得到（教室照片是提亮後的新雜湊、首屏載裁好的直幅）、主控台沒有錯誤。`/`、`/about`、`/curriculum`、`/admission`、`/visit` 都回 200（`/anniversary` 回 404 是後台開關關著，與這次無關）。
+- **沒驗**：iOS／Safari 實機（這一頁用到容器單位、`svh`、`:has()`、`subgrid`，舊版 Safari 只做過模擬）。
+
+## 2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡上線（main CI 部署，沒有 migration）
+
+- **內容**：`9fb2f19b`（PR #92，合併提交 `a5e681f7`；README「2026-11-14 孩子的一天背景影片拿掉穿鞋那一鏡」）。使用者說「常春藤的一天背景影片有一幕是穿鞋的可以幫我拿掉嗎」，看過本機預覽後說「部署」。11-13 的十五鏡拿掉第 2 鏡，其餘順序、裁切、亮度不變；只換 web 的兩支影片與 `video-manifest.json`，封面、樣式、圖說都沒動；沒有 migration、沒有變數要改。
+- **CI**：第一輪 PR run 43543169135 被當天的依賴稽核閘門擋下（見下一節，跟這個改動無關）。等 #93 的升級併進 main 後把分支接上 `43acc27a`，第二輪 PR run 43547008365 全綠；推送自動起的 run 43547001804 被 PR 的 run 取代而 cancelled（必要檢查因此算失敗、擋住合併），重跑後全綠才合併，沒有用管理員權限。main run 43549113503 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `a5e681f7`。同時間等著上線的 #94 與這個 PR 錯開，等這輪部署跑完才接 main。
+- **線上驗證**：Playwright Chrome 1440×900、1440×560、390×844 開首頁捲到「常春藤的一天」（遙測、錯誤回報、GA／Pixel 全部攔下）：桌機播 `day-desktop-dc6f6f951ae7.mp4`（1440×810、24.67 秒）、手機播 `day-mobile-494ca1502ee8.mp4`（720×1280、24.67 秒），封面照舊，圖說「明華校 · 仁武校」，沒有橫向捲動，console 沒有錯誤。桌機把影片每 1.5 秒截一格共 17 格，擁抱之後直接是沿線走，沒有穿鞋那一鏡。
+- **未驗證**：iOS／Android 實機、Safari、Firefox。
+
+## 2026-11-14 手機拍立得換成 WebGL 紙不再跳＋依賴稽核升級上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #93，合併提交 `43acc27a`，三個提交。
+  - `d737f83b` 拍立得修正（README「2026-11-14 手機孩子的一天：拍立得換成 WebGL 紙時顏色、文字、陰影不再跳」）。使用者用 iPhone 錄影回報卡片的顏色和文字會跳一下，查出是 CSS 版換成 WebGL 紙那一刻兩版畫得不一樣，修完後說「上線」。只改 `web/`，沒有改 API、後台、內容，沒有變數要改。
+  - `d050c739`、`98d1faaa` 依賴升級（README「2026-11-14 依賴稽核閘門擋下部署」）：當天新公告讓稽核閘門擋下所有 PR，`nuxt` 4.6.3 → 4.6.4、overrides 補 `readdir-glob → minimatch ^11.0.1`、後端 dnspython 2.9.0 → 2.9.2。放行清單維持空的。
+- **CI**：第一輪 PR run 43543254007 被稽核閘門擋（Frontend (web) 的 npm audit、Backend 1/3 的 pip-audit），同時間的 #92、#94 也一樣。第二輪 lock 檔用 npm 11 產生，CI 的 `npm ci` 回「Missing: @emnapi/core@2.0.0-beta.2 from lock file」；改用 CI 同版的 npm 10 從 main 的 lock 重裝後第三輪全綠。main run 43546820449 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `43acc27a`。
+- **線上驗證**：`/api/website/v1/health` `status: ok`；首頁與 `/about`、`/environment`、`/curriculum`、`/admission`、`/visit` 200，`//admin/` 回 301（nuxt 公告講的 `//` 開頭路徑沒有繞過轉址）。Playwright 手機模擬 402×874@3（非 GET 的 API、遙測、GA／Pixel 全部攔下；含 WebGL 紙程式的 chunk 先扣住，拍完 CSS 版再放行）：WebKit 第 2 張正面換手前後照片與紙色差 0、小標／標題／時間戳位移在 1 個實體像素內、卡片右側與下方陰影差 1 階內；WebKit 第 4 張背面兩版斷行相同；Chrome 第 3 張正面照片與紙色差 0。
+- **未驗證**：iPhone／Android 實機（回報的那支 iPhone 要請使用者再看一次）；桌機沒有在正式站重截（本機 dev 截過懸停與翻面途中）。
+
+## 2026-11-13 GA4 的 page_location 多留 gbraid／wbraid 上線（main CI 部署，沒有 migration）
+
+- **內容**：`785f4438`（PR #85，`feature/ads-click-ids-20261113`）。只改 `web/shared/third-party-analytics.ts` 的歸因參數白名單；CSP、cookie、變數都沒動。用途與 Google 後台要做的四步見上方「Google Ads」一節。
+- **推前**：web 2303 過、typecheck 無錯誤；PR 的 CI 全綠（推送自動起的那組被 PR 的 run 取消，`gh run rerun` 後轉綠才能合併）。當晚 main 很擠，PR 因 README 頂部段落衝突重接三次，最後把那段移出 PR、改隨這筆紀錄補上。
+- **CI**：main run 43457075340 全綠，含 Deploy Railway production。
+- **部署後正式站驗證**：`/release.json` base_commit `785f4438`。Playwright（真 Chrome、390 寬）開 `/visit/yihua?wbraid=…&gbraid=…&gclid=…&token=secret&utm_campaign=gads-test#frag`，攔下 GA 的 `collect`（回 204、不真的送出）：`en=page_view` 的 `dl` 是 `…/visit/yihua?wbraid=…&gbraid=…&gclid=…&utm_campaign=gads-test`，`token` 與 hash 都沒帶；Console 沒有 CSP 違規。
+- **驗證時的陷阱**：把 GA 的請求 `abort` 掉，gtag 會改連 `https://www.google.com/g/collect` 當後備，被 CSP 擋下、Console 出現違規；那是測試手法造成的，回 204 就不會出現。
+- **沒驗、待使用者**：GA4 連結 Google Ads、把 `generate_lead` 匯入成轉換（要本人登入）；連結後的真實轉換是否進得了 Ads、Console 有沒有新的 CSP 違規。
+
+## 2026-11-13 環境頁五顆心主照片換成戴聖誕帽的孩子敲木槌上線（main CI 部署，沒有 migration）
+
+- **內容**：`b509c0e8`（PR #87，合併提交 `44e2b8b9`；README「2026-11-13 環境頁五顆心主照片再換一張」）。使用者指定把 `/environment` 五顆心下面的寬幅主照片換成舊官網 ivykids.tw 首頁輪播第 2 張，看過本機預覽後回「ok」。`env-care-teacher` 母檔換成 1880×803、位置 `60% 50%`、替代文字改寫；後台「幼兒保育照片」的內建照片說明一起改。沒有改 API、內容、變數。
+- **CI**：等 CI 期間 main 被別的合併推進三次（#86、#88、#89／#84），README 衝突兩次；第三次把 README 段落從 PR 抽出來，改跟這筆紀錄一起補。PR run 43447492750 全綠；推送那組 run 43447482290 被 PR 的 run 取代而取消，重跑時 `test_line_oauth.py::test_line_login_is_not_blocked_by_the_password_lock` 失敗一次（`assert 200 == 429`，跑在 15:15:17Z 的 5 分鐘交界，限流窗口的已知偶發），只重跑那個工作後通過。main run 43453033207 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `44e2b8b9`。
+- **線上驗證**：Playwright Chrome 1440×900（DPR 2）與 390×844（DPR 3）開 `https://www.ivykidschool.com/environment`（遙測與追蹤請求全部攔下）：主照片是新檔（桌機 `…-1880.avif`、手機 `…-1200.avif`）、替代文字是新的、頁面裡找不到舊替代文字，無頁面錯誤、無 4xx、無橫向溢出，截圖確認。
+- **未驗證**：iOS／Android 實機、Safari；後台環境頁的內建照片說明沒有登入去看。
+
+## 2026-11-13 首屏影片第 3、4 鏡放慢上線（main CI 部署，沒有 migration）
+
+- **內容**：`49e9212a`（PR #84，合併提交 `f8c71c8d`；README「2026-11-13 首屏影片第 3、4 鏡放慢」、`design/hero-mix-minghua-20261029/README.md` 第五版）。使用者請我列出首屏每一幕，看完說第 3 鏡（抱籃球 0.60 秒）、第 4 鏡（老師擁抱 0.70 秒）切太快，看過預覽後說「3、4 放慢 先做這個好了」「部署」。兩鏡放慢到各 1.00 秒（原片前後沒有畫面可多取，中間的格用 `minterpolate` 補），片長 11.73 → 12.43 秒；其餘 11 鏡、色彩、封面不變。只換四支交付檔、母帶與 `video-manifest.json`，沒有改 API、後台、內容，沒有變數要改。同一輪試過加進崇德音樂老師兩鏡，沒有做。
+- **CI**：等 CI 期間 main 被別的合併推進兩次（#83 孩子的一天影片、#86 社群列），`video-manifest.json` 與 README 衝突，各重接一次（對照表用 `optimize-site-videos.py` 重產確認一致、本機重跑 typecheck 與單元測試 2295 過）。每次推送自動起的 push run 都被 PR run 取代成 cancelled、PR 因此 BLOCKED，等 PR run 綠了再 `gh run rerun` 那一組才解開。最後 PR run 43446355169、重跑的 43446347736 全綠；main run 43452338033 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `f8c71c8d`。
+- **線上驗證**：`/api/website/v1/health` `status: ok`、`fixture_enabled: false`；新四支影片 200 且大小與 repo 相同（桌機 AV1 3,866,447／H.264 6,414,818、手機 AV1 1,526,983／H.264 2,268,416），舊 `hero-desktop-av1-04fdac6ecfc1.mp4` 回 404。Playwright Chrome 1440×900、1288×552、390×844（只放行同網域 GET，統計與第三方請求全部攔下）：桌機播 `hero-desktop-av1-3c17d1bb474f.mp4`、手機播 `hero-mobile-9478c8c1e127.mp4`，都在播放、循環、片長 12.43 秒，封面沒換，無頁面錯誤。
+- **未驗證**：iOS／Android 實機、Safari；白字對比沒有在瀏覽器實際播放下重量（模擬值跟上一版相同）。
+
+## 2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫上線（main CI 部署，沒有 migration）
+
+- **內容**：`fece03cc`（PR #89，合併提交 `f12fed0f`；README「2026-11-13 首頁拍立得照片的 sizes 照實際相框寬度寫」）。使用者丟首頁 Lighthouse 手機報告，判讀後只修「拍立得照片抓太大」一項，使用者說「幫我處理」「部署」。`web/app/utils/responsive-image.ts` 新增 `dayPrintSizes(寬, 高)`，`DayMomentCard.vue` 改用它（原本寫死 `(max-width: 760px) 100vw, 540px`）；相框是正方形、`object-fit: cover`，所以依每張照片的寬高比算。沒有改 API、後台、內容，沒有變數要改。
+- **CI**：開 PR 前 main 有別的合併（#88）造成 README 衝突，把 main 合進分支（`b57e43d9`）、本機重跑 typecheck 與單元測試（2302 過）後才推；PR run 43448326922 全綠；main run 43450204708 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `f12fed0f`。
+- **線上驗證**：首頁 HTML 的拍立得 `sizes` 已是新算式（正方形 3 張 `… * 0.723 … 387px`、4:3 的 5 張 `… * 0.964 … 516px`）。Playwright Chrome 360／390／393／412／430 寬手機與 900／1440 寬桌機共 8 組（遙測與追蹤請求全部攔下）：DPR 3 手機正方形照片選到 800w（素材庫兩張是 960 中圖），原本是 1200w／1600 大圖；4:3 的照舊 1200w；每張選到的檔在相框裡都不低於 1:1（最緊 412 寬 DPR 1.75 的 1.02 倍）。
+- **未驗證**：iOS／Android 實機、Safari；沒有重跑 Lighthouse（本機負載高，量出來不準）。
+
+## 2026-11-13 健檢報告兩項上線：robots 放行公開素材、轉園題收費說法對齊退費條款（main CI 部署，沒有 migration）
+
+- **內容**：`9ac591f9`（PR #88，合併提交 `4cabe197`；README「2026-11-13 健檢報告兩項」）。外部健檢報告列的兩項「已確認問題」對正式站核對後成立，使用者說「都幫我改」「部署」。`robots.txt` 在 `Disallow: /api/` 前加 `Allow: /api/website/v1/public/media/`（首頁 2 張素材庫照片原本被擋）；入學頁轉園題「按比例收取」改成「分三段收取：全額、2/3 或 1/3」並加「看費用怎麼算」連到 `#faq-refund`。沒有改 API、後台、內容，沒有變數要改。
+- **CI**：開 PR 前 main 有別的合併（#86）造成 README 衝突，把 main 合進分支（`8436a212`）、本機重跑單元測試後才推；PR run 43444355600 全綠才合併；main run 43446542569 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `4cabe197`。
+- **線上驗證**：`/robots.txt` 有 `Allow: /api/website/v1/public/media/` 且其餘四條 Disallow 與 Sitemap 不變；`/llms.txt` 轉園題是新句子；`/admission` 原始碼新句子 2 次（頁面＋`FAQPage`）、「按比例收取」0 次、`href="#faq-refund"` 1 次；首頁與素材網址照常 200。
+- **未驗證**：`node scripts/check-public-seo.mjs https://www.ivykidschool.com` 停在 `/news: canonical`——正式站最新消息開關是關的，腳本沒處理這個情況（這次沒改），所以腳本裡 robots 那兩行新斷言沒有在線上跑到，改用上面的手動比對。正式站沒用瀏覽器點連結（本機 Playwright 驗過）。搜尋引擎實際有沒有開始抓圖要之後在 Search Console 看。三段說法照站上退費條款寫，園方沒有另外確認。
+
+## 2026-11-13 首頁五校卡社群列手機改回靠左上線（main CI 部署，沒有 migration）
+
+- **內容**：`a16e237c`（PR #86，合併提交 `6de4c06f`；README「2026-11-13 首頁五校卡社群列手機改回靠左」）。使用者看過同日上線的「手機三個攤滿整列」後截圖說「手機版幫我往左靠」。只改 `web/app/components/CampusBoard.vue`：拿掉手機單欄剛好三個時的 `justify-content:space-between` 與列寬上限，靠左、間距 20px；340px 以下收成 12px（320 寬 20px 放不下）。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：第一輪 PR run 43439897116 全綠，但期間 main 有別的合併（#83）造成 README 衝突，把 main 合進分支（`8b94a6f5`）、本機重跑 typecheck 與單元測試後重推；第二輪 PR run 43441658278 全綠才合併；main run 43443972587 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、430×844、390×844、320×844（遙測與追蹤請求全部攔下），五校逐一切換：都是 Line／Facebook／Instagram 三個在同一行，列的左緣與地址列左緣相同（手機 24px），`justify-content` 是預設值；兩段間距 390／430／1440 寬 20／20、320 寬 12／12。
+- **未驗證**：iOS／Android 實機、Safari；一、二、四個社群的排法沒有改（正式站目前沒有這種校區）。
+
+## 2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡、影片上的紗拿掉上線（main CI 部署，沒有 migration）
+
+- **內容**：`663fc05b`（PR #83，合併提交 `93257629`；README「2026-11-13 孩子的一天背景影片換成明華＋仁武十五鏡，影片上的紗拿掉」）。使用者逐幕挑鏡排了四輪、遮罩選「紗全部拿掉」，看過本機預覽後說「部署」。只動 web（兩支影片、兩張封面、`styles.css` 拿掉 `.day-film-shade`、圖說）與後台的內建圖說文字；沒有 migration、沒有變數要改。
+- **CI**：PR run 43434439283 全綠後 main 有別的合併造成 README 衝突，rebase 重推；第二輪 PR run 43436205583 全綠，推送自動起的 run 43436195322 被 PR 的 run 取代而 cancelled（必要檢查因此算失敗、擋住合併），重跑後全綠才合併，沒有用管理員權限；main run 43440121295 全綠（web、admin、後端 3 組、E2E），Deploy 成功，`release.json` 的 `base_commit` 是 `93257629`。
+- **線上驗證**：Playwright Chrome 1440×900、1440×560、390×844 開首頁捲到「常春藤的一天」（遙測與追蹤請求全部攔下）：桌機播 `day-desktop-0842954b3bac.mp4`（1440×810、26.30 秒）、手機播 `day-mobile-33bfbd263082.mp4`（720×1280），封面是新的兩張，頁面上沒有 `.day-film-shade`，圖說「明華校 · 仁武校」，沒有橫向捲動，console 只有被攔下的請求。
+- **未驗證／已知**：iOS／Android 實機、Safari、Firefox；紗拿掉後開場大標與圖說的背景對比（不計文字陰影）只有 1.20／1.60，是使用者看過後的選擇，文字陰影加上去之後沒有再量；片源是兩校粉專的 FB 版，不是園方原檔；是否知會明華、仁武校與片中家長待園方。
+- **待使用者**：圖說「明華校 · 仁武校」是我暫定的寫法，要換可以在後台「孩子的一天」改或告訴我。
+
+## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」上線（main CI 部署，沒有 migration）
+
+- **內容**：`bf45683f`（PR #82，合併提交 `bf992f48`；README「2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」」）。使用者指定 `/visit` 的聯絡 Email 不要必填、表單上的「孩子」都改成「寶貝」。web 與 api 都有動（`VisitRequestCreate` 的 Email 改回選填、契約重產），沒有 migration、沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：PR run 43430347627 全綠；推送自動起的 run 43430338770 被 PR 的 run 取代而 cancelled，重跑後全綠才合併；main run 43434517166 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、390×844 開 `/visit/yihua`（送單、統計請求全部攔下）：Email 欄位標「選填」、沒有 `required`，說明是「有填的話，確認信與修改連結會寄到這裡。」；區塊標題「寶貝資料」、欄位「寶貝姓名」「寶貝出生年月日」，表單裡沒有殘留「孩子」，沒有 JS 錯誤。API 用一筆必定驗證失敗的請求探測（電話與場次格式錯、不帶 Email）：422 只列 `phone`、`slot_id`，不再列 `email`。
+- **未驗證**：正式站有開 Turnstile，沒有在線上真的送出一筆不帶 Email 的預約（本機以假 API 送過、後端測試與 CI 的 stack E2E 有涵蓋）；iOS／Android 實機。
+- **待使用者**：後台已發布的隱私權政策第 2 段仍寫 Email 必填，要在後台改成選填後重新發布。
+
+## 2026-11-13 首頁五校卡社群連結等距上線（main CI 部署，沒有 migration）
+
+- **內容**：`192595ea`（PR #81，合併提交 `f69029d9`；README「2026-11-13 首頁五校卡社群連結等距」）。使用者截圖指出 Line／Facebook／Instagram 間距不一樣，以三個為準、手機尤其要等距。只改 `web/app/components/CampusBoard.vue`：Line／Facebook 兩個滿版品牌圖示縮成 Phosphor 的比例，手機單欄剛好三個時攤滿整列。沒有改 API、後台、內容，沒有變數要改。使用者說「部署」後開 PR、CI 綠後合併。
+- **CI**：PR run 43425959092 全綠；main run 43428010872 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：Playwright Chrome 1440×900、430×932、390×844、320×700（非 GET、統計與第三方請求全部攔下），五校逐一切換：都是 Line／Facebook／Instagram 一列、三個圖示都是 16.3px；「字到下一個圖示」兩段相等——桌機 21.9／21.9、430 寬 73.4／73.4、390 寬 53.4／53.4、320 寬 18.4／18.4；手機三種寬度列的右緣與預約鈕右緣相同；沒有 JS 錯誤。
+- **未驗證**：iOS／Android 實機、Safari；一、二、四個社群的排法沒有改（正式站目前沒有這種校區）。
+
+## 2026-11-13 首屏影片從「抬頭大笑」開始上線（main CI 部署，沒有 migration）
+
+- **內容**：`142e5e6f`（README「2026-11-13 首屏影片從『抬頭大笑』開始」、`design/hero-mix-minghua-20261029/README.md` 第四版）。使用者在矮視窗（約 1288×552）看到首屏第一格幾乎都是老師的後腦。13 鏡的內容、裁切、相鄰順序不變，只把循環起點從老師擁抱轉到抬頭大笑；四支交付檔、封面與衍生圖、分享圖、替代文字（fixture 與 `overlay-baseline`）跟著換。只動 web 的內建素材，沒有改 API、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43387442516 全綠（web、admin、後端 3 組、E2E），Deploy 成功。之後同日的 `6c3a02e0`（PR #80）也已部署，內容包含這一版。
+- **線上驗證**（`release.json` 的 `base_commit` 為 `6c3a02e0` 時）：Playwright Chrome 1288×552、1440×900、390×844（統計、錯誤回報與第三方請求全部攔下）：桌機播 `hero-desktop-av1-04fdac6ecfc1.mp4`、手機播 `hero-mobile-0fb76986a924.mp4`，都在播放、片長 11.73 秒；封面載入 `hero-campus-restored-v1-still-8101759e1b7b-*.avif`；替代文字與 `og:image:alt` 是「常春藤的孩子抬起頭開心大笑的校園影片畫面」；三種視窗沒有橫向溢出、沒有 JS 錯誤。四支影片、封面母檔與分享圖下載後的 SHA-256 與 repo 相同。
+- **未驗證**：iOS／Android 實機、Safari；白字對比沒有重量（每一格畫面跟原本一樣，只是播放順序轉了）；社群平台對分享圖的快取要等它們自己更新。
+- **沒有一起上線的**：同一輪比稿的「常春藤的一天」背景片重剪（方案三仁武一支，Desktop 工作區 `design/day-film-recut-20261113/`）使用者還沒說要上。另一個 session 的首屏換橫式素材比稿（`design/hero-landscape-20261113/`）若定案，要以這一版的順序為基底。
+
+## 2026-11-13 首頁早安入園、一起用餐與環境頁五顆心主照片換照上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #80 合併為 `6c3a02e0`（README「2026-11-13 首頁拍立得兩張＋環境頁五顆心主照片換照」、DESIGN.md 同名段落）。只動 web 的內建照片與替代文字：`day-hello`（崇德粉專，娃娃車上兩個黃帽孩子）、`day-lunch`（義華粉專，兩個制服男孩吃粽子，正方形母檔）、`env-care-teacher`（園方雲端中秋節，園服老師扶幼幼班孩子，位置改 `50% 0%`）；入學頁首屏另立代號 `admission-hello`，維持兩個男孩那張。沒有改 API、後台、字表，沒有變數要改。
+- **CI**：PR run 43388304273 全綠（含 stack）；合併被「base branch policy」擋住是因為推送自動起的 run 43388298528 被 PR 的 run 取代而 cancelled，`gh run rerun` 跑綠後放行，沒有用 `--admin`。main run 43391991151 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `6c3a02e0`。
+- **線上驗證**：Playwright Chrome 1440×900 與 390×844（統計、錯誤回報與第三方請求全部攔下）：首頁「早安入園」「一起用餐」兩張拍立得是新照片；`/environment` 五顆心主照片是新照片、替代文字已換、`object-position: 50% 0%`，桌機與手機都看得到老師與孩子的臉；`/admission` 首屏載入 `admission-hello-*`（兩個男孩）、「新生準備」首部曲縮圖是吃粽子那張；三頁都沒有 JS 錯誤。舊檔 `day-hello-03d1cd251836-1600.webp` 回 404。
+- **同日在正式站後台發布、不在這次程式裡的兩項**：孩子的一天「美語時光」換成外師拿 snowman 字卡（素材庫 `e919be7f…`，day_experience 第 4 版）；義華校園探索「綠色園藝」換成「生態花園」（內建 `tour-yihua-pond`，campus_tour yihua 第 2 版，順序戶外廣場 → 共創教室 → 生態花園）。舊的美語時光素材 `462a6bc0…` 還在素材庫，沒有刪。
+- **未驗證**：iOS／Safari 實機沒看；粉專來源的兩張拍立得原圖最寬 1477–1536px，高解析螢幕放大看會比其他幾張軟一點。
+- **後續**：帶故事回家（`day-home`）與義華戶外廣場（`campus`）使用者還沒選定替換的照片，候選在本機 `output/photo-swap-20261113/粉專候選.jpg`（C、E 兩排）。三張新照片與美語時光都有孩子或家長、老師的臉，肖像同意與粉專照片的使用要園方確認。
+
+## 2026-11-13 素材庫改存 Cloudflare R2（只改 Railway 變數，沒有程式變更、沒有 migration）
+
+- **結果**：正式站 api 自 11:05（台北）起 `WEBSITE_MEDIA_STORAGE=s3`，素材上傳、讀取、刪除都走 R2 bucket `ivy-website-media`（Asia-Pacific、Standard、不公開；與資料庫備份的 `ivy-website-db-backups` 同一個 Cloudflare 帳號，各自獨立）。讀檔仍經 API 串流，網址與快取標頭不變。步驟照下方「素材改存 S3 相容物件儲存」。
+- **Cloudflare**：R2 權杖 `ivy-website-media (Railway api)`，帳號層級、Object Read & Write、只限這個 bucket、TTL Forever。金鑰由使用者自己貼進 Railway，沒有經過對話或 repo。
+- **Railway api 變數**：`WEBSITE_S3_BUCKET`、`WEBSITE_S3_ENDPOINT_URL`（`https://<account id>.r2.cloudflarestorage.com`）、`WEBSITE_S3_REGION=auto`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY`、`WEBSITE_MEDIA_STORAGE=s3`；沒有設 `WEBSITE_S3_PREFIX`。
+- **複製**：`media-copy-to-s3 --dry-run`「將複製 38」→ 實跑「已複製 38、失敗 0」→ 切換後再跑「S3 已有 38」。另在容器內逐檔比對 volume 與 bucket 的 SHA-256：38 個全相同，合計 90.9 MB。
+- **線上驗證**（只發 GET）：`/api/published-site` 引用的 20 個素材網址，切換前後狀態碼、大小、內容雜湊全部相同；影片 `Range: bytes=1000-1999` 回 206 與正確的 `Content-Range`，超出範圍回 416；`Cache-Control: public, max-age=31536000, immutable` 不變。容器內 `get_storage()` 是 `S3MediaStorage`。切換後 8 分鐘 api 沒有 5xx。
+- **代價**：素材首位元組時間中位數 180 ms → 250 ms（多一段 api→R2）；瀏覽器快取一年，只影響第一次載入。
+- **過程中的事故**（詳見下一段 #78 那條）：09:21 先用 CLI 設了 `WEBSITE_S3_BUCKET`（沒有金鑰），剛好撞上 #78 的 CI 部署，api 09:22:56～09:42:53 停機。查 web 的 HTTP 紀錄，這段時間沒有預約送出，五校 `booking-config` 各 12 次 502。**之後這組變數一律在 Railway 後台一次貼完再 Deploy。**
+- **過程中的三次重貼**：金鑰第一次 Access Key ID 只貼到 1 個字元（R2 回 400）、第二次 Secret 不是這把權杖的（`SignatureDoesNotMatch`），第三次才對；每次改變數 api 中斷約 20 秒。驗證方式是在容器內對 bucket 做 `list`（要回 OK）與讀不存在的 key（要回 `NoSuchKey`），不要只看格式。
+- **Cloudflare 後台的坑**：建權杖的表單按送出後卡在灰色、沒有請求也沒有錯誤，是後台的 service worker（`/tether/sw.js`）卡住；在該分頁取消註冊後重新載入就正常（無痕視窗或換瀏覽器也可以）。
+- **未驗證**：後台實際上傳、刪除一個素材（需要登入）；影片上傳後的背景轉檔在 R2 上的實際表現；iOS 實機播放影片。
+- **待辦**：volume `api-volume`（`/data`）先留著當備份，上面的 `/data/media` 不再更新；確認無誤後再決定要不要卸下（卸下後 api 才能多實例，但 `geo-sync` 等匯入檔目前也是放在 `/data`）。R2 bucket 本身沒有另外備份或版本保留。
+
+## 2026-11-13 環境頁「安全歡樂遊樂區」換成整座遊具全景照上線（main CI 部署，沒有 migration）
+
+- **內容**：`b4be838c`（README「2026-11-13 環境頁『安全歡樂遊樂區』換成整座遊具的全景照」）。只動 web：`env-space-playground` 母檔與響應式圖、`EnvironmentContent.vue` 的替代文字、圖片清單與環境頁兩份渲染快照。沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43386468274 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `b4be838c`。
+- **線上驗證**：`/environment` 的 HTML 指向新雜湊（`env-space-playground-7f9eb4d74f60-*.avif`、`-b2f7a461cc7f-*.webp`），替代文字是「孩子們在大型遊具旁溜滑梯、騎小車，一個男孩朝鏡頭走來」，舊雜湊與舊替代文字都不在；1600 寬的 AVIF 回 200（約 105 KB）。
+- **未驗證**：推之前本機沒跑 stack e2e（交給 CI，已過）；沒有在實機手機上看。
+
+## 2026-11-13 支援 iOS 15（打包目標 Safari 15.4、不用 import map）與錯誤回報不收爬蟲上線（main CI 部署，沒有 migration）
+
+- **內容**：`218a6442`（README「2026-11-13 iOS 15 的手機整站 500」、DESIGN.md 最上面一段）。只動 web：`nuxt.config.ts` 的打包目標、兩處原始碼、各樣式檔檔尾的 `@supports not` 後備、`/api/client-errors` 擋爬蟲的 User-Agent。沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43384358290 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `218a6442`。
+- **線上驗證**：首頁 HTML 沒有 `<script type="importmap">`，有 `@supports not (overflow:clip)`。Playwright Chrome 以「模擬 Safari 15」（375×667；把它不支援的 CSS 改成無效寫法、沒有的 JS API 拿掉；只發同站 GET，統計、錯誤回報與第三方請求全部攔下）開 `/`、`/about`、`/curriculum`、`/environment`、`/admission`、`/visit`、`/visit/yihua`：都接手成功、沒有 JS 錯誤、不能左右滑、選單打得開；首頁拍立得有紙底，義華預約頁的月曆與欄位框線都在。`/anniversary` 正式站是關的（404，預期）。腳本在本機 `output/legacy-safari-20261113/sim15.cjs`。
+- **未驗證**：沒有真的 Safari 15（舊版 WebKit 在這台 macOS 26 啟動不了），iOS 15 實機、iPadOS 15、macOS Safari 15 都沒看過；爬蟲的回報不入庫只有單元測試，沒有在正式站實際送一筆（會寫進正式資料）。
+- **後續**：後台「錯誤回報」11-13 那三筆（兩筆 `#entry`、一筆 Lightpanda 的 `Illegal invocation`）可以標為已處理。之後如果又出現 `#entry` 的回報，代表 import map 被打開了，先看 `web/tests/legacy-safari-20261113.spec.ts`。
+
+## 2026-11-13 預約選校卡點一下就進第二步、桌機金色膠囊移到卡片左上角上線（main CI 部署，沒有 migration）
+
+- **內容**：PR #79 合併為 `90bc6139`（README「2026-11-13 預約選校卡點一下就進去、桌機不再空一行」、DESIGN.md 最上面一段）。只動 web 預約頁第一步（`VisitForm.vue`、`visit-booking.css`）、`telemetry.client.ts` 一行與測試，沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「幫我併入 main」後照 PR 合併，沒有用管理者權限：推送時自動起的那組 run 被 PR 的 run 取代而取消，必要檢查算沒過，重跑那一組（43377281990）轉綠後才併。
+- **CI**：PR run 43377288921 全綠（含 stack）；main run 43381096616 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `90bc6139`。第一輪 PR run 後端第 3 組 `test_rate_limits.py::test_failed_logins_are_counted_even_though_request_rolls_back` 紅過一次，之後三輪都過，這次沒有動後端。
+- **線上驗證**（Playwright，統計、第三方與所有非 GET 請求全部攔下，沒有留資料）：`/visit` 桌機 1440×900 五張卡都是連結、沒有「下一步」；校名同一條線、撥號同一條線（只撥號的四校不再空一行），金色「可線上預約」只在義華、位於卡片左上角 14／14px；點明華撥號只撥號不換頁，點崇德卡片照片進「歡迎與崇德校聯絡」，按「更換校區」回來焦點在崇德；點義華進表單。換步驟沒有送出 `visit_click`／`booking_cta_clicked`，撥號照常送 `cta_click_phone`（被攔下）。手機 390×664 沒有黏底列、沒有橫向溢出，第一屏兩張完整選校卡，點義華卡右側進 `/visit/yihua`。
+- **未驗證**：iOS／Android 實機（觸控點卡片與撥號膠囊的範圍、VoiceOver 讀卡片連結）；LINE、外部網站兩種預約方式的卡片只有 CI 的 stack 測過（正式站五校目前是自選場次與來電）。
+
+## 2026-11-13 手機預約頁色帶放回照片與「預約參觀」淡字上線（main CI 部署，沒有 migration）
+
+- **內容**：`c3589836`（README「2026-11-13 手機預約頁色帶」、DESIGN.md 最上面一段）。只動 web 預約頁第一步 760px 以下的色帶樣式與歡迎照的 `sizes`，沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43376125600 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `c3589836`。
+- **線上驗證**（Playwright，只發 GET，統計與第三方請求全部攔下）：`/visit` 手機 390×664、436×522、320×568 色帶高 161／181／136px，左邊兩行大標、後面兩行淡字、右邊照片（圖是框寬的 128%、靠左，載 480w AVIF），眉標不顯示，沒有橫向溢出；390×664 黏底列上方兩張完整選校卡。橫拿 667×375 照舊一行標題、照片是透明圖；桌機 1440×900 迎賓區數字與部署前相同（色帶 470px、照片 709×355）。
+- **未驗證**：iOS／Android 實機（Safari 工具列收合時的色帶、照片裁切）。
+
+## 2026-11-13 選單五校改純文字切換、參觀專線只出現那一校上線（main CI 部署，沒有 migration）
+
+- **內容**：`e0f304dd`（README「2026-11-13 選單五校只切換、參觀專線只出現那一校」、DESIGN.md 最上面一段）。只動 web 的頁首選單（`SiteHeader.vue`、`studio.css`、`styles.css`）與兩支測試，沒有改 API、fixture、後台、字表，沒有變數要改。使用者說「部署」後直接推 `main`。
+- **CI**：run 43375516167 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `e0f304dd`。
+- **線上驗證**（Playwright，首頁桌機 1440 與手機 390，統計與第三方請求全部攔下）：選單五校是 `<button aria-pressed>`、沒有底色；預設義華，點崇德、鍵盤移到國際後，參觀專線只有一列且換成那一校（`tel:` 連結正確）、社群跟著換，網址不變、選單不關、沒有橫向溢出。
+- **未驗證**：iOS／Android 實機；內頁的選單只在本機看過首頁那一份元件（同一個 `SiteHeader`）。
+
+## 2026-11-13 入學頁細修上線：生日三個下拉、問答展開補間、列印樣式（main CI 部署，沒有 migration）
+
+- **內容**：`34377036`（README「2026-11-13 入學頁細修」、DESIGN.md 最上面一段）。只動 web 的入學頁元件與樣式，沒有改 API、fixture、後台、字表，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43372012443 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `34377036`。
+- **線上驗證**（Playwright，桌機 1440 與手機 390，統計與第三方請求全部攔下，沒有寫進統計）：`/admission` 有 `#birthday-year` 等三個下拉、沒有原生日期欄；選 2022/9/1 回「讀中班」、9/2 回「讀小班」，2022 年 2 月只有 28 天；問答展開高度有補間；`main.ap` 範圍 axe 全規則 0 條、沒有橫向溢出、沒有孤字；新生準備標題括號與首屏那一句的折行跟本機一致。
+- **未驗證**：iOS／Android 實機（只用 WebKit 模擬 iPhone 13 看過本機版）；列印只在本機 Chrome 出過 PDF；Safari、Firefox 沒有問答補間（照舊直接開關，是預期行為）。
+
+## 2026-11-13 後台「查看官網」修正上線，連同 QA 報告修正（#78）一起部署（main CI 部署，沒有 migration）
+
+- **內容**：`92552b1c`（README「2026-11-13 後台『查看官網』開回後台自己」）。後端 `features` 多一個 `public_site_origin`，後台用它組官網的絕對網址。沒有變數要改（api 的 `WEBSITE_PUBLIC_ORIGIN` 11-12 已設）。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **連同 #78**：`cd2849f8`（QA 報告 9 條中度＋35 條輕度）09:14 併入 main 的那次 run 43343368056 測試全綠，但 Deploy 在 api 失敗：同一時間另一個工作階段用 CLI 先設了 `WEBSITE_S3_BUCKET`（沒有金鑰），`Settings()` 驗證不過；api 掛 volume，舊版已先停，09:22:56～09:42:53 api 停機。復原是刪掉該變數後 `railway redeploy --service api`（重跑的是那次失敗的部署，所以 api 從 09:42 起已是 #78 的後端，web 仍是 `dd2925cd`）。這次部署把 api 與 web 都帶到 `92552b1c`，落差消失。
+- **CI**：run 43347605874 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `92552b1c`，api health 200。
+- **線上驗證**：已登入的瀏覽器開 `https://admin.ivykidschool.com/admin/`，頁首「查看官網」的 `href` 是 `https://www.ivykidschool.com/`（修正前是 `/`，會 302 回 `/admin/`）。
+- **未驗證**：首頁內容與五校介紹編輯頁的「查看官網此頁」、發布成功提示裡的連結沒有在正式站實際點（同一個函式，單元測試有涵蓋）；#78 的各條沒有在正式站逐條驗。
+
+## 2026-11-13 手機效能上線：GA4／Pixel 等整頁載完才載入、特色教學手機首屏圖降一級（main CI 部署，沒有 migration）
+
+- **內容**：`dd2925cd`（README「2026-11-12 手機效能：GA4／Pixel 延後載入、特色教學首屏圖降一級」）。只動 web，沒有變數要改。直接推 `main`（管理者繞過「必須走 PR」規則，CI 照跑）。
+- **CI**：run 43336343450 全綠（web、admin、後端 3 組、E2E），Deploy 成功；`release.json` 的 `base_commit` 為 `dd2925cd`。
+- **線上驗證**（Playwright 手機寬度，GA／Meta 的 beacon 與非 GET 請求全部攔下，沒有寫進統計）：首頁 hydration 完成時 `dataLayer` 已排好 `page_view`、文件裡沒有外部腳本，`load`（2.66 秒）之後約 1.2 秒才請求 `gtag/js` 與 `fbevents.js`；GA `page_view` 的 `dl` 為 `https://www.ivykidschool.com/`。第一頁是 `/visit/manage#…` 時完全不載。`/curriculum` 手機（390 寬、DPR3）首屏圖為 `cur-hero-…-1200.avif`（119 KB，原本 1600w 177 KB）。
+- **未驗證**：headless Chrome 裡 Pixel 不發 `facebook.com/tr`，Pixel 的 PageView 與 Lead 要用真瀏覽器在 Meta 事件管理工具確認；iOS Safari 實機未驗。
+
+## 2026-11-12 環境頁崇德戶外廣場、國際中庭操場上線（main CI 部署，沒有 migration）
+
+- **內容**：`5eeb47ca`（README「2026-11-12 環境頁『五所校園』崇德與國際第一張換成校園實景」）。崇德溜滑梯換成戶外廣場；國際美語商店街拿掉，第一張改中庭操場、騎士堡移到第三張。
+- **CI**：run 43186062317 全綠（web、admin、後端 3 組、E2E），Deploy 成功。
+- **線上驗證**：`/environment` 有戶外廣場、中庭操場、騎士堡，美語商店街與歡樂安全溜滑梯已不在；`tour-chongde-plaza`、`tour-international-court` 衍生檔 200。正式站崇德、國際沒有後台發布的校園探索，不需後台操作。
+
+## 2026-11-12 預約表單預計入學時間改學年＋上下學期上線（main CI 部署，沒有 migration）
+
+- **內容**：`40881596`（README「2026-11-12 預約表單『預計入學時間』選項改成學年＋上下學期」）＋ e2e 修正 `5c68ffc6`。選項文字由「2027 年 2 月」改「115 學年下學期」；存的值、後台顯示、API 範圍不變。
+- **CI**：第一輪 run 43177730873 被 `tests/stack/visit-expected-start.spec.ts` 寫死的月份正則擋下（沒部署）；修正後 run 43180799125 全綠，Deploy 成功。
+- **線上驗證**：`/visit/yihua` 選項為盡快（這學期）、115 學年下學期、116 學年上學期、116 學年下學期、117 學年上學期（還不確定在 SSR 文字外未抓，另見頁面）。
+
+## 2026-11-12 環境頁五所校園每校三個角落上線（main CI 部署，沒有 migration）
+
+- **內容**：`a39622c5`（README「2026-11-12 環境頁『五所校園』每校三個角落」）。每校順序改成校園環境 → 教室 → 特色；明華新增學習區教室、紅磚迴廊中庭，崇德溜滑梯換有孩子的照片並與 PU 大操場對調，國際騎士堡移到第一張並新增木工創作教室，新照片取自各校 FB 粉專。
+- **CI**：run 43177201890 全綠，Deploy 成功。上一輪 43172898906（`9d692961`）是 web 部署被標成 REMOVED 失敗，不是測試問題。本機 stack 175 過、`media.spec` 一項逾時（單獨重跑 2 過）。
+- **線上驗證**：`/environment` 有學習區教室、紅磚迴廊中庭、騎士堡、木工創作教室，噴水池花園與校門口已不在；`tour-chongde-playground`、`tour-minghua-courtyard`、`tour-international-woodwork` 衍生檔 200。
+- **待使用者**：正式站義華的校園探索是後台發布的內容，仍是舊的戶外廣場／綠色園藝／共創教室；要在後台「全站與素材 → 校園探索 → 義華」刪綠色園藝、新增「生態花園」（照片 `~/Desktop/義華-生態花園-後台上傳用.jpg`），排成戶外廣場 → 共創教室 → 生態花園後發布。
+
+## 2026-11-12 www 改回灰雲（Cloudflare 代理讓台灣訪客多繞美國）
+
+- **量測**（同一台電腦、中華電信 HiNet，各 12 次取中位）：www 橘雲時進 Cloudflare **SJC（聖荷西）**、再到 Railway `lax1`；首頁 HTML 總時間 1023 ms、JS 檔（Cloudflare 快取 HIT）763 ms、API health 669 ms，光 TLS 約 300 ms。同一程式直連 Railway（`hkg1`）分別是 320／348／175 ms。改回灰雲後 www 實測 376／337／164 ms。
+- **原因**：社群說法是 Cloudflare 與中華電信在台灣互連要付費，只有企業方案走台北，免費方案導去美國（沒有官方說明，但與實測相符）。Pro／Business 是否改善查無證據；Argo 只優化 Cloudflare→原站那段，解決不了台灣→美國。
+- **做法**：Cloudflare DNS 的 `www` 改回 DNS only（16:5x 台北）。`ivykidschool.com` apex 仍橘雲（轉址＋整個網域的 HSTS `max-age=15552000; includeSubDomains`）；www 改由 web 自己送 HSTS 一年版。
+- **少掉的**：Cloudflare 的「預約送出限流」規則與 Bot Fight Mode 對 www 不再作用（設定留著，切回橘雲即恢復）。改由程式本身的限流（校區＋手機為主、訪客 IP 同日已修正）與 Turnstile 擋。`NUXT_CLOUDFLARE_CLIENT_IP=true` 留著無害。
+- **驗證**：www 解析到 Railway、`x-railway-edge: hkg1`；`/`、`/visit`、`/admission`、`/about` 200；apex 仍 301 到 www。
+- **之後要再開橘雲**：先用 HiNet 與手機網路各量一次 `curl -w '%{time_total}'`，確認不再導去美國。
+
+## 2026-11-12 訪客 IP 改採信 X-Real-IP（操作紀錄與限流原本都記成 Railway 的 CDN 節點）
+
+- **問題**：使用者在 admin 網址登入，操作紀錄的 IP 是 `79.127.228.18`（CDN77 香港），Railway HTTP 日誌的 `srcIp` 卻是本人。`trustedClientIp` 從 `X-Forwarded-For` 右邊取 1 層，而 Railway edge 前面多了一層 CDN77，把自己的節點接在最後面。影響：操作紀錄 IP 不可信；限流的「來源」桶以 CDN 節點計（同區訪客共用，較嚴，不會放寬）；`NUXT_CLOUDFLARE_CLIENT_IP` 也沒作用（最後一段永遠不是 Cloudflare）。不是今天 Cloudflare／admin 子網域造成的，10-06 加 IP 紀錄以來可能一直如此。
+- **量測**（PR #75 暫時診斷端點 `c2804fc8`，token 把關；只回請求自己的 header）：
+  - admin（灰雲）：`X-Forwarded-For: 訪客, 79.127.228.17`、`X-Real-IP: 訪客`、`X-Railway-Edge: hkg1`。
+  - www（Cloudflare）：`X-Forwarded-For: 104.22.20.90（Cloudflare）, 84.17.44.229（CDN77 洛杉磯）`、`X-Real-IP: 訪客`、`CF-Connecting-IP: 訪客`、`X-Railway-Edge: lax1`。
+  - Railway 網址：同 admin。
+  - 偽造：自帶 `X-Forwarded-For: 6.6.6.6`、`X-Real-IP: 7.7.7.7` 三條路都被 Railway 整個覆寫；直連自帶的 `CF-Connecting-IP` 會原樣轉進來（所以 Cloudflare 檢查要保留）；經 Cloudflare 自帶 `CF-Connecting-IP` 被 Cloudflare 回 error 1000。
+- **修正**：`web/server/utils/client-ip.ts` 先看 `NUXT_CLIENT_IP_HEADER` 指定的 header（值是 IP 才用），沒有再照舊從 `X-Forwarded-For` 取；Cloudflare 檢查不變。正式站 web 設 `NUXT_CLIENT_IP_HEADER=x-real-ip`。診斷端點與 `NUXT_IP_DIAG_TOKEN` 移除。
+- **順帶發現（沒處理）**：經 Cloudflare 的請求進的是 Railway `lax1`（洛杉磯）edge，灰雲直連是 `hkg1`（香港）；台灣訪客走 www 可能多繞美國一趟，要比較 Cloudflare 前後的載入時間再決定要不要留橘雲。
+
+## 2026-11-12 平台設定：HSTS、www 走 Cloudflare 代理、後台搬到 admin.ivykidschool.com（只改平台設定，沒有程式提交）
+
+上方「資安強化（2026-11-12）」的平台項目，使用者說「這些幫我做」，15:10–15:40（台北）做完。
+
+- **Railway api 公開網域**：查 `railway status --json`，api 與 Postgres 的 `customDomains`／`serviceDomains` 都是空、沒有 TCP proxy；只有 web 有 `www.ivykidschool.com` 與 `web-production-04caa.up.railway.app`。不需要改。
+- **Cloudflare HSTS**（SSL/TLS → Edge Certificates）：開啟，Max Age 6 個月、Include subdomains 勾、Preload 沒勾、No-Sniff 沒勾。`curl -I https://ivykidschool.com/` 回 `strict-transport-security: max-age=15552000; includeSubDomains`。開之前看過 DNS：會被瀏覽器開的只有 apex（橘雲轉址）與 www、admin，都有 https。
+- **www 改橘雲**：web 先設 `NUXT_CLOUDFLARE_CLIENT_IP=true`（`NUXT_TRUSTED_PROXY_HOPS` 沒設、用預設 1），部署成功後把 DNS `www` 改 Proxied；SSL 模式原本就是 Full。之後 `/`、`/visit`、`/admin/`、health 都 200，`server: cloudflare`。**www 的 HSTS 改由 Cloudflare 發（6 個月）**，蓋掉 web 自己送的 1 年。
+- **admin 子網域**：Railway web 加 custom domain `admin.ivykidschool.com`（port 3000，CLI `railway domain`）；Cloudflare 加 `admin` CNAME → `vk49sacg.up.railway.app`（灰雲）與 `_railway-verify.admin` TXT，憑證 VALID。Google OAuth 用戶端與 LINE Login channel `2011820492` 都**加上** admin 回呼網址，www 的保留供回退。api 變數一次改 `WEBSITE_PUBLIC_ORIGIN`、`WEBSITE_ADMIN_ORIGIN`、兩個 `REDIRECT_URI`；`WEBSITE_VAPID_SUBJECT` 是 Railway 網址、沒改。web 設 `NUXT_ADMIN_HOST`。api、web 15:35 部署成功。
+- **驗證**（未登入，只發 GET）：www `/admin/`、`/preview` 301 到 admin；www `/api/website/v1/auth/me` 404；admin `/admin/` 200、`auth/me` 401；admin 的 Google／LINE 登入轉址 `redirect_uri` 都是 admin 網址；www 首頁、`/visit` 200，health ok。
+- **沒驗、待使用者**：
+  - 操作紀錄的 IP 是不是自己的（不是 Cloudflare 節點）——Railway 日誌沒有逐筆存取紀錄，要登入後台操作一次看。
+  - 後台用帳密、Google、LINE 各登入一次；改草稿看預覽；用自己的 Email 預約一次，確認改期連結是 `www` 開頭。
+  - 同事要在新網址重新登入、重存密碼、重開手機通知、重加主畫面捷徑。
+- **同日 15:40–15:50 接著做（使用者說「這些幫我做」）**：
+  - **Cloudflare WAF**：免費方案的「Cloudflare managed ruleset」本來就是 Always active；可自訂的 Managed rules 要升級付費，沒開。
+  - **Cloudflare 限流規則**「預約送出限流」：`(http.request.uri.path eq "/api/website/v1/public/visit-requests")`，同 IP 10 秒超過 5 次 → Block 10 秒（免費方案只能 10 秒）。用 GET 連打 8 次驗證：前 5 次 405（後端不收 GET，不會建立預約）、第 6 次起 429，12 秒後恢復 405。
+  - **Bot Fight Mode**：開啟。免費版不能設例外，所以先檢查「伺服器打進來」的請求：LINE 群組推播 webhook 原本填 Railway 網址（不經 Cloudflare），順便改成 `https://admin.ivykidschool.com/api/website/v1/line/webhook`（灰雲、和後台「LINE 通知」頁顯示一致，也不怕之後 Railway 網址轉址），LINE Developers 的 Verify 回 Success。開啟後本機 curl 打首頁、`/visit`、health、sitemap 都 200；手動觸發 GitHub「Website uptime」run 43177786386 全部 ok。
+  - **GitHub production environment**：原本就只允許 `main`（custom branch policy），`RAILWAY_TOKEN` 已是 environment secret、沒有 repository secret，不需要改。
+  - **main 分支保護**：要求 PR（0 位審核）、6 個 CI job 通過（Frontend web／admin、Backend 1–3/3、E2E）、禁止 force push 與刪除；`enforce_admins` 關，所以 owner 直接推 main 照舊可以，協作者要走 PR。注意 CI 有 `paths-ignore`（`**.md`、docs、design、versions），**協作者只改文件的 PR 不會跑 CI，必要檢查會一直等待**，要由 owner 合併。
+  - **Dependabot security updates**：開啟（`automated-security-fixes` enabled）。
+  - **Renovate**：關閉 PR #1「Configure Renovate」並刪掉 `renovate/configure` 分支。**GitHub App 本身還沒解除安裝**（要到 github.com/settings/installations 操作；它可能也裝在其他 repo，由使用者決定）。
+
+## 2026-11-12 外部服務串接五項上線：GA4＋Meta Pixel、Instagram、Search Console、CrUX（main CI 部署，migration `f3b8d2a6c19e`）
+
+- **內容**：`9d692961`（README 同日「外部服務串接五項」），分支 `feature/integrations-20261112`。**全部預設關**，正式站沒設任何新變數，行為和之前相同。migration 只在 `facebook_page_posts` 加 `source`（預設 facebook）、`facebook_page_sync` 加四個 `ig_` 欄位，不改寫資料，沒有先備份。
+- **推前（本機）**：web 2014、admin 3430（1 略過）、後端 5229（1 略過）全綠，契約一致；rebase 到 `14ccc94a` 後重跑 web 2015 全綠、typecheck 0 錯、alembic 單一 head。
+- **CI**：run 43172898906 測試全綠；Deploy job 紅在 `web deployment cd4fa839…: REMOVED`——同一提交在 Railway 有兩次 web 部署，15:25 的 `64a0bfa9` SUCCESS 取代了 CI 等的那份，不是程式問題。api `8b941d4f` 15:21 SUCCESS（啟動前跑 alembic）。
+- **部署後正式站驗證**（GET、未登入）：`/release.json` base_commit `9d692961`；health ok；`/admin/crux`、`/admin/search-insights` 回 401（路由在）；首頁 CSP 的 img-src／connect-src 與之前一字不差、HTML 沒有 googletagmanager／fbevents、runtimeConfig 兩個 ID 是空字串。
+- **待使用者**：照上方「GA4 與 Meta Pixel」（先發布隱私權政策）、「Instagram 貼文」、「Google Search Console 與 CrUX」、「外部存活監測：UptimeRobot」各段開帳號與設變數；開了之後再做真實驗收。
+
+## 2026-11-12 正式站開通 GA4、Meta Pixel、Search Console、CrUX（只改變數與外部設定，沒有程式部署）
+
+- **Search Console＋CrUX**（api）：GCP 專案 `ivywebsite-510806` 啟用兩支 API；服務帳戶 `website-search-console@ivywebsite-510806.iam.gserviceaccount.com`（JSON 金鑰）在 Search Console `sc-domain:ivykidschool.com` 為「限制」使用者；API 金鑰「官網後台 CrUX」只限 Chrome UX Report API。使用者用 `!` 設三個變數（前兩個 `--skip-deploys`），api `eb859eef` 15:48 SUCCESS；本機金鑰暫存已刪。後台成效統計兩區塊驗過：Search Console 近 28 天點擊 114／曝光 3,996；CrUX 回「資料量不足」（新網域，正常）。
+- **隱私權政策**：第 4 段加「第三方分析工具另見第 5 段」、第 5 段改寫 GA4＋Meta 像素（初稿版本），後台重新發布兩次（先只有 GA4、Pixel 建好後加回 Meta），`/api/public-site` 驗過。
+- **GA4**：帳戶 ivykids 下新資源「常春藤官網 ivykidschool.com」（563982090），評估 ID `G-KERZKPSV2H`，強化評估關「瀏覽器記錄事件」與「表單互動」；舊站 ivykids.tw 的資源沒動。容器 `GTM-KV9ZKW67` 的 GA 代碼加三個 `false` 參數、發布第 2 版（見上方 GA4 步驟 2 的說明）。web 設 `NUXT_PUBLIC_GA_MEASUREMENT_ID`。
+- **Meta Pixel**：使用者新建商家資產管理組合「常春藤義華校」（2094511111952952）並同意條款建資料集「常春藤官網 ivykidschool.com」，Pixel ID `1324144629785264`；轉換 API 連結取消、AI 頁面詳情與自動事件關、自動進階配對本來就關。web 設 `NUXT_PUBLIC_META_PIXEL_ID`。
+- **正式站驗證**（Chrome、沒開 DNT）：CSP 只多放行兩家網域；GA 每頁一筆 `page_view`、`dl` 只留 `utm_*`、`npa=1`；Pixel 每頁一筆 `PageView`、SPA 換頁不重複；`/visit/manage` 兩家都不載入、請求 0。測試時往 GA 送過幾筆 `utm_source=test_claude`、一筆 `example.com` 與 `claude_probe` 事件。
+- **沒驗**：預約成功的 `generate_lead`／`Lead`（沒有實際送預約）；GA4「即時」報表與 Pixel Helper 畫面。
+- **待使用者**：義華 IG 權杖加 `instagram_basic` 後設 `WEBSITE_INSTAGRAM_ENABLED`（粉專已連結 IG）；UptimeRobot。
+
+## 2026-11-12 選單參觀專線五校並列、孩子的一天午休與戶外回答改寫上線（main CI 部署，沒有 migration）
+
+- **內容**：`14ccc94a`（README 同日「選單參觀專線五校並列＋孩子的一天午休／戶外回答改寫」），分支 `fix/day-answers-menu-phone-20261112`。選單底部原本只顯示義華校參觀專線，改成五校電話並列；`DAY_ANSWERS` 改寫 12:30、14:20 兩題回答（待園方確認）。
+- **推前（本機）**：`npm --prefix web run typecheck` 過；web vitest 143 檔 1966 條全綠（rebase 到 `149ad31b` 後重跑）；dev server 截圖看過 1440、390×844、390×664 的選單。
+- **CI**：run 43172113869 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：首頁有 `.menu-phones`，五校 `tel:` 連結與「撥打Ｘ校參觀專線」aria-label 都在；拍立得背面出現「不會強迫閉眼」「改在室內活動」。
+- **沒驗**：實機沒看。
+
+## 2026-11-12 入學頁首屏照片改回兩個男孩、逆光女孩移到快樂曲縮圖上線（main CI 部署，沒有 migration）
+
+- **內容**：`4c710a01`（README 同日「入學頁照片：首屏改回兩個男孩，逆光女孩移到『快樂曲』」），分支 `fix/admission-photos-20261112`。只改 `ADMISSION_HERO_IMAGE` 與 `PHASE_PHOTOS`、alt 與圖說，沒有新圖檔。
+- **推前（本機）**：`npm --prefix web run typecheck` 過；`npm run test:website` 除兩條讀 backend 的測試因 sparse 缺目錄外全綠，補目錄後那兩條重跑也過；dev server 桌機／手機截圖看過首屏與快樂曲縮圖。
+- **CI**：run 43166253748 全綠（web、admin、後端三組、E2E），Deploy Railway production 成功。
+- **部署後正式站驗證**（GET、未登入）：`/admission` 引用 `day-hello` 各尺寸與 `admission-hero` 480 縮圖、圖說是「早上到校，牽起好朋友的手。」。
+- **沒驗**：實機沒看。
+
 ## 2026-11-12 關於頁首屏照片老師美甲改自然指甲、頭髮調黑上線（main CI 部署，沒有 migration）
 
 - **內容**：`9c904a80`（README 同日「/about 首屏照片：老師的美甲改自然指甲、頭髮調黑」），分支 `fix/about-hero-teacher-20261112`。只換 `web/public/assets/about-hero.webp` 與重產的各尺寸 WebP／AVIF、`image-manifest.json`；舊雜湊檔刪掉。使用者看過前後對照說 ok。
@@ -116,7 +802,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - **沒驗、待使用者**：
   - 沒有登入正式後台實際操作，要看新 cookie 下登入、Google／LINE 登入、上傳素材、直接重設密碼是否正常。
   - 基底映像換了 digest，Railway 這次建置成功，但本機沒有建置過。
-  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目都還沒做：Railway api 公開網域、GitHub production environment 與分支保護、Renovate、Cloudflare HSTS。
+  - 「資安強化（2026-11-12）」裡要登入各平台確認的項目：Railway api 公開網域、Cloudflare HSTS 已在同日做完（見「平台設定」段）；GitHub production environment 與分支保護、Renovate 還沒做。
 - **回退**：切回上一版映像即可，沒有資料相依。定期工作這次之後刪掉的失效 session、重設連結、清掉的舊 IP 不會回來；網站 2026-09 才上線，一年以上的操作紀錄目前還沒有。
 
 ## 2026-11-12 正式站啟用 Turnstile（Railway 變數，api 重新部署）＋隱私權政策初稿加回 Turnstile 說明
@@ -2033,12 +2719,36 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 | `WEBSITE_FACEBOOK_APP_SECRET` | 空 | App 開了「Require App Secret」時要設（請求會帶 `appsecret_proof`） |
 | `WEBSITE_FACEBOOK_GRAPH_VERSION` | `v27.0` | Graph API 版本（11-10 實測 v27.0）；Meta 停用舊版時改這裡 |
 | `WEBSITE_FACEBOOK_SYNC_SECONDS` | `3600` | 背景同步間隔（600–86400 秒） |
+| `WEBSITE_INSTAGRAM_ENABLED` | `false` | 2026-11-12。`true` 時每校 Facebook 同步完再同步粉專連結的 Instagram 貼文，進同一個收件匣（開通步驟見下方「Instagram 貼文」）。要先有上面的 `WEBSITE_FACEBOOK_ACCESS_TOKEN` 與 `WEBSITE_FACEBOOK_PAGES`，否則 api 拒絕啟動 |
 
 **驗收**：設好重新部署後，到後台「Facebook 貼文」選一校按「立即同步」，看到貼文與照片；挑一則「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、照片在素材庫；挑一則標「影片」的，確認內文第一塊是影片、素材庫多一支「Facebook 粉專貼文」的影片，轉檔完成（約幾分鐘）後才能發布。同步失敗時頁面會寫「最近一次同步失敗」與 HTTP 狀態／Meta 錯誤代碼（code 190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count from facebook_page_sync;`。
+
+### Instagram 貼文（2026-11-12 程式，`feature/integrations-20261112`；預設關，沒設 `WEBSITE_INSTAGRAM_ENABLED` 就和現在完全一樣）
+
+規格 `docs/specs/2026-11-12-external-integrations-design.md` 第 2 節。開了之後，同一個收件匣多出粉專連結的 Instagram 專業帳號貼文：用同一把 Page token、不另設 IG 帳號 ID（從 `GET /{粉專ID}?fields=instagram_business_account` 找）、轉成消息草稿的流程完全共用。照片貼文取照片、影片（含 Reels）取影片檔與封面、相簿取第一張圖片（相簿裡的影片不取）。
+
+- **migration `f3b8d2a6c19e`**（parent `e7a1c93b5d20`）只加欄位：`facebook_page_posts.source`（預設 `facebook`，CHECK 只收 `facebook`／`instagram`）、`facebook_page_sync` 的四個 `ig_` 欄位。不改、不刪既有資料，照備份閘門不需先備份；舊版程式不讀不寫這些欄位，可直接回退。
+- **Instagram 失敗不影響 Facebook**：Facebook 那一段先寫完、提交，Instagram 才開始；Instagram 的結果與錯誤另記在 `ig_` 欄位，後台頁面多一行「Instagram：上次同步…」，失敗時有自己的警告。錯誤只記步驟、HTTP 狀態與 Meta 錯誤代碼，不含回應內容與 token。
+- **學校常同一篇 Facebook、Instagram 都發**：收件匣會出現兩則，由人略過其中一則，**不做自動去重**。每則有來源標示，可依來源篩選；Instagram 貼文轉成消息時，素材庫的來源說明寫「Instagram 貼文」、內文最後的連結寫「在 Instagram 看原文」。
+
+**開通步驟（每一步都要本人登入，程式不會自己做；義華 IG 是 `ivy.kids.school.ig`）**
+
+1. **Instagram 轉成專業帳號**：Instagram App → 設定 → 帳號類型和工具 → 切換為專業帳號（商家或創作者皆可）。
+2. **連結到粉專**：用粉專管理員身分，Facebook 粉專（Business Suite）→ 設定 → 連結的帳號／Instagram → 連結帳號，登入該 Instagram 帳號。沒連結時同步會記「粉專沒有連結 Instagram 專業帳號」。
+3. **重新授權加 `instagram_basic`**：Graph API Explorer 選同一個 App（「常春藤義華校」），權限在原本的 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content` 之外再勾 `instagram_basic` →「Generate Access Token」，授權對話框裡**同時勾粉專與那個 Instagram 帳號**。沒有這個權限時 Graph 回 code 10 或 200，後台會寫「權杖沒有 Instagram 權限」。
+4. **延長並換 Page token**：照上方 A 的第 3、4 步（偵錯工具延長成約 60 天用戶權杖 → `GET /{粉專ID}?fields=access_token`），把新的 Page token 換進 Railway 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`WEBSITE_FACEBOOK_PAGES` 不用動）。資料存取到期日會跟著重算，順手更新上面 A 第 5 步記的日期。
+5. **Railway api 設 `WEBSITE_INSTAGRAM_ENABLED=true`**（可以和上一步的新 token 同一次設，只會重新部署一次）。Facebook 兩個變數沒設就開這個，api 會拒絕啟動。
+6. **驗收**：後台「Facebook 貼文」選義華按「立即同步」→ 頁面出現「貼文來源」篩選與「Instagram：上次同步…」一行，貼文標出 Facebook／Instagram；挑一則 Instagram 貼文「轉成消息草稿」，到「各校消息與活動」確認最上面多一則、內文最後是「在 Instagram 看原文」、素材庫來源說明是「Instagram 貼文」；挑一則 Reels，確認影片進素材庫。看狀態的 SQL：`select campus_key, ig_last_attempt_at, ig_last_success_at, ig_last_error, ig_last_count from facebook_page_sync;`。
+
+**關閉**：把 `WEBSITE_INSTAGRAM_ENABLED` 刪掉或設 `false`（用 CLI 刪變數要另外重新部署）。已收進收件匣的 Instagram 貼文與已轉成的消息不受影響，頁面仍會標出它們的來源。
+
+**要注意**：Instagram 的影片若含版權音樂，Meta 會省略該則的 `media_url`，這種貼文只會有封面；Reels 配樂的授權問題和 Facebook Reels 一樣（見 `docs/specs/2026-10-28-facebook-news-sync-design.md` §8），搬到官網前請園方確認。**程式端沒用真實 Instagram 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造）；開通後第一次同步請照步驟 6 實測，並看 api log 沒有 token。
 
 ## 公開地理資料同步（招生區域分析）
 
 招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要多種公開資料（以下四種是起頭的，「里的變化」另有出生、遷入遷出、所得、新成屋，各段在下方）：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）、內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）與托嬰中心名單（2026-10-14，見下方「托嬰名單與園所異動」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。
+
+**同步後的異動通知（2026-11-16）**：`run_geo_sync` 在鎖內、重比之後會檢查五校 3 公里內的園所新設、停辦、類型變動與新公布的裁罰，寫進後台「站內通知」（只有總管理者看得到，`area_provider_change`／`area_penalty`）。**上線第一輪只記帳不發通知**（每校每種各寫一列基準，之後才發）；失敗只記 log，同步結果多 `notices`（updated／failed）與 `notices_sent`，CLI `geo-sync` 總結行多「異動通知」。migration `a9c4e7b2d815` 只新增 `geo_change_notices`、`geo_change_notice_baselines` 兩張表，不需要部署前備份；沒有新環境變數。
 
 **六個環境變數**（api 服務，全部選填；沒設就用預設）：
 
@@ -2708,16 +3418,21 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_QUOTA_BYTES_PER_CAMPUS`（選填，預設 5 GiB；每校與共用素材各一份的原檔累計上限） |
 | api | `WEBSITE_BACKGROUND_JOBS_INTERVAL_SECONDS`（選填，production 預設 60；0＝關閉 api 內建定期工作） |
 | api | `WEBSITE_LINE_MESSAGING_CHANNEL_SECRET`、`WEBSITE_LINE_MESSAGING_ACCESS_TOKEN`（選填，兩個一起設才啟用 LINE 群組推播，見下方） |
+| api | `WEBSITE_LINE_<校>_CHANNEL_SECRET`、`WEBSITE_LINE_<校>_ACCESS_TOKEN`（選填，2026-11-16，各校自己的官方帳號，家長 LINE 通知用；見頂部 11-16 段落） |
+| api | `WEBSITE_LINE_TAG_ID`、`WEBSITE_LINE_CAPI_TOKEN`、`WEBSITE_LINE_CAPI_TEST`（選填，2026-11-16，到場與預繳回傳 LINE 廣告） |
 | api | `WEBSITE_MEDIA_STORAGE`（`local`｜`s3`，預設 local）與 `WEBSITE_S3_*`（選填，見下方「素材改存 S3」） |
 | api | `WEBSITE_VAPID_PUBLIC_KEY`／`WEBSITE_VAPID_PRIVATE_KEY`／`WEBSITE_VAPID_SUBJECT`（選填；後台手機通知 Web Push 的 VAPID 金鑰。**公鑰與私鑰要一起設才啟用**，SUBJECT 填後台網址（`https://…`）或 `mailto:` 信箱，沒設就沿用 `WEBSITE_ADMIN_ORIGIN`，建議三個一起設。用 `python -m app.cli generate-vapid-keys` 在終端機產生，印出的三行直接貼進 Railway api 的變數；**私鑰只放 Railway**，不進 repo、不貼進對話或文件。格式不對、公私鑰不配對或 subject 不合法時 API 拒絕啟動，錯誤訊息不含金鑰；見下方「後台手機通知」） |
 | web | `NUXT_TRUSTED_PROXY_HOPS`（選填，預設 1；訪客與 web 之間的可信代理層數，見下方） |
 | web | `NUXT_CLOUDFLARE_CLIENT_IP`（選填，預設 false，2026-11-12；www 改走 Cloudflare 代理時設 true：上一跳是 Cloudflare 節點才採信 `CF-Connecting-IP`，見上方「資安強化（2026-11-12）」） |
+| web | `NUXT_CLIENT_IP_HEADER`（選填，預設空白，2026-11-12；**正式站設 `x-real-ip`**：Railway edge 前面多一層 CDN77，`X-Forwarded-For` 最後一段是 CDN 節點；`X-Real-IP` 由 Railway 覆寫成訪客本人。空白時照舊從 `X-Forwarded-For` 右邊取，見下方「訪客 IP 改採信 X-Real-IP」） |
 | web | `NUXT_ADMIN_HOST`（選填，預設空白，2026-11-12；後台獨立子網域的主機名稱，例如 `admin.ivykidschool.com`。設了之後官網主機的 `/admin`、`/preview` 轉到這裡，後台與登入 API 只在這裡服務；啟用步驟見上方「資安強化（2026-11-12）」） |
 | web | `NUXT_API_PROXY_TIMEOUT_SECONDS`（選填，預設 120，2026-11-12；代理到 API 時上游多久沒給回應標頭就回 504，素材串流上傳不套用）／`NUXT_MEDIA_IDLE_TIMEOUT_SECONDS`（選填，預設 120；素材下載的客戶端多久沒讀走資料就斷線） |
 | api | `WEBSITE_AUDIT_CLIENT_INFO_RETENTION_DAYS`（選填，預設 365，30–3650，2026-11-12；操作紀錄的來源 IP 與裝置保留天數，超過由定期工作清成空白） |
 | api | `WEBSITE_PUBLIC_ORIGIN`（選填，預設等於 `WEBSITE_ADMIN_ORIGIN`，2026-11-12；官網的 origin。家長信裡的改期與重新預約連結用它，家長頁的寫入也接受這個 Origin。後台搬到獨立子網域時才需要設） |
 | api | `WEBSITE_SMTP_HOST`／`WEBSITE_SMTP_PORT`／`WEBSITE_SMTP_SECURITY`（`starttls`｜`ssl`，production 不允許 `none`）／`WEBSITE_SMTP_USERNAME`／`WEBSITE_SMTP_PASSWORD`／`WEBSITE_SMTP_FROM`（選填，設 HOST 就必填 FROM；不設定就只寫本機 sink 檔＋站內通知） |
 | api | `WEBSITE_RESEND_API_KEY`／`WEBSITE_RESEND_FROM`（選填，2026-11-11；經 Resend 的 HTTPS API 寄信。兩個要一起設、和 `WEBSITE_SMTP_HOST` 只能擇一；寄件地址的網域要先在 Resend 驗證。步驟見「寄信：Resend」） |
+| api | `WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON`／`WEBSITE_GOOGLE_SC_PROPERTY`（選填，預設空白＝關，2026-11-12；Google Search Console：服務帳戶金鑰整份 JSON，加上資源 `sc-domain:網域` 或 `https://網址/`。**兩個要同時設**，只設一個或 JSON 格式不對 api 拒絕啟動，錯誤訊息不含金鑰內容。JSON 只放 Railway，用 `railway variable set … --stdin` 從檔案讀入，見上方「Google Search Console 與 CrUX」） |
+| api | `WEBSITE_CRUX_API_KEY`（選填，預設空白＝關，2026-11-12；CrUX（Chrome 真實使用者速度）的 GCP API key，限制成只能呼叫 Chrome UX Report API，只走 `X-Goog-Api-Key` 標頭；查的網站是 `WEBSITE_PUBLIC_ORIGIN`，沒設用 `WEBSITE_ADMIN_ORIGIN`） |
 | api | `WEBSITE_GOOGLE_CLIENT_ID`／`WEBSITE_GOOGLE_CLIENT_SECRET`／`WEBSITE_GOOGLE_REDIRECT_URI`（選填，三項都留空就不顯示 Google 登入入口；redirect_uri 需與 `WEBSITE_ADMIN_ORIGIN` 同源） |
 | api | `WEBSITE_LINE_CHANNEL_ID`／`WEBSITE_LINE_CHANNEL_SECRET`／`WEBSITE_LINE_REDIRECT_URI`（選填，員工「用 LINE 登入」，與上面的 LINE Messaging API 群組推播是不同的 LINE channel） |
 | api | `WEBSITE_RETENTION_ALLOW_REAL_RUN`（選填，預設 false；同時控制手動個資清理與定期工作的自動清理，兩邊都要靠這個開關） |
@@ -2726,6 +3441,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 | api | `WEBSITE_MEDIA_MAX_IMAGE_MB`（預設 15）／`WEBSITE_MEDIA_MAX_VIDEO_MB`（預設 150）／`WEBSITE_MEDIA_PURGE_DELAY_DAYS`（預設 7，待清理素材保留幾天才真的刪檔） |
 | web | `NUXT_MEDIA_MAX_UPLOAD_MB`（選填，預設 150；請設成上面兩個 MEDIA_MAX 較大的值，否則後台大檔上傳會先被 web 代理擋掉） |
 | web | `NUXT_ERROR_REPORTS_ENABLED`（選填，預設 production 開、其他環境關；官網與後台前端錯誤回報的開關，設 `false` 即停止收錄，伺服器直接回 204，見下方「前端錯誤回報與外部存活監測」） |
+| web | `NUXT_PUBLIC_GA_MEASUREMENT_ID`（選填，預設空白＝關，2026-11-12；GA4 評估 ID，格式 `G-` 加大寫英數，例如 `G-ABC123DEF4`，格式不符視同未設定。執行期變數，改了重新部署即生效；先發布隱私權政策再設，見上方「GA4 與 Meta Pixel」） |
+| web | `NUXT_PUBLIC_META_PIXEL_ID`（選填，預設空白＝關，2026-11-12；Meta Pixel ID，純數字，格式不符視同未設定。可沿用舊站 ivykids.tw 的 Pixel，由使用者決定；步驟同上） |
 | api | 2026-09-29 起 production 啟動硬性檢查：`WEBSITE_ENVIRONMENT` 必須有值；`WEBSITE_ADMIN_ORIGIN` 必須是不含路徑的 `https://` 網址；`WEBSITE_SESSION_SECRET` 不得含 `change-me`／`changeme`／`change_me`／`example`／`placeholder`。任一不符 API 拒絕啟動，見下方「2026-09-29 資安稽核修正」 |
 | api | `WEBSITE_MIGRATION_DATABASE_URL`（選填；schema owner 連線，只給 alembic 與啟動時的 schema 核對用，設定後 `WEBSITE_DATABASE_URL` 可改成只有 DML 權限的角色） |
 | api | `WEBSITE_DB_POOL_SIZE`（10）／`WEBSITE_DB_MAX_OVERFLOW`（10）／`WEBSITE_DB_POOL_TIMEOUT_SECONDS`（10）／`WEBSITE_DB_LOCK_TIMEOUT_MS`（10000）／`WEBSITE_DB_IDLE_IN_TRANSACTION_TIMEOUT_MS`（300000，0＝不設）（皆選填） |
@@ -2742,6 +3459,8 @@ api 使用 Python 3.12、lockfile 依賴及 FastAPI 0.136.1。`/data` 掛 Railwa
 api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 `web/server/routes/api/website/v1/[...].ts` 則把訪客 IP 放進去，並**顯式
 覆寫**該 header（不覆寫的話任何人都能自己帶一個來偽造訪客身分）。
+
+**2026-11-12 起正式站改採信 `X-Real-IP`（`NUXT_CLIENT_IP_HEADER=x-real-ip`）**，下面「從右邊數層數」只在沒設這個變數時使用；原因與實測見頂部同日「訪客 IP 改採信 X-Real-IP」。
 
 2026-09-24 起訪客 IP 由 `web/server/utils/client-ip.ts` 取得：從
 `X-Forwarded-For` **右邊**數 `NUXT_TRUSTED_PROXY_HOPS` 層（Railway edge
@@ -2860,14 +3579,14 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
    2026-09-29 起未驗證的群組不能被選為新的推播目標（任何人都能把官方帳號拉進自己取名的
    群組）；修補前已綁定的群組照常推播，但建議找時間也貼一次驗證碼。
 
-群組訊息只有通知類型、校區、案件編號與後台連結，不含家長或孩子資料。推播會用掉官方
-帳號的每月訊息則數；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
+群組訊息 2026-11-16 起是卡片：類型、校區、參觀時段、家長稱呼與「開啟案件」按鈕（電話、Email、孩子資料不放；
+手機通知預覽只有類型、校區與時段）。推播會用掉官方帳號的每月訊息則數（推到群組依群組人數計）；每則通知每個群組只推一次（`X-Line-Retry-Key` 與
 `notification_deliveries` 去重）。webhook 只記錄群組 ID 與名稱，不存任何訊息內容。
 
-### 素材改存 S3 相容物件儲存（2026-09-24，尚未切換）
+### 素材改存 S3 相容物件儲存（2026-09-24 程式；**2026-11-13 正式站已切到 Cloudflare R2**，紀錄見上方同日段落）
 
-目前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
-單一實例，repo 裡也沒有備份機制。程式已支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
+切換前素材存在 api 的 Railway volume（`/data/media`）：檔案只在那一顆 volume 上，api 只能
+單一實例，repo 裡也沒有備份機制。程式支援 S3 相容物件儲存（Cloudflare R2、AWS S3 等）：
 `WEBSITE_MEDIA_STORAGE=s3` 時上傳、讀取、刪除都走 bucket，api 啟動不再要求 volume。
 讀檔仍經 API 串流（網址、權限、快取標頭不變，Range 轉給儲存服務，iOS 影片可播）。
 
@@ -2882,6 +3601,10 @@ api 改成優先採信 `WEBSITE_TRUSTED_CLIENT_IP_HEADER` 指定的 header，
 切換步驟（bucket 與金鑰由園方自己建，程式不會建任何外部服務）：
 
 1. 先只設 `WEBSITE_S3_*`，**不要**設 `WEBSITE_MEDIA_STORAGE`，部署。此時仍讀寫 volume。
+   `WEBSITE_S3_BUCKET`、`WEBSITE_S3_ACCESS_KEY_ID`、`WEBSITE_S3_SECRET_ACCESS_KEY` 三個**要在
+   Railway 後台一次加完再 Deploy**：只設其中一兩個時 `Settings()` 驗證不過，api 掛著 volume
+   會先停舊版，部署失敗就是停機（2026-11-13 發生過）。用 CLI 加 `--skip-deploys` 分次設也不安全，
+   中途任何一次 main 部署都會吃到半套變數。
 2. 預覽：`railway ssh --service api --environment production -- python -m app.cli media-copy-to-s3 --dry-run`
 3. 複製：同上去掉 `--dry-run`。只讀 volume、只寫 bucket、不動 DB；bucket 已有同大小的檔案
    會跳過，可以重跑；上傳後核對大小，失敗的檔案列在最後且指令以非 0 結束。

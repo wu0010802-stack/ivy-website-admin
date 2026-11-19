@@ -24,6 +24,7 @@ export {
   MathUtils,
   Mesh,
   MeshDepthMaterial,
+  MeshLambertMaterial,
   MeshPhysicalMaterial,
   MeshStandardMaterial,
   OneFactor,

@@ -9,7 +9,9 @@ import pytest
 from sqlalchemy import update
 
 from app.booking.models import VisitRequest
+from app.common.timezones import today_local
 from tests.conftest import create_slot, legacy_request, set_booking_mode
+from tests.slot_helpers import move_slot_to_day
 
 pytestmark = pytest.mark.usefixtures("booking_consent")
 
@@ -18,7 +20,9 @@ BASE = "/api/website/v1/admin"
 
 @pytest.mark.asyncio
 async def test_today_list_and_week_campuses(admin_client, minghua_client, db_session):
-    today_slot = await create_slot(admin_client, days_ahead=0, start_time="23:00:00", end_time="23:30:00", capacity=3)
+    # 建立場次的 API 不收已開始的場次：先建明天的，再改成今天，測試才不會在台北晚上 11 點後失敗。
+    today_slot = await create_slot(admin_client, days_ahead=1, start_time="23:00:00", end_time="23:30:00", capacity=3)
+    await move_slot_to_day(db_session, today_slot, today_local())
     later_slot = await create_slot(admin_client, days_ahead=3, capacity=2)
     far_slot = await create_slot(admin_client, days_ahead=10, capacity=2)  # 下週，不算本週
     confirmed = await legacy_request(db_session, status="confirmed", slot_id=today_slot, parent_name="林小姐", phone="0912000001")

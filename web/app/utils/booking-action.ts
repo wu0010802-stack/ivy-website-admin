@@ -15,6 +15,8 @@ export interface BookingConfig {
   turnstile_site_key?: string | null
   /** 部署有開寄信時為 true：結果頁才能說「確認信已寄出」 */
   parent_email_enabled?: boolean
+  /** 這校有開家長 LINE 通知（2026-11-16）：結果頁顯示「用 LINE 接收通知」 */
+  line_notify_enabled?: boolean
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'

@@ -51,6 +51,7 @@ from app.admissions.geo.models import (
     GeoPresaleBuildcase,
     GeoVillageAges,
     GeoVillageBirths,
+    GeoVillageMarriages,
     GeoVillageIncome,
     GeoVillageMigration,
     GeoVillagePopulation,
@@ -202,13 +203,20 @@ class _Data:
     population: dict[str, GeoVillagePopulation] = field(default_factory=dict)
     ages: dict[str, dict[str, GeoVillageAges]] = field(default_factory=dict)  # 月份 → 代碼 → 列
     births: dict[str, dict[str, int]] = field(default_factory=dict)  # 月份 → 代碼 → 出生數
+    marriages: dict[str, dict[str, int]] = field(default_factory=dict)  # 月份 → 代碼 → 結婚對數（廣告成效 §9）
     migration: dict[str, dict[str, Any]] = field(default_factory=dict)  # 月份 → 代碼 → 列
     districts: dict[str, str] = field(default_factory=dict)  # 代碼 → 區（含已廢止的舊代碼）
     names: dict[str, str] = field(default_factory=dict)  # 代碼 → 里名
 
 
 async def _load(
-    db: AsyncSession, districts: set[str], *, current: str | None, births_months: list[str], migration_months: list[str]
+    db: AsyncSession,
+    districts: set[str],
+    *,
+    current: str | None,
+    births_months: list[str],
+    migration_months: list[str],
+    marriages_months: list[str] | None = None,
 ) -> _Data:
     data = _Data()
     for row in (
@@ -232,6 +240,18 @@ async def _load(
         )
         for month, code, district, village, births in rows.all():
             data.births.setdefault(month, {})[code] = births
+            data.districts.setdefault(code, district)
+            data.names.setdefault(code, village)
+    if marriages_months:
+        # 各里結婚對數（2026-11-16 廣告成效 §9）：只進出生走勢旁的對照，不參與里界調整的判斷。
+        w = GeoVillageMarriages
+        rows = await db.execute(
+            select(w.month, w.village_code, w.district, w.village, w.marriages).where(
+                w.month.in_(marriages_months), w.district.in_(districts)
+            )
+        )
+        for month, code, district, village, marriages in rows.all():
+            data.marriages.setdefault(month, {})[code] = marriages
             data.districts.setdefault(code, district)
             data.names.setdefault(code, village)
     if migration_months:
@@ -270,8 +290,14 @@ def births_change(births: dict[str, dict[str, int]], present: list[str], codes: 
     return round((now / before - 1) * 100, 1), len(compared)
 
 
-def birth_series(births: dict[str, dict[str, int]], latest: str, codes: list[str]) -> list[dict[str, Any]]:
-    """最新月份往回每 12 個月一期、最多 6 期，最新在前；一期有資料的月份不到 10 個月不列。缺月不估算。"""
+def birth_series(
+    births: dict[str, dict[str, int]],
+    latest: str,
+    codes: list[str],
+    marriages: dict[str, dict[str, int]] | None = None,
+) -> list[dict[str, Any]]:
+    """最新月份往回每 12 個月一期、最多 6 期，最新在前；一期有資料的月份不到 10 個月不列。缺月不估算。
+    marriages（2026-11-16 廣告成效 §9）：同一期 12 個月裡結婚有資料的月份不到 10 個月，該期結婚是 None，不估算。"""
     periods: list[dict[str, Any]] = []
     for index in range(BIRTH_PERIODS):
         months = series_io.window(series_io.shift(latest, -PERIOD_MONTHS * index), PERIOD_MONTHS)
@@ -279,6 +305,8 @@ def birth_series(births: dict[str, dict[str, int]], latest: str, codes: list[str
         if len(present) < MIN_PERIOD_MONTHS:
             continue
         change, _ = births_change(births, present, codes)
+        married = [month for month in months if month in (marriages or {})]
+        marriages_total = _month_total(marriages, married, codes) if marriages and len(married) >= MIN_PERIOD_MONTHS else None
         periods.append(
             {
                 "starts": months[0],
@@ -287,6 +315,7 @@ def birth_series(births: dict[str, dict[str, int]], latest: str, codes: list[str
                 "missing": [month for month in months if month not in births],
                 "births": _month_total(births, present, codes),
                 "change_pct": change,
+                "marriages": marriages_total,
             }
         )
     return periods
@@ -413,11 +442,17 @@ async def query_trends(
     semester: int | None,
     radius_km: int,
     now: datetime | None = None,
+    kids_only: bool = False,
 ) -> dict[str, Any]:
+    """kids_only（2026-11-16 五校並排）：只算 2–5 歲孩子與這一年淨增，不讀所得、新屋、預售、國小學區；回應鍵不變，
+    其他來源維持初始值、schools 是空的。孩子數與淨增（含里界調整合併組）和完整模式完全相同。"""
     campus = await campus_out(db, campus_key)
     current = await _label(db, "population")
     births_latest = await _label(db, "births")
     migration_latest = await _label(db, "migration")
+    # 結婚（廣告成效 §9）用自己的最新月份，不跟出生對齊；五校並排（kids_only）不讀。
+    marriages_latest = None if kids_only else await _label(db, "marriages")
+    marriages_window = series_io.window(marriages_latest, PERIOD_MONTHS) if marriages_latest else []
     births_window = series_io.window(births_latest, PERIOD_MONTHS) if births_latest else []
     migration_window = series_io.window(migration_latest, PERIOD_MONTHS) if migration_latest else []
     kids_window = series_io.window(current, PERIOD_MONTHS) if current else []
@@ -431,6 +466,7 @@ async def query_trends(
         "sources": {
             "population": {"month": current, "year_ago_month": None},
             "births": {"latest": births_latest, "months": [], "missing": []},
+            "marriages": {"latest": marriages_latest, "months": [], "missing": []},
             "migration": {"latest": migration_latest, "months": [], "missing": []},
             "note": series_io.SOURCE_NOTE,
             "income": {"year": None, "note": ""},
@@ -454,7 +490,7 @@ async def query_trends(
             near[code] = _round_distance(distance)
     names = boundaries.village_names()
     # 學區碰到半徑內任一個里的國小，整個學區的里都要讀（含半徑外的里所在的區）。
-    touched = sorted({item.school_code for code in near for item in sd.by_village().get(code, ())})
+    touched = [] if kids_only else sorted({item.school_code for code in near for item in sd.by_village().get(code, ())})
     school_villages = {item.village_code for school in touched for item in sd.by_school()[school]}
     districts = {names[code][0] for code in (*near, *school_villages) if code in names}
     data = await _load(
@@ -463,23 +499,35 @@ async def query_trends(
         current=current,
         births_months=series_io.window(births_latest, series_io.BIRTHS.keep_months) if births_latest else [],
         migration_months=sorted({*migration_window, *kids_window}),
+        marriages_months=(
+            series_io.window(marriages_latest, series_io.MARRIAGES.keep_months) if marriages_latest else []
+        ),
     )
 
-    income_year, income_note, incomes = await _income(db, districts)
-    result["sources"]["income"] = {"year": income_year, "note": income_note}
+    if kids_only:
+        income_year, income_note, incomes = None, "", {}
+    else:
+        income_year, income_note, incomes = await _income(db, districts)
+        result["sources"]["income"] = {"year": income_year, "note": income_note}
     income_changed = (
         await _adjusted_since(db, districts, income_year, {code: _people(data, code) for code in incomes})
         if income_year is not None
         else set()
     )
 
-    homes_latest, homes_seasons, homes, homes_unplaced = await _new_homes(db, {names[code][0] for code in near})
+    if kids_only:
+        homes_latest, homes_seasons, homes, homes_unplaced = None, [], {}, 0
+    else:
+        homes_latest, homes_seasons, homes, homes_unplaced = await _new_homes(db, {names[code][0] for code in near})
     if homes_latest is not None:
         result["sources"]["new_homes"] = {
             "latest": homes_latest, "seasons": homes_seasons, "unplaced": homes_unplaced, "note": new_homes_io.SOURCE_NOTE,
         }
 
-    presale_version, presale, presale_unplaced = await _presale(db, {names[code][0] for code in near}, today_local())
+    if kids_only:
+        presale_version, presale, presale_unplaced = None, {}, 0
+    else:
+        presale_version, presale, presale_unplaced = await _presale(db, {names[code][0] for code in near}, today_local())
     if presale_version is not None:
         result["sources"]["presale"] = {
             "version": presale_version, "unplaced": presale_unplaced, "note": presale_io.SOURCE_NOTE,
@@ -487,6 +535,10 @@ async def query_trends(
 
     births_present = [month for month in births_window if month in data.births]
     migration_present = [month for month in migration_window if month in data.migration]
+    marriages_present = [month for month in marriages_window if month in data.marriages]
+    result["sources"]["marriages"].update(
+        months=marriages_present, missing=[month for month in marriages_window if month not in data.marriages]
+    )
     result["sources"]["births"].update(
         months=births_present, missing=[month for month in births_window if month not in data.births]
     )
@@ -568,6 +620,11 @@ async def query_trends(
                     if has_rows(data.births, births_present, codes)
                     else None
                 ),
+                "marriages_12m": (
+                    _month_total(data.marriages, marriages_present, codes)
+                    if has_rows(data.marriages, marriages_present, codes)
+                    else None
+                ),
                 "migration_net_12m": (
                     _month_total(data.migration, migration_present, codes, net_moves)
                     if has_rows(data.migration, migration_present, codes)
@@ -592,10 +649,11 @@ async def query_trends(
         )
     )
     result["villages"] = villages
-    result["schools"] = await _schools(
-        db, touched, data, adjusted=adjusted, kids_months=kids_months if unavailable is None else [],
-        campus_key=campus_key, school_year=school_year, semester=semester,
-    )
+    if not kids_only:
+        result["schools"] = await _schools(
+            db, touched, data, adjusted=adjusted, kids_months=kids_months if unavailable is None else [],
+            campus_key=campus_key, school_year=school_year, semester=semester,
+        )
 
     all_codes = [code for row in villages for code in row["codes"]]
     change, compared_months = births_change(data.births, births_present, all_codes)
@@ -614,7 +672,11 @@ async def query_trends(
         "births_months": len(births_present),
         "births_compared_months": compared_months,
         "births_change_pct": change,
-        "births_series": birth_series(data.births, births_latest, all_codes) if births_latest else [],
+        "births_series": (
+            birth_series(data.births, births_latest, all_codes, data.marriages) if births_latest else []
+        ),
+        "marriages_12m": sum(row["marriages_12m"] or 0 for row in villages) if marriages_present else None,
+        "marriages_months": len(marriages_present),
         "migration_net_12m": sum(row["migration_net_12m"] or 0 for row in villages) if migration_present else None,
         "migration_months": len(migration_present),
         "new_homes": sum(row["new_homes"] for row in villages) if homes_latest is not None else None,

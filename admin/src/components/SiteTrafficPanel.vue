@@ -43,9 +43,11 @@ const dailyPoints = computed(() => (summary.value?.daily ?? []).map((item) => ({
 const TRAFFIC_MARKERS = [{ day: TRAFFIC_COVERAGE_EXPANDED_ON, label: '內頁也開始計入瀏覽，這天前後的次數不能直接比較' }]
 const rangeText = computed(() => (summary.value ? `${summary.value.since.replaceAll('-', '/')}–${summary.value.until.replaceAll('-', '/')}` : ''))
 const shortRange = computed(() => (summary.value ? `${summary.value.since.slice(5).replace('-', '/')}–${summary.value.until.slice(5).replace('-', '/')}` : ''))
-const dailyAverage = computed(() => {
+// 瀏覽量少時平均不到 1 次：四捨五入會寫成「0 次」，和上面的總數矛盾（2026-11-12 QA L33），改寫「不到 1 次」。
+const dailyAverageText = computed(() => {
   const list = summary.value?.daily ?? []
-  return list.length ? Math.round((summary.value?.total_views ?? 0) / list.length) : 0
+  const average = list.length ? (summary.value?.total_views ?? 0) / list.length : 0
+  return average > 0 && average < 1 ? '平均每天不到 1 次' : `平均每天 ${Math.round(average)} 次`
 })
 const mobileShare = computed(() => {
   const total = summary.value?.total_views ?? 0
@@ -101,7 +103,7 @@ function exportVitals() {
             <div class="stat">
               <span class="stat__label">這段期間</span>
               <span class="stat__value">{{ summary.total_views }}</span>
-              <span class="stat__hint">平均每天 {{ dailyAverage }} 次</span>
+              <span class="stat__hint">{{ dailyAverageText }}</span>
             </div>
             <div class="stat">
               <span class="stat__label">今天</span>

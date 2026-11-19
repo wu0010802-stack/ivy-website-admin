@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions.geo import boundaries
 from app.admissions.geo import population as population_io
-from app.admissions.geo.models import GeoVillageAges, GeoVillageBirths, GeoVillageMigration
+from app.admissions.geo.models import GeoVillageAges, GeoVillageBirths, GeoVillageMarriages, GeoVillageMigration
 
 RIS_ROOT = "https://www.ris.gov.tw/rs-opendata/api/v1/datastore"
 # 最新月份往回幾個月（含）：近 12 個月，加上前一年同月份。遷入遷出、年齡用這個。
@@ -64,6 +64,15 @@ def _both(prefix: str) -> tuple[str, str]:
 BIRTHS = Series(
     "births", "ODRP061", "各里出生", GeoVillageBirths, {"births": ("birth_total",)}, BIRTHS_KEEP_MONTHS
 )
+# 各里結婚對數（2026-11-16 廣告成效 §9）：ODRP060 的異性＋同性結婚對數相加，依登記的戶籍里計；保留月數同出生。
+MARRIAGES = Series(
+    "marriages",
+    "ODRP060",
+    "各里結婚",
+    GeoVillageMarriages,
+    {"marriages": ("marry_pair_OppositeSex", "marry_pair_SameSex")},
+    BIRTHS_KEEP_MONTHS,
+)
 MIGRATION = Series(
     "migration",
     "ODRP011",
@@ -85,7 +94,7 @@ AGES = Series(
     GeoVillageAges,
     {**{f"age_{age}": _both(f"people_age_{age:03d}") for age in range(7)}, "people_total": ("people_total",)},
 )
-SOURCE_NOTE = "資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口"
+SOURCE_NOTE = "資料來源：內政部戶政司 各村（里）戶籍人口統計月報表、遷入遷出統計表、村里戶數及單一年齡人口、結婚統計（ODRP060）"
 
 
 @dataclass

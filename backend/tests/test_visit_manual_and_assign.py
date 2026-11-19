@@ -18,6 +18,7 @@ from tests.conftest import (
     legacy_request,
     start_visit_slot,
 )
+from tests.slot_helpers import move_slot_to_day
 
 
 # 預約表單要有已發布的同意文字（啟用 slots、官網送單）。
@@ -181,7 +182,9 @@ async def test_manual_intake_rejects_full_closed_and_started_slots_without_creat
 
     full_slot = await _create_slot(admin_client, capacity=1, days_ahead=3)
     closed_slot = await _create_slot(admin_client, capacity=2, days_ahead=4)
-    started_slot = await _create_slot(admin_client, capacity=2, days_ahead=-1)
+    # 建立場次的 API 不收已開始的場次：先建未來的，再改成昨天。
+    started_slot = await _create_slot(admin_client, capacity=2, days_ahead=5)
+    await move_slot_to_day(db_session, started_slot["id"], date.today() - timedelta(days=1))
     first = await admin_client.post(
         f"{BASE}/visit-requests", json=_manual(slot_id=full_slot["id"]), headers={"Idempotency-Key": "reject-0"}
     )

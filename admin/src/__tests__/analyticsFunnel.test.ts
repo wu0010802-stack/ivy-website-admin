@@ -56,7 +56,7 @@ async function setup(data: AnalyticsFunnelOut = funnel) {
     props: { campusKey: 'yihua', campusKeys: CAMPUS_KEYS },
     global: {
       plugins: [pinia, router, ElementPlus],
-      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true },
+      stubs: { BookingOutcomesSection: true, EventTrendPanel: true, ClassDistributionPanel: true, BookingAttributionPanel: true },
       provide: { [matchedRouteKey as symbol]: computed(() => router.currentRoute.value.matched[0]) },
     },
   })
@@ -353,7 +353,7 @@ describe('2026-10-13 搬移：參觀預約到招生統計，成效統計只留�
     await router.push('/analytics?tab=booking')
     await router.isReady()
     const get = vi.spyOn(api, 'get').mockResolvedValue(funnel as never)
-    const wrapper = mount(AnalyticsView, { global: { plugins: [pinia, router, ElementPlus], stubs: { SiteTrafficPanel: true, ContentInterestPanel: true } } })
+    const wrapper = mount(AnalyticsView, { global: { plugins: [pinia, router, ElementPlus], stubs: { SiteTrafficPanel: true, ContentInterestPanel: true, CruxPanel: true, SearchInsightsPanel: true } } })
     wrappers.push(wrapper)
     await flushPromises()
     expect(wrapper.findComponent({ name: 'SiteTrafficPanel' }).exists()).toBe(true)

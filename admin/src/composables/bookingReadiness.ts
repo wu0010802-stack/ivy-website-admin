@@ -66,8 +66,13 @@ export function reasonAction(code: string, user: Parameters<typeof canOpenPath>[
   return canOpenPath(link.to, user) ? { to: link.to, label: link.label } : { note: link.otherwise }
 }
 
-/** 切換確認框裡的影響範圍。切換不改既有案件，數字只是提醒還要繼續跟進的。 */
-export function impactLines(impact: BookingImpactOut | null | undefined, to: BookingMode): string[] {
+/**
+ * 切換確認框裡的影響範圍。切換不改既有案件，數字只是提醒還要繼續跟進的。
+ * from 是目前已儲存的預約方式：只有「線上選場次」（slots）的校區，家長現在才能從官網選場次，
+ * 切走才需要提醒；已暫停、電話、LINE、外部網址的校區本來就不能選，不提（2026-11-12 QA L14）。
+ * 沒給 from 的呼叫端照舊提醒。
+ */
+export function impactLines(impact: BookingImpactOut | null | undefined, to: BookingMode, from?: BookingMode | null): string[] {
   if (!impact) return ['目前無法讀取進行中的案件數，請切換後到「參觀案件」確認。']
   const lines: string[] = []
   if (impact.open_requests > 0) {
@@ -82,7 +87,7 @@ export function impactLines(impact: BookingImpactOut | null | undefined, to: Boo
   }
   if (to === 'slots') {
     lines.push(`官網目前可預約的場次 ${impact.bookable_slots} 個${impact.weekly_rules ? `，每週開放規則 ${impact.weekly_rules} 條` : ''}。`)
-  } else if (impact.bookable_slots > 0) {
+  } else if (impact.bookable_slots > 0 && (from === undefined || from === null || from === 'slots')) {
     lines.push(`官網目前可預約的場次 ${impact.bookable_slots} 個：切換後家長不能再從官網選場次，已排定的參觀不受影響。`)
   }
   return lines

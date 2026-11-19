@@ -11,7 +11,7 @@ import { authGuard, routes } from '../router'
 import { canListNavItem, canOpenPath, canSeeNavItem, NAV_GROUPS, navItem, navItemMatchScore, normalizeSearch } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
-import { campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, potentialData, queryOf, reception, superAdmin } from './admissionsTestKit'
+import { areaCompare, campusAdmin, cleanup, journeyData, mockGet, mountWith, options, pathsTo, potentialData, queryOf, reception, superAdmin } from './admissionsTestKit'
 
 vi.mock('../components/analytics/BookingStatsPane.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -118,7 +118,7 @@ describe('招生統計頁：篩選與子分頁跟網址雙向同步', () => {
     expect(wrapper.findComponent(StatsTab).props()).toEqual({
       campusKey: 'renwu', schoolYear: 114, semester: 2, sub: 'overview', campusKeys: ['yihua', 'minghua', 'chongde', 'international', 'renwu'],
       journey: { period: '90', from: '', to: '', source: 'all' },
-      areaView: { map: null, village: '', table: 'village' },
+      areaView: { map: null, village: '', table: 'village', year: null },
     })
     expect(wrapper.findAll('.admissions__tabs')).toHaveLength(0)
   })
@@ -246,7 +246,7 @@ describe('子分頁寫進網址（X2a 3A）', () => {
   })
 
   it('(g) 區域分析排在接待之後、未預繳之前；sub=area 跟其他子分頁一樣用 replace 寫進網址', async () => {
-    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential', 'imports'])
+    expect(STATS_SUBS).toEqual(['overview', 'class', 'source', 'staff', 'area', 'nodeposit', 'compare', 'booking', 'journey', 'potential', 'imports', 'ads'])
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua') })
     const replace = vi.spyOn(router, 'replace')
@@ -309,24 +309,33 @@ describe('子分頁寫進網址（X2a 3A）', () => {
     expect(Object.fromEntries(queryOf(paths[1]!))).toMatchObject({ source: 'all', from: '2026-07-04', to: '2026-10-01' })
   })
 
+  it('五校周邊環境點校區名：切到那一校的區域分析（campus、sub=area 寫進網址）', async () => {
+    mockGet({ ...routesOn, '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 115, semester: 1, seat_semester: 1, rows: [] }, '/admin/admissions/area/compare': areaCompare() })
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sub=compare') })
+    wrapper.findComponent(StatsTab).vm.$emit('open-area', 'minghua')
+    await flushPromises()
+    expect(router.currentRoute.value.query).toMatchObject({ campus: 'minghua', sub: 'area' })
+    expect(wrapper.findComponent(StatsTab).props('sub')).toBe('area')
+  })
+
   // 區域分析工作台（2026-10-16）：map／village／table 只在 sub=area 有意義，寫法見 admissions/areaView.ts。
   it('(m) sub=area 的 map／village／table 讀得回來；StatsTab 改了用 replace 寫回；換子分頁拿掉', async () => {
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsStatsView, {
       path: statsPath('campus=yihua&sub=area&map=trend&village=64000050015&table=school'),
     })
-    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: 'trend', village: '64000050015', table: 'school' })
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: 'trend', village: '64000050015', table: 'school', year: null })
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'area', map: 'trend', village: '64000050015', table: 'school' })
     const push = vi.spyOn(router, 'push')
     const replace = vi.spyOn(router, 'replace')
-    wrapper.findComponent(StatsTab).vm.$emit('update:areaView', { map: 'peers', village: '', table: 'village' })
+    wrapper.findComponent(StatsTab).vm.$emit('update:areaView', { map: 'peers', village: '', table: 'village', year: null })
     await flushPromises()
     expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'yihua', sub: 'area', map: 'peers' } })
-    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: 'peers', village: '', table: 'village' })
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: 'peers', village: '', table: 'village', year: null })
     wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'source' })
-    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: null, village: '', table: 'village' })
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: null, village: '', table: 'village', year: null })
     expect(push).not.toHaveBeenCalled()
   })
 
@@ -339,19 +348,19 @@ describe('子分頁寫進網址（X2a 3A）', () => {
     const tab = () => wrapper.findComponent(StatsTab)
     const selected = () => tab().props('areaView')
     // 初次掛載讀到的 village 不會被清（換校區的清除只管畫面上的變更）
-    expect(selected()).toEqual({ map: 'trend', village: '64000050015', table: 'fees' })
+    expect(selected()).toEqual({ map: 'trend', village: '64000050015', table: 'fees', year: null })
 
     wrapper.findComponent({ name: 'CampusSelect' }).vm.$emit('update:modelValue', 'renwu')
     await flushPromises()
     expect(replace).toHaveBeenLastCalledWith({ query: { campus: 'renwu', sub: 'area', map: 'trend', table: 'fees' } })
     expect(router.currentRoute.value.query).toEqual({ campus: 'renwu', sub: 'area', map: 'trend', table: 'fees' })
-    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees' })
+    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees', year: null })
 
     // 網址被改（上一頁、連結）帶著 village 回來：照讀，換校區也不會被清掉
     await router.push(areaUrl)
     await flushPromises()
     expect(tab().props('campusKey')).toBe('yihua')
-    expect(selected()).toEqual({ map: 'trend', village: '64000050015', table: 'fees' })
+    expect(selected()).toEqual({ map: 'trend', village: '64000050015', table: 'fees', year: null })
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'area', map: 'trend', table: 'fees', village: '64000050015' })
 
     // 學年、學期同樣
@@ -359,14 +368,14 @@ describe('子分頁寫進網址（X2a 3A）', () => {
     year!.vm.$emit('update:modelValue', 114)
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'area', map: 'trend', table: 'fees', sy: '114' })
-    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees' })
+    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees', year: null })
     await router.push(`${areaUrl}&sy=114`)
     await flushPromises()
     expect(selected()).toMatchObject({ village: '64000050015' })
     semester!.vm.$emit('update:modelValue', 2)
     await flushPromises()
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'area', map: 'trend', table: 'fees', sy: '114', sem: '2' })
-    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees' })
+    expect(selected()).toEqual({ map: 'trend', village: '', table: 'fees', year: null })
   })
 
   it('(o) 別的子分頁網址上多出來的 map／village／table 被忽略，也不寫回', async () => {
@@ -375,7 +384,7 @@ describe('子分頁寫進網址（X2a 3A）', () => {
       path: statsPath('campus=yihua&sub=source&map=trend&village=64000050015&table=school'),
     })
     expect(wrapper.findComponent(StatsTab).props('sub')).toBe('source')
-    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: null, village: '', table: 'village' })
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toEqual({ map: null, village: '', table: 'village', year: null })
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sub: 'source' })
   })
 })

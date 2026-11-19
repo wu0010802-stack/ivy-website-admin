@@ -4,7 +4,7 @@ import {
   type ModeNotes, type PaneData, type RankingSection,
 } from '../components/admissions/area/areaPane'
 import type { AdmissionsArea } from '../api/types'
-import { areaEnrolled, areaOpportunity, areaPeerFees, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
+import { areaChildrenHistory, areaEnrolled, areaOpportunity, areaPeerFees, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
 
 const MINUS = '−'
 const EMPTY_TEXT = '這個範圍還沒有招生訪視。'
@@ -28,6 +28,39 @@ const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, .
 const dataStatus = (changes: Record<string, unknown>) => ({ ...areaStats().data_status, ...changes })
 
 const ok: ModeNotes = { enrolled: '', opportunity: '', trend: '', homes: '', presale: '', judged: true }
+
+describe('右欄：2–5 歲孩子排行跟著年份（2026-11-16 規格 §5.3）', () => {
+  const history = areaChildrenHistory()
+  const itemsOf = (stop: PaneData['childrenStop']) => rankingFor('children', data({ childrenHistory: history, childrenStop: stop }))[0]!.items
+
+  it('依選的那一格由大到小，沒有資料的里不列，值寫「N 位」', () => {
+    expect(itemsOf(107).map((item) => [item.name, item.value, item.code])).toEqual([
+      ['三民區鼎金里', '480 位', '64000050001'], ['三民區本揚里', '360 位', '64000050015'],
+    ])
+    expect(itemsOf('latest').map((item) => [item.name, item.value])).toEqual([
+      ['三民區鼎金里', '500 位'], ['三民區本揚里', '400 位'], ['三民區寶業里', '200 位'],
+    ])
+  })
+
+  it('細節＝比前一年；第一格與前一格沒資料不寫；跨界線調整寫調整月份', () => {
+    expect(itemsOf(107).map((item) => item.detail)).toEqual(['', ''])
+    expect(itemsOf(108).map((item) => item.detail)).toEqual(['比前一年 +20', '比前一年 +20'])
+    expect(itemsOf(115).map((item) => [item.name, item.detail])).toEqual([
+      ['三民區鼎金里', '界線 115-07 調整'], ['三民區本揚里', '比前一年 +2'], ['三民區寶業里', ''],
+    ])
+    expect(itemsOf('latest').map((item) => item.detail)).toEqual(['比 115.09 +10', '比 115.09 +8', '比 115.09 +4'])
+  })
+
+  it('人數是 0 的里不列；沒有歷年資料時維持招生機會的最新人數排行', () => {
+    const zero = areaChildrenHistory({
+      villages: history.villages.map((row, i) => (i === 0 ? { ...row, counts: { ...row.counts, '108': 0 } } : row)),
+    })
+    expect(rankingFor('children', data({ childrenHistory: zero, childrenStop: 108 }))[0]!.items.map((item) => item.name))
+      .toEqual(['三民區鼎金里'])
+    expect(names(rankingFor('children', data({ childrenHistory: null, childrenStop: 108 })))).toEqual([['三民區鼎金里', '三民區本揚里', '三民區寶業里']])
+    expect(names(rankingFor('children', data()))).toEqual([['三民區鼎金里', '三民區本揚里', '三民區寶業里']])
+  })
+})
 
 describe('右欄：模式停用、預設與退回（規格 §2.1、D15）', () => {
   it('預設模式與退回（§2.1、D15）', () => {

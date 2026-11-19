@@ -16,7 +16,6 @@ const trackEl = ref<HTMLElement | null>(null)
 const sectionEl = ref<HTMLElement | null>(null)
 const videoEl = ref<HTMLVideoElement | null>(null)
 const introEl = ref<HTMLElement | null>(null)
-const shadeEl = ref<HTMLElement | null>(null)
 const filmUiEl = ref<HTMLElement | null>(null)
 const printsEl = ref<HTMLOListElement | null>(null)
 const activeIndex = ref(-1)
@@ -56,8 +55,7 @@ let hasScrolled = false
 // 對齊 app.js 的 fadeBehindContent()＋markActive()：大標先留在畫面上，
 // 拍立得列表靠近時淡成底紋（最低留 .16），並標出讀者停在哪一段，讓那
 // 張相片的時間戳再亮一階。
-// 影片上「只護大標那一屏」的遮罩（styles.css .day-film-shade::before）也跟著同一個值淡掉（2026-10-20 調亮）。
-// --word-fade 直接寫在兩個讀它的元素（.day-intro、.day-film-shade）上，不寫在 section（2026-11-05）：
+// --word-fade 直接寫在讀它的元素（.day-intro）上，不寫在 section（2026-11-05）；影片上的墨綠紗 2026-11-13 拿掉，原本它也讀這個值：
 // 它是會繼承的自訂屬性，寫在 section 上，底下六張拍立得的 3D 結構每幀跟著重算（每次約 225 個元素，寫在讀者上只剩 12 個）。
 // 讀寫分開排進共用的捲動幀（utils/scrollFrame.ts，2026-11-10）：列表位置在簾幕寫 clip-path、遮罩變數之前一起讀，
 // 原本排在它們後面讀 rect，手機 4 倍降速每幀逼出 12–39ms 的同步重排。
@@ -81,9 +79,7 @@ function paintFade() {
     if (offset <= line) active = i
   })
   const fade = (1 - progress * (1 - QUIET)).toFixed(3)
-  for (const el of [intro, shadeEl.value]) {
-    if (el && el.style.getPropertyValue('--word-fade') !== fade) el.style.setProperty('--word-fade', fade)
-  }
+  if (intro.style.getPropertyValue('--word-fade') !== fade) intro.style.setProperty('--word-fade', fade)
   // 第一張拍立得升到底部控制列（暫停鍵底緣離閱讀高度底部 14px，見 styles.css）就算蓋到：
   // 手機靠這個狀態讓圖說退場、暫停鍵收成圓鈕，不等卡片蓋到大標才讓位（progress >= 1 已包含在內）。
   const covered = top < readingHeight - 14 ? '1' : '0'
@@ -254,7 +250,6 @@ onUnmounted(() => {
             @error="onVideoError"
           />
           <span class="day-film-light"><span class="is-morning" /><span class="is-noon" /><span class="is-amber" /></span>
-          <span ref="shadeEl" class="day-film-shade" />
         </div>
         <div ref="filmUiEl" class="day-film-ui">
           <p class="day-film-caption">

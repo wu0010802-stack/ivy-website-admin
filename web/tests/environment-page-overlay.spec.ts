@@ -5,15 +5,15 @@ import { renderToString } from 'vue/server-renderer'
 import fixture from '../server/data/site-fixture.json'
 import type { EnvironmentPageContent, SiteContent } from '../app/types/site-content'
 import { applyContentOverlay, type LiveEnvironmentPage } from '../app/utils/content-overlay'
-import { environmentHeroAttrs, type MediaInfoMap } from '../app/utils/media-image'
-import { ENVIRONMENT_HERO_IMAGE, environmentHeroImage } from '../app/utils/responsive-image'
+import { environmentHeroPreloads, environmentHeroSources, type MediaInfoMap } from '../app/utils/media-image'
+import { ENVIRONMENT_HERO_ARCH_IMAGE, ENVIRONMENT_HERO_IMAGE, environmentHeroImage, environmentHeroWideImage } from '../app/utils/responsive-image'
 import { PAGE_COUNTS } from '../app/utils/page-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
 
 // 環境頁前三章的後台內容（environment_page）：後台存的 payload 經 applyContentOverlay 套到內容，
 // 形狀不符整份退回內建；再用伺服器渲染 EnvironmentContent 看照片與文字真的換了。
-// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；手繪線與 GSAP 只在瀏覽器掛載後才動。
+// Nuxt 的自動匯入在單元測試裡沒有，這裡補上；捲動敘事只在瀏覽器掛載後才載入。
 vi.stubGlobal('computed', computed)
 vi.stubGlobal('ref', ref)
 vi.stubGlobal('watch', watch)
@@ -21,6 +21,11 @@ vi.stubGlobal('nextTick', nextTick)
 vi.stubGlobal('onMounted', onMounted)
 vi.stubGlobal('onBeforeUnmount', onBeforeUnmount)
 vi.stubGlobal('useHead', vi.fn())
+// 短說明的斷詞結果放在 useState（EnvironmentContent.vue 的 Phrases），單元測試裡用一般的 ref 代替
+vi.stubGlobal('useState', <T>(_key: string, init: () => T) => ref(init()))
+// 第四章先開哪一校讀網址 ?campus= 與記住的校區（cookie）：這裡一律從第一校開始
+vi.stubGlobal('useRoute', () => ({ path: '/environment', query: {} }))
+vi.stubGlobal('useRememberedCampus', () => ({ recall: () => null, remember: () => {} }))
 
 const site = fixture as unknown as SiteContent
 const HERO = '3f2c1a9e-8b7d-4c6e-9a1b-2d3e4f5a6b7c'
@@ -199,7 +204,7 @@ describe('常春藤環境頁的後台內容', () => {
     live.meals[1]!.name = '時間還沒填的餐點'
     const html = await render(overlay(live))
     expect(html).toContain('時間還沒填的餐點')
-    expect(html).toContain('<time lang="en"></time>')
+    expect(html).toContain('<time class="renv-day-t" lang="en"></time>')
   })
 
   it('預覽時 SSR 渲染的是整份取代後的內容', async () => {
@@ -215,7 +220,7 @@ describe('常春藤環境頁的後台內容', () => {
     expect(html).toMatch(/我們的<mark class="renv-mark">環境<\/mark><\/span>/)
     expect(html).not.toContain('孩子的每一天')
     expect(html).toContain('10:30')
-    expect(html).not.toContain('class="renv-campus"')
+    expect(html).not.toContain('class="renv-stop-campus"')
     // 大標沒有螢光字、提醒留空：不畫螢光、不畫提醒
     live.hero_highlight = ''
     const plain = await render(overlay(live))
@@ -229,10 +234,11 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     const html = await render(overlay(livePayload(), media))
     const health = img(html, '老師幫戴著口罩的孩子確認身體狀況')
     expect(health).toContain('/assets/responsive/env-care-health')
-    // 2026-10-30 木頭積木版：五件照顧的小事照片裝在積木形狀裡，內建位置跟著形狀調（第一張拱形）
-    expect(health).toContain('object-position:33% 50%')
+    // 五件照顧的小事照片裝在窗裡，內建位置跟著形狀調（第一張拱形）。
+    // 2026-11-13 母檔重裁成 4:5、拱框看到的那一段落在正中，位置從 33% 改成 50%（取景不變）
+    expect(health).toContain('object-position:50% 50%')
     expect(img(html, '兩個孩子在教室裡緊緊抱在一起')).toContain('/assets/')
-    expect(img(html, '外籍老師蹲在拿球棒的男孩身邊，一起看著前方的球座，替他加油')).toContain('env-care-teacher')
+    expect(img(html, '戴著聖誕帽的孩子握著小木槌，專心敲著桌上的彩色木樁')).toContain('env-care-teacher')
     expect(html).not.toContain('/api/website/v1/public/media/')
   })
 
@@ -255,23 +261,36 @@ describe('環境頁照片：沒選用內建圖與位置，選了用素材網址�
     expect(html).not.toContain('老師幫戴著口罩的孩子確認身體狀況')
     expect(img(html, '男孩拿著湯匙，從紅色碗裡舀飯吃')).toContain('object-position:58% 30%')
     // 首屏換了照片：內建首屏圖不再出現
+    // 內建照片（橫幅原圖，以及 2026-11-13 起官網實際載入的那張裁好的直幅）都不再出現
     expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_IMAGE}.webp`)
+    expect(html).not.toContain(`/assets/${ENVIRONMENT_HERO_ARCH_IMAGE}.webp`)
     expect(img(html, '素材庫的首屏說明')).toContain(`/media/${HERO}/file`)
     // 素材沒設焦點：置中，不沿用內建首屏圖的 CSS 位置
     expect(img(html, '素材庫的首屏說明')).toContain('object-position:50% 50%')
   })
 
-  it('首屏照片：頁面 <img> 與 preload 共用 environmentHeroAttrs；沒換和原本的 preload 完全相同，換了依寬高比重算 sizes', () => {
-    expect(environmentHeroAttrs(site.environmentPage)).toEqual(environmentHeroImage())
+  it('首屏照片：頁面 <picture> 與 preload 共用 environmentHeroSources；沒換是內建兩張（桌機橫幅＋手機直幅），換了只有一張、依寬高比重算 sizes', () => {
+    expect(environmentHeroSources(site.environmentPage)).toEqual({ img: environmentHeroImage(), wide: environmentHeroWideImage() })
+    expect(environmentHeroPreloads(site.environmentPage).map((link) => link.media)).toEqual(['(min-width: 901px)', '(max-width: 900px)'])
     const next = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, media)
-    const attrs = environmentHeroAttrs(next)
-    expect(attrs.src).toBe(`/api/website/v1/public/media/${HERO}/file`)
-    // 2400×1200 的 2:1 照片塞進約 4:5 的赤陶拱窗，左右被裁，要畫的寬度是框寬 × (2 ÷ 0.8)
-    expect(attrs.width).toBe(2400)
-    const wide = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 2400, height: 1200, variants: [{ kind: 'thumbnail', width: 480, height: 240 }, { kind: 'large', width: 1600, height: 800 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(wide).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 2.5), 1200px')
-    // 不比 4:5 寬的照片不放大
+    const sources = environmentHeroSources(next)
+    // 後台照片只有一張：不給帶 media 的橫幅來源，同一個 <img> 的 sizes 先列大畫面、再列拱窗
+    expect(sources.wide).toBeUndefined()
+    expect(sources.img.src).toBe(`/api/website/v1/public/media/${HERO}/file`)
+    expect(sources.img.width).toBe(2400)
+    const variants = [{ kind: 'thumbnail', width: 480, height: 240 }, { kind: 'large', width: 1600, height: 800 }]
+    // 2400×1200（2:1）：大畫面的框最瘦 2.15:1，照片比它瘦 → 倍率 1；拱窗最瘦 0.7:1，照窗高畫滿 → 2 ÷ 0.7 = 2.86 倍
+    const wide = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 2400, height: 1200, variants }) } as unknown as MediaInfoMap)
+    expect(environmentHeroSources(wide).img.sizes).toBe('(min-width: 1348px) 1176px, (min-width: 901px) calc((89vw - 24px) * 1), (max-width: 500px) calc((100vw - 60px) * 2.86), 1258px')
+    const links = environmentHeroPreloads(wide)
+    expect(links).toHaveLength(1)
+    expect(links[0]).toMatchObject({ rel: 'preload', as: 'image', imagesizes: environmentHeroSources(wide).img.sizes, fetchpriority: 'high' })
+    expect('media' in links[0]!).toBe(false)
+    // 3600×1200 的全景（3:1）比大畫面的框還寬：照框高畫滿，3 ÷ 2.15 = 1.4 倍
+    const pano = overlay({ ...livePayload(), hero_photo: { media_id: HERO } }, { ...media, [HERO]: info(HERO, { width: 3600, height: 1200, variants }) } as unknown as MediaInfoMap)
+    expect(environmentHeroSources(pano).img.sizes).toBe('(min-width: 1348px) 1646px, (min-width: 901px) calc((89vw - 24px) * 1.4), (max-width: 500px) calc((100vw - 60px) * 4.29), 1888px')
+    // 直幅 1200×1600（0.75:1）：大畫面不放大；拱窗只比最瘦的窗寬一點（0.75 ÷ 0.7 = 1.07）
     const tall = overlay({ ...livePayload(), hero_photo: { media_id: CARE } }, { ...media, [CARE]: info(CARE, { width: 1200, height: 1600, variants: [{ kind: 'thumbnail', width: 360, height: 480 }, { kind: 'large', width: 900, height: 1200 }] }) } as unknown as MediaInfoMap)
-    expect(environmentHeroAttrs(tall).sizes).toBe('(max-width: 900px) calc((100vw - 74px) * 1), 480px')
+    expect(environmentHeroSources(tall).img.sizes).toBe('(min-width: 1348px) 1176px, (min-width: 901px) calc((89vw - 24px) * 1), (max-width: 500px) calc((100vw - 60px) * 1.07), 471px')
   })
 })

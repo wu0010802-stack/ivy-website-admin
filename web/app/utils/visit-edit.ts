@@ -54,5 +54,8 @@ const CHANGE_FIELD: Record<string, VisitField> = {
 export function validateEdit(current: EditRecord, form: EditForm, base: EditForm, today: string): VisitErrors {
   const touched = new Set(Object.keys(editedChanges(current, form, base)).map(key => CHANGE_FIELD[key]).filter(Boolean))
   const errors = validateVisitContact(form, today)
+  // 預約表單的 Email 是選填（2026-11-13），validateVisitContact 不再擋空白；但已經留過 Email 的家長
+  // 在管理頁不能把它清空（後端 ParentDetailsUpdate 一樣回「Email 不能清空」），這裡先擋下來。
+  if (touched.has('email') && !form.email.trim()) errors.email = '請填寫 Email。'
   return Object.fromEntries(Object.entries(errors).filter(([field]) => touched.has(field as VisitField))) as VisitErrors
 }

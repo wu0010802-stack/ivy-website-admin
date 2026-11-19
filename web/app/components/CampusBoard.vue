@@ -14,10 +14,16 @@ const props = defineProps<{ board: CampusBoardContent; campuses: Campus[] }>()
 const orderedCampuses = computed(() => props.board.campusOrder
   .map(key => props.campuses.find(campus => campus.key === key))
   .filter((campus): campus is Campus => Boolean(campus)))
-// 頁首五校選單連到 /?campus=<校>#campuses（2026-10-29；10-12 起原本是關於頁結尾緞帶，10-30 換版拿掉）：從點的那所開始，不是預設校。
+// 網址帶 /?campus=<校>#campuses 就從那所開始，不是預設校（現在的入口是舊站各校介紹網址的轉址，見 site-redirects；
+// 10-12 關於頁結尾緞帶、10-29 頁首五校選單也連過來過，緞帶 10-30 拿掉、選單 2026-11-13 改回只切換）。
 const route = useRoute()
 const requestedCampus = typeof route.query.campus === 'string' ? route.query.campus : ''
-const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus) ? requestedCampus : props.board.defaultCampus
+// 優先序：網址指定 ＞ 家長上次自己選的（cookie ivy_campus，SSR 就停在那一校）＞ 後台預設校。
+const remembered = useRememberedCampus()
+const rememberedKeys = computed(() => orderedCampuses.value.map(campus => campus.key))
+const startCampus = orderedCampuses.value.some(campus => campus.key === requestedCampus)
+  ? requestedCampus
+  : remembered.recall(rememberedKeys.value) ?? props.board.defaultCampus
 const index = ref(Math.max(0, orderedCampuses.value.findIndex(campus => campus.key === startCampus)))
 const current = computed(() => orderedCampuses.value[index.value] ?? orderedCampuses.value[0])
 const root = ref<HTMLElement | null>(null)
@@ -271,6 +277,12 @@ function select(next: number, automatic = false) {
   }
   if (!automatic) announcement.value = `目前顯示${current.value!.name}，${current.value!.district}`
 }
+// 訪客自己切換校區（點分頁、鍵盤、拖曳、點旁邊的卡）：換完記住；自動輪播與內容更新不走這裡。
+function pick(next: number) {
+  select(next)
+  const key = current.value?.key
+  if (key) remembered.remember(key, rememberedKeys.value)
+}
 function onKey(event: KeyboardEvent, from: number) {
   const total = orderedCampuses.value.length
   const next = event.key === 'ArrowRight' ? (from + 1) % total
@@ -278,7 +290,7 @@ function onKey(event: KeyboardEvent, from: number) {
     : event.key === 'Home' ? 0 : event.key === 'End' ? total - 1 : -1
   if (next < 0) return
   event.preventDefault()
-  select(next)
+  pick(next)
   root.value?.querySelector<HTMLButtonElement>(`[data-campus-tab="${next}"]`)?.focus()
 }
 function togglePlayback() {
@@ -340,12 +352,12 @@ function onPointerUp(event: PointerEvent) {
   endDrag()
   if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy)) {
     suppressPhotoClick = true
-    select(index.value + (dx < 0 ? 1 : -1))
+    pick(index.value + (dx < 0 ? 1 : -1))
   }
 }
 function onPhotoClick(event: MouseEvent, photo: number) {
   if (suppressPhotoClick) { event.preventDefault(); suppressPhotoClick = false; return }
-  if (photo !== index.value) { event.preventDefault(); select(photo) }
+  if (photo !== index.value) { event.preventDefault(); pick(photo) }
 }
 watch(playing, active => active ? clock.start() : clock.pause())
 // 第一次捲到五校區塊時，先把預設校的線稿畫一次。
@@ -540,7 +552,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
           v-for="(campus, i) in orderedCampuses" :id="`campus-tab-${campus.key}`" :key="campus.key"
           type="button" role="tab" :data-campus-tab="i" :data-track-action="`campus_${campus.key}`" :aria-selected="i === index"
           :tabindex="i === index ? 0 : -1" aria-controls="campus-stage" :class="{ 'is-drawing': drawing === i }"
-          @click="select(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
+          @click="pick(i)" @keydown="onKey($event, i)" @animationend="onTabArtAnimationEnd($event, i)"
           @pointerenter="preloadCampus(i)" @pointerdown="preloadCampus(i)" @focus="preloadCampus(i)"
         >
           <span class="campus-tab-figure" aria-hidden="true">
@@ -595,7 +607,7 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
             <button
               v-for="(campus, i) in orderedCampuses" :key="campus.key"
               class="page-dot" type="button" :aria-label="`切換至${campus.name}`"
-              :aria-pressed="i === index" aria-controls="campus-stage" @click="select(i)"
+              :aria-pressed="i === index" aria-controls="campus-stage" @click="pick(i)"
             >
               <span class="progress-track" aria-hidden="true"><span
                 :key="i === index ? `run-${progressRun.key}` : 'idle'"
@@ -629,8 +641,8 @@ onBeforeUnmount(() => { dispose(); clock.destroy(); stopUncovered(); develop?.ca
         <!-- 沒有的社群不出現（2026-11-04 TA 檢視）：原本缺 LINE 時寫「LINE · 待園方提供」，是上線前給審稿的字，
              10-29 選單已拿掉同樣的字。後台填了 LINE 網址就會出現「Line」（2026-11-12 使用者要求由「LINE 好友」改短）；不要拿義華的 LINE 代填。 -->
         <div v-if="current.line || current.facebook || current.instagram || current.youtube" class="social-row">
-          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
-          <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
+          <a v-if="current.line" :href="current.line" aria-label="Line（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-line" /></svg>Line</a>
+          <a v-if="current.facebook" :href="current.facebook" aria-label="Facebook（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon icon-bleed" aria-hidden="true"><use href="#i-facebook" /></svg>Facebook</a>
           <a v-if="current.instagram" :href="current.instagram" aria-label="Instagram（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-instagram" /></svg>Instagram</a>
           <a v-if="current.youtube" :href="current.youtube" aria-label="YouTube（另開分頁）" target="_blank" rel="noopener noreferrer"><svg class="icon" aria-hidden="true"><use href="#i-youtube" /></svg>YouTube</a>
         </div>
@@ -812,6 +824,11 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 .social-row{display:flex;align-items:center;gap:8px 20px;color:var(--muted);font-size:var(--fs-sm);margin-top:7px;flex-wrap:wrap}
 .social-row a{display:inline-flex;align-items:center;min-height:44px;gap:8px}
 .social-row a{text-decoration:none}.social-row a:hover{text-decoration:underline;text-underline-offset:5px}
+/* 社群之間看起來等距（2026-11-13 使用者要求）：Line／Facebook 是畫到邊的品牌圖示（24 格滿版），Instagram／YouTube 是 Phosphor（256 格、
+   四邊各留 24 格）。同樣 20px 的框，前兩個看起來大一圈，Instagram 離前一個字、離自己的字也各多約 2px（量到 20／22、8／10）。
+   滿版的兩個縮成 Phosphor 的比例（208/256＝81.25%）再補回留白，框仍是 20px：三個圖示一樣大，間距都是 21.9／9.9。
+   只改這一列，sprite 不動（首頁故事、消息頁另外用到 Facebook 圖示，尺寸各自調過）。 */
+.social-row .icon-bleed{width:16.25px;height:16.25px;margin:1.875px}
 /* 四個社群連結在 318–423px 寬的欄裡會排成 3＋1，YouTube 單獨掉到第二行（390、760 實測，2026-10-13）：
    欄寬不到一排放得下的寬度時改成 2×2 對齊的兩欄。量的是聯絡欄本身（容器查詢），手機與平板兩欄版都適用；不支援 :has／容器查詢時照舊換行。 */
 .campus-contact{container-type:inline-size}
@@ -869,6 +886,10 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
   .contact-row{font-size:var(--fs-sm);gap:12px}
   .phone{font-size:var(--fs-2xl)}
   .social-row{font-size:var(--fs-sm);gap:8px 20px;margin-top:5px}
+  /* 手機單欄社群列靠左，和上面地址、電話的左緣對齊，三個之間留一樣的 20px（2026-11-13 使用者要求；同日稍早做過的「三個攤滿整列」拿掉）。
+     剛好三個（五校現況都是 Line／Facebook／Instagram）時 20px 要欄寬 279px 才放得下，也就是視窗 327 以上；
+     320 級的窄機會把 Instagram 擠到第二行，所以 340 以下收成 12px。不支援 :has（iOS 15.0–15.3）就照上一條的 20px。 */
+  @media(max-width:340px){.social-row:has(> :nth-child(3)):not(:has(> :nth-child(4))){column-gap:12px}}
   .campus-actions{grid-column:auto;display:block;padding:0}
   .booking-link{width:100%;justify-content:space-between;min-height:52px;font-size:var(--fs-sm);white-space:normal}
   .booking-note{width:auto;margin-top:10px;text-align:start}
@@ -890,5 +911,7 @@ html[data-ivy-motion] .photo-card[data-initial-sketch] img{opacity:0;transition:
 @media(forced-colors:active){.photo-card,.round-button,.pagination,.booking-link{border:1px solid CanvasText}.campus-tabs button[aria-selected=true],.page-dot[aria-pressed=true]{outline:2px solid Highlight}.progress-track{background:CanvasText}}
 @media(forced-colors:active){.campus-tab-figure{visibility:hidden}.campus-tabs button[aria-selected=true] .campus-tab-label::after{background:Highlight}}
 @media(forced-colors:active){.photo-card .sketch-canvas{display:none}.photo-card.is-sketch img,.photo-card[data-art=line] img{opacity:1;-webkit-mask:none;mask:none}}
-
+/* 舊版 Safari（iOS 15）的後備，2026-11-13：只在不支援的瀏覽器成立，其他瀏覽器畫面不變。說明見 styles.css 檔尾、tests/legacy-safari-20261113.spec.ts。 */
+@supports not (color:color-mix(in oklch,red,blue)){.campus-panorama.campus-gallery{--selected:var(--background)}}
+@supports not (container-type:inline-size){@media(max-width:490px){.social-row:has(> :nth-child(4)){display:grid;grid-template-columns:repeat(2,minmax(0,max-content));column-gap:28px}}}
 </style>

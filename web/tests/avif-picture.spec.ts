@@ -34,11 +34,11 @@ describe('responsiveImage() 的 avifSrcset', () => {
   })
 
   it('部分寬度沒有 AVIF（沒省到一成）：那個寬度沿用 WebP 網址，級距不變', () => {
-    const attrs = responsiveImage('day-lunch')
+    const attrs = responsiveImage('day-outside')
     const webp = attrs.srcset!.split(', ')
     const avif = attrs.avifSrcset!.split(', ')
     expect(avif).toHaveLength(webp.length)
-    const missing = images['day-lunch']!.candidates.filter((candidate) => !candidate.avif)
+    const missing = images['day-outside']!.candidates.filter((candidate) => !candidate.avif)
     expect(missing.length).toBeGreaterThan(0)
     for (const candidate of missing) expect(avif).toContain(`${candidate.src} ${candidate.width}w`)
     expect(widthsOf(attrs.avifSrcset!)).toEqual(widthsOf(attrs.srcset!))
@@ -214,7 +214,7 @@ describe('呼叫端', () => {
     expect(offenders).toEqual([])
     const form = read('../app/components/VisitForm.vue')
     expect(form).toContain('const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage(')
-    // 手機那個 media source（1×1 透明圖）要排在 AVIF source 前面，手機才先命中它
+    // 橫拿手機那個 media source（1×1 透明圖）要排在 AVIF source 前面，橫拿手機才先命中它
     expect(form.indexOf('<source media=')).toBeLessThan(form.indexOf('<source v-if="welcomeAvifSrcset" type="image/avif"'))
     expect(form.indexOf('type="image/avif"')).toBeLessThan(form.indexOf('<img v-bind="welcomePhoto"'))
   })
@@ -234,8 +234,8 @@ describe('呼叫端', () => {
     expect(css('studio.css')).toContain('.studio-hero-image>:is(img,video),.studio-hero-image>:where(picture)>img')
     // 關於頁 2026-11-11 重做後照片都用後代選擇器（.abh-hero-frame img 這類），不看 <img> 是不是直接子代，不需要對應規則
     expect(css('about.css').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/>\s*img/)
-    expect(css('environment.css')).toContain('.renv-frame>img,.renv-frame>:where(picture)>img{')
-    expect(css('environment.css')).toContain('.renv-book>*,.renv-book>:where(picture)>:where(img){position:absolute;bottom:var(--side)}')
+    // 環境頁 2026-11-17 重寫後照片都用後代選擇器（.renv-ph img 這類），不需要對應規則
+    expect(css('environment.css').replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/>\s*img/)
     expect(read('../app/components/HomeStoryViewer.vue')).toContain('.hsv-stage > img, .hsv-stage > :where(picture) > img,')
     expect(read('../app/components/HomeStories.vue')).toContain('.hs-card > img, .hs-card > :where(picture) > img {')
   })

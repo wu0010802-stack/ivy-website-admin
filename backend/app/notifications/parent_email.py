@@ -65,7 +65,28 @@ class ParentEmail:
     change_window_passed: bool = False
 
 
-def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
+@dataclass(frozen=True)
+class ParentNotice:
+    """家長通知的內容，Email 與 LINE 共用（2026-11-16 起家長可以改用 LINE 收，
+    docs/specs/2026-11-16-line-integrations-design.md §5）。Email 照原本的純文字排版，
+    LINE 排成卡片：標題、開頭、明細、一句說明加一顆按鈕。"""
+
+    subject: str
+    title: str
+    intro: str
+    details: list[tuple[str, str]]
+    # 連結段落：note 是說明（Email 版接著放網址）、url 是按鈕要開的網址（沒有就只有說明）。
+    note: str
+    url: str | None
+    button: str | None
+    # 網址是修改連結（含 token）：Email 版加一句「請勿把這個連結轉給他人」。
+    private_link: bool
+    campus_phone: str | None
+    # Email 版把網址接在說明同一行（取消信的重新預約網址）。
+    inline_url: bool = False
+
+
+def parent_notice(mail: ParentEmail) -> ParentNotice:
     short_name = mail.campus_name[:-1] if mail.campus_name.endswith("校") else mail.campus_name
     when = visit_when(mail.slot_date, mail.start_time) if mail.slot_date and mail.start_time else None
     day = f"{mail.day_word} " if mail.kind == PARENT_VISIT_REMINDER and mail.day_word else ""
@@ -98,50 +119,80 @@ def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
     else:
         intro = "這次參觀預約已取消。"
 
-    lines = [f"{mail.salutation}您好：", "", intro, "", f"校區：{mail.campus_name}"]
+    details = [("校區", mail.campus_name)]
     if when:
         span = f"（{mail.start_time:%H:%M}–{mail.end_time:%H:%M}）" if mail.end_time else ""
-        lines.append(f"日期與場次：{when}{span}")
+        details.append(("日期與場次", f"{when}{span}"))
     if mail.party_size:
-        lines.append(f"參觀人數：{mail.party_size} 位")
+        details.append(("參觀人數", f"{mail.party_size} 位"))
     if mail.campus_address:
-        lines.append(f"地址：{mail.campus_address}")
+        details.append(("地址", mail.campus_address))
     if mail.campus_phone:
-        lines.append(f"電話：{mail.campus_phone}")
-    lines.append("")
+        details.append(("電話", mail.campus_phone))
 
+    url: str | None = None
+    button: str | None = None
+    private_link = False
+    inline_url = False
     if mail.kind == PARENT_VISIT_CANCELLED:
-        lines.append(f"想再預約參觀，請到：{mail.rebook_url}" if mail.rebook_url else "想再預約參觀，歡迎來電洽詢。")
+        if mail.rebook_url:
+            note, url, button, inline_url = "想再預約參觀，請到：", mail.rebook_url, "重新預約參觀", True
+        else:
+            note = "想再預約參觀，歡迎來電洽詢。"
     elif closed_notice:
         # 停課日沒有線上修改期限（parent_policy.day_closed），不寫截止時間。
         if mail.manage_url:
-            lines += ["請開啟這個連結改約其他時間，或取消這次預約：", mail.manage_url, "請勿把這個連結轉給他人。"]
+            note, url, button, private_link = "請開啟這個連結改約其他時間，或取消這次預約：", mail.manage_url, "改約或取消", True
         else:
-            lines.append("請來電改約其他時間，或告訴我們要取消這次預約。")
+            note = "請來電改約其他時間，或告訴我們要取消這次預約。"
     elif mail.kind == PARENT_VISIT_REMINDER:
         # 提醒時多半已過線上修改期限（預設參觀前 24 小時）：期限內才附連結，否則請家長來電（規格 R7）。
         if mail.manage_url and mail.change_deadline:
-            lines += [
-                f"要改期或取消，請在 {_deadline_text(mail.change_deadline)} 前使用這個連結：",
-                mail.manage_url,
-                "請勿把這個連結轉給他人。",
-            ]
+            note = f"要改期或取消，請在 {_deadline_text(mail.change_deadline)} 前使用這個連結："
+            url, button, private_link = mail.manage_url, "改期或取消", True
         elif mail.campus_phone:
-            lines.append(f"要改期或取消，請來電 {mail.campus_phone}。")
+            note = f"要改期或取消，請來電 {mail.campus_phone}。"
         else:
-            lines.append("要改期或取消，請來電洽詢。")
+            note = "要改期或取消，請來電洽詢。"
     elif mail.change_window_passed:
         # 最短提前時間可以短於修改期限：送出當下期限就過了，不寫已過的截止時間（2026-10-20 稽核）。
         call = f"請來電 {mail.campus_phone}" if mail.campus_phone else "請來電洽詢"
-        lines.append(f"已過線上修改期限，要改時間或取消，{call}。")
+        note = f"已過線上修改期限，要改時間或取消，{call}。"
     elif mail.manage_url:
         deadline = f"（{_deadline_text(mail.change_deadline)}前可以線上修改）" if mail.change_deadline else ""
-        lines += [f"要改時間、修改資料或取消，請開啟這個連結{deadline}：", mail.manage_url, "請勿把這個連結轉給他人。"]
+        note = f"要改時間、修改資料或取消，請開啟這個連結{deadline}："
+        url, button, private_link = mail.manage_url, "修改或取消預約", True
     else:
-        lines.append("要改時間或取消，請使用預約完成頁上的連結，或來電洽詢。")
+        note = "要改時間或取消，請使用預約完成頁上的連結，或來電洽詢。"
+    return ParentNotice(
+        subject=subject,
+        title=title,
+        intro=intro,
+        details=details,
+        note=note,
+        url=url,
+        button=button,
+        private_link=private_link,
+        campus_phone=mail.campus_phone,
+        inline_url=inline_url,
+    )
 
+
+def build_parent_email(mail: ParentEmail) -> tuple[str, str]:
+    notice = parent_notice(mail)
+    lines = [f"{mail.salutation}您好：", "", notice.intro, ""]
+    lines += [f"{label}：{value}" for label, value in notice.details]
+    lines.append("")
+    if notice.url and notice.inline_url:
+        lines.append(f"{notice.note}{notice.url}")
+    else:
+        lines.append(notice.note)
+    if notice.url and not notice.inline_url:
+        lines.append(notice.url)
+        if notice.private_link:
+            lines.append("請勿把這個連結轉給他人。")
     lines += ["", "這封信由系統自動寄出，請勿直接回覆。"]
-    return subject, "\n".join(lines)
+    return notice.subject, "\n".join(lines)
 
 
 def build_email_changed_notice(

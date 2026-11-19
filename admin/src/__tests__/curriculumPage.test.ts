@@ -64,8 +64,8 @@ const neverSaved = { id: 'item', kind: 'curriculum_page', campus_key: null, late
 const superAdmin = () => testUser('super_admin', { id: 'me', email: 'me@example.invalid', campus_keys: ['yihua'] })
 
 describe('特色教學頁（curriculum_page）', () => {
-  it('側欄在「全站與素材」、只給 super_admin，標籤與網址對得上', () => {
-    const item = NAV_GROUPS.find((g) => g.key === 'site')!.items.find((i) => i.name === 'curriculum-page')!
+  it('側欄在「各分頁」、只給 super_admin，標籤與網址對得上', () => {
+    const item = NAV_GROUPS.find((g) => g.key === 'pages')!.items.find((i) => i.name === 'curriculum-page')!
     expect(item.path).toBe('/content/curriculum-page')
     expect(item.roles).toEqual(['super_admin'])
     expect(item.shared).toBe(true)
