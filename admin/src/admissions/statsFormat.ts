@@ -17,6 +17,8 @@ export interface StatsColumn {
   rangeOf?: string
   /** 手機橫捲時固定在左側的欄。 */
   sticky?: boolean
+  /** 名稱欄（sticky）專用：這一列在這個 key 有字的話，寫在名稱下面一行小字（來源合併後的「含 FB、臉書」，2026-11-20）。不匯出。 */
+  noteKey?: string
   /** bar 欄長條以這個值為 100%；沒設就以該欄目前最大值為 100%（比大小用）。數值本身就是比例的欄（填滿率 0–100）要設，不然最高那列永遠是滿的。 */
   barMax?: number
   /** 匯出 CSV 時的寫法：roc-month 把「115.09」寫成「115年09月」（Excel 會把 115.10 轉成數字）；畫面不變。 */

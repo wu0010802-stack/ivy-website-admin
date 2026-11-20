@@ -128,6 +128,12 @@ class AdmissionsSourceRow(BaseModel):
     visit_to_deposit_range: AdmissionsRateRange | None
 
 
+class AdmissionsSourceMergedRow(AdmissionsSourceRow):
+    """相近寫法合成一列的來源（2026-11-20）：source 是這一組參觀最多的寫法，variants 是併進來的其他寫法。"""
+
+    variants: list[str]
+
+
 class AdmissionsGradeCount(BaseModel):
     visit: int
     deposit: int
@@ -239,6 +245,7 @@ class AdmissionsStatsOut(BaseModel):
     # {民國月份: {年級: 筆數, "合計": 筆數}}；畫面依 monthly 的月份順序取用。
     month_grade: dict[str, dict[str, int]]
     by_source: list[AdmissionsSourceRow]
+    by_source_merged: list[AdmissionsSourceMergedRow]
     top_source_names: list[str]
     by_tour_guide: list[AdmissionsTourGuideRow]
     tour_guide_source_cross: AdmissionsTourGuideSourceCross

@@ -193,6 +193,8 @@ async def test_stats_matches_ivy_semantics(db_session):
          "visit_to_deposit_range": {"low": 30.6, "high": 68.6}},
     ]
     assert result["top_source_names"] == ["Facebook", "親友介紹", "Google 評論", "未填寫"]
+    # 合併相近寫法（2026-11-20）：這批資料沒有相近寫法，各列和原文那張表一樣，只多一個空的 variants。
+    assert result["by_source_merged"] == [{**row, "variants": []} for row in result["by_source"]]
 
     # 接待人員：林老師 V1 V2 V4 V7 V8＝5（預繳 3）→ 60.0，全是小班；
     # 張老師 V3 V5 V9＝3（預繳 V3 V9）→ 66.7，中班 2／2、幼幼班 1／0；V6 帶參觀老師與年級都是 NULL。
@@ -453,7 +455,7 @@ async def test_stats_empty_campus(admin_client, db_session):
     assert (mom["current_month"], mom["previous_month"]) == (None, None)
     assert mom["visit"] == {"current": 0, "previous": 0, "delta": 0}
     assert mom["visit_to_deposit_rate"] == {"current": None, "previous": None, "delta": None}
-    for key in ("monthly", "by_year", "by_grade", "by_source", "top_source_names", "by_tour_guide",
+    for key in ("monthly", "by_year", "by_grade", "by_source", "by_source_merged", "top_source_names", "by_tour_guide",
                 "no_deposit_reasons", "alerts", "top_action_queue"):
         assert result[key] == [], key
     assert result["month_grade"] == {}

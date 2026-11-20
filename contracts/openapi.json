@@ -2228,6 +2228,61 @@
         "title": "AdmissionsRateRange",
         "type": "object"
       },
+      "AdmissionsSourceMergedRow": {
+        "description": "相近寫法合成一列的來源（2026-11-20）：source 是這一組參觀最多的寫法，variants 是併進來的其他寫法。",
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "variants": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Variants",
+            "type": "array"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_range": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdmissionsRateRange"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "source",
+          "visit",
+          "deposit",
+          "visit_to_deposit_rate",
+          "visit_to_deposit_range",
+          "variants"
+        ],
+        "title": "AdmissionsSourceMergedRow",
+        "type": "object"
+      },
       "AdmissionsSourceRow": {
         "properties": {
           "deposit": {
@@ -2595,6 +2650,13 @@
             "title": "By Source",
             "type": "array"
           },
+          "by_source_merged": {
+            "items": {
+              "$ref": "#/components/schemas/AdmissionsSourceMergedRow"
+            },
+            "title": "By Source Merged",
+            "type": "array"
+          },
           "by_tour_guide": {
             "items": {
               "$ref": "#/components/schemas/AdmissionsTourGuideRow"
@@ -2719,6 +2781,7 @@
           "by_grade",
           "month_grade",
           "by_source",
+          "by_source_merged",
           "top_source_names",
           "by_tour_guide",
           "tour_guide_source_cross",

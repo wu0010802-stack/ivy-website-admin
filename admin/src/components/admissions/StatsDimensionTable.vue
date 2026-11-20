@@ -264,6 +264,7 @@ function exportCsv() {
                   {{ display(row, column) }}
                 </button>
                 <template v-else>{{ display(row, column) }}</template>
+                <small v-if="column.noteKey && row[column.noteKey]" class="stats-table__note">{{ row[column.noteKey] }}</small>
               </th>
               <td v-else-if="column.kind === 'bar'" class="stats-table__number">
                 <span class="stats-bar" aria-hidden="true">
@@ -592,6 +593,13 @@ function exportCsv() {
   display: inline-block;
   min-width: 4.5em;
   color: var(--ink-2);
+}
+
+.stats-table__note {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 400;
 }
 
 .stats-table__split {

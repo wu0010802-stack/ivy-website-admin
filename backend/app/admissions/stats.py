@@ -33,6 +33,7 @@ from app.admissions import deposit_pace, estimation, intake
 from app.admissions.academic import ROC_MONTH_RE, shift_roc_month
 from app.admissions.constants import MISSING_CHILD_NAME, NO_DEPOSIT_PRIORITY, WITHDRAW_REASON_CATEGORIES, split_tour_guides
 from app.admissions.models import RecruitmentVisit
+from app.admissions.source_alias import source_key
 from app.common.timezones import now_utc, today_local
 
 # 門檻（園務 shared.py:54、77-82）。
@@ -287,6 +288,22 @@ def _by_source(rows: list[Any]) -> list[dict[str, Any]]:
         {"source": source, "visit": c["visit"], "deposit": c["deposit"], "visit_to_deposit_rate": pct(c["deposit"], c["visit"])}
         for source, c in merged.items()
     ]
+    return sorted(result, key=lambda item: (-item["visit"], -item["deposit"], item["source"]))
+
+
+def _by_source_merged(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """來源排名把相近寫法合成一列（2026-11-20，source_alias.py）。吃 _by_source 的結果（已依參觀數排好）：
+    一組裡參觀最多的寫法當這一列的名稱，其餘寫法列在 variants（照參觀數）；沒有別的寫法時 variants 是空的。
+    「未填寫」不是寫法，不和任何來源合併。"""
+    groups: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        key = UNFILLED if row["source"] == UNFILLED else f"key:{source_key(row['source'])}"
+        group = groups.setdefault(key, {"source": row["source"], "visit": 0, "deposit": 0, "variants": []})
+        group["visit"] += row["visit"]
+        group["deposit"] += row["deposit"]
+        if row["source"] != group["source"]:
+            group["variants"].append(row["source"])
+    result = [{**group, "visit_to_deposit_rate": pct(group["deposit"], group["visit"])} for group in groups.values()]
     return sorted(result, key=lambda item: (-item["visit"], -item["deposit"], item["source"]))
 
 
@@ -554,6 +571,7 @@ async def query_stats(
     unique_visit, unique_deposit = await _unique_counts(db, filters)
     monthly = _monthly(await _grouped(db, filters, v.month))
     by_source = _with_range(_by_source(await _grouped(db, filters, v.source)), prior)
+    by_source_merged = _with_range(_by_source_merged(by_source), prior)
     top_source_names = [row["source"] for row in by_source[:TOP_SOURCES_COUNT]]
 
     # 未預繳母體排除已退出（園務 stats.py:395-435）：退預繳／退註冊會清 has_deposit，
@@ -605,6 +623,7 @@ async def query_stats(
         "by_grade": _with_range(_by_grade(await _grouped(db, filters, v.grade)), prior),
         "month_grade": _month_grade(await _grouped(db, filters, v.month, v.grade)),
         "by_source": by_source,
+        "by_source_merged": by_source_merged,
         "top_source_names": top_source_names,
         "by_tour_guide": _with_range(_by_tour_guide(await _grouped(db, filters, v.tour_guide_name, v.grade)), prior),
         "tour_guide_source_cross": _tour_guide_source_cross(
