@@ -14,6 +14,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台「記住這台裝置」30 天＋手機 LINE 登入修正（PR #117，已部署 main `71038291`）
+
+[PR #117](https://github.com/wu0010802-stack/ivy-website-admin/pull/117) 以 merge commit 合併為 `71038291`（接在 `d23ac090` 之後）；[main CI/CD 44637204515](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44637204515) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 11-20 07:34 完成部署。改動內容見 README 的 2026-11-19「後台『記住這台裝置』保持登入 30 天＋手機 LINE 登入修正」。
+
+- API deployment：`e556263b-7284-48a4-ad62-1c072284d98d`；web deployment：`b6ade874-590c-4578-b935-b4201bf137b8`，兩者 SUCCESS；部署 smoke（release、live API、CMS、首頁、後台入口）通過。
+- migration：API 啟動時套用 `d5e1f7a3b9c2 -> e7a4c1d9b3f2`（`sessions.remember`，只新增有預設值的欄位，沒有事先備份），log 顯示 `Database schema ready: e7a4c1d9b3f2`。既有 session 一律視為沒勾，行為不變。
+- 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `710382916b11c618da214c496fc084a6c656f32b`，snapshot `937a760d3d10b60b706122f86726b040a1ebf3ba191b5825a4798556065f2542`；`/`、`/api/website/v1/health` 回 200；`https://admin.ivykidschool.com/api/website/v1/auth/line/login?remember=1` 回 302 到 LINE 授權網址，帶 `disable_auto_login=true` 與 PKCE S256，握手 cookie 為 `__Host-ivy_line_oauth`（HttpOnly、Secure、SameSite=Lax、Max-Age 600）；`/auth/providers` 回 Google、LINE 皆開。
+- 部署後 API log 只有既有的門牌資料同步連高雄市資料站 ConnectTimeout，與本次無關。
+- 沒驗：勾選後實際拿到 30 天 cookie、iPhone 上的 LINE 登入，要本人操作。正式庫目前沒有帳號綁 LINE（11-17 23:14 自行解除後，重新綁定的 callback 沒有回來），要到「我的帳號」重新綁定；關掉自動登入後，每個瀏覽器第一次用 LINE 登入要輸入 LINE 的 Email 與密碼。
+- 沒有 Railway 環境變數變更。
+
 ## 2026-11-19 資安審查三項修正（PR #119，已部署 main `b0d12fd8`）
 
 [PR #119](https://github.com/wu0010802-stack/ivy-website-admin/pull/119) 以 merge commit 合併為 `b0d12fd8`（接在 #118 `cead8b64` 之後，兩邊沒有重疊檔案）；[main CI/CD 44556385449](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44556385449) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 23:53 完成部署。改動內容見 README 的 2026-11-19「資安審查三項修正」。
