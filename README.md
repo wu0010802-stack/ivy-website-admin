@@ -13,7 +13,7 @@
 - stack e2e（11-20 本機 macOS，`npm run e2e:build` 後跑 a11y、audit-client-info、exports、keyboard、password-reset、roles、sidebar-collapse、visual 八組）：64 項中 63 項通過；`keyboard` 的「1440px：後台主要頁面沒有橫向溢出」第一次卡在五校介紹頁（右側預覽還在「正在確認管理身分…」，該項跑了 50 秒），單獨連跑兩次都通過，判斷是預覽載入慢的偶發，與登入頁無關。
 - 沒驗證：Safari（View Transition 18 起才有）、Firefox、iOS／Android 實機、真的 LINE 內建瀏覽器與真的 Google／LINE 往返沒測。
 
-## 2026-11-19 前台 cookie 帶來的後台統計補齊（`feature/cookie-stats-20261119`，未部署）
+## 2026-11-19 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`，紀錄見 `deploy/README.md`）
 
 接在 ChatGPT 的 `feature/analytics-journeys-20261118`（`c313ad24`，11-18「各校預約去向、回訪與來源統計」）之後：保留可用的部分、修掉審核發現的問題，再補齊 11-19 盤點的 8 項。規格與審核結論：`docs/specs/2026-11-19-cookie-stats-design.md`。
 
@@ -24,7 +24,7 @@
 - **App 內建瀏覽器重新整理**：只靠 User-Agent 認出的 LINE／FB／IG 來源不再蓋掉當天的廣告來源（11-16 已知問題）。
 - ChatGPT 分支的處理：各校預約去向的「完成線上預約」改成比照各校實際預約數的權限（沒權限回 `null`、畫面「—」）；預約表單送出流程的改寫還原（超出範圍、動到預約核心），只留場次有無的記錄；`_rate` 小比例不四捨五入還原。首頁五校卡「切到這一校」改在 `pick()` 計數（鍵盤、拖曳、鄰卡、進度點都算，重選不算）保留，**口徑從部署日起改變**。
 - migration `d8b1a9e5c274`（ChatGPT 版擴充）：`engagement_visits` 加 `returning`、`browser_key`（含索引）、`campus_pref`，新表 `visit_remembered_daily`；只新增，不需備份閘門。
-- **上線前**：隱私權政策分析 cookie 那段要補一句匿名代號的說明（擬稿在規格「上線前要做的事」）。
+- **待使用者**：隱私權政策分析 cookie 那段要補一句匿名代號的說明（擬稿在規格「上線前要做的事」）；11-20 部署時尚未補。
 
 ## 2026-11-19 後台「記住這台裝置」保持登入 30 天＋手機 LINE 登入修正（PR #117，已部署 main `71038291`）
 
