@@ -1,4 +1,4 @@
-## 2026-11-20 成效統計資料核對與修正（`fix/analytics-data-20261120`，未部署）
+## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`，紀錄見 `deploy/README.md`）
 
 使用者要確認正式站 `/admin/analytics` 的資料正確性。用已登入的後台唯讀抓 API、逐張表對照算法：加總、比例、中位數、時段（台北時間）都對，但資料本身有四個問題，使用者說「全部都幫我修」。
 
@@ -11,7 +11,7 @@
 
 驗證：合併 PR #120 前後端全套 5825 passed／1 skipped、web 全套單元 2507（一支負載逾時單獨重跑過）；合併 main（`6e724910`，含 #120）後重跑相關的後端 172、web 159、admin 112，web／admin typecheck、contract:check 都過。畫面只多文字（期間後面的起算說明、排除說明、解碼後的路徑），沒有跑 Playwright 截圖。
 
-已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），由使用者用 `railway ssh` 跑。
+已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），11-20 上午使用者已用 `railway ssh` 跑完（刪 3 列，刪前已備份）。
 
 ## 2026-11-19 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`，紀錄見 `deploy/README.md`）
 
