@@ -339,6 +339,18 @@ describe('子分頁寫進網址（X2a 3A）', () => {
     expect(push).not.toHaveBeenCalled()
   })
 
+  it('離開區域分析子分頁會放掉圖釘，回來不帶 pt', async () => {
+    mockGet(routesOn)
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sub=area&pt=22.6273,120.3014') })
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toMatchObject({ point: { lat: 22.6273, lng: 120.3014 } })
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
+    await flushPromises()
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'area')
+    await flushPromises()
+    expect(wrapper.findComponent(StatsTab).props('areaView')).toMatchObject({ point: null })
+    expect(router.currentRoute.value.query).not.toHaveProperty('pt')
+  })
+
   it('(n) 換校區、學年或學期：village 清掉，map 與 table 保留；網址讀回來的 village 不清', async () => {
     freezeToday()
     mockGet(routesOn)

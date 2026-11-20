@@ -68,10 +68,16 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
 
   it('pt 讀成四位小數的圖釘位置，超出高雄或格式不對當沒帶', () => {
     expect(parseAreaViewQuery({ pt: '22.627349,120.30142' }).point).toEqual({ lat: 22.6273, lng: 120.3014 })
-    for (const pt of ['abc', '25.03,121.56', '22.6', '22.6,120.3,1', '22.1234567,120.3', '']) {
+    for (const pt of ['abc', '25.03,121.56', '22.6', '22.6,120.3,1', '22.6273491,120.3014', '']) {
       expect(parseAreaViewQuery({ pt }).point).toBeNull()
     }
     expect(parseAreaViewQuery({}).point).toBeNull()
+    expect(parseAreaViewQuery({ pt: '22.627349,120.301412' }).point).toEqual({ lat: 22.6273, lng: 120.3014 })
+  })
+
+  it('圖釘寫了再讀回來是同一個點', () => {
+    const view = { ...DEFAULT_AREA_VIEW, point: { lat: 22.6273, lng: 120.3014 } }
+    expect(parseAreaViewQuery(areaViewQuery(view))).toEqual(view)
   })
 
   it('areaViewQuery 寫 pt（四位小數），沒有圖釘就不寫', () => {

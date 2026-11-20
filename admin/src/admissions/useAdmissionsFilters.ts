@@ -160,11 +160,11 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     journey.value = { ...fresh }
   }
 
-  // 離開區域分析就放掉模式、里、表格分頁與年份；已經是預設就不重新指派（同 resetJourney）。
+  // 離開區域分析就放掉模式、里、表格分頁、年份與圖釘；已經是預設就不重新指派（同 resetJourney）。
   function resetAreaView() {
-    const { map, village, table, year } = areaView.value
+    const { map, village, table, year, point } = areaView.value
     const fresh = DEFAULT_AREA_VIEW
-    if (map === fresh.map && village === fresh.village && table === fresh.table && year === fresh.year) return
+    if (map === fresh.map && village === fresh.village && table === fresh.table && year === fresh.year && point === fresh.point) return
     areaView.value = { ...fresh }
   }
 
