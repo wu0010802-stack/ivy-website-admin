@@ -22,6 +22,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `2b088671bc395b305842b7bf15fa26554070f365`，snapshot `219195c0c6871add5ce5d7479591ec5e859c811eeff0ffe7ad829a90d577af67`。使用者的 Chrome 新分頁開 `/admin/admissions-stats?campus=yihua&sub=area`（只讀 DOM、沒有注入樣式、沒有改資料）：`.area-map__frame` 計算值 `isolation: isolate`；地圖上緣捲到頁首後面 150px 時，頁首與條件列位置的最上層是頁首 `H1` 與分類列，條件列下方 60px 是里界 `<path>`（地圖照樣點得到）。修前同一個量法兩處都是里界 `<path>`。
 - 沒驗：Safari 與手機實機（900px 以下條件列不黏，理論上不受影響）。
 
+## 2026-11-20 成效統計補強七項：每月比較、統計健康檢查、AI 助理來源、找不到的網址、搜尋字詞分群、電話與 LINE 時段、爬蟲（PR #129，已部署 main `bac46d9a`）
+
+[PR #129](https://github.com/wu0010802-stack/ivy-website-admin/pull/129)（feature `50f716bb`＋併 main `6853dddd`）。推送組 CI 被 concurrency 取消、重跑後全綠（含 E2E）；PR 組的 E2E 因此被擠掉，`gh run rerun --failed` 後通過，PR 變 CLEAN，以 merge commit `bac46d9a` 併入 main。[main CI/CD 44712323675](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44712323675) 前後端與 Deploy 成功。
+
+- 範圍：backend（新服務 `monthly_service`／`stats_health`／`crawler_service`／`contact_hours_service`、新路由 `analytics_more_routes.py`、Search Console 字詞 500 列與分群、GA4 單日事件數、定期工作兩步、LINE 群組種類 `stats_health`）、web（來源 `ai`、404 回報、`server/plugins/crawler-hits.ts`、代理 `SERVER_ONLY_PATH` 加兩支）、admin（第五類「每月比較」、頁頂健康提示、四個新面板、Google 搜尋兩張表、LINE 通知頁總部群組開關）、契約。規格 `docs/specs/2026-11-20-analytics-more-design.md`。
+- migration `a6c3e9f2d417`（接 `d8b1a9e5c274`）：新表 `engagement_monthly`、`not_found_daily`、`crawler_hits_daily`、`stats_health_runs`，`visit_requests` 兩條來源 CHECK 加 `ai`。只新增與放寬，不改寫既有資料，沒有事先備份。沒有 Railway 環境變數變更。
+- 部署後唯讀檢查：`/release.json` base_commit `bac46d9a`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 上 `/admin/analytics/{monthly,health,not-found,crawlers,contact-hours}` 未登入都回 401（不存在的路徑對照 404）；`www` 直接打 `/api/website/v1/public/crawler-hits` 回 404；後台 `AnalyticsView-*.js` 有「每月比較」「統計可能有狀況」「找不到的網址」「家長什麼時候按電話」「大家在找什麼」。沒有用爬蟲 UA 或 404 去打正式站（會寫進正式統計）。
+- 每月彙總由定期工作每天第一輪算（部署後一分鐘內），11 月從 11/13 起算。
+- 待使用者：總部 LINE 群組要收「官網統計異常」得在後台「LINE 通知」打開（預設不開）；GA4 那一項要正式站設 `WEBSITE_GA4_PROPERTY_ID` 才會查。
+- 沒驗：登入後的實際畫面、LINE 實際推播、正式站上爬蟲與 404 的實際寫入。
+
 ## 2026-11-20 環境頁：章節卡只留章名、菜單書夾書籤、一天五餐盤子優先、五校分頁都接得上（PR #115，已部署 main `d13b4768`）
 
 [PR #115](https://github.com/wu0010802-stack/ivy-website-admin/pull/115)（11-18 開的分支，11-20 rebase 到 `bb4a7a47` 後強制推送為 `14e4b76c`）PR 組 CI [44693001382](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44693001382) 全綠（含 E2E）；推送組 [44692993268](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44692993268) 被 concurrency 取消後 rerun 第 2 次全綠，以 merge commit `d13b4768` 併入 main。[main CI/CD 44697755455](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44697755455) 全部成功（web、admin、後端三組、E2E、Deploy 07:56:49–08:00:45Z）。
