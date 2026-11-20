@@ -85,7 +85,7 @@ describe('區域分析：地圖元件載入失敗', () => {
     const title = side(wrapper).get('.village-card__title')
     expect(title.text()).toBe('三民區本揚里')
     expect(document.activeElement).toBe(title.element)
-    expect(wrapper.emitted('update:view')!.at(-1)).toEqual([{ map: null, village: '64000050015', table: 'village', year: null }])
+    expect(wrapper.emitted('update:view')!.at(-1)).toEqual([{ map: null, village: '64000050015', table: 'village', year: null, point: null }])
     // 各里表點里名也一樣能選。
     await side(wrapper).get('button[aria-label="關閉里卡片"]').trigger('click')
     await flushPromises()

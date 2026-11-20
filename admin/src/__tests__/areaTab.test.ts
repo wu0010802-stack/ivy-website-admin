@@ -209,13 +209,13 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('點看什麼：右欄與地圖跟著換；和預設不同才寫進 view，選回預設是 null', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '參觀')
-    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village', year: null, point: null })
     expect(checkedMode(wrapper)).toBe('參觀')
     expect(paneTitle(wrapper)).toBe('參觀')
     expect(areaMap(wrapper).props('mode')).toBe('visits')
     expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區本揚里', '三民區寶業里', '鼓山區龍子里'])
     await chooseMode(wrapper, '在籍學生')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village', year: null, point: null })
     expect(areaMap(wrapper).props('mode')).toBe('enrolled')
   })
 
@@ -250,7 +250,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('falls back when map is disabled：網址 map=enrolled、清冊未匯入 → 工具列選 2–5 歲孩子、emit update:view 的 map 是 null', async () => {
     const slow = deferred<unknown>()
     mockGet(routes(areaStats(), areaOpportunity(), () => slow.promise))
-    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school', year: null }))
+    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school', year: null, point: null }))
     // 讀取中不算停用：先照網址看在籍學生。
     expect(checkedMode(wrapper)).toBe('在籍學生')
     expect(wrapper.emitted('update:view')).toBeUndefined()
@@ -259,7 +259,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
     expect(modeInput(wrapper, '在籍學生').disabled).toBe(true)
     expect(modeInput(wrapper, '在籍學生').checked).toBe(false)
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school', year: null, point: null })
     expect(areaMap(wrapper).props('mode')).toBe('children')
   })
 
@@ -267,7 +267,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     const slowBoundaries = deferred<unknown>()
     const slowEnrolled = deferred<unknown>()
     mockGet({ ...routes(areaStats(), areaOpportunity(), () => slowEnrolled.promise), '/admin/admissions/area/boundaries': () => slowBoundaries.promise })
-    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school', year: null })
+    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school', year: null, point: null })
     const Host = defineComponent({
       setup: () => () => h(AreaTab, { ...props(), view: view.value, 'onUpdate:view': (next: AreaView) => { view.value = next } }),
     })
@@ -277,7 +277,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     slowEnrolled.resolve(areaEnrolled({ status: 'not_imported' }))
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(view.value).toEqual({ map: null, village: '', table: 'school', year: null })
+    expect(view.value).toEqual({ map: null, village: '', table: 'school', year: null, point: null })
   })
 
   it('同一個畫面裡網址換到停用的模式（上一頁／下一頁）：也退回預設、map 寫回 null，不來回觸發', async () => {
@@ -287,7 +287,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.emitted('update:view')).toBeUndefined()
     await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'enrolled' } })
     await flushPromises()
-    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village', year: null }]])
+    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village', year: null, point: null }]])
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
   })
 })
@@ -427,7 +427,7 @@ describe('區域分析：選取的里', () => {
     const { wrapper } = await mountTab()
     areaMap(wrapper).vm.$emit('select-village', PB)
     await flushPromises()
-    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village', year: null, point: null })
     expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
     expect(side(wrapper).get('[aria-live="polite"]').text()).toBe('已選取三民區本揚里')
     expect(areaMap(wrapper).props('selectedCode')).toBe('64000050015')
@@ -633,7 +633,7 @@ describe('區域分析：選取的里', () => {
     slow.resolve(villageBoundaries())
     await vi.waitFor(() => expect(missing.wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
+    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village', year: null, point: null })
     cleanup()
 
     // 里界裡有的代碼：讀到後照開卡片，不清。
@@ -1387,7 +1387,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('在建預售模式：右欄是戶數排行與摘要，地圖拿到 presale；網址帶 map=presale', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '在建預售')
-    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village', year: null, point: null })
     expect(paneTitle(wrapper)).toBe('在建預售')
     expect(areaMap(wrapper).props('mode')).toBe('presale')
     expect(side(wrapper).text()).toContain('半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。')
@@ -1398,7 +1398,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('預售建案分頁：清單在各里之後；點案名＝選取所在的里（地圖移過去、右欄出現里卡片）', async () => {
     const { wrapper } = await mountTab()
     await openTable(wrapper, 'presale')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale', year: null, point: null })
     expect(tableTitles(wrapper)).toEqual(['附近預售建案（本校 3 公里內）'])
     expect(bodyRows(block(wrapper, '附近預售建案（本校 3 公里內）')).map((row) => row[1])).toEqual(['乙案', '甲案', '丙案'])
     await wrapper.findAll('.area-full-tables .stats-table__name-link')[2]!.trigger('click')

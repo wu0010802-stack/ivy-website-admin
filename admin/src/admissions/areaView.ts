@@ -28,10 +28,12 @@ export interface AreaView {
   table: AreaTableTab
   /** 「2–5 歲孩子」模式的年份滑桿（2026-11-16 規格 §5.3）：民國年；null＝最新。只在這個模式有效，換模式就拿掉。 */
   year: number | null
+  /** 圖釘位置（2026-11-20）：查「這個點附近」的座標，四捨五入到 4 位小數；null＝沒放圖釘。 */
+  point: { lat: number; lng: number } | null
 }
 
 /** 預設畫面；凍結，要新值（model 預設、重設）一律 `{ ...DEFAULT_AREA_VIEW }`。 */
-export const DEFAULT_AREA_VIEW: Readonly<AreaView> = Object.freeze({ map: null, village: '', table: 'village', year: null })
+export const DEFAULT_AREA_VIEW: Readonly<AreaView> = Object.freeze({ map: null, village: '', table: 'village', year: null, point: null })
 
 // VILLCODE：縣市 2 碼＋鄉鎮 3 碼＋里 6 碼，例 64000050015。
 const VILLAGE_CODE = /^\d{11}$/
@@ -51,26 +53,44 @@ export function isMapMode(value: unknown): value is MapMode {
 const isTableTab = (value: unknown): value is AreaTableTab =>
   typeof value === 'string' && (AREA_TABLE_TABS as readonly string[]).includes(value)
 
+// 圖釘：`pt=<lat>,<lng>`，小數最多 6 位，限高雄範圍（同後端 KAOHSIUNG_LAT_RANGE／LNG_RANGE）。
+const POINT = /^(\d{1,3}(?:\.\d{1,6})?),(\d{1,3}(?:\.\d{1,6})?)$/
+const POINT_LAT_RANGE = [22.4, 23.5] as const
+const POINT_LNG_RANGE = [120.1, 121.1] as const
+const round4 = (n: number) => Math.round(n * 10000) / 10000
+
+function parsePoint(raw: string): AreaView['point'] {
+  const m = POINT.exec(raw)
+  if (!m) return null
+  const lat = Number(m[1])
+  const lng = Number(m[2])
+  if (lat < POINT_LAT_RANGE[0] || lat > POINT_LAT_RANGE[1] || lng < POINT_LNG_RANGE[0] || lng > POINT_LNG_RANGE[1]) return null
+  return { lat: round4(lat), lng: round4(lng) }
+}
+
 /** 讀網址：認得的值照收，認不得的當沒帶（退回預設）。 */
 export function parseAreaViewQuery(query: LocationQuery): AreaView {
   const map = text(query.map)
   const village = text(query.village)
   const table = text(query.table)
   const year = text(query.year)
+  const pt = text(query.pt)
   return {
     map: isMapMode(map) ? map : DEFAULT_AREA_VIEW.map,
     village: VILLAGE_CODE.test(village) ? village : DEFAULT_AREA_VIEW.village,
     table: isTableTab(table) ? table : DEFAULT_AREA_VIEW.table,
     year: YEAR.test(year) ? Number(year) : DEFAULT_AREA_VIEW.year,
+    point: parsePoint(pt),
   }
 }
 
-/** 寫網址：預設值（map 為 null、沒選里、table 為 village、year 為 null）不寫。 */
+/** 寫網址：預設值（map 為 null、沒選里、table 為 village、year 為 null、沒有圖釘）不寫。 */
 export function areaViewQuery(view: AreaView): Record<string, string> {
   const query: Record<string, string> = {}
   if (view.map !== null) query.map = view.map
   if (view.village !== DEFAULT_AREA_VIEW.village) query.village = view.village
   if (view.table !== DEFAULT_AREA_VIEW.table) query.table = view.table
   if (view.year !== null) query.year = String(view.year)
+  if (view.point !== null) query.pt = `${view.point.lat.toFixed(4)},${view.point.lng.toFixed(4)}`
   return query
 }
