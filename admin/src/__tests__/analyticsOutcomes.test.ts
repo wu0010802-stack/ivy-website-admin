@@ -150,6 +150,14 @@ describe('預約結果', () => {
     expect(get).toHaveBeenCalledTimes(1)
   })
 
+  it('表改名「各校預約」（2026-11-20）：標題、捲動區與匯出鈕的 aria-label 同名，不再叫五校比較', async () => {
+    const { wrapper } = await mountSection('super_admin')
+    expect(wrapper.get('#compare-title').text()).toContain('各校預約')
+    expect(wrapper.get('.compare__scroll').attributes('aria-label')).toBe('各校預約（可左右捲動）')
+    expect(wrapper.get('[data-test="analytics-csv-compare"]').attributes('aria-label')).toBe('把「各校預約」匯出 CSV')
+    expect(wrapper.find('.compare').text()).not.toContain('五校比較')
+  })
+
   it('五校比較每校一列加合計，比率附分子分母；不給 showCompare 就不畫', async () => {
     const { wrapper } = await mountSection('super_admin')
     const rows = wrapper.findAll('.stats-table tbody tr').map((tr) => tr.text())
@@ -240,7 +248,7 @@ describe('預約結果', () => {
     ])
     await wrapper.setProps({ range: { from: '2026-09-01', to: '2026-09-30' }, periodLabel: '2026/09/01–2026/09/30' })
     await flushPromises()
-    expect(wrapper.get('#compare-title').text()).toBe('五校比較開站至今')
+    expect(wrapper.get('#compare-title').text()).toBe('各校預約開站至今')
     expect(wrapper.text()).not.toContain('2026/09/01')
     for (const selector of ['.compare', '.outcomes']) {
       expect(wrapper.find(selector).classes()).toContain('is-updating')

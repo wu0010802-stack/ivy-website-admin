@@ -390,47 +390,52 @@ describe('子分頁寫進網址（X2a 3A）', () => {
 })
 
 describe('頁首篩選的作用範圍與手機摘要', () => {
-  const selects = (wrapper: Awaited<ReturnType<typeof mountWith>>['wrapper']) =>
-    ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label)!)
+  // 用不到的條件整個不出現（不是停用）：找不到就是 undefined。
+  const has = (wrapper: Awaited<ReturnType<typeof mountWith>>['wrapper'], label: string) =>
+    wrapper.findAllComponents({ name: 'ElSelect' }).some((item) => item.props('ariaLabel') === label)
+  const shown = (wrapper: Awaited<ReturnType<typeof mountWith>>['wrapper']) => ({
+    campus: wrapper.findComponent({ name: 'CampusSelect' }).exists(),
+    year: has(wrapper, '入學學年'),
+    semester: has(wrapper, '入學學期'),
+  })
 
-  it('參觀預約不分入學學年學期：兩個下拉停用並寫明，值保留；切回總覽恢復', async () => {
+  it('參觀預約不分入學學年學期：學年學期兩個下拉整個不出現（沒有「不分」那句），校區還在；值保留，切回總覽回來', async () => {
     freezeToday()
     mockGet(routesOn)
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=2&sub=booking') })
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([true, true])
-    expect(wrapper.get('.admissions__scope-note').text()).toBe('這個分頁不分入學學年學期')
+    expect(shown(wrapper)).toEqual({ campus: true, year: false, semester: false })
+    expect(wrapper.find('.admissions__scope-note').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('這個分頁不分入學學年學期')
     expect(wrapper.findComponent({ name: 'BookingStatsPane' }).props()).toMatchObject({ campusKey: 'yihua' })
     expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2', sub: 'booking' })
 
     wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
     await flushPromises()
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([false, false])
-    expect(wrapper.find('.admissions__scope-note').exists()).toBe(false)
+    expect(shown(wrapper)).toEqual({ campus: true, year: true, semester: true })
+    expect(wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '入學學年')!.props('modelValue')).toBe(114)
     expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2' })
   })
 
-  it('預約全程同樣不分入學學年學期：兩個下拉停用並寫明；切到別的子分頁恢復', async () => {
+  it('預約全程同樣不分入學學年學期：兩個下拉不出現；切到別的子分頁回來', async () => {
     freezeToday()
     mockGet({ ...routesOn, '/admin/admissions/journey': journeyData() })
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=2&sub=journey') })
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([true, true])
-    expect(wrapper.get('.admissions__scope-note').text()).toBe('這個分頁不分入學學年學期')
+    expect(shown(wrapper)).toEqual({ campus: true, year: false, semester: false })
     expect(wrapper.find('section[aria-label="預約全程"]').exists()).toBe(true)
 
     wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
     await flushPromises()
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([false, false])
+    expect(shown(wrapper)).toEqual({ campus: true, year: true, semester: true })
     expect(router.currentRoute.value.query).toMatchObject({ sy: '114', sem: '2', sub: 'source' })
   })
 
   // 招生潛力與市佔率（2026-10-20）：讀自己的 API，看所有學年；子分頁名 potential 只在網址的 sub 出現，沒有別的參數。
-  it('招生潛力與市佔率不分入學學年學期：兩個下拉停用並寫明；自己讀 /potential、不等招生統計；切到別的子分頁恢復', async () => {
+  it('招生潛力與市佔率不分入學學年學期：兩個下拉不出現；自己讀 /potential、不等招生統計；切到別的子分頁回來', async () => {
     freezeToday()
     const get = mockGet({ ...routesOn, '/admin/admissions/potential': potentialData() })
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=2&sub=potential') })
     expect(wrapper.findComponent(StatsTab).props('sub')).toBe('potential')
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([true, true])
-    expect(wrapper.get('.admissions__scope-note').text()).toBe('這個分頁不分入學學年學期')
+    expect(shown(wrapper)).toEqual({ campus: true, year: false, semester: false })
     expect(wrapper.find('section[aria-label="招生潛力與市佔率"]').exists()).toBe(true)
     expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
     expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
@@ -438,19 +443,101 @@ describe('頁首篩選的作用範圍與手機摘要', () => {
 
     wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'source')
     await flushPromises()
-    expect(selects(wrapper).map((item) => item.props('disabled'))).toEqual([false, false])
+    expect(shown(wrapper)).toEqual({ campus: true, year: true, semester: true })
     wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'potential')
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/potential')).toHaveLength(1)
   })
 
-  it('手機摘要在參觀預約寫「不分學年學期」', async () => {
+  it('資料匯入也不分入學學年學期：學年學期不出現、校區在', async () => {
+    mockGet(routesOn)
+    const { wrapper } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sub=imports') })
+    expect(shown(wrapper)).toEqual({ campus: true, year: false, semester: false })
+  })
+
+  it('各分頁看得到哪些條件：校區＋學年學期（招生轉換、區域分析）、只有學年學期（五校比較）、只有校區（預約、潛力）、都沒有（廣告成效）', async () => {
+    freezeToday()
+    mockGet({
+      ...routesOn,
+      '/admin/admissions/journey': journeyData(),
+      '/admin/admissions/potential': potentialData(),
+      '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 114, semester: 2, seat_semester: 2, rows: [] },
+      '/admin/admissions/area/compare': areaCompare(),
+      '/admin/admissions/imports/status': { enrolled: null, history: null },
+      '/admin/admissions/ad-roi': {
+        as_of: '2026-10-01T10:00:00+08:00', touch: 'last', months: ['2026-10'],
+        google: { configured: false, error: null, currency: null, time_zone: null, fetched_at: null, campaigns: [] },
+        rows: [], pending: { upcoming: 0, awaiting_attendance: 0, considering: 0 }, by_campus: [],
+      },
+      '/admin/admissions/ad-spend': { entries: [] },
+    })
+    const { wrapper } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=2') })
+    const expected: Record<string, { campus: boolean; year: boolean; semester: boolean }> = {
+      overview: { campus: true, year: true, semester: true },
+      class: { campus: true, year: true, semester: true },
+      source: { campus: true, year: true, semester: true },
+      staff: { campus: true, year: true, semester: true },
+      nodeposit: { campus: true, year: true, semester: true },
+      area: { campus: true, year: true, semester: true },
+      compare: { campus: false, year: true, semester: true },
+      booking: { campus: true, year: false, semester: false },
+      journey: { campus: true, year: false, semester: false },
+      potential: { campus: true, year: false, semester: false },
+      imports: { campus: true, year: false, semester: false },
+      ads: { campus: false, year: false, semester: false },
+    }
+    for (const [sub, want] of Object.entries(expected)) {
+      wrapper.findComponent(StatsTab).vm.$emit('update:sub', sub)
+      await flushPromises()
+      expect(shown(wrapper), sub).toEqual(want)
+    }
+  })
+
+  it('不顯示的條件值仍保留：booking 看不到學年學期、compare 看不到校區，切回去網址與畫面都還是原本的值', async () => {
+    freezeToday()
+    mockGet({ ...routesOn, '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 114, semester: 2, seat_semester: 2, rows: [] }, '/admin/admissions/area/compare': areaCompare() })
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=renwu&sy=114&sem=2&sub=compare') })
+    expect(wrapper.findComponent(StatsTab).props()).toMatchObject({ campusKey: 'renwu', schoolYear: 114, semester: 2 })
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'booking')
+    await flushPromises()
+    expect(wrapper.findComponent(StatsTab).props()).toMatchObject({ campusKey: 'renwu', schoolYear: 114, semester: 2 })
+    expect(router.currentRoute.value.query).toMatchObject({ campus: 'renwu', sy: '114', sem: '2', sub: 'booking' })
+    wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'staff')
+    await flushPromises()
+    expect(wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === '入學學期')!.props('modelValue')).toBe(2)
+  })
+
+  it('頁首沒有說明句；條件列放在 StatsTab 的導覽列裡（#filters）', async () => {
+    mockGet(routesOn)
+    const { wrapper } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua') })
+    expect(wrapper.find('.page-header').exists()).toBe(false)
+    expect(wrapper.get('.stats-nav__filters').find('#admissions-filters').exists()).toBe(true)
+    expect(wrapper.get('#admissions-filters').classes()).toContain('admissions__filters--compact')
+  })
+
+  it('「查看」未預繳的一筆：open 帶進訪視明細的網址', async () => {
+    mockGet(routesOn)
+    const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sy=114&sem=1&sub=nodeposit') })
+    wrapper.findComponent(StatsTab).vm.$emit('open-records', { month: '115.09', open: '11111111-0000-4000-8000-000000000001' })
+    await flushPromises()
+    expect(router.currentRoute.value.path).toBe('/admissions')
+    expect(router.currentRoute.value.query).toEqual({
+      campus: 'yihua', sy: '114', sem: '1', tab: 'records', month: '115.09', open: '11111111-0000-4000-8000-000000000001',
+    })
+  })
+
+  it('手機摘要只列看得到的條件：參觀預約只寫「義華」，總覽寫校區與學年學期', async () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: true, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
     freezeToday()
     mockGet(routesOn)
     try {
       const { wrapper } = await mountWith(AdmissionsStatsView, { path: statsPath('campus=yihua&sub=booking') })
-      expect(wrapper.get('.admissions__summary').text()).toContain('義華・不分學年學期')
+      expect(wrapper.get('.admissions__summary').text()).toContain('義華')
+      expect(wrapper.get('.admissions__summary-text').text()).toBe('義華')
+      expect(wrapper.get('.admissions__summary-text').text()).not.toContain('不分學年學期')
+      wrapper.findComponent(StatsTab).vm.$emit('update:sub', 'overview')
+      await flushPromises()
+      expect(wrapper.get('.admissions__summary-text').text()).toContain('115 學年')
     } finally {
       vi.unstubAllGlobals()
     }

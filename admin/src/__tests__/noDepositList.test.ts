@@ -61,14 +61,15 @@ describe('未預繳明細：表格（園務 RecruitmentNoDepositTab 的「未預
     expect(wrapper.find('.el-pagination').exists()).toBe(false)
   })
 
-  it('「查看」切到訪視明細並帶這筆的月份（B 的明細只吃 month，帶不到單筆）', async () => {
+  it('「查看」切到訪視明細並帶這筆的月份與 id（open），到了直接開這一筆', async () => {
     mockGet({ [PATH]: result([LIN, ZHOU]) })
     const { wrapper } = await mountWith(NoDepositList, { props: props() })
 
     const view = button(wrapper.findAll('tbody tr')[1]!, '查看')!
-    expect(view.attributes('aria-label')).toBe('查看 115.07 的訪視明細（周小宇）')
+    expect(view.attributes('aria-label')).toBe('查看 周小宇 的訪視資料（115.07）')
     await view.trigger('click')
-    expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.07' }]])
+    expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.07', open: ZHOU.id }]])
+    expect(wrapper.get('.nd-caption').text()).toBe('「查看」會到訪視明細開這一筆。')
   })
 })
 
@@ -154,6 +155,31 @@ describe('未預繳明細：篩選（園務 ndFilter）', () => {
     expect(Object.fromEntries(lastQuery(get))).toEqual({
       campus_key: 'yihua', school_year: '115', semester: '1', priority: 'low', page: '1', page_size: '50',
     })
+  })
+})
+
+describe('未預繳明細：統計頁數字卡帶的 preset（2026-11-20）', () => {
+  it.each([
+    ['高潛力', { priority: 'high' }, { priority: 'high' }, [false, false]],
+    ['逾 14 天', { priority: 'all', overdue_days: 14 }, { overdue_days: '14' }, [true, false]],
+    ['冷名單', { priority: 'all', cold_only: 1 }, { cold_only: 'true' }, [false, true]],
+  ])('%s：套上對應的篩選（勾選與查詢參數）', async (_name, preset, query, [overdue, cold]) => {
+    const get = mockGet({ [PATH]: result([LIN]) })
+    const { wrapper } = await mountWith(NoDepositList, { props: props({ preset }) })
+
+    expect(Object.fromEntries(lastQuery(get))).toMatchObject(query)
+    const [overdueBox, coldBox] = wrapper.findAllComponents(ElCheckbox).slice(0, 2)
+    expect([overdueBox!.props('modelValue'), coldBox!.props('modelValue')]).toEqual([overdue, cold])
+    if (preset.priority === 'all') expect(lastQuery(get).has('priority')).toBe(false)
+  })
+
+  it('從冷名單換成別的 preset：冷名單篩選清掉', async () => {
+    const get = mockGet({ [PATH]: result([LIN]) })
+    const { wrapper } = await mountWith(NoDepositList, { props: props({ preset: { priority: 'all', cold_only: 1 } }) })
+    expect(lastQuery(get).get('cold_only')).toBe('true')
+    await wrapper.setProps({ preset: { priority: 'high' } })
+    await flushPromises()
+    expect(lastQuery(get).has('cold_only')).toBe(false)
   })
 })
 

@@ -54,6 +54,8 @@ export type AdmissionsPage = 'admissions' | 'stats'
  * - month：訪視明細的參觀月份（民國 115.09）；招生統計的「查看本月明細」帶這個切過來。
  * - area：訪視明細的區域（區域分析的「查看明細」帶過來，寫法見 areaFilter.ts）；只在 tab=records 有意義，
  *   離開訪視明細就拿掉，手改成認不得的值就當沒篩。
+ * - open：到了訪視明細直接開這一筆的編輯表單（訪視的 id；招生統計未預繳明細的「查看」帶過來，2026-11-20）。
+ *   只在 tab=records 有意義；表單開了（或找不到那一筆）就從網址拿掉，重新整理不會再開一次。
  * - wr：訪視明細的退出原因分類（八項或 unclassified，2026-10-15）；統計「退出原因分佈」的「查看明細」帶過來，
  *   只在 tab=records 有意義，離開訪視明細就拿掉，認不得的值當沒篩。
  * 以下只屬於招生統計頁：
@@ -83,6 +85,7 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
   const month = ref('')
   const area = ref('')
   const withdraw = ref('')
+  const openRecordId = ref('')
   const sub = ref<StatsSub>('overview')
   const journey = ref<JourneyFilter>({ ...DEFAULT_JOURNEY_FILTER })
   const areaView = ref<AreaView>({ ...DEFAULT_AREA_VIEW })
@@ -110,6 +113,8 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     area.value = tab.value === 'records' && parseAreaQuery(areaValue) ? areaValue : ''
     const wr = text(query.wr)
     withdraw.value = tab.value === 'records' && isWithdrawFilter(wr) ? wr : ''
+    const open = text(query.open)
+    openRecordId.value = tab.value === 'records' && UUID.test(open) ? open : ''
     sub.value = onStats && isStatsSub(query.sub) ? query.sub : 'overview'
     journey.value = onStats && sub.value === 'journey' ? parseJourneyQuery(query) : { ...DEFAULT_JOURNEY_FILTER }
     // 排在校區、學年、學期之後：下面「使用者換條件就清 village」的 watch 是 sync 的，apply 改校區也會觸發，
@@ -128,6 +133,7 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     if (month.value) query.month = month.value
     if (tab.value === 'records' && area.value) query.area = area.value
     if (tab.value === 'records' && withdraw.value) query.wr = withdraw.value
+    if (tab.value === 'records' && openRecordId.value) query.open = openRecordId.value
     if (onStats && sub.value !== 'overview') query.sub = sub.value
     if (onStats && sub.value === 'journey') Object.assign(query, journeyQuery(journey.value))
     if (onStats && sub.value === 'area') Object.assign(query, areaViewQuery(areaView.value))
@@ -175,13 +181,14 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
     if (value !== 'records') {
       area.value = ''
       withdraw.value = ''
+      openRecordId.value = ''
     }
   })
   watch(sub, (value) => {
     if (value !== 'journey') resetJourney()
     if (value !== 'area') resetAreaView()
   })
-  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, areaView], syncUrl, { immediate: true, deep: true })
+  watch([campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, openRecordId, sub, journey, areaView], syncUrl, { immediate: true, deep: true })
   watch(() => route.query, (query) => {
     if (route.path !== PATH) return
     const key = queryKey(query)
@@ -198,6 +205,6 @@ export function useAdmissionsFilters(page: AdmissionsPage = 'admissions') {
   }
 
   return {
-    campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, sub, journey, areaView, visibleCampusKeys, defaultYear, clearTerm,
+    campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, openRecordId, sub, journey, areaView, visibleCampusKeys, defaultYear, clearTerm,
   }
 }

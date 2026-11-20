@@ -3,7 +3,7 @@ import { flushPromises, type DOMWrapper, type VueWrapper } from '@vue/test-utils
 import CompareTable from '../components/admissions/CompareTable.vue'
 import StatsTab from '../components/admissions/StatsTab.vue'
 import type { AdmissionsCompare, AdmissionsCompareRow, AdmissionsStats } from '../api/types'
-import { areaCompare, button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo } from './admissionsTestKit'
+import { areaCompare, button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, openStatsSub, pathsTo } from './admissionsTestKit'
 
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -51,7 +51,8 @@ const compare = (rows: AdmissionsCompareRow[], schoolYear = 115, semester: numbe
 const cells = (tr: Dom) => tr.findAll('th, td').map((cell) => cell.text())
 const headers = (root: VueWrapper | Dom) => root.findAll('thead th').map((th) => th.text())
 const bodyRows = (root: VueWrapper | Dom) => root.findAll('tbody tr').map(cells)
-const tabTexts = (wrapper: VueWrapper) => wrapper.findAll('.stats-subtabs .el-tabs__item').map((tab) => tab.text())
+const tabTexts = (wrapper: VueWrapper) => wrapper.findAll('.stats-tabs .stats-tab').map((tab) => tab.text())
+const catTexts = (wrapper: VueWrapper) => wrapper.findAll('.stats-nav__cats .status-tab').map((tab) => tab.text())
 const statsProps = (changes: Record<string, unknown> = {}) => ({ campusKey: 'yihua', schoolYear: 115, semester: 1, campusKeys: ALL, ...changes })
 
 // 統計本身不是這支測試的重點：一筆訪視的最小資料，讓子分頁出現。
@@ -85,12 +86,7 @@ function quietStats(): AdmissionsStats {
   }
 }
 
-async function openCompare(wrapper: VueWrapper): Promise<Dom> {
-  const tab = wrapper.findAll('.stats-subtabs .el-tabs__item').find((item) => item.text() === '五校比較')!
-  await tab.trigger('click')
-  await flushPromises()
-  return wrapper.get('#pane-stats-compare')
-}
+const openCompare = (wrapper: VueWrapper) => openStatsSub(wrapper, '五校比較')
 
 describe('五校比較表（規格 9.3）', () => {
   it('每校一列：招生案件數、比率寫分子分母；不顯示計畫名額與名額剩餘（名額規劃已拿掉）', async () => {
@@ -125,18 +121,20 @@ describe('統計分頁的「五校比較」子分頁', () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats() })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps({ campusKeys: ['yihua'] }) })
 
-    expect(tabTexts(wrapper)).toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入'])
+    expect(catTexts(wrapper)).toEqual(['招生轉換', '參觀預約', '區域與市場'])
+    expect(wrapper.find('#stats-tab-compare').exists()).toBe(false)
+    expect(wrapper.find('#stats-tab-ads').exists()).toBe(false)
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual([])
   })
 
   it('多校：切到五校比較才讀，帶頁首的學年學期，依後端順序每校一列', async () => {
     const get = mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA, MINGHUA, CHONGDE, RENWU]) })
     const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
-    const tabs = tabTexts(wrapper)
-    expect(tabs[tabs.indexOf('參觀預約') - 1]).toBe('五校比較')
+    expect(catTexts(wrapper)).toEqual(['招生轉換', '參觀預約', '區域與市場', '五校與廣告'])
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual([])
 
     const pane = await openCompare(wrapper)
+    expect(tabTexts(wrapper)).toEqual(['五校比較', '廣告成效'])
     expect(pathsTo(get, '/admin/admissions/compare')).toEqual(['/admin/admissions/compare?school_year=115&semester=1'])
     expect(bodyRows(pane.get('.compare-table')).map((tr) => tr[0])).toEqual(['義華', '明華', '崇德', '仁武'])
     // 選了學年：學年學期寫在標題，不另加說明。
@@ -206,7 +204,7 @@ describe('統計分頁的「五校比較」子分頁', () => {
     first.resolve(compare([YIHUA]))
     await flushPromises()
 
-    const pane = wrapper.get('#pane-stats-compare')
+    const pane = wrapper.get('#stats-pane-compare')
     expect(pane.get('.stats-block__title').text()).toBe('五校比較（115 下學期）')
     expect(bodyRows(pane.get('.compare-table'))[0]![1]).toBe('7')
   })
@@ -250,7 +248,29 @@ describe('統計分頁的「五校比較」子分頁', () => {
     await button(pane, '重新載入')!.trigger('click')
     await flushPromises()
     expect(pathsTo(get, '/admin/admissions/compare')).toHaveLength(2)
-    expect(bodyRows(wrapper.get('#pane-stats-compare'))[0]![0]).toBe('義華')
+    expect(bodyRows(wrapper.get('#stats-pane-compare'))[0]![0]).toBe('義華')
+  })
+})
+
+describe('五校比較：五校都沒有訪視', () => {
+  it('五校 visit 全是 0 不畫整張 0 的表，改寫一句話；周邊環境表照常', async () => {
+    const zero = (key: string) => ({ ...row(key), visit: 0, deposit: 0, enrolled: 0, effective_deposit: 0, pending_deposit: 0 })
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([zero('yihua'), zero('minghua')]) })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    const pane = await openCompare(wrapper)
+
+    expect(pane.get('[data-test="compare-empty"]').text()).toContain('115 上學期五校都還沒有招生訪視')
+    expect(pane.find('.compare-table').exists()).toBe(false)
+    expect(pane.find('.area-compare').exists()).toBe(true)
+  })
+
+  it('只要有一校有訪視就畫表，不顯示空狀態', async () => {
+    mockGet({ '/admin/admissions/stats': quietStats(), '/admin/admissions/area/compare': areaCompare(), '/admin/admissions/compare': compare([YIHUA, MINGHUA]) })
+    const { wrapper } = await mountWith(StatsTab, { props: statsProps() })
+    const pane = await openCompare(wrapper)
+
+    expect(pane.find('[data-test="compare-empty"]').exists()).toBe(false)
+    expect(pane.find('.compare-table').exists()).toBe(true)
   })
 })
 

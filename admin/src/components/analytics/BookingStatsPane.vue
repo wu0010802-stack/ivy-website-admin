@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, toRef, watch } from 'vue'
+import { computed, provide, ref, toRef, watch } from 'vue'
 import { api, ApiError } from '../../api/client'
 import type { AnalyticsFunnelOut } from '../../api/types'
 import { SELF_BOOKING_SINCE } from '../../api/analytics'
-import { MANUAL_VISIT_SOURCES, campusLabel } from '../../api/labels'
+import { MANUAL_VISIT_SOURCES, campusLabel, formatShortDateTime } from '../../api/labels'
 import { cancelReasonLabel, ctaEntryLabel, funnelReferralLabel, funnelSourceLabel } from '../../api/analyticsLabels'
 import { taipeiToday } from '../../admissions/academic'
 import { useRequestSequence } from '../../composables/useRequestSequence'
@@ -15,6 +15,7 @@ import BookingOutcomesSection from './BookingOutcomesSection.vue'
 import ClassDistributionPanel from './ClassDistributionPanel.vue'
 import EventTrendPanel from './EventTrendPanel.vue'
 import { bookingCsvName, saveAnalyticsCsv } from './csvExport'
+import { PANE_META } from './metaContext'
 
 // 參觀預約的統計（2026-10-13 從成效統計搬到招生入學 → 統計分析 → 參觀預約，2026-10-16 隨統計分析搬到招生統計頁）：原本成效統計的
 // 「各校預約」與「預約孩子的班別」兩個頁籤併成一個子分頁，口徑與算法不變（DESIGN.md「成效統計補強」）。
@@ -134,6 +135,9 @@ const periodLabel = computed(() => (range.value ? `${range.value.from.replaceAll
 const periodTitle = computed(() =>
   period.value === 'custom' ? (range.value ? periodLabel.value : '自訂區間') : PERIOD_OPTIONS.find((option) => option.value === period.value)!.label,
 )
+
+// 期間與更新時間在分頁頂端寫一次，各卡的註腳只留單位（metaContext.ts）。
+provide(PANE_META, { period: periodLabel })
 
 const clicks = computed(() => [
   { label: '預約表單', value: count('booking_cta_clicked') },
@@ -295,6 +299,11 @@ function exportEntries() {
     </div>
 
     <h2 class="analytics__section-title">參觀預約（{{ periodTitle }}）</h2>
+    <p v-if="panelsReady" class="booking-stats__meta" data-test="booking-meta">
+      <!-- 「開站至今」選單上已經寫了；有起訖日的期間才寫出實際日期。 -->
+      <span v-if="range">期間 {{ periodLabel }}</span>
+      <span v-if="funnel">更新 {{ formatShortDateTime(funnel.as_of) }}</span>
+    </p>
     <el-empty v-if="!visibleCampusKeys.length" description="你的帳號沒有可查看的校區" />
     <p v-else-if="rangeMessage" class="field-help">{{ rangeMessage }}</p>
     <div v-else-if="panelsReady" class="booking-grid">
@@ -450,6 +459,23 @@ function exportEntries() {
 }
 
 /* 視覺上不必再看到大標，但讀屏與測試仍有一個對應的 h2。 */
+.booking-stats__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  margin: 0 0 12px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* 卡片裡的數字不再各包一張小卡（卡中卡，2026-11-20）：攤平。 */
+.analytics__clicks .stat {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+
 .analytics__section-title {
   position: absolute;
   width: 1px;

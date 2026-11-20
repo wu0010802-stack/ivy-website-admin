@@ -155,7 +155,7 @@ const COMPARE_CSV_HEADER = [
 function exportCompare() {
   const rows = compareTotal.value ? [...compareRows.value, compareTotal.value] : compareRows.value
   saveAnalyticsCsv(
-    bookingCsvName('五校比較', '', loadedLabel.value),
+    bookingCsvName('各校預約', '', loadedLabel.value),
     COMPARE_CSV_HEADER,
     rows.map((item) => [
       item.campus, item.modeShort, item.cases, item.completed, item.no_show, rateCsv(item.attendance),
@@ -175,13 +175,13 @@ function exportCompare() {
       aria-labelledby="compare-title"
     >
       <div class="panel__head">
-        <h2 id="compare-title">五校比較<span class="panel__sub num">{{ loadedLabel }}</span></h2>
+        <h2 id="compare-title">各校預約<span class="panel__sub num">{{ loadedLabel }}</span></h2>
         <div class="compare__tools">
           <span class="hint" role="status">{{ updating ? '更新中…' : '' }}</span>
-          <el-button v-if="compareRows.length" size="small" text data-test="analytics-csv-compare" aria-label="把「五校比較」匯出 CSV" @click="exportCompare">匯出 CSV</el-button>
+          <el-button v-if="compareRows.length" size="small" text data-test="analytics-csv-compare" aria-label="把「各校預約」匯出 CSV" @click="exportCompare">匯出 CSV</el-button>
         </div>
       </div>
-      <div class="compare__scroll" role="region" tabindex="0" aria-label="五校比較（可左右捲動）">
+      <div class="compare__scroll" role="region" tabindex="0" aria-label="各校預約（可左右捲動）">
         <table class="stats-table compare__table">
           <thead>
             <tr>
@@ -508,6 +508,15 @@ function exportCompare() {
 
 .outcomes__stats {
   grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px 24px;
+}
+
+/* 卡片裡的數字不再各包一張小卡（卡中卡，2026-11-20）：攤平成一列。 */
+.outcomes__stats .stat {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
 }
 
 .outcomes__rates {

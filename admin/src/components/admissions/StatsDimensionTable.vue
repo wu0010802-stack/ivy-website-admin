@@ -38,20 +38,77 @@ const props = withDefaults(
     collapsedRows?: number
     /** 匯出用的欄（只在 CSV 多幾欄時給，例如里的變化的「一年前 1–4 歲」，2026-10-14）；沒給就是 columns。 */
     csvColumns?: readonly StatsColumn[]
+    /** 數字欄的表頭可以點來排序（2026-11-20）：第一次由大到小，再點一次由小到大；預設照呼叫端給的順序。匯出不受影響。 */
+    sortable?: boolean
+    /** 名稱欄等於這個值的列（「未填寫」）排序時固定在最後，字色淡一階。 */
+    pinLast?: string
+    /** 欄數少的表不拉滿整頁（名稱和數字隔太遠不好對）：限寬 760px。 */
+    compact?: boolean
+    /** 區間條上的參考線：這張表全體的比率（百分比）。 */
+    average?: number | null
   }>(),
-  { numbered: false, caption: '', captionCollapsed: false, exportFilename: '', actionLabel: '', nameAction: '', collapsedRows: 0 },
+  { numbered: false, caption: '', captionCollapsed: false, exportFilename: '', actionLabel: '', nameAction: '', collapsedRows: 0, sortable: false, pinLast: '', compact: false, average: null },
 )
 
 const emit = defineEmits<{ action: [row: Row]; 'name-action': [row: Row] }>()
 
 const headingId = useId()
 
-const expanded = ref(false)
-const collapsible = computed(() => props.collapsedRows > 0 && props.rows.length > props.collapsedRows)
-const shownRows = computed(() => (collapsible.value && !expanded.value ? props.rows.slice(0, props.collapsedRows) : props.rows))
-
 function toNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
+}
+
+// 排序（sortable）：只排畫面，匯出仍是呼叫端的順序。比率沒有值（分母 0）的列不論升降都排在有值的後面；
+// pinLast 那一列（未填寫）永遠最後。
+type SortState = { key: string; dir: 'desc' | 'asc' }
+const sort = ref<SortState | null>(null)
+const canSort = (column: StatsColumn) => props.sortable && (column.kind === 'count' || column.kind === 'bar' || column.kind === 'rate')
+function toggleSort(column: StatsColumn) {
+  const current = sort.value
+  sort.value = current?.key === column.key ? (current.dir === 'desc' ? { key: column.key, dir: 'asc' } : null) : { key: column.key, dir: 'desc' }
+}
+const ariaSort = (column: StatsColumn) => (sort.value?.key === column.key ? (sort.value.dir === 'desc' ? 'descending' : 'ascending') : undefined)
+const sortHint = (column: StatsColumn) => {
+  const dir = sort.value?.key === column.key ? sort.value.dir : null
+  return `${column.label}，${dir === 'desc' ? '目前由大到小，按一下改成由小到大' : dir === 'asc' ? '目前由小到大，按一下取消排序' : '按一下由大到小排序'}`
+}
+const isPinned = (row: Row) => Boolean(props.pinLast) && nameColumn.value !== undefined && row[nameColumn.value.key] === props.pinLast
+const sortedRows = computed<readonly Row[]>(() => {
+  const state = sort.value
+  if (!state && !props.pinLast) return props.rows
+  const sign = state?.dir === 'asc' ? 1 : -1
+  const valueOf = (row: Row) => (state && typeof row[state.key] === 'number' ? (row[state.key] as number) : null)
+  return [...props.rows].sort((a, b) => {
+    const pinned = Number(isPinned(a)) - Number(isPinned(b))
+    if (pinned || !state) return pinned
+    const [x, y] = [valueOf(a), valueOf(b)]
+    if (x === null || y === null) return Number(x === null) - Number(y === null)
+    return (x - y) * sign
+  })
+})
+
+const expanded = ref(false)
+const collapsible = computed(() => props.collapsedRows > 0 && props.rows.length > props.collapsedRows)
+const shownRows = computed(() => (collapsible.value && !expanded.value ? sortedRows.value.slice(0, props.collapsedRows) : sortedRows.value))
+
+// 區間條（range 欄有 rangeOf）：0–100% 的軌道上，色條是可能範圍、點是實際比率、虛線是全體平均。
+const hasInterval = computed(() => props.columns.some((column) => column.kind === 'range' && column.rangeOf))
+const percentStyle = (value: number) => `${Math.min(100, Math.max(0, value))}%`
+function interval(row: Row, column: StatsColumn) {
+  const range = toRange(row[column.key])
+  const actual = column.rangeOf ? row[column.rangeOf] : null
+  return {
+    range: range ? { left: percentStyle(range.low), width: `${Math.min(100, Math.max(0, range.high - range.low))}%` } : null,
+    dot: typeof actual === 'number' ? percentStyle(actual) : null,
+  }
+}
+
+// split 欄：「20人 / 80.0%」拆成上面 80.0%、下面 20人；不是這個寫法（「—」）就整格照寫。
+function splitCell(row: Row, column: StatsColumn): { main: string; sub: string } | null {
+  const value = row[column.key]
+  if (typeof value !== 'string') return null
+  const [sub, main, ...rest] = value.split(' / ')
+  return sub && main && !rest.length ? { main, sub } : null
 }
 
 // 每個 bar 欄的最大值：長條以它為 100%；欄位指定 barMax 時（數值本身就是比例的欄）改用它。
@@ -73,7 +130,7 @@ function display(row: Row, column: StatsColumn): string {
 }
 
 const isNumeric = (column: StatsColumn) =>
-  column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar' || column.kind === 'range'
+  column.kind === 'count' || column.kind === 'rate' || column.kind === 'bar' || column.kind === 'range' || column.kind === 'split'
 
 // 按鈕的 aria-label 帶這一列的名稱（第一個 sticky 欄，沒有就第一欄），讀屏才分得出是哪一列的「查看明細」。
 const nameColumn = computed(() => props.columns.find((column) => column.sticky) ?? props.columns[0])
@@ -136,7 +193,7 @@ function exportCsv() {
 </script>
 
 <template>
-  <section class="stats-block" :aria-labelledby="headingId">
+  <section class="stats-block" :class="{ 'stats-block--compact': compact }" :aria-labelledby="headingId">
     <div class="stats-block__head">
       <h3 :id="headingId" class="stats-block__title">{{ title }}</h3>
       <el-button
@@ -156,6 +213,17 @@ function exportCsv() {
       <p>{{ caption }}</p>
     </AnalyticsExplainer>
     <p v-else-if="caption" class="hint stats-block__caption">{{ caption }}</p>
+    <template v-if="hasInterval && rows.length">
+      <p class="stats-legend" data-test="stats-interval-legend">
+        <span><i class="stats-legend__dot" aria-hidden="true" />實際比率</span>
+        <span><i class="stats-legend__range" aria-hidden="true" />可能範圍</span>
+        <span v-if="average !== null"><i class="stats-legend__avg" aria-hidden="true" />全體平均 <span class="num">{{ formatRate(average) }}</span></span>
+      </p>
+      <AnalyticsExplainer class="stats-block__how" summary="怎麼看可能範圍" data-test="stats-explainer">
+        <p>可能範圍：依筆數估計真實預繳率大概落在哪裡。筆數少時範圍寬，而且會往這張表的全體平均靠，所以 3 筆裡 3 筆不代表比較好。</p>
+        <p>兩列的色條大部分重疊，就還分不出誰高誰低。</p>
+      </AnalyticsExplainer>
+    </template>
     <p v-if="!rows.length" class="stats-block__empty">{{ emptyText }}</p>
     <div v-else class="stats-block__scroll" role="region" tabindex="0" :aria-label="`${title}（可左右捲動）`">
       <table class="stats-table">
@@ -167,15 +235,26 @@ function exportCsv() {
               :key="column.key"
               scope="col"
               :class="{ 'stats-table__sticky': column.sticky, 'stats-table__number': isNumeric(column) }"
+              :aria-sort="ariaSort(column)"
             >
-              {{ column.label }}
+              <button
+                v-if="canSort(column)"
+                type="button"
+                class="stats-sort"
+                :class="sort?.key === column.key ? `is-${sort.dir}` : ''"
+                :title="sortHint(column)"
+                @click="toggleSort(column)"
+              >
+                {{ column.label }}<span class="stats-sort__mark" aria-hidden="true" />
+              </button>
+              <template v-else>{{ column.label }}</template>
             </th>
             <th v-if="actionColumn" scope="col" class="stats-table__action"><span class="visually-hidden">操作</span></th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="(row, index) in shownRows" :key="String(row[rowKey])">
-            <td v-if="numbered" class="stats-table__index num">{{ index + 1 }}</td>
+          <tr v-for="(row, index) in shownRows" :key="String(row[rowKey])" :class="{ 'stats-table__row--muted': isPinned(row) }">
+            <td v-if="numbered" class="stats-table__index num">{{ isPinned(row) ? '' : index + 1 }}</td>
             <template v-for="column in columns" :key="column.key">
               <th v-if="column.sticky" scope="row" class="stats-table__sticky">
                 <button v-if="nameAsNameAction(column)" type="button" class="stats-table__name-link" :aria-label="nameActionAria(row, index)" @click="emit('name-action', row)">
@@ -191,6 +270,18 @@ function exportCsv() {
                   <span class="stats-bar__fill" :style="{ width: barWidth(toNumber(row[column.key]), maxima[column.key] ?? 0) }" />
                 </span>
                 <span class="num">{{ display(row, column) }}</span>
+              </td>
+              <td v-else-if="column.kind === 'range' && column.rangeOf" class="stats-table__number stats-table__interval">
+                <span class="stats-interval" aria-hidden="true">
+                  <span v-if="interval(row, column).range" class="stats-interval__range" :style="interval(row, column).range!" />
+                  <span v-if="average !== null" class="stats-interval__avg" :style="{ left: percentStyle(average) }" />
+                  <span v-if="interval(row, column).dot" class="stats-interval__dot" :style="{ left: interval(row, column).dot! }" />
+                </span>
+                <span class="num stats-interval__text">{{ display(row, column) }}</span>
+              </td>
+              <td v-else-if="column.kind === 'split' && splitCell(row, column)" class="stats-table__number stats-table__split">
+                <span class="num">{{ splitCell(row, column)!.main }}</span>
+                <small class="num">{{ splitCell(row, column)!.sub }}</small>
               </td>
               <td v-else :class="{ 'stats-table__number': isNumeric(column), num: isNumeric(column) }">{{ display(row, column) }}</td>
             </template>
@@ -358,10 +449,169 @@ function exportCsv() {
   background: var(--el-color-primary);
 }
 
+.stats-block--compact {
+  max-width: 760px;
+}
+
+.stats-table__row--muted > * {
+  color: var(--ink-3);
+}
+
+.stats-table tbody .stats-table__row--muted th {
+  color: var(--ink-3);
+  font-weight: 400;
+}
+
+/* 排序鈕：樣子就是表頭的字，後面一個小箭頭；沒排序時箭頭是淡的上下，排序中是操作色的單向。 */
+.stats-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stats-sort__mark::before {
+  content: '↕';
+  color: var(--line-strong);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.stats-sort:hover .stats-sort__mark::before {
+  color: var(--ink-2);
+}
+
+.stats-sort.is-desc,
+.stats-sort.is-asc {
+  color: var(--admin-accent-hover);
+}
+
+.stats-sort.is-desc .stats-sort__mark::before {
+  content: '↓';
+  color: var(--admin-accent-hover);
+}
+
+.stats-sort.is-asc .stats-sort__mark::before {
+  content: '↑';
+  color: var(--admin-accent-hover);
+}
+
+.stats-sort:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.stats-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 16px;
+  margin: -2px 0 4px;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.stats-legend > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stats-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--admin-accent-hover);
+}
+
+.stats-legend__range {
+  width: 22px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-7);
+}
+
+.stats-legend__avg {
+  height: 14px;
+  border-left: 1px dashed var(--ink-3);
+}
+
+.stats-table .stats-table__interval {
+  white-space: nowrap;
+}
+
+.stats-interval {
+  position: relative;
+  display: inline-block;
+  width: 180px;
+  height: 14px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+.stats-interval::before {
+  content: '';
+  position: absolute;
+  inset: 6px 0;
+  border-radius: 1px;
+  background: var(--surface-3);
+}
+
+.stats-interval__range {
+  position: absolute;
+  top: 4px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--el-color-primary-light-7);
+}
+
+.stats-interval__avg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--ink-3);
+}
+
+.stats-interval__dot {
+  position: absolute;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--admin-accent-hover);
+}
+
+.stats-interval__text {
+  display: inline-block;
+  min-width: 4.5em;
+  color: var(--ink-2);
+}
+
+.stats-table__split {
+  line-height: 1.3;
+}
+
+.stats-table__split small {
+  display: block;
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
 @media (max-width: 720px) {
   .stats-table th,
   .stats-table td {
     padding: 8px 10px;
+  }
+
+  .stats-interval {
+    width: 96px;
   }
 
   .stats-bar {

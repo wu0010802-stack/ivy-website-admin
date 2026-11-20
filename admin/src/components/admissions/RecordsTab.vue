@@ -3,7 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
 import { ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
-import { deleteRecord, getOptions, listAdmissionsStaff, listRecords, recordsExport } from '../../api/admissions'
+import { deleteRecord, getOptions, getRecord, listAdmissionsStaff, listRecords, recordsExport } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
 import type { AdmissionsOptions, AdmissionsStaff, RecruitmentVisit } from '../../api/types'
@@ -50,12 +50,15 @@ const props = defineProps<{
   area?: string
   /** 統計「退出原因分佈」帶來的分類（網址 wr）；八項或 unclassified。 */
   withdrawCategory?: string
+  /** 招生統計未預繳明細的「查看」帶來的訪視 id（網址 open）：直接開這一筆的編輯表單。 */
+  openRecordId?: string
 }>()
 const emit = defineEmits<{
   'update:month': [value: string]
   'update:visitRequestId': [value: string]
   'update:area': [value: string]
   'update:withdrawCategory': [value: string]
+  'update:openRecordId': [value: string]
   'clear-term': []
 }>()
 
@@ -225,6 +228,25 @@ function openEdit(row: RecruitmentVisit) {
   editing.value = row
   dialogOpen.value = true
 }
+
+// 網址帶 open（招生統計未預繳明細的「查看」）：讀那一筆、開編輯表單，然後把 open 從網址拿掉
+// （重新整理、關掉表單都不會再開一次）。不是這一校的、已刪除或沒有權限的，寫一句找不到。
+watch(
+  () => props.openRecordId,
+  async (id) => {
+    if (!id) return
+    try {
+      const record = await getRecord(id)
+      if (record.campus_key === props.campusKey) openEdit(record)
+      else notifyError('找不到這筆訪視，可能已經刪除或不在這個校區。')
+    } catch {
+      notifyError('找不到這筆訪視，可能已經刪除或不在這個校區。')
+    } finally {
+      emit('update:openRecordId', '')
+    }
+  },
+  { immediate: true },
+)
 
 // 桌機點姓名、手機按「歷程」（同看板點卡片）：有預約、看得到預約的開預約明細（家庭頁規格 6.1）。
 function openEvents(row: RecruitmentVisit) {

@@ -14,6 +14,8 @@ import type {
   VillageBoundaries,
 } from '../api/types'
 import { useAuthStore } from '../stores/auth'
+import { STATS_SUB_LABELS, groupOfSub } from '../admissions/statsNav'
+import type { StatsSub } from '../admissions/useAdmissionsFilters'
 import { testUser } from './fixtures'
 
 export const wrappers: VueWrapper[] = []
@@ -105,6 +107,24 @@ type Spy = { mock: { calls: unknown[][] } }
 export const pathsTo = (spy: Spy, prefix: string): string[] => spy.mock.calls.map((call) => String(call[0])).filter((path) => path.startsWith(prefix))
 export const queryOf = (path: string): URLSearchParams => new URLSearchParams(path.split('?')[1] ?? '')
 export const bodyOf = (spy: Spy, prefix: string): unknown => spy.mock.calls.find((call) => String(call[0]).startsWith(prefix))?.[1]
+
+// 統計頁的分頁（2026-11-20 起是「分類＋該類的分頁列」，不是 el-tabs）：依分頁名稱開啟——先點它所屬的分類（還沒選中才點）、再點分頁，
+// 回傳內容區。資料匯入不在分頁列，走分類旁的按鈕。獨立掛載（沒給 sub）時 StatsTab 自己記著目前的分頁。
+export async function openStatsSub(wrapper: VueWrapper, label: string): Promise<Omit<DOMWrapper<Element>, 'exists'>> {
+  const key = (Object.keys(STATS_SUB_LABELS) as StatsSub[]).find((sub) => STATS_SUB_LABELS[sub] === label)
+  if (!key) throw new Error(`沒有這個統計分頁：${label}`)
+  const group = groupOfSub(key)
+  if (!group) await wrapper.get('.stats-nav__imports').trigger('click')
+  else {
+    const cat = wrapper.findAll('.stats-nav__cats .status-tab').find((item) => item.text() === group.label)!
+    if (cat.attributes('aria-pressed') !== 'true') await cat.trigger('click')
+    await wrapper.get(`#stats-tab-${key}`).trigger('click')
+  }
+  await flushPromises()
+  return wrapper.get(`#stats-pane-${key}`)
+}
+/** 目前這一類的分頁列文字。 */
+export const statsTabLabels = (wrapper: VueWrapper): string[] => wrapper.findAll('.stats-tabs .stats-tab').map((item) => item.text())
 
 // 只要求 findAll：測試裡 `Omit<DOMWrapper, 'exists'>` 之類的別名也能直接傳。
 type Findable = VueWrapper | Pick<DOMWrapper<Element>, 'findAll'>

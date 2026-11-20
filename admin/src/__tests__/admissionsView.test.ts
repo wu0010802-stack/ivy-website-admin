@@ -285,7 +285,8 @@ describe('頁首篩選的作用範圍與手機摘要', () => {
     mockGet(routesOn)
     const { wrapper } = await mountWith(AdmissionsView, { path: '/admissions?campus=yihua&sy=114&sem=2&tab=records' })
     const selects = ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label)!)
-    expect(selects.map((item) => item.props('disabled'))).toEqual([false, false])
+    // 2026-11-20 起篩選列沒有停用的狀態（招生統計改成不適用就不出現）：兩個下拉都在、都能用。
+    expect(selects.map((item) => Boolean(item.props('disabled')))).toEqual([false, false])
     expect(wrapper.find('.admissions__scope-note').exists()).toBe(false)
   })
 })

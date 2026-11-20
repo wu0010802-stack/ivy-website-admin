@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { rocMonth, taipeiToday } from '../../admissions/academic'
+import MonthlyTrendChart from './MonthlyTrendChart.vue'
 import StatsDimensionTable from './StatsDimensionTable.vue'
+import AnalyticsExplainer from '../analytics/AnalyticsExplainer.vue'
 import type { AdmissionsStats } from '../../api/types'
 import {
   NO_VALUE, TREND_MARK, alertLevelLabel, barWidth, formatPoints, formatRate, rateLevel, trendLabel, trendOf,
@@ -13,6 +15,9 @@ import {
 // （月度量體、轉換率走勢）由月度明細表的長條取代；「全管道彙整」是園務自家官網報名，不做；
 // 「本範圍合計」是官網加的，一次列出規格 9.2 的六個計數、唯一幼生與四個比率。
 // 比率 null（分母 0）一律寫「—」。
+// 2026-11-20（區塊順序與比率上色照園務不動）：參考月份只寫一處（標題列的選單）；補回園務本來就有的月度圖
+// （MonthlyTrendChart，放在「本範圍合計」前面，月度明細表與年度統計照舊在後）；「本範圍合計」分主次（六個常看的在上，其餘口徑收合）；
+// 警示依嚴重度排（高在前）。
 const props = defineProps<{ stats: AdmissionsStats; csvName?: (title: string) => string }>()
 const emit = defineEmits<{ navigate: [target: { tab: StatsTarget; filter: Record<string, string | number> }] }>()
 
@@ -34,21 +39,32 @@ const funnel = computed(() => props.stats.funnel_snapshot)
 const rates = computed(() => props.stats.decision_summary.current_month)
 const badgeTrend = computed(() => trendOf(mom.value.visit_to_deposit_rate.delta))
 
-const kpiItems = computed(() => {
+// 「本範圍合計」是官網加的（園務沒有這塊）：十個數字原本同樣大小排成一片。常看的六個放上面，
+// 要先懂「轉其他學期」才讀得懂的四個收在「其他口徑」，各附一句算法。
+const kpiMain = computed(() => {
   const kpi = props.stats.kpi
   return [
     { label: '參觀', value: String(kpi.visit), sub: `唯一幼生 ${kpi.unique_visit}` },
     { label: '預繳', value: String(kpi.deposit), sub: `唯一幼生 ${kpi.unique_deposit}` },
     { label: '註冊', value: String(kpi.enrolled), sub: '' },
-    { label: '轉其他學期', value: String(kpi.transfer_term), sub: '' },
-    { label: '有效預繳', value: String(kpi.effective_deposit), sub: '' },
     { label: '預繳未註冊', value: String(kpi.pending_deposit), sub: '' },
     { label: '參觀→預繳率', value: formatRate(kpi.visit_to_deposit_rate), sub: '' },
     { label: '參觀→註冊率', value: formatRate(kpi.visit_to_enrolled_rate), sub: '' },
-    { label: '預繳→註冊率', value: formatRate(kpi.deposit_to_enrolled_rate), sub: '' },
-    { label: '排除轉期→註冊率', value: formatRate(kpi.effective_to_enrolled_rate), sub: '' },
   ]
 })
+const kpiMore = computed(() => {
+  const kpi = props.stats.kpi
+  return [
+    { label: '轉其他學期', value: String(kpi.transfer_term), sub: '' },
+    { label: '有效預繳', value: String(kpi.effective_deposit), sub: '預繳且沒有轉其他學期' },
+    { label: '預繳→註冊率', value: formatRate(kpi.deposit_to_enrolled_rate), sub: '' },
+    { label: '排除轉期→註冊率', value: formatRate(kpi.effective_to_enrolled_rate), sub: '註冊 ÷ 有效預繳' },
+  ]
+})
+
+// 警示依嚴重度排：高（danger）在前。同一級維持後端的順序。
+const ALERT_RANK: Record<string, number> = { danger: 0, warning: 1, info: 2 }
+const alerts = computed(() => [...props.stats.alerts].sort((a, b) => (ALERT_RANK[a.level] ?? 3) - (ALERT_RANK[b.level] ?? 3)))
 
 // 預繳速度（2026-10-12 規格 §10.1）：參觀後第 N 天的累積預繳率；長條以五個觀察點的最大值為 100%。
 const timing = computed(() => props.stats.deposit_timing)
@@ -98,13 +114,14 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
   <div class="overview">
     <section class="stats-card decision">
       <div class="decision__head">
-        <div>
-          <h3>主管決策摘要</h3>
-          <p class="hint">參考月份：{{ stats.reference_month ?? '尚未指定' }}</p>
+        <h3>主管決策摘要</h3>
+        <div class="decision__tools">
+          <slot name="reference-month">
+            <span class="hint">參考月份：{{ stats.reference_month ?? '尚未指定' }}</span>
+          </slot>
+          <span class="decision__badge" :class="`decision__badge--${badgeTrend}`">{{ badgeTrend === 'none' ? '' : `${TREND_MARK[badgeTrend]} ` }}月比預繳率 {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</span>
         </div>
-        <span class="decision__badge" :class="`decision__badge--${badgeTrend}`">{{ badgeTrend === 'none' ? '' : `${TREND_MARK[badgeTrend]} ` }}月比預繳率 {{ formatPoints(mom.visit_to_deposit_rate.delta) }}</span>
       </div>
-      <slot name="reference-month" />
       <div class="decision__cards">
         <article v-for="card in cards" :key="card.key" class="decision__card">
           <h4>
@@ -131,8 +148,8 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
     <div class="overview__pair">
       <section class="stats-card">
         <h3>異常警示</h3>
-        <ul v-if="stats.alerts.length" class="overview__list">
-          <li v-for="alert in stats.alerts" :key="alert.code">
+        <ul v-if="alerts.length" class="overview__list">
+          <li v-for="alert in alerts" :key="alert.code">
             <button type="button" class="alert-item" @click="go(alert)">
               <el-tag size="small" :type="alert.level" disable-transitions>{{ alertLevelLabel(alert.level) }}</el-tag>
               <strong>{{ alert.title }}</strong>
@@ -141,6 +158,9 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           </li>
         </ul>
         <p v-else class="overview__empty">目前沒有明顯異常</p>
+        <AnalyticsExplainer summary="警示怎麼比預繳速度" class="overview__how" data-test="pace-explainer">
+          <p>剛參觀的家長還沒到會預繳的時候，所以「本月預繳比過去慢」「來源結構失衡」是依過去的速度，算到今天應該有幾筆預繳再比較。</p>
+        </AnalyticsExplainer>
       </section>
       <section class="stats-card">
         <h3>行動入口</h3>
@@ -236,10 +256,15 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
       <p v-if="timing.missing_time > 0" class="hint">另有 {{ timing.missing_time }} 筆已預繳但沒有預繳紀錄時間，不列入。</p>
     </section>
 
+    <section v-if="stats.monthly.length > 1" class="stats-card" data-test="monthly-trend">
+      <h3>月度走勢</h3>
+      <MonthlyTrendChart :rows="stats.monthly" />
+    </section>
+
     <section class="stats-card">
       <h3>本範圍合計</h3>
-      <dl class="kpi">
-        <div v-for="item in kpiItems" :key="item.label">
+      <dl class="kpi kpi--main">
+        <div v-for="item in kpiMain" :key="item.label">
           <dt>{{ item.label }}</dt>
           <dd>
             <strong class="num">{{ item.value }}</strong>
@@ -247,6 +272,18 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
           </dd>
         </div>
       </dl>
+      <details class="kpi-more">
+        <summary>其他口徑：轉其他學期、有效預繳、排除轉期</summary>
+        <dl class="kpi">
+          <div v-for="item in kpiMore" :key="item.label">
+            <dt>{{ item.label }}</dt>
+            <dd>
+              <strong class="num">{{ item.value }}</strong>
+              <span v-if="item.sub" class="kpi__sub">{{ item.sub }}</span>
+            </dd>
+          </div>
+        </dl>
+      </details>
     </section>
 
     <StatsDimensionTable
@@ -295,14 +332,25 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 .decision__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 8px 16px;
   margin-bottom: 12px;
 }
 
 .decision__head h3 {
-  margin-bottom: 2px;
+  margin-bottom: 0;
+}
+
+.decision__tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.overview__how {
+  margin-top: 8px;
 }
 
 .decision__badge {
@@ -537,6 +585,27 @@ const yearlyRows = computed(() => props.stats.by_year.map((row) => ({ ...row, la
 .kpi__sub {
   color: var(--ink-3);
   font-size: var(--text-xs);
+}
+
+.kpi--main dd strong {
+  font-size: var(--text-3xl);
+}
+
+.kpi-more {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.kpi-more > summary {
+  width: fit-content;
+  color: var(--admin-accent-strong);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.kpi-more > .kpi {
+  margin-top: 10px;
 }
 
 .mom__pace {

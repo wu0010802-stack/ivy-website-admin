@@ -9,8 +9,12 @@ export type StatsTarget = 'records' | 'nodeposit' | 'source'
 export interface StatsColumn {
   key: string
   label: string
-  /** text：原文；count：整數；rate：百分比（null 寫「—」）；bar：整數＋CSS 長條；range：可能範圍「29–64%」（2026-10-12），CSV 拆下限、上限兩欄。 */
-  kind?: 'text' | 'count' | 'rate' | 'bar' | 'range'
+  /** text：原文；count：整數；rate：百分比（null 寫「—」）；bar：整數＋CSS 長條；range：可能範圍「29–64%」（2026-10-12），CSV 拆下限、上限兩欄；
+   *  split：呼叫端給的「A / B」字串在畫面上拆成兩行（B 在上、A 小字在下），CSV 仍是原字串（接待人員 × 年級，2026-11-20）。 */
+  kind?: 'text' | 'count' | 'rate' | 'bar' | 'range' | 'split'
+  /** range 欄專用：這個範圍是哪一欄比率的（例如 visit_to_deposit_rate）。有給就在文字旁畫區間條：色條是範圍、點是實際值、
+   *  虛線是表格的 average（2026-11-20）。只看「63–80%」兩個數字比不出寬窄，筆數少的範圍有多寬要畫出來才看得到。 */
+  rangeOf?: string
   /** 手機橫捲時固定在左側的欄。 */
   sticky?: boolean
   /** bar 欄長條以這個值為 100%；沒設就以該欄目前最大值為 100%（比大小用）。數值本身就是比例的欄（填滿率 0–100）要設，不然最高那列永遠是滿的。 */
@@ -58,9 +62,11 @@ export function formatPoints(value: number | null | undefined): string {
 export type Trend = 'up' | 'down' | 'flat' | 'none'
 export const TREND_MARK: Record<Trend, string> = { up: '▲', down: '▼', flat: '–', none: '' }
 
-/** 月比顯示：符號＋百分點；沒有值（none）不放符號，只寫「—」。 */
+/** 月比顯示：符號＋百分點；沒有值（none）不放符號，只寫「—」；沒有變化寫「持平」（「– 0.0 個百分點」像負值，2026-11-20）。 */
 export function trendLabel(delta: number | null | undefined): string {
-  return `${TREND_MARK[trendOf(delta)]} ${formatPoints(delta)}`.trim()
+  const trend = trendOf(delta)
+  if (trend === 'flat') return '持平'
+  return `${TREND_MARK[trend]} ${formatPoints(delta)}`.trim()
 }
 
 export function trendOf(value: number | null | undefined): Trend {
