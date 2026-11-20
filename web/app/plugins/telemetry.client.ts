@@ -1,11 +1,15 @@
 import { publicPage, type TelemetryEvent } from '#shared/telemetry'
-import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, tracksClicks, trackingAllowed } from '../utils/cta-analytics'
+import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, statsAllowed, tracksClicks } from '../utils/cta-analytics'
 import { newIdempotencyKey } from '../utils/idempotency-key'
+import { reusesPageInstance } from '../utils/third-party-analytics'
 
 export default defineNuxtPlugin((app) => {
   const config = useRuntimeConfig()
   const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
-  if (!trackingAllowed(config.public.telemetryEnabled, nav)) return
+  // 自動化瀏覽器、爬蟲、登入過後台的瀏覽器也不送（2026-11-20，見 statsAllowed）。
+  if (!statsAllowed(config.public.telemetryEnabled, nav, document.cookie)) return
+  // 404 等錯誤頁（例如關掉的 30 週年頁）不算瀏覽、也不送速度：網址對得到頁面，看到的卻是錯誤頁。
+  const error = useError()
   const device = matchMedia('(max-width: 760px)').matches ? 'mobile' as const : 'desktop' as const
   const entryPage = publicPage(location.pathname)
   function send(event: Omit<TelemetryEvent, 'device'>) {
@@ -17,16 +21,21 @@ export default defineNuxtPlugin((app) => {
     if (previousPath === location.pathname) return
     previousPath = location.pathname
     const page = publicPage(previousPath)
-    if (page) send({ event: 'page_view', ...page })
+    if (page && !error.value) send({ event: 'page_view', ...page })
   }
   app.hook('page:finish', pageView)
+  // 同一個頁面實例換網址（/visit ↔ /visit/<校>，預約頁的 definePageMeta key 固定）不會有 page:finish：
+  // 換頁完成就記（2026-11-20；11-11 起五校預約頁的瀏覽因此只記到約四成）。和 GA 的補送同一個判斷。
+  useRouter().afterEach((to, from, failure) => {
+    if (!failure && to.path !== from.path && reusesPageInstance(to, from)) pageView()
+  })
   app.hook('app:mounted', () => {
     pageView()
     // 標準 CWV 依 document 進入頁歸屬；不將 SPA 換頁當成新的 LCP。
     if (entryPage) void import('web-vitals').then(({ onLCP, onINP, onCLS }) => {
       const ids = new Map<string, string>()
       const report = (metric: { name: 'LCP' | 'INP' | 'CLS'; value: number; id: string }) => {
-        if (!publicPage(location.pathname)) return
+        if (!publicPage(location.pathname) || error.value) return
         if (!ids.has(metric.id)) ids.set(metric.id, newIdempotencyKey())
         send({ ...entryPage, event: metric.name, value: metric.value, id: ids.get(metric.id)! })
       }

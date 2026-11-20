@@ -12,7 +12,7 @@ import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
-import { DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, type AnalyticsDays, type AnalyticsDevice, type InterestView } from './analytics/filters'
+import { DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, periodText, type AnalyticsDays, type AnalyticsDevice, type InterestView } from './analytics/filters'
 
 // 內容興趣（2026-11-11）：家長在官網各頁停多久、看到哪些區塊、點了什麼、哪幾篇消息有人讀完，
 // 以及看過哪些內容的造訪比較會送出預約。紀錄只留 90 天。
@@ -54,6 +54,8 @@ watch([() => props.days, () => props.device], load, { immediate: true })
 const updating = computed(() => loading.value && summary.value !== null)
 watch(updating, (value) => emit('updating', value))
 const rangeText = computed(() => (summary.value ? `${summary.value.since.replaceAll('-', '/')}–${summary.value.until.replaceAll('-', '/')}` : ''))
+// 畫面上的期間：起點碰到成效統計的起算日時補一句（CSV 檔名仍用 rangeText）。
+const metaPeriod = computed(() => (summary.value ? periodText(summary.value.since, summary.value.until) : ''))
 const totals = computed(() => summary.value?.totals ?? null)
 const few = (count: number) => count < MIN_ENGAGEMENT_SAMPLES
 // 「造訪」的口徑三類都用得到：看了什麼寫在造訪概況的說明裡，另外兩類寫在開頭那一行下面。
@@ -61,6 +63,7 @@ const VISIT_NOTES = [
   '「造訪」以瀏覽器分頁計算。隔天重新從站外進站或另開分頁算新的一次；同分頁重新整理、繼續逛或按上一頁沿用原造訪。',
   '手機直接滑掉分頁時，最後一段停留可能送不出來，手機的數字會偏低。訪客開啟「不要追蹤」時不計入，所以次數會比「瀏覽與速度」的瀏覽次數少。',
   '「送出預約的造訪」由瀏覽器回報，只用來比較內容，不是正式的預約數；正式數字看「招生統計 → 參觀預約」。',
+  '自動化瀏覽器（例如上線驗證用的測試程式）、搜尋引擎爬蟲、登入過後台的瀏覽器都不計入（2026/11/20 起）；2026/11/13 以前是網域切換與上線驗證期間，那些紀錄不列入統計。',
 ]
 
 const pages = computed(() => (summary.value?.pages ?? []).map((row) => ({ ...row, label: engagementPageLabel(row.page, row.campus_key) })))
@@ -307,7 +310,7 @@ function exportCampusPrefs() {
               </div>
             </div>
             <DailyBars v-if="totals.sessions" title="每日造訪" :points="dailyPoints" unit="次" value-label="造訪次數" :export-filename="dailyCsvName" />
-            <AnalyticsMeta :period="rangeText" unit="造訪與頁面瀏覽（不是人數）" :as-of="summary.as_of" :coverage="coverage" />
+            <AnalyticsMeta :period="metaPeriod" unit="造訪與頁面瀏覽（不是人數）" :as-of="summary.as_of" :coverage="coverage" />
             <AnalyticsExplainer>
               <p v-for="note in VISIT_NOTES" :key="note">{{ note }}</p>
               <p>停留只算分頁在前景、而且一分鐘內有捲動或點擊的時間；一半的瀏覽比「中位數」久、一半比它短。</p>
@@ -466,7 +469,7 @@ function exportCampusPrefs() {
       <!-- 怎麼來、怎麼逛：左欄是從哪裡來（來源、活動代碼），右欄是進站後怎麼走（進站頁、順序），時段表放最下面。 -->
       <template v-else-if="view === 'journey'">
         <div class="interest__context" data-test="interest-context">
-          <AnalyticsMeta :period="rangeText" unit="造訪（不是人數）" :as-of="summary.as_of" :coverage="`共 ${totals.sessions} 次造訪，${coverage}`" />
+          <AnalyticsMeta :period="metaPeriod" unit="造訪（不是人數）" :as-of="summary.as_of" :coverage="`共 ${totals.sessions} 次造訪，${coverage}`" />
           <AnalyticsExplainer summary="「造訪」怎麼算">
             <p v-for="note in VISIT_NOTES" :key="note">{{ note }}</p>
           </AnalyticsExplainer>
@@ -664,7 +667,7 @@ function exportCampusPrefs() {
       <!-- 走到預約：表單各步與各校並排，內容與預約的比較放下面。 -->
       <template v-else>
         <div class="interest__context" data-test="interest-context">
-          <AnalyticsMeta :period="rangeText" unit="造訪（不是人數）" :as-of="summary.as_of" :coverage="`共 ${totals.sessions} 次造訪，${coverage}`" />
+          <AnalyticsMeta :period="metaPeriod" unit="造訪（不是人數）" :as-of="summary.as_of" :coverage="`共 ${totals.sessions} 次造訪，${coverage}`" />
           <AnalyticsExplainer summary="「造訪」怎麼算">
             <p v-for="note in VISIT_NOTES" :key="note">{{ note }}</p>
           </AnalyticsExplainer>
@@ -779,7 +782,7 @@ function exportCampusPrefs() {
                 </div>
                 <AnalyticsExplainer>
                   <p>前兩欄是首頁五校區塊的點擊（做過的瀏覽數），「進預約頁」是進過那一校預約頁的造訪數。</p>
-                  <p v-if="showBookings">「實際預約」是這段期間官網真的送出的預約（同招生統計），不受「不要追蹤」影響，也不分手機電腦；只顯示你有權限看的校區。</p>
+                  <p v-if="showBookings">「實際預約」是這段期間官網真的送出的預約，和招生統計「參觀預約」同一個口徑：不含標成測試或重複而排除的案件，也不含後台補登的案件；不受「不要追蹤」影響，也不分手機電腦；只顯示你有權限看的校區。</p>
                   <p>首頁一打開就顯示的那一校不用點就看得到，它的「切到這一校」會偏低。</p>
                 </AnalyticsExplainer>
               </div>
