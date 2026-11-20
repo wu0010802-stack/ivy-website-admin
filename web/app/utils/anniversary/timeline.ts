@@ -72,5 +72,3 @@ export function crayonLineX(y: number): number {
   return 0.5 + 0.2 * Math.sin(y / 260 + 0.6) + 0.07 * Math.sin(y / 97 + 2.1)
 }
 
-/** 開場影片只在同一個分頁工作階段播一次 */
-export const ANNI_INTRO_SESSION_KEY = 'ivy-anni-intro-seen'

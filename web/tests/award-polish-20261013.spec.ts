@@ -24,18 +24,7 @@ describe('splitTrailingParen（標題結尾括號整段換行）', () => {
   })
 })
 
-describe('30 週年開場飛進相框不算版面位移', () => {
-  const intro = read('app/components/AnniversaryIntro.vue')
-  it('只動 transform 與 clip-path，不再動 left/top/width/height', () => {
-    expect(intro).not.toMatch(/left: `\$\{b\.left\}px`/)
-    expect(intro).not.toContain('const kf =')
-    expect(intro).toContain('clipPath: `inset(${iy}px ${ix}px round ${radius / s}px)`')
-    expect(intro).toContain('transform: `translate(${dx}px, ${dy}px) rotate(${b.tilt}) scale(${s})`')
-  })
-  it('結束時連影片與海報的縮放動畫一起取消', () => {
-    expect(intro).toContain('frame.value?.getAnimations({ subtree: true }).forEach((a) => a.cancel())')
-  })
-})
+// 2026-11-11：「30 週年開場飛進相框不算版面位移」兩條隨 30 秒開場動畫（AnniversaryIntro.vue）一起拿掉；首屏改成按了才播的紀念影片。
 
 describe('常春藤環境頁首屏大標不擠出孤字', () => {
   // 2026-11-17「拱窗打開」：桌機起始畫面的大標在拱窗左邊，字級＝拱左邊的空位 ÷ 最長那一行的字數（--n，元件依標題算，至少 8），

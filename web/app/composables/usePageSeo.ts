@@ -34,7 +34,7 @@ export function usePageSeo(site: Ref<SiteContent | undefined>, page?: StaticPage
     if (page === 'curriculum') return curriculumHeroAttrs(site.value.curriculumPage)
     if (page === 'about') return aboutHeroAttrs(site.value.aboutPage)
     // 消息頁沒有滿版 hero，不預載。
-    // 30 週年首屏先播開場影片，海報圖已設 fetchpriority=high，不另外預載。
+    // 30 週年首屏是紀念影片的封面，圖已設 fetchpriority=high，不另外預載。
     // 常春藤環境頁的首屏照片桌機、手機各一張（帶 media），另外處理（heroLinks）。
     if (page === 'news' || page === 'privacy' || page === 'anniversary' || page === 'environment') return undefined
     return heroImageAttrs(site.value.home.hero)
