@@ -14,6 +14,45 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 園務同步端點：啟用步驟（`feature/ivy-management-sync-api-20261120`；合併部署後**預設關閉**）
+
+沒有 migration、不新增表。合併部署後這支端點仍是 404，直到在 api 服務設 `WEBSITE_IVY_SYNC_KEY_HASHES`。規格 `docs/specs/2026-11-20-ivy-management-sync-api.md`。
+
+| 服務 | 變數 | 說明 |
+|---|---|---|
+| api | `WEBSITE_IVY_SYNC_KEY_HASHES` | JSON 物件「校區 → 金鑰的 SHA-256（64 個 hex）」，例 `{"yihua":"<64 hex>"}`。只放雜湊、不放金鑰明文；校區必須是五校代號之一；格式不對 API 啟動失敗（錯誤訊息不帶值）。沒設或 `{}`＝關閉（404） |
+
+**啟用**
+
+1. 在自己的終端機產生金鑰與雜湊（金鑰只印在你的螢幕上，不寫檔、不貼對話）：
+
+   ```bash
+   python3 -c 'import secrets,hashlib; k=secrets.token_urlsafe(32); print("金鑰（只給園務）:", k); print("雜湊（設到 Railway）:", hashlib.sha256(k.encode()).hexdigest())'
+   ```
+
+2. Railway api 服務加 `WEBSITE_IVY_SYNC_KEY_HASHES={"yihua":"<上面的雜湊>"}`（要開別校就同一個物件多放幾個 key，各校各自一把金鑰）。重新部署。
+3. 把**金鑰**（不是雜湊）交給園務那邊，放在園務的部署變數；園務每次請求帶標頭 `X-Ivy-Integration-Key: <金鑰>`，網址用**後台主機** `https://admin.ivykidschool.com/api/website/v1/integrations/ivy-management/leads?campus_key=yihua`。
+4. **主機要設 `NUXT_ADMIN_HOST`**（見下方「後台搬到獨立子網域」）：設了才會「官網主機 www 一律 404、只有後台主機服務」；沒設時兩個主機都打得到這條路徑（仍要金鑰才給資料），建議先照該節把 `NUXT_ADMIN_HOST` 設好再啟用。
+5. **冒煙測試**（金鑰用環境變數帶，不寫進指令；`read -rs` 不會回顯也不進 shell 歷史）：
+
+   ```bash
+   read -rs IVY_SYNC_KEY && export IVY_SYNC_KEY      # 貼上金鑰後按 Enter
+   BASE=https://admin.ivykidschool.com/api/website/v1/integrations/ivy-management/leads
+   curl -sS -H "X-Ivy-Integration-Key: $IVY_SYNC_KEY" "$BASE?campus_key=yihua&limit=2" | python3 -m json.tool | head -60   # 200，items 最多 2 筆
+   curl -sS -o /dev/null -w '%{http_code}\n' -H "X-Ivy-Integration-Key: wrong" "$BASE?campus_key=yihua"                      # 401
+   curl -sS -o /dev/null -w '%{http_code}\n' "$BASE?campus_key=yihua"                                                         # 401（沒帶標頭）
+   curl -sS -o /dev/null -w '%{http_code}\n' -H "X-Ivy-Integration-Key: $IVY_SYNC_KEY" "https://www.ivykidschool.com/api/website/v1/integrations/ivy-management/leads?campus_key=yihua"   # 404（官網主機）
+   unset IVY_SYNC_KEY
+   ```
+
+   回應有 `next_cursor` 時，下一頁用 `&cursor=<next_cursor>`，取到 `null` 為止。注意：驗證失敗（含上面故意打的 401）每個來源 5 分鐘內最多 20 次，超過回 429。
+
+**輪替金鑰**：產生新金鑰與雜湊，把 Railway 的雜湊換成新的並重新部署，再把新金鑰交給園務換掉舊的。每校只存一個雜湊，換掉到園務換好之間園務會收到 401（園務下一輪重拉即可，這支端點沒有狀態）；要零中斷就挑園務兩輪拉取之間的空檔做。舊金鑰疑似外洩就立刻換，不必等。
+
+**關閉**：刪掉 `WEBSITE_IVY_SYNC_KEY_HASHES`（或設成 `{}`）並重新部署，路由不再掛上，一律 404；只關單一校區就把那個 key 從物件拿掉。
+
+**觀測**：驗證失敗記 WARNING（`app.integrations.ivy_management`，含來源 IP、校區、有沒有帶標頭，不含金鑰）；成功記 INFO（校區、回傳筆數、是否最後一頁）。不寫稽核表。
+
 ## 2026-11-20 後台成效統計第四輪：可讀性（PR #130，已部署 main `19a52c2b`）
 
 [PR #130](https://github.com/wu0010802-stack/ivy-website-admin/pull/130)（feature `cdf5be3e`）PR 組 CI 全綠（含 E2E），Codex 自動審查沒有意見。等 CI 期間 main 併入 #129（成效統計補強七項）造成三處衝突（`README.md`、`DESIGN.md`、`SearchInsightsPanel.vue`），把 main 併進分支（`bf6d3a51`，兩邊內容都保留）後 PR 組 CI 重跑全綠（含 E2E）才合併。使用者要求合併；以 merge commit `19a52c2b` 併入 main，[main CI/CD 44715558517](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44715558517) 成功，台灣時間 18:17 完成。

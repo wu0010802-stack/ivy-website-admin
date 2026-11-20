@@ -114,6 +114,39 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
     - 算法集中在 `backend/app/admissions/estimation.py`（只用標準函式庫），併入時由園務決定要不要跟進。
 20. 退出原因分類（2026-10-15，`docs/specs/2026-10-15-withdraw-reason-category-design.md`）：退預繳、退註冊時必選八項之一、說明選填；園務是必填的自由文字。官網的取消註冊（已註冊往回退）照舊必填文字。`/stats` 多 `withdraw_reasons`（分退預繳、退註冊，「未分類」＝改版前退出）與 `withdraw_total`。
 
+## 持續同步端點（2026-11-20 起，與一次性 JSONL 轉移並存）
+
+上面的 JSONL 是「併入園務時整批轉移一次」。業主 2026-11-20 裁定過渡期就要讓園務持續拿到官網招生資料，所以另有一支唯讀端點讓園務定期來拉（規格 `docs/specs/2026-11-20-ivy-management-sync-api.md`）。兩者不互相取代：JSONL 是完整、含歷程與聯絡紀錄的轉移格式；這支端點只給「一個家長一筆」的摘要，**不含**歷程、聯絡紀錄、區域比對、帶參觀老師，也不是園務 `recruitment_visits` 的欄位對欄位複本。
+
+`GET /api/website/v1/integrations/ivy-management/leads?campus_key=<校>&cursor=<游標>&limit=<1–200，預設 200>`，標頭 `X-Ivy-Integration-Key`（每校一把金鑰；官網 env 只存它的 SHA-256）。回應 `{campus_key, as_of, items: [Lead], next_cursor}`，`next_cursor` 為 `null` 才算取完；游標是不透明字串（內容是段別＋最後一筆的 `created_at`＋id），不要自己組。
+
+**lead 的 `id` 規則**（園務 upsert 的鍵，跨次拉取穩定）：
+
+- `vr:<預約 uuid>`：官網預約（`origin=visit_request`）。預約有招生訪視就帶上（`recruitment_visit_id`，階段、預繳、註冊、月份、追蹤用的欄位取訪視的值）；還沒到場、沒有訪視的預約用預約欄位換算（同 `booking_link.fields_from_visit_request`，沒填孩子姓名時是「（未填姓名）」）。
+- `rv:<招生訪視 uuid>`：沒有預約的招生訪視（`origin=manual_visit`）：後台手動建立，或原預約已被刪除（`visit_request_id` 是 `ON DELETE SET NULL`）。同一個訪視若之後被接回預約，不會出現（它屬於 `vr:`）。
+- 順序：先全部 `vr:`（`created_at`、`id` 升序），再全部 `rv:`（同）。被排除（`excluded_at`）的預約與它的訪視兩段都不回。**預約被排除或刪除時，園務上次拉到的那筆不會收到「刪除」通知**——這支端點是快照，沒有墓碑；園務若要反映排除，要以「這次完整拉取沒出現的 id」判斷（見規格 §8）。
+
+**欄位**（全部都在，沒有值是 `null`；日期 `YYYY-MM-DD`，時間是帶時區的 UTC）：
+
+| 欄位 | 說明 |
+|---|---|
+| `id`、`origin`、`visit_request_id`、`recruitment_visit_id` | 見上 |
+| `booking_status` | `confirmed`／`completed`／`no_show`／`cancelled`；`manual_visit` 為 `null` |
+| `booking_source` | 預約來源 `web`／`phone`／`line`／`walk_in`／`external`；`manual_visit` 為 `null` |
+| `stage` | `visited`／`deposited`／`enrolled`／`withdrawn`，用 `funnel.derive_stage`（與後台同一份算法）；沒有訪視為 `null` |
+| `created_at` | 預約（`vr:`）或訪視（`rv:`）的建立時間 |
+| `updated_at` | 訪視的 `updated_at`；沒有訪視為 `null`（預約沒有 updated_at） |
+| `visit_date` | 有訪視：訪視的參觀日；沒有訪視：場次日期；都沒有 `null`（**不用今天補**，和 `fields_from_visit_request` 的 fallback 不同） |
+| `month` | 訪視的民國月份 `115.09`；沒有訪視 `null` |
+| `child_name`、`birthday`、`grade`、`phone`、`contact_name` | 有訪視取訪視的值；沒有訪視由預約換算 |
+| `address`、`district`、`referrer`、`deposit_collector`、`parent_response` | 只有訪視才有；沒有訪視 `null` |
+| `source`、`notes` | 有訪視取訪視的；沒有訪視：`source` 是勾選的「從哪裡知道我們」以「、」串接，`notes` 是「家長想了解：…」 |
+| `has_deposit`、`enrolled`、`transfer_term` | 訪視的旗標；沒有訪視一律 `false` |
+| `target_school_year`、`target_semester` | 訪視的入學學年學期；沒有訪視由預約的預計入學時間換算（沒選是當前學期） |
+| `anonymized` | 預約或訪視任一 `anonymized_at` 非空即 `true`；此時 `child_name`、`birthday`、`phone`、`contact_name`、`address`、`notes`、`parent_response`、`referrer` 一律 `null`（不傳佔位文字或 `0000000000`），其餘（階段、旗標、`district`、`source`、日期）照常 |
+
+驗證失敗一律 401（錯誤碼 `INTEGRATION_AUTH_FAILED`，不分沒帶、不對、該校未設定、校區不認得）；同一來源 5 分鐘 20 次失敗後 429（`INTEGRATION_AUTH_RATE_LIMITED`＋`Retry-After`）；游標格式不對 422（`INVALID_CURSOR`）；功能沒開 404。測試 `backend/tests/test_ivy_management_sync.py`。
+
 ## 漂移檢查（手動，不進 CI）
 
 ```bash
