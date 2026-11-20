@@ -14,6 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`）
+
+[PR #124](https://github.com/wu0010802-stack/ivy-website-admin/pull/124) 以 merge commit 合併為 `fc42b711`（接在 `6e724910` 之後，PR 上 CI 全綠）；[main CI/CD 44658983963](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44658983963) 前後端、E2E、Deploy Railway production 全部成功。
+
+- 沒有 migration、沒有 Railway 環境變數變更。統計起算日用程式預設值 `analytics_stats_start = 2026-11-13`；要改再設 `WEBSITE_ANALYTICS_STATS_START`（後台 `STATS_START` 要一起改）。
+- 部署後唯讀檢查：`/release.json` base_commit `fc42b7113527480fc700b2bb8a180d2fd5412ca8`（snapshot `9acb040f195cdd0c6c729907535bdd9e1a8391ceb4aaf9ee23886ea043b0fc44`）；後台 `AnalyticsView-CGVrlOxN.js` 有「起才列入統計」、`2026-11-13`、實際預約的新口徑與不計入說明，主程式有 `ivy_staff`；官網 entry chunk 的統計閘門已含 `webdriver`、自動化 UA 與 `ivy_staff` 判斷。
+- 正式庫清理（使用者 11-20 上午用 `railway ssh` 執行，腳本在 Desktop checkout `output/analytics-data-20261120/remove-test-booking-visit.sql`）：刪掉 11-17 07:50–07:53 那次測試預約造訪的 `engagement_visits` 3 列，之後帶 `booking_done` 的造訪為 0；刪前完整備份 `/var/lib/postgresql/data/ivy-website-backups/before-analytics-cleanup-20261120.dump`。
+- 沒驗：登入後的實際畫面（部署時後台登入已逾時）、`ivy_staff` 真的寫進上層網域、官網在這台瀏覽器不再送統計。使用者下次登入後台即會寫入記號。
+
 ## 2026-11-20 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`）
 
 [PR #120](https://github.com/wu0010802-stack/ivy-website-admin/pull/120) 以 merge commit 合併為 `70b39bc7`（合併前已併入 #117 與其部署紀錄 `44d8c801`，PR 在最終提交 `91c7ac4a` 上 CI 全綠）；[main CI/CD 44653131744](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44653131744) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 09:41 完成部署。改動內容見 README 的 2026-11-19「前台 cookie 帶來的後台統計補齊」，規格 `docs/specs/2026-11-19-cookie-stats-design.md`。

@@ -34,3 +34,16 @@ export type AnalyticsTab = (typeof ANALYTICS_TABS)[number]['key']
 export const DEFAULT_ANALYTICS_TAB: AnalyticsTab = 'traffic'
 /** 後三類都讀內容興趣的同一份資料，由 ContentInterestPanel 依這個值決定顯示哪幾張表。 */
 export type InterestView = Exclude<AnalyticsTab, 'traffic'>
+
+/**
+ * 成效統計從哪一天（台北）起算（2026-11-20）：網域 11-11 才切到新站，之前與 11-12 上線驗證那幾天幾乎都是
+ * 內部的人與自動化瀏覽器。瀏覽、內容興趣由後端截（backend/app/config.py 的 analytics_stats_start，兩邊要一致，
+ * analyticsStatsStart.test.ts 會比對）；Google 搜尋、LINE 由這裡截（googleInsights.ts 的 searchPeriod）。
+ */
+export const STATS_START = '2026-11-13'
+
+/** 期間文字：起點剛好是起算日時補一句，說明為什麼不滿所選的天數。since、until 是 YYYY-MM-DD。 */
+export function periodText(since: string, until: string): string {
+  const range = `${since.replaceAll('-', '/')}–${until.replaceAll('-', '/')}`
+  return since === STATS_START ? `${range}（官網 ${STATS_START.slice(5).replace('-', '/')} 起才列入統計）` : range
+}

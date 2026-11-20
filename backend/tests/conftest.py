@@ -108,6 +108,8 @@ def _test_settings() -> Settings:
         # 開發者 shell 裡可能設了 WEBSITE_GEO_AUTO_SYNC=true：測試不能因此起背景同步迴圈、連外下載
         # （迴圈的測試自己用 model_copy 打開）。
         geo_auto_sync=False,
+        # 成效統計的起算日是正式站的上線日；測試以「今天往前 N 天」種資料，不限起算日（另有測試專測起算日）。
+        analytics_stats_start=None,
     )
 
 

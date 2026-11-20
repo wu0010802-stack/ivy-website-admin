@@ -2,12 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import {
-  SEARCH_DEVICE_LABELS, formatCtr, formatPosition, searchPageLabel, searchPeriod, type SearchInsights,
+  SEARCH_DEVICE_LABELS, formatCtr, formatPosition, readablePath, searchPageLabel, searchPeriod, type SearchInsights,
 } from '../api/googleInsights'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
-import { DEFAULT_ANALYTICS_DAYS, type AnalyticsDays } from './analytics/filters'
+import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
 
 // Google 搜尋（2026-11-12，Search Console）：家長在 Google 搜尋什麼字、點進官網哪一頁。
 // 期間由成效統計頁首共用的那一組決定；只有切到這一類（active）才向 Google 要資料，
@@ -57,10 +57,10 @@ const updating = computed(() => loading.value && data.value !== null)
 watch(updating, (value) => emit('updating', value))
 
 const configured = computed(() => data.value?.configured === true)
-const rangeText = computed(() => (data.value?.start && data.value.end ? `${data.value.start.replaceAll('-', '/')}–${data.value.end.replaceAll('-', '/')}` : ''))
+const rangeText = computed(() => (data.value?.start && data.value.end ? periodText(data.value.start, data.value.end) : ''))
 const totals = computed(() => data.value?.totals ?? null)
 const queries = computed(() => data.value?.queries ?? [])
-const pages = computed(() => (data.value?.pages ?? []).map((row) => ({ ...row, label: searchPageLabel(row.page) })))
+const pages = computed(() => (data.value?.pages ?? []).map((row) => ({ ...row, label: searchPageLabel(row.page), path: readablePath(row.page) })))
 const devices = computed(() => data.value?.devices ?? [])
 const deviceClicks = computed(() => devices.value.reduce((sum, row) => sum + row.clicks, 0))
 const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((clicks / deviceClicks.value) * 100)}%` : '—')
@@ -159,8 +159,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   <tbody>
                     <tr v-for="row in pages" :key="row.page">
                       <th scope="row">
-                        <template v-if="row.label">{{ row.label }}<span class="hint search__path">{{ row.page }}</span></template>
-                        <template v-else>{{ row.page }}</template>
+                        <template v-if="row.label">{{ row.label }}<span class="hint search__path">{{ row.path }}</span></template>
+                        <template v-else>{{ row.path }}</template>
                       </th>
                       <td class="num">{{ row.clicks }}</td>
                       <td class="num">{{ row.impressions }}</td>

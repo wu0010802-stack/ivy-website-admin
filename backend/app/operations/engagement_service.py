@@ -14,6 +14,8 @@ from sqlalchemy import Integer, String, column, values, and_, case, cast, delete
 from sqlalchemy.dialects.postgresql import aggregate_order_by, array, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.booking import exclusion
+from app.booking.models import VisitRequest, VisitRequestSource
 from app.campuses.models import CAMPUS_KEYS
 from app.common.timezones import local_day_bounds_utc, now_utc, today_local
 from app.content import service as content_service
@@ -32,10 +34,9 @@ from app.operations.models import (
     ENGAGEMENT_READ_ACTION,
     ENGAGEMENT_RETENTION_DAYS,
     ENGAGEMENT_STORY_PREFIXES,
-    AnalyticsEvent,
-    AnalyticsEventType,
     EngagementVisit,
 )
+from app.operations.stats_window import has_full_previous, stats_since
 
 # 停留不到這麼久就離開算「很快離開」。
 BOUNCE_MS = 10_000
@@ -393,11 +394,14 @@ async def _browser_stats(db: AsyncSession, in_range) -> dict:
 
 async def get_engagement_summary(
     db: AsyncSession, days: int, device: str | None = None, booking_campuses: frozenset[str] = frozenset(),
+    *, stats_start: date | None = None,
 ) -> dict:
     """device：只看手機或電腦（None＝全部）。booking_campuses：這位使用者可以看實際預約數的
-    校區（招生統計權限與校區範圍由路由決定）；不在裡面的校區 bookings 回 None。"""
+    校區（招生統計權限與校區範圍由路由決定）；不在裡面的校區 bookings 回 None。
+    stats_start：成效統計的起算日（設定 analytics_stats_start），期間碰到它就從它開始（stats_window.py）。"""
     today = today_local()
-    since = today - timedelta(days=days - 1)
+    since = stats_since(today, days, stats_start)
+    span = (today - since).days + 1
     V = EngagementVisit
     device_filter = [V.device == device] if device else []
     scope = [V.day >= since, *device_filter]
@@ -405,7 +409,8 @@ async def get_engagement_summary(
 
     # 各頁：瀏覽次數、停留中位數、很快離開的比例、捲動深度中位數；上一期的瀏覽次數拿來比較。
     # 上一期＝往前同樣天數；紀錄只留 90 天，期間的兩倍超過 90 天就沒有完整的上一期。
-    has_previous = days * 2 <= ENGAGEMENT_RETENTION_DAYS
+    # 上一期有任何一天在起算日之前（或這一期被起算日截短）也不比：拿殘缺的一段比會失真。
+    has_previous = days * 2 <= ENGAGEMENT_RETENTION_DAYS and span == days and has_full_previous(since, days, stats_start)
     previous_scope = [V.day >= since - timedelta(days=days), V.day < since, *device_filter]
     previous_pages: dict[tuple[str, str], int] = {}
     previous_news: dict[str, int] = {}
@@ -595,7 +600,7 @@ async def get_engagement_summary(
     )
 
     # 每日：瀏覽與造訪（一個造訪跨午夜會在兩天各算一次）。
-    by_day = {since + timedelta(days=i): (0, 0) for i in range(days)}
+    by_day = {since + timedelta(days=i): (0, 0) for i in range(span)}
     for day, visits, day_sessions in (await db.execute(
         select(V.day, func.count(), func.count(distinct(V.session_id))).where(in_range).group_by(V.day)
     )).all():
@@ -682,18 +687,22 @@ async def get_engagement_summary(
             .where(in_range, is_visit, V.campus_key != "").group_by(V.campus_key)
         )).all()
     }
+    # 實際預約＝這段期間官網表單送出、沒有被排除（測試／重複）的案件，和招生統計「參觀預約」同一個口徑
+    # （booking_outcomes_service 的 web_cases）。2026-11-20 以前讀成效事件 request_created：事件不指回案件，
+    # 排除不掉測試預約，後台補登的案件也算進去。
     bookings: dict[str, int] = {}
     if booking_campuses:
         start, end = local_day_bounds_utc(since)[0], local_day_bounds_utc(today)[1]
         bookings = {
             campus_key: int(count)
             for campus_key, count in (await db.execute(
-                select(AnalyticsEvent.campus_key, func.count())
+                select(VisitRequest.campus_key, func.count())
                 .where(
-                    AnalyticsEvent.event_type == AnalyticsEventType.REQUEST_CREATED,
-                    AnalyticsEvent.created_at >= start, AnalyticsEvent.created_at < end,
-                    AnalyticsEvent.campus_key.in_(booking_campuses),
-                ).group_by(AnalyticsEvent.campus_key)
+                    VisitRequest.source == VisitRequestSource.WEB.value,
+                    VisitRequest.created_at >= start, VisitRequest.created_at < end,
+                    VisitRequest.campus_key.in_(booking_campuses),
+                    exclusion.not_excluded(),
+                ).group_by(VisitRequest.campus_key)
             )).all()
         }
     campuses = [

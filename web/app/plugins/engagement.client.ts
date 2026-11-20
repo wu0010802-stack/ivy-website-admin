@@ -1,6 +1,6 @@
 import { IDLE_MS, READ_ACTION, actionKeyOf, campaignOf, campusContactOf, classifySource, engagementSession, nextPage, rememberVisitKind, sectionKeyAt, sendEngagement, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
 import { taipeiDay } from '#shared/attribution-cookie'
-import { trackingAllowed } from '../utils/cta-analytics'
+import { statsAllowed } from '../utils/cta-analytics'
 import { REMEMBERED_CAMPUS_COOKIE } from '../utils/remembered-campus'
 
 /** 造訪開始時記住的校區（ivy_campus，不是 HttpOnly）；格式由 engagementSession 再驗一次。 */
@@ -18,7 +18,11 @@ function rememberedCampusCookie(cookie: string): string | undefined {
 export default defineNuxtPlugin((app) => {
   const config = useRuntimeConfig()
   const nav = navigator as Navigator & { globalPrivacyControl?: boolean }
-  if (!trackingAllowed(config.public.telemetryEnabled, nav)) return
+  // 自動化瀏覽器、爬蟲、登入過後台的瀏覽器也不送（2026-11-20，見 statsAllowed）。
+  if (!statsAllowed(config.public.telemetryEnabled, nav, document.cookie)) return
+  // 404 等錯誤頁不算一次瀏覽（同瀏覽統計，plugins/telemetry.client.ts）。換頁途中才出錯（showError）時，
+  // 把這一筆丟掉：之後 clearError 換頁，beforeEach 的 flush 才不會把錯誤頁送出去。
+  const error = useError()
   const device = matchMedia('(max-width: 760px)').matches ? 'mobile' as const : 'desktop' as const
   let storage: Storage | null = null
   try { storage = sessionStorage } catch { /* 被瀏覽器擋掉就不跨頁串接 */ }
@@ -34,6 +38,11 @@ export default defineNuxtPlugin((app) => {
   let lastTick = performance.now()
   let lastActivity = lastTick
   let timer: ReturnType<typeof setInterval> | undefined
+  watch(error, (value) => {
+    if (!value) return
+    visit = null
+    setCurrentVisit(null)
+  })
 
   function measure() {
     const now = performance.now()
@@ -48,11 +57,18 @@ export default defineNuxtPlugin((app) => {
   }
   function flush() {
     measure()
+    if (error.value) return
     sendEngagement(visit)
   }
   const samePath = (a: string, b: string) => (a.replace(/\/+$/, '') || '/') === (b.replace(/\/+$/, '') || '/')
   function begin(path: string) {
     if (visit && samePath(visit.path, path)) return
+    // 錯誤頁不開新的一筆，也不占「第幾頁」。
+    if (error.value) {
+      visit = null
+      setCurrentVisit(null)
+      return
+    }
     // 不統計的頁面（後台、預約修改頁…）不算進「第幾頁」。
     const started = startVisit(path, session, device)
     // 僅首次進到可統計頁時讀回訪分類（伺服器讀 HttpOnly 的 ivy_src，只回 true／false）；讀不到就保留未知。
