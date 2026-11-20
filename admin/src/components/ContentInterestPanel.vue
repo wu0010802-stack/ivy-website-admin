@@ -75,18 +75,32 @@ const maxActionVisits = computed(() => Math.max(1, ...actions.value.map((row) =>
 const news = computed(() => (summary.value?.news ?? []).map((row) => ({ ...row, label: row.title || `已下架或改過代號的消息（${row.id}）` })))
 const sources = computed(() => (summary.value?.sources ?? []).map((row) => ({ ...row, label: SOURCE_LABELS[row.source] ?? row.source })))
 // 看過哪些內容的造訪比較會預約：樣本夠的排前面，再照預約比例由高到低。
-const conversion = computed(() =>
-  (summary.value?.conversion ?? [])
+// 2026-11-19：可切「同一瀏覽器（跨次）」：以瀏覽器為單位，預約過的只算第一次預約前看的內容
+// （docs/specs/2026-11-19-cookie-stats-design.md §6）。兩種單位整理成同一個形狀，表格與匯出共用。
+const conversionUnit = ref<'session' | 'browser'>('session')
+const unitNoun = computed(() => (conversionUnit.value === 'browser' ? '瀏覽器' : '造訪'))
+const unitMeasure = computed(() => (conversionUnit.value === 'browser' ? '個' : '次'))
+const conversion = computed(() => {
+  const rows = conversionUnit.value === 'browser'
+    ? (summary.value?.browser?.conversion ?? []).map((row) => ({ kind: row.kind, page: row.page, key: row.key, count: row.browsers, booked: row.booked_browsers, rate: row.booked_rate }))
+    : (summary.value?.conversion ?? []).map((row) => ({ kind: row.kind, page: row.page, key: row.key, count: row.sessions, booked: row.booked_sessions, rate: row.booked_rate }))
+  return rows
     .flatMap((row) => {
       const label = conversionLabel(row)
       return label ? [{ ...row, label }] : []
     })
-    .sort((a, b) => Number(few(a.sessions)) - Number(few(b.sessions)) || (b.booked_rate ?? 0) - (a.booked_rate ?? 0) || b.sessions - a.sessions),
-)
+    .sort((a, b) => Number(few(a.count)) - Number(few(b.count)) || (b.rate ?? 0) - (a.rate ?? 0) || b.count - a.count)
+})
 // 樣本不夠的不排成一整排「樣本太少」：收在表格下面，要看再展開（匯出仍是全部）。
-const conversionEnough = computed(() => conversion.value.filter((row) => !few(row.sessions)))
-const conversionFew = computed(() => conversion.value.filter((row) => few(row.sessions)))
-const aboveOverall = (rate: number | null) => rate !== null && totals.value?.booked_rate != null && rate > totals.value.booked_rate
+const conversionEnough = computed(() => conversion.value.filter((row) => !few(row.count)))
+const conversionFew = computed(() => conversion.value.filter((row) => few(row.count)))
+const overallRate = computed(() => (conversionUnit.value === 'browser' ? summary.value?.browser?.booked_rate ?? null : totals.value?.booked_rate ?? null))
+const overallText = computed(() => {
+  const browser = summary.value?.browser
+  if (conversionUnit.value === 'browser') return browser ? `全部瀏覽器 ${browser.booked_browsers}／${browser.browsers}（${formatShare(browser.booked_rate)}）` : ''
+  return totals.value ? `全部造訪 ${totals.value.booked_sessions}／${totals.value.sessions}（${formatShare(totals.value.booked_rate)}）` : ''
+})
+const aboveOverall = (rate: number | null) => rate !== null && overallRate.value != null && rate > overallRate.value
 
 // ---- 第二輪：趨勢、預約表單、試算班別、首頁消息、瀏覽順序、時段、各校、活動代碼 ----
 const deviceLabel = computed(() => (summary.value?.device === 'mobile' ? '手機' : summary.value?.device === 'desktop' ? '電腦' : ''))
@@ -198,7 +212,7 @@ function exportDestinations() {
   const data = destinations.value
   if (!data?.rows.length) return
   saveAnalyticsCsv(csv('各校預約去向'), ['校區', ...destinationColumns.map((item) => item.label), '首筆涵蓋日期', '涵蓋頁面瀏覽數'],
-    data.rows.map((row) => [`${campusLabel(row.campus_key)}校`, ...destinationColumns.map((item) => row[item.key]), data.first_day ?? '', data.tracked_visits]))
+    data.rows.map((row) => [`${campusLabel(row.campus_key)}校`, ...destinationColumns.map((item) => row[item.key] ?? ''), data.first_day ?? '', data.tracked_visits]))
 }
 function exportCampuses() {
   saveAnalyticsCsv(csv('各校興趣'), ['校區', '首頁切到這一校', '點地址開地圖', '進預約頁的造訪', ...(showBookings.value ? ['實際送出的預約'] : [])],
@@ -228,8 +242,29 @@ function exportSources() {
     sources.value.map((row) => [row.label, row.sessions, row.booked_sessions, formatShare(row.booked_rate)]))
 }
 function exportConversion() {
-  saveAnalyticsCsv(csv('內容與預約'), ['看過的內容', '造訪次數', '送出預約的造訪', '比例'],
-    conversion.value.map((row) => [row.label, row.sessions, row.booked_sessions, formatShare(row.booked_rate)]))
+  const noun = unitNoun.value
+  saveAnalyticsCsv(csv(conversionUnit.value === 'browser' ? '內容與預約（同一瀏覽器）' : '內容與預約'), ['看過的內容', `${noun}數`, `之後送出預約的${noun}`, '比例'],
+    conversion.value.map((row) => [row.label, row.count, row.booked, formatShare(row.rate)]))
+}
+
+// ---- 同一瀏覽器的跨次統計（2026-11-19 §4～5）與帶著記住的校區回來（§7）----
+const browser = computed(() => summary.value?.browser ?? null)
+const VISIT_COUNT_LABELS: Record<string, string> = { 1: '第 1 次就預約', 2: '第 2 次', 3: '第 3 次', '4_plus': '第 4 次以上' }
+const browserVisits = computed(() => (browser.value?.visits_before_booking ?? []).map((row) => ({ ...row, label: VISIT_COUNT_LABELS[row.visits] ?? row.visits })))
+const browserSources = computed(() => (browser.value?.sources ?? []).map((row) => ({ ...row, label: SOURCE_LABELS[row.source] ?? row.source })))
+function exportBrowser() {
+  const data = browser.value
+  if (!data) return
+  saveAnalyticsCsv(csv('同一瀏覽器跨次'), ['分類', '項目', '瀏覽器數', '之後有預約', '比例'], [
+    ...browserVisits.value.map((row) => ['預約前來了幾次', row.label, row.browsers, '', formatShare(data.booked_browsers ? row.browsers / data.booked_browsers : null)]),
+    ...browserSources.value.map((row) => ['最早一次造訪的來源', row.label, row.browsers, row.booked_browsers, formatShare(row.booked_rate)]),
+  ])
+}
+const campusPrefs = computed(() => summary.value?.campus_prefs ?? [])
+const dash = (value: number | null | undefined) => (value == null ? '—' : value)
+function exportCampusPrefs() {
+  saveAnalyticsCsv(csv('帶著記住的校區回來'), ['記住的校區', '造訪', '進這校預約頁', '在這校完成線上預約', '改在別校完成線上預約'],
+    campusPrefs.value.map((row) => [`${campusLabel(row.campus_key)}校`, row.sessions, row.visit_sessions, row.booked_same ?? '', row.booked_other ?? '']))
 }
 </script>
 
@@ -460,6 +495,47 @@ function exportConversion() {
                 <AnalyticsExplainer><p>查看校區包含切換首頁校區卡或進入個別校區預約頁。每個行為在同一次造訪最多計一次，比例以該列造訪為分母；點聯絡只代表開啟電話或 LINE。</p></AnalyticsExplainer>
               </div>
             </section>
+            <section class="panel" aria-labelledby="interest-browser-title">
+              <div class="panel__head">
+                <h2 id="interest-browser-title">同一瀏覽器的跨次造訪</h2>
+                <el-button v-if="browser?.browsers" size="small" text data-test="interest-csv-browser" aria-label="把「同一瀏覽器的跨次造訪」匯出 CSV" @click="exportBrowser">匯出 CSV</el-button>
+              </div>
+              <div class="panel__body interest__body">
+                <p v-if="!browser?.browsers" class="hint">這段期間還沒有可串起來的造訪（從 2026/11/19 新版開始記錄）。</p>
+                <template v-else>
+                  <p class="hint" data-test="interest-browser-summary">
+                    {{ browser.browsers }} 個瀏覽器中，{{ browser.multi_visit_browsers }} 個來過兩次以上；{{ browser.booked_browsers }} 個在這段期間完成線上預約（{{ formatShare(browser.booked_rate) }}）。
+                  </p>
+                  <div v-if="browser.booked_browsers" class="interest__scroll">
+                    <table class="interest__table interest__table--rows" data-test="interest-browser-visits">
+                      <thead><tr><th scope="col">預約前來了幾次</th><th scope="col" class="num">瀏覽器</th></tr></thead>
+                      <tbody>
+                        <tr v-for="row in browserVisits" :key="row.visits">
+                          <th scope="row">{{ row.label }}</th>
+                          <td class="num">{{ row.browsers }}<span class="hint">（{{ formatShare(row.browsers / browser.booked_browsers) }}）</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="interest__scroll">
+                    <table class="interest__table interest__table--rows" data-test="interest-browser-sources">
+                      <thead><tr><th scope="col">最早一次造訪的來源</th><th scope="col" class="num">瀏覽器</th><th scope="col" class="num">之後有預約</th></tr></thead>
+                      <tbody>
+                        <tr v-for="row in browserSources" :key="row.source">
+                          <th scope="row">{{ row.label }}</th>
+                          <td class="num">{{ row.browsers }}</td>
+                          <td class="num">{{ row.booked_browsers }}<span class="hint">（{{ few(row.browsers) ? '樣本太少' : formatShare(row.booked_rate) }}）</span></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </template>
+                <AnalyticsExplainer>
+                  <p>同一台裝置、同一個瀏覽器的多次造訪，靠網站來源 cookie 裡的匿名代號串起來（不知道是誰，也不和預約資料連結）；換瀏覽器、清除 cookie 或開了「不要追蹤」的不算。</p>
+                  <p>「預約前來了幾次」含預約的那一次。「最早一次造訪的來源」和上面「從哪裡來」不同：那張只算同一次造訪就預約，這張算之後任何一次回來預約，比較看得出廣告、社群帶來的家長後來有沒有約。紀錄保留 90 天，所以只看得到 90 天內的造訪。</p>
+                </AnalyticsExplainer>
+              </div>
+            </section>
             <section class="panel" aria-labelledby="interest-sources-title">
               <div class="panel__head">
                 <h2 id="interest-sources-title">從哪裡來</h2>
@@ -608,7 +684,7 @@ function exportConversion() {
                   <tbody>
                     <tr v-for="row in destinations.rows" :key="row.campus_key">
                       <th scope="row">{{ campusLabel(row.campus_key) }}校</th>
-                      <td v-for="col in destinationColumns" :key="col.key" class="num">{{ row[col.key] }}</td>
+                      <td v-for="col in destinationColumns" :key="col.key" class="num">{{ dash(row[col.key]) }}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -617,7 +693,34 @@ function exportConversion() {
             </template>
             <AnalyticsExplainer>
               <p>場次依校區預約頁實際顯示的結果計數。採電話或 LINE 洽詢的校區可直接計入聯絡欄。電話與 LINE 涵蓋納入統計的公開頁面上、有標示校區的洽詢連結，點擊無法確認通話、傳訊或預約結果。</p>
-              <p>「無場次後點聯絡」指同一次造訪在本期先看到該校沒有場次，接著點該校的電話或 LINE。「完成線上預約」由瀏覽器收到該校預約成立的回應時記錄。正式預約件數另依園方權限顯示。</p>
+              <p>「無場次後點聯絡」指同一次造訪在本期先看到該校沒有場次，接著點該校的電話或 LINE。「完成線上預約」由瀏覽器收到該校預約成立的回應時記錄；沒有這校招生統計權限的帳號看到「—」。</p>
+            </AnalyticsExplainer>
+          </div>
+        </section>
+        <section class="panel" aria-labelledby="interest-prefs-title">
+          <div class="panel__head">
+            <h2 id="interest-prefs-title">帶著記住的校區回來</h2>
+            <el-button v-if="campusPrefs.length" size="small" text data-test="interest-csv-prefs" aria-label="把「帶著記住的校區回來」匯出 CSV" @click="exportCampusPrefs">匯出 CSV</el-button>
+          </div>
+          <div class="panel__body interest__body">
+            <p v-if="!campusPrefs.length" class="hint">這段期間還沒有帶著記住的校區回來的造訪。</p>
+            <div v-else class="interest__scroll" role="region" tabindex="0" aria-label="帶著記住的校區回來（可左右捲動）">
+              <table class="interest__table interest__table--rows" data-test="interest-prefs">
+                <thead><tr><th scope="col">記住的校區</th><th scope="col" class="num">造訪</th><th scope="col" class="num">進這校預約頁</th><th scope="col" class="num">在這校完成預約</th><th scope="col" class="num">改在別校完成預約</th></tr></thead>
+                <tbody>
+                  <tr v-for="row in campusPrefs" :key="row.campus_key">
+                    <th scope="row">{{ campusLabel(row.campus_key) }}校</th>
+                    <td class="num">{{ row.sessions }}</td>
+                    <td class="num">{{ row.visit_sessions }}<span class="hint">（{{ few(row.sessions) ? '樣本太少' : formatShare(row.visit_sessions / row.sessions) }}）</span></td>
+                    <td class="num">{{ dash(row.booked_same) }}</td>
+                    <td class="num">{{ dash(row.booked_other) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <AnalyticsExplainer>
+              <p>家長在頁首選單、首頁五校卡或預約頁選過一校，網站會記住 180 天（ivy_campus）；之後再來時選單與五校卡先顯示那一校。這張表看這些回來的造訪有沒有繼續看同一校。</p>
+              <p>從 2026/11/19 起記錄；沒有這校招生統計權限的帳號，預約欄看到「—」。</p>
             </AnalyticsExplainer>
           </div>
         </section>
@@ -685,37 +788,43 @@ function exportConversion() {
         </div>
 
         <section class="panel" aria-labelledby="interest-conversion-title">
-          <div class="panel__head">
-            <h2 id="interest-conversion-title">看過哪些內容的造訪比較會預約<span class="interest__sub">全部造訪 {{ totals.booked_sessions }}／{{ totals.sessions }}（{{ formatShare(totals.booked_rate) }}）</span></h2>
-            <el-button v-if="conversion.length" size="small" text data-test="interest-csv-conversion" aria-label="把「看過哪些內容的造訪比較會預約」匯出 CSV" @click="exportConversion">匯出 CSV</el-button>
+          <div class="panel__head interest__head--wrap">
+            <h2 id="interest-conversion-title">看過哪些內容的{{ unitNoun }}比較會預約<span class="interest__sub">{{ overallText }}</span></h2>
+            <div class="interest__head-actions">
+              <el-radio-group v-model="conversionUnit" size="small" aria-label="以什麼為單位" data-test="interest-conversion-unit">
+                <el-radio-button value="session">同一次造訪</el-radio-button>
+                <el-radio-button value="browser">同一瀏覽器（跨次）</el-radio-button>
+              </el-radio-group>
+              <el-button v-if="conversion.length" size="small" text data-test="interest-csv-conversion" aria-label="把「看過哪些內容比較會預約」匯出 CSV" @click="exportConversion">匯出 CSV</el-button>
+            </div>
           </div>
           <div class="panel__body interest__body">
             <p v-if="!conversion.length" class="hint">這段期間還沒有紀錄。</p>
             <template v-else>
-              <p v-if="!conversionEnough.length" class="hint" data-test="interest-conversion-pending">每一項的造訪都還不到 {{ MIN_ENGAGEMENT_SAMPLES }} 次，還不能比較。資料累積後，這裡會照預約比例由高到低列出來。</p>
+              <p v-if="!conversionEnough.length" class="hint" data-test="interest-conversion-pending">每一項的{{ unitNoun }}都還不到 {{ MIN_ENGAGEMENT_SAMPLES }} {{ unitMeasure }}，還不能比較。資料累積後，這裡會照預約比例由高到低列出來。</p>
               <div v-else class="interest__scroll">
                 <table class="interest__table interest__table--rows" data-test="interest-conversion">
-                  <thead><tr><th scope="col">看過的內容</th><th scope="col" class="num">造訪</th><th scope="col" class="num">其中送出預約</th><th scope="col" class="num">比例</th></tr></thead>
+                  <thead><tr><th scope="col">看過的內容</th><th scope="col" class="num">{{ unitNoun }}</th><th scope="col" class="num">其中送出預約</th><th scope="col" class="num">比例</th></tr></thead>
                   <tbody>
                     <tr v-for="row in conversionEnough" :key="`${row.kind}-${row.page}-${row.key}`">
                       <th scope="row">{{ row.label }}</th>
-                      <td class="num">{{ row.sessions }}</td>
-                      <td class="num">{{ row.booked_sessions }}</td>
-                      <td class="num" :class="{ 'is-above': aboveOverall(row.booked_rate) }">{{ formatShare(row.booked_rate) }}</td>
+                      <td class="num">{{ row.count }}</td>
+                      <td class="num">{{ row.booked }}</td>
+                      <td class="num" :class="{ 'is-above': aboveOverall(row.rate) }">{{ formatShare(row.rate) }}</td>
                     </tr>
                   </tbody>
                 </table>
               </div>
               <details v-if="conversionFew.length" class="interest__more" data-test="interest-conversion-few">
-                <summary>另外 {{ conversionFew.length }} 項的造訪不到 {{ MIN_ENGAGEMENT_SAMPLES }} 次，先不算比例</summary>
+                <summary>另外 {{ conversionFew.length }} 項的{{ unitNoun }}不到 {{ MIN_ENGAGEMENT_SAMPLES }} {{ unitMeasure }}，先不算比例</summary>
                 <div class="interest__scroll">
                   <table class="interest__table interest__table--rows">
-                    <thead><tr><th scope="col">看過的內容</th><th scope="col" class="num">造訪</th><th scope="col" class="num">其中送出預約</th></tr></thead>
+                    <thead><tr><th scope="col">看過的內容</th><th scope="col" class="num">{{ unitNoun }}</th><th scope="col" class="num">其中送出預約</th></tr></thead>
                     <tbody>
                       <tr v-for="row in conversionFew" :key="`${row.kind}-${row.page}-${row.key}`">
                         <th scope="row">{{ row.label }}</th>
-                        <td class="num">{{ row.sessions }}</td>
-                        <td class="num">{{ row.booked_sessions }}</td>
+                        <td class="num">{{ row.count }}</td>
+                        <td class="num">{{ row.booked }}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -724,7 +833,8 @@ function exportConversion() {
             </template>
             <AnalyticsExplainer>
               <p>以造訪為單位：看過這一頁（或在這個區塊停滿 3 秒）的造訪裡，有多少在同一次造訪送出預約。比例高於「全部造訪」的內容（粗體），代表看過它的家長比較常接著預約。</p>
-              <p>這是相關，不是因果：本來就想預約的家長也會多看幾頁。造訪不到 {{ MIN_ENGAGEMENT_SAMPLES }} 次的先不算比例，收在表格下面。隔天才回來預約的不會算進來。</p>
+              <p>這是相關，不是因果：本來就想預約的家長也會多看幾頁。不到 {{ MIN_ENGAGEMENT_SAMPLES }} 個的先不算比例，收在表格下面。</p>
+              <p>「同一次造訪」只算看完就在同一次預約的；隔天才回來預約的，切到「同一瀏覽器（跨次）」看：以瀏覽器為單位，預約過的只算預約前看過的內容，從 2026/11/19 起記錄。</p>
             </AnalyticsExplainer>
           </div>
         </section>
@@ -736,6 +846,34 @@ function exportConversion() {
 <style scoped>
 .interest__alert {
   margin-bottom: 16px;
+}
+
+/* 內容與預約：單位切換＋匯出放同一排；手機上整排移到標題下面，兩顆切換鈕不拆開（2026-11-19）。 */
+.interest__head--wrap {
+  flex-wrap: wrap;
+}
+
+.interest__head-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.interest__head-actions .el-radio-group {
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+
+@media (max-width: 720px) {
+  .interest__head--wrap h2 {
+    flex: 1 1 100%;
+  }
+
+  .interest__head-actions {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
 }
 
 .interest__view {

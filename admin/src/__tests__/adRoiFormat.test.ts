@@ -4,6 +4,7 @@ import type { AdRoiRow } from '../api/types'
 
 const row = (changes: Partial<AdRoiRow> = {}): AdRoiRow => ({
   key: 'google', spend: 9000, spend_state: 'ok', missing_months: 0, clicks: 310, cases: 6, completed: 4, no_show: 0, deposited: 1,
+  assist_cases: 0, assist_completed: 0, assist_deposited: 0,
   cost_per_case: 1500, cost_per_completed: 2250, cost_per_deposit: 9000, cost_partial: false, ...changes,
 })
 

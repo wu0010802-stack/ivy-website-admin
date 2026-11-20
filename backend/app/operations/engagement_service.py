@@ -5,6 +5,8 @@
 代碼。分母為 0 的比率回 None（畫面顯示「—」）。"""
 from __future__ import annotations
 
+import hashlib
+import hmac
 import uuid
 from datetime import date, timedelta
 
@@ -49,17 +51,26 @@ CAMPAIGN_LIMIT = 30
 _last_purge: date | None = None
 
 
+def browser_key(secret: str, raw: str | None) -> str | None:
+    """ivy_src 裡的隨機碼 → 存進資料庫的匿名代號（2026-11-19 §4～6）。HMAC 用伺服器密鑰，
+    拿到資料庫的人也推不回 cookie 的值；只留 128 bits。"""
+    if not raw:
+        return None
+    return hmac.new(secret.encode(), raw.encode(), hashlib.sha256).hexdigest()[:32]
+
+
 async def record_visit(
     db: AsyncSession, *, visit_id: uuid.UUID, session_id: uuid.UUID, page: str, campus_key: str | None,
     item: str | None, device: str, source: str, active_ms: int, scroll_pct: int,
     sections: dict[str, int], actions: dict[str, int], seq: int | None = None, campaign: str | None = None,
-    rev: int | None = None, returning: bool | None = None,
+    rev: int | None = None, returning: bool | None = None, browser_key: str | None = None, campus_pref: str | None = None,
 ) -> None:
     now = now_utc()
     stmt = insert(EngagementVisit).values(
         id=visit_id, session_id=session_id, day=today_local(now), page=page, campus_key=campus_key or "", returning=returning,
         item=item or "", device=device, source=source, active_ms=min(active_ms, ENGAGEMENT_MAX_ACTIVE_MS),
         scroll_pct=scroll_pct, sections=sections, actions=actions, updated_at=now, seq=seq, campaign=campaign or None, rev=rev,
+        browser_key=browser_key, campus_pref=campus_pref,
     )
     # 同一次瀏覽會回報多次（切到背景、換頁、關分頁），數字只會變大：留最新的一次。
     # 回報是 fire-and-forget，幾筆可能不照順序到：帶回報序號（rev）的，序號比較舊就不動區塊與互動，
@@ -74,6 +85,8 @@ async def record_visit(
             "sections": case((newer, stmt.excluded.sections), else_=EngagementVisit.sections),
             "actions": case((newer, stmt.excluded.actions), else_=EngagementVisit.actions),
             "returning": func.coalesce(EngagementVisit.returning, stmt.excluded.returning),
+            "browser_key": func.coalesce(EngagementVisit.browser_key, stmt.excluded.browser_key),
+            "campus_pref": func.coalesce(EngagementVisit.campus_pref, stmt.excluded.campus_pref),
             "rev": func.greatest(EngagementVisit.rev, stmt.excluded.rev),
             "updated_at": func.greatest(EngagementVisit.updated_at, stmt.excluded.updated_at),
         },
@@ -97,10 +110,7 @@ async def purge_old_visits_once_a_day(db: AsyncSession, today: date | None = Non
 
 
 def _rate(part: int, whole: int) -> float | None:
-    if not whole:
-        return None
-    rate = part / whole
-    return round(rate, 4) if rate >= 0.0001 else rate
+    return round(part / whole, 4) if whole else None
 
 
 def _median(column):
@@ -193,8 +203,9 @@ async def _session_totals(db: AsyncSession, sessions) -> dict:
     }
 
 
-async def _campus_destinations(db: AsyncSession, in_range) -> dict:
-    """同一次造訪可以聯絡多校，也可以先後看過有場次與無場次。只用支援全套去向的瀏覽。"""
+async def _campus_destinations(db: AsyncSession, in_range, booking_campuses: frozenset[str]) -> dict:
+    """同一次造訪可以聯絡多校，也可以先後看過有場次與無場次。只用支援全套去向的瀏覽。
+    booked（完成線上預約的造訪）比照各校實際預約數：不在 booking_campuses 的校區回 None。"""
     V = EngagementVisit
     tracked = and_(in_range, V.actions.has_key(ENGAGEMENT_CAMPUS_TRACKING))
     tracked_visits, first_day = (await db.execute(
@@ -233,8 +244,150 @@ async def _campus_destinations(db: AsyncSession, in_range) -> dict:
     return {
         "tracked_visits": tracked_visits, "first_day": first_day,
         "rows": [
-            {"campus_key": key, **{flag: counts.get(key, {}).get(flag, 0) for flag in flags}} for key in CAMPUS_KEYS
+            {
+                "campus_key": key, **{flag: counts.get(key, {}).get(flag, 0) for flag in flags},
+                **({} if key in booking_campuses else {"booked": None}),
+            }
+            for key in CAMPUS_KEYS
         ] if tracked_visits else [],
+    }
+
+
+async def _campus_prefs(db: AsyncSession, in_range, booking_campuses: frozenset[str]) -> list[dict]:
+    """帶著記住的校區（ivy_campus）回來的造訪（2026-11-19 §7）：各校的造訪數、其中進這校預約頁、
+    在這校完成線上預約、改在別校完成線上預約。campus_pref 在同一次造訪的每一列都一樣（造訪開始時讀的）。
+    預約數比照各校實際預約數的權限：不在 booking_campuses 的校區回 None。"""
+    V = EngagementVisit
+    booked = V.actions.has_key(ENGAGEMENT_BOOKED_ACTION)  # noqa: W601
+    at_visit = V.page == "visit"
+    sessions = (
+        select(
+            func.max(V.campus_pref).label("pref"),
+            func.bool_or(and_(at_visit, V.campus_key == V.campus_pref)).label("visited"),
+            func.bool_or(and_(at_visit, V.campus_key == V.campus_pref, booked)).label("booked_same"),
+            func.bool_or(and_(at_visit, V.campus_key != V.campus_pref, booked)).label("booked_other"),
+        )
+        .where(in_range, V.campus_pref.is_not(None))
+        .group_by(V.session_id)
+        .subquery("pref_sessions")
+    )
+    counts = {
+        pref: (int(total), int(visited), int(same), int(other))
+        for pref, total, visited, same, other in (await db.execute(
+            select(
+                sessions.c.pref, func.count(), func.count().filter(sessions.c.visited),
+                func.count().filter(sessions.c.booked_same), func.count().filter(sessions.c.booked_other),
+            ).group_by(sessions.c.pref)
+        )).all()
+    }
+    rows = []
+    for key in CAMPUS_KEYS:
+        if key not in counts:
+            continue
+        total, visited, same, other = counts[key]
+        allowed = key in booking_campuses
+        rows.append({
+            "campus_key": key, "sessions": total, "visit_sessions": visited,
+            "booked_same": same if allowed else None, "booked_other": other if allowed else None,
+        })
+    return rows
+
+
+def _visits_bucket(count: int) -> str:
+    return "4_plus" if count >= 4 else str(count)
+
+
+async def _browser_stats(db: AsyncSession, in_range) -> dict:
+    """同一瀏覽器的跨次統計（2026-11-19 §4～6）：只看有匿名代號（browser_key）的紀錄。
+    「預約時間點」取這個瀏覽器第一筆帶「預約成功」的瀏覽最後一次回報的時間：在那之前開始的造訪算預約前，
+    在那之後才更新的瀏覽（例如預約完回頭看環境頁）不算進內容比較。"""
+    V = EngagementVisit
+    rows_scope = and_(in_range, V.browser_key.is_not(None))
+    booked_action = V.actions.has_key(ENGAGEMENT_BOOKED_ACTION)  # noqa: W601
+    marks = (
+        select(
+            V.browser_key.label("browser"),
+            func.min(V.updated_at).filter(booked_action).label("booked_at"),
+        ).where(rows_scope).group_by(V.browser_key).subquery("browser_marks")
+    )
+    sessions = (
+        select(
+            V.browser_key.label("browser"), V.session_id.label("session_id"),
+            func.min(V.updated_at).label("started"), func.min(V.source).label("source"),
+        ).where(rows_scope).group_by(V.browser_key, V.session_id).subquery("browser_sessions")
+    )
+    per_browser = (
+        select(
+            marks.c.browser, marks.c.booked_at,
+            func.count().label("sessions"),
+            func.count().filter(sessions.c.started <= marks.c.booked_at).label("before"),
+            func.array_agg(aggregate_order_by(sessions.c.source, sessions.c.started))[1].label("first_source"),
+        )
+        .select_from(marks.join(sessions, sessions.c.browser == marks.c.browser))
+        .group_by(marks.c.browser, marks.c.booked_at)
+        .subquery("per_browser")
+    )
+    browsers = booked_browsers = multi = 0
+    visits: dict[str, int] = dict.fromkeys(("1", "2", "3", "4_plus"), 0)
+    by_source: dict[str, list[int]] = {}
+    for booked_at, session_count, before, first_source in (await db.execute(
+        select(per_browser.c.booked_at, per_browser.c.sessions, per_browser.c.before, per_browser.c.first_source)
+    )).all():
+        browsers += 1
+        multi += 1 if session_count >= 2 else 0
+        bucket = by_source.setdefault(first_source, [0, 0])
+        bucket[0] += 1
+        if booked_at is not None:
+            booked_browsers += 1
+            bucket[1] += 1
+            visits[_visits_bucket(max(int(before), 1))] += 1
+    sources = sorted(
+        (
+            {"source": source, "browsers": total, "booked_browsers": booked, "booked_rate": _rate(booked, total)}
+            for source, (total, booked) in by_source.items()
+        ),
+        key=lambda row: (-row["browsers"], row["source"]),
+    )
+
+    # 看過哪些內容的瀏覽器比較會預約：同一個瀏覽器看過同一頁／同一區塊只算一次；預約頁本身不列。
+    sec = func.jsonb_each_text(V.sections).table_valued("key", "value").alias("browser_sec")
+    sec_ms = cast(sec.c.value, Integer)
+    before_booking = or_(marks.c.booked_at.is_(None), V.updated_at <= marks.c.booked_at)
+    joined = V.__table__.join(marks, marks.c.browser == V.browser_key)
+    page_feature = (
+        select(V.browser_key.label("browser"), literal("page").label("kind"), V.page.label("page"), literal("").label("key"))
+        .select_from(joined).where(rows_scope, V.page != "visit", before_booking).distinct()
+    )
+    section_feature = (
+        select(V.browser_key.label("browser"), literal("section").label("kind"), V.page.label("page"), sec.c.key.label("key"))
+        .select_from(joined.join(sec, true())).where(rows_scope, V.page != "visit", before_booking, sec_ms >= SECTION_ENGAGED_MS)
+        .distinct()
+    )
+    features = union_all(page_feature, section_feature).subquery("browser_features")
+    feature_rows = (await db.execute(
+        select(
+            features.c.kind, features.c.page, features.c.key, func.count(distinct(features.c.browser)),
+            func.count(distinct(features.c.browser)).filter(marks.c.booked_at.is_not(None)),
+        )
+        .select_from(features).join(marks, marks.c.browser == features.c.browser)
+        .group_by(features.c.kind, features.c.page, features.c.key)
+    )).all()
+    conversion = sorted(
+        (
+            {
+                "kind": kind, "page": page, "key": key or None, "browsers": int(count),
+                "booked_browsers": int(booked or 0), "booked_rate": _rate(int(booked or 0), int(count)),
+            }
+            for kind, page, key, count, booked in feature_rows
+        ),
+        key=lambda row: (-row["browsers"], row["kind"], row["page"], row["key"] or ""),
+    )
+    first_day = await db.scalar(select(func.min(V.day)).where(rows_scope))
+    return {
+        "browsers": browsers, "booked_browsers": booked_browsers, "booked_rate": _rate(booked_browsers, browsers),
+        "multi_visit_browsers": multi, "first_day": first_day,
+        "visits_before_booking": [{"visits": key, "browsers": count} for key, count in visits.items()],
+        "sources": sources, "conversion": conversion,
     }
 
 
@@ -574,5 +727,7 @@ async def get_engagement_summary(
         "journey": journey,
         "hours": hours,
         "campuses": campuses,
-        "campus_destinations": await _campus_destinations(db, in_range),
+        "campus_destinations": await _campus_destinations(db, in_range, booking_campuses),
+        "campus_prefs": await _campus_prefs(db, in_range, booking_campuses),
+        "browser": await _browser_stats(db, in_range),
     }

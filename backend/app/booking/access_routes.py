@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import require_scope
-from app.booking import access_service, history, remember, slot_service, workflow_service
+from app.booking import access_service, history, remember, remembered_stats, slot_service, workflow_service
 from app.booking.history import PARENT, Actor
 from app.booking.models import BookingConfig, BookingMode, VisitRequest, VisitRequestStatus
 from app.booking.outbox import PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, enqueue_parent_email
@@ -246,6 +246,9 @@ async def get_remembered_visit(
     ):
         return _forget(request)
     campus = await db.get(Campus, visit_request.campus_key)
+    # 使用次數（2026-11-19 §7）：預約頁顯示了「您已預約…」那一列。
+    await remembered_stats.record_safely(db, visit_request, "shown")
+    await db.commit()
     response.headers["Cache-Control"] = "private, no-store"
     return RememberedVisitOut(
         campus_key=visit_request.campus_key,
@@ -281,6 +284,7 @@ async def open_remembered_visit(
             detail={"code": "TOKEN_INVALID", "message": "連結已失效或過期"},
             headers={"Set-Cookie": cleared.headers["set-cookie"], "Cache-Control": "private, no-store"},
         ) from exc
+    await remembered_stats.record_safely(db, visit_request, "opened")
     await db.commit()
     _set_parent_session(response, request, raw_session_token)
     return await _parent_output(db, visit_request)
@@ -291,8 +295,18 @@ async def open_remembered_visit(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_parent_request)],
 )
-async def forget_remembered_visit(request: Request) -> Response:
+async def forget_remembered_visit(
+    request: Request,
+    remembered: str | None = Cookie(default=None, alias=remember.REMEMBER_COOKIE),
+    db: AsyncSession = Depends(get_db_session),
+) -> Response:
     """「不是我」：這台裝置不再記住預約。只清 cookie，不動預約本身與修改連結。"""
+    if remembered:
+        # 使用次數（2026-11-19 §7）：只在 cookie 還對得到案件時記，查不到就只清 cookie。
+        visit_request = await access_service.visit_request_for_token(db, remembered)
+        if visit_request is not None:
+            await remembered_stats.record_safely(db, visit_request, "dismissed")
+            await db.commit()
     return _forget(request)
 
 

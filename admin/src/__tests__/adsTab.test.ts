@@ -15,6 +15,7 @@ const SPEND = '/admin/admissions/ad-spend'
 
 const row = (changes: Partial<AdRoiRow> = {}): AdRoiRow => ({
   key: 'google', spend: 9000, spend_state: 'ok', missing_months: 0, clicks: 310, cases: 6, completed: 4, no_show: 1, deposited: 1,
+  assist_cases: 0, assist_completed: 0, assist_deposited: 0,
   cost_per_case: 1500, cost_per_completed: 2250, cost_per_deposit: 9000, cost_partial: false, ...changes,
 })
 const roi = (changes: Partial<AdRoi> = {}): AdRoi => ({
@@ -46,8 +47,8 @@ describe('廣告成效', () => {
     expect(Object.fromEntries(queryOf(path!))).toEqual({ from: '2026-11', to: '2026-11', touch: 'last' })
     const rows = mainRows(wrapper)
     expect(rows.map((r) => r[0])).toEqual(['Google', 'ChatGPT', '非廣告來源'])
-    expect(rows[0]).toEqual(['Google', '9,000', '310', '6', '4', '1', '1,500', '2,250', '9,000'])
-    expect(rows[1]).toEqual(['ChatGPT', '3,000', '—', '1', '0', '0', '3,000', '—', '—'])
+    expect(rows[0]).toEqual(['Google', '9,000', '310', '6', '4', '1', '0', '1,500', '2,250', '9,000'])
+    expect(rows[1]).toEqual(['ChatGPT', '3,000', '—', '1', '0', '0', '0', '3,000', '—', '—'])
     expect(rows[2]![1]).toBe('—')
     expect(wrapper.text()).toContain('廣告帶來的預約中，另有 3 筆還沒到參觀日、2 筆到場後還在考慮。')
     expect(wrapper.text()).toContain('預約含之後取消的。沒有計入：開了「不要追蹤」的訪客、看到廣告後直接來電或到校的家長。')
@@ -78,6 +79,49 @@ describe('廣告成效', () => {
     const { wrapper } = await mountWith(AdsTab, { props: { active: true } })
     await flushPromises()
     expect(wrapper.text()).toContain('無法讀取廣告成效')
+  })
+
+  it('2026-11-19：助攻（最後一次）／收尾（第一次）欄，非廣告列是破折號', async () => {
+    const data = roi()
+    data.rows = data.rows.map((item) => (item.key === 'google' ? { ...item, assist_cases: 3, assist_completed: 2, assist_deposited: 1 } : item))
+    const { wrapper } = await mountAds(data)
+    expect(wrapper.findAll('.ads-main thead th').map((th) => th.text())).toContain('助攻')
+    const rows = mainRows(wrapper)
+    expect(rows[0]![6]).toBe('3 / 2 / 1')
+    expect(rows[2]![6]).toBe('—')
+    expect(wrapper.text()).toContain('助攻：第一次由這個平台的廣告帶進站')
+    wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 'first')
+    await flushPromises()
+    expect(wrapper.findAll('.ads-main thead th').map((th) => th.text())).toContain('收尾')
+  })
+
+  it('2026-11-19：回傳廣告平台——都沒設金鑰時一行說明；有設時列出各事件與識別碼覆蓋率', async () => {
+    const { wrapper } = await mountAds()
+    expect(wrapper.find('[data-test="ads-conversions-off"]').exists()).toBe(true)
+    vi.useRealTimers()
+    const status = {
+      as_of: '2026-11-19T10:00:00+08:00', days: 30, cases: 10,
+      platforms: [
+        { platform: 'ga4', configured: true, events: [
+          { event: 'visit_attended', pending: 1, sent: 4, failed: 0, skipped: 1 },
+          { event: 'deposit_paid', pending: 0, sent: 1, failed: 1, skipped: 0 },
+        ], last_sent_at: '2026-11-19T09:00:00+08:00', last_problem: 'expired', last_problem_at: '2026-11-18T09:00:00+08:00', cases_with_ids: 6 },
+        { platform: 'meta', configured: false, events: [
+          { event: 'visit_attended', pending: 0, sent: 0, failed: 0, skipped: 0 },
+          { event: 'deposit_paid', pending: 0, sent: 0, failed: 0, skipped: 0 },
+        ], last_sent_at: null, last_problem: null, last_problem_at: null, cases_with_ids: 0 },
+      ],
+    }
+    const get = mockGet({ [ROI]: roi(), [SPEND]: { entries: [] }, '/admin/admissions/ad-conversions': status })
+    const { wrapper: on } = await mountWith(AdsTab, { props: { active: true } })
+    await flushPromises()
+    expect(pathsTo(get, '/admin/admissions/ad-conversions')[0]).toContain('days=30')
+    const table = on.get('[data-test="ads-conversions"]')
+    const rows = table.findAll('tbody tr').map((tr) => tr.findAll('th, td').map((cell) => cell.text()))
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toEqual(['Google（GA4）', '到場', '4', '1', '0', '1', '6／10（60%）'])
+    expect(rows[1]).toEqual(['預繳', '1', '0', '1', '0'])
+    expect(on.text()).toContain('超過平台收件時限')
   })
 
   it('不在這個子分頁時不讀', async () => {
@@ -119,8 +163,8 @@ describe('廣告成效', () => {
       ],
     }))
     const rows = mainRows(wrapper)
-    expect(rows[1]!.slice(6)).toEqual(['1,500＊', '—', '3,000＊'])
-    expect(rows[0]!.slice(6)).toEqual(['1,500', '2,250', '9,000'])
+    expect(rows[1]!.slice(7)).toEqual(['1,500＊', '—', '3,000＊'])
+    expect(rows[0]!.slice(7)).toEqual(['1,500', '2,250', '9,000'])
     expect(wrapper.find('.ads-partial').text()).toBe('＊ 只算有填花費的月份。')
     expect(wrapper.find('.ads-zone').text()).toBe('Google 花費依 America/Los_Angeles 切月份。')
     const plain = await mountAds()

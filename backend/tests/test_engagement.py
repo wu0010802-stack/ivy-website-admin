@@ -432,13 +432,19 @@ async def test_campus_destinations_follow_contacted_school_and_action_order(admi
     assert report["first_day"] == today_local().isoformat()
     rows = {row["campus_key"]: row for row in report["rows"]}
     assert list(rows) == ["yihua", "minghua", "chongde", "international", "renwu"]
-    assert rows["yihua"] == {"campus_key": "yihua", "available": 1, "empty": 1, "phone": 1, "line": 0,
+    # 校區帳號沒有招生統計權限：「完成線上預約」比照各校實際預約數，一律 None（2026-11-19 審核修正）。
+    assert {row["booked"] for row in rows.values()} == {None}
+    full = {row["campus_key"]: row for row in (await admin_client.get(f"{ADMIN_URL}?days=7")).json()["campus_destinations"]["rows"]}
+    assert full["yihua"] == {"campus_key": "yihua", "available": 1, "empty": 1, "phone": 1, "line": 0,
                              "booked": 1, "contact_after_empty": 1}
-    assert rows["minghua"] == {"campus_key": "minghua", "available": 0, "empty": 2, "phone": 2, "line": 1,
+    assert full["minghua"] == {"campus_key": "minghua", "available": 0, "empty": 2, "phone": 2, "line": 1,
                                "booked": 0, "contact_after_empty": 1}
+    assert {key: value for key, value in rows["yihua"].items() if key != "booked"} == {
+        key: value for key, value in full["yihua"].items() if key != "booked"
+    }
     assert rows["chongde"]["line"] == 1 and rows["chongde"]["contact_after_empty"] == 0
     assert rows["renwu"]["line"] == rows["renwu"]["phone"] == 1 and rows["renwu"]["contact_after_empty"] == 0
-    assert rows["international"]["booked"] == rows["international"]["empty"] == 0
+    assert full["international"]["booked"] == rows["international"]["empty"] == 0
     assert not body["actions"]
 
     mobile = (await admin_client.get(f"{ADMIN_URL}?days=7&device=mobile")).json()["campus_destinations"]

@@ -64,6 +64,9 @@ class CaseBucket:
     considering: bool
     count: int
     month: str  # 建立當下的台北月份 "YYYY-MM"
+    # 另一次進站是哪個廣告平台（2026-11-19 助攻／收尾）：歸屬看最後一次時是第一次的平台，看第一次時是最後一次的；
+    # 另一次不是廣告就是 None。
+    other_platform: str | None = None
 
 
 @dataclass(frozen=True)
@@ -118,8 +121,15 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
     by_month: dict[str, dict[str, dict[str, int]]] = {key: {} for key in ROW_KEYS}
     pending = {"upcoming": 0, "awaiting_attendance": 0, "considering": 0}
     campus_counts: dict[tuple[str, str], dict] = {}
+    assists = {key: {"assist_cases": 0, "assist_completed": 0, "assist_deposited": 0} for key in ROW_KEYS}
     for bucket in buckets:
         key = bucket.platform if bucket.platform in counts else "unknown"
+        other = bucket.other_platform if bucket.other_platform in AD_ROW_KEYS else ("unknown" if bucket.other_platform else None)
+        if other is not None and other != key:
+            # 助攻（看最後一次時）：第一次是這個平台的廣告帶進站，但預約前最後一次是別的來源；看第一次時反過來叫收尾。
+            assists[other]["assist_cases"] += bucket.count
+            assists[other]["assist_completed"] += bucket.count if bucket.outcome == "completed" else 0
+            assists[other]["assist_deposited"] += bucket.count if bucket.deposited else 0
         row = counts[key]
         row["cases"] += bucket.count
         month_row = by_month[key].setdefault(bucket.month, {"cases": 0, "completed": 0, "deposited": 0})
@@ -179,11 +189,11 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
         if key == "google" or key == "organic":
             listed = True
         elif key in _MANUAL_ROWS:
-            listed = has_record or c["cases"] > 0
+            listed = has_record or c["cases"] > 0 or assists[key]["assist_cases"] > 0
         elif key == "offline":
             listed = has_record
         else:  # unknown、unrecorded
-            listed = c["cases"] > 0
+            listed = c["cases"] > 0 or assists[key]["assist_cases"] > 0
         if not listed:
             continue
         priced = key != "offline"
@@ -194,6 +204,7 @@ def compute_ad_roi(months: list[str], buckets: list[CaseBucket], spend: list[Spe
             "missing_months": missing,
             "clicks": clicks,
             **c,
+            **assists[key],
             "cost_per_case": _ratio(amount, denominators["cases"]) if priced else None,
             "cost_per_completed": _ratio(amount, denominators["completed"]) if priced else None,
             "cost_per_deposit": _ratio(amount, denominators["deposited"]) if priced else None,
@@ -235,6 +246,11 @@ async def query_buckets(
         )
         # 來源是退而求其次的 direct 時沒有平台。
         platform_raw = case((VisitRequest.last_touch_source.is_not(None), VisitRequest.last_touch_ad_platform), else_=None)
+    if touch == "first":
+        other_source, other_raw = VisitRequest.last_touch_source, VisitRequest.last_touch_ad_platform
+    else:
+        other_source, other_raw = VisitRequest.first_touch_source, VisitRequest.first_touch_ad_platform
+    other_platform = case((other_source == "ads", func.coalesce(other_raw, literal("unknown"))), else_=None)
     platform = case(
         (source.is_(None), literal("unrecorded")),
         (source == "ads", func.coalesce(platform_raw, literal("unknown"))),
@@ -251,6 +267,7 @@ async def query_buckets(
             outcome.label("outcome"),
             deposited.label("deposited"),
             and_(outcome == "completed", ~deposited, ~withdrawn).label("considering"),
+            other_platform.label("other_platform"),
         )
         .where(
             VisitRequest.source == VisitRequestSource.WEB.value,
@@ -265,12 +282,12 @@ async def query_buckets(
         await db.execute(
             select(
                 per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering,
-                per_case.c.month, func.count(),
+                per_case.c.month, per_case.c.other_platform, func.count(),
             )
             .group_by(
                 per_case.c.platform, per_case.c.campus_key, per_case.c.outcome, per_case.c.deposited, per_case.c.considering,
-                per_case.c.month,
+                per_case.c.month, per_case.c.other_platform,
             )
         )
     ).all()
-    return [CaseBucket(p, c, o, bool(d), bool(k), n, m) for p, c, o, d, k, m, n in rows]
+    return [CaseBucket(p, c, o, bool(d), bool(k), n, m, other) for p, c, o, d, k, m, other, n in rows]

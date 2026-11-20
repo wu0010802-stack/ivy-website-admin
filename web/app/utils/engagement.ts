@@ -46,6 +46,8 @@ export interface EngagementSession {
   campaign?: string
   entryDay?: string
   returning?: boolean
+  /** 造訪開始時 ivy_campus 記住的校區（2026-11-19）：只在新造訪時讀一次，之後換校不改 */
+  pref?: string
   pages: number
 }
 
@@ -55,7 +57,7 @@ export interface EngagementSession {
  * （無痕模式的某些設定）時每次載入各算一次造訪。
  */
 export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> | null, classify: () => EngagementSource, campaign?: () => string | undefined,
-  entry?: { day: string; newArrival: boolean },
+  entry?: { day: string; newArrival: boolean; pref?: string },
 ): EngagementSession {
   try {
     const saved = JSON.parse(storage?.getItem(SESSION_KEY) || 'null') as Partial<EngagementSession> | null
@@ -65,13 +67,15 @@ export function engagementSession(storage: Pick<Storage, 'getItem' | 'setItem'> 
         id: saved.id, source: saved.source!,
         ...(saved.entryDay || entry ? { entryDay: saved.entryDay ?? entry?.day } : {}),
         ...(typeof saved.returning === 'boolean' ? { returning: saved.returning } : {}),
+        ...(typeof saved.pref === 'string' && campusKeys.some((key) => key === saved.pref) ? { pref: saved.pref } : {}),
         ...(typeof saved.campaign === 'string' && ENGAGEMENT_CAMPAIGN.test(saved.campaign) ? { campaign: saved.campaign } : {}),
         pages: Number.isInteger(saved.pages) && saved.pages! > 0 ? saved.pages! : 0
       }
     }
   } catch { /* 存的內容壞掉就重新產生 */ }
   const code = campaign?.()
-  const session: EngagementSession = { id: newIdempotencyKey(), source: classify(), ...(entry ? { entryDay: entry.day } : {}), ...(code ? { campaign: code } : {}), pages: 0 }
+  const pref = entry?.pref && campusKeys.some((key) => key === entry.pref) ? entry.pref : undefined
+  const session: EngagementSession = { id: newIdempotencyKey(), source: classify(), ...(entry ? { entryDay: entry.day } : {}), ...(code ? { campaign: code } : {}), ...(pref ? { pref } : {}), pages: 0 }
   try { storage?.setItem(SESSION_KEY, JSON.stringify(session)) } catch { /* 寫不進去也照樣統計這一頁 */ }
   return session
 }
@@ -172,6 +176,7 @@ export function startVisit(path: string, session: EngagementSession, device: 'mo
       const payload: EngagementEvent = {
         event: 'engagement', id, session: session.id, ...page, device, ...(item ? { item } : {}), source: session.source,
         ...(typeof session.returning === 'boolean' ? { returning: session.returning } : {}),
+        ...(session.pref ? { pref: session.pref } : {}),
         active_ms: Math.round(activeMs), scroll,
         sections: Object.fromEntries(Object.entries(sections).map(([key, ms]) => [key, Math.round(ms)])),
         actions: { ...actions },
@@ -195,25 +200,17 @@ export function setCurrentVisit(visit: EngagementVisit | null): void { current =
 export function trackEngagementAction(key: string, campus?: string): void {
   if (current && (!campus || publicPage(current.path)?.campus === campus)) current.mark(key)
 }
-/** 在頁面切換前或收到預約確認時，送該頁目前的累計與回報序號。 */
+/**
+ * 送出這一頁目前的累計與回報序號。帶同源 cookie（2026-11-19）：官網代理從 HttpOnly 的 ivy_src 讀同一瀏覽器的
+ * 匿名代號附給 API（docs/specs/2026-11-19-cookie-stats-design.md §4～6）；瀏覽器端的程式讀不到代號。
+ */
 export function sendEngagement(visit: EngagementVisit | null): void {
   const payload = visit?.takePayload()
   if (!payload) return
   void fetch('/api/telemetry', {
-    method: 'POST', credentials: 'omit', keepalive: true,
+    method: 'POST', credentials: 'same-origin', keepalive: true,
     headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   }).catch(() => {})
-}
-
-/** 送單時保留原本的瀏覽。等待確認期間切去別校或離開預約頁，仍以原瀏覽的新序號更新。 */
-export function bookingConfirmationReporter(campus: string): (() => void) | undefined {
-  const visit = current
-  const page = visit && publicPage(visit.path)
-  if (!visit || page?.page !== 'visit' || page.campus !== campus) return
-  return () => {
-    visit.mark(BOOKED_ACTION)
-    sendEngagement(visit)
-  }
 }
 
 /** 同一頁做了幾次就算幾次（例如入學試算查了兩個孩子）；trackEngagementAction 則是做過就記 1。 */

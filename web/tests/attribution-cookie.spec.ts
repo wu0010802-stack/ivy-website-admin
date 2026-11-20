@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeAttribution, encodeAttribution, isLandingRequest, isReturningVisit, nextAttribution, taipeiDay, type AttributionCookie } from '../shared/attribution-cookie'
+import { BROWSER_ID, decodeAttribution, encodeAttribution, isLandingRequest, isReturningVisit, newBrowserId, nextAttribution, sourceFromUserAgentOnly, taipeiDay, type AttributionCookie } from '../shared/attribution-cookie'
 
 // 跨次造訪的網站來源 cookie（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §1）。
 // SAMPLE 與 backend/tests/test_cookie_features_20261116.py 同一組：後端解得開官網寫的 cookie。
@@ -25,6 +25,8 @@ const SAMPLE_ADS_COOKIE = 'eyJ2IjoxLCJmIjp7InMiOiJzZWFyY2giLCJkIjoiMjAyNi0xMS0xM
 
 const NOW = new Date('2026-11-16T02:00:00Z')
 const landing = (referrer: string, search = '', userAgent = 'Mozilla/5.0') => ({ referrer, search, userAgent })
+const FIXED_ID = 'AAAAAAAAAAAAAAAAAAAAAA'
+const ID = () => FIXED_ID
 
 it('跨日以台北日期分類，缺少、無效或未來的 cookie 日期列未知', () => {
   const cookie = (d: string) => encodeAttribution({ v: 1, f: { s: 'direct', d } })
@@ -63,10 +65,10 @@ describe('cookie 編碼', () => {
 
 describe('進站更新', () => {
   it('第一次直接進站只記第一次；之後從搜尋進來記最後一次；再直接進站不蓋掉', () => {
-    const first = nextAttribution(null, landing(''), NOW)
-    expect(first).toEqual({ v: 1, f: { s: 'direct', d: '2026-11-16' } })
+    const first = nextAttribution(null, landing(''), NOW, ID)
+    expect(first).toEqual({ v: 1, i: FIXED_ID, f: { s: 'direct', d: '2026-11-16' } })
     const search = nextAttribution(first, landing('https://www.google.com/'), new Date('2026-11-18T03:00:00Z'))
-    expect(search).toEqual({ v: 1, f: { s: 'direct', d: '2026-11-16' }, l: { s: 'search', d: '2026-11-18' } })
+    expect(search).toEqual({ v: 1, i: FIXED_ID, f: { s: 'direct', d: '2026-11-16' }, l: { s: 'search', d: '2026-11-18' } })
     expect(nextAttribution(search, landing(''), new Date('2026-11-20T03:00:00Z'))).toEqual(search)
   })
 
@@ -95,9 +97,9 @@ describe('進站更新', () => {
   })
 
   it('格式怪的點擊代碼不記', () => {
-    expect(nextAttribution(null, landing('', '?oppref=a%3Bb&fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'ads', p: 'openai', d: '2026-11-16' }, l: { s: 'ads', p: 'openai', d: '2026-11-16' } })
+    expect(nextAttribution(null, landing('', '?oppref=a%3Bb&fbclid=x.y'), NOW, ID)).toEqual({ v: 1, i: FIXED_ID, f: { s: 'ads', p: 'openai', d: '2026-11-16' }, l: { s: 'ads', p: 'openai', d: '2026-11-16' } })
     // oppref 一出現就算 OpenAI 廣告進站（2026-11-16 起），只是格式怪的代碼本身不記
-    expect(nextAttribution(null, landing('', '?fbclid=x.y'), NOW)).toEqual({ v: 1, f: { s: 'facebook', d: '2026-11-16' }, l: { s: 'facebook', d: '2026-11-16' } })
+    expect(nextAttribution(null, landing('', '?fbclid=x.y'), NOW, ID)).toEqual({ v: 1, i: FIXED_ID, f: { s: 'facebook', d: '2026-11-16' }, l: { s: 'facebook', d: '2026-11-16' } })
   })
 
   it('台北日期', () => {
@@ -115,5 +117,54 @@ describe('哪些請求算進站', () => {
     expect(isLandingRequest({ ...base, method: 'HEAD', secFetchDest: 'document' })).toBe(false)
     expect(isLandingRequest({ ...base, isPublicPage: false, secFetchDest: 'document' })).toBe(false)
     expect(isLandingRequest({ ...base, secFetchDest: 'document', purpose: 'prefetch' })).toBe(false)
+  })
+})
+
+// 2026-11-19（docs/specs/2026-11-19-cookie-stats-design.md §4～6、§9）
+describe('同一瀏覽器的匿名代號', () => {
+  it('第一次進站就產生，之後沿用；舊 cookie 沒有就補上', () => {
+    const first = nextAttribution(null, landing(''), NOW)
+    expect(first.i).toMatch(BROWSER_ID)
+    expect(nextAttribution(first, landing('https://www.google.com/'), NOW).i).toBe(first.i)
+    const legacy: AttributionCookie = { v: 1, f: { s: 'direct', d: '2026-11-10' } }
+    expect(nextAttribution(legacy, landing(''), NOW, ID).i).toBe(FIXED_ID)
+  })
+
+  it('隨機碼是 22 字 base64url、每次不同', () => {
+    const ids = new Set(Array.from({ length: 50 }, () => newBrowserId()))
+    expect(ids.size).toBe(50)
+    for (const id of ids) expect(id).toMatch(BROWSER_ID)
+  })
+
+  it('解碼時格式不對的代號丟掉，其他欄位照留', () => {
+    const raw = encodeAttribution({ ...SAMPLE, i: 'bad id' } as AttributionCookie)
+    expect(decodeAttribution(raw)).toEqual(SAMPLE)
+    expect(decodeAttribution(encodeAttribution({ ...SAMPLE, i: FIXED_ID }))?.i).toBe(FIXED_ID)
+  })
+})
+
+describe('App 內建瀏覽器重新整理不蓋掉當天的廣告來源（§9）', () => {
+  const LINE_UA = 'Mozilla/5.0 (iPhone) Line/14.0.0'
+  const ad = nextAttribution(null, landing('', '?gclid=abc'), NOW, ID)
+
+  it('只靠 User-Agent 認出的來源才算', () => {
+    expect(sourceFromUserAgentOnly(landing('', '', LINE_UA))).toBe(true)
+    expect(sourceFromUserAgentOnly(landing('', '?utm_source=line', LINE_UA))).toBe(false)
+    expect(sourceFromUserAgentOnly(landing('https://line.me/', '', LINE_UA))).toBe(false)
+    expect(sourceFromUserAgentOnly(landing('', '?fbclid=x', 'FBAN/FBIOS'))).toBe(false)
+    expect(sourceFromUserAgentOnly(landing('', ''))).toBe(false)
+  })
+
+  it('同一天：保留廣告；隔天：照常改成 App 來源', () => {
+    expect(nextAttribution(ad, landing('', '', LINE_UA), new Date('2026-11-16T09:00:00Z')).l).toEqual(ad.l)
+    expect(nextAttribution(ad, landing('', '', LINE_UA), new Date('2026-11-17T09:00:00Z')).l).toEqual({ s: 'line', d: '2026-11-17' })
+  })
+
+  it('同一天從 LINE 連結（有 utm 或來源網址）進來照常更新', () => {
+    expect(nextAttribution(ad, landing('', '?utm_source=line', LINE_UA), NOW).l).toEqual({ s: 'line', d: '2026-11-16' })
+  })
+
+  it('沒有舊的最後一次時照常記', () => {
+    expect(nextAttribution(null, landing('', '', LINE_UA), NOW, ID).l).toEqual({ s: 'line', d: '2026-11-16' })
   })
 })

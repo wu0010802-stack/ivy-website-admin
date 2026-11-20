@@ -1,9 +1,18 @@
 import { IDLE_MS, READ_ACTION, actionKeyOf, campaignOf, campusContactOf, classifySource, engagementSession, nextPage, rememberVisitKind, sectionKeyAt, sendEngagement, setCurrentVisit, startVisit, type EngagementVisit } from '../utils/engagement'
 import { taipeiDay } from '#shared/attribution-cookie'
 import { trackingAllowed } from '../utils/cta-analytics'
+import { REMEMBERED_CAMPUS_COOKIE } from '../utils/remembered-campus'
+
+/** 造訪開始時記住的校區（ivy_campus，不是 HttpOnly）；格式由 engagementSession 再驗一次。 */
+function rememberedCampusCookie(cookie: string): string | undefined {
+  const match = cookie.match(new RegExp(`(?:^|;\\s*)${REMEMBERED_CAMPUS_COOKIE}=([a-z]+)(?:;|$)`))
+  return match?.[1]
+}
 
 // 內容興趣統計（2026-11-11）：各頁停留、捲動深度、各區塊停留、互動與單篇消息，後台「數據」頁看。
-// 和瀏覽統計同一道閘（部署關閉、DNT／GPC 就不送）；回訪分類沿用 ivy_src，分頁內的暫時代碼放 sessionStorage。
+// 和瀏覽統計同一道閘（部署關閉、DNT／GPC 就不送）；分頁內的暫時代碼放 sessionStorage。
+// 2026-11-18／19：回訪分類沿用 ivy_src；回報帶同源 cookie，官網代理從 ivy_src 附上同一瀏覽器的匿名代號，
+// 造訪開始時記下 ivy_campus 記住的校區（docs/specs/2026-11-19-cookie-stats-design.md）。
 // 每秒量一次、只在分頁看得見而且最近有操作時累計；切到背景、換頁、關分頁時把累計值送出去
 // （同一次瀏覽會送多次，後端以瀏覽代碼留最新的一次）。
 export default defineNuxtPlugin((app) => {
@@ -17,7 +26,7 @@ export default defineNuxtPlugin((app) => {
   const newArrival = navType === 'navigate' && (!document.referrer || new URL(document.referrer).origin !== location.origin)
   const session = engagementSession(storage,
     () => classifySource(document.referrer, location.search, location.origin, navigator.userAgent),
-    () => campaignOf(location.search), { day: taipeiDay(new Date()), newArrival },
+    () => campaignOf(location.search), { day: taipeiDay(new Date()), newArrival, pref: rememberedCampusCookie(document.cookie) },
   )
 
   let requestedVisitKind = false
@@ -46,7 +55,7 @@ export default defineNuxtPlugin((app) => {
     if (visit && samePath(visit.path, path)) return
     // 不統計的頁面（後台、預約修改頁…）不算進「第幾頁」。
     const started = startVisit(path, session, device)
-    // 僅首次進到可統計頁時讀分類。瀏覽回報仍省略 cookie，舊造訪保留未知。
+    // 僅首次進到可統計頁時讀回訪分類（伺服器讀 HttpOnly 的 ivy_src，只回 true／false）；讀不到就保留未知。
     if (started && session.pages === 0 && !requestedVisitKind) {
       requestedVisitKind = true
       void $fetch<{ returning: boolean | null }>('/api/visit-kind', { credentials: 'same-origin' })

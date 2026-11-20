@@ -13,7 +13,7 @@ import { visitResultCopy, visitResultKind } from '~/utils/visit-result'
 import { ctaEntryOf, reportBookingActionClick } from '~/utils/cta-analytics'
 import { reportBookingLead } from '~/utils/third-party-analytics'
 import { SLOTS_AVAILABLE } from '#shared/engagement'
-import { bookingConfirmationReporter, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
+import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey, restoredIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
@@ -145,6 +145,7 @@ const availableSlots = ref<PublicVisitSlot[]>([])
 // 顯示「沒有場次」、瀏覽器卻先顯示載入中而造成節點不一致。
 const slotsPending = ref(true)
 const slotsError = ref('')
+// 各校預約去向（2026-11-18）：這一校的場次讀取成功、畫面真的顯示了「有場次」或「沒有場次」才記。
 const resolvedSlotsCampus = ref('')
 const availableSlotsPanel = ref<HTMLElement | null>(null)
 const emptySlotsPanel = ref<HTMLElement | null>(null)
@@ -518,7 +519,7 @@ watch(() => form.campus, () => {
   selectedVisitDate.value = ''
   fieldErrors.value = {}
 })
-watch([form, selectedVisitDate, selectedSlotId], saveDraft, { deep: true })
+watch([form, selectedVisitDate, selectedSlotId, idempotencyKey], saveDraft, { deep: true })
 
 async function onSubmit() {
   if (submitting.value || bookingPending.value || slotsPending.value || action.value.kind !== 'form' || !selectedCampus.value) return
@@ -544,10 +545,6 @@ async function onSubmit() {
     return
   }
 
-  const submittedCampus = form.campus
-  const submittedKey = idempotencyKey.value
-  const submittedEntry = ctaEntryOf(formRef.value)
-  const reportConfirmation = bookingConfirmationReporter(submittedCampus)
   submitting.value = true
   // 送出前把暫存寫好（含這次用的 key）：回應沒收到、家長重新整理時才接得回同一筆。
   saveDraft()
@@ -556,9 +553,9 @@ async function onSubmit() {
   try {
     const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null }>('/api/website/v1/public/visit-requests', {
       method: 'POST',
-      headers: { 'Idempotency-Key': submittedKey },
+      headers: { 'Idempotency-Key': idempotencyKey.value },
       body: {
-        campus_key: submittedCampus,
+        campus_key: form.campus,
         config_version: bookingConfig.value?.version ?? 0,
         parent_name: form.parentName,
         phone: form.phone,
@@ -572,36 +569,30 @@ async function onSubmit() {
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
-    if (created?.status === 'confirmed') {
-      reportConfirmation?.()
-      reportBookingLead(submittedCampus, submittedEntry)
-      if (created.manage_path) rememberedHint.value = true
-    }
-    // 站內換頁或更換校區後才收到回應：保留原校回報，不在別校畫收據或清掉別校草稿。
-    if (slotsMounted && idempotencyKey.value === submittedKey) idempotencyKey.value = newIdempotencyKey()
-    if (!slotsMounted || props.routeCampus !== submittedCampus) {
-      const saved = readDraft()
-      if (saved?.campus === submittedCampus && saved.idempotencyKey === submittedKey) clearDraft()
-      if (slotsMounted && form.campus !== submittedCampus) saveDraft()
-      return
-    }
     // 用 server 回的實際狀態決定文案，不要從 mode 推斷：只有 confirmed 才能
     // 說「預約成立」——規格 197。
     submittedSlot.value = selectedSlot.value ? { ...selectedSlot.value } : null
     resultStatus.value = created?.status ?? null
-    receiptId.value = created?.receipt_id || submittedKey
+    receiptId.value = created?.receipt_id || idempotencyKey.value
     managePath.value = created?.manage_path ?? null
+    // 預約成立時後端發了「這台裝置記住預約」的 cookie（VisitRememberedNotice）：這次造訪再回到選校步驟就查得到。
+    if (created?.status === 'confirmed' && created?.manage_path) rememberedHint.value = true
     linkCopied.value = false
     linkCopyFailed.value = false
     submitted.value = true
     clearDraft()
+    // 內容興趣統計：這次造訪送出了預約（匿名，只用來看「看過什麼內容的造訪比較會預約」）。
+    trackEngagementAction(BOOKED_ACTION)
+    // GA4 generate_lead／Meta Pixel Lead（2026-11-12）：只有伺服器回「預約成立」（confirmed）才算，
+    // 待人工確認或其他狀態不送；參數只有白名單的校區代碼與入口代碼（沒設 ID 或 DNT／GPC 時這行什麼都不做）。
+    if (created?.status === 'confirmed') reportBookingLead(form.campus, ctaEntryOf(formRef.value))
+    idempotencyKey.value = newIdempotencyKey()
     await nextTick()
     // 結果區塊比一屏高：直接 focus() 會被瀏覽器捲到置中，狀態與標題落在膠囊底下或畫面外。
     // 比照 focusStage，先不捲動地聚焦，再把頂端對齊到頁首下方（.visit-result 手機不另加 scroll-margin）。
     resultRef.value?.focus({ preventScroll: true })
     resultRef.value?.scrollIntoView({ block: 'start', behavior: 'instant' })
   } catch (err: any) {
-    if (!slotsMounted || props.routeCampus !== submittedCampus) return
     const detail = err?.data?.detail
     const code = typeof detail === 'object' ? detail.code : null
     if (code === 'BOOKING_CONFIG_CHANGED') {
@@ -616,7 +607,6 @@ async function onSubmit() {
       // 同一把 key 但內容不同：代表前一次其實已經送出成功了。叫使用者
       // 「再試一次」只會永遠卡住，要換一把新 key 才送得出去。
       idempotencyKey.value = newIdempotencyKey()
-      saveDraft()
       submitError.value =
         (mailedToParent.value
           ? '你先前那一次其實已經預約成功了，請從確認信裡的連結管理預約。要更正內容請用那條連結，不要重複送出。'

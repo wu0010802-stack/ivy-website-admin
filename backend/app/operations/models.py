@@ -349,6 +349,11 @@ class EngagementVisit(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     # 進站當天＝False、跨台北日回訪＝True；舊資料或無 cookie＝NULL。
     returning: Mapped[bool | None] = mapped_column(nullable=True)
+    # 同一瀏覽器的匿名代號（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §4～6）：ivy_src 裡的隨機碼
+    # 經 HMAC 後的前 32 個十六進位字元。只在這張表、跟著 90 天清掉；不寫進預約案件。沒有 cookie／DNT＝NULL。
+    browser_key: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # 造訪開始時 ivy_campus 記住的校區（§7）；沒有＝NULL。
+    campus_pref: Mapped[str | None] = mapped_column(String(32), nullable=True)
     # 這是這次造訪的第幾頁（從 1 起算），用來看進站頁、離開頁與瀏覽順序。2026-11-11 第二輪加，
     # 之前的紀錄與還開著舊版頁面的瀏覽器是 NULL。
     seq: Mapped[int | None] = mapped_column(Integer, nullable=True)

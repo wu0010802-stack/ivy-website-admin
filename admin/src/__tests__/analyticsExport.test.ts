@@ -289,8 +289,18 @@ const attribution = (over: Partial<BookingAttributionOut> = {}): BookingAttribut
     { source: 'unrecorded', ...touchCounts(4, 1, 0, 0), campaigns: [] },
   ],
   totals: touchCounts(7, 3, 1, 1),
-  delays: { same_day: 2, days_1_3: 1, days_4_7: 0, days_8_plus: 0, unrecorded: 4 },
-  source_paths: [{ first: 'facebook', last: 'ads', cases: 3 }, { first: 'unrecorded', last: 'unrecorded', cases: 4 }],
+  delays: { same_day: 2, days_1_3: 1, days_4_7: 0, days_8_30: 0, days_31_plus: 0, unrecorded: 4 },
+  median_days: 0,
+  delay_rows: [{ source: 'facebook', cases: 3, same_day: 2, days_1_3: 1, days_4_7: 0, days_8_30: 0, days_31_plus: 0, median_days: 0 }],
+  source_paths: [
+    { first: 'facebook', last: 'ads', ...touchCounts(3, 2, 1, 1) },
+    { first: 'unrecorded', last: 'unrecorded', ...touchCounts(4, 1, 0, 0) },
+  ],
+  referral_rows: [
+    { referral: 'friends_family', cases: 2, sources: [{ source: 'facebook', cases: 2 }] },
+    { referral: 'none', cases: 1, sources: [{ source: 'facebook', cases: 1 }] },
+  ],
+  remembered: { shown: 0, opened: 0, opened_without_email: 0, dismissed: 0, first_day: null },
   ...over,
 })
 
@@ -301,8 +311,9 @@ describe('參觀預約統計：網站來源', () => {
     wrappers.push(wrapper)
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?campus_key=yihua&touch=last')
-    expect(wrapper.text()).toContain('7 件官網預約中，3 件有可用')
-    expect(wrapper.text()).toContain('首次來源與最後非直接來源')
+    expect(wrapper.text()).toContain('7 件官網預約中有 3 件記得到第一次進站的日期')
+    expect(wrapper.text()).toContain('第一次來源 × 預約前最後外部來源')
+    expect(wrapper.text()).not.toContain('這台裝置記住預約')
     await click(wrapper, 'stats-csv')
     const { filename, lines } = lastDownload()
     expect(filename).toBe(`招生統計-參觀預約-網站來源-預約前最後來源-義華-開站至今-${today}.csv`)
@@ -316,6 +327,45 @@ describe('參觀預約統計：網站來源', () => {
     wrapper.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 'first')
     await flushPromises()
     expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?campus_key=yihua&touch=first')
+  })
+
+  it('2026-11-19：組合帶到場預繳、天數依第一次來源、自填對照只列出現的來源、記住預約有次數才顯示', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(attribution({
+      source_paths: [{ first: 'ads', last: 'search', ...touchCounts(2, 1, 0, 1) }, { first: 'direct', last: 'no_external', ...touchCounts(1, 0, 0, 0) }],
+      remembered: { shown: 5, opened: 2, opened_without_email: 1, dismissed: 1, first_day: '2026-11-19' },
+    }) as never)
+    const wrapper = mount(BookingAttributionPanel, { props: { campusKey: 'yihua', range: null, periodLabel: '開站至今' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.find('[data-test="attribution-ad-assists"]').text()).toContain('2 件')
+    expect(wrapper.text()).toContain('之後只直接進站')
+    const buttons = wrapper.findAll('[data-test="stats-csv"]')
+    expect(buttons).toHaveLength(5)
+    await buttons[1]!.trigger('click')
+    expect(lastDownload().lines.slice(0, 2)).toEqual([
+      `${CSV_BOM}第一次來源,預約前最後外部來源,預約,已到場,未到場,到場率,預繳,預繳率`,
+      '付費廣告,搜尋引擎,2,1,0,100.0%,1,100.0%',
+    ])
+    await buttons[2]!.trigger('click')
+    expect(lastDownload().lines.slice(0, 2)).toEqual([
+      `${CSV_BOM}第一次來源,預約,當天,1–3 天,4–7 天,8–30 天,31 天以上,中位數`,
+      'Facebook,3,2,1,0,0,0,0 天',
+    ])
+    await buttons[3]!.trigger('click')
+    expect(lastDownload().lines.slice(0, 3)).toEqual([`${CSV_BOM}家長自填,預約,Facebook`, '親友介紹,2,2', '沒有勾,1,1'])
+    await buttons[4]!.trigger('click')
+    expect(lastDownload().lines[3]).toBe('按「修改或取消」的沒留 Email 家長,1')
+  })
+
+  it('不指定校區時看授權校區合計：不帶 campus_key、檔名寫授權校區合計', async () => {
+    const get = vi.spyOn(api, 'get').mockResolvedValue(attribution() as never)
+    const wrapper = mount(BookingAttributionPanel, { props: { campusKey: null, range: null, periodLabel: '開站至今' }, global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(get).toHaveBeenLastCalledWith('/admin/analytics/booking-attribution?touch=last')
+    expect(wrapper.text()).toContain('網站來源・授權校區合計')
+    await click(wrapper, 'stats-csv')
+    expect(lastDownload().filename).toBe(`招生統計-參觀預約-網站來源-預約前最後來源-授權校區合計-開站至今-${today}.csv`)
   })
 
   it('這段期間沒有官網預約時不畫表、沒有匯出鈕', async () => {

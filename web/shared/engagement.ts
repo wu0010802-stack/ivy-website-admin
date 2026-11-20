@@ -41,6 +41,8 @@ export type EngagementEvent = PublicPage & {
   item?: string
   source: EngagementSource
   returning?: boolean
+  /** 造訪開始時 ivy_campus 記住的校區（2026-11-19 §7） */
+  pref?: string
   active_ms: number
   scroll: number
   sections: Record<string, number>
@@ -72,7 +74,7 @@ function isCounts(value: unknown, min: number, max: number, reserved?: Set<strin
 export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   const item = input as Record<string, unknown>
-  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign', 'rev', 'returning']
+  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign', 'rev', 'returning', 'pref']
   if (item.event !== 'engagement' || Object.keys(item).some((key) => !allowed.includes(key))) return null
   if (typeof item.id !== 'string' || !UUID.test(item.id) || typeof item.session !== 'string' || !UUID.test(item.session)) return null
   if (typeof item.page !== 'string' || !['mobile', 'desktop'].includes(item.device as string)) return null
@@ -82,6 +84,7 @@ export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!page || page.page !== item.page || page.campus !== item.campus) return null
   if (item.item !== undefined && (typeof item.item !== 'string' || !ITEM.test(item.item) || item.page !== 'news')) return null
   if (item.returning !== undefined && typeof item.returning !== 'boolean') return null
+  if (item.pref !== undefined && !campusKeys.some((key) => key === item.pref)) return null
   if (!ENGAGEMENT_SOURCES.some((source) => source === item.source)) return null
   if (!Number.isInteger(item.active_ms) || (item.active_ms as number) < 0 || (item.active_ms as number) > ENGAGEMENT_MAX_ACTIVE_MS) return null
   if (!Number.isInteger(item.scroll) || (item.scroll as number) < 0 || (item.scroll as number) > 100) return null

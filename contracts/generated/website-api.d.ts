@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/api/website/v1/admin/admissions/ad-conversions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ad Conversion Status
+         * @description 回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）：近 N 天排入的工作依平台 ×
+         *     事件 × 狀態計數、最近一次送出與最近的問題，以及同期官網預約帶到各平台識別碼的件數。只讀、校區範圍內的案件。
+         */
+        get: operations["get_ad_conversion_status_api_website_v1_admin_admissions_ad_conversions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/ad-roi": {
         parameters: {
             query?: never;
@@ -4110,6 +4131,59 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AdConversionEventOut */
+        AdConversionEventOut: {
+            /**
+             * Event
+             * @enum {string}
+             */
+            event: "visit_attended" | "deposit_paid";
+            /** Failed */
+            failed: number;
+            /** Pending */
+            pending: number;
+            /** Sent */
+            sent: number;
+            /** Skipped */
+            skipped: number;
+        };
+        /** AdConversionPlatformOut */
+        AdConversionPlatformOut: {
+            /** Cases With Ids */
+            cases_with_ids: number;
+            /** Configured */
+            configured: boolean;
+            /** Events */
+            events: components["schemas"]["AdConversionEventOut"][];
+            /** Last Problem */
+            last_problem: string | null;
+            /** Last Problem At */
+            last_problem_at: string | null;
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /**
+             * Platform
+             * @enum {string}
+             */
+            platform: "ga4" | "meta" | "openai" | "line";
+        };
+        /**
+         * AdConversionStatusOut
+         * @description 回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）。
+         */
+        AdConversionStatusOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Cases */
+            cases: number;
+            /** Days */
+            days: number;
+            /** Platforms */
+            platforms: components["schemas"]["AdConversionPlatformOut"][];
+        };
         /** AdRoiCampusOut */
         AdRoiCampusOut: {
             /** Campus Key */
@@ -4190,6 +4264,12 @@ export interface components {
         };
         /** AdRoiRowOut */
         AdRoiRowOut: {
+            /** Assist Cases */
+            assist_cases: number;
+            /** Assist Completed */
+            assist_completed: number;
+            /** Assist Deposited */
+            assist_deposited: number;
             /** Cases */
             cases: number;
             /** Clicks */
@@ -6266,23 +6346,77 @@ export interface components {
         AttributionDelayOut: {
             /** Days 1 3 */
             days_1_3: number;
+            /** Days 31 Plus */
+            days_31_plus: number;
             /** Days 4 7 */
             days_4_7: number;
-            /** Days 8 Plus */
-            days_8_plus: number;
+            /** Days 8 30 */
+            days_8_30: number;
             /** Same Day */
             same_day: number;
             /** Unrecorded */
             unrecorded: number;
         };
-        /** AttributionPathOut */
-        AttributionPathOut: {
+        /**
+         * AttributionDelayRowOut
+         * @description 依第一次來源拆開的天數分段（只算有第一次進站日期的案件）。
+         */
+        AttributionDelayRowOut: {
             /** Cases */
             cases: number;
+            /** Days 1 3 */
+            days_1_3: number;
+            /** Days 31 Plus */
+            days_31_plus: number;
+            /** Days 4 7 */
+            days_4_7: number;
+            /** Days 8 30 */
+            days_8_30: number;
+            /** Median Days */
+            median_days: number | null;
+            /** Same Day */
+            same_day: number;
+            /** Source */
+            source: string;
+        };
+        /**
+         * AttributionPathOut
+         * @description 第一次 × 最後一次來源組合；last 是 no_external＝之後只直接進站過。
+         */
+        AttributionPathOut: {
+            attendance_rate: components["schemas"]["AdmissionsRate"];
+            /** Cases */
+            cases: number;
+            /** Completed */
+            completed: number;
+            deposit_rate: components["schemas"]["AdmissionsRate"];
+            /** Deposited */
+            deposited: number;
             /** First */
             first: string;
             /** Last */
             last: string;
+            /** No Show */
+            no_show: number;
+        };
+        /**
+         * AttributionReferralOut
+         * @description 家長自填「如何知道常春藤」的一個選項（none＝沒勾）× 網站記到的第一次來源；複選的案件每個選項各算一次。
+         */
+        AttributionReferralOut: {
+            /** Cases */
+            cases: number;
+            /** Referral */
+            referral: string;
+            /** Sources */
+            sources: components["schemas"]["AttributionReferralSourceOut"][];
+        };
+        /** AttributionReferralSourceOut */
+        AttributionReferralSourceOut: {
+            /** Cases */
+            cases: number;
+            /** Source */
+            source: string;
         };
         /** AttributionSourceOut */
         AttributionSourceOut: {
@@ -6402,7 +6536,14 @@ export interface components {
             date_from: string | null;
             /** Date To */
             date_to: string | null;
+            /** Delay Rows */
+            delay_rows: components["schemas"]["AttributionDelayRowOut"][];
             delays: components["schemas"]["AttributionDelayOut"];
+            /** Median Days */
+            median_days: number | null;
+            /** Referral Rows */
+            referral_rows: components["schemas"]["AttributionReferralOut"][];
+            remembered: components["schemas"]["RememberedUsageOut"];
             /** Rows */
             rows: components["schemas"]["AttributionSourceOut"][];
             /** Source Paths */
@@ -6523,6 +6664,64 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** BrowserConversionOut */
+        BrowserConversionOut: {
+            /** Booked Browsers */
+            booked_browsers: number;
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Browsers */
+            browsers: number;
+            /** Key */
+            key: string | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "page" | "section";
+            /** Page */
+            page: string;
+        };
+        /** BrowserSourceOut */
+        BrowserSourceOut: {
+            /** Booked Browsers */
+            booked_browsers: number;
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Browsers */
+            browsers: number;
+            /** Source */
+            source: string;
+        };
+        /**
+         * BrowserStatsOut
+         * @description 同一瀏覽器的跨次統計（2026-11-19 §4～6，只看有匿名代號的紀錄）。
+         */
+        BrowserStatsOut: {
+            /** Booked Browsers */
+            booked_browsers: number;
+            /** Booked Rate */
+            booked_rate: number | null;
+            /** Browsers */
+            browsers: number;
+            /** Conversion */
+            conversion: components["schemas"]["BrowserConversionOut"][];
+            /** First Day */
+            first_day: string | null;
+            /** Multi Visit Browsers */
+            multi_visit_browsers: number;
+            /** Sources */
+            sources: components["schemas"]["BrowserSourceOut"][];
+            /** Visits Before Booking */
+            visits_before_booking: components["schemas"]["BrowserVisitsOut"][];
+        };
+        /** BrowserVisitsOut */
+        BrowserVisitsOut: {
+            /** Browsers */
+            browsers: number;
+            /** Visits */
+            visits: string;
+        };
         /** CalendarSlotOut */
         CalendarSlotOut: {
             /** Booked Count */
@@ -6588,7 +6787,7 @@ export interface components {
             /** Available */
             available: number;
             /** Booked */
-            booked: number;
+            booked: number | null;
             /** Campus Key */
             campus_key: string;
             /** Contact After Empty */
@@ -6657,6 +6856,22 @@ export interface components {
             upcoming: number;
             /** Web Cases */
             web_cases: number;
+        };
+        /**
+         * CampusPrefRowOut
+         * @description 帶著記住的校區（ivy_campus）回來的造訪（2026-11-19 §7）。
+         */
+        CampusPrefRowOut: {
+            /** Booked Other */
+            booked_other: number | null;
+            /** Booked Same */
+            booked_same: number | null;
+            /** Campus Key */
+            campus_key: string;
+            /** Sessions */
+            sessions: number;
+            /** Visit Sessions */
+            visit_sessions: number;
         };
         /** CampusStatusOut */
         CampusStatusOut: {
@@ -7301,6 +7516,8 @@ export interface components {
             };
             /** Active Ms */
             active_ms: number;
+            /** Browser */
+            browser?: string | null;
             /** Campaign */
             campaign?: string | null;
             /** Campus */
@@ -7327,6 +7544,8 @@ export interface components {
              * @enum {string}
              */
             page: "home" | "campus" | "visit" | "about" | "curriculum" | "environment" | "admission" | "news" | "anniversary";
+            /** Pref */
+            pref?: ("yihua" | "minghua" | "chongde" | "international" | "renwu") | null;
             /** Returning */
             returning?: boolean | null;
             /** Rev */
@@ -7476,9 +7695,12 @@ export interface components {
              */
             as_of: string;
             booking_form: components["schemas"]["EngagementFormOut"];
+            browser: components["schemas"]["BrowserStatsOut"];
             /** Campaigns */
             campaigns: components["schemas"]["EngagementCampaignOut"][];
             campus_destinations: components["schemas"]["CampusDestinationsOut"];
+            /** Campus Prefs */
+            campus_prefs: components["schemas"]["CampusPrefRowOut"][];
             /** Campuses */
             campuses: components["schemas"]["EngagementCampusOut"][];
             /** Classes */
@@ -10623,6 +10845,22 @@ export interface components {
             expected_current_release_id?: string | null;
         };
         /**
+         * RememberedUsageOut
+         * @description 這台裝置記住預約的使用次數（2026-11-19 §7），依事件發生的台北日落在期間內。
+         */
+        RememberedUsageOut: {
+            /** Dismissed */
+            dismissed: number;
+            /** First Day */
+            first_day: string | null;
+            /** Opened */
+            opened: number;
+            /** Opened Without Email */
+            opened_without_email: number;
+            /** Shown */
+            shown: number;
+        };
+        /**
          * RememberedVisitOut
          * @description 這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、
          *     Email——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。
@@ -12353,6 +12591,41 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    get_ad_conversion_status_api_website_v1_admin_admissions_ad_conversions_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdConversionStatusOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_ad_roi_api_website_v1_admin_admissions_ad_roi_get: {
         parameters: {
             query: {
@@ -20763,7 +21036,9 @@ export interface operations {
                 "X-Ivy-Parent"?: string | null;
             };
             path?: never;
-            cookie?: never;
+            cookie?: {
+                ivy_visit_remember?: string | null;
+            };
         };
         requestBody?: never;
         responses: {

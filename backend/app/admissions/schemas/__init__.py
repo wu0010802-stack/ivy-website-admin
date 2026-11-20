@@ -199,6 +199,9 @@ from app.admissions.schemas.enrolled import (
     AreaEnrolledOut,
 )
 from app.admissions.schemas.ad_roi import (
+    AdConversionEventOut,
+    AdConversionPlatformOut,
+    AdConversionStatusOut,
     AdRoiCampusOut,
     AdRoiGoogleCampaignOut,
     AdRoiGoogleOut,

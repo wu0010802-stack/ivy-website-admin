@@ -54,6 +54,19 @@ const summary = (): EngagementSummary => ({
       line: i ? 0 : 1, booked: i ? 0 : 2, contact_after_empty: i ? 0 : 1,
     })),
   },
+  campus_prefs: [
+    { campus_key: 'yihua', sessions: 25, visit_sessions: 10, booked_same: 3, booked_other: 1 },
+    { campus_key: 'minghua', sessions: 4, visit_sessions: 1, booked_same: null, booked_other: null },
+  ],
+  browser: {
+    browsers: 80, booked_browsers: 10, booked_rate: 0.125, multi_visit_browsers: 30, first_day: '2026-11-19',
+    visits_before_booking: [{ visits: '1', browsers: 4 }, { visits: '2', browsers: 3 }, { visits: '3', browsers: 2 }, { visits: '4_plus', browsers: 1 }],
+    sources: [{ source: 'ads', browsers: 40, booked_browsers: 8, booked_rate: 0.2 }, { source: 'line', browsers: 5, booked_browsers: 1, booked_rate: 0.2 }],
+    conversion: [
+      { kind: 'page', page: 'about', key: null, browsers: 30, booked_browsers: 9, booked_rate: 0.3 },
+      { kind: 'page', page: 'home', key: null, browsers: 70, booked_browsers: 10, booked_rate: 0.1429 },
+    ],
+  },
   campuses: [
     { campus_key: 'yihua', tab_visits: 12, map_visits: 5, visit_sessions: 20, bookings: 6 },
     { campus_key: 'minghua', tab_visits: 30, map_visits: 9, visit_sessions: 8, bookings: null },
@@ -162,6 +175,8 @@ describe('內容興趣面板', () => {
     totals: { visits: 0, sessions: 0, booked_sessions: 0, booked_rate: null, median_active_ms: 0, median_session_ms: 0, pages_per_session: null, mobile_sessions: 0 },
     booking_form: { sessions: 0, no_slots_sessions: 0, invalid_sessions: 0, steps: [] }, journey: { sessions: 0, entries: [], exits: [], paths: [] },
     campus_destinations: { tracked_visits: 0, first_day: null, rows: [] },
+    campus_prefs: [],
+    browser: { browsers: 0, booked_browsers: 0, booked_rate: null, multi_visit_browsers: 0, first_day: null, visits_before_booking: [], sources: [], conversion: [] },
     campuses: summary().campuses.map((row) => ({ ...row, tab_visits: 0, map_visits: 0, visit_sessions: 0, bookings: null })),
     pages: [], sections: [], actions: [], news: [], sources: [], conversion: [],
   })
@@ -169,8 +184,8 @@ describe('內容興趣面板', () => {
 
   it('三類各放哪幾張表', async () => {
     expect(titles((await mountPanel(summary(), 'content')).wrapper)).toEqual(['造訪概況', '各頁停留', '各區塊有多少人看到', '點開了什麼', '單篇消息', '首頁點開的消息', '家長查的是哪個班別'])
-    expect(titles((await mountPanel(summary(), 'journey')).wrapper)).toEqual(['同一瀏覽器的回訪', '從哪裡來', '哪一則貼文或廣告帶來的', '從哪一頁進來、哪一頁離開', '最常見的瀏覽順序', '什麼時候有人看'])
-    expect(titles((await mountPanel(summary(), 'convert')).wrapper)).toEqual(['各校預約去向', '預約表單卡在哪一步', '各校的興趣與預約', '看過哪些內容的造訪比較會預約'])
+    expect(titles((await mountPanel(summary(), 'journey')).wrapper)).toEqual(['同一瀏覽器的回訪', '同一瀏覽器的跨次造訪', '從哪裡來', '哪一則貼文或廣告帶來的', '從哪一頁進來、哪一頁離開', '最常見的瀏覽順序', '什麼時候有人看'])
+    expect(titles((await mountPanel(summary(), 'convert')).wrapper)).toEqual(['各校預約去向', '帶著記住的校區回來', '預約表單卡在哪一步', '各校的興趣與預約', '看過哪些內容的造訪比較會預約'])
   })
 
   it('讀近 28 天，列出各頁停留、區塊、互動與消息', async () => {
@@ -217,7 +232,7 @@ describe('內容興趣面板', () => {
     expect(rows[0]).toContain('首頁：孩子的一天')
     expect(rows[0]).toContain('14%')
     expect(rows[1]).toContain('首頁')
-    expect(wrapper.text()).not.toContain('樣本太少')
+    expect(wrapper.get('[aria-labelledby="interest-conversion-title"]').text()).not.toContain('樣本太少')
     const few = wrapper.find('[data-test="interest-conversion-few"]')
     expect(few.find('summary').text()).toBe(`另外 1 項的造訪不到 ${MIN_ENGAGEMENT_SAMPLES} 次，先不算比例`)
     const fewRows = few.findAll('tbody tr').map((row) => row.text())
@@ -353,6 +368,45 @@ describe('內容興趣面板', () => {
     const old = (await mountPanel({ ...summary(), campus_destinations: { tracked_visits: 0, first_day: null, rows: [] } }, 'convert')).wrapper
     expect(old.get('[aria-labelledby="interest-destinations-title"]').text()).toContain('舊版頁面')
     expect(old.find('[data-test="interest-csv-destinations"]').exists()).toBe(false)
+  })
+
+  it('2026-11-19：沒有這校招生統計權限時，去向的「完成線上預約」顯示破折號、CSV 留空', async () => {
+    const save = vi.spyOn(csvExport, 'saveAnalyticsCsv').mockImplementation(() => {})
+    const data = summary()
+    data.campus_destinations.rows = data.campus_destinations.rows.map((row, i) => (i ? { ...row, booked: null } : row))
+    const { wrapper } = await mountPanel(data, 'convert')
+    const panel = wrapper.get('[aria-labelledby="interest-destinations-title"]')
+    expect(panel.findAll('tbody tr')[1]!.findAll('td').map((cell) => cell.text())[4]).toBe('—')
+    await panel.get('button[data-test="interest-csv-destinations"]').trigger('click')
+    expect(save.mock.calls[0]![2][1]![5]).toBe('')
+  })
+
+  it('2026-11-19：帶著記住的校區回來，預約欄依權限顯示', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
+    const rows = wrapper.findAll('[data-test="interest-prefs"] tbody tr').map((row) => row.findAll('th, td').map((cell) => cell.text()))
+    expect(rows[0]).toEqual(['義華校', '25', '10（40%）', '3', '1'])
+    expect(rows[1]).toEqual(['明華校', '4', '1（樣本太少）', '—', '—'])
+  })
+
+  it('2026-11-19：同一瀏覽器的跨次造訪（預約前來了幾次、最早來源）', async () => {
+    const { wrapper } = await mountPanel(summary(), 'journey')
+    expect(wrapper.get('[data-test="interest-browser-summary"]').text()).toContain('80 個瀏覽器中，30 個來過兩次以上；10 個在這段期間完成線上預約（13%）')
+    const visits = wrapper.findAll('[data-test="interest-browser-visits"] tbody tr').map((row) => row.text())
+    expect(visits).toEqual(['第 1 次就預約4（40%）', '第 2 次3（30%）', '第 3 次2（20%）', '第 4 次以上1（10%）'])
+    const sources = wrapper.findAll('[data-test="interest-browser-sources"] tbody tr').map((row) => row.text())
+    expect(sources[0]).toContain('20%')
+    expect(sources[1]).toContain('樣本太少')
+  })
+
+  it('2026-11-19：內容與預約切到「同一瀏覽器（跨次）」換成瀏覽器為單位', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
+    wrapper.get('[data-test="interest-conversion-unit"]').findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 'browser')
+    await flushPromises()
+    expect(wrapper.get('#interest-conversion-title').text()).toContain('看過哪些內容的瀏覽器比較會預約')
+    expect(wrapper.get('#interest-conversion-title').text()).toContain('全部瀏覽器 10／80（13%）')
+    const rows = wrapper.findAll('[data-test="interest-conversion"] tbody tr').map((row) => row.text())
+    expect(rows[0]).toContain('關於常春藤')
+    expect(rows[0]).toContain('30%')
   })
 
   it('第二輪：各校的興趣與預約', async () => {

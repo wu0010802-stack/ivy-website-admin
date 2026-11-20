@@ -435,8 +435,9 @@ async def test_decision_delay_uses_taipei_booking_day_and_keeps_missing_data(adm
     })
     assert response.status_code == 200, response.text
     report = response.json()
-    assert report["delays"] == {"same_day": 1, "days_1_3": 2, "days_4_7": 2, "days_8_plus": 1, "unrecorded": 2}
-    assert report["source_paths"] == [
-        {"first": "facebook", "last": "search", "cases": 7},
-        {"first": "unrecorded", "last": "unrecorded", "cases": 1},
+    assert report["delays"] == {
+        "same_day": 1, "days_1_3": 2, "days_4_7": 2, "days_8_30": 1, "days_31_plus": 0, "unrecorded": 2,
+    }
+    assert [(row["first"], row["last"], row["cases"]) for row in report["source_paths"]] == [
+        ("facebook", "search", 7), ("unrecorded", "unrecorded", 1),
     ]

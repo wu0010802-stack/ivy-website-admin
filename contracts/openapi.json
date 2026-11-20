@@ -1,6 +1,151 @@
 {
   "components": {
     "schemas": {
+      "AdConversionEventOut": {
+        "properties": {
+          "event": {
+            "enum": [
+              "visit_attended",
+              "deposit_paid"
+            ],
+            "title": "Event",
+            "type": "string"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "sent": {
+            "title": "Sent",
+            "type": "integer"
+          },
+          "skipped": {
+            "title": "Skipped",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "event",
+          "pending",
+          "sent",
+          "failed",
+          "skipped"
+        ],
+        "title": "AdConversionEventOut",
+        "type": "object"
+      },
+      "AdConversionPlatformOut": {
+        "properties": {
+          "cases_with_ids": {
+            "title": "Cases With Ids",
+            "type": "integer"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AdConversionEventOut"
+            },
+            "title": "Events",
+            "type": "array"
+          },
+          "last_problem": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Problem"
+          },
+          "last_problem_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Problem At"
+          },
+          "last_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sent At"
+          },
+          "platform": {
+            "enum": [
+              "ga4",
+              "meta",
+              "openai",
+              "line"
+            ],
+            "title": "Platform",
+            "type": "string"
+          }
+        },
+        "required": [
+          "platform",
+          "configured",
+          "events",
+          "last_sent_at",
+          "last_problem",
+          "last_problem_at",
+          "cases_with_ids"
+        ],
+        "title": "AdConversionPlatformOut",
+        "type": "object"
+      },
+      "AdConversionStatusOut": {
+        "description": "回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）。",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "platforms": {
+            "items": {
+              "$ref": "#/components/schemas/AdConversionPlatformOut"
+            },
+            "title": "Platforms",
+            "type": "array"
+          }
+        },
+        "required": [
+          "as_of",
+          "days",
+          "cases",
+          "platforms"
+        ],
+        "title": "AdConversionStatusOut",
+        "type": "object"
+      },
       "AdRoiCampusOut": {
         "properties": {
           "campus_key": {
@@ -235,6 +380,18 @@
       },
       "AdRoiRowOut": {
         "properties": {
+          "assist_cases": {
+            "title": "Assist Cases",
+            "type": "integer"
+          },
+          "assist_completed": {
+            "title": "Assist Completed",
+            "type": "integer"
+          },
+          "assist_deposited": {
+            "title": "Assist Deposited",
+            "type": "integer"
+          },
           "cases": {
             "title": "Cases",
             "type": "integer"
@@ -351,6 +508,9 @@
           "completed",
           "no_show",
           "deposited",
+          "assist_cases",
+          "assist_completed",
+          "assist_deposited",
           "cost_per_case",
           "cost_per_completed",
           "cost_per_deposit",
@@ -7059,12 +7219,16 @@
             "title": "Days 1 3",
             "type": "integer"
           },
+          "days_31_plus": {
+            "title": "Days 31 Plus",
+            "type": "integer"
+          },
           "days_4_7": {
             "title": "Days 4 7",
             "type": "integer"
           },
-          "days_8_plus": {
-            "title": "Days 8 Plus",
+          "days_8_30": {
+            "title": "Days 8 30",
             "type": "integer"
           },
           "same_day": {
@@ -7080,16 +7244,88 @@
           "same_day",
           "days_1_3",
           "days_4_7",
-          "days_8_plus",
+          "days_8_30",
+          "days_31_plus",
           "unrecorded"
         ],
         "title": "AttributionDelayOut",
         "type": "object"
       },
-      "AttributionPathOut": {
+      "AttributionDelayRowOut": {
+        "description": "依第一次來源拆開的天數分段（只算有第一次進站日期的案件）。",
         "properties": {
           "cases": {
             "title": "Cases",
+            "type": "integer"
+          },
+          "days_1_3": {
+            "title": "Days 1 3",
+            "type": "integer"
+          },
+          "days_31_plus": {
+            "title": "Days 31 Plus",
+            "type": "integer"
+          },
+          "days_4_7": {
+            "title": "Days 4 7",
+            "type": "integer"
+          },
+          "days_8_30": {
+            "title": "Days 8 30",
+            "type": "integer"
+          },
+          "median_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Days"
+          },
+          "same_day": {
+            "title": "Same Day",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "cases",
+          "same_day",
+          "days_1_3",
+          "days_4_7",
+          "days_8_30",
+          "days_31_plus",
+          "median_days"
+        ],
+        "title": "AttributionDelayRowOut",
+        "type": "object"
+      },
+      "AttributionPathOut": {
+        "description": "第一次 × 最後一次來源組合；last 是 no_external＝之後只直接進站過。",
+        "properties": {
+          "attendance_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "deposit_rate": {
+            "$ref": "#/components/schemas/AdmissionsRate"
+          },
+          "deposited": {
+            "title": "Deposited",
             "type": "integer"
           },
           "first": {
@@ -7099,14 +7335,68 @@
           "last": {
             "title": "Last",
             "type": "string"
+          },
+          "no_show": {
+            "title": "No Show",
+            "type": "integer"
           }
         },
         "required": [
+          "cases",
+          "completed",
+          "no_show",
+          "deposited",
+          "attendance_rate",
+          "deposit_rate",
           "first",
-          "last",
-          "cases"
+          "last"
         ],
         "title": "AttributionPathOut",
+        "type": "object"
+      },
+      "AttributionReferralOut": {
+        "description": "家長自填「如何知道常春藤」的一個選項（none＝沒勾）× 網站記到的第一次來源；複選的案件每個選項各算一次。",
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "referral": {
+            "title": "Referral",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionReferralSourceOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          }
+        },
+        "required": [
+          "referral",
+          "cases",
+          "sources"
+        ],
+        "title": "AttributionReferralOut",
+        "type": "object"
+      },
+      "AttributionReferralSourceOut": {
+        "properties": {
+          "cases": {
+            "title": "Cases",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "cases"
+        ],
+        "title": "AttributionReferralSourceOut",
         "type": "object"
       },
       "AttributionSourceOut": {
@@ -7477,8 +7767,36 @@
             ],
             "title": "Date To"
           },
+          "delay_rows": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionDelayRowOut"
+            },
+            "title": "Delay Rows",
+            "type": "array"
+          },
           "delays": {
             "$ref": "#/components/schemas/AttributionDelayOut"
+          },
+          "median_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Days"
+          },
+          "referral_rows": {
+            "items": {
+              "$ref": "#/components/schemas/AttributionReferralOut"
+            },
+            "title": "Referral Rows",
+            "type": "array"
+          },
+          "remembered": {
+            "$ref": "#/components/schemas/RememberedUsageOut"
           },
           "rows": {
             "items": {
@@ -7514,7 +7832,11 @@
           "rows",
           "totals",
           "delays",
-          "source_paths"
+          "median_days",
+          "delay_rows",
+          "source_paths",
+          "referral_rows",
+          "remembered"
         ],
         "title": "BookingAttributionOut",
         "type": "object"
@@ -7840,6 +8162,188 @@
         "title": "BookingReadinessReason",
         "type": "object"
       },
+      "BrowserConversionOut": {
+        "properties": {
+          "booked_browsers": {
+            "title": "Booked Browsers",
+            "type": "integer"
+          },
+          "booked_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Rate"
+          },
+          "browsers": {
+            "title": "Browsers",
+            "type": "integer"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "kind": {
+            "enum": [
+              "page",
+              "section"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "page",
+          "key",
+          "browsers",
+          "booked_browsers",
+          "booked_rate"
+        ],
+        "title": "BrowserConversionOut",
+        "type": "object"
+      },
+      "BrowserSourceOut": {
+        "properties": {
+          "booked_browsers": {
+            "title": "Booked Browsers",
+            "type": "integer"
+          },
+          "booked_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Rate"
+          },
+          "browsers": {
+            "title": "Browsers",
+            "type": "integer"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "browsers",
+          "booked_browsers",
+          "booked_rate"
+        ],
+        "title": "BrowserSourceOut",
+        "type": "object"
+      },
+      "BrowserStatsOut": {
+        "description": "同一瀏覽器的跨次統計（2026-11-19 §4～6，只看有匿名代號的紀錄）。",
+        "properties": {
+          "booked_browsers": {
+            "title": "Booked Browsers",
+            "type": "integer"
+          },
+          "booked_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Rate"
+          },
+          "browsers": {
+            "title": "Browsers",
+            "type": "integer"
+          },
+          "conversion": {
+            "items": {
+              "$ref": "#/components/schemas/BrowserConversionOut"
+            },
+            "title": "Conversion",
+            "type": "array"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "multi_visit_browsers": {
+            "title": "Multi Visit Browsers",
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/BrowserSourceOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "visits_before_booking": {
+            "items": {
+              "$ref": "#/components/schemas/BrowserVisitsOut"
+            },
+            "title": "Visits Before Booking",
+            "type": "array"
+          }
+        },
+        "required": [
+          "browsers",
+          "booked_browsers",
+          "booked_rate",
+          "multi_visit_browsers",
+          "first_day",
+          "visits_before_booking",
+          "sources",
+          "conversion"
+        ],
+        "title": "BrowserStatsOut",
+        "type": "object"
+      },
+      "BrowserVisitsOut": {
+        "properties": {
+          "browsers": {
+            "title": "Browsers",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "string"
+          }
+        },
+        "required": [
+          "visits",
+          "browsers"
+        ],
+        "title": "BrowserVisitsOut",
+        "type": "object"
+      },
       "CalendarSlotOut": {
         "properties": {
           "booked_count": {
@@ -7981,8 +8485,15 @@
             "type": "integer"
           },
           "booked": {
-            "title": "Booked",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked"
           },
           "campus_key": {
             "title": "Campus Key",
@@ -8189,6 +8700,54 @@
           "open_now"
         ],
         "title": "CampusOutcomeOut",
+        "type": "object"
+      },
+      "CampusPrefRowOut": {
+        "description": "帶著記住的校區（ivy_campus）回來的造訪（2026-11-19 §7）。",
+        "properties": {
+          "booked_other": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Other"
+          },
+          "booked_same": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Same"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "visit_sessions": {
+            "title": "Visit Sessions",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "sessions",
+          "visit_sessions",
+          "booked_same",
+          "booked_other"
+        ],
+        "title": "CampusPrefRowOut",
         "type": "object"
       },
       "CampusStatusOut": {
@@ -10062,6 +10621,18 @@
             "title": "Active Ms",
             "type": "integer"
           },
+          "browser": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_-]{22}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser"
+          },
           "campaign": {
             "anyOf": [
               {
@@ -10136,6 +10707,24 @@
             ],
             "title": "Page",
             "type": "string"
+          },
+          "pref": {
+            "anyOf": [
+              {
+                "enum": [
+                  "yihua",
+                  "minghua",
+                  "chongde",
+                  "international",
+                  "renwu"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pref"
           },
           "returning": {
             "anyOf": [
@@ -10640,6 +11229,9 @@
           "booking_form": {
             "$ref": "#/components/schemas/EngagementFormOut"
           },
+          "browser": {
+            "$ref": "#/components/schemas/BrowserStatsOut"
+          },
           "campaigns": {
             "items": {
               "$ref": "#/components/schemas/EngagementCampaignOut"
@@ -10649,6 +11241,13 @@
           },
           "campus_destinations": {
             "$ref": "#/components/schemas/CampusDestinationsOut"
+          },
+          "campus_prefs": {
+            "items": {
+              "$ref": "#/components/schemas/CampusPrefRowOut"
+            },
+            "title": "Campus Prefs",
+            "type": "array"
           },
           "campuses": {
             "items": {
@@ -10796,7 +11395,9 @@
           "journey",
           "hours",
           "campuses",
-          "campus_destinations"
+          "campus_destinations",
+          "campus_prefs",
+          "browser"
         ],
         "title": "EngagementSummaryOut",
         "type": "object"
@@ -20193,6 +20794,48 @@
         "title": "ReleaseRestoreRequest",
         "type": "object"
       },
+      "RememberedUsageOut": {
+        "description": "這台裝置記住預約的使用次數（2026-11-19 §7），依事件發生的台北日落在期間內。",
+        "properties": {
+          "dismissed": {
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "opened": {
+            "title": "Opened",
+            "type": "integer"
+          },
+          "opened_without_email": {
+            "title": "Opened Without Email",
+            "type": "integer"
+          },
+          "shown": {
+            "title": "Shown",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "shown",
+          "opened",
+          "opened_without_email",
+          "dismissed",
+          "first_day"
+        ],
+        "title": "RememberedUsageOut",
+        "type": "object"
+      },
       "RememberedVisitOut": {
         "description": "這台裝置記住的預約（2026-11-16 規格 §3）：預約頁上方提示列只要這些。刻意不回姓名、電話、\nEmail——共用裝置的其他人看到的也只有日期、場次與校區；要看資料得按「修改或取消」換 session。",
         "properties": {
@@ -25645,6 +26288,84 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/website/v1/admin/admissions/ad-conversions": {
+      "get": {
+        "description": "回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）：近 N 天排入的工作依平台 ×\n事件 × 狀態計數、最近一次送出與最近的問題，以及同期官網預約帶到各平台識別碼的件數。只讀、校區範圍內的案件。",
+        "operationId": "get_ad_conversion_status_api_website_v1_admin_admissions_ad_conversions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 365,
+              "minimum": 1,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdConversionStatusOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ad Conversion Status",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/ad-roi": {
       "get": {
         "description": "各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。\n只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。",
@@ -45714,6 +46435,22 @@
                 }
               ],
               "title": "X-Ivy-Parent"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_visit_remember",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Visit Remember"
             }
           }
         ],
