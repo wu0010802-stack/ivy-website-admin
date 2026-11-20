@@ -54,6 +54,8 @@ export interface VillageTableRow extends Record<string, unknown> {
   income_boundary_changed: boolean
   income_year: number | null
   income_text: string
+  /** CSV 的房價租金季別（近 4 季範圍，每列相同；沒匯入是空字串）。 */
+  housing_seasons: string
   housing_sale_median: number | null
   housing_sale_count: number
   housing_price_text: string
@@ -85,6 +87,7 @@ interface BuildContext {
   judged: boolean
   enrolled: AreaEnrolled | null
   incomeYear: number | null
+  housingSeasons: string
   boundaries: VillageBoundaries | null
 }
 
@@ -183,6 +186,7 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
     income_median: t?.income_median ?? null,
     income_boundary_changed: t?.income_boundary_changed ?? false,
     income_year: context.incomeYear,
+    housing_seasons: context.housingSeasons,
     income_text: t ? incomeText(t) : NO_VALUE,
     housing_sale_median: t?.housing_sale_median ?? null,
     housing_sale_count: t?.housing_sale_count ?? 0,
@@ -220,6 +224,7 @@ export function villageTableRows(
     judged: opportunity?.baseline?.judged === true,
     enrolled: enrolled?.status === 'ready' ? enrolled : null,
     incomeYear: trends?.sources.income.year ?? null,
+    housingSeasons: seasonRange(trends?.sources.housing?.seasons ?? []),
     boundaries,
   }
   if (trends) {
@@ -343,6 +348,7 @@ export function villageCsvColumns(allChildren: boolean): StatsColumn[] {
   // 房價、月租各多一欄成交筆數（近 4 季，不到 5 筆中位數留白）。
   columns.splice(at('housing_price_text') + 1, 0, { key: 'housing_price_count', label: '房價成交筆數' })
   columns.splice(at('housing_rent_text') + 1, 0, { key: 'housing_rent_count', label: '整戶月租筆數' })
+  columns.splice(at('housing_rent_count') + 1, 0, { key: 'housing_seasons', label: '房價租金季別' })
   columns.splice(at('enrolled') + 1, 0, ...ENROLLED_GRADE_ORDER.map((grade): StatsColumn => ({ key: `enrolled:${grade}`, label: `在籍${grade}` })))
   return columns
 }
@@ -388,6 +394,8 @@ export function villageCsvCell(row: VillageTableRow, column: StatsColumn): CsvCe
       return row.housing_rent_median ?? ''
     case 'housing_rent_count':
       return row.housing_rent_count
+    case 'housing_seasons':
+      return row.housing_seasons
     case 'income_year':
       return row.income_median === null ? '' : (row.income_year ?? '')
     case 'income_changed':

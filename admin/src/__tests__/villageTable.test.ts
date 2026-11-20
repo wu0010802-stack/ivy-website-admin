@@ -295,7 +295,7 @@ describe('各里表：在建預售（2026-10-20 P10）', () => {
 describe('各里表的 CSV', () => {
   const HEADER = [
     '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '國小學區', '在籍', '在籍幼幼班',
+    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
     '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
   ]
 
@@ -511,7 +511,7 @@ describe('AreaVillageTable', () => {
     expect(lines[0]).toBe(`${CSV_BOM}${HEADER_LINE}`)
     expect(lines).toHaveLength(5)
     expect(lines[3]).toBe(
-      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,,30,0,0,0,,,,,0,,0,' +
+      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,,30,0,0,0,,,,,0,,0,,' +
         '光武國小（部分）；鼓山區龍華國小（部分）,1,1,0,0,0,0,11,5.5%,4,',
     )
     wrapper.unmount()
@@ -520,7 +520,7 @@ describe('AreaVillageTable', () => {
 
 const HEADER_LINE = [
   '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '國小學區', '在籍', '在籍幼幼班',
+  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
   '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
 ].join(',')
 
@@ -625,5 +625,24 @@ describe('各里表的房價與月租', () => {
   it('說明：有出處才顯示', () => {
     expect(villageHowText(withHousing(), areaOpportunity())).toContain('近 4 季買賣')
     expect(villageHowText(areaTrends(), areaOpportunity())).not.toContain('房價')
+  })
+})
+
+describe('CSV 房價租金季別欄', () => {
+  const seasonsOf = (seasons: string[]) => {
+    const base = areaTrends()
+    const trends = areaTrends({ sources: { ...base.sources, housing: { ...base.sources.housing, seasons } } })
+    const row = villageTableRows(trends, areaOpportunity(), areaEnrolled())[0]!
+    const columns = villageCsvColumns(true)
+    return { labels: columns.map((c) => c.label), value: villageCsvCell(row, columns.find((c) => c.label === '房價租金季別')!) }
+  }
+  it('欄在四個房價租金欄之後；寫季別範圍', () => {
+    const { labels, value } = seasonsOf(['114S4', '115S1', '115S2', '115S3'])
+    expect(labels.indexOf('房價租金季別')).toBe(labels.indexOf('整戶月租筆數') + 1)
+    expect(value).toBe('114S4–115S3')
+    expect(seasonsOf(['115S3']).value).toBe('115S3')
+  })
+  it('沒匯入是空字串', () => {
+    expect(seasonsOf([]).value).toBe('')
   })
 })
