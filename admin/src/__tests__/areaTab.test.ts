@@ -20,7 +20,7 @@ import { ApiError } from '../api/client'
 import { point as pointData } from './pointTestKit'
 import { DEFAULT_AREA_VIEW, type AreaTableTab, type AreaView } from '../admissions/areaView'
 import {
-  areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
+  areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
   deferred,
   mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
@@ -35,7 +35,7 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
-        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter', 'childrenShade', 'point', 'placing',
+        'babycare', 'trends', 'presale', 'enrolled', 'overview', 'campusKey', 'gradeFilter', 'childrenShade', 'point', 'placing',
       ],
       emits: ['select-village', 'place-point'],
       setup(_, { expose }) {
@@ -78,6 +78,7 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/trends': areaTrends(),
   '/admin/admissions/area/presale': areaPresale(),
   '/admin/admissions/area/enrolled': enrolled,
+  '/admin/admissions/area/enrolled-overview': areaEnrolledOverview(),
   '/admin/admissions/area/point': pointData(),
   '/admin/admissions/area/locate': { lat: 22.65123, lng: 120.31019, district: '三民區', village: '寶興里', match_level: 'exact' },
   '/admin/admissions/area': area,
@@ -146,11 +147,11 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.get('.area-footer__status').text()).toBe(STATUS)
   })
 
-  it('工具列：左「看什麼」八個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
+  it('工具列：左「看什麼」九個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
     const { wrapper } = await mountTab()
     const toolbar = wrapper.get('.area-toolbar')
     expect(toolbar.get('[aria-label="看什麼"]').attributes('role')).toBe('radiogroup')
-    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
+    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '五校版圖', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
     const range = toolbar.get('[aria-label="範圍"]')
     expect(range.attributes('role')).toBe('radiogroup')
     expect(range.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
@@ -922,7 +923,7 @@ describe('區域分析：各份資料各自成敗', () => {
     await flushPromises()
     expect(wrapper.get('.area-map-error').text()).toContain('里界載入失敗，地圖無法顯示。')
     expect(wrapper.find('.area-workbench__placeholder .area-map-error').exists()).toBe(true)
-    expect(modeButtons(wrapper)).toHaveLength(8)
+    expect(modeButtons(wrapper)).toHaveLength(9)
     expect(paneTitle(wrapper)).toBe('在籍學生')
     expect(wrapper.find('.area-full-tables').exists()).toBe(true)
     fail = false
@@ -1848,5 +1849,75 @@ describe('區域分析：地點（2026-11-20）', () => {
       await find(second.wrapper, '某處')
       expect(second.wrapper.get('.area-toolbar__locate-note--error').text()).toBe('暫時查不到地址，請稍後再試')
     })
+  })
+})
+
+describe('區域分析：五校版圖（2026-11-20 規格 §6）', () => {
+  const overviewCalls = (get: ReturnType<typeof mockGet>) => pathsTo(get, '/admin/admissions/area/enrolled-overview')
+
+  it('沒進這個模式就不讀總覽', async () => {
+    const { get } = await mountTab()
+    expect(overviewCalls(get)).toHaveLength(0)
+  })
+
+  it('網址 map=campuses：讀一次總覽、交給地圖；右欄是兩段排行，點清單的里就選里；切走再切回來不重讀', async () => {
+    const { wrapper, get } = await mountTab(withView({ map: 'campuses' }))
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(checkedMode(wrapper)).toBe('五校版圖')
+    expect(areaMap(wrapper).props('overview')).toMatchObject({ gap_radius_km: 6 })
+    expect(areaMap(wrapper).props('campusKey')).toBe('yihua')
+    expect(paneTitle(wrapper)).toBe('五校版圖')
+    expect(side(wrapper).text()).toContain('只算已匯入清冊的校：義華、明華')
+    expect(side(wrapper).findAll('h3').map((title) => title.text())).toEqual(['兩校以上都在收的里', '孩子多、五校都沒有在籍的里'])
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區鼎金里', '三民區寶業里'])
+    await rankingItems(wrapper)[0]!.trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)?.village).toBe('64000050001')
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(1)
+  })
+
+  it('從工具列切到五校版圖才讀，網址寫 map=campuses', async () => {
+    const { wrapper, get } = await mountTab()
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(lastView(wrapper)?.map).toBe('campuses')
+  })
+
+  it('沒有任何校區匯入清冊：這個模式停用並寫原因，網址的 map 拿掉、退回預設', async () => {
+    const none = areaEnrolledOverview()
+    none.campuses = none.campuses.map((item) => ({ ...item, imported: false, total: 0 }))
+    const get = mockGet({ ...routes(), '/admin/admissions/area/enrolled-overview': none })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(get).toBeDefined()
+    expect(disabledModes(wrapper)).toContain('五校版圖')
+    expect(modeNotes(wrapper)).toContain('還沒有任何校區匯入在籍清冊')
+    expect(areaMap(wrapper).props('mode')).toBe('enrolled')
+    expect(lastView(wrapper)?.map).toBeNull()
+  })
+
+  it('讀取失敗：右欄寫原因與重試，重試讀到就好', async () => {
+    let fail = true
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/enrolled-overview': () => {
+        if (fail) throw new Error('boom')
+        return areaEnrolledOverview()
+      },
+    })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(areaMap(wrapper).props('mode')).toBe('campuses')
+    expect(side(wrapper).text()).toContain('無法讀取五校在籍學生，請重新載入。')
+    fail = false
+    await button(side(wrapper), '重試')!.trigger('click')
+    await flushPromises()
+    expect(side(wrapper).text()).not.toContain('無法讀取五校在籍學生')
+    expect(rankingItems(wrapper)).toHaveLength(2)
+  })
+
+  it('里卡片的在籍列改列各校人數', async () => {
+    const { wrapper } = await mountTab(withView({ map: 'campuses', village: '64000050001' }))
+    expect(side(wrapper).text()).toContain('義華 3・明華 2')
   })
 })

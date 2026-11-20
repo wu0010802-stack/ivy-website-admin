@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import {
-  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, button, presaleItem,
+  areaBabycare, areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, button, presaleItem,
   villageBoundaries,
 } from './admissionsTestKit'
 
@@ -1165,7 +1165,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
       await button(wrapper, '重試')!.trigger('click')
       await settle()
       expect(leaflet.created.map).toHaveLength(1)
-      expect(leaflet.created.layerGroup).toHaveLength(4) // 幼兒園、托嬰、在籍學生、在建預售
+      expect(leaflet.created.layerGroup).toHaveLength(5) // 幼兒園、托嬰、在籍學生、在建預售、五校版圖
       expect(one('map').addLayer).toHaveBeenCalledWith(enrolledGroup())
       expect(enrolledMarkers()).toHaveLength(3)
     } finally {
@@ -1560,3 +1560,85 @@ describe('區域分析地圖：圖釘（2026-11-20）', () => {
   })
 })
 
+
+describe('五校版圖（2026-11-20 規格 §6）', () => {
+  const campusGroup = (): any => leaflet.created.layerGroup![4]
+  const dots = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => String(marker.options.className).startsWith('area-campus'))
+  const stars = (): any[] => (leaflet.created.marker ?? []).filter((marker) => String(marker.options.icon?.divIcon?.className).startsWith('area-campus-star'))
+  async function choose(wrapper: VueWrapper, mode: string) {
+    await wrapper.setProps({ mode })
+    await flushPromises()
+  }
+  const props = () => ({ overview: areaEnrolledOverview(), campusKey: 'yihua' })
+
+  it('切到五校版圖：點圖層加到地圖，每（校，格）一點、class 帶校區 key、兩位以上畫大一級；切走就收起', async () => {
+    const wrapper = await mountMap(props())
+    one('map').addLayer.mockClear()
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'campuses')
+    expect(one('map').addLayer).toHaveBeenCalledWith(campusGroup())
+    expect(dots().map((marker) => [marker.latlng, marker.options.className, marker.options.radius])).toEqual([
+      [[22.642, 120.344], 'area-campus area-campus--yihua', 7],
+      [[22.65, 120.35], 'area-campus area-campus--yihua', 5],
+      [[22.642, 120.344], 'area-campus area-campus--minghua', 7],
+    ])
+    expect(dots()[0].options.weight).toBe(1.5)
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'visits')
+    expect(one('map').removeLayer).toHaveBeenCalledWith(campusGroup())
+  })
+
+  it('其他四校畫小一號的星（本校的星不重畫），用各校色的 class', async () => {
+    await mountMap({ ...props(), mode: 'campuses' })
+    expect(stars().map((marker) => [marker.options.icon.divIcon.className, marker.options.title, marker.latlng])).toEqual([
+      ['area-campus-star area-campus-star--minghua', '明華', [22.61, 120.31]],
+      ['area-campus-star area-campus-star--chongde', '崇德', [22.64, 120.3]],
+      ['area-campus-star area-campus-star--international', '國際', [22.64, 120.3]],
+      ['area-campus-star area-campus-star--renwu', '仁武', [22.7, 120.35]],
+    ])
+    expect(stars()[0].options.icon.divIcon.iconSize).toEqual([20, 20])
+  })
+
+  it('里依幾校有在籍著色：0 校不上色、1 校 l1、2 校以上 l3', async () => {
+    await mountMap({ ...props(), mode: 'campuses' })
+    const { options } = leaflet.created.geoJSON![0]
+    const className = (village: string, code: string) => options.style(feature('三民區', village, code)).className
+    expect(className('寶業里', '64000050025')).toBe('area-village area-village--l0')
+    expect(className('本揚里', '64000050015')).toBe('area-village area-village--l1')
+    expect(className('鼎金里', '64000050001')).toBe('area-village area-village--l3')
+  })
+
+  it('這個模式不畫幼兒園、托嬰與一般在籍點：幼兒園圖層收起、開關與圖例不出現；離開後還原', async () => {
+    const wrapper = await mountMap({ ...props(), babycare: areaBabycare().items })
+    const kindergartenGroup = leaflet.created.layerGroup![0]
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(true)
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'campuses')
+    expect(one('map').removeLayer).toHaveBeenCalledWith(kindergartenGroup)
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="在地圖上顯示托嬰中心"]').exists()).toBe(false)
+    one('map').addLayer.mockClear()
+    await choose(wrapper, 'visits')
+    expect(one('map').addLayer).toHaveBeenCalledWith(kindergartenGroup)
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(true)
+  })
+
+  it('圖例：五校色點＋校名＋人數，未匯入的灰字寫「尚未匯入」；里著色兩級', async () => {
+    const wrapper = await mountMap({ ...props(), mode: 'campuses' })
+    const items = wrapper.findAll('[aria-label="五校圖例"] li')
+    expect(items.map((item) => item.text())).toEqual(['義華 40 位', '明華 25 位', '崇德 尚未匯入', '國際 尚未匯入', '仁武 尚未匯入'])
+    expect(items.map((item) => item.classes().includes('area-legend__off'))).toEqual([false, false, true, true, true])
+    expect(items[0]!.find('.area-dot').attributes('style')).toContain('--area-campus-yihua')
+    expect(wrapper.findAll('[aria-label="里著色圖例"] li').map((item) => item.text())).toEqual(['一校有在籍', '兩校以上有在籍'])
+  })
+
+  it('總覽換了就重畫點；點的彈出框寫校名與人數', async () => {
+    const wrapper = await mountMap({ ...props(), mode: 'campuses' })
+    const cleared = campusGroup().clearLayers.mock.calls.length
+    await wrapper.setProps({ overview: areaEnrolledOverview({ points: [{ lat: 22.7, lng: 120.3, campus_key: 'minghua', count: 1 }] }) })
+    expect(campusGroup().clearLayers.mock.calls.length).toBeGreaterThan(cleared)
+    const drawn = dots().at(-1)
+    expect(drawn.latlng).toEqual([22.7, 120.3])
+    expect((drawn.bindPopup.mock.calls[0]![0]() as HTMLElement).textContent).toBe('明華 1 位')
+  })
+})

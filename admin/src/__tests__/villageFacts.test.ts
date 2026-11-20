@@ -6,7 +6,7 @@ import {
 import { opportunitySummary } from '../components/admissions/area/areaFormat'
 import type { AdmissionsArea, AreaKindergarten, AreaOpportunityRow, VillageFeature } from '../api/types'
 import {
-  areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, kindergarten, villageBoundaries,
+  areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaStats, areaTrends, kindergarten, villageBoundaries,
 } from './admissionsTestKit'
 
 const sources = (changes: Partial<FactsSources> = {}): FactsSources => ({
@@ -277,6 +277,22 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
 
     it('幼兒園名單還沒回來：附近的幼兒園是 null', () => {
       expect(villageFacts('64000050015', sources({ kindergartens: null }))!.nearby).toBeNull()
+    })
+  })
+
+  describe('五校版圖模式（2026-11-20）', () => {
+    const campuses = (changes: Partial<FactsSources> = {}) => sources({ campusesMode: true, overview: areaEnrolledOverview(), ...changes })
+
+    it('在籍那一列改成各校人數，只列 > 0 的校；沒有人寫 0 位；參觀照舊', () => {
+      expect(rows(villageFacts('64000050001', campuses())!.ours)).toEqual([['在籍', '義華 3・明華 2', '共 5 位'], ['參觀', '0 位']])
+      expect(rows(villageFacts('64000050015', campuses())!.ours)[0]).toEqual(['在籍', '義華 6', '共 6 位'])
+      expect(rows(villageFacts('64000020015', campuses())!.ours)[0]).toEqual(['在籍', '0 位'])
+    })
+
+    it('總覽讀取中是 loading、讀取失敗是 failed；不影響一般模式的在籍列', () => {
+      expect(villageFacts('64000050001', campuses({ overview: null }))!.ours).toMatchObject({ state: 'loading', rows: [{ label: '參觀' }] })
+      expect(villageFacts('64000050001', campuses({ overview: null, overviewFailed: true }))!.ours.state).toBe('failed')
+      expect(villageFacts('64000050015', sources({ overview: areaEnrolledOverview() }))!.ours.rows[0]).toMatchObject({ value: '3 位' })
     })
   })
 

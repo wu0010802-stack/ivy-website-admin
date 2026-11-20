@@ -1,6 +1,6 @@
 import { MAP_MODES, type MapMode } from '../../../admissions/areaView'
 import type {
-  AdmissionsArea, AreaChildrenHistory, AreaEnrolled, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
+  AdmissionsArea, AreaChildrenHistory, AreaEnrolled, AreaEnrolledOverview, AreaOpportunity, AreaPeerFees, AreaTrends, AreaTrendsVillage, VillageBoundaries,
 } from '../../../api/types'
 import {
   NOT_JUDGED_NOTE, NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, NO_PRESALE_TEXT, babycareStatusText, doorplateVersionLabel,
@@ -8,6 +8,8 @@ import {
   opportunityUnavailable, populationVersionLabel, presaleMapNote, reasonLabel, signedCount, signedPercent, taipeiMonthDay, trendMapNote,
   trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
 } from './areaFormat'
+import { campusLabel } from '../../../api/labels'
+import { overlayNote, overlaySections } from './campusOverlay'
 import { childrenStops, stopKey, yearChangeText, type YearStop } from './childrenHistory'
 import { feeLagNote, peerSummaryText } from './peerFeesFormat'
 import { featureCode, findFeature } from './villageFacts'
@@ -19,6 +21,8 @@ import { featureCode, findFeature } from './villageFacts'
 
 export interface ModeNotes {
   enrolled: string
+  /** 五校版圖（2026-11-20）：總覽讀到、而且沒有任何校區匯入清冊時是那一句（overlayNote），其餘空字串。 */
+  campuses: string
   opportunity: string
   trend: string
   homes: string
@@ -32,6 +36,8 @@ export function modeNote(mode: MapMode, notes: ModeNotes): string {
   switch (mode) {
     case 'enrolled':
       return notes.enrolled
+    case 'campuses':
+      return notes.campuses
     case 'children':
       return notes.opportunity
     case 'trend':
@@ -87,6 +93,8 @@ export interface PaneData {
   opportunity: AreaOpportunity | null
   trends: AreaTrends | null
   enrolled: AreaEnrolled | null
+  /** 五校版圖的在籍學生總覽（2026-11-20）；沒讀到（或不在這個模式）是 null／沒給。 */
+  overview?: AreaEnrolledOverview | null
   gradeFilter: GradeFilter
   peerFees: AreaPeerFees | null
   /** 這個範圍還沒有招生訪視的說明（D14：只出現在參觀、招生機會模式）。 */
@@ -189,6 +197,8 @@ export function rankingFor(mode: Exclude<MapMode, 'peers'>, data: PaneData): Ran
         }),
       )
     }
+    case 'campuses':
+      return data.overview ? overlaySections(data.overview, campusLabel) : one([])
     case 'children': {
       const history = data.childrenHistory
       if (history) return one(childrenHistoryItems(history, data.childrenStop ?? 'latest'))
@@ -274,6 +284,19 @@ export function paneHead(mode: MapMode, data: PaneData): PaneHead {
       if (!enrolled) return head
       if (enrolled.status !== 'ready') return { ...head, empty: enrolledMapNote(enrolled, false) }
       return { ...head, lines: [enrolledSummary(enrolled)], note: `清冊 ${(enrolled.roster_date ?? '').replaceAll('-', '/')}` }
+    }
+    case 'campuses': {
+      const overview = data.overview
+      if (!overview) return head
+      const imported = overview.campuses.filter((item) => item.imported)
+      if (!imported.length) return { ...head, note: overlayNote(overview) }
+      const total = imported.reduce((sum, item) => sum + item.total, 0)
+      const overlap = overview.overlap.length ? `；${formatCount(overview.overlap.length)} 個里有兩校以上都在收` : ''
+      return {
+        ...head,
+        lines: [`已匯入 ${imported.length} 所校，共 ${formatCount(total)} 位在籍學生${overlap}。`],
+        note: overlayNote(overview),
+      }
     }
     case 'children': {
       const opportunity = data.opportunity

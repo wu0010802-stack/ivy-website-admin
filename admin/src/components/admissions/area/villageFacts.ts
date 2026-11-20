@@ -1,7 +1,7 @@
 import { areaQuery } from '../../../admissions/areaFilter'
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
 import type {
-  AdmissionsArea, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaOpportunityRow, AreaTrends, AreaTrendsVillage,
+  AdmissionsArea, AreaEnrolled, AreaEnrolledOverview, AreaKindergartens, AreaOpportunity, AreaOpportunityRow, AreaTrends, AreaTrendsVillage,
   EnrolledGrade, VillageBoundaries,
 } from '../../../api/types'
 import {
@@ -9,6 +9,7 @@ import {
   kidsNetText, kindLabel, opportunityUnavailable, pointCount, presaleCount, shortName, signalText, signedCount, villageKey,
   villageSchoolsText, type RadiusKm,
 } from './areaFormat'
+import { campusCountsText } from './campusOverlay'
 
 // 區域分析工作台右欄「里卡片」（2026-10-16 規格 §2.4）的資料組合：把頁面已經載入的里界、參觀、招生機會、
 // 里的變化、在籍學生、幼兒園名單，依一個里代碼 join 成畫面要的結構。純函式，不碰 Vue／Leaflet／API，
@@ -89,6 +90,10 @@ export interface FactsSources {
   trendsFailed: boolean
   enrolled: AreaEnrolled | null
   enrolledFailed: boolean
+  /** 五校版圖（2026-11-20）：在籍那一列改列各校人數的來源與狀態；campusesMode 為 true 才用，沒給當一般模式。 */
+  overview?: AreaEnrolledOverview | null
+  overviewFailed?: boolean
+  campusesMode?: boolean
   kindergartens: AreaKindergartens | null
   radiusKm: RadiusKm
 }
@@ -254,10 +259,20 @@ function enrolledRow(enrolled: AreaEnrolled, code: string, district: string, vil
   return factRow('在籍', `${formatCount(total)} 位`, count('其他') > 0 ? `${grades}・其他 ${count('其他')}` : grades)
 }
 
+/** 五校版圖的在籍一列：各校人數（只列 > 0，「義華 3・明華 2」），小字寫合計；這個里沒有人寫 0 位。 */
+function campusesRow(overview: AreaEnrolledOverview, code: string): FactRow {
+  const match = overview.villages.find((item) => item.village_code === code)
+  const names = new Map(overview.campuses.map((item) => [item.key, item.name]))
+  const text = match ? campusCountsText(match.counts, (key) => names.get(key) ?? key, overview.campuses.map((item) => item.key)) : ''
+  return text ? factRow('在籍', text, `共 ${formatCount(match!.total)} 位`) : factRow('在籍', '0 位')
+}
+
 function oursFacts(sources: FactsSources, code: string, district: string, village: string): VillageFacts['ours'] {
   const { enrolled, enrolledFailed, area } = sources
   const rows: FactRow[] = []
-  if (enrolled?.status === 'ready') rows.push(enrolledRow(enrolled, code, district, village))
+  const byCampus = sources.campusesMode === true
+  if (byCampus && sources.overview) rows.push(campusesRow(sources.overview, code))
+  else if (!byCampus && enrolled?.status === 'ready') rows.push(enrolledRow(enrolled, code, district, village))
   const key = villageKey(district, village)
   const visit = area.villages.find((row) => villageKey(row.district, row.village) === key)
   rows.push(
@@ -266,7 +281,9 @@ function oursFacts(sources: FactsSources, code: string, district: string, villag
       : factRow('參觀', '0 位'),
   )
   return {
-    state: enrolled ? 'ok' : enrolledFailed ? 'failed' : 'loading',
+    state: byCampus
+      ? sources.overview ? 'ok' : sources.overviewFailed ? 'failed' : 'loading'
+      : enrolled ? 'ok' : enrolledFailed ? 'failed' : 'loading',
     rows,
     openRecordsArea: visit && visit.visit > 0 ? areaQuery({ kind: 'place', district, village }) : null,
   }

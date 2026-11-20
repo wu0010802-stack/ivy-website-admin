@@ -7,13 +7,13 @@ import ChildrenYearSlider from './ChildrenYearSlider.vue'
 import PointCard from './PointCard.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import {
-  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaChildrenHistory, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
+  getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaChildrenHistory, getAreaEnrolled, getAreaEnrolledOverview, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
   getAreaPoint, getAreaPresale, getAreaTrends, locateAreaAddress,
 } from '../../../api/admissions'
 import { ApiError } from '../../../api/client'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPoint, AreaPresale, AreaTrends,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaEnrolledOverview, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPoint, AreaPresale, AreaTrends,
   VillageBoundaries,
 } from '../../../api/types'
 import { areaQuery } from '../../../admissions/areaFilter'
@@ -27,6 +27,7 @@ import {
 import {
   addressSummary, dataStatusText, defaultMapMode, modeNote, paneHead, rankingFor, resolveMapMode, type ModeNotes, type PaneData,
 } from './areaPane'
+import { overlayNote } from './campusOverlay'
 import { childrenShade, childrenStops, resolveStop, retiredNote, stopKey, stopLabel, type YearStop } from './childrenHistory'
 import { DEFAULT_PEER_AGE, type PeerAge } from './peerFeesFormat'
 import { findFeature, villageFacts } from './villageFacts'
@@ -300,10 +301,32 @@ watch(() => props.campusKey, () => {
 }, { immediate: true })
 const enrolledNote = computed(() => enrolledMapNote(enrolled.value, enrolledFailed.value))
 
+// 五校版圖（2026-11-20 規格 §6）：五校在籍學生總覽和校區、半徑無關，進「五校版圖」模式才讀（網址帶 map=campuses 也算），
+// 讀到之後整個畫面期間留著（換模式再回來不重讀）；讀取失敗留著原因，再進模式或按重試重讀。
+// 都沒有校區匯入清冊時這個模式停用（原因是 overlayNote 那句），和其他模式一樣退回預設。
+const overview = ref<AreaEnrolledOverview | null>(null)
+const overviewFailed = ref(false)
+const overviewRequests = useRequestSequence()
+async function loadOverview() {
+  const request = overviewRequests.begin()
+  overview.value = null
+  overviewFailed.value = false
+  try {
+    const result = await getAreaEnrolledOverview()
+    if (overviewRequests.isCurrent(request)) overview.value = result
+  } catch {
+    if (overviewRequests.isCurrent(request)) overviewFailed.value = true
+  }
+}
+const campusesNote = computed(() =>
+  overview.value && !overview.value.campuses.some((item) => item.imported) ? overlayNote(overview.value) : '',
+)
+
 // ---- 看什麼（規格 §2.1、D15）----
 
 const notes = computed<ModeNotes>(() => ({
   enrolled: enrolledNote.value,
+  campuses: campusesNote.value,
   opportunity: opportunityNote.value,
   trend: trendNote.value,
   homes: homesNote.value,
@@ -311,6 +334,9 @@ const notes = computed<ModeNotes>(() => ({
   judged: opportunity.value?.baseline?.judged ?? null,
 }))
 const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
+watch(mapMode, (mode) => {
+  if (mode === 'campuses' && !overview.value && !overviewFailed.value) void loadOverview()
+}, { immediate: true })
 
 // ---- 2–5 歲孩子的年份滑桿（2026-11-16 規格 §5.3）----
 
@@ -375,7 +401,7 @@ const modeReasons = computed(() => [
   ...new Set(
     [
       notes.value.opportunity, modeNote('opportunity', notes.value), notes.value.trend, notes.value.homes, notes.value.presale,
-      notes.value.enrolled, mapMode.value === 'children' && childrenHistoryFailed.value ? '歷年人口讀取失敗。' : '',
+      notes.value.enrolled, notes.value.campuses, mapMode.value === 'children' && childrenHistoryFailed.value ? '歷年人口讀取失敗。' : '',
     ].filter(Boolean),
   ),
 ])
@@ -410,6 +436,9 @@ const facts = computed(() => {
     trendsFailed: trendsFailed.value,
     enrolled: enrolled.value,
     enrolledFailed: enrolledFailed.value,
+    overview: overview.value,
+    overviewFailed: overviewFailed.value,
+    campusesMode: mapMode.value === 'campuses',
     kindergartens: kindergartens.value,
     radiusKm: radiusKm.value,
   })
@@ -597,7 +626,7 @@ async function findAddress() {
 const paneData = computed<PaneData | null>(() =>
   area.value
     ? {
-        boundaries: boundaries.value, area: area.value, opportunity: opportunity.value, trends: trends.value, enrolled: enrolled.value,
+        boundaries: boundaries.value, area: area.value, opportunity: opportunity.value, trends: trends.value, enrolled: enrolled.value, overview: overview.value,
         gradeFilter: gradeFilter.value, peerFees: peerFees.value, emptyText: props.emptyText, radiusKm: radiusKm.value,
         childrenHistory: childrenHistoryReady.value ? childrenHistory.value : null, childrenStop: childrenStop.value,
       }
@@ -615,11 +644,12 @@ const loaders = {
 // 同業的內容是清單（各自有狀態）。那份資料讀取失敗時模式本身會停用、退回預設，失敗句只是保底。
 const paneSources = {
   enrolled: { data: enrolled, failed: enrolledFailed, load: loadEnrolled, text: '無法讀取在籍學生，請重新載入。' },
+  campuses: { data: overview, failed: overviewFailed, load: loadOverview, text: '無法讀取五校在籍學生，請重新載入。' },
   opportunity: { data: opportunity, failed: opportunityFailed, load: loadOpportunity, text: '無法讀取招生機會，請重新載入。' },
   trends: { data: trends, failed: trendsFailed, load: loadTrends, text: '無法讀取里的變化，請重新載入。' },
 }
 const PANE_SOURCE: Record<MapMode, keyof typeof paneSources | null> = {
-  enrolled: 'enrolled', children: 'opportunity', opportunity: 'opportunity', trend: 'trends', homes: 'trends', presale: 'trends', visits: null,
+  enrolled: 'enrolled', campuses: 'campuses', children: 'opportunity', opportunity: 'opportunity', trend: 'trends', homes: 'trends', presale: 'trends', visits: null,
   peers: null,
 }
 const paneSource = computed(() => {
@@ -635,7 +665,8 @@ function retryPane() {
 // 它讀不到時整頁是錯誤畫面、不會有卡片，所以只需要重讀在籍。
 function retryFacts(section: 'kids' | 'ours') {
   if (section === 'ours') {
-    void loadEnrolled()
+    if (mapMode.value === 'campuses') void loadOverview()
+    else void loadEnrolled()
     return
   }
   if (opportunityFailed.value) void loadOpportunity()
@@ -737,6 +768,7 @@ const footer = computed(() =>
             :villages="area.villages"
             :campus="area.campus"
             :campus-name="campusLabel(campusKey)"
+            :campus-key="campusKey"
             :kindergartens="kindergartens?.items ?? []"
             :babycare="babycare?.items ?? []"
             :radius-km="radiusKm"
@@ -747,6 +779,7 @@ const footer = computed(() =>
             :trends="trends"
             :presale="presale"
             :enrolled="enrolled"
+            :overview="overview"
             :grade-filter="gradeFilter"
             :children-shade="shade"
             :point="view.point"

@@ -4,7 +4,7 @@ import {
   type ModeNotes, type PaneData, type RankingSection,
 } from '../components/admissions/area/areaPane'
 import type { AdmissionsArea } from '../api/types'
-import { areaChildrenHistory, areaEnrolled, areaOpportunity, areaPeerFees, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
+import { areaEnrolledOverview, areaChildrenHistory, areaEnrolled, areaOpportunity, areaPeerFees, areaStats, areaTrends, villageBoundaries } from './admissionsTestKit'
 
 const MINUS = '−'
 const EMPTY_TEXT = '這個範圍還沒有招生訪視。'
@@ -27,7 +27,7 @@ const values = (sections: RankingSection[]) => sections.map((section) => section
 const totals = (changes: Record<string, unknown>) => ({ ...areaStats().totals, ...changes })
 const dataStatus = (changes: Record<string, unknown>) => ({ ...areaStats().data_status, ...changes })
 
-const ok: ModeNotes = { enrolled: '', opportunity: '', trend: '', homes: '', presale: '', judged: true }
+const ok: ModeNotes = { enrolled: '', opportunity: '', trend: '', homes: '', presale: '', campuses: '', judged: true }
 
 describe('右欄：2–5 歲孩子排行跟著年份（2026-11-16 規格 §5.3）', () => {
   const history = areaChildrenHistory()
@@ -75,10 +75,10 @@ describe('右欄：模式停用、預設與退回（規格 §2.1、D15）', () =
   })
 
   it('每個模式的停用原因各看各的 note；參觀與同業不停用', () => {
-    const notes: ModeNotes = { enrolled: 'E', opportunity: 'O', trend: 'T', homes: 'H', presale: 'P', judged: true }
+    const notes: ModeNotes = { enrolled: 'E', opportunity: 'O', trend: 'T', homes: 'H', presale: 'P', campuses: 'C', judged: true }
     expect(
-      (['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'] as const).map((mode) => modeNote(mode, notes)),
-    ).toEqual(['E', 'O', 'T', 'H', 'P', '', 'O', ''])
+      (['enrolled', 'campuses', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'] as const).map((mode) => modeNote(mode, notes)),
+    ).toEqual(['E', 'C', 'O', 'T', 'H', 'P', '', 'O', ''])
   })
 
   it('招生機會自己的 note 優先於「參觀不到門檻」；判讀為 true 且沒有 note 不停用', () => {
@@ -523,5 +523,30 @@ describe('右欄：標題區（規格 §2.3）', () => {
       empty: '',
     })
     expect(paneHead('peers', data({ peerFees: null }))).toEqual({ title: '附近的同業', lines: [], note: '', empty: '' })
+  })
+})
+
+describe('右欄：五校版圖（2026-11-20 規格 §6）', () => {
+  it('沒有任何校區匯入：停用，原因是 overlayNote 的那句，退回預設模式', () => {
+    const notes: ModeNotes = { ...ok, campuses: '還沒有任何校區匯入在籍清冊' }
+    expect(modeNote('campuses', notes)).toBe('還沒有任何校區匯入在籍清冊')
+    expect(resolveMapMode('campuses', notes)).toBe('enrolled')
+    expect(resolveMapMode('campuses', ok)).toBe('campuses')
+  })
+
+  it('排行＝overlaySections；沒讀到是空的一段', () => {
+    const sections = rankingFor('campuses', data({ overview: areaEnrolledOverview() }))
+    expect(sections.map((section) => section.title)).toEqual(['兩校以上都在收的里', '孩子多、五校都沒有在籍的里'])
+    expect(rankingFor('campuses', data())).toEqual([{ title: '', items: [] }])
+  })
+
+  it('標題區：標題、合計一句、小字是 overlayNote', () => {
+    expect(paneHead('campuses', data({ overview: areaEnrolledOverview() }))).toEqual({
+      title: '五校版圖',
+      lines: ['已匯入 2 所校，共 65 位在籍學生；1 個里有兩校以上都在收。'],
+      note: '只算已匯入清冊的校：義華、明華',
+      empty: '',
+    })
+    expect(paneHead('campuses', data())).toEqual({ title: '五校版圖', lines: [], note: '', empty: '' })
   })
 })

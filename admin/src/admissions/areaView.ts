@@ -3,10 +3,11 @@ import type { LocationQuery } from 'vue-router'
 // 區域分析地圖工作台（2026-10-16 規格 §2.1、§5、D2）的畫面狀態：地圖看什麼、選哪個里、表格看哪一頁。
 // 純函式，不碰 Vue／Leaflet／API，網址 map／village／table 三個參數的讀寫都在這裡。
 
-/** 地圖著色：在籍學生、2–5 歲孩子、孩子增減、新屋交屋、在建預售、參觀、招生機會、同業（不上色）。 */
-export type MapMode = 'enrolled' | 'children' | 'trend' | 'homes' | 'presale' | 'visits' | 'opportunity' | 'peers'
+/** 地圖著色：在籍學生、五校版圖（各校在籍的點與幾校有在籍，2026-11-20）、2–5 歲孩子、孩子增減、新屋交屋、在建預售、參觀、招生機會、同業（不上色）。 */
+export type MapMode = 'enrolled' | 'campuses' | 'children' | 'trend' | 'homes' | 'presale' | 'visits' | 'opportunity' | 'peers'
 export const MAP_MODES: readonly { value: MapMode; label: string }[] = [
   { value: 'enrolled', label: '在籍學生' },
+  { value: 'campuses', label: '五校版圖' },
   { value: 'children', label: '2–5 歲孩子' },
   { value: 'trend', label: '孩子增減' },
   { value: 'homes', label: '新屋交屋' },

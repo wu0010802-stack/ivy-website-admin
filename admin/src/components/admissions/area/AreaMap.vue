@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type * as Leaflet from 'leaflet'
 import type {
-  AdmissionsArea, AreaBabycareItem, AreaEnrolled, AreaEnrolledPoint, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaPresale,
+  AdmissionsArea, AreaBabycareItem, AreaEnrolled, AreaEnrolledOverview, AreaEnrolledPoint, AreaKindergarten, AreaOpportunity, AreaOpportunityRow, AreaPresale,
   AreaPresaleItem, AreaTrends, AreaTrendsVillage, AreaVillageRow, VillageBoundaries, VillageProperties,
 } from '../../../api/types'
 import {
@@ -13,6 +13,7 @@ import {
   NO_PRESALE_TEXT,
   type GradeFilter, type MapMode, type RadiusKm,
 } from './areaFormat'
+import { campusClass, overlayLegend, overlayLevel } from './campusOverlay'
 import type { ChildrenShade } from './childrenHistory'
 import { round4 } from '../../../admissions/areaView'
 
@@ -37,6 +38,8 @@ const props = withDefaults(
     villages: readonly AreaVillageRow[]
     campus: AdmissionsArea['campus']
     campusName: string
+    /** 本校的校區 key：五校版圖模式用它分辨哪顆星是本校（本校星維持金色，其他四校用各校色、小一號）。 */
+    campusKey?: string
     kindergartens: readonly AreaKindergarten[]
     babycare?: readonly AreaBabycareItem[]
     radiusKm: RadiusKm
@@ -51,6 +54,8 @@ const props = withDefaults(
     presale?: AreaPresale | null
     /** 在籍學生（2026-10-15 規格 §6）；沒讀到是 null。 */
     enrolled?: AreaEnrolled | null
+    /** 五校在籍學生總覽（2026-11-20 規格 §6）：五校版圖模式的點、星形與里著色；沒讀到是 null。 */
+    overview?: AreaEnrolledOverview | null
     /** 在籍學生的班別篩選（AreaTab 持有，只用來決定畫哪些點與圖例文字）。 */
     gradeFilter?: GradeFilter
     /** 「2–5 歲孩子」的年份滑桿（2026-11-16 規格 §5.3）：選的那一格的各里人數與共用最大值；null＝照招生機會的最新人數。 */
@@ -61,7 +66,7 @@ const props = withDefaults(
     placing?: boolean
   }>(),
   {
-    babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, gradeFilter: 'all', childrenShade: null,
+    babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, overview: null, campusKey: '', gradeFilter: 'all', childrenShade: null,
     point: null, placing: false,
   },
 )
@@ -112,13 +117,19 @@ const babycareMarkers = new Map<string, Leaflet.Marker>()
 let enrolledGroup: Leaflet.LayerGroup | null = null
 // 在建預售的點（2026-10-20）：只在「在建預售」模式加到地圖上。
 let presaleGroup: Leaflet.LayerGroup | null = null
+// 五校版圖（2026-11-20）：各校各格的在籍點與其他四校的星形，只在「五校版圖」模式加到地圖上；這個模式不畫幼兒園、托嬰、預售與一般在籍點。
+let campusGroup: Leaflet.LayerGroup | null = null
+let campusDots: Leaflet.CircleMarker[] = []
 let resizeObserver: ResizeObserver | null = null
 
 const showKindergartens = ref(true)
 // 同業模式一律顯示幼兒園（規格 D3）：開關鎖住，使用者自己的選擇留著，離開同業模式再還原。
-const kindergartensShown = computed(() => props.mode === 'peers' || showKindergartens.value)
+// 五校版圖模式不畫幼兒園（開關不起作用、圖例也收起來）。
+const kindergartensShown = computed(() => props.mode === 'peers' || (props.mode !== 'campuses' && showKindergartens.value))
 // 托嬰中心圖層預設不勾（維持現有畫面）；卡片切到托嬰中心或點清單某一列時自動打開。
 const showBabycare = ref(false)
+// 五校版圖模式同樣不畫托嬰中心；使用者的勾選留著，離開模式再還原。
+const babycareShown = computed(() => showBabycare.value && props.mode !== 'campuses')
 // 手機上地圖能不能拖曳縮放；桌機一直可以。
 const interactive = ref(!props.narrow)
 // loading：Leaflet 還在下載；library：下載或建立地圖失敗；tiles：底圖圖磚一直載不到。
@@ -158,7 +169,7 @@ const enrolledLegend = computed(() =>
 // 完整表格裡對應的分頁（同樣的資料在哪看）：參觀→參觀來源，孩子增減、新屋、招生機會、2–5 歲→各里，在籍→在籍學生，同業→同業收費。
 const TABLE_NAMES: Record<MapMode, string> = {
   visits: '參觀來源', children: '各里', trend: '各里', homes: '各里', presale: '預售建案', opportunity: '各里', enrolled: '在籍學生',
-  peers: '同業收費',
+  peers: '同業收費', campuses: '在籍學生',
 }
 // 畫布的名稱：資料的出處只寫真的有的地方。排行在右欄；幼兒園清單只有同業模式的右欄有，其他模式的地圖上雖然可以開幼兒園圖層，
 // 但沒有對應的清單，所以不能說「與幼兒園清單」。
@@ -167,6 +178,7 @@ const canvasLabel = computed(() => {
   if (props.mode === 'peers') return `${props.campusName}周邊里界地圖（里不上色，標出附近的幼兒園）；幼兒園清單在右欄，收費在完整表格的「${table}」分頁`
   const tail = `；同樣的資料在右欄與完整表格的「${table}」分頁`
   if (props.mode === 'enrolled') return `${props.campusName}周邊在籍學生住處地圖（每格約 100 公尺標一點）${tail}`
+  if (props.mode === 'campuses') return `五校在籍學生住處地圖（每格約 100 公尺標一點，各校不同顏色，里依有幾校在收著色）${tail}`
   return `${props.campusName}周邊里界地圖（依${modeLabel.value}著色）${tail}`
 })
 const legendMax = computed(() => {
@@ -180,6 +192,9 @@ const LEGEND_UNITS: Partial<Record<MapMode, string>> = { children: '位', homes:
 const legendUnit = computed(() => LEGEND_UNITS[props.mode] ?? '人')
 const NONE_TEXTS: Partial<Record<MapMode, string>> = { children: NO_CHILDREN_DATA_TEXT, homes: NO_NEW_HOMES_TEXT, presale: NO_PRESALE_TEXT }
 const noneText = computed(() => NONE_TEXTS[props.mode] ?? NO_LOCATED_VISITS_TEXT)
+const campusLegend = computed(() => (props.overview ? overlayLegend(props.overview) : []))
+// 五校版圖的里：依有幾校有在籍著色（0 校不上色、1 校 l1、2 校以上 l3）。
+const overviewByCode = computed(() => new Map((props.overview?.villages ?? []).map((row) => [row.village_code, row])))
 const kindLegend = KIND_ORDER.map((kind) => ({ kind, label: KIND_LABELS[kind] }))
 const campusLocated = computed(() => props.campus.lat !== null && props.campus.lng !== null)
 // 校址所在行政區的外框（後端從地址文字解析，不需要門牌）；里界檔沒有這個區時為 null。
@@ -202,6 +217,7 @@ function opportunityRow(properties: VillageProperties): AreaOpportunityRow | und
 /** 里的 class：依目前的著色模式。分級 l0 與招生機會、孩子增減的 none 都是不上色；在籍學生與同業不給里上色。 */
 function villageClass(properties: VillageProperties): string {
   if (props.mode === 'enrolled' || props.mode === 'peers') return 'area-village area-village--l0'
+  if (props.mode === 'campuses') return `area-village area-village--l${overlayLevel(overviewByCode.value.get(properties.VILLCODE) ?? { counts: {} })}`
   if (props.mode === 'visits') return `area-village area-village--l${levelOf(villageRow(properties)?.visit ?? 0, villageStats.value.max)}`
   if (props.mode === 'trend') {
     const row = trendStats.value.get(properties.VILLCODE)
@@ -555,11 +571,67 @@ function syncEnrolledLayer() {
   raiseEnrolled()
 }
 
+// 五校版圖（2026-11-20）：每（校區, 格）一個點，兩位以上畫大一級（同 drawEnrolled）；其他四校畫小一號的星，用各校色。
+function campusPopup(key: string, count: number): HTMLElement {
+  const root = document.createElement('div')
+  root.className = 'area-popup'
+  const name = props.overview?.campuses.find((item) => item.key === key)?.name ?? key
+  root.append(popupLine(`${name} ${formatCount(count)} 位`))
+  return root
+}
+
+function drawCampusLayer() {
+  const group = campusGroup
+  if (!L || !group) return
+  group.clearLayers()
+  campusDots = []
+  const overview = props.overview
+  if (!overview) return
+  for (const point of overview.points) {
+    const marker = L.circleMarker([point.lat, point.lng], {
+      radius: point.count > 1 ? 7 : 5, className: campusClass(point.campus_key), weight: 1.5, pane: POINTS_PANE,
+    })
+    marker.bindPopup(() => campusPopup(point.campus_key, point.count))
+    group.addLayer(marker)
+    campusDots.push(marker)
+  }
+  for (const item of overview.campuses) {
+    if (item.key === props.campusKey || item.lat === null || item.lng === null) continue
+    group.addLayer(
+      L.marker([item.lat, item.lng], {
+        icon: L.divIcon({ className: `area-campus-star area-campus-star--${item.key}`, html: STAR_SVG, iconSize: [20, 20], iconAnchor: [10, 10] }),
+        title: item.name,
+        alt: item.name,
+        keyboard: false,
+        zIndexOffset: 900,
+      }),
+    )
+  }
+  raiseCampusDots()
+}
+
+// 點要在最上層：幼兒園以外的圖層重畫時不會蓋過，這裡仍照其他點的做法在模式內每次拉到最前面。
+function raiseCampusDots() {
+  if (props.mode !== 'campuses') return
+  for (const marker of campusDots) marker.bringToFront()
+}
+
+function syncCampusLayer() {
+  if (!map || !campusGroup) return
+  if (props.mode === 'campuses') map.addLayer(campusGroup)
+  else map.removeLayer(campusGroup)
+  raiseCampusDots()
+}
+
+function syncBabycareLayer() {
+  if (!map || !babycareGroup) return
+  if (babycareShown.value) map.addLayer(babycareGroup)
+  else map.removeLayer(babycareGroup)
+}
+
 function setShowBabycare(value: boolean) {
   showBabycare.value = value
-  if (!map || !babycareGroup) return
-  if (value) map.addLayer(babycareGroup)
-  else map.removeLayer(babycareGroup)
+  syncBabycareLayer()
 }
 
 /** 卡片切到托嬰中心：打開圖層（已經開著就不動）。 */
@@ -628,6 +700,8 @@ function destroyMap() {
   babycareMarkers.clear()
   enrolledGroup = null
   presaleGroup = null
+  campusGroup = null
+  campusDots = []
   try {
     current?.remove()
   } catch (error) {
@@ -675,9 +749,10 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   kindergartenGroup = leaflet.layerGroup()
   if (kindergartensShown.value) kindergartenGroup.addTo(map)
   babycareGroup = leaflet.layerGroup()
-  if (showBabycare.value) babycareGroup.addTo(map)
+  if (babycareShown.value) babycareGroup.addTo(map)
   enrolledGroup = leaflet.layerGroup()
   presaleGroup = leaflet.layerGroup()
+  campusGroup = leaflet.layerGroup()
   drawVillages()
   drawCampus()
   drawKindergartens()
@@ -686,6 +761,8 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   syncEnrolledLayer()
   drawPresale()
   syncPresaleLayer()
+  drawCampusLayer()
+  syncCampusLayer()
   if (!viewFirst) fitInitialView()
   // 圖釘圈同半徑圈，也是直接加到地圖的向量圖層：一定要在視野建好之後才加（見上面的說明），所以排在最後取視野之後。
   drawPoint()
@@ -737,7 +814,7 @@ function retry() {
 onMounted(() => void startMap())
 
 watch(() => props.boundaries, drawVillages)
-watch([() => props.villages, () => props.opportunity, () => props.trends, () => props.mode, () => props.childrenShade], restyleVillages)
+watch([() => props.villages, () => props.opportunity, () => props.trends, () => props.mode, () => props.childrenShade, () => props.overview], restyleVillages)
 // 選取外框另一條 watch：只換外框那一層，不走 drawVillages。
 watch(() => props.selectedCode, drawSelected)
 // 座標分開當來源：refetch 換了 campus 物件但點沒動時不重設視野（使用者的縮放與拖曳要留著）。
@@ -758,11 +835,14 @@ watch(() => props.kindergartens, drawKindergartens)
 watch(() => props.babycare, drawBabycare)
 watch([() => props.enrolled, () => props.gradeFilter], drawEnrolled)
 watch(() => props.presale, drawPresale)
+watch(() => [props.overview, props.campusKey], drawCampusLayer)
 // 進出同業模式時幼兒園圖層跟著 kindergartensShown 換；在籍學生的點圖層跟著模式加上或收起。
 watch(() => props.mode, (mode, previous) => {
-  if (mode === 'peers' || previous === 'peers') syncKindergartenLayer()
+  if (mode === 'peers' || previous === 'peers' || mode === 'campuses' || previous === 'campuses') syncKindergartenLayer()
+  syncBabycareLayer()
   syncEnrolledLayer()
   syncPresaleLayer()
+  syncCampusLayer()
 })
 watch(() => props.narrow, (narrow) => {
   setInteractive(!narrow)
@@ -802,6 +882,17 @@ onBeforeUnmount(destroyMap)
         </p>
         <p v-if="enrolledLegend?.unplaced" class="area-map__enrolled-note">{{ enrolledLegend.unplaced }}</p>
       </div>
+      <div v-else-if="mode === 'campuses'" class="area-legend area-legend--campuses">
+        <ul class="area-legend" aria-label="五校圖例">
+          <li v-for="item in campusLegend" :key="item.key" :class="{ 'area-legend__off': !item.imported }">
+            <span class="area-dot" :style="{ background: `var(--area-campus-${item.key})` }" aria-hidden="true" />{{ item.label }} {{ item.count }}
+          </li>
+        </ul>
+        <ul class="area-legend" aria-label="里著色圖例">
+          <li><span class="area-swatch area-swatch--l1" aria-hidden="true" />一校有在籍</li>
+          <li><span class="area-swatch area-swatch--l3" aria-hidden="true" />兩校以上有在籍</li>
+        </ul>
+      </div>
       <ul v-else-if="mode === 'trend'" class="area-legend area-legend--signals" aria-label="孩子增減圖例">
         <li><span class="area-swatch area-swatch--up2" aria-hidden="true" />增加多</li>
         <li><span class="area-swatch area-swatch--up1" aria-hidden="true" />增加</li>
@@ -827,7 +918,7 @@ onBeforeUnmount(destroyMap)
         </template>
       </ul>
       <p v-else-if="mode !== 'peers'" class="area-map__none">{{ noneText }}</p>
-      <div class="area-legend area-legend--kinds">
+      <div v-if="mode !== 'campuses'" class="area-legend area-legend--kinds">
         <el-switch
           :model-value="kindergartensShown"
           :disabled="mode === 'peers'"
@@ -841,7 +932,7 @@ onBeforeUnmount(destroyMap)
           <li><span class="area-dot area-dot--own" aria-hidden="true" />本機構</li>
         </ul>
       </div>
-      <div class="area-legend area-legend--kinds">
+      <div v-if="mode !== 'campuses'" class="area-legend area-legend--kinds">
         <el-switch
           :model-value="showBabycare"
           aria-label="在地圖上顯示托嬰中心"
@@ -1005,6 +1096,15 @@ onBeforeUnmount(destroyMap)
 }
 
 .area-dot--enrolled { background: var(--area-enrolled); }
+
+.area-legend--campuses {
+  display: grid;
+  flex-basis: 100%;
+  gap: 6px;
+}
+
+/* 還沒匯入清冊的校：灰字（沒有點可看）。 */
+.area-legend__off { color: var(--ink-3); }
 .area-dot--presale { background: var(--area-presale); }
 
 /* Leaflet 畫的 SVG：CSS 屬性蓋過 Leaflet 寫的 presentation attribute。
@@ -1057,6 +1157,29 @@ onBeforeUnmount(destroyMap)
   fill-opacity: 0.85;
   stroke: var(--surface);
 }
+
+.area-map :deep(.area-campus--yihua) { fill: var(--area-campus-yihua); }
+.area-map :deep(.area-campus--minghua) { fill: var(--area-campus-minghua); }
+.area-map :deep(.area-campus--chongde) { fill: var(--area-campus-chongde); }
+.area-map :deep(.area-campus--international) { fill: var(--area-campus-international); }
+.area-map :deep(.area-campus--renwu) { fill: var(--area-campus-renwu); }
+
+.area-map :deep(path.area-campus) {
+  fill-opacity: 0.9;
+  stroke: var(--surface);
+}
+
+/* 其他四校的星形：同本校星的形狀，用各校色、白邊（本校星維持品牌金）。 */
+.area-map :deep(.area-campus-star svg path) {
+  stroke: var(--surface);
+  stroke-width: 1.5;
+}
+
+.area-map :deep(.area-campus-star--yihua svg path) { fill: var(--area-campus-yihua); }
+.area-map :deep(.area-campus-star--minghua svg path) { fill: var(--area-campus-minghua); }
+.area-map :deep(.area-campus-star--chongde svg path) { fill: var(--area-campus-chongde); }
+.area-map :deep(.area-campus-star--international svg path) { fill: var(--area-campus-international); }
+.area-map :deep(.area-campus-star--renwu svg path) { fill: var(--area-campus-renwu); }
 
 .area-map :deep(.area-presale) {
   fill: var(--area-presale);

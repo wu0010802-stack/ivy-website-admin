@@ -21,6 +21,12 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
     expect(parseAreaViewQuery({ village: ['64000050015', 'x'] }).village).toBe('64000050015')
   })
 
+  it('五校版圖：map=campuses 讀得進、寫得出來', () => {
+    expect(parseAreaViewQuery({ map: 'campuses' }).map).toBe('campuses')
+    expect(areaViewQuery({ ...DEFAULT_AREA_VIEW, map: 'campuses' })).toEqual({ map: 'campuses' })
+    expect(isMapMode('campuses')).toBe(true)
+  })
+
   it('讀網址：每個模式與每個分頁都認得', () => {
     for (const mode of MAP_MODES) expect(parseAreaViewQuery({ map: mode.value }).map).toBe(mode.value)
     for (const tab of AREA_TABLE_TABS) expect(parseAreaViewQuery({ table: tab }).table).toBe(tab)
@@ -60,8 +66,8 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
   })
 
   it('模式順序與標籤（規格 §2.1、D2）', () => {
-    expect(MAP_MODES.map((m) => m.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
-    expect(MAP_MODES.map((m) => m.label)).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
+    expect(MAP_MODES.map((m) => m.value)).toEqual(['enrolled', 'campuses', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
+    expect(MAP_MODES.map((m) => m.label)).toEqual(['在籍學生', '五校版圖', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
     // 預售建案（2026-10-20）在各里之後、國小學區之前。
     expect(AREA_TABLE_TABS).toEqual(['village', 'presale', 'school', 'enrolled', 'fees', 'births', 'visits'])
   })
