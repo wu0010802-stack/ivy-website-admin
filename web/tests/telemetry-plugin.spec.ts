@@ -17,6 +17,8 @@ const CTA_URL = '/api/website/v1/public/analytics-events'
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 
 beforeAll(async () => {
+  // happy-dom 的 navigator.webdriver 是 true（它自認是自動化環境）；第一方統計會因此整支不送（statsAllowed），測試改回一般瀏覽器的 false。
+  Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => false })
   vi.stubGlobal('defineNuxtPlugin', (setup: Plugin) => setup)
   plugin = (await import('../app/plugins/telemetry.client')).default as unknown as Plugin
   // 測試只看統計，不讓 happy-dom 真的跟著連結換頁或開新視窗。
@@ -29,21 +31,34 @@ afterEach(() => {
   document.body.innerHTML = ''
 })
 
-/** 在 path 這一頁掛上 plugin，回傳只記點擊之後的 fetch。 */
-function mountAt(path: string, html: string): Mock {
+type RouteLike = { path: string; matched: { meta?: Record<string, unknown> }[] }
+type AfterEach = (to: RouteLike, from: RouteLike, failure?: unknown) => void
+
+/** 掛上 plugin（不先清 fetch）：回傳 fetch、hooks、router.afterEach 收到的處理函式與錯誤狀態。 */
+function install(path: string, html = '') {
   history.replaceState(null, '', path)
   document.body.innerHTML = html
   const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
   vi.stubGlobal('fetch', fetch)
   vi.stubGlobal('useRuntimeConfig', () => ({ public: { telemetryEnabled: true } }))
+  const error = { value: null as unknown }
+  vi.stubGlobal('useError', () => error)
+  const afterEach: AfterEach[] = []
+  vi.stubGlobal('useRouter', () => ({ afterEach: (fn: AfterEach) => { afterEach.push(fn) } }))
   const hooks: Record<string, () => void> = {}
   const add = vi.spyOn(document, 'addEventListener')
   plugin({ hook: (name, fn) => { hooks[name] = fn } })
-  hooks['app:mounted']!()
+  hooks['app:mounted']?.()
   const listener = add.mock.calls.find(([type]) => type === 'click')?.[1]
   add.mockRestore()
+  if (listener) cleanups.push(() => document.removeEventListener('click', listener as EventListener))
+  return { fetch, hooks, afterEach, error, listener }
+}
+
+/** 在 path 這一頁掛上 plugin，回傳只記點擊之後的 fetch。 */
+function mountAt(path: string, html: string): Mock {
+  const { fetch, listener } = install(path, html)
   expect(listener).toBeTypeOf('function')
-  cleanups.push(() => document.removeEventListener('click', listener as EventListener))
   fetch.mockClear() // 掛上時的 page_view 不算
   return fetch
 }
@@ -143,6 +158,61 @@ describe('全站點擊統計（plugins/telemetry.client.ts）', () => {
     for (const button of buttons) {
       expect(button).toContain('data-booking-cta')
       expect(button).toContain('@click="trackContactAction"')
+    }
+  })
+})
+
+const pageViews = (fetch: Mock) => fetch.mock.calls.filter(([url]) => url === '/api/telemetry')
+  .map(([, init]) => JSON.parse(init.body)).filter((body) => body.event === 'page_view').map(({ page, campus }) => ({ page, campus }))
+
+describe('瀏覽統計送不送（2026-11-20 成效統計資料核對）', () => {
+  const visitRecord = { meta: { key: 'visit' } }
+
+  it('預約頁選校（/visit → /visit/<校>，頁面元件不重掛、沒有 page:finish）也記一次瀏覽', () => {
+    const { fetch, afterEach } = install('/visit')
+    expect(pageViews(fetch)).toEqual([{ page: 'visit', campus: null }])
+    history.pushState(null, '', '/visit/yihua')
+    afterEach.forEach((fn) => fn({ path: '/visit/yihua', matched: [visitRecord] }, { path: '/visit', matched: [visitRecord] }))
+    expect(pageViews(fetch)).toEqual([{ page: 'visit', campus: null }, { page: 'visit', campus: 'yihua' }])
+    // 會重掛的換頁交給 page:finish，這裡不重複記；換頁失敗也不記。
+    history.pushState(null, '', '/about')
+    afterEach.forEach((fn) => fn({ path: '/about', matched: [{}] }, { path: '/visit/yihua', matched: [visitRecord] }))
+    afterEach.forEach((fn) => fn({ path: '/about', matched: [visitRecord] }, { path: '/visit/yihua', matched: [visitRecord] }, new Error('aborted')))
+    expect(pageViews(fetch)).toHaveLength(2)
+  })
+
+  it('404 等錯誤頁（例如關掉的 30 週年頁）不算瀏覽', () => {
+    history.replaceState(null, '', '/anniversary')
+    const error = { value: { statusCode: 404 } as unknown }
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetch)
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { telemetryEnabled: true } }))
+    vi.stubGlobal('useError', () => error)
+    vi.stubGlobal('useRouter', () => ({ afterEach: () => {} }))
+    const hooks: Record<string, () => void> = {}
+    plugin({ hook: (name, fn) => { hooks[name] = fn } })
+    hooks['app:mounted']!()
+    expect(pageViews(fetch)).toEqual([])
+    // 離開錯誤頁回到首頁照常記。
+    error.value = null
+    history.pushState(null, '', '/')
+    hooks['page:finish']!()
+    expect(pageViews(fetch)).toEqual([{ page: 'home', campus: null }])
+  })
+
+  it('自動化瀏覽器、爬蟲、登入過後台的瀏覽器整支不啟用', () => {
+    const cases: [string, () => void][] = [
+      ['webdriver', () => vi.spyOn(navigator, 'webdriver', 'get').mockReturnValue(true)],
+      ['爬蟲', () => vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)')],
+      ['後台人員', () => { document.cookie = 'ivy_staff=1; path=/' }],
+    ]
+    for (const [name, arrange] of cases) {
+      arrange()
+      const { fetch, hooks } = install('/')
+      expect(hooks, name).toEqual({})
+      expect(fetch, name).not.toHaveBeenCalled()
+      vi.restoreAllMocks()
+      document.cookie = 'ivy_staff=; path=/; max-age=0'
     }
   })
 })

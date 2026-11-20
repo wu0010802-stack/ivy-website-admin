@@ -6,6 +6,7 @@ import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { claimVisitNoteDrafts, clearVisitNoteDrafts } from '../composables/visitNoteDraft'
 import { forgetLastUser, rememberSignedIn } from '../composables/lastSignIn'
+import { markStaffBrowser } from '../utils/staffBrowser'
 import { useOpenRequestsStore } from './openRequests'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -48,6 +49,7 @@ export const useAuthStore = defineStore('auth', () => {
       forgetPreviousUser(result.user.id)
       rememberSignedIn(result.user, 'password')
       announceSignedIn()
+      markStaffBrowser()
     } finally {
       isLoading.value = false
     }
@@ -141,6 +143,8 @@ export const useAuthStore = defineStore('auth', () => {
       forgetPreviousUser(result.user.id)
       rememberSignedIn(result.user)
       announceSignedIn()
+      // 官網看到這個記號就不把這台瀏覽器算進成效統計（utils/staffBrowser.ts）。
+      markStaffBrowser()
       return 'restored'
     } catch (error) {
       user.value = null

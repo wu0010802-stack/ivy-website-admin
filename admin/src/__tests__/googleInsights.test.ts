@@ -167,13 +167,14 @@ describe('Google 搜尋面板', () => {
   it('不在這一類時換期間，等切過來才用新期間讀', async () => {
     const { wrapper, get } = await mountPanel(search())
     await wrapper.setProps({ active: false })
-    await wrapper.setProps({ days: 90 })
+    // 用 7 天：近 28 天與近 90 天在統計起算日（STATS_START）後的頭幾週會是同一段，不會重讀。
+    await wrapper.setProps({ days: 7 })
     await flushPromises()
     expect(get).toHaveBeenCalledTimes(1)
     await wrapper.setProps({ active: true })
     await flushPromises()
     expect(get).toHaveBeenCalledTimes(2)
-    expect(get).toHaveBeenLastCalledWith(`/admin/search-insights?start=${searchPeriod(90).start}&end=${searchPeriod(90).end}`)
+    expect(get).toHaveBeenLastCalledWith(`/admin/search-insights?start=${searchPeriod(7).start}&end=${searchPeriod(7).end}`)
   })
 
   it('讀取中保留上一次的數字並告訴頁首更新中', async () => {

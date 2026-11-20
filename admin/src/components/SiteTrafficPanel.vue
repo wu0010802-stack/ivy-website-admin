@@ -7,7 +7,7 @@ import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
-import { DEFAULT_ANALYTICS_DAYS, type AnalyticsDays } from './analytics/filters'
+import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
 
 // 期間由成效統計頁首共用的那一組決定（2026-11-12，原本面板自己有一個選單），這裡只管讀資料與顯示。
 // 換期間時告訴頁首「正在更新」（updating），提示寫在期間旁邊。
@@ -42,6 +42,8 @@ const today = computed(() => summary.value?.daily.at(-1)?.views ?? 0)
 const dailyPoints = computed(() => (summary.value?.daily ?? []).map((item) => ({ day: item.day, value: item.views })))
 const TRAFFIC_MARKERS = [{ day: TRAFFIC_COVERAGE_EXPANDED_ON, label: '內頁也開始計入瀏覽，這天前後的次數不能直接比較' }]
 const rangeText = computed(() => (summary.value ? `${summary.value.since.replaceAll('-', '/')}–${summary.value.until.replaceAll('-', '/')}` : ''))
+// 畫面上的期間：起點碰到成效統計的起算日時補一句（CSV 檔名仍用 rangeText）。
+const metaPeriod = computed(() => (summary.value ? periodText(summary.value.since, summary.value.until) : ''))
 const shortRange = computed(() => (summary.value ? `${summary.value.since.slice(5).replace('-', '/')}–${summary.value.until.slice(5).replace('-', '/')}` : ''))
 // 瀏覽量少時平均不到 1 次：四捨五入會寫成「0 次」，和上面的總數矛盾（2026-11-12 QA L33），改寫「不到 1 次」。
 const dailyAverageText = computed(() => {
@@ -116,11 +118,12 @@ function exportVitals() {
           </div>
 
           <DailyBars title="每日瀏覽" :points="dailyPoints" unit="次" value-label="瀏覽次數" :markers="TRAFFIC_MARKERS" :export-filename="dailyCsvName" />
-          <AnalyticsMeta :period="rangeText" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
+          <AnalyticsMeta :period="metaPeriod" unit="瀏覽次數（不是人數）" :as-of="summary.as_of" coverage="全站五校合計，不分校區權限" />
           <AnalyticsExplainer>
             <p>全站五校合計，不分校區權限，和參觀預約的統計不能直接相比。</p>
             <p>計算首頁、五校介紹頁、預約參觀頁，2026/09/30 起也計入關於我們、特色教學、常春藤環境、入學資訊與最新消息；期間跨過這天時，前後的瀏覽次數不能直接比較。</p>
             <p>不記錄 IP、cookie 或個人資料；訪客開啟「不要追蹤」時不計入。</p>
+            <p>自動化瀏覽器（例如上線驗證用的測試程式）、搜尋引擎爬蟲、登入過後台的瀏覽器都不計入（2026/11/20 起）；2026/11/13 以前是網域切換與上線驗證期間，那些紀錄不列入統計。</p>
           </AnalyticsExplainer>
         </div>
       </section>
