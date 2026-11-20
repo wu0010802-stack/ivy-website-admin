@@ -1,3 +1,5 @@
+import { isAutomatedUserAgent } from '#shared/client-error'
+import { isStaffBrowser } from '#shared/staff-browser'
 import { campusKeys, publicPage } from '#shared/telemetry'
 import { newIdempotencyKey } from './idempotency-key'
 
@@ -99,6 +101,15 @@ export function trackingAllowed(enabled: boolean, nav: Navigator & { globalPriva
   return enabled && nav.doNotTrack !== '1' && !nav.globalPrivacyControl
 }
 
+/**
+ * 第一方成效統計（瀏覽與速度、內容興趣、預約鈕與聯絡點擊）送不送（2026-11-20）：除了「不要追蹤」，
+ * 自動化瀏覽器（Playwright、Lighthouse 等 navigator.webdriver）、爬蟲與無畫面瀏覽器、登入過後台的瀏覽器
+ * 也不送——正式站 11-12 上線驗證曾灌進約 250 次造訪，測試預約也被算成實際預約。GA／Pixel 只看 trackingAllowed。
+ */
+export function statsAllowed(enabled: boolean, nav: Navigator & { globalPrivacyControl?: boolean }, cookie: string): boolean {
+  return trackingAllowed(enabled, nav) && !nav.webdriver && !isAutomatedUserAgent(nav.userAgent) && !isStaffBrowser(cookie)
+}
+
 // keepalive：點了外部連結或換頁後請求仍會送完。重送同一個 event_id 後端
 // 只算一次；失敗就安靜略過，不影響家長原本要做的事。
 export function sendCtaEvent(event: CtaEvent): void {
@@ -119,6 +130,6 @@ export function sendCtaEvent(event: CtaEvent): void {
  */
 export function reportBookingActionClick(kind: string, campusKey: string | null, element: Element | null, enabled: boolean): void {
   const eventType = bookingActionClickKind(kind)
-  if (!eventType || !trackingAllowed(enabled, navigator) || !tracksClicks(location.pathname)) return
+  if (!eventType || !statsAllowed(enabled, navigator, document.cookie) || !tracksClicks(location.pathname)) return
   sendCtaEvent(ctaEvent(eventType, campusKey, ctaEntryOf(element)))
 }

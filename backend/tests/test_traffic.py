@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from sqlalchemy import func, select, text
@@ -124,3 +124,39 @@ async def test_admin_summary_p75_and_ratings(admin_client, minghua_client, publi
 
     assert (await admin_client.get("/api/website/v1/admin/analytics/traffic?days=3")).status_code == 422
     assert (await public_client.get("/api/website/v1/admin/analytics/traffic")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_stats_start_trims_views_and_vitals(app, admin_client, db_session):
+    """2026-11-20：起算日（設定 analytics_stats_start）以前的瀏覽與速度樣本不列入，期間從起算日開始。"""
+    today = today_local()
+    for days_ago, views in ((10, 5), (2, 3), (0, 4)):
+        db_session.add(PageViewDaily(
+            id=uuid.uuid4(), day=today - timedelta(days=days_ago), page="home", campus_key="", device="desktop", views=views,
+        ))
+    db_session.add(WebVitalSample(
+        id=uuid.uuid4(), day=today - timedelta(days=10), metric="LCP", page="home", campus_key="", device="desktop",
+        value=9000.0, updated_at=datetime.now(timezone.utc),
+    ))
+    await db_session.commit()
+
+    summary = await traffic_service.get_traffic_summary(db_session, 28, stats_start=today - timedelta(days=2))
+    assert summary["since"] == (today - timedelta(days=2)).isoformat()
+    assert [row["views"] for row in summary["daily"]] == [3, 0, 4]
+    assert summary["total_views"] == 7 and summary["vitals"] == []
+    # 起算日還沒到就不限；沒設照舊。
+    assert (await traffic_service.get_traffic_summary(db_session, 28, stats_start=today + timedelta(days=1)))["total_views"] == 12
+    assert (await traffic_service.get_traffic_summary(db_session, 28))["total_views"] == 12
+
+    app.state.settings = app.state.settings.model_copy(update={"analytics_stats_start": today - timedelta(days=2)})
+    body = (await admin_client.get("/api/website/v1/admin/analytics/traffic?days=7")).json()
+    assert body["since"] == (today - timedelta(days=2)).isoformat() and body["total_views"] == 7
+
+
+def test_production_default_stats_start_is_after_the_launch_checks():
+    # 網域 11-11 切到新站、11-12 /about 上線驗證灌進約 250 次造訪：正式站從 11-13 起算。
+    from datetime import date
+
+    from app.config import Settings
+
+    assert Settings.model_fields["analytics_stats_start"].default == date(2026, 11, 13)

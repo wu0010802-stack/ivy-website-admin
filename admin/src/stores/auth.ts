@@ -5,6 +5,7 @@ import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/ty
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { claimVisitNoteDrafts, clearVisitNoteDrafts } from '../composables/visitNoteDraft'
+import { markStaffBrowser } from '../utils/staffBrowser'
 import { useOpenRequestsStore } from './openRequests'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -46,6 +47,7 @@ export const useAuthStore = defineStore('auth', () => {
       setCsrfToken(result.csrf_token)
       forgetPreviousUser(result.user.id)
       announceSignedIn()
+      markStaffBrowser()
     } finally {
       isLoading.value = false
     }
@@ -136,6 +138,8 @@ export const useAuthStore = defineStore('auth', () => {
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
       forgetPreviousUser(result.user.id)
       announceSignedIn()
+      // 官網看到這個記號就不把這台瀏覽器算進成效統計（utils/staffBrowser.ts）。
+      markStaffBrowser()
       return 'restored'
     } catch (error) {
       user.value = null
