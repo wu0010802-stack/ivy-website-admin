@@ -76,6 +76,10 @@ describe('文案', () => {
     for (const row of [stale, failed]) expect(describeItem(row, 'datasets')).toContain('匯入指令更新門牌')
   })
 
+  it('房價租金有中文標籤', () => {
+    expect(DATASET_LABELS.housing).toBe('房價租金')
+  })
+
   it('其他公開資料：失敗寫原因、過期寫天數、沒匯入寫尚未匯入、正常寫版本與更新時間', () => {
     expect(describeItem(item('income', 'attention', { imported: true, label: '112', error: 'HTTP 503', stale: false, stale_days: 33 }), 'datasets')).toBe('最近一次同步失敗：HTTP 503')
     expect(describeItem(item('births', 'attention', { imported: true, label: '115-09', error: null, stale: true, stale_days: 33, auto_sync_off: false }), 'datasets')).toBe('超過 33 天沒有更新')
