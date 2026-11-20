@@ -12,7 +12,7 @@ from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.area import campus_out
+from app.admissions.area import resolve_center
 from app.admissions.geo import boundaries
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo.models import PRESALE_VILLAGE_LEVELS, GeoDatasetStatus
@@ -28,10 +28,16 @@ def _round_distance(meters: float) -> int:
 
 
 async def query_presale(
-    db: AsyncSession, campus_key: str, *, radius_km: int, today: date | None = None, now: datetime | None = None
+    db: AsyncSession,
+    campus_key: str | None,
+    *,
+    radius_km: int,
+    today: date | None = None,
+    now: datetime | None = None,
+    center: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     today = today or today_local()
-    campus = await campus_out(db, campus_key)
+    campus = await resolve_center(db, campus_key, center)
     status = await db.get(GeoDatasetStatus, "presale_buildcases")
     imported = status is not None and status.active_version is not None
     result: dict[str, Any] = {

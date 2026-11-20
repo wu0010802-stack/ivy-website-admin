@@ -114,6 +114,29 @@ async def campus_out(db: AsyncSession, campus_key: str, point: matcher.CampusPoi
     }
 
 
+async def point_center(lat: float, lng: float) -> dict[str, Any]:
+    """地圖上任意一點當圓心（2026-11-20 規格 §5.3）：形狀同 campus_out，key 空字串、沒有本校專屬資料。
+    district 由里界反查（lng 在前），落在里界外是 None。"""
+    code = boundaries.village_at(lng, lat)
+    return {
+        "key": "",
+        "name": "這一點",
+        "lat": lat,
+        "lng": lng,
+        "locate_error": None,
+        "district": boundaries.village_names()[code][0] if code is not None else None,
+    }
+
+
+async def resolve_center(db: AsyncSession, campus_key: str | None, center: dict[str, Any] | None) -> dict[str, Any]:
+    """六支查詢共用：給了 center 就用它，否則用校名查；兩個都沒給是呼叫錯誤。"""
+    if center is not None:
+        return center
+    if campus_key is None:
+        raise ValueError("campus_key 與 center 至少要給一個")
+    return await campus_out(db, campus_key)
+
+
 async def _data_status(db: AsyncSession) -> dict[str, Any]:
     statuses = {status.dataset: status for status in (await db.execute(select(GeoDatasetStatus))).scalars()}
     doorplates = statuses.get("doorplates")
@@ -250,10 +273,12 @@ async def query_kindergartens(db: AsyncSession, campus_key: str, *, radius_km: i
     return result
 
 
-async def query_babycare(db: AsyncSession, campus_key: str, *, radius_km: int) -> dict[str, Any]:
+async def query_babycare(
+    db: AsyncSession, campus_key: str | None, *, radius_km: int, center: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """本校半徑內營業中的托嬰中心與托育家園（2026-10-14 規格 §6），依距離排序。校區比對不到座標時回空清單，
     原因在 campus.locate_error；名單從未匯入時 synced_at 是 null（畫面寫尚未匯入，不寫附近沒有）。"""
-    campus = await campus_out(db, campus_key)
+    campus = await resolve_center(db, campus_key, center)
     status = await db.get(GeoDatasetStatus, "babycare")
     fee_status = await db.get(GeoDatasetStatus, "kindergarten_fees")
     fee_school_year = int(fee_status.active_version) if fee_status is not None and fee_status.active_version else None
@@ -274,7 +299,10 @@ async def query_babycare(db: AsyncSession, campus_key: str, *, radius_km: int) -
     result["items"] = [asdict(item) for item in found]
     monthly = [item.monthly_fee for item in found if item.monthly_fee is not None]
     # 本校 2 歲班月均（規格 §5）：和托嬰月費擺在一起對照，兩邊都不含延托。
-    _, own_fee = await geo_fees.own_fee(db, campus["lat"], campus["lng"], age=2, radius_m=OWN_CAMPUS_RADIUS_M)
+    # 任意圓心沒有「本校」，不查。
+    own_fee = None
+    if center is None:
+        _, own_fee = await geo_fees.own_fee(db, campus["lat"], campus["lng"], age=2, radius_m=OWN_CAMPUS_RADIUS_M)
     result["summary"] = {
         "count": len(found),
         "approved_total": sum(item.approved_capacity or 0 for item in found),
@@ -290,11 +318,16 @@ async def query_babycare(db: AsyncSession, campus_key: str, *, radius_km: int) -
 
 
 async def query_changes(
-    db: AsyncSession, campus_key: str, *, radius_km: int, today: date | None = None
+    db: AsyncSession,
+    campus_key: str | None,
+    *,
+    radius_km: int,
+    today: date | None = None,
+    center: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """本校半徑內近 12 個月的新設、停辦、類型變動（規格 §5、§6）。today 只給測試固定日期用，預設台北今天。
     tracking_since 讓畫面老實說從哪天開始記錄。"""
-    campus = await campus_out(db, campus_key)
+    campus = await resolve_center(db, campus_key, center)
     statuses = {status.dataset: status for status in (await db.execute(select(GeoDatasetStatus))).scalars()}
     kindergartens, babycare = statuses.get("kindergartens"), statuses.get("babycare")
     result: dict[str, Any] = {

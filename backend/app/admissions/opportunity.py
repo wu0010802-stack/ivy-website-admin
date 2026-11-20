@@ -25,7 +25,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import estimation, records
-from app.admissions.area import campus_out
+from app.admissions.area import resolve_center
 from app.admissions.geo import boundaries
 from app.admissions.geo import population as population_io
 from app.admissions.geo.models import VILLAGE_LEVELS, GeoDatasetStatus, GeoVillagePopulation, RecruitmentVisitGeo
@@ -116,18 +116,20 @@ async def visits_by_village(
 
 async def query_opportunity(
     db: AsyncSession,
-    campus_key: str,
+    campus_key: str | None,
     *,
     school_year: int | None,
     semester: int | None,
     radius_km: int,
     now: datetime | None = None,
+    center: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    campus = await campus_out(db, campus_key)
+    """center（任意圓心，2026-11-20 規格 §5.3）：沒有本校就沒有參觀，不讀訪視；孩子數、嬰幼兒數照算。"""
+    campus = await resolve_center(db, campus_key, center)
     status = await population_status(db)
     result: dict[str, Any] = {
         "as_of": now or datetime.now(timezone.utc),
-        "filters": {"campus_key": campus_key, "school_year": school_year, "semester": semester},
+        "filters": {"campus_key": campus_key or "", "school_year": school_year, "semester": semester},
         "radius_km": radius_km,
         "population": {**status, "age_band": AGE_BAND_KEY, "source_note": population_io.SOURCE_NOTE},
         "campus": campus,
@@ -138,7 +140,10 @@ async def query_opportunity(
         "no_population_villages": [],
         "villages": [],
     }
-    visits, unplaced, no_address = await visits_by_village(db, campus_key, school_year, semester)
+    if center is not None:
+        visits, unplaced, no_address = {}, 0, 0
+    else:
+        visits, unplaced, no_address = await visits_by_village(db, campus_key, school_year, semester)
     result["unplaced_visit"] = unplaced
     result["no_address_visit"] = no_address
     if status["version"] is None or campus["lat"] is None or campus["lng"] is None:

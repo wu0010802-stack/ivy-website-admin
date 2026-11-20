@@ -36,7 +36,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.area import campus_out
+from app.admissions.area import resolve_center
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
 from app.admissions.geo import housing as housing_io
@@ -437,17 +437,20 @@ async def _schools(
 
 async def query_trends(
     db: AsyncSession,
-    campus_key: str,
+    campus_key: str | None,
     *,
     school_year: int | None,
     semester: int | None,
     radius_km: int,
     now: datetime | None = None,
     kids_only: bool = False,
+    center: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """kids_only（2026-11-16 五校並排）：只算 2–5 歲孩子與這一年淨增，不讀所得、新屋、預售、國小學區；回應鍵不變，
     其他來源維持初始值、schools 是空的。孩子數與淨增（含里界調整合併組）和完整模式完全相同。"""
-    campus = await campus_out(db, campus_key)
+    if center is not None and not kids_only:
+        raise ValueError("任意圓心只支援 kids_only（完整模式含本校參觀與國小學區）")
+    campus = await resolve_center(db, campus_key, center)
     current = await _label(db, "population")
     births_latest = await _label(db, "births")
     migration_latest = await _label(db, "migration")
@@ -461,7 +464,7 @@ async def query_trends(
 
     result: dict[str, Any] = {
         "as_of": now or datetime.now(timezone.utc),
-        "filters": {"campus_key": campus_key, "school_year": school_year, "semester": semester},
+        "filters": {"campus_key": campus_key or "", "school_year": school_year, "semester": semester},
         "radius_km": radius_km,
         "campus": campus,
         "sources": {
