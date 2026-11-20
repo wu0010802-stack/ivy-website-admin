@@ -1,3 +1,5 @@
+import { watch } from 'vue'
+import { notFoundPath, notFoundRef } from '#shared/not-found'
 import { publicPage, type TelemetryEvent } from '#shared/telemetry'
 import { bookingCtaCampus, contactClickKind, ctaEntryOf, ctaEvent, isCampusKey, isSamePage, sendCtaEvent, statsAllowed, tracksClicks } from '../utils/cta-analytics'
 import { newIdempotencyKey } from '../utils/idempotency-key'
@@ -24,6 +26,21 @@ export default defineNuxtPlugin((app) => {
     if (page && !error.value) send({ event: 'page_view', ...page })
   }
   app.hook('page:finish', pageView)
+  // 找不到的網址（2026-11-20）：進站就是 404、或站內換頁到 404，各記一次（同一個路徑不重記）。
+  // 「從哪裡來」只看 document.referrer（進站那一次），站內換頁一律算站內。
+  let reportedNotFound = ''
+  let firstLoad = true
+  function notFound() {
+    const status = error.value && 'statusCode' in error.value ? Number(error.value.statusCode) : 0
+    if (status !== 404) return
+    const path = notFoundPath(location.pathname)
+    if (!path || path === reportedNotFound) return
+    reportedNotFound = path
+    const ref = firstLoad ? notFoundRef(document.referrer, location.origin) : 'internal'
+    void fetch('/api/telemetry', { method: 'POST', credentials: 'omit', keepalive: true,
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ event: 'not_found', path, ref }) }).catch(() => {})
+  }
+  watch(() => error.value, () => { notFound(); firstLoad = false })
   // 同一個頁面實例換網址（/visit ↔ /visit/<校>，預約頁的 definePageMeta key 固定）不會有 page:finish：
   // 換頁完成就記（2026-11-20；11-11 起五校預約頁的瀏覽因此只記到約四成）。和 GA 的補送同一個判斷。
   useRouter().afterEach((to, from, failure) => {
@@ -31,6 +48,8 @@ export default defineNuxtPlugin((app) => {
   })
   app.hook('app:mounted', () => {
     pageView()
+    notFound()
+    firstLoad = false
     // 標準 CWV 依 document 進入頁歸屬；不將 SPA 換頁當成新的 LCP。
     if (entryPage) void import('web-vitals').then(({ onLCP, onINP, onCLS }) => {
       const ids = new Map<string, string>()

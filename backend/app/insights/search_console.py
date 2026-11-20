@@ -1,13 +1,14 @@
 """Google Search Console 搜尋成效（docs/specs/2026-11-12-external-integrations-design.md §3）。
 
 驗證：服務帳戶 access token（scope 唯讀）由 google_token.ServiceAccountToken 處理。查詢：searchAnalytics.query 四次（總計、搜尋字詞、頁面、裝置），
-每次只問一個維度、最多 25 列；結果依「資源＋期間＋維度」快取 6 小時，同一份同時只向 Google 要一次。
+每次只問一個維度、最多 25 列（搜尋字詞 500 列，2026-11-20 分群用）；結果依「資源＋期間＋維度」快取 6 小時，同一份同時只向 Google 要一次。
 
 access token、assertion、私鑰都只在記憶體與 Authorization 標頭／POST 本文，不進網址、log、例外、回應。"""
 
 from __future__ import annotations
 
 import logging
+import re
 import time
 from collections.abc import Callable
 from datetime import date, timezone
@@ -24,6 +25,7 @@ from app.insights.schemas import (
     SearchInsightsOut,
     SearchMetricsOut,
     SearchPageRowOut,
+    SearchQueryGroupOut,
     SearchQueryRowOut,
 )
 
@@ -32,6 +34,30 @@ logger = logging.getLogger("app.insights")
 SCOPE = "https://www.googleapis.com/auth/webmasters.readonly"
 QUERY_URL = "https://searchconsole.googleapis.com/webmasters/v3/sites/{site}/searchAnalytics/query"
 ROW_LIMIT = 25
+# 搜尋字詞多抓一些（2026-11-20 §5）：分群與「曝光多、點擊少」要看前 25 個以外的；表格照樣只列前 25 個。
+QUERY_ROW_LIMIT = 500
+MISSED_MIN_IMPRESSIONS = 20
+MISSED_MAX_CTR = 0.02
+MISSED_LIMIT = 10
+QUERY_GROUPS = ("brand", "local", "category", "other")
+_BRAND = re.compile(r"常春藤|ivy|(義華|明華|崇德).*幼|幼.*(義華|明華|崇德)", re.IGNORECASE)
+# 高雄市 38 區（去掉「區」字）與「高雄」。
+_LOCAL = re.compile(
+    "高雄|楠梓|左營|鼓山|三民|鹽埕|前金|新興|苓雅|前鎮|旗津|小港|鳳山|林園|大寮|大樹|大社|仁武|鳥松|岡山|橋頭|燕巢|"
+    "田寮|阿蓮|路竹|湖內|茄萣|永安|彌陀|梓官|旗山|美濃|六龜|甲仙|杉林|內門|茂林|桃源|那瑪夏"
+)
+_CATEGORY = re.compile("幼兒園|幼稚園|托嬰|托兒|幼幼班|小班|中班|大班|學前|課後|安親|雙語|美語|蒙特梭利|準公共|私幼|公幼|招生|學費|補助|入園|插班")
+
+
+def query_group(text: str) -> str:
+    """搜尋字詞分四群：brand＝找我們（常春藤、ivy、校名＋幼）、local＝帶高雄地名、category＝找園所但沒帶地名、other＝其他。"""
+    if _BRAND.search(text):
+        return "brand"
+    if _LOCAL.search(text):
+        return "local"
+    if _CATEGORY.search(text):
+        return "category"
+    return "other"
 RESULT_TTL_SECONDS = 6 * 3600
 _QUERY_TEXT_LIMIT = 200
 _DEVICES = {"MOBILE": "mobile", "DESKTOP": "desktop", "TABLET": "tablet"}
@@ -86,7 +112,8 @@ class SearchConsole:
 
         async def fetch() -> list[dict]:
             token = await self._auth.get(client, account)
-            body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "rowLimit": ROW_LIMIT, "type": "web"}
+            limit = QUERY_ROW_LIMIT if dimension == "query" else ROW_LIMIT
+            body = {"startDate": start.isoformat(), "endDate": end.isoformat(), "rowLimit": limit, "type": "web"}
             if dimension:
                 body["dimensions"] = [dimension]
             status, data = await post_json(
@@ -101,7 +128,7 @@ class SearchConsole:
             rows = data.get("rows", [])
             if not isinstance(rows, list):
                 raise GoogleApiError(STEP_QUERY, status=status, reason="回應格式不對")
-            return [row for row in rows if isinstance(row, dict)][:ROW_LIMIT]
+            return [row for row in rows if isinstance(row, dict)][:limit]
 
         return await self._results.get(key, fetch)
 
@@ -125,10 +152,15 @@ class SearchConsole:
             ctr=round(_number(total.get("ctr")), 4) if total and _number(total.get("impressions")) > 0 else None,
             position=round(_number(total.get("position")), 1) if total and _number(total.get("impressions")) > 0 else None,
         )
-        queries = [
-            SearchQueryRowOut(query=text[:_QUERY_TEXT_LIMIT], **_row_metrics(row))
+        all_queries = [
+            SearchQueryRowOut(query=text[:_QUERY_TEXT_LIMIT], group=query_group(text), **_row_metrics(row))
             for row in query_rows.value if (text := _first_key(row))
         ]
+        queries = all_queries[:ROW_LIMIT]
+        missed = sorted(
+            (row for row in all_queries if row.impressions >= MISSED_MIN_IMPRESSIONS and row.ctr < MISSED_MAX_CTR),
+            key=lambda row: (-row.impressions, row.position, row.query),
+        )[:MISSED_LIMIT]
         pages = [
             SearchPageRowOut(page=path, **_row_metrics(row))
             for row in page_rows.value if (url := _first_key(row)) and (path := _path_only(url))
@@ -141,4 +173,20 @@ class SearchConsole:
         return SearchInsightsOut(
             configured=True, start=start, end=end, as_of=oldest.astimezone(timezone.utc),
             totals=totals, queries=queries, pages=pages, devices=devices,
+            queries_seen=len(all_queries), query_groups=_group_totals(all_queries), missed_queries=missed,
         )
+
+
+def _group_totals(rows: list[SearchQueryRowOut]) -> list[SearchQueryGroupOut]:
+    """各群加總；排名用曝光加權平均（Google 自己算總排名也是這樣）。Google 不公開少數人搜的字詞，加總會比總數少。"""
+    result = []
+    for group in QUERY_GROUPS:
+        members = [row for row in rows if row.group == group]
+        clicks = sum(row.clicks for row in members)
+        impressions = sum(row.impressions for row in members)
+        result.append(SearchQueryGroupOut(
+            group=group, queries=len(members), clicks=clicks, impressions=impressions,
+            ctr=round(clicks / impressions, 4) if impressions else None,
+            position=round(sum(row.position * row.impressions for row in members) / impressions, 1) if impressions else None,
+        ))
+    return result

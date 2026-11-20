@@ -1275,6 +1275,7 @@ export const REFERRAL_SOURCE_LABELS: Record<string, string> = { friends_family: 
 export const TOUCH_SOURCE_LABELS: Record<string, string> = {
   direct: '直接進站',
   search: '搜尋引擎',
+  ai: 'AI 助理',
   facebook: 'Facebook',
   instagram: 'Instagram',
   line: 'LINE',

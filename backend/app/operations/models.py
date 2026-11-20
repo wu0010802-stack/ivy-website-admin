@@ -284,7 +284,8 @@ class RetentionRun(Base):
 # 內容興趣統計的來源分類：瀏覽器只回報這幾種代碼，不回報來源網址。要和
 # web/shared/engagement.ts 的 ENGAGEMENT_SOURCES 一致（web 測試會比對），後台
 # admin/src/api/engagement.ts 的 SOURCE_LABELS 也要有中文。
-ENGAGEMENT_SOURCES = ("direct", "search", "facebook", "instagram", "line", "youtube", "ads", "other")
+# ai（2026-11-20）：ChatGPT、Perplexity、Gemini、Copilot 等 AI 助理的回答裡點進來（不是廣告；廣告一律算 ads）。
+ENGAGEMENT_SOURCES = ("direct", "search", "ai", "facebook", "instagram", "line", "youtube", "ads", "other")
 # 單次瀏覽的停留上限（30 分鐘）；分頁開著不動不會一直累計，瀏覽器端也只算有操作的時間。
 ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
 ENGAGEMENT_MAX_KEYS = 24
@@ -362,3 +363,88 @@ class EngagementVisit(Base):
     # 這次瀏覽的第幾次回報：晚到的舊回報不能把區塊與互動蓋回舊值（回報是 fire-and-forget，
     # 切到背景、換頁、關分頁的幾筆可能不照順序到）。沒帶的舊版頁面照舊以後到的為準。
     rev: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+
+class EngagementMonthly(Base):
+    """內容興趣的每月彙總（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §1）。
+
+    engagement_visits 只留 90 天，明年的招生季就沒辦法和今年同月比；這張表每天把「整個月的紀錄都還在」的月份
+    重算一次（刪掉那個月再寫），紀錄開始被清之後就不再動，留下來的是那個月完整時的數字。只有計數與中位數，
+    沒有任何訪客資料，不清。
+
+    kind／key：total（key 空字串，另外記 first_day、last_day）、device（mobile／desktop）、source（來源代碼）、
+    page（頁面代碼，各校頁併成一列）、returning（new／returning／unknown）、form（預約表單走到哪一步）。"""
+
+    __tablename__ = "engagement_monthly"
+
+    month: Mapped[date] = mapped_column(Date, primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), primary_key=True)
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    sessions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    visits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    booked_sessions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    # total＝每次造訪停留的中位數；page＝這頁每次瀏覽停留的中位數。其他 kind 是 NULL。
+    median_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 只有 total 有：這個月實際算到哪幾天（月初碰到成效統計起算日、本月還沒過完）。
+    first_day: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_day: Mapped[date | None] = mapped_column(Date, nullable=True)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+# 找不到的網址從哪裡來（2026-11-20 §4）：none＝沒有來源網址（書籤、打字、App 內開啟）、internal＝站內連結、
+# search＝搜尋引擎、external＝其他網站；crawler＝搜尋引擎或 AI 爬蟲自己來抓（官網伺服器看 User-Agent 記的）。
+NOT_FOUND_REFS = ("none", "internal", "search", "external", "crawler")
+NOT_FOUND_PATH_MAX = 160
+NOT_FOUND_RETENTION_DAYS = 90
+# 一天最多記這麼多個不同的網址：亂打的網址灌不爆這張表，滿了只累加已經有的。
+NOT_FOUND_DAILY_PATHS = 300
+
+
+class NotFoundDaily(Base):
+    """官網 404：台北日 × 網址路徑 × 從哪裡來 → 次數（2026-11-20 §4）。只存路徑（不含 ?query 與 #），
+    看舊網站（Wix）的連結落在哪些不存在的網址、要補哪些轉址。保留 90 天。"""
+
+    __tablename__ = "not_found_daily"
+    __table_args__ = (
+        UniqueConstraint("day", "path", "ref", name="uq_not_found_daily_bucket"),
+        CheckConstraint(f"ref IN {NOT_FOUND_REFS!r}", name="ck_not_found_daily_ref"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    path: Mapped[str] = mapped_column(String(NOT_FOUND_PATH_MAX), nullable=False)
+    ref: Mapped[str] = mapped_column(String(16), nullable=False)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+# 爬蟲抓的是哪一類網址（2026-11-20 §7）：公開頁的頁面代碼（同瀏覽統計），加上 robots、sitemap、llms 三個檔案，
+# 其他（含 404）算 other。
+CRAWLER_PAGE_MAX = 16
+
+
+class CrawlerHitDaily(Base):
+    """搜尋引擎與 AI 爬蟲抓官網的次數：台北日 × 爬蟲 × 頁面 × 回應類別（2xx／3xx／4xx／5xx）→ 次數
+    （2026-11-20 §7）。官網伺服器看 User-Agent 認（自稱的，沒有反查 DNS），每分鐘彙總送一次。只有計數，不清。"""
+
+    __tablename__ = "crawler_hits_daily"
+    __table_args__ = (UniqueConstraint("day", "bot", "page", "status_class", name="uq_crawler_hits_daily_bucket"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    day: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    bot: Mapped[str] = mapped_column(String(32), nullable=False)
+    page: Mapped[str] = mapped_column(String(CRAWLER_PAGE_MAX), nullable=False)
+    # 回應類別 2xx／3xx／4xx／5xx（不是狀態機，欄位名避開 status：tests/test_state_machines.py 守門）。
+    status_class: Mapped[str] = mapped_column(String(3), nullable=False)
+    hits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
+class StatsHealthRun(Base):
+    """統計健康檢查已經推到某個總部 LINE 群組（2026-11-20 §2）：同一天的異常每個群組只推一次。"""
+
+    __tablename__ = "stats_health_runs"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

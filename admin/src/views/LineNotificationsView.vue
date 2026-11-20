@@ -162,8 +162,13 @@ async function saveGroupSettings(group: LineGroupOut, patch: Partial<GroupSettin
   }
 }
 
+// 官網統計異常（2026-11-20，backend/app/operations/stats_health.py）：只有總部群組有這個開關，預設不開。
+// 不是案件通知，所以不放進 GROUP_KIND_OPTIONS；切其他開關時也要把它帶著，不然會被洗掉。
+const STATS_HEALTH_KIND = 'stats_health'
+const ALL_GROUP_KINDS = [...GROUP_KIND_OPTIONS.map(option => option.value), STATS_HEALTH_KIND]
+
 function toggleKind(group: LineGroupOut, kind: string, on: boolean) {
-  const kinds = GROUP_KIND_OPTIONS.map(option => option.value).filter(value => value === kind ? on : group.kinds.includes(value))
+  const kinds = ALL_GROUP_KINDS.filter(value => value === kind ? on : group.kinds.includes(value))
   return saveGroupSettings(group, { kinds })
 }
 
@@ -393,10 +398,19 @@ onMounted(() => load())
                   :data-test="`line-group-${group.target_id}-hq`"
                   @change="(value: unknown) => saveGroupSettings(group, { is_hq: Boolean(value) })"
                 />
+                <el-switch
+                  v-if="group.is_hq"
+                  :model-value="group.kinds.includes(STATS_HEALTH_KIND)"
+                  :disabled="groupSaving[group.target_id]"
+                  active-text="官網統計異常"
+                  :aria-label="`${groupLabel(group)}：官網統計異常`"
+                  :data-test="`line-group-${group.target_id}-stats-health`"
+                  @change="(value: unknown) => toggleKind(group, STATS_HEALTH_KIND, Boolean(value))"
+                />
               </div>
             </li>
           </ul>
-          <p class="field-help">總部群組會收到所有校區的通知；其他群組只收到各校自己選定的群組通知。官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
+          <p class="field-help">總部群組會收到所有校區的通知；其他群組只收到各校自己選定的群組通知。總部群組另外可以開「官網統計異常」：官網的瀏覽、內容興趣、預約來源或 GA4 的數字突然不見時，每天早上 9 點後提醒一次。官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
         </div>
       </section>
       <section class="panel">

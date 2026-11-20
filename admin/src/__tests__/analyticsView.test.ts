@@ -46,6 +46,20 @@ const AttributionStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'attribution', 'data-from': (props.range as { from: string } | undefined)?.from, 'data-period': props.periodLabel }),
 })
 
+// 2026-11-20 新增的面板：這裡只看分類切換，各面板自己的測試在 analyticsMore.test.ts。
+const simpleStub = (name: string, stub: string) => defineComponent({
+  name,
+  props: { days: Number, active: Boolean },
+  setup: (props) => () => h('div', { 'data-stub': stub, 'data-active': String(props.active) }),
+})
+const MORE_STUBS = {
+  StatsHealthBanner: simpleStub('StatsHealthBanner', 'health'),
+  MonthlyPanel: simpleStub('MonthlyPanel', 'monthly'),
+  NotFoundPanel: simpleStub('NotFoundPanel', 'not-found'),
+  CrawlerPanel: simpleStub('CrawlerPanel', 'crawlers'),
+  ContactHoursPanel: simpleStub('ContactHoursPanel', 'contact-hours'),
+}
+
 async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
@@ -56,7 +70,7 @@ async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin
     attachTo: document.body,
     global: {
       plugins: [router, ElementPlus, pinia],
-      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub, BookingAttributionPanel: AttributionStub },
+      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub, BookingAttributionPanel: AttributionStub, ...MORE_STUBS },
     },
   })
   wrappers.push(wrapper)
@@ -71,6 +85,24 @@ async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin
 }
 
 describe('成效統計的分類與條件', () => {
+  it('2026-11-20：每月比較自己一類，不放期間與裝置；404 與爬蟲在瀏覽與速度、電話與 LINE 時段在走到預約', async () => {
+    const { wrapper, traffic, interest, pressed } = await mountView({ tab: 'monthly' })
+    expect(pressed()).toEqual(['每月比較'])
+    expect(wrapper.get('[data-stub="monthly"]').isVisible()).toBe(true)
+    expect(wrapper.get('[data-stub="monthly"]').attributes('data-active')).toBe('true')
+    expect(traffic().isVisible()).toBe(false)
+    expect(interest().isVisible()).toBe(false)
+    expect(wrapper.find('.analytics__filters').exists()).toBe(false)
+    expect(wrapper.find('[data-stub="health"]').exists()).toBe(true)
+    const first = await mountView()
+    expect(first.wrapper.get('[data-stub="not-found"]').isVisible()).toBe(true)
+    expect(first.wrapper.get('[data-stub="crawlers"]').isVisible()).toBe(true)
+    expect(first.wrapper.get('[data-stub="contact-hours"]').isVisible()).toBe(false)
+    const convert = await mountView({ tab: 'convert' })
+    expect(convert.wrapper.get('[data-stub="contact-hours"]').isVisible()).toBe(true)
+    expect(convert.wrapper.get('[data-stub="not-found"]').isVisible()).toBe(false)
+  })
+
   it('2026-11-20：「走到預約」的網站來源和整頁同一段期間（不早於起算日），日期用斜線', async () => {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date('2026-11-20T04:00:00Z'))
@@ -88,7 +120,7 @@ describe('成效統計的分類與條件', () => {
 
   it('四類寫成家長會問的問題，預設在「瀏覽與速度」、近 28 天', async () => {
     const { wrapper, traffic, interest, tabs, pressed } = await mountView()
-    expect(tabs().map((tab) => tab.text())).toEqual(['瀏覽與速度', '看了什麼', '怎麼來、怎麼逛', '走到預約'])
+    expect(tabs().map((tab) => tab.text())).toEqual(['瀏覽與速度', '看了什麼', '怎麼來、怎麼逛', '走到預約', '每月比較'])
     expect(pressed()).toEqual(['瀏覽與速度'])
     expect(wrapper.find('.status-tabs').attributes('role')).toBe('group')
     expect(traffic().isVisible()).toBe(true)

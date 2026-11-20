@@ -70,6 +70,9 @@ class CycleResult:
     notifications_failed: int = 0
     notifications_skipped: int = 0
     digests_sent: int = 0
+    # 成效統計（2026-11-20）：每月彙總重算了幾個月、統計異常推了幾則。
+    months_rolled_up: int = 0
+    stats_alerts_sent: int = 0
     rate_limit_rows_purged: int = 0
     ad_conversions_sent: int = 0
     ad_conversions_failed: int = 0
@@ -95,6 +98,8 @@ class CycleResult:
                 self.notifications_sent,
                 self.notifications_failed,
                 self.notifications_skipped,
+                self.months_rolled_up,
+                self.stats_alerts_sent,
                 self.rate_limit_rows_purged,
                 self.media_purged,
                 self.audit_client_info_cleared,
@@ -253,8 +258,27 @@ async def _run_steps(
         except Exception:  # noqa: BLE001
             logger.exception("定期工作：每日摘要失敗")
             result.failed_steps.append("digest")
+        # 官網統計異常（2026-11-20，app/operations/stats_health.py）：開了這個種類的總部群組，09:00–12:00 推一次。
+        try:
+            from app.operations import stats_health
+
+            async with session_factory() as db:
+                result.stats_alerts_sent = await stats_health.send_due_alerts(db, settings, line_client=digest_line)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：統計健康檢查推播失敗")
+            result.failed_steps.append("stats_health")
         finally:
             await digest_line.aclose()
+
+    # 成效統計的每月彙總（2026-11-20，app/operations/monthly_service.py）：每天重算一次還能完整重算的月份。
+    try:
+        from app.operations import monthly_service
+
+        async with session_factory() as db:
+            result.months_rolled_up = await monthly_service.rollup_once_a_day(db, settings.analytics_stats_start)
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：成效統計每月彙總失敗")
+        result.failed_steps.append("monthly_rollup")
 
     # 到場、預繳回傳廣告平台（2026-11-16，app/ad_conversions/）。平台都沒設定時也要跑：之前排入、後來拿掉設定的列
     # 要記成 skipped，不能一直掛著。

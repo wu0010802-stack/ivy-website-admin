@@ -38,7 +38,7 @@ from app.common import ratelimit
 from app.config import LINE_CAMPUS_ACCOUNT_KEYS, LINE_MAIN_ACCOUNT, LineAccountCredentials
 from app.notifications import line as line_api
 from app.notifications import line_accounts, line_flex, line_group_actions, line_group_commands, line_parent
-from app.notifications.line_group_settings import STAFF_KINDS
+from app.notifications.line_group_settings import GROUP_KINDS, STAFF_KINDS
 from app.notifications.parent_email import visit_when
 from app.notifications.models import (
     LineCampusTarget,
@@ -385,10 +385,10 @@ class LineGroupSettingsUpdate(BaseModel):
     @field_validator("kinds")
     @classmethod
     def _known_kinds(cls, value: list[str]) -> list[str]:
-        unknown = [kind for kind in value if kind not in STAFF_KINDS]
+        unknown = [kind for kind in value if kind not in GROUP_KINDS]
         if unknown:
             raise ValueError(f"未知的通知種類：{', '.join(unknown)}")
-        return [kind for kind in STAFF_KINDS if kind in value]
+        return [kind for kind in GROUP_KINDS if kind in value]
 
 
 class LineCampusTargetOut(BaseModel):
