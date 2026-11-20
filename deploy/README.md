@@ -51,6 +51,8 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 **關閉**：刪掉 `WEBSITE_IVY_SYNC_KEY_HASHES`（或設成 `{}`）並重新部署，路由不再掛上，一律 404；只關單一校區就把那個 key 從物件拿掉。
 
+**部署紀錄（2026-11-20）**：PR #133 併入 main（`e4dbd3cd`），run 44745873823 全綠、Deploy Railway production 成功；`/release.json` 的 `base_commit` 為 `e4dbd3cd`。部署後從外部實測：後台主機 `/api/website/v1/health` 200；這支端點在後台主機與官網主機都回 404（還沒設 `WEBSITE_IVY_SYNC_KEY_HASHES`，功能關閉）；`/admin/admissions/options` 未登入仍回 401（既有路由不受影響）。**尚未啟用**：金鑰雜湊未設定，園務那邊也還沒部署。
+
 **觀測**：驗證失敗記 WARNING（`app.integrations.ivy_management`，含來源 IP、校區、有沒有帶標頭，不含金鑰）；成功記 INFO（校區、回傳筆數、是否最後一頁）。不寫稽核表。
 
 ## 2026-11-20 後台成效統計第四輪：可讀性（PR #130，已部署 main `19a52c2b`）
