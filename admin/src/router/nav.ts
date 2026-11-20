@@ -162,25 +162,28 @@ export const NAV_GROUPS: NavGroup[] = [
       { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', roles: ['super_admin'], keywords: ['範本', '片語', '聯絡', '常用語'] },
     ],
   },
-  // 使用小技巧（2026-11-10）：不容易自己發現的功能，所有人都看得到。只有一項、不屬於區段，
-  // 側欄不畫分組標題，排在最後。
+]
+
+/** 不在側欄、只在搜尋結果出現的入口，各有別的固定入口：我的帳號是側欄底部的使用者區塊
+ * （想改密碼的人會直接搜「密碼」），使用小技巧是頁首「查看官網」左邊那顆（2026-11-20 從
+ * 側欄最後一項搬過去）。不放進 byName／byPath：路由標題另外寫，也不限角色。
+ * 分組名同時是頁首的麵包屑。 */
+export const SEARCH_ONLY_GROUPS: NavGroup[] = [
+  {
+    key: 'personal',
+    label: '個人',
+    items: [
+      { name: 'account', path: '/account', title: '我的帳號', icon: 'Avatar', keywords: ['密碼', '更改密碼', '登入方式', 'Google', 'LINE 綁定', 'Email', '顯示名稱', '名字', '名稱'] },
+    ],
+  },
   {
     key: 'help',
     label: '說明',
-    items: [{ name: 'tips', path: '/tips', title: '使用小技巧', icon: 'Opportunity', keywords: ['教學', '說明', '怎麼用', '快捷鍵', '技巧', '新手', '操作'] }],
+    items: [
+      { name: 'tips', path: '/tips', title: '使用小技巧', icon: 'Opportunity', keywords: ['教學', '說明', '怎麼用', '快捷鍵', '技巧', '新手', '操作'] },
+    ],
   },
 ]
-
-/** 不在側欄、只在搜尋結果出現的入口。我的帳號平常從側欄底部的使用者區塊進去，
- * 但想改密碼的人會直接搜「密碼」。不放進 byName／byPath：路由標題另外寫，
- * 也不限角色。 */
-export const SEARCH_ONLY_GROUP: NavGroup = {
-  key: 'personal',
-  label: '個人',
-  items: [
-    { name: 'account', path: '/account', title: '我的帳號', icon: 'Avatar', keywords: ['密碼', '更改密碼', '登入方式', 'Google', 'LINE 綁定', 'Email', '顯示名稱', '名字', '名稱'] },
-  ],
-}
 
 /** 搜尋比對前先正規化：全形轉半形（NFKC）、不分大小寫。手機鍵盤預設打小寫，
  * 「line」也要找得到「LINE 通知」。 */
