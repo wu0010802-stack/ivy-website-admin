@@ -1,32 +1,4 @@
-## 2026-11-20 環境頁美術收尾（`feature/env-art-20261120`，未部署）
-
-使用者請我看 `/environment` 的 UI 美術還能怎麼優化。評析找出六類問題，照片那一類（教室、套房式衛廁、健康把關、衣物保暖四張最弱）這次不動；其餘做成前後對照給使用者看過，回覆「都幫我修」。規則寫在 DESIGN.md「環境頁美術收尾」。
-
-- 章頭的一句話收回大標正下方；校園環境的章頭改靠左，四章一致。
-- 五顆心打開時，小心形裡先是那顆心的顏色，相連時才褪成照片（原本會露出糊掉的書櫃、切一半的臉）。
-- 五件照顧小事的說明 16px → 17.3px。
-- 遊樂區的黃色文字積木只有內容高、和照片站在同一條底線；視窗高 720 以上，積木上方放一顆珊瑚橘的球。
-- 六個空間舞台：六個形狀的底都貼著底線（半圓不再浮在半空），說明貼底、緊接六顆進度積木。
-- 五所校園面板：照片加一圈米白窗框；左欄沒選中的角落不畫半透明底。
-- 結尾（桌機）：三塊連結積木高低錯落、底邊切平，站在頁尾上緣。
-- 首屏拱窗展開途中，右下那塊綠色小積木不再從橫幅露出一截。
-
-改的檔案：`web/app/assets/css/environment.css`、`web/app/utils/environment-windows.ts`（`heartsFrame` 多回傳 `tint`、`stopShapes` 的半圓貼底）、`web/app/components/EnvironmentContent.vue`（五顆心照片層多一個色片 span）；測試 `environment-windows-20261117.spec.ts` 兩條斷言跟著改、逐字快照更新（差異只有那個色片 span）。
-
-驗證（Node 22.23.2，本機 fixture dev server 3241）：
-
-| 指令／方式 | 結果 |
-|---|---|
-| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
-| `npm --prefix web run test:unit` | 165 檔、2,503 項通過 |
-| 後台讀官網原始碼的 4 支（`environmentPageDraft`、`pageCopyFields`、`engagement`、`previewProtocol`） | 109 項通過 |
-| `node scripts/page-copy-stress.cjs /environment`，一般與 `STRESS_MOTION=1` | 320／390／820／901／1024／1100／1440 全部通過 |
-| Playwright 量遊樂區球、舞台說明、結尾積木（901–1920 寬、600–1080 高九種視窗，內建與上限字數） | 球不碰章標題、說明不壓進度積木、結尾三塊底邊切齊站在頁尾上、無橫向捲動 |
-| `tests/e2e/environment-windows.spec.ts`（Chrome／WebKit × 桌機／手機） | 第一輪 37 過 9 紅，只重跑紅的 5 過 4 紅。紅的都不是版面斷言：重新整理後 5 秒內模組還沒載入、dev 模式 `_nuxt/builds/meta/dev.json` 被中斷記成主控台錯誤、瀏覽器 session 斷線、開分頁就花 15 秒而整項逾時（桌機 WebKit 五校分頁那一項 trace 裡每個斷言都通過）。當時本機負載 22–36（其他 session 在跑測試），沒有在低負載下重跑 |
-
-沒驗：正式建置的 e2e、stack e2e、iOS／Safari 實機。
-
-## 2026-11-19 前台 cookie 帶來的後台統計補齊（`feature/cookie-stats-20261119`，未部署）
+## 2026-11-19 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`，紀錄見 `deploy/README.md`）
 
 接在 ChatGPT 的 `feature/analytics-journeys-20261118`（`c313ad24`，11-18「各校預約去向、回訪與來源統計」）之後：保留可用的部分、修掉審核發現的問題，再補齊 11-19 盤點的 8 項。規格與審核結論：`docs/specs/2026-11-19-cookie-stats-design.md`。
 
@@ -37,7 +9,7 @@
 - **App 內建瀏覽器重新整理**：只靠 User-Agent 認出的 LINE／FB／IG 來源不再蓋掉當天的廣告來源（11-16 已知問題）。
 - ChatGPT 分支的處理：各校預約去向的「完成線上預約」改成比照各校實際預約數的權限（沒權限回 `null`、畫面「—」）；預約表單送出流程的改寫還原（超出範圍、動到預約核心），只留場次有無的記錄；`_rate` 小比例不四捨五入還原。首頁五校卡「切到這一校」改在 `pick()` 計數（鍵盤、拖曳、鄰卡、進度點都算，重選不算）保留，**口徑從部署日起改變**。
 - migration `d8b1a9e5c274`（ChatGPT 版擴充）：`engagement_visits` 加 `returning`、`browser_key`（含索引）、`campus_pref`，新表 `visit_remembered_daily`；只新增，不需備份閘門。
-- **上線前**：隱私權政策分析 cookie 那段要補一句匿名代號的說明（擬稿在規格「上線前要做的事」）。
+- **待使用者**：隱私權政策分析 cookie 那段要補一句匿名代號的說明（擬稿在規格「上線前要做的事」）；11-20 部署時尚未補。
 
 ## 2026-11-19 後台「記住這台裝置」保持登入 30 天＋手機 LINE 登入修正（PR #117，已部署 main `71038291`）
 

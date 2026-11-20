@@ -14,6 +14,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`）
+
+[PR #120](https://github.com/wu0010802-stack/ivy-website-admin/pull/120) 以 merge commit 合併為 `70b39bc7`（合併前已併入 #117 與其部署紀錄 `44d8c801`，PR 在最終提交 `91c7ac4a` 上 CI 全綠）；[main CI/CD 44653131744](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44653131744) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 09:41 完成部署。改動內容見 README 的 2026-11-19「前台 cookie 帶來的後台統計補齊」，規格 `docs/specs/2026-11-19-cookie-stats-design.md`。
+
+- migration `d8b1a9e5c274`（合併時改接在 #117 的 `e7a4c1d9b3f2` 之後）隨 API 啟動自動套用：`engagement_visits` 加 `returning`、`browser_key`（含索引）、`campus_pref`，新表 `visit_remembered_daily`。只新增，依備份閘門規則不需事先備份。
+- 部署後唯讀檢查：`/release.json` base_commit `70b39bc74e1eac73f12bcc45e2f02876abdf7e81`（snapshot `a008fd0a5045cd27182cc8cc8e7b8de658af0ed3fb676c1dbe2c15ae6b5ca395`）；`/`、`/visit`、`/api/website/v1/health` 回 200；後台網域 `GET /api/website/v1/admin/admissions/ad-conversions` 未登入回 401（不存在的路徑回 404）；帶瀏覽器文件請求標頭進站，`ivy_src` 含 22 字元匿名代號 `i`，HttpOnly、Secure、SameSite=Lax、90 天；後台 `AdmissionsStatsView`、`AnalyticsView` chunk 已含「回傳廣告平台」「同一瀏覽器」「帶著記住的校區」。
+- 沒驗：內容興趣回報實際寫入 `browser_key`、記住預約計數、後台新表格在正式資料下的畫面（會寫正式庫或要登入，只有自動測試）。新統計從部署後才開始累積。
+- **待使用者**：隱私權政策分析 cookie 段落補匿名代號那句（擬稿在規格「上線前要做的事」），部署時尚未補。首頁五校卡「切到這一校」的計數口徑從這次部署起改變，前後期比較要注意。
+- 沒有 Railway 環境變數變更。
+
 ## 2026-11-20 後台「記住這台裝置」30 天＋手機 LINE 登入修正（PR #117，已部署 main `71038291`）
 
 [PR #117](https://github.com/wu0010802-stack/ivy-website-admin/pull/117) 以 merge commit 合併為 `71038291`（接在 `d23ac090` 之後）；[main CI/CD 44637204515](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44637204515) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 11-20 07:34 完成部署。改動內容見 README 的 2026-11-19「後台『記住這台裝置』保持登入 30 天＋手機 LINE 登入修正」。
