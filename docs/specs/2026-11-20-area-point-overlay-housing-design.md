@@ -140,7 +140,7 @@ fee_median: int | None                 # 私立一般 3 歲一學期公告收費
 presale_households: int | None         # 預售建案沒匯入是 null
 changes_12m: int | None
 housing: { sale_median, sale_count, rent_median, rent_count } | None   # 實價沒匯入是 null；不到 5 筆中位數是 null、筆數照給
-enrolled: list[{ campus_key, count }]  # 只列已匯入清冊的校（count 可為 0），順序同 CAMPUS_KEYS
+enrolled: list[{ campus_key, count }]  # 只列已匯入清冊的校（count 可為 0），順序同 CAMPUS_KEYS；圈內＝距離取到 100 m 後 < 半徑（同在籍學生分頁的距離分組，2026-11-20 審查後改）
 ```
 
 `GET /api/website/v1/admin/admissions/area/locate`（地址放 `X-Ivy-Search: {"address": …}` header，2026-11-20 審查後改）

@@ -53,7 +53,7 @@ async def _housing(db: AsyncSession, center: dict[str, Any], radius_km: int) -> 
 
 
 async def _enrolled(db: AsyncSession, center: dict[str, Any], radius_km: int) -> list[dict[str, Any]]:
-    """半徑內各校在籍人數：只列有清冊的校（count 可為 0），順序同 CAMPUS_KEYS。"""
+    """半徑內各校在籍人數：只列有清冊的校（count 可為 0），順序同 CAMPUS_KEYS。圈內的算法同在籍學生分頁的距離分組。"""
     imported = set((await db.execute(select(EnrolledRoster.campus_key))).scalars())
     if not imported:
         return []
@@ -67,7 +67,8 @@ async def _enrolled(db: AsyncSession, center: dict[str, Any], radius_km: int) ->
     counts = dict.fromkeys(imported, 0)
     radius_m = radius_km * 1000
     for campus_key, lat, lng in (await db.execute(stmt)).all():
-        if haversine_m(center["lat"], center["lng"], float(lat), float(lng)) <= radius_m:
+        # 同在籍學生分頁的距離分組（enrolled/query.py＋area.distance_band）：距離取到 100 公尺，剛好在半徑上算圈外。
+        if opportunity._round_distance(haversine_m(center["lat"], center["lng"], float(lat), float(lng))) < radius_m:
             counts[campus_key] += 1
     return [{"campus_key": key, "count": counts[key]} for key in CAMPUS_KEYS if key in counts]
 

@@ -42,6 +42,8 @@ SOURCE_NOTE = "內政部不動產交易實價查詢服務網"
 SOURCE_NOTE_FULL = f"{SOURCE_NOTE}；近 4 季，排除親友、特殊關係、預售屋交屋等非一般交易，房價扣除車位"
 RESIDENTIAL_TYPES = ("住宅大樓", "華廈", "公寓", "透天厝", "套房")
 MIN_NET_AREA = Decimal("10")
+# unit_price、monthly_rent 是 PostgreSQL integer（上限 2,147,483,647）：超過 20 億的單價或月租多半是打錯，整列不收，免得寫入時溢位。
+MAX_STORED_VALUE = 2_000_000_000
 SALE_REQUIRED = (
     "鄉鎮市區", "交易標的", "土地位置建物門牌", "交易筆棟數", "建物型態", "主要用途", "建物移轉總面積平方公尺", "總價元",
     "車位移轉總面積平方公尺", "車位總價元", "備註", "編號",
@@ -181,7 +183,7 @@ def parse_sales(text: str, season: str) -> list[HousingRow]:
             _number(value["總價元"]), _number(value["車位總價元"]),
             _number(value["建物移轉總面積平方公尺"]), _number(value["車位移轉總面積平方公尺"]),
         )
-        if price is None or _number(value["總價元"]) <= 0:
+        if price is None or _number(value["總價元"]) <= 0 or price > MAX_STORED_VALUE:
             continue
         rows.append(_row("sale", value, season, building_type, unit_price=price))
     return rows
@@ -197,7 +199,7 @@ def parse_rents(text: str, season: str) -> list[HousingRow]:
         if building_type is None or any(note in value["備註"] for note in RENT_EXCLUDED_NOTES):
             continue
         rent = _number(value["總額元"])
-        if rent <= 0:
+        if rent <= 0 or rent > MAX_STORED_VALUE:
             continue
         rows.append(_row("rent", value, season, building_type, monthly_rent=int(rent)))
     return rows

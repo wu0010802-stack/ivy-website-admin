@@ -92,6 +92,7 @@ def test_sale_excludes_each_special_note(note):
         {"交易筆棟數": "土地1建物2車位0"},
         {"建物移轉總面積平方公尺": "39.9", "車位移轉總面積平方公尺": "30.0"},  # 淨面積 9.9 m²
         {"總價元": "0"},
+        {"總價元": "80000000000"},  # 單價約 29 億元／坪：超過 integer 欄位的防線（20 億）
     ],
 )
 def test_sale_excludes_non_residential_and_multi_building(override):
@@ -116,6 +117,12 @@ def test_rent_keeps_whole_unit_only():
     assert [row.serial for row in rows] == ["RENT0001"]
     row = rows[0]
     assert (row.kind, row.building_type, row.monthly_rent, row.unit_price) == ("rent", "住宅大樓", 18500, None)
+
+
+def test_rent_over_int32_guard_is_dropped():
+    """月租超過 20 億（integer 欄位上限 21.4 億）多半是打錯：整列不收，剛好 20 億照收。"""
+    rows = _rents(_rent(總額元="2000000000"), _rent(編號="RENT0002", 總額元="2000000001"), _rent(編號="RENT0003", 總額元="99999999999"))
+    assert [row.serial for row in rows] == ["RENT0001"]
 
 
 @pytest.mark.parametrize("note", ["親友", "員工", "特殊關係"])

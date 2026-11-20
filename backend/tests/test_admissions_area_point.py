@@ -132,6 +132,17 @@ async def test_point_counts_enrolled_within_radius(admin_client, db_session, loc
     assert (await _get(admin_client, radius=6))["rows"]["point"]["enrolled"][0] == {"campus_key": "yihua", "count": 2}
 
 
+async def test_point_enrolled_circle_matches_enrolled_tab_bands(admin_client, db_session, located_campus):  # noqa: F811
+    """圈內的算法同在籍學生分頁的距離分組（enrolled/query.py）：距離取到 100 公尺、剛好 3 公里算圈外。
+    中心是取到 4 位小數的 (22.6425, 120.3437)；在籍點的座標存到小數 3 位。"""
+    near_edge = student(lat=22.664, lng=120.327)  # 約 2,942 m → 2,900 m，圈內
+    on_edge = student(lat=22.668, lng=120.352)  # 約 2,960 m → 3,000 m，算 3–6 公里那一組，圈外
+    await replace_roster(db_session, load_payload(payload_text(points_payload([near_edge, on_edge]))))
+    await db_session.commit()
+    assert (await _get(admin_client, radius=3))["rows"]["point"]["enrolled"] == [{"campus_key": "yihua", "count": 1}]
+    assert (await _get(admin_client, radius=6))["rows"]["point"]["enrolled"] == [{"campus_key": "yihua", "count": 2}]
+
+
 async def test_point_housing_summary(admin_client, db_session, located_campus):  # noqa: F811
     await _seed(db_session)
     body = await _get(admin_client)
