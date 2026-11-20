@@ -824,8 +824,19 @@ function openWithdrawRecords(row: { code: string }) {
   white-space: nowrap;
 }
 
+/* 內容區橫向裁切：原本用 el-tabs 時，`.el-tabs__content` 自帶 overflow: hidden，區域分析有內容比容器寬
+   10px（1440）／23px（390），一直是被它裁掉的；自己畫分頁後少了這層，整頁就多出橫向捲軸（2026-11-20 PR #125 的
+   E2E「區域分析不橫向溢出」抓到）。用 clip 不用 hidden：不產生捲動容器，裡面的 sticky 與 scrollIntoView 照常；
+   不支援 clip 的瀏覽器（Safari 15）退回 hidden。 */
 .stats-panes {
   min-width: 0;
+  overflow-x: hidden;
+}
+
+@supports (overflow-x: clip) {
+  .stats-panes {
+    overflow-x: clip;
+  }
 }
 
 /* 分頁內容可以用鍵盤聚焦（tabpanel），不畫外框搶畫面；從分頁列按 Tab 進來時焦點在裡面第一個控制項才有框。 */
