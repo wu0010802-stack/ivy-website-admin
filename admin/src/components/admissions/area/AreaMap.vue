@@ -54,10 +54,21 @@ const props = withDefaults(
     gradeFilter?: GradeFilter
     /** 「2–5 歲孩子」的年份滑桿（2026-11-16 規格 §5.3）：選的那一格的各里人數與共用最大值；null＝照招生機會的最新人數。 */
     childrenShade?: ChildrenShade | null
+    /** 圖釘位置（2026-11-20 規格 §5.1）：查「這個點附近」的座標；null＝沒有圖釘。 */
+    point?: { lat: number; lng: number } | null
+    /** 放點狀態：true 時點地圖＝放圖釘（不選里），游標變十字。 */
+    placing?: boolean
   }>(),
-  { babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, gradeFilter: 'all', childrenShade: null },
+  {
+    babycare: () => [], selectedCode: '', opportunity: null, trends: null, presale: null, enrolled: null, gradeFilter: 'all', childrenShade: null,
+    point: null, placing: false,
+  },
 )
-const emit = defineEmits<{ 'select-village': [payload: { code: string; district: string; village: string }] }>()
+const emit = defineEmits<{
+  'select-village': [payload: { code: string; district: string; village: string }]
+  /** 放點狀態下點地圖、或拖完圖釘：座標四捨五入到 4 位小數。 */
+  'place-point': [payload: { lat: number; lng: number }]
+}>()
 
 const TILE_URL = 'https://wmts.nlsc.gov.tw/wmts/EMAP/default/GoogleMapsCompatible/{z}/{y}/{x}'
 const TILE_ATTRIBUTION = '© 國土測繪中心'
@@ -70,6 +81,10 @@ const SELECTED_PANE = 'area-selected'
 const POINTS_PANE = 'area-points'
 const STAR_SVG =
   '<svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 6.6L12 17.3l-5.9 3.3 1.3-6.6-4.9-4.6 6.6-.8z"/></svg>'
+// Phosphor MapPin（Regular）：圖釘，尖端在圖示底部中央。
+const PIN_SVG =
+  '<svg viewBox="0 0 256 256" width="32" height="32" aria-hidden="true"><path d="M128,64a40,40,0,1,0,40,40A40,40,0,0,0,128,64Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,128Zm0-112a88.1,88.1,0,0,0-88,88c0,31.4,14.51,64.68,42,96.25a254.19,254.19,0,0,0,41.45,38.3,8,8,0,0,0,9.18,0A254.19,254.19,0,0,0,174,200.25c27.45-31.57,42-64.85,42-96.25A88.1,88.1,0,0,0,128,16Zm0,206c-16.53-13-72-60.75-72-118a72,72,0,0,1,144,0C200,161.23,144.53,209,128,222Z"/></svg>'
+const round4 = (n: number) => Math.round(n * 10000) / 10000
 const DIAMOND_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1l7 7-7 7-7-7z"/></svg>'
 
 type LeafletModule = typeof Leaflet
@@ -84,6 +99,9 @@ let tiles: Leaflet.TileLayer | null = null
 let villageLayer: Leaflet.GeoJSON | null = null
 let campusMarker: Leaflet.Marker | null = null
 let radiusCircle: Leaflet.Circle | null = null
+// 圖釘與它的半徑圈（2026-11-20）：和本校的星號、虛線圈各自獨立。
+let pointMarker: Leaflet.Marker | null = null
+let pointCircle: Leaflet.Circle | null = null
 let kindergartenGroup: Leaflet.LayerGroup | null = null
 // 選取的里的外框（規格 D6）：獨立一層，換選取只換它。
 let selectedLayer: Leaflet.GeoJSON | null = null
@@ -255,9 +273,11 @@ function drawVillages() {
     onEachFeature: (feature, layer) => {
       const properties = feature.properties as VillageProperties
       // 點里＝選取（右欄開里卡片），不開彈出框；已選取的里再點一次不取消（取消用卡片的 ×）。
-      layer.on('click', () =>
-        emit('select-village', { code: properties.VILLCODE, district: properties.TOWNNAME, village: properties.VILLNAME }),
-      )
+      // 放點狀態下這一下是放圖釘（地圖的 click 處理），不選里。
+      layer.on('click', () => {
+        if (props.placing) return
+        emit('select-village', { code: properties.VILLCODE, district: properties.TOWNNAME, village: properties.VILLNAME })
+      })
       if (!props.narrow) layer.bindTooltip(villageTooltip(properties), { sticky: true, direction: 'top' })
     },
   }).addTo(map)
@@ -333,6 +353,52 @@ function drawCampus() {
   radiusCircle = L.circle([lat, lng], {
     radius: props.radiusKm * 1000, className: 'area-radius', fill: false, interactive: false, dashArray: '6 6', weight: 2,
   }).addTo(map)
+}
+
+// 圖釘（2026-11-20 規格 §5.1）：可拖曳，拖完發 place-point（座標由上層寫進網址、再傳回 point，這裡跟著移）；
+// 半徑圈用實線、不填色，和本校的虛線圈分得開。座標沒變只移動不重畫。
+function drawPoint() {
+  if (!L || !map) return
+  const target = props.point
+  if (!target) {
+    pointMarker?.remove()
+    pointCircle?.remove()
+    pointMarker = null
+    pointCircle = null
+    return
+  }
+  if (pointMarker && pointCircle) {
+    pointMarker.setLatLng([target.lat, target.lng])
+    pointCircle.setLatLng([target.lat, target.lng])
+    return
+  }
+  pointMarker = L.marker([target.lat, target.lng], {
+    icon: L.divIcon({ className: 'area-point', html: PIN_SVG, iconSize: [32, 32], iconAnchor: [16, 32] }),
+    title: '圖釘',
+    alt: '圖釘',
+    draggable: true,
+    keyboard: false,
+    zIndexOffset: 1100,
+  }).addTo(map)
+  pointMarker.on('dragend', () => {
+    const at = pointMarker?.getLatLng()
+    if (at) emit('place-point', { lat: round4(at.lat), lng: round4(at.lng) })
+  })
+  pointCircle = L.circle([target.lat, target.lng], {
+    radius: props.radiusKm * 1000, className: 'area-point-radius', fill: false, interactive: false, weight: 2,
+  }).addTo(map)
+}
+
+function onMapClick(event: Leaflet.LeafletMouseEvent) {
+  if (!props.placing) return
+  emit('place-point', { lat: round4(event.latlng.lat), lng: round4(event.latlng.lng) })
+}
+
+/** 地址定位成功：地圖移到圖釘（縮放至少 14，看得到里界）。 */
+function focusPoint() {
+  const target = props.point
+  if (!map || !target) return
+  map.setView([target.lat, target.lng], Math.max(map.getZoom(), 14))
 }
 
 // 有座標：框住半徑圈（直徑見方）；沒座標：框住校址所在的區；連區都不知道才看整個里界（半個南台灣）。
@@ -504,7 +570,7 @@ function focusBabycare(id: string) {
   map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15))
   marker.openPopup()
 }
-defineExpose({ focusKindergarten, focusBabycare, revealBabycare, focusVillage })
+defineExpose({ focusKindergarten, focusBabycare, revealBabycare, focusVillage, focusPoint })
 
 function setInteractive(value: boolean) {
   interactive.value = value
@@ -548,6 +614,8 @@ function destroyMap() {
   villageLayer = null
   campusMarker = null
   radiusCircle = null
+  pointMarker = null
+  pointCircle = null
   selectedLayer = null
   kindergartenGroup = null
   kindergartenMarkers.clear()
@@ -582,6 +650,7 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
     maxZoom: 18,
   })
   map.attributionControl.setPrefix(false)
+  map.on('click', onMapClick)
   // 自訂 pane 在任何圖層加進來之前建好（Leaflet 向量圖層的 renderer 依 pane 建立，pane 要先存在）。外框不收滑鼠事件：
   // 點里的是底下的里界，不是這一層。
   const selectedPane = map.createPane(SELECTED_PANE)
@@ -606,6 +675,7 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   presaleGroup = leaflet.layerGroup()
   drawVillages()
   drawCampus()
+  drawPoint()
   drawKindergartens()
   drawBabycare()
   drawEnrolled()
@@ -671,10 +741,13 @@ watch([() => props.campus.lat, () => props.campus.lng], () => {
 })
 // 換半徑是使用者自己按的：視野跟著框住新的圈。本校沒座標時沒有圈，視野不動。
 watch(() => props.radiusKm, (km) => {
+  pointCircle?.setRadius(km * 1000)
   if (!radiusCircle) return
   radiusCircle.setRadius(km * 1000)
   fitInitialView()
 })
+// 座標當來源：上層換了同座標的新物件不重畫。
+watch([() => props.point?.lat, () => props.point?.lng], drawPoint)
 watch(() => props.kindergartens, drawKindergartens)
 watch(() => props.babycare, drawBabycare)
 watch([() => props.enrolled, () => props.gradeFilter], drawEnrolled)
@@ -698,7 +771,7 @@ onBeforeUnmount(destroyMap)
   <section class="area-map" aria-label="區域地圖">
     <div class="area-map__frame">
       <!-- Leaflet 的容器可以用鍵盤聚焦，要有名稱；地圖不是唯一的路徑，同樣的數字在右欄與完整表格（同業模式的幼兒園清單在右欄）。 -->
-      <div ref="container" class="area-map__canvas" role="group" :aria-label="canvasLabel" />
+      <div ref="container" class="area-map__canvas" :class="{ 'area-map__canvas--placing': placing }" role="group" :aria-label="canvasLabel" />
       <!-- 常駐的 status 區域：動態插入的 live region 常被讀屏漏掉，所以元素一直在，只換文字。 -->
       <p class="area-map__loading" role="status">{{ loading ? '地圖載入中…' : '' }}</p>
       <div v-if="failure" class="area-map__notice" role="alert">
@@ -995,6 +1068,23 @@ onBeforeUnmount(destroyMap)
   fill: var(--area-kind-own);
   stroke: var(--area-kind-own-ink);
   stroke-width: 1.5;
+}
+
+/* 圖釘（2026-11-20）：實線圈、不填色，顏色走 --area-point。 */
+.area-map :deep(.area-point svg path) {
+  fill: var(--area-point);
+}
+
+.area-map :deep(.area-point-radius) {
+  stroke: var(--area-point);
+  stroke-width: 2;
+}
+
+/* 放點狀態：整張地圖（含里界）游標是十字。 */
+.area-map__canvas--placing,
+.area-map__canvas--placing :deep(.leaflet-grab),
+.area-map__canvas--placing :deep(.leaflet-interactive) {
+  cursor: crosshair;
 }
 
 .area-map :deep(.area-popup) {

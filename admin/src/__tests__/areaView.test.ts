@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  AREA_TABLE_TABS, DEFAULT_AREA_VIEW, MAP_MODES, areaViewQuery, isMapMode, parseAreaViewQuery,
+  AREA_TABLE_TABS, DEFAULT_AREA_VIEW, MAP_MODES, areaViewQuery, isMapMode, parseAreaViewQuery, samePoint,
 } from '../admissions/areaView'
 
 describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1、§5、D2）', () => {
@@ -83,5 +83,14 @@ describe('區域分析工作台的模式、表格分頁與網址（規格 §2.1�
   it('areaViewQuery 寫 pt（四位小數），沒有圖釘就不寫', () => {
     expect(areaViewQuery({ ...DEFAULT_AREA_VIEW, point: { lat: 22.6273, lng: 120.3014 } })).toEqual({ pt: '22.6273,120.3014' })
     expect(areaViewQuery({ ...DEFAULT_AREA_VIEW, point: null })).not.toHaveProperty('pt')
+  })
+})
+
+describe('samePoint', () => {
+  it('比座標不比參考；都沒有也算一樣', () => {
+    expect(samePoint({ lat: 22.65, lng: 120.31 }, { lat: 22.65, lng: 120.31 })).toBe(true)
+    expect(samePoint({ lat: 22.65, lng: 120.31 }, { lat: 22.65, lng: 120.3101 })).toBe(false)
+    expect(samePoint(null, null)).toBe(true)
+    expect(samePoint(null, { lat: 22.65, lng: 120.31 })).toBe(false)
   })
 })

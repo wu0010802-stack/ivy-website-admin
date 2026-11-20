@@ -52,7 +52,7 @@ const LABELS = [
 ]
 
 /** 表格列（順序照規格示意）。campusName 不影響內容，留給呼叫端對齊欄頭。 */
-export function pointRows(data: AreaPoint, _campusName: string): PointTableRow[] {
+export function pointRows(data: AreaPoint): PointTableRow[] {
   const point = cells(data.rows.point)
   const campus = data.rows.campus ? cells(data.rows.campus) : Array(LABELS.length).fill(NO_VALUE)
   return LABELS.map((label, index) => ({ label, point: point[index], campus: campus[index] }))

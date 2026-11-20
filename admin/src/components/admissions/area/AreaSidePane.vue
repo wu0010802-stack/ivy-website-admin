@@ -7,6 +7,7 @@ import type { VillageFacts } from './villageFacts'
 
 // 區域分析右欄的容器（2026-10-16 規格 §2.3～2.5）：選了里（facts 有值）就只畫里卡片；沒選時，同業模式畫 slot
 // （AreaTab 放附近同業清單與園所異動），其他模式畫「標題＋摘要＋排行」，排行資料讀取中畫骨架、讀取失敗寫原因加重試。
+// 優先序：里卡片（facts）＞ 地點卡片（point slot）＞ 標題與排行；有圖釘時排行區同樣只藏不卸載。
 // 選了里時同業 slot 留在 DOM 裡藏起來（v-show），關掉卡片後附近清單的搜尋字與展開列還在。
 // 標題區黏在右欄頂端（只在 ≥1200px，那時右欄才內捲）；右欄的寬高由外層工作台決定（桌機高度同地圖，內容超出時欄內捲動）。
 const props = withDefaults(defineProps<{
@@ -18,10 +19,12 @@ const props = withDefaults(defineProps<{
   facts: VillageFacts | null
   /** 同業模式：內容是 default slot，不畫排行。 */
   peers: boolean
+  /** 有圖釘（2026-11-20）：沒選里時右欄畫 point slot（地點卡片），取代標題與排行。 */
+  point?: boolean
   narrow: boolean
   /** 從地圖點選的里：aria-live 才報「已選取…」。排行或表格選里是焦點移到卡片標題，不重複報讀（規格 §2.4）。 */
   announce?: boolean
-}>(), { announce: false })
+}>(), { announce: false, point: false })
 const emit = defineEmits<{
   select: [code: string]
   close: []
@@ -56,7 +59,8 @@ const announcement = computed(() => (props.facts && props.announce ? `已選取$
       @open-records="emit('open-records', $event)"
       @retry="emit('retry-facts', $event)"
     />
-    <header v-if="!facts" class="area-pane__head">
+    <div v-if="point && !facts" class="area-pane__point"><slot name="point" /></div>
+    <header v-if="!facts && !point" class="area-pane__head">
       <h2 class="area-pane__title">{{ head.title }}</h2>
       <p v-for="(line, index) in head.lines" :key="index" class="area-pane__line">{{ line }}</p>
       <slot name="head-extra" />
@@ -64,7 +68,7 @@ const announcement = computed(() => (props.facts && props.announce ? `已選取$
     </header>
     <!-- 同業模式的 slot（附近清單的搜尋字、種類、展開列都在裡面）在卡片顯示時只用 v-show 藏起來：用 v-if 會卸載再重掛，
          關掉卡片回來搜尋字就歸零。其他模式的排行沒有要保留的狀態，卡片顯示時不畫。 -->
-    <div v-if="!facts || peers" v-show="!facts" class="area-pane__body">
+    <div v-if="!facts || peers" v-show="!facts && !point" class="area-pane__body">
       <slot v-if="peers" />
       <el-skeleton v-else-if="loading" :rows="6" animated />
       <el-alert v-else-if="failed" type="error" :closable="false" show-icon :title="failed">

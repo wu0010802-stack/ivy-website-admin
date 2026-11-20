@@ -57,7 +57,7 @@ const isTableTab = (value: unknown): value is AreaTableTab =>
 const POINT = /^(\d{1,3}(?:\.\d{1,6})?),(\d{1,3}(?:\.\d{1,6})?)$/
 const POINT_LAT_RANGE = [22.4, 23.5] as const
 const POINT_LNG_RANGE = [120.1, 121.1] as const
-const round4 = (n: number) => Math.round(n * 10000) / 10000
+export const round4 = (n: number) => Math.round(n * 10000) / 10000
 
 function parsePoint(raw: string): AreaView['point'] {
   const m = POINT.exec(raw)
@@ -66,6 +66,12 @@ function parsePoint(raw: string): AreaView['point'] {
   const lng = Number(m[2])
   if (lat < POINT_LAT_RANGE[0] || lat > POINT_LAT_RANGE[1] || lng < POINT_LNG_RANGE[0] || lng > POINT_LNG_RANGE[1]) return null
   return { lat: round4(lat), lng: round4(lng) }
+}
+
+/** 兩個圖釘座標一樣嗎（都沒有也算一樣）：patchView 用它，同座標的新物件不重寫網址。 */
+export function samePoint(a: AreaView['point'], b: AreaView['point']): boolean {
+  if (a === null || b === null) return a === b
+  return a.lat === b.lat && a.lng === b.lng
 }
 
 /** 讀網址：認得的值照收，認不得的當沒帶（退回預設）。 */

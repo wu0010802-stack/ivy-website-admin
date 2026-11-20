@@ -16,6 +16,8 @@ import NearbyKindergartens from '../components/admissions/area/NearbyKindergarte
 import NearbyPanel from '../components/admissions/area/NearbyPanel.vue'
 import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import { NOT_JUDGED_NOTE } from '../components/admissions/area/areaFormat'
+import { ApiError } from '../api/client'
+import { point as pointData } from './pointTestKit'
 import { DEFAULT_AREA_VIEW, type AreaTableTab, type AreaView } from '../admissions/areaView'
 import {
   areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
@@ -23,7 +25,7 @@ import {
   mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
-const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn(), focusVillage: vi.fn() }))
+const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn(), focusVillage: vi.fn(), focusPoint: vi.fn() }))
 vi.mock('../components/admissions/area/AreaMap.vue', async () => {
   const { defineComponent, h } = await import('vue')
   // __esModule：AreaTab 用 defineAsyncComponent 載入，Vue 靠它判斷要取 default（真的模組是 ES module namespace，mock 工廠的回傳值不是）。
@@ -33,12 +35,13 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
-        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter', 'childrenShade',
+        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter', 'childrenShade', 'point', 'placing',
       ],
-      emits: ['select-village'],
+      emits: ['select-village', 'place-point'],
       setup(_, { expose }) {
         expose({
           focusKindergarten: mapStub.focus, focusBabycare: mapStub.focusBabycare, revealBabycare: mapStub.reveal, focusVillage: mapStub.focusVillage,
+          focusPoint: mapStub.focusPoint,
         })
         return () => h('div', { class: 'area-map-stub' })
       },
@@ -52,6 +55,7 @@ afterEach(() => {
   mapStub.focusBabycare.mockClear()
   mapStub.reveal.mockClear()
   mapStub.focusVillage.mockClear()
+  mapStub.focusPoint.mockClear()
   cleanup()
 })
 
@@ -73,6 +77,8 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/trends': areaTrends(),
   '/admin/admissions/area/presale': areaPresale(),
   '/admin/admissions/area/enrolled': enrolled,
+  '/admin/admissions/area/point': pointData(),
+  '/admin/admissions/area/locate': { lat: 22.65123, lng: 120.31019, district: '三民區', village: '寶興里', match_level: 'exact' },
   '/admin/admissions/area': area,
 })
 async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) {
@@ -1553,5 +1559,191 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
     await wrapper.get('.peer-fees .el-alert .el-button').trigger('click')
     await flushPromises()
     expect(wrapper.find('.peer-fees__summary').exists()).toBe(true)
+  })
+})
+
+describe('區域分析：地點（2026-11-20）', () => {
+  const placeBtn = (wrapper: VueWrapper) => wrapper.findAll('.area-toolbar__point button').find((item) => item.text() === '放一個點')!
+  const clearBtn = (wrapper: VueWrapper) => wrapper.find('.area-toolbar__point .area-toolbar__clear')
+  const pointCalls = (get: ReturnType<typeof mockGet>) => pathsTo(get, '/admin/admissions/area/point')
+  const placeAt = async (wrapper: VueWrapper, lat = 22.6512, lng = 120.3101) => {
+    areaMap(wrapper).vm.$emit('place-point', { lat, lng })
+    await flushPromises()
+  }
+
+  it('工具列有「地點」：放一個點（aria-pressed）、地址輸入框＋找；沒圖釘就沒有清除', async () => {
+    const { wrapper } = await mountTab()
+    const group = wrapper.get('.area-toolbar__point')
+    expect(group.text()).toContain('地點')
+    expect(placeBtn(wrapper).attributes('aria-pressed')).toBe('false')
+    expect(group.get('input').attributes('placeholder')).toBe('輸入地址找位置')
+    expect(group.findAll('button').map((item) => item.text())).toEqual(['放一個點', '找'])
+    expect(clearBtn(wrapper).exists()).toBe(false)
+    await placeBtn(wrapper).trigger('click')
+    expect(placeBtn(wrapper).attributes('aria-pressed')).toBe('true')
+    expect(areaMap(wrapper).props('placing')).toBe(true)
+  })
+
+  it('放點狀態按 Esc 取消；放完圖釘也結束放點狀態', async () => {
+    const { wrapper } = await mountTab()
+    await placeBtn(wrapper).trigger('click')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(areaMap(wrapper).props('placing')).toBe(false)
+    await placeBtn(wrapper).trigger('click')
+    await placeAt(wrapper)
+    expect(areaMap(wrapper).props('placing')).toBe(false)
+  })
+
+  it('地圖 place-point：網址 pt 寫入、右欄是地點卡片、帶座標／半徑／校區讀 /area/point；出現清除', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(areaMap(wrapper).props('point')).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(Object.fromEntries(queryOf(pointCalls(get).at(-1)!))).toEqual({ lat: '22.6512', lng: '120.3101', radius_km: '3', campus_key: 'yihua' })
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 3 公里內')
+    expect(side(wrapper).find('.area-pane__head').exists()).toBe(false)
+    expect(clearBtn(wrapper).exists()).toBe(true)
+  })
+
+  it('同座標再放一次：不重寫網址、不重讀；拖到別處才更新', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    const writes = wrapper.emitted('update:view')!.length
+    const reads = pointCalls(get).length
+    await placeAt(wrapper, 22.6512, 120.3101)
+    expect(wrapper.emitted('update:view')).toHaveLength(writes)
+    expect(pointCalls(get)).toHaveLength(reads)
+    await placeAt(wrapper, 22.66, 120.32)
+    expect(wrapper.emitted('update:view')).toHaveLength(writes + 1)
+    expect(pointCalls(get)).toHaveLength(reads + 1)
+  })
+
+  it('有圖釘時點里：里卡片優先；關掉後回到地點卡片', async () => {
+    const { wrapper } = await mountTab()
+    await placeAt(wrapper)
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+    expect(side(wrapper).find('.point-card').exists()).toBe(false)
+    await side(wrapper).get('.village-card').trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+    expect(side(wrapper).find('.village-card').exists()).toBe(false)
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 3 公里內')
+  })
+
+  it('清除：pt 拿掉、回到原本右欄、地址欄清空、焦點留在右欄', async () => {
+    const { wrapper } = await mountTab()
+    await wrapper.get('.area-toolbar__point input').setValue('高雄市三民區民族一路 1 號')
+    await placeAt(wrapper)
+    await clearBtn(wrapper).trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toBeNull()
+    expect(areaMap(wrapper).props('point')).toBeNull()
+    expect(side(wrapper).find('.point-card').exists()).toBe(false)
+    expect(paneTitle(wrapper)).not.toBe('')
+    expect((wrapper.get('.area-toolbar__point input').element as HTMLInputElement).value).toBe('')
+    expect(clearBtn(wrapper).exists()).toBe(false)
+    expect(document.activeElement).toBe(side(wrapper).element)
+  })
+
+  it('地點卡片的「清除」也拿掉圖釘；卡片沒有自己的 Esc', async () => {
+    const { wrapper } = await mountTab()
+    await placeAt(wrapper)
+    await side(wrapper).get('.point-card').trigger('keydown', { key: 'Escape' })
+    expect(lastView(wrapper)!.point).not.toBeNull()
+    await side(wrapper).findAll('.point-card__head button').find((item) => item.text() === '清除')!.trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toBeNull()
+  })
+
+  it('換範圍：重新讀 /area/point（帶新的 radius_km）', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    const reads = pointCalls(get).length
+    await chooseRadius(wrapper, 6)
+    await flushPromises()
+    expect(pointCalls(get)).toHaveLength(reads + 1)
+    expect(queryOf(pointCalls(get).at(-1)!).get('radius_km')).toBe('6')
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 6 公里內')
+  })
+
+  it('讀取中卡片是骨架；失敗寫原因加重試，重試成功恢復；舊回應不蓋新的', async () => {
+    const first = deferred<unknown>()
+    const get = mockGet({ ...routes(), '/admin/admissions/area/point': () => first.promise })
+    const { wrapper } = await mountReady()
+    await placeAt(wrapper)
+    expect(side(wrapper).find('.point-card .el-skeleton').exists()).toBe(true)
+    first.reject(new Error('x'))
+    await flushPromises()
+    expect(side(wrapper).text()).toContain('讀不到這一點的資料')
+    get.mockRestore()
+    mockGet(routes())
+    await side(wrapper).findAll('.point-card button').find((item) => item.text() === '重試')!.trigger('click')
+    await flushPromises()
+    expect(side(wrapper).find('.point-card__table').exists()).toBe(true)
+  })
+
+  it('網址帶 pt 重新整理：一進來就有圖釘與地點卡片', async () => {
+    mockGet(routes())
+    const mounted = await mountWith(AreaTab, { props: { ...props(), ...withView({ point: { lat: 22.6512, lng: 120.3101 } }) } })
+    await vi.waitFor(() => expect(mounted.wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(areaMap(mounted.wrapper).props('point')).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(side(mounted.wrapper).find('.point-card').exists()).toBe(true)
+  })
+
+  describe('地址定位', () => {
+    const find = async (wrapper: VueWrapper, text: string) => {
+      await wrapper.get('.area-toolbar__point input').setValue(text)
+      await wrapper.get('.area-toolbar__locate').trigger('submit')
+      await flushPromises()
+    }
+    const failWith = (status: number, detail: unknown) => {
+      mockGet({ ...routes(), '/admin/admissions/area/locate': () => { throw new ApiError(status, detail) } })
+    }
+
+    it('找到：圖釘放在 4 位小數座標、地圖移過去、焦點到卡片標題', async () => {
+      const { wrapper, get } = await mountTab()
+      await find(wrapper, '高雄市三民區民族一路 1 號')
+      expect(queryOf(pathsTo(get, '/admin/admissions/area/locate')[0]!).get('address')).toBe('高雄市三民區民族一路 1 號')
+      expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3102 })
+      expect(mapStub.focusPoint).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(side(wrapper).get('.point-card h2').element)
+      expect(wrapper.find('.area-toolbar__locate-note--error').exists()).toBe(false)
+    })
+
+    it('沒輸入就按找：提示請輸入地址，不送請求', async () => {
+      const { wrapper, get } = await mountTab()
+      await find(wrapper, '   ')
+      expect(wrapper.get('.area-toolbar__locate-note--error').text()).toBe('請輸入地址')
+      expect(pathsTo(get, '/admin/admissions/area/locate')).toHaveLength(0)
+    })
+
+    it.each([
+      ['outside_kaohsiung', '不在高雄市'],
+      ['no_doorplate', '找不到這個門牌'],
+      ['pending', '門牌資料尚未匯入'],
+      ['no_address', '找不到這個地址'],
+      ['imprecise', '找不到這個地址'],
+    ])('404 reason %s → %s（寫在輸入框下方，不放圖釘）', async (reason, text) => {
+      failWith(404, { code: 'ADDRESS_NOT_FOUND', message: 'x', reason })
+      const { wrapper } = await mountReady().then((mounted) => mounted)
+      await find(wrapper, '某處')
+      expect(wrapper.get('.area-toolbar__locate-note--error').text()).toBe(text)
+      expect(wrapper.emitted('update:view')).toBeUndefined()
+    })
+
+    it('422 與其他錯誤也有說法', async () => {
+      failWith(422, { code: 'INVALID_ADDRESS' })
+      const first = await mountReady()
+      await find(first.wrapper, '某處')
+      expect(first.wrapper.get('.area-toolbar__locate-note--error').text()).toBe('請輸入正確的地址')
+      cleanup()
+      failWith(500, 'boom')
+      const second = await mountReady()
+      await find(second.wrapper, '某處')
+      expect(second.wrapper.get('.area-toolbar__locate-note--error').text()).toBe('暫時查不到地址，請稍後再試')
+    })
   })
 })

@@ -60,4 +60,12 @@ describe('PointCard', () => {
     ;(wrapper.vm as unknown as { focusTitle: () => void }).focusTitle()
     expect(document.activeElement?.tagName).toBe('H2')
   })
+
+  it('沒有卡片層級的 Esc 關閉（Esc 只屬於放點狀態）；表頭的螢幕閱讀文字用全域 visually-hidden', async () => {
+    const wrapper = mountCard({})
+    await wrapper.get('.point-card').trigger('keydown', { key: 'Escape' })
+    expect(wrapper.emitted('clear')).toBeUndefined()
+    expect(wrapper.get('thead th .visually-hidden').text()).toBe('項目')
+    expect(wrapper.find('.point-card__sr').exists()).toBe(false)
+  })
 })

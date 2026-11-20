@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, ref, shallowRef, useId, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, ref, shallowRef, useId, watch } from 'vue'
 import AreaSidePane from './AreaSidePane.vue'
 import AreaTables from './AreaTables.vue'
 import NearbyPanel from './NearbyPanel.vue'
 import ChildrenYearSlider from './ChildrenYearSlider.vue'
+import PointCard from './PointCard.vue'
 import ProviderChanges from './ProviderChanges.vue'
 import {
   getArea, getAreaBabycare, getAreaBoundaries, getAreaChanges, getAreaChildrenHistory, getAreaEnrolled, getAreaKindergartens, getAreaOpportunity, getAreaPeerFees,
-  getAreaPresale, getAreaTrends,
+  getAreaPoint, getAreaPresale, getAreaTrends, locateAreaAddress,
 } from '../../../api/admissions'
+import { ApiError } from '../../../api/client'
 import { campusLabel } from '../../../api/labels'
 import type {
-  AdmissionsArea, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends,
+  AdmissionsArea, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaEnrolled, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPoint, AreaPresale, AreaTrends,
   VillageBoundaries,
 } from '../../../api/types'
 import { areaQuery } from '../../../admissions/areaFilter'
-import { DEFAULT_AREA_VIEW, isMapMode, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
+import { DEFAULT_AREA_VIEW, isMapMode, round4, samePoint, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
@@ -70,7 +72,9 @@ const view = defineModel<AreaView>('view', { default: () => ({ ...DEFAULT_AREA_V
 // （watcher 之間 Vue 會先跑上層的更新）。若有一個 handler 要連寫兩次，先把兩個改動合成一個 patch。
 function patchView(patch: Partial<AreaView>) {
   const current = view.value
-  if ((Object.keys(patch) as (keyof AreaView)[]).every((key) => patch[key] === current[key])) return
+  // 圖釘座標是物件：比座標，不比參考（拖到同一格、同座標再放一次都不重寫網址）。
+  const unchanged = (key: keyof AreaView) => (key === 'point' ? samePoint(patch.point ?? null, current.point) : patch[key] === current[key])
+  if ((Object.keys(patch) as (keyof AreaView)[]).every(unchanged)) return
   view.value = { ...current, ...patch }
 }
 
@@ -416,6 +420,7 @@ type MapApi = {
   focusBabycare: (id: string) => void
   revealBabycare: () => void
   focusVillage: (code: string) => void
+  focusPoint: () => void
 }
 const map = ref<MapApi | null>(null)
 // 地圖 chunk 載入失敗時，ref 可能接到的是空元件（不是地圖實例）：一律當成沒有地圖，不呼叫它（規格 §4）。
@@ -464,6 +469,107 @@ function focusBabycare(id: string) {
 watch([nearbyKind, mapApi], ([kind, instance]) => {
   if (kind === 'babycare') instance?.revealBabycare()
 })
+
+// ---- 地點（2026-11-20 規格 §5.1）：在地圖放圖釘或輸入地址，右欄看這一點與本校並排 ----
+
+const placing = ref(false)
+const pointCard = ref<InstanceType<typeof PointCard> | null>(null)
+const pointData = ref<AreaPoint | null>(null)
+const pointLoading = ref(false)
+const pointFailed = ref(false)
+const pointRequests = useRequestSequence()
+// 換座標、半徑或校區：先清空（卡片骨架）再讀，只採用最後一次的回應。
+async function loadPoint() {
+  const request = pointRequests.begin()
+  pointData.value = null
+  pointFailed.value = false
+  const target = view.value.point
+  pointLoading.value = target !== null && Boolean(props.campusKey)
+  if (!target || !props.campusKey) return
+  try {
+    const result = await getAreaPoint({ lat: target.lat, lng: target.lng, radiusKm: radiusKm.value, campusKey: props.campusKey })
+    if (pointRequests.isCurrent(request)) pointData.value = result
+  } catch {
+    if (pointRequests.isCurrent(request)) pointFailed.value = true
+  } finally {
+    if (pointRequests.isCurrent(request)) pointLoading.value = false
+  }
+}
+watch([() => view.value.point?.lat, () => view.value.point?.lng, radiusKm, () => props.campusKey], () => void loadPoint(), { immediate: true })
+
+function togglePlacing() {
+  placing.value = !placing.value
+}
+// 放點狀態按 Esc 取消（卡片的 Esc 只屬於里卡片，這裡不管卡片）。
+function onPlacingKey(event: KeyboardEvent) {
+  if (event.key === 'Escape') placing.value = false
+}
+watch(placing, (on) => {
+  if (on) document.addEventListener('keydown', onPlacingKey)
+  else document.removeEventListener('keydown', onPlacingKey)
+})
+onBeforeUnmount(() => document.removeEventListener('keydown', onPlacingKey))
+
+/** 地圖點一下（放點狀態）或拖完圖釘：圖釘到那裡；放完就結束放點狀態，要調整直接拖。 */
+function placePoint(next: { lat: number; lng: number }) {
+  placing.value = false
+  locateError.value = ''
+  patchView({ point: next })
+}
+/** 清除圖釘：網址拿掉 pt、地址欄清空；焦點留在右欄。 */
+async function clearPoint() {
+  placing.value = false
+  address.value = ''
+  locateError.value = ''
+  patchView({ point: null })
+  await nextTick()
+  sideEl.value?.focus()
+}
+
+const address = ref('')
+const locating = ref(false)
+const locateError = ref('')
+const locateRequests = useRequestSequence()
+// 後端 404 的 detail.reason：不在高雄、門牌對不上、門牌資料還沒匯入各有說法，其他一律「找不到這個地址」。
+const LOCATE_REASONS: Record<string, string> = {
+  outside_kaohsiung: '不在高雄市',
+  no_doorplate: '找不到這個門牌',
+  pending: '門牌資料尚未匯入',
+}
+function locateErrorText(error: unknown): string {
+  if (error instanceof ApiError) {
+    const detail = error.detail
+    if (error.status === 404 && typeof detail === 'object' && detail !== null && 'reason' in detail && typeof detail.reason === 'string') {
+      return LOCATE_REASONS[detail.reason] ?? '找不到這個地址'
+    }
+    if (error.status === 404) return '找不到這個地址'
+    if (error.status === 422) return '請輸入正確的地址'
+  }
+  return '暫時查不到地址，請稍後再試'
+}
+async function findAddress() {
+  const text = address.value.trim()
+  if (!text) {
+    locateError.value = '請輸入地址'
+    return
+  }
+  const request = locateRequests.begin()
+  locating.value = true
+  locateError.value = ''
+  try {
+    const result = await locateAreaAddress(text)
+    if (!locateRequests.isCurrent(request)) return
+    placing.value = false
+    patchView({ point: { lat: round4(result.lat), lng: round4(result.lng) } })
+    await nextTick()
+    mapApi.value?.focusPoint()
+    pointCard.value?.focusTitle()
+  } catch (error) {
+    if (locateRequests.isCurrent(request)) locateError.value = locateErrorText(error)
+  } finally {
+    if (locateRequests.isCurrent(request)) locating.value = false
+  }
+}
 
 // ---- 右欄（規格 §2.3、§2.5、D13）----
 
@@ -573,6 +679,19 @@ const footer = computed(() =>
           <span class="area-toolbar__label" aria-hidden="true">年份</span>
           <ChildrenYearSlider :stops="yearStops" :model-value="childrenStop" :labels="yearLabels" @update:model-value="setYear" />
         </div>
+        <div class="area-toolbar__group area-toolbar__point">
+          <span class="area-toolbar__label" aria-hidden="true">地點</span>
+          <el-button size="small" :type="placing ? 'primary' : 'default'" :aria-pressed="placing ? 'true' : 'false'" @click="togglePlacing">
+            放一個點
+          </el-button>
+          <form class="area-toolbar__locate" @submit.prevent="findAddress">
+            <el-input v-model="address" class="area-toolbar__address" size="small" placeholder="輸入地址找位置" aria-label="地址" maxlength="100" />
+            <el-button size="small" native-type="submit" :loading="locating">找</el-button>
+          </form>
+          <el-button v-if="view.point" class="area-toolbar__clear" size="small" @click="clearPoint">清除</el-button>
+          <p v-if="placing" class="area-toolbar__locate-note" role="status">在地圖上點一下放圖釘，按 Esc 取消</p>
+          <p v-if="locateError" class="area-toolbar__locate-note area-toolbar__locate-note--error" role="alert">{{ locateError }}</p>
+        </div>
         <p v-if="modeReasons.length" :id="reasonId" class="area-toolbar__note">
           <span v-for="reason in modeReasons" :key="reason">{{ reason }}</span>
         </p>
@@ -609,7 +728,10 @@ const footer = computed(() =>
             :enrolled="enrolled"
             :grade-filter="gradeFilter"
             :children-shade="shade"
+            :point="view.point"
+            :placing="placing"
             @select-village="selectFromMap"
+            @place-point="placePoint"
           />
           <p v-if="retiredText" class="hint area-workbench__retired">{{ retiredText }}</p>
         </div>
@@ -623,6 +745,7 @@ const footer = computed(() =>
             :failed="paneFailed"
             :facts="facts"
             :peers="mapMode === 'peers'"
+            :point="view.point !== null"
             :narrow="narrow"
             :announce="announce"
             @select="selectFromList"
@@ -631,6 +754,18 @@ const footer = computed(() =>
             @retry="retryPane"
             @retry-facts="retryFacts"
           >
+            <template #point>
+              <PointCard
+                ref="pointCard"
+                :data="pointData"
+                :loading="pointLoading"
+                :failed="pointFailed"
+                :campus-name="campusLabel(campusKey)"
+                :radius-km="radiusKm"
+                @clear="clearPoint"
+                @retry="loadPoint()"
+              />
+            </template>
             <template #head-extra>
               <el-radio-group
                 v-if="mapMode === 'enrolled' && gradeChoices.length"
@@ -729,6 +864,34 @@ const footer = computed(() =>
 
 .area-toolbar__year {
   flex: 1 1 100%;
+}
+
+.area-toolbar__point {
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+}
+
+.area-toolbar__locate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.area-toolbar__address {
+  width: 240px;
+  max-width: 100%;
+}
+
+.area-toolbar__locate-note {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.area-toolbar__locate-note--error {
+  color: var(--el-color-danger);
 }
 
 .area-workbench__retired {

@@ -16,14 +16,14 @@ function focusTitle() {
 defineExpose({ focusTitle })
 
 const ready = computed(() => (props.loading || props.failed ? null : props.data))
-const rows = computed(() => (ready.value ? pointRows(ready.value, props.campusName) : []))
+const rows = computed(() => (ready.value ? pointRows(ready.value) : []))
 const hasCampus = computed(() => ready.value?.rows.campus != null)
 const campusHeader = computed(() => (ready.value ? pointCampusHeader(ready.value, props.campusName) : props.campusName))
 const notes = computed(() => (ready.value ? pointFootnotes(ready.value) : []))
 </script>
 
 <template>
-  <section class="point-card" :aria-labelledby="titleId" @keydown.esc="emit('clear')">
+  <section class="point-card" :aria-labelledby="titleId">
     <header class="point-card__head">
       <div class="point-card__heading">
         <h2 :id="titleId" ref="heading" class="point-card__title" tabindex="-1">這一點 {{ radiusKm }} 公里內</h2>
@@ -41,7 +41,7 @@ const notes = computed(() => (ready.value ? pointFootnotes(ready.value) : []))
       <table class="point-card__table">
         <thead>
           <tr>
-            <th scope="col"><span class="point-card__sr">項目</span></th>
+            <th scope="col"><span class="visually-hidden">項目</span></th>
             <th scope="col" class="num">這一點</th>
             <th v-if="hasCampus" scope="col" class="num">{{ campusHeader }}</th>
           </tr>
@@ -136,14 +136,6 @@ const notes = computed(() => (ready.value ? pointFootnotes(ready.value) : []))
   color: var(--ink);
   text-align: right;
   overflow-wrap: anywhere;
-}
-
-.point-card__sr {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
 }
 
 .point-card__note,

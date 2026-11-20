@@ -28,6 +28,7 @@ const leaflet = vi.hoisted(() => {
       bindTooltip: vi.fn(() => self),
       openPopup: vi.fn(() => self),
       setRadius: vi.fn(() => self),
+      setLatLng: vi.fn(() => self),
       redraw: vi.fn(() => self),
       bringToBack: vi.fn(() => self),
       bringToFront: vi.fn(() => self),
@@ -1463,3 +1464,83 @@ describe('地圖工作台：模式由外層決定、點里選取、選取外框�
     expect(wrapper.find('[aria-label="地圖著色"]').exists()).toBe(false)
   })
 })
+
+describe('區域分析地圖：圖釘（2026-11-20）', () => {
+  const PIN = { lat: 22.6512, lng: 120.3101 }
+  const pinMarker = () => leaflet.created.marker!.find((item) => item.options.title === '圖釘')
+
+  it('沒有 point 就沒有圖釘與圖釘圈；有 point：可拖曳的 divIcon 圖釘（Phosphor MapPin）＋實線不填色的半徑圈', async () => {
+    const none = await mountMap()
+    expect(pinMarker()).toBeUndefined()
+    expect(leaflet.created.circle!.some((item) => item.options.className === 'area-point-radius')).toBe(false)
+    none.unmount()
+    leaflet.reset()
+    await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    expect(marker.latlng).toEqual([22.6512, 120.3101])
+    expect(marker.options).toMatchObject({ draggable: true, keyboard: false })
+    const icon = leaflet.module.divIcon.mock.calls.map((call) => call[0]).find((options) => options.className === 'area-point')!
+    expect(String(icon.html)).toContain('viewBox="0 0 256 256"')
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    expect(circle.latlng).toEqual([22.6512, 120.3101])
+    expect(circle.options).toMatchObject({ radius: 3000, fill: false, interactive: false })
+    expect(circle.options.dashArray).toBeUndefined()
+  })
+
+  it('圖釘圈顏色走 --area-point token；放點游標是十字', () => {
+    const source = readFileSync(join(__dirname, '../components/admissions/area/AreaMap.vue'), 'utf8')
+    expect(source).toMatch(/\.area-point-radius\) \{\s*stroke: var\(--area-point\)/)
+    expect(source).toMatch(/area-map__canvas--placing[\s\S]*cursor: crosshair/)
+    expect(readFileSync(join(__dirname, '../style.css'), 'utf8')).toMatch(/--area-point: /)
+  })
+
+  it('換半徑：圖釘圈跟著；座標換了只移動圖釘與圈、不重建', async () => {
+    const wrapper = await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    await wrapper.setProps({ radiusKm: 6 })
+    expect(circle.setRadius).toHaveBeenCalledWith(6000)
+    await wrapper.setProps({ point: { lat: 22.7, lng: 120.4 } })
+    expect(marker.setLatLng).toHaveBeenCalledWith([22.7, 120.4])
+    expect(circle.setLatLng).toHaveBeenCalledWith([22.7, 120.4])
+    expect(leaflet.created.marker!.filter((item) => item.options.title === '圖釘')).toHaveLength(1)
+    await wrapper.setProps({ point: null })
+    expect(marker.remove).toHaveBeenCalled()
+    expect(circle.remove).toHaveBeenCalled()
+  })
+
+  it('placing 時點地圖發出 place-point（4 位小數）；沒在放點時點地圖不發', async () => {
+    const wrapper = await mountMap()
+    one('map').fire('click', { latlng: { lat: 22.65123456, lng: 120.31019999 } })
+    expect(wrapper.emitted('place-point')).toBeUndefined()
+    await wrapper.setProps({ placing: true })
+    expect(wrapper.get('.area-map__canvas').classes()).toContain('area-map__canvas--placing')
+    one('map').fire('click', { latlng: { lat: 22.65123456, lng: 120.31019999 } })
+    expect(wrapper.emitted('place-point')).toEqual([[{ lat: 22.6512, lng: 120.3102 }]])
+    await wrapper.setProps({ placing: false })
+    expect(wrapper.get('.area-map__canvas').classes()).not.toContain('area-map__canvas--placing')
+  })
+
+  it('placing 時點里不發 select-village（那一下是放點）；不放點照舊選里', async () => {
+    const wrapper = await mountMap()
+    const layer = villageLayerStub()
+    one('geoJSON').options.onEachFeature({ properties: { TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' } }, layer)
+    await wrapper.setProps({ placing: true })
+    layer.click()
+    expect(wrapper.emitted('select-village')).toBeUndefined()
+    await wrapper.setProps({ placing: false })
+    layer.click()
+    expect(wrapper.emitted('select-village')).toHaveLength(1)
+  })
+
+  it('拖完圖釘（dragend）發 place-point；focusPoint 把地圖移到圖釘', async () => {
+    const wrapper = await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    marker.getLatLng.mockReturnValue({ lat: 22.70004, lng: 120.40006 })
+    marker.fire('dragend')
+    expect(wrapper.emitted('place-point')).toEqual([[{ lat: 22.7, lng: 120.4001 }]])
+    ;(wrapper.vm as unknown as { focusPoint: () => void }).focusPoint()
+    expect(one('map').setView).toHaveBeenCalledWith([22.6512, 120.3101], 14)
+  })
+})
+
