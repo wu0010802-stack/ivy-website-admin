@@ -4,7 +4,7 @@ import type {
 } from '../../../api/types'
 import type { CsvCell } from '../../../utils/csv'
 import {
-  ENROLLED_GRADE_ORDER, KIDS_LEVEL_LABELS, PRESALE_CAPTION, expectedText, formatCount, formatDistance, homesText, incomeText, kidsNetText,
+  ENROLLED_GRADE_ORDER, KIDS_LEVEL_LABELS, PRESALE_CAPTION, expectedText, formatCount, formatDistance, homesText, housingPriceText, housingRentText, incomeText, kidsNetText,
   opportunityUnavailable, pointCount, populationVersionLabel, presaleText, seasonRange, signalText, signedCount, trendsPlaceName,
   trendsUnavailable, villageSchoolsText,
 } from './areaFormat'
@@ -54,6 +54,12 @@ export interface VillageTableRow extends Record<string, unknown> {
   income_boundary_changed: boolean
   income_year: number | null
   income_text: string
+  housing_sale_median: number | null
+  housing_sale_count: number
+  housing_price_text: string
+  housing_rent_median: number | null
+  housing_rent_count: number
+  housing_rent_text: string
   schools_text: string
   /** CSV 的國小學區（沒有就空白，分隔用「；」）。 */
   schools_csv: string
@@ -178,6 +184,12 @@ function buildRow(context: BuildContext, source: RowSource): VillageTableRow {
     income_boundary_changed: t?.income_boundary_changed ?? false,
     income_year: context.incomeYear,
     income_text: t ? incomeText(t) : NO_VALUE,
+    housing_sale_median: t?.housing_sale_median ?? null,
+    housing_sale_count: t?.housing_sale_count ?? 0,
+    housing_price_text: t ? housingPriceText(t.housing_sale_median, t.housing_sale_count) : NO_VALUE,
+    housing_rent_median: t?.housing_rent_median ?? null,
+    housing_rent_count: t?.housing_rent_count ?? 0,
+    housing_rent_text: t ? housingRentText(t.housing_rent_median, t.housing_rent_count) : NO_VALUE,
     schools_text: t ? villageSchoolsText(t) : NO_VALUE,
     schools_csv: t?.schools.length ? villageSchoolsText(t, '；') : '',
     enrolled: roster ? roster.total : null,
@@ -294,6 +306,8 @@ export function villageColumns(judged: boolean, allChildren: boolean): StatsColu
     { key: 'homes_text', label: '近 4 季新屋' },
     { key: 'presale_text', label: '在建預售（戶）' },
     { key: 'income_text', label: '所得中位數' },
+    { key: 'housing_price_text', label: '房價中位（萬／坪）' },
+    { key: 'housing_rent_text', label: '整戶月租中位' },
     { key: 'schools_text', label: '國小學區' },
     { key: 'enrolled', label: '在籍' },
     ...(judged
@@ -326,6 +340,9 @@ export function villageCsvColumns(allChildren: boolean): StatsColumn[] {
     { key: 'income_year', label: '所得年度' },
     { key: 'income_changed', label: '界線在所得年度後調整' },
   )
+  // 房價、月租各多一欄成交筆數（近 4 季，不到 5 筆中位數留白）。
+  columns.splice(at('housing_price_text') + 1, 0, { key: 'housing_price_count', label: '房價成交筆數' })
+  columns.splice(at('housing_rent_text') + 1, 0, { key: 'housing_rent_count', label: '整戶月租筆數' })
   columns.splice(at('enrolled') + 1, 0, ...ENROLLED_GRADE_ORDER.map((grade): StatsColumn => ({ key: `enrolled:${grade}`, label: `在籍${grade}` })))
   return columns
 }
@@ -363,6 +380,14 @@ export function villageCsvCell(row: VillageTableRow, column: StatsColumn): CsvCe
       return row.presale_households ?? ''
     case 'income_text':
       return row.income_median ?? ''
+    case 'housing_price_text':
+      return row.housing_sale_median === null ? '' : Number((row.housing_sale_median / 10000).toFixed(1))
+    case 'housing_price_count':
+      return row.housing_sale_count
+    case 'housing_rent_text':
+      return row.housing_rent_median ?? ''
+    case 'housing_rent_count':
+      return row.housing_rent_count
     case 'income_year':
       return row.income_median === null ? '' : (row.income_year ?? '')
     case 'income_changed':
@@ -440,10 +465,11 @@ function trendsHow(data: AreaTrends | null): string {
     ? `結婚缺 ${sources.marriages.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
+  const housing = sources.housing.note ? `${sources.housing.note}。` : ''
   const homes = sources.new_homes.note ? `${sources.new_homes.note}。` : ''
   const presale = sources.presale.note ? `資料來源：${sources.presale.note}（${populationVersionLabel(sources.presale.version!)}版）。` : ''
   const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`
-  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${marriagesMissing}${homes}${presale}${income}${schools}`
+  return `${parts.join('')}${sources.note}（${months.join('、')}）。${missing}${marriagesMissing}${homes}${presale}${income}${housing}${schools}`
 }
 
 /** 「這些數字怎麼算」：招生機會與里的變化原本的兩段 caption 接起來，「附近」的定義只寫一次；兩邊都沒有說明時是空字串。 */

@@ -5,7 +5,7 @@ import type {
   EnrolledGrade, VillageBoundaries,
 } from '../../../api/types'
 import {
-  KIDS_LEVEL_LABELS, campusUnlocatedNote, expectedText, formatCount, formatDistance, homesCount, incomeText,
+  KIDS_LEVEL_LABELS, campusUnlocatedNote, expectedText, formatCount, formatDistance, homesCount, housingPriceText, housingRentText, incomeText,
   kidsNetText, kindLabel, opportunityUnavailable, pointCount, presaleCount, shortName, signalText, signedCount, villageKey,
   villageSchoolsText, type RadiusKm,
 } from './areaFormat'
@@ -136,6 +136,9 @@ export function outsideRadiusText(centroidDistanceM: number, radiusKm: RadiusKm)
 const factRow = (label: string, value: string, detail?: string, tone?: 'up' | 'down'): FactRow => ({
   label, value, ...(detail ? { detail } : {}), ...(tone ? { tone } : {}),
 })
+/** 房價／月租列：有中位數才帶單位與「近 4 季 N 筆」；沒有（不到 5 筆）寫「—」。 */
+const housingRow = (label: string, median: number | null, count: number, text: (m: number | null, c: number) => string, unit: string): FactRow =>
+  median === null ? factRow(label, NO_VALUE) : factRow(label, `${text(median, count)} ${unit}`, `近 4 季 ${formatCount(count)} 筆`)
 const toneOf = (value: number | null | undefined): 'up' | 'down' | undefined => (!value ? undefined : value > 0 ? 'up' : 'down')
 const countText = (value: number | null | undefined, unit: string): string =>
   value === null || value === undefined ? NO_VALUE : `${formatCount(value)} ${unit}`
@@ -205,6 +208,8 @@ function kidsRows({ code, sources, group, oppRows }: KidsContext): FactRow[] {
     homesRow(group, code),
     presaleRow(group, code),
     factRow('所得中位數', group ? incomeText(group) : NO_VALUE),
+    housingRow('房價中位', group?.housing_sale_median ?? null, group?.housing_sale_count ?? 0, housingPriceText, '萬／坪'),
+    housingRow('整戶月租中位', group?.housing_rent_median ?? null, group?.housing_rent_count ?? 0, housingRentText, '元／月'),
   ]
   if (sources.opportunity?.baseline?.judged === true) {
     const row = opportunityRow(oppRows, group)

@@ -417,6 +417,20 @@ export function incomeText(row: Pick<AreaTrendsVillage, 'income_median' | 'incom
 }
 
 /**
+ * 房價中位數（C 段）：元／坪換成萬元／坪、小數一位（385700 → "38.6"）。近 4 季不到 5 筆時後端給 null，寫「—」。
+ * 只當背景：不著色、不分級、不排序、不判讀；合併組後端已合併計算，照常顯示。
+ */
+export function housingPriceText(median: number | null, _count: number): string {
+  if (median === null) return NO_VALUE
+  return (median / 10000).toFixed(1)
+}
+
+/** 整戶月租中位數（元／月，千分位）；不到 5 筆是 null，寫「—」。 */
+export function housingRentText(median: number | null, _count: number): string {
+  return median === null ? NO_VALUE : formatCount(median)
+}
+
+/**
  * 一列對到的國小（D 段）：「光武國小（部分）、陽明國小（部分）」；和別校是自由學區的加「自由學區」。
  * 學校在別的區時前面加區名（有同名學校：民權、中山、成功…）。
  */

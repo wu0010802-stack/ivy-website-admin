@@ -168,7 +168,7 @@ describe('各里表的列與排序', () => {
     expect(rows.every((row) => !row.merged)).toBe(true)
     expect(rowOf(rows, '三民區本揚里')).toMatchObject({
       key: '64000050015', code: '64000050015', distance: '300 m', children: 300, infants_text: '90', kids_text: '—', level_text: '—',
-      births_text: '—', marriages_text: '—', migration_text: '—', homes_text: '—', income_text: '—', schools_text: '—', enrolled: 3, visit: 6,
+      births_text: '—', marriages_text: '—', migration_text: '—', homes_text: '—', income_text: '—', housing_price_text: '—', housing_rent_text: '—', schools_text: '—', enrolled: 3, visit: 6,
       expected_text: '約 6 位', signal_text: '差不多',
     })
     expect(villageTableRows(null, null, null)).toEqual([])
@@ -207,7 +207,7 @@ describe('各里表的欄與說明', () => {
 
   it('畫面欄：里 sticky 在最前面，judged 才多參觀四欄', () => {
     expect(villageColumns(false, true).map((column) => column.label)).toEqual([
-      '里', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入', '近 4 季新屋', '在建預售（戶）', '所得中位數', '國小學區', '在籍',
+      '里', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入', '近 4 季新屋', '在建預售（戶）', '所得中位數', '房價中位（萬／坪）', '整戶月租中位', '國小學區', '在籍',
     ])
     expect(villageColumns(false, true)[0]).toMatchObject({ key: 'place', sticky: true })
     // judged 只是在畫面欄後面多接參觀四欄；不寫死欄數，之後加欄只要改上面那份具名清單。
@@ -295,7 +295,7 @@ describe('各里表：在建預售（2026-10-20 P10）', () => {
 describe('各里表的 CSV', () => {
   const HEADER = [
     '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班',
+    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '國小學區', '在籍', '在籍幼幼班',
     '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
   ]
 
@@ -511,7 +511,7 @@ describe('AreaVillageTable', () => {
     expect(lines[0]).toBe(`${CSV_BOM}${HEADER_LINE}`)
     expect(lines).toHaveLength(5)
     expect(lines[3]).toBe(
-      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,,30,0,0,0,,,,' +
+      '3,三民區寶業里、龍子里（里界調整，合併）,64000050025、64000020015、64000059999,300 m,583,60,12,600,差不多,90,,30,0,0,0,,,,,0,,0,' +
         '光武國小（部分）；鼓山區龍華國小（部分）,1,1,0,0,0,0,11,5.5%,4,',
     )
     wrapper.unmount()
@@ -520,7 +520,7 @@ describe('AreaVillageTable', () => {
 
 const HEADER_LINE = [
   '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '國小學區', '在籍', '在籍幼幼班',
+  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '國小學區', '在籍', '在籍幼幼班',
   '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
 ].join(',')
 
@@ -593,5 +593,37 @@ describe('各里表：從兩個舊面板搬來的說明與狀態', () => {
     })
     expect(noPopulation.get('.stats-block__empty').text()).toBe('各里人口資料尚未匯入；匯入後就能看哪些里孩子多、參觀少。')
     noPopulation.unmount()
+  })
+})
+
+describe('各里表的房價與月租', () => {
+  const withHousing = () => {
+    const base = areaTrends()
+    return areaTrends({
+      sources: { ...base.sources, housing: { latest: '115S3', seasons: ['114S4', '115S1', '115S2', '115S3'], note: '資料來源：內政部實價登錄（房價為近 4 季買賣、月租為近 4 季租賃）' } },
+      villages: base.villages.map((row, i) => (i === 0
+        ? { ...row, housing_sale_median: 385700, housing_sale_count: 6, housing_rent_median: 18500, housing_rent_count: 9 }
+        : row)),
+    })
+  }
+  it('欄位緊接在所得之後；不加排序選項', () => {
+    const labels = villageColumns(false, true).map((c) => c.label)
+    expect(labels.slice(labels.indexOf('所得中位數'), labels.indexOf('所得中位數') + 3)).toEqual(['所得中位數', '房價中位（萬／坪）', '整戶月租中位'])
+    expect(villageSortOptions(true).map((o) => o.label).join()).not.toMatch(/房價|租/)
+  })
+  it('列的文字與 CSV 數字', () => {
+    const rows = villageTableRows(withHousing(), areaOpportunity(), areaEnrolled())
+    const row = rowOf(rows, '三民區本揚里')
+    expect(row).toMatchObject({ housing_price_text: '38.6', housing_rent_text: '18,500' })
+    expect(rowOf(rows, '三民區鼎金里')).toMatchObject({ housing_price_text: '—', housing_rent_text: '—' })
+    const columns = villageCsvColumns(true)
+    const cell = (label: string) => villageCsvCell(row, columns.find((c) => c.label === label)!)
+    expect([cell('房價中位（萬／坪）'), cell('房價成交筆數'), cell('整戶月租中位'), cell('整戶月租筆數')]).toEqual([38.6, 6, 18500, 9])
+    const empty = rowOf(rows, '三民區鼎金里')
+    expect(villageCsvCell(empty, columns.find((c) => c.label === '房價中位（萬／坪）')!)).toBe('')
+  })
+  it('說明：有出處才顯示', () => {
+    expect(villageHowText(withHousing(), areaOpportunity())).toContain('近 4 季買賣')
+    expect(villageHowText(areaTrends(), areaOpportunity())).not.toContain('房價')
   })
 })
