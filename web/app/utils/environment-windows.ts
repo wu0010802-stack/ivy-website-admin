@@ -88,7 +88,7 @@ export function heartsGeometry(W: number, H: number, count = 5): HeartsGeometry 
   return { W, H, count, cy, s, small, kmax, yEnd, ny }
 }
 /** p（0→1）時的樣子：名稱還要往上移幾成（names）、每顆蓋子的位置與大小、照片的 clip-path（完成時是 none） */
-export function heartsFrame(g: HeartsGeometry, p: number): { names: number; lids: { x: number; y: number; k: number }[]; clip: string } {
+export function heartsFrame(g: HeartsGeometry, p: number): { names: number; lids: { x: number; y: number; k: number }[]; clip: string; tint: number } {
   // 名稱與愛心蓋子先一起落到照片下方（蓋子縮成小愛心停在名稱上面），心形窗再一起長大、連成整張照片
   const fall = easeOut(clamp((p - 0.02) / 0.4))
   const lids: { x: number; y: number; k: number }[] = []
@@ -99,7 +99,9 @@ export function heartsFrame(g: HeartsGeometry, p: number): { names: number; lids
     const k = lerp(0.96, g.kmax, easeInOut(clamp((p - 0.1 - 0.02 * i) / 0.8)))
     windows.push(heartPath(cx, g.cy * g.H, k * g.s))
   }
-  return { names: 1 - fall, lids, clip: p >= 0.999 ? 'none' : `path('${windows.join('')}')` }
+  // 色片（2026-11-20）：蓋子落下去時窗裡還是那顆心的顏色，五扇窗長大相連（p≈.3）前後才褪成照片
+  const tint = 1 - easeInOut(clamp((p - 0.16) / 0.3))
+  return { names: 1 - fall, lids, clip: p >= 0.999 ? 'none' : `path('${windows.join('')}')`, tint }
 }
 
 /** 六個空間舞台上，窗在 w×h 裡的六種形狀：[上、右、下、左的內縮, 四個圓角]（px），依序對到 inset(… round …) */
@@ -114,7 +116,8 @@ export function stopShapes(w: number, h: number): Record<string, StopShape> {
     circle: [(h - d) / 2, (w - d) / 2, (h - d) / 2, (w - d) / 2, d / 2, d / 2, d / 2, d / 2],
     arch: [0, (w - aw) / 2, 0, (w - aw) / 2, aw / 2, aw / 2, 22, 22],
     u: [0, (w - uw) / 2, 0, (w - uw) / 2, 22, 22, uw / 2, uw / 2],
-    dome: [(h - dh) / 2, 0, (h - dh) / 2, 0, w / 2, w / 2, 22, 22],
+    // 半圓貼著底（2026-11-20）：六個形狀的底邊都在同一條線上，換站時窗不會浮在半空
+    dome: [h - dh, 0, 0, 0, w / 2, w / 2, 22, 22],
     leaf: [0, 0, 0, 0, Math.min(h * 0.44, w * 0.4), 32, 32, 32]
   }
 }
@@ -301,6 +304,7 @@ export function createEnvironmentWindows(root: HTMLElement, options: Environment
       const at = frame.lids[i]
       if (at) lid.setAttribute('transform', `translate(${at.x.toFixed(1)} ${at.y.toFixed(1)}) scale(${at.k.toFixed(2)})`)
     })
+    style(hph, '--ht', frame.tint.toFixed(3))
     hph.style.clipPath = frame.clip
     hph.style.setProperty('-webkit-clip-path', frame.clip)
   }
@@ -314,7 +318,7 @@ export function createEnvironmentWindows(root: HTMLElement, options: Environment
   function heartsClear() {
     const { hearts, hph, hnames, lidsSvg } = el
     hearts?.classList.remove('is-armed')
-    if (hph) { hph.style.clipPath = ''; hph.style.removeProperty('-webkit-clip-path') }
+    if (hph) { hph.style.clipPath = ''; hph.style.removeProperty('-webkit-clip-path'); hph.style.removeProperty('--ht') }
     hnames?.style.removeProperty('--np'); hnames?.style.removeProperty('--ny')
     if (lidsSvg) { lidsSvg.style.height = ''; lidsSvg.removeAttribute('viewBox') }
     for (const lid of el.lids) lid.removeAttribute('transform')
