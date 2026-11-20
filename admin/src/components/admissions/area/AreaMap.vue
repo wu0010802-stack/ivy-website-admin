@@ -955,9 +955,12 @@ onBeforeUnmount(destroyMap)
   min-width: 0;
 }
 
-/* 畫布高度與框的圓角可由外層用自訂屬性決定（區域分析工作台讓右欄跟地圖同高、兩欄看起來是同一個框）；沒給就是預設值。 */
+/* 畫布高度與框的圓角可由外層用自訂屬性決定（區域分析工作台讓右欄跟地圖同高、兩欄看起來是同一個框）；沒給就是預設值。
+   isolation：Leaflet 的圖層與控制鈕自帶 z-index 200–1000，外框不自成一層的話它們會跟頁首（10）、黏住的條件列（5）比，
+   往下捲時地圖壓在兩者上面（2026-11-20 正式站）。關在這一層裡，框內的載入字、通知、移動地圖鈕（500）照舊疊在圖層上。 */
 .area-map__frame {
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: var(--area-map-radius, var(--radius));

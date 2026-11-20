@@ -10324,6 +10324,170 @@
         "title": "ClosureYearOut",
         "type": "object"
       },
+      "ContactCampusOut": {
+        "properties": {
+          "campus_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campus Key"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "office": {
+            "title": "Office",
+            "type": "integer"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "phone",
+          "line",
+          "clicks",
+          "office"
+        ],
+        "title": "ContactCampusOut",
+        "type": "object"
+      },
+      "ContactCellOut": {
+        "properties": {
+          "hour": {
+            "title": "Hour",
+            "type": "integer"
+          },
+          "line": {
+            "title": "Line",
+            "type": "integer"
+          },
+          "phone": {
+            "title": "Phone",
+            "type": "integer"
+          },
+          "weekday": {
+            "title": "Weekday",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weekday",
+          "hour",
+          "phone",
+          "line"
+        ],
+        "title": "ContactCellOut",
+        "type": "object"
+      },
+      "ContactChannelOut": {
+        "properties": {
+          "channel": {
+            "enum": [
+              "phone",
+              "line"
+            ],
+            "title": "Channel",
+            "type": "string"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "office": {
+            "title": "Office",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "channel",
+          "clicks",
+          "office"
+        ],
+        "title": "ContactChannelOut",
+        "type": "object"
+      },
+      "ContactHoursOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/ContactCampusOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/ContactCellOut"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/ContactChannelOut"
+            },
+            "title": "Channels",
+            "type": "array"
+          },
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "office": {
+            "title": "Office",
+            "type": "integer"
+          },
+          "office_hours": {
+            "$ref": "#/components/schemas/OfficeHoursOut"
+          },
+          "since": {
+            "format": "date",
+            "title": "Since",
+            "type": "string"
+          },
+          "until": {
+            "format": "date",
+            "title": "Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "since",
+          "until",
+          "office_hours",
+          "clicks",
+          "office",
+          "channels",
+          "campuses",
+          "cells",
+          "as_of"
+        ],
+        "title": "ContactHoursOut",
+        "type": "object"
+      },
       "ContactLogCreate": {
         "additionalProperties": false,
         "description": "記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的\n時間或「不用再追」，已到期的訪視記完才會離開清單。",
@@ -10859,6 +11023,254 @@
           "last_published_at"
         ],
         "title": "ContentRevisionSummaryOut",
+        "type": "object"
+      },
+      "CrawlerBatchIn": {
+        "additionalProperties": false,
+        "description": "官網伺服器一分鐘的彙總（web/server/plugins/crawler-hits.ts）。",
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerHitIn"
+            },
+            "maxItems": 500,
+            "title": "Hits",
+            "type": "array"
+          },
+          "not_found": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerNotFoundIn"
+            },
+            "maxItems": 200,
+            "title": "Not Found",
+            "type": "array"
+          }
+        },
+        "required": [
+          "hits"
+        ],
+        "title": "CrawlerBatchIn",
+        "type": "object"
+      },
+      "CrawlerBotOut": {
+        "properties": {
+          "bot": {
+            "title": "Bot",
+            "type": "string"
+          },
+          "errors": {
+            "title": "Errors",
+            "type": "integer"
+          },
+          "group": {
+            "enum": [
+              "ai_user",
+              "ai_search",
+              "ai_train",
+              "search",
+              "social",
+              "seo",
+              "monitor",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerPageOut"
+            },
+            "title": "Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bot",
+          "group",
+          "hits",
+          "errors",
+          "pages",
+          "last_day"
+        ],
+        "title": "CrawlerBotOut",
+        "type": "object"
+      },
+      "CrawlerGroupOut": {
+        "properties": {
+          "bots": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerBotOut"
+            },
+            "title": "Bots",
+            "type": "array"
+          },
+          "group": {
+            "enum": [
+              "ai_user",
+              "ai_search",
+              "ai_train",
+              "search",
+              "social",
+              "seo",
+              "monitor",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerPageOut"
+            },
+            "title": "Pages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "group",
+          "hits",
+          "bots",
+          "pages"
+        ],
+        "title": "CrawlerGroupOut",
+        "type": "object"
+      },
+      "CrawlerHitIn": {
+        "additionalProperties": false,
+        "properties": {
+          "bot": {
+            "pattern": "^[a-z0-9-]{1,32}$",
+            "title": "Bot",
+            "type": "string"
+          },
+          "hits": {
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Hits",
+            "type": "integer"
+          },
+          "page": {
+            "pattern": "^[a-z]{1,16}$",
+            "title": "Page",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "2xx",
+              "3xx",
+              "4xx",
+              "5xx"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bot",
+          "page",
+          "status",
+          "hits"
+        ],
+        "title": "CrawlerHitIn",
+        "type": "object"
+      },
+      "CrawlerNotFoundIn": {
+        "additionalProperties": false,
+        "properties": {
+          "hits": {
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Hits",
+            "type": "integer"
+          },
+          "path": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^/[^\\x00-\\x1f\\x7f?#]*$",
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "path",
+          "hits"
+        ],
+        "title": "CrawlerNotFoundIn",
+        "type": "object"
+      },
+      "CrawlerPageOut": {
+        "properties": {
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "page": {
+            "title": "Page",
+            "type": "string"
+          }
+        },
+        "required": [
+          "page",
+          "hits"
+        ],
+        "title": "CrawlerPageOut",
+        "type": "object"
+      },
+      "CrawlerSummaryOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CrawlerGroupOut"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "since": {
+            "format": "date",
+            "title": "Since",
+            "type": "string"
+          },
+          "until": {
+            "format": "date",
+            "title": "Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "since",
+          "until",
+          "hits",
+          "groups",
+          "as_of"
+        ],
+        "title": "CrawlerSummaryOut",
         "type": "object"
       },
       "CruxDeviceOut": {
@@ -11586,6 +11998,7 @@
             "enum": [
               "direct",
               "search",
+              "ai",
               "facebook",
               "instagram",
               "line",
@@ -14349,6 +14762,36 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HealthIssueOut": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "key": {
+            "enum": [
+              "traffic_zero",
+              "engagement_low",
+              "attribution_missing",
+              "ga4_silent"
+            ],
+            "title": "Key",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "day",
+          "message"
+        ],
+        "title": "HealthIssueOut",
         "type": "object"
       },
       "HistoryApplyOut": {
@@ -17130,6 +17573,243 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "MonthlyOut": {
+        "properties": {
+          "booked_sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booked Sessions"
+          },
+          "bookings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bookings"
+          },
+          "complete": {
+            "title": "Complete",
+            "type": "boolean"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyRowOut"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "first_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Day"
+          },
+          "form": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyRowOut"
+            },
+            "title": "Form",
+            "type": "array"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "median_session_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Session Ms"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "page_views": {
+            "title": "Page Views",
+            "type": "integer"
+          },
+          "pages": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyRowOut"
+            },
+            "title": "Pages",
+            "type": "array"
+          },
+          "returning": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyRowOut"
+            },
+            "title": "Returning",
+            "type": "array"
+          },
+          "sessions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sessions"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyRowOut"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "visits": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visits"
+          }
+        },
+        "required": [
+          "month",
+          "first_day",
+          "last_day",
+          "complete",
+          "page_views",
+          "bookings",
+          "sessions",
+          "visits",
+          "booked_sessions",
+          "median_session_ms",
+          "devices",
+          "sources",
+          "returning",
+          "pages",
+          "form",
+          "computed_at"
+        ],
+        "title": "MonthlyOut",
+        "type": "object"
+      },
+      "MonthlyRowOut": {
+        "properties": {
+          "booked_sessions": {
+            "title": "Booked Sessions",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "median_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Ms"
+          },
+          "sessions": {
+            "title": "Sessions",
+            "type": "integer"
+          },
+          "visits": {
+            "title": "Visits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "sessions",
+          "visits",
+          "booked_sessions",
+          "median_ms"
+        ],
+        "title": "MonthlyRowOut",
+        "type": "object"
+      },
+      "MonthlySummaryOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/MonthlyOut"
+            },
+            "title": "Months",
+            "type": "array"
+          },
+          "stats_start": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stats Start"
+          }
+        },
+        "required": [
+          "months",
+          "stats_start",
+          "as_of"
+        ],
+        "title": "MonthlySummaryOut",
+        "type": "object"
+      },
       "NoDepositReasonOption": {
         "properties": {
           "priority": {
@@ -17363,6 +18043,155 @@
           "cold_count"
         ],
         "title": "NoDepositSummaryOut",
+        "type": "object"
+      },
+      "NotFoundIn": {
+        "additionalProperties": false,
+        "description": "與 web/shared/telemetry.ts 的 validateNotFound 同一套規則。",
+        "properties": {
+          "event": {
+            "const": "not_found",
+            "title": "Event",
+            "type": "string"
+          },
+          "path": {
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "^/[^\\x00-\\x1f\\x7f?#]*$",
+            "title": "Path",
+            "type": "string"
+          },
+          "ref": {
+            "enum": [
+              "none",
+              "internal",
+              "search",
+              "external"
+            ],
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "path",
+          "ref"
+        ],
+        "title": "NotFoundIn",
+        "type": "object"
+      },
+      "NotFoundPathOut": {
+        "properties": {
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "refs": {
+            "items": {
+              "$ref": "#/components/schemas/NotFoundRefOut"
+            },
+            "title": "Refs",
+            "type": "array"
+          },
+          "visitor_hits": {
+            "title": "Visitor Hits",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "hits",
+          "visitor_hits",
+          "refs",
+          "last_day"
+        ],
+        "title": "NotFoundPathOut",
+        "type": "object"
+      },
+      "NotFoundRefOut": {
+        "properties": {
+          "hits": {
+            "title": "Hits",
+            "type": "integer"
+          },
+          "ref": {
+            "enum": [
+              "none",
+              "internal",
+              "search",
+              "external",
+              "crawler"
+            ],
+            "title": "Ref",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ref",
+          "hits"
+        ],
+        "title": "NotFoundRefOut",
+        "type": "object"
+      },
+      "NotFoundSummaryOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "paths": {
+            "items": {
+              "$ref": "#/components/schemas/NotFoundPathOut"
+            },
+            "title": "Paths",
+            "type": "array"
+          },
+          "paths_total": {
+            "title": "Paths Total",
+            "type": "integer"
+          },
+          "since": {
+            "format": "date",
+            "title": "Since",
+            "type": "string"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/NotFoundRefOut"
+            },
+            "title": "Totals",
+            "type": "array"
+          },
+          "until": {
+            "format": "date",
+            "title": "Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "since",
+          "until",
+          "paths_total",
+          "totals",
+          "paths",
+          "as_of"
+        ],
+        "title": "NotFoundSummaryOut",
         "type": "object"
       },
       "NotificationCampusCountOut": {
@@ -17680,6 +18509,30 @@
           "end_time"
         ],
         "title": "NotificationSlotOut",
+        "type": "object"
+      },
+      "OfficeHoursOut": {
+        "properties": {
+          "hours": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Hours",
+            "type": "array"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "weekdays",
+          "hours"
+        ],
+        "title": "OfficeHoursOut",
         "type": "object"
       },
       "OutboxDeliveredOut": {
@@ -22317,6 +23170,13 @@
             ],
             "title": "Error"
           },
+          "missed_queries": {
+            "items": {
+              "$ref": "#/components/schemas/SearchQueryRowOut"
+            },
+            "title": "Missed Queries",
+            "type": "array"
+          },
           "pages": {
             "items": {
               "$ref": "#/components/schemas/SearchPageRowOut"
@@ -22329,6 +23189,24 @@
               "$ref": "#/components/schemas/SearchQueryRowOut"
             },
             "title": "Queries",
+            "type": "array"
+          },
+          "queries_seen": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Queries Seen"
+          },
+          "query_groups": {
+            "items": {
+              "$ref": "#/components/schemas/SearchQueryGroupOut"
+            },
+            "title": "Query Groups",
             "type": "array"
           },
           "start": {
@@ -22435,6 +23313,64 @@
         "title": "SearchPageRowOut",
         "type": "object"
       },
+      "SearchQueryGroupOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "ctr": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ctr"
+          },
+          "group": {
+            "enum": [
+              "brand",
+              "local",
+              "category",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
+          },
+          "impressions": {
+            "title": "Impressions",
+            "type": "integer"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          },
+          "queries": {
+            "title": "Queries",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "group",
+          "queries",
+          "clicks",
+          "impressions",
+          "ctr",
+          "position"
+        ],
+        "title": "SearchQueryGroupOut",
+        "type": "object"
+      },
       "SearchQueryRowOut": {
         "properties": {
           "clicks": {
@@ -22444,6 +23380,16 @@
           "ctr": {
             "title": "Ctr",
             "type": "number"
+          },
+          "group": {
+            "enum": [
+              "brand",
+              "local",
+              "category",
+              "other"
+            ],
+            "title": "Group",
+            "type": "string"
           },
           "impressions": {
             "title": "Impressions",
@@ -22460,6 +23406,7 @@
         },
         "required": [
           "query",
+          "group",
           "clicks",
           "impressions",
           "ctr",
@@ -22864,6 +23811,34 @@
           "as_of"
         ],
         "title": "SnapshotRequest",
+        "type": "object"
+      },
+      "StatsHealthOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "issues": {
+            "items": {
+              "$ref": "#/components/schemas/HealthIssueOut"
+            },
+            "title": "Issues",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "issues",
+          "as_of"
+        ],
+        "title": "StatsHealthOut",
         "type": "object"
       },
       "StudentMove": {
@@ -34204,6 +35179,160 @@
         ]
       }
     },
+    "/api/website/v1/admin/analytics/contact-hours": {
+      "get": {
+        "operationId": "get_contact_hours_api_website_v1_admin_analytics_contact_hours_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContactHoursOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Contact Hours",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/crawlers": {
+      "get": {
+        "operationId": "get_crawlers_api_website_v1_admin_analytics_crawlers_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CrawlerSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Crawlers",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/api/website/v1/admin/analytics/engagement": {
       "get": {
         "operationId": "get_engagement_api_website_v1_admin_analytics_engagement_get",
@@ -34522,6 +35651,213 @@
           }
         },
         "summary": "Get Analytics Funnel",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/health": {
+      "get": {
+        "operationId": "get_stats_health_api_website_v1_admin_analytics_health_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsHealthOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Stats Health",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/monthly": {
+      "get": {
+        "operationId": "get_monthly_api_website_v1_admin_analytics_monthly_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MonthlySummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Monthly",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/analytics/not-found": {
+      "get": {
+        "operationId": "get_not_found_api_website_v1_admin_analytics_not_found_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotFoundSummaryOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Not Found",
         "tags": [
           "operations"
         ]
@@ -46615,6 +47951,40 @@
         ]
       }
     },
+    "/api/website/v1/public/crawler-hits": {
+      "post": {
+        "operationId": "record_crawler_hits_api_website_v1_public_crawler_hits_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CrawlerBatchIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Crawler Hits",
+        "tags": [
+          "operations"
+        ]
+      }
+    },
     "/api/website/v1/public/engagement": {
       "post": {
         "operationId": "record_engagement_api_website_v1_public_engagement_post",
@@ -46778,6 +48148,40 @@
         "summary": "Get Public Media Variant",
         "tags": [
           "media-public"
+        ]
+      }
+    },
+    "/api/website/v1/public/not-found": {
+      "post": {
+        "operationId": "record_not_found_api_website_v1_public_not_found_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotFoundIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Record Not Found",
+        "tags": [
+          "operations"
         ]
       }
     },

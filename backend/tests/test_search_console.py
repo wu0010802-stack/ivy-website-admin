@@ -92,7 +92,7 @@ async def test_returns_totals_queries_pages_and_devices(google, admin_client):
     assert body["end"] == today_local().isoformat()
     assert body["as_of"]
     assert body["totals"] == {"clicks": 42, "impressions": 1000, "ctr": 0.042, "position": 8.8}
-    assert body["queries"][0] == {"query": "常春藤幼兒園", "clicks": 20, "impressions": 300, "ctr": 0.0667, "position": 2.3}
+    assert body["queries"][0] == {"query": "常春藤幼兒園", "group": "brand", "clicks": 20, "impressions": 300, "ctr": 0.0667, "position": 2.3}
     assert [row["query"] for row in body["queries"]] == ["常春藤幼兒園", "義華 幼兒園"]
     # 頁面只回路徑：沒有網域、查詢字串或 #片段。
     assert [row["page"] for row in body["pages"]] == ["/", "/campus/yihua"]
@@ -109,7 +109,8 @@ async def test_queries_google_four_times_with_the_documented_request(google, adm
     start, end = (today_local() - timedelta(days=27)).isoformat(), today_local().isoformat()
     for call in fake.query_calls:
         assert call["startDate"] == start and call["endDate"] == end
-        assert call["rowLimit"] == 25
+        # 搜尋字詞多抓到 500 個（分群與曝光多點擊少用，2026-11-20），其他維度 25 列。
+        assert call["rowLimit"] == (500 if call.get("dimensions") == ["query"] else 25)
         assert call["type"] == "web"
         # 一次只問一個維度：query×page 合併會被 Search Console 匿名化丟掉大半。
         assert len(call.get("dimensions", [])) <= 1
@@ -322,3 +323,40 @@ async def test_sixteen_months_back_is_accepted(google, admin_client):
     start = date(year, month, min(today.day, calendar.monthrange(year, month)[1]))
     body = await _get(admin_client, f"?start={start.isoformat()}&end={today.isoformat()}")
     assert body["start"] == start.isoformat()
+
+
+def test_query_groups():
+    """搜尋字詞分群（2026-11-20）：找我們 → 帶地名 → 找園所 → 其他，依序判斷。"""
+    from app.insights.search_console import query_group
+
+    assert query_group("常春藤幼兒園") == "brand"
+    assert query_group("IVY kids") == "brand"
+    assert query_group("義華 幼兒園") == "brand"
+    assert query_group("三民區 幼兒園 推薦") == "local"
+    assert query_group("高雄 托嬰") == "local"
+    assert query_group("私立幼兒園 學費") == "category"
+    assert query_group("小孩 不吃飯") == "other"
+
+
+@pytest.mark.asyncio
+async def test_query_groups_and_missed_queries_are_computed_from_all_rows(google, admin_client):
+    many = [search_row([f"高雄 幼兒園 {i}"], 1, 10, 0.1, 9.0) for i in range(30)]
+    google.fake.rows["query"] = [
+        search_row(["常春藤幼兒園"], 20, 300, 0.0667, 2.3),
+        *many,
+        search_row(["私立幼兒園 補助"], 0, 120, 0.0, 14.2),
+        search_row(["鳳山 幼兒園"], 1, 80, 0.0125, 11.0),
+        search_row(["小孩 不吃飯"], 0, 19, 0.0, 30.0),
+    ]
+    body = await _get(admin_client)
+    assert body["queries_seen"] == 34 and len(body["queries"]) == 25
+    groups = {row["group"]: row for row in body["query_groups"]}
+    assert list(groups) == ["brand", "local", "category", "other"]
+    assert (groups["brand"]["queries"], groups["brand"]["clicks"], groups["brand"]["impressions"]) == (1, 20, 300)
+    assert (groups["local"]["queries"], groups["local"]["clicks"], groups["local"]["impressions"]) == (31, 31, 380)
+    # 曝光加權平均：(30×10×9.0 + 80×11.0) / 380
+    assert groups["local"]["position"] == round((2700 + 880) / 380, 1)
+    assert groups["category"]["ctr"] == 0.0
+    # 曝光 20 次以上、點擊率不到 2%，曝光多的在前；19 次曝光的不列。
+    assert [row["query"] for row in body["missed_queries"]] == ["私立幼兒園 補助", "鳳山 幼兒園"]
+    assert body["missed_queries"][0]["group"] == "category"

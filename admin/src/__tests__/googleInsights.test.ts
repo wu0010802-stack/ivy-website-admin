@@ -50,8 +50,8 @@ const search = (overrides: Partial<SearchInsights> = {}): SearchInsights => ({
   as_of: '2026-11-12T06:00:00Z',
   totals: { clicks: 42, impressions: 1000, ctr: 0.042, position: 8.8 },
   queries: [
-    { query: '常春藤幼兒園', clicks: 20, impressions: 300, ctr: 0.0667, position: 2.3 },
-    { query: '義華 幼兒園', clicks: 9, impressions: 200, ctr: 0.045, position: 5.5 },
+    { query: '常春藤幼兒園', group: 'brand', clicks: 20, impressions: 300, ctr: 0.0667, position: 2.3 },
+    { query: '義華 幼兒園', group: 'brand', clicks: 9, impressions: 200, ctr: 0.045, position: 5.5 },
   ],
   pages: [
     { page: '/', clicks: 25, impressions: 500, ctr: 0.05, position: 4 },
@@ -84,7 +84,8 @@ describe('Google 搜尋面板', () => {
     const totals = wrapper.find('[data-test="search-totals"]')
     expect(totals.text()).toContain('點進官網')
     expect(totals.text()).toContain('42')
-    expect(totals.text()).toContain('1000')
+    // 2026-11-20：四位數以上加千分位。
+    expect(totals.text()).toContain('1,000')
     expect(totals.text()).toContain('4.2%')
     expect(totals.text()).toContain('8.8')
     // 期間、單位與涵蓋範圍；資料延遲寫在區塊小字。
@@ -93,7 +94,7 @@ describe('Google 搜尋面板', () => {
   })
 
   it('2026-11-20：搜尋字詞超過 10 個先列前 10 個，可以展開', async () => {
-    const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
+    const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, group: 'other' as const, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
     const { wrapper } = await mountPanel(search({ queries }))
     expect(wrapper.findAll('[data-test="search-queries"] tbody tr')).toHaveLength(10)
     const toggle = wrapper.get('[data-test="search-queries-toggle"]')
@@ -271,6 +272,8 @@ describe('Chrome 真實使用者面板', () => {
     expect(lcp[0]!.text()).toContain('2.2 秒')
     expect(lcp[0]!.text()).toContain('良好')
     expect(lcp[0]!.text()).toContain('良好 82%・需要改善 15%・不佳 3%')
+    // 2026-11-20：三段各自不拆開，欄位窄時在「・」後面換行（原本整串不換行，手機上蓋到隔壁欄）。
+    expect(lcp[0]!.findAll('.crux__dist > span').map((part) => part.text())).toEqual(['良好 82%・', '需要改善 15%・', '不佳 3%'])
     expect(lcp[1]!.text()).toContain('3.1 秒')
     expect(lcp[1]!.text()).toContain('需要改善')
     expect(rows[1]!.findAll('td')[0]!.text()).toContain('204 毫秒')

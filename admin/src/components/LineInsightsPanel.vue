@@ -6,6 +6,7 @@ import type { LineFollowerAccountOut, LineInsightsOut } from '../api/types'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import { DEFAULT_ANALYTICS_DAYS, type AnalyticsDays } from './analytics/filters'
+import { formatCount } from './analytics/format'
 
 // LINE（2026-11-16）：各官方帳號這段期間多了多少好友，對照官網 LINE 按鈕的點擊數與綁定 LINE 通知的預約數。
 // 好友數來自 LINE（隔天才算好），點擊與綁定是官網自己的資料。期間跟著成效統計頁首；只有切到這一類才讀。
@@ -65,7 +66,7 @@ function accountTitle(account: LineFollowerAccountOut): string {
 
 function signed(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
-  return value > 0 ? `+${value}` : String(value)
+  return value > 0 ? `+${formatCount(value)}` : formatCount(value)
 }
 </script>
 
@@ -84,18 +85,20 @@ function signed(value: number | null | undefined): string {
         <div class="stat-list line-insights__stats" data-test="line-insights-totals">
           <div class="stat">
             <span class="stat__label">官網 LINE 按鈕被點</span>
-            <span class="stat__value">{{ totalClicks }}</span>
+            <span class="stat__value">{{ formatCount(totalClicks) }}</span>
             <span class="stat__hint">次</span>
           </div>
           <div class="stat">
             <span class="stat__label">預約綁定 LINE 通知</span>
-            <span class="stat__value">{{ totalLinked }}</span>
+            <span class="stat__value">{{ formatCount(totalLinked) }}</span>
             <span class="stat__hint">筆</span>
           </div>
         </div>
 
         <p v-if="!data.configured" class="hint" data-test="line-insights-unconfigured">官方帳號的 Messaging API 金鑰尚未設定，看不到好友數。</p>
-        <div v-else class="line-insights__scroll" role="region" tabindex="0" aria-label="各官方帳號的好友（可左右捲動）">
+        <!-- 兩張表在寬螢幕並排（2026-11-20 可讀性）：原本各自拉滿 1,100px，三欄的校區表名稱和數字隔了半個畫面。 -->
+        <div class="line-insights__tables" :class="{ 'is-single': !data.configured }">
+        <div v-if="data.configured" class="line-insights__scroll" role="region" tabindex="0" aria-label="各官方帳號的好友（可左右捲動）">
           <table class="line-insights__table" data-test="line-insights-accounts">
             <thead>
               <tr>
@@ -121,8 +124,8 @@ function signed(value: number | null | undefined): string {
                 <template v-else>
                   <td class="num">{{ signed(account.new_followers) }}</td>
                   <td class="num">{{ signed(account.blocks_change) }}</td>
-                  <td class="num">{{ account.followers ?? '—' }}</td>
-                  <td class="num">{{ account.blocks ?? '—' }}</td>
+                  <td class="num">{{ formatCount(account.followers) }}</td>
+                  <td class="num">{{ formatCount(account.blocks) }}</td>
                 </template>
               </tr>
             </tbody>
@@ -135,11 +138,12 @@ function signed(value: number | null | undefined): string {
             <tbody>
               <tr v-for="row in campuses" :key="row.campus_key ?? 'none'">
                 <th scope="row">{{ row.campus_name }}</th>
-                <td class="num">{{ row.line_clicks }}</td>
-                <td class="num">{{ row.linked }}</td>
+                <td class="num">{{ formatCount(row.line_clicks) }}</td>
+                <td class="num">{{ formatCount(row.linked) }}</td>
               </tr>
             </tbody>
           </table>
+        </div>
         </div>
 
         <AnalyticsExplainer>
@@ -186,24 +190,59 @@ function signed(value: number | null | undefined): string {
   overflow-x: auto;
 }
 
+/* 官方帳號表（五欄）在左、校區表（三欄）在右；1100px 以下上下排。只有校區表時（金鑰沒設定）不分欄。 */
+.line-insights__tables {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px 32px;
+  align-items: start;
+}
+
+.line-insights__tables.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .line-insights__tables {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* 字級、表頭底色、列高和同一頁其他表（來源、Google 搜尋）一致：原本這兩張小一號、表頭沒有底色，
+   排在別的表下面看起來像另一套東西。 */
 .line-insights__table {
   width: 100%;
   border-collapse: collapse;
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
 }
 
 .line-insights__table th,
 .line-insights__table td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   text-align: left;
   white-space: nowrap;
 }
 
-.line-insights__table tbody th {
+.line-insights__table thead th {
+  background: var(--surface-2);
+  color: var(--ink-2);
   font-weight: 500;
+}
+
+.line-insights__table tbody th {
+  font-weight: 400;
+  color: var(--ink);
   white-space: normal;
   min-width: 12em;
+}
+
+.line-insights__table tbody tr {
+  transition: background-color 120ms var(--ease-out);
+}
+
+.line-insights__table tbody tr:hover {
+  background: var(--surface-2);
 }
 
 /* 校區表只有三欄，手機放得下：不留官方帳號表那樣的名稱最小寬度，表頭也可以換行。 */
@@ -223,5 +262,12 @@ function signed(value: number | null | undefined): string {
 .line-insights__sub {
   display: block;
   font-size: var(--text-xs);
+}
+
+@media (max-width: 720px) {
+  .line-insights__table th,
+  .line-insights__table td {
+    padding: 10px 6px;
+  }
 }
 </style>

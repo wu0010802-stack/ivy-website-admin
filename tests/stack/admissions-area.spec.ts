@@ -684,6 +684,38 @@ test('頁長：1440×900 預設狀態 .area 高度 ≤ 1,800px（D19）', async 
   await context.close()
 })
 
+// 2026-11-20 正式站：條件列黏住（PR #125）後，往下捲時地圖壓在頁首與條件列上面。Leaflet 的圖層 z-index 是 200–1000，
+// 地圖外框沒有自己的疊層時，它們直接跟頁首（10）、條件列（5）比，永遠贏。這裡拿地圖上一個里的同一個點，
+// 捲到頁首、條件列底下時最上層不能是地圖；捲回條件列下方時最上層要是那個里（證明這個點真的打得到地圖）。
+test('工作台：地圖捲進黏住的頁首與條件列底下時被蓋住，不壓在上面', async ({ browser }) => {
+  const { context, page } = await openAs(browser, 'super_admin', DESKTOP)
+  await openArea(page, CAMPUS, 'map=visits')
+  const spot = await pointOn(page, 'path.area-village')
+  const pageY = spot.y + (await page.evaluate(() => window.scrollY))
+  const bands = await page.evaluate(() => {
+    const band = (selector: string) => {
+      const box = document.querySelector(selector)!.getBoundingClientRect()
+      return { top: box.top, bottom: box.bottom }
+    }
+    return { header: band('header.top'), nav: band('.stats-nav') }
+  })
+  // 把那個點捲到視窗的 y，回傳最上層是不是地圖裡的東西；scrollTo 被夾住（捲不到）就回 null。
+  const mapOnTopAt = (y: number) =>
+    page.evaluate(
+      ({ x, y, pageY }) => {
+        window.scrollTo(0, pageY - y)
+        if (Math.abs(window.scrollY - (pageY - y)) > 1) return null
+        return document.elementFromPoint(x, y)?.closest('.area-map__frame') != null
+      },
+      { x: spot.x, y, pageY },
+    )
+
+  expect(await mapOnTopAt((bands.header.top + bands.header.bottom) / 2), '地圖壓在頁首上面').toBe(false)
+  expect(await mapOnTopAt((bands.nav.top + bands.nav.bottom) / 2), '地圖壓在黏住的條件列上面').toBe(false)
+  expect(await mapOnTopAt(bands.nav.bottom + 40), '條件列下方應該點得到地圖上的里').toBe(true)
+  await context.close()
+})
+
 test('390px：選里後卡片在地圖下方並捲到標題、移動地圖照舊、頁面不橫向溢出', async ({ browser }) => {
   test.setTimeout(90_000)
   mkdirSync(SHOTS, { recursive: true })

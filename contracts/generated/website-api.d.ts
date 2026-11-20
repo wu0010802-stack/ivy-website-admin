@@ -1265,6 +1265,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/analytics/contact-hours": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Contact Hours */
+        get: operations["get_contact_hours_api_website_v1_admin_analytics_contact_hours_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/crawlers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Crawlers */
+        get: operations["get_crawlers_api_website_v1_admin_analytics_crawlers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/analytics/engagement": {
         parameters: {
             query?: never;
@@ -1308,6 +1342,57 @@ export interface paths {
         };
         /** Get Analytics Funnel */
         get: operations["get_analytics_funnel_api_website_v1_admin_analytics_funnel_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Stats Health */
+        get: operations["get_stats_health_api_website_v1_admin_analytics_health_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/monthly": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Monthly */
+        get: operations["get_monthly_api_website_v1_admin_analytics_monthly_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/analytics/not-found": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Not Found */
+        get: operations["get_not_found_api_website_v1_admin_analytics_not_found_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3900,6 +3985,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/public/crawler-hits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Crawler Hits */
+        post: operations["record_crawler_hits_api_website_v1_public_crawler_hits_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/engagement": {
         parameters: {
             query?: never;
@@ -3948,6 +4050,23 @@ export interface paths {
         get: operations["get_public_media_variant_api_website_v1_public_media__media_id__variants__variant__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/public/not-found": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record Not Found */
+        post: operations["record_not_found_api_website_v1_public_not_found_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7413,6 +7532,73 @@ export interface components {
             /** Weighted */
             weighted: number;
         };
+        /** ContactCampusOut */
+        ContactCampusOut: {
+            /** Campus Key */
+            campus_key: string | null;
+            /** Clicks */
+            clicks: number;
+            /** Line */
+            line: number;
+            /** Office */
+            office: number;
+            /** Phone */
+            phone: number;
+        };
+        /** ContactCellOut */
+        ContactCellOut: {
+            /** Hour */
+            hour: number;
+            /** Line */
+            line: number;
+            /** Phone */
+            phone: number;
+            /** Weekday */
+            weekday: number;
+        };
+        /** ContactChannelOut */
+        ContactChannelOut: {
+            /**
+             * Channel
+             * @enum {string}
+             */
+            channel: "phone" | "line";
+            /** Clicks */
+            clicks: number;
+            /** Office */
+            office: number;
+        };
+        /** ContactHoursOut */
+        ContactHoursOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campuses */
+            campuses: components["schemas"]["ContactCampusOut"][];
+            /** Cells */
+            cells: components["schemas"]["ContactCellOut"][];
+            /** Channels */
+            channels: components["schemas"]["ContactChannelOut"][];
+            /** Clicks */
+            clicks: number;
+            /** Days */
+            days: number;
+            /** Office */
+            office: number;
+            office_hours: components["schemas"]["OfficeHoursOut"];
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
+        };
         /**
          * ContactLogCreate
          * @description 記錄一次聯絡（規格 6.3）。next_follow_up_at 必填、可為 null：一定要決定下次聯絡的
@@ -7616,6 +7802,103 @@ export interface components {
             schema_version: number;
             /** Version */
             version: number;
+        };
+        /**
+         * CrawlerBatchIn
+         * @description 官網伺服器一分鐘的彙總（web/server/plugins/crawler-hits.ts）。
+         */
+        CrawlerBatchIn: {
+            /** Hits */
+            hits: components["schemas"]["CrawlerHitIn"][];
+            /** Not Found */
+            not_found?: components["schemas"]["CrawlerNotFoundIn"][];
+        };
+        /** CrawlerBotOut */
+        CrawlerBotOut: {
+            /** Bot */
+            bot: string;
+            /** Errors */
+            errors: number;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "ai_user" | "ai_search" | "ai_train" | "search" | "social" | "seo" | "monitor" | "other";
+            /** Hits */
+            hits: number;
+            /**
+             * Last Day
+             * Format: date
+             */
+            last_day: string;
+            /** Pages */
+            pages: components["schemas"]["CrawlerPageOut"][];
+        };
+        /** CrawlerGroupOut */
+        CrawlerGroupOut: {
+            /** Bots */
+            bots: components["schemas"]["CrawlerBotOut"][];
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "ai_user" | "ai_search" | "ai_train" | "search" | "social" | "seo" | "monitor" | "other";
+            /** Hits */
+            hits: number;
+            /** Pages */
+            pages: components["schemas"]["CrawlerPageOut"][];
+        };
+        /** CrawlerHitIn */
+        CrawlerHitIn: {
+            /** Bot */
+            bot: string;
+            /** Hits */
+            hits: number;
+            /** Page */
+            page: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "2xx" | "3xx" | "4xx" | "5xx";
+        };
+        /** CrawlerNotFoundIn */
+        CrawlerNotFoundIn: {
+            /** Hits */
+            hits: number;
+            /** Path */
+            path: string;
+        };
+        /** CrawlerPageOut */
+        CrawlerPageOut: {
+            /** Hits */
+            hits: number;
+            /** Page */
+            page: string;
+        };
+        /** CrawlerSummaryOut */
+        CrawlerSummaryOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Days */
+            days: number;
+            /** Groups */
+            groups: components["schemas"]["CrawlerGroupOut"][];
+            /** Hits */
+            hits: number;
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
         };
         /** CruxDeviceOut */
         CruxDeviceOut: {
@@ -7865,7 +8148,7 @@ export interface components {
              * Source
              * @enum {string}
              */
-            source: "direct" | "search" | "facebook" | "instagram" | "line" | "youtube" | "ads" | "other";
+            source: "direct" | "search" | "ai" | "facebook" | "instagram" | "line" | "youtube" | "ads" | "other";
         };
         /** EngagementJourneyOut */
         EngagementJourneyOut: {
@@ -8773,6 +9056,21 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /** HealthIssueOut */
+        HealthIssueOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Key
+             * @enum {string}
+             */
+            key: "traffic_zero" | "engagement_low" | "attribution_missing" | "ga4_silent";
+            /** Message */
+            message: string;
         };
         /** HistoryApplyOut */
         HistoryApplyOut: {
@@ -9730,6 +10028,66 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /** MonthlyOut */
+        MonthlyOut: {
+            /** Booked Sessions */
+            booked_sessions: number | null;
+            /** Bookings */
+            bookings: number | null;
+            /** Complete */
+            complete: boolean;
+            /** Computed At */
+            computed_at: string | null;
+            /** Devices */
+            devices: components["schemas"]["MonthlyRowOut"][];
+            /** First Day */
+            first_day: string | null;
+            /** Form */
+            form: components["schemas"]["MonthlyRowOut"][];
+            /** Last Day */
+            last_day: string | null;
+            /** Median Session Ms */
+            median_session_ms: number | null;
+            /** Month */
+            month: string;
+            /** Page Views */
+            page_views: number;
+            /** Pages */
+            pages: components["schemas"]["MonthlyRowOut"][];
+            /** Returning */
+            returning: components["schemas"]["MonthlyRowOut"][];
+            /** Sessions */
+            sessions: number | null;
+            /** Sources */
+            sources: components["schemas"]["MonthlyRowOut"][];
+            /** Visits */
+            visits: number | null;
+        };
+        /** MonthlyRowOut */
+        MonthlyRowOut: {
+            /** Booked Sessions */
+            booked_sessions: number;
+            /** Key */
+            key: string;
+            /** Median Ms */
+            median_ms: number | null;
+            /** Sessions */
+            sessions: number;
+            /** Visits */
+            visits: number;
+        };
+        /** MonthlySummaryOut */
+        MonthlySummaryOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Months */
+            months: components["schemas"]["MonthlyOut"][];
+            /** Stats Start */
+            stats_start: string | null;
+        };
         /** NoDepositReasonOption */
         NoDepositReasonOption: {
             /** Priority */
@@ -9798,6 +10156,76 @@ export interface components {
             high_potential_count: number;
             /** Overdue Followup Count */
             overdue_followup_count: number;
+        };
+        /**
+         * NotFoundIn
+         * @description 與 web/shared/telemetry.ts 的 validateNotFound 同一套規則。
+         */
+        NotFoundIn: {
+            /**
+             * Event
+             * @constant
+             */
+            event: "not_found";
+            /** Path */
+            path: string;
+            /**
+             * Ref
+             * @enum {string}
+             */
+            ref: "none" | "internal" | "search" | "external";
+        };
+        /** NotFoundPathOut */
+        NotFoundPathOut: {
+            /** Hits */
+            hits: number;
+            /**
+             * Last Day
+             * Format: date
+             */
+            last_day: string;
+            /** Path */
+            path: string;
+            /** Refs */
+            refs: components["schemas"]["NotFoundRefOut"][];
+            /** Visitor Hits */
+            visitor_hits: number;
+        };
+        /** NotFoundRefOut */
+        NotFoundRefOut: {
+            /** Hits */
+            hits: number;
+            /**
+             * Ref
+             * @enum {string}
+             */
+            ref: "none" | "internal" | "search" | "external" | "crawler";
+        };
+        /** NotFoundSummaryOut */
+        NotFoundSummaryOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Days */
+            days: number;
+            /** Paths */
+            paths: components["schemas"]["NotFoundPathOut"][];
+            /** Paths Total */
+            paths_total: number;
+            /**
+             * Since
+             * Format: date
+             */
+            since: string;
+            /** Totals */
+            totals: components["schemas"]["NotFoundRefOut"][];
+            /**
+             * Until
+             * Format: date
+             */
+            until: string;
         };
         /** NotificationCampusCountOut */
         NotificationCampusCountOut: {
@@ -9928,6 +10356,13 @@ export interface components {
              * Format: time
              */
             start_time: string;
+        };
+        /** OfficeHoursOut */
+        OfficeHoursOut: {
+            /** Hours */
+            hours: number[];
+            /** Weekdays */
+            weekdays: number[];
         };
         /**
          * OutboxDeliveredOut
@@ -11429,10 +11864,16 @@ export interface components {
             end?: string | null;
             /** Error */
             error?: string | null;
+            /** Missed Queries */
+            missed_queries?: components["schemas"]["SearchQueryRowOut"][];
             /** Pages */
             pages?: components["schemas"]["SearchPageRowOut"][];
             /** Queries */
             queries?: components["schemas"]["SearchQueryRowOut"][];
+            /** Queries Seen */
+            queries_seen?: number | null;
+            /** Query Groups */
+            query_groups?: components["schemas"]["SearchQueryGroupOut"][];
             /** Start */
             start?: string | null;
             totals?: components["schemas"]["SearchMetricsOut"] | null;
@@ -11461,12 +11902,35 @@ export interface components {
             /** Position */
             position: number;
         };
+        /** SearchQueryGroupOut */
+        SearchQueryGroupOut: {
+            /** Clicks */
+            clicks: number;
+            /** Ctr */
+            ctr: number | null;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "brand" | "local" | "category" | "other";
+            /** Impressions */
+            impressions: number;
+            /** Position */
+            position: number | null;
+            /** Queries */
+            queries: number;
+        };
         /** SearchQueryRowOut */
         SearchQueryRowOut: {
             /** Clicks */
             clicks: number;
             /** Ctr */
             ctr: number;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "brand" | "local" | "category" | "other";
             /** Impressions */
             impressions: number;
             /** Position */
@@ -11644,6 +12108,21 @@ export interface components {
             overwrite: boolean;
             /** School Year */
             school_year: number;
+        };
+        /** StatsHealthOut */
+        StatsHealthOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Issues */
+            issues: components["schemas"]["HealthIssueOut"][];
         };
         /** StudentMove */
         StudentMove: {
@@ -15531,6 +16010,76 @@ export interface operations {
             };
         };
     };
+    get_contact_hours_api_website_v1_admin_analytics_contact_hours_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContactHoursOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_crawlers_api_website_v1_admin_analytics_crawlers_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CrawlerSummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_engagement_api_website_v1_admin_analytics_engagement_get: {
         parameters: {
             query?: {
@@ -15633,6 +16182,107 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AnalyticsFunnelOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_stats_health_api_website_v1_admin_analytics_health_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StatsHealthOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_monthly_api_website_v1_admin_analytics_monthly_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MonthlySummaryOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_not_found_api_website_v1_admin_analytics_not_found_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotFoundSummaryOut"];
                 };
             };
             /** @description Validation Error */
@@ -20923,6 +21573,37 @@ export interface operations {
             };
         };
     };
+    record_crawler_hits_api_website_v1_public_crawler_hits_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CrawlerBatchIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     record_engagement_api_website_v1_public_engagement_post: {
         parameters: {
             query?: never;
@@ -21009,6 +21690,37 @@ export interface operations {
                 content: {
                     "application/json": unknown;
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    record_not_found_api_website_v1_public_not_found_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotFoundIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

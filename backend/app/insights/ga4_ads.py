@@ -28,6 +28,7 @@ RESULT_TTL_SECONDS = 6 * 3600
 
 STEP_COST = "查詢 GA4 廣告花費"
 STEP_LEADS = "查詢 GA4 預約轉換"
+STEP_EVENTS = "查詢 GA4 事件數"
 
 _DIMENSIONS = ["yearMonth", "sessionGoogleAdsCampaignId", "sessionGoogleAdsCampaignName"]
 _COST_METRICS = ["advertiserAdCost", "advertiserAdClicks", "advertiserAdImpressions"]
@@ -129,6 +130,43 @@ class Ga4Ads:
             return _parse(step, status, data, len(metrics))
 
         return await self._results.get((prop, start, end, kind), fetch)
+
+    def configured(self, settings: Settings) -> bool:
+        return settings.google_sc_service_account is not None and bool(settings.ga4_property_id)
+
+    async def event_count(
+        self, settings: Settings, day: date, transport: httpx.AsyncBaseTransport | None = None
+    ) -> int:
+        """某一天 GA4 收到的事件總數（統計健康檢查用，2026-11-20 §2）。沒有設定時呼叫端不該叫；失敗丟 GoogleApiError。"""
+        account = settings.google_sc_service_account
+        prop = settings.ga4_property_id
+        assert account is not None and prop
+
+        async def fetch() -> _Table:
+            async with new_client(GA4_USER_AGENT, transport) as client:
+                token = await self._auth.get(client, account)
+                body = {
+                    "dateRanges": [{"startDate": day.isoformat(), "endDate": day.isoformat()}],
+                    "metrics": [{"name": "eventCount"}],
+                    "limit": 1,
+                }
+                status, data = await post_json(
+                    client, STEP_EVENTS, REPORT_URL.format(property=prop), json=body,
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+            if status == 401:
+                self._auth.drop()
+            if status != 200 or not isinstance(data, dict):
+                raise GoogleApiError(STEP_EVENTS, status=status)
+            rows = data.get("rows") or []
+            try:
+                count = sum(float(row["metricValues"][0]["value"]) for row in rows)
+            except (KeyError, IndexError, TypeError, ValueError) as exc:
+                raise GoogleApiError(STEP_EVENTS, status=status, reason="回應格式不對") from exc
+            return _Table({("", ""): ("", [count])}, None, None)
+
+        table = (await self._results.get((prop, day, day, "events"), fetch)).value
+        return round(sum(values[0] for _, values in table.rows.values()))
 
     async def report(
         self, settings: Settings, start: date, end: date, transport: httpx.AsyncBaseTransport | None = None

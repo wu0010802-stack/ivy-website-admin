@@ -213,14 +213,14 @@ describe('常春藤環境頁的後台內容', () => {
     live.hero_highlight = '環境'
     live.meals[1]!.name = '水果'
     live.meals[1]!.time = '10:30'
-    live.spaces[2]!.campus_label = ''
+    live.spaces[0]!.campus_label = '義華校'
     live.hero_notice = '   '.trim()
     const html = await render(overlay(live))
     expect(html).toContain('歡迎來到')
     expect(html).toMatch(/我們的<mark class="renv-mark">環境<\/mark><\/span>/)
     expect(html).not.toContain('孩子的每一天')
     expect(html).toContain('10:30')
-    expect(html).not.toContain('class="renv-stop-campus"')
+    expect(html.match(/<p class="renv-stop-campus">[^<]+<\/p>/g)).toEqual(['<p class="renv-stop-campus">義華校</p>'])
     // 大標沒有螢光字、提醒留空：不畫螢光、不畫提醒
     live.hero_highlight = ''
     const plain = await render(overlay(live))

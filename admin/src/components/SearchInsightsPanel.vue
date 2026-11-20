@@ -4,11 +4,13 @@ import { api, ApiError } from '../api/client'
 import {
   SEARCH_DEVICE_LABELS, formatCtr, formatPosition, readablePath, searchPageLabel, searchPeriod, type SearchInsights,
 } from '../api/googleInsights'
+import { SEARCH_GROUP_LABELS } from '../api/analyticsMore'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import RowsToggle from './analytics/RowsToggle.vue'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
+import { formatCount } from './analytics/format'
 
 // Google 搜尋（2026-11-12，Search Console）：家長在 Google 搜尋什麼字、點進官網哪一頁。
 // 期間由成效統計頁首共用的那一組決定；只有切到這一類（active）才向 Google 要資料，
@@ -68,6 +70,10 @@ const pagesExpanded = ref(false)
 const visibleQueries = computed(() => (queriesExpanded.value ? queries.value : queries.value.slice(0, LIST_LIMIT)))
 const pages = computed(() => (data.value?.pages ?? []).map((row) => ({ ...row, label: searchPageLabel(row.page), path: readablePath(row.page) })))
 const visiblePages = computed(() => (pagesExpanded.value ? pages.value : pages.value.slice(0, LIST_LIMIT)))
+// 搜尋字詞分群與曝光多、點擊少的字詞（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §5）：後端從前 500 個字詞算。
+const queryGroups = computed(() => data.value?.query_groups ?? [])
+const groupedImpressions = computed(() => queryGroups.value.reduce((sum, row) => sum + row.impressions, 0))
+const missed = computed(() => data.value?.missed_queries ?? [])
 const devices = computed(() => data.value?.devices ?? [])
 const deviceClicks = computed(() => devices.value.reduce((sum, row) => sum + row.clicks, 0))
 const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((clicks / deviceClicks.value) * 100)}%` : '—')
@@ -105,12 +111,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
           <div class="stat-list search__stats" data-test="search-totals">
             <div class="stat">
               <span class="stat__label">點進官網</span>
-              <span class="stat__value">{{ totals.clicks }}</span>
+              <span class="stat__value">{{ formatCount(totals.clicks) }}</span>
               <span class="stat__hint">次</span>
             </div>
             <div class="stat">
               <span class="stat__label">出現在搜尋結果</span>
-              <span class="stat__value">{{ totals.impressions }}</span>
+              <span class="stat__value">{{ formatCount(totals.impressions) }}</span>
               <span class="stat__hint">次</span>
             </div>
             <div class="stat">
@@ -133,6 +139,56 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
         </div>
       </section>
 
+      <div v-if="groupedImpressions" class="search__cols">
+        <section class="panel" aria-labelledby="search-groups-title">
+          <div class="panel__head"><h2 id="search-groups-title">大家在找什麼<span class="search__sub">搜尋字詞分四群</span></h2></div>
+          <div class="panel__body search__body">
+            <div class="search__scroll" role="region" tabindex="0" aria-label="搜尋字詞分群（可左右捲動）">
+              <table class="search__table" data-test="search-groups">
+                <thead><tr><th scope="col">字詞</th><th scope="col" class="num">字詞數</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
+                <tbody>
+                  <tr v-for="row in queryGroups" :key="row.group" :data-test="`search-group-${row.group}`">
+                    <th scope="row">{{ SEARCH_GROUP_LABELS[row.group].label }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].hint }}</span></th>
+                    <td class="num">{{ formatCount(row.queries) }}</td>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
+                    <td class="num">{{ formatCtr(row.ctr) }}</td>
+                    <td class="num">{{ formatPosition(row.position) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <AnalyticsExplainer>
+              <p>「找我們」多代表已經知道常春藤的家長在找；「帶高雄地名」「找園所」是還在比較的家長，這兩群的出現次數與排名比較能看出官網被新家長找到的程度。</p>
+              <p>從 Google 回的前 {{ data.queries_seen ?? 0 }} 個字詞分群；Google 隱藏的少數字詞不在裡面，所以加起來比上面的總數少。排名是依出現次數加權的平均。</p>
+            </AnalyticsExplainer>
+          </div>
+        </section>
+
+        <section class="panel" :class="{ 'is-empty': !missed.length }" aria-labelledby="search-missed-title">
+          <div class="panel__head"><h2 id="search-missed-title">常出現、卻很少人點的字詞</h2></div>
+          <div class="panel__body search__body">
+            <p v-if="!missed.length" class="hint" data-test="search-missed-empty">沒有出現 20 次以上、點進去不到 2% 的字詞。</p>
+            <div v-else class="search__scroll" role="region" tabindex="0" aria-label="常出現、卻很少人點的字詞（可左右捲動）">
+              <table class="search__table" data-test="search-missed">
+                <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">排名</th></tr></thead>
+                <tbody>
+                  <tr v-for="row in missed" :key="row.query">
+                    <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].label }}</span></th>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
+                    <td class="num">{{ formatPosition(row.position) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <AnalyticsExplainer>
+              <p>出現 20 次以上、點進去不到 2% 的字詞，出現次數多的在前。排名在 10 名以後（第二頁）的，多半是還不夠前面；排在前幾名卻沒人點的，可以看看搜尋結果上的標題與說明是不是對得上家長想找的。</p>
+            </AnalyticsExplainer>
+          </div>
+        </section>
+      </div>
+
       <div class="search__cols">
         <section class="panel" aria-labelledby="search-queries-title">
           <div class="panel__head"><h2 id="search-queries-title">搜尋字詞<span class="search__sub">點進官網最多的，最多列 25 個</span></h2></div>
@@ -143,9 +199,9 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                 <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                 <tbody>
                   <tr v-for="row in visibleQueries" :key="row.query">
-                    <th scope="row">{{ row.query }}</th>
-                    <td class="num">{{ row.clicks }}</td>
-                    <td class="num">{{ row.impressions }}</td>
+                    <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group]?.label }}</span></th>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
                     <td class="num">{{ formatCtr(row.ctr) }}</td>
                     <td class="num">{{ formatPosition(row.position) }}</td>
                   </tr>
@@ -167,11 +223,11 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   <tbody>
                     <tr v-for="row in visiblePages" :key="row.page">
                       <th scope="row">
-                        <template v-if="row.label">{{ row.label }}<span class="hint search__path">{{ row.path }}</span></template>
+                        <template v-if="row.label">{{ row.label }}<span class="hint search__path search__path--extra">{{ row.path }}</span></template>
                         <template v-else>{{ row.path }}</template>
                       </th>
-                      <td class="num">{{ row.clicks }}</td>
-                      <td class="num">{{ row.impressions }}</td>
+                      <td class="num">{{ formatCount(row.clicks) }}</td>
+                      <td class="num">{{ formatCount(row.impressions) }}</td>
                       <td class="num">{{ formatCtr(row.ctr) }}</td>
                       <td class="num">{{ formatPosition(row.position) }}</td>
                     </tr>
@@ -192,9 +248,9 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   <tbody>
                     <tr v-for="row in devices" :key="row.device">
                       <th scope="row">{{ SEARCH_DEVICE_LABELS[row.device] }}</th>
-                      <td class="num">{{ row.clicks }}</td>
+                      <td class="num">{{ formatCount(row.clicks) }}</td>
                       <td class="num">{{ deviceShare(row.clicks) }}</td>
-                      <td class="num">{{ row.impressions }}</td>
+                      <td class="num">{{ formatCount(row.impressions) }}</td>
                       <td class="num">{{ formatCtr(row.ctr) }}</td>
                       <td class="num">{{ formatPosition(row.position) }}</td>
                     </tr>
@@ -296,9 +352,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
   font-weight: 500;
 }
 
+/* 搜尋字詞多半是用空格隔開的幾個詞（「高雄 幼兒園 推薦」）：欄位窄時在空格換行、不把一個詞拆開；
+   沒有空格又放不下的長字串（路徑）才任意斷。 */
 .search__table tbody th {
   font-weight: 400;
   color: var(--ink);
+  word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
@@ -328,6 +387,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
   .search__table th,
   .search__table td {
     padding: 10px 6px;
+  }
+
+  /* 手機上頁面名稱那一欄只有一百多 px：已經有中文名稱的頁面不再重複寫路徑（會斷成「/environmen／t」）；
+     認不得的路徑照舊顯示。完整路徑在桌機與 Search Console 看得到。 */
+  .search__path--extra {
+    display: none;
   }
 }
 </style>

@@ -21,7 +21,7 @@ export type AnalyticsDevice = (typeof ANALYTICS_DEVICE_OPTIONS)[number]['value']
 export const DEFAULT_ANALYTICS_DEVICE: AnalyticsDevice = 'all'
 
 /**
- * 四類各回答一個問題：有多少人看、看了什麼、怎麼來怎麼逛、有沒有走到預約。
+ * 四類各回答一個問題：有多少人看、看了什麼、怎麼來怎麼逛、有沒有走到預約；第五類（2026-11-20）是每月比較。
  * 代號寫在網址 `?tab=`；10-13 以前的舊連結（booking／classes）認不得，一律回到第一類。
  */
 export const ANALYTICS_TABS = [
@@ -29,11 +29,13 @@ export const ANALYTICS_TABS = [
   { key: 'content', label: '看了什麼' },
   { key: 'journey', label: '怎麼來、怎麼逛' },
   { key: 'convert', label: '走到預約' },
+  // 2026-11-20：每月彙總（一直留著，可以和去年同月比）。期間與裝置選單在這一類不適用。
+  { key: 'monthly', label: '每月比較' },
 ] as const
 export type AnalyticsTab = (typeof ANALYTICS_TABS)[number]['key']
 export const DEFAULT_ANALYTICS_TAB: AnalyticsTab = 'traffic'
 /** 後三類都讀內容興趣的同一份資料，由 ContentInterestPanel 依這個值決定顯示哪幾張表。 */
-export type InterestView = Exclude<AnalyticsTab, 'traffic'>
+export type InterestView = Exclude<AnalyticsTab, 'traffic' | 'monthly'>
 
 /**
  * 成效統計從哪一天（台北）起算（2026-11-20）：網域 11-11 才切到新站，之前與 11-12 上線驗證那幾天幾乎都是
