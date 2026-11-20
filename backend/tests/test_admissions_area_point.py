@@ -177,7 +177,7 @@ async def test_locate_not_found_reason(admin_client, db_session, key, reason):
 
 async def test_locate_before_doorplates_are_imported(admin_client):
     response = await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES["yihua_exact"]})
-    assert response.status_code == 404 and response.json()["detail"]["reason"] == "imprecise"
+    assert response.status_code == 404 and response.json()["detail"]["reason"] == "pending"
 
 
 @pytest.mark.parametrize("address", ["", "   ", "路" * 101])

@@ -1113,7 +1113,7 @@ async def get_admissions_area_locate(
     if match.match_level not in ("exact", "nearby") or match.lat is None or match.lng is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail={"code": "ADDRESS_NOT_FOUND", "message": "找不到這個地址", "reason": match.unlocated_reason or "imprecise"},
+            detail={"code": "ADDRESS_NOT_FOUND", "message": "找不到這個地址", "reason": match.unlocated_reason or ("pending" if match.match_level == "pending" else "imprecise")},
         )
     return AreaLocateOut(
         lat=match.lat, lng=match.lng, district=match.district, village=match.village, match_level=match.match_level
