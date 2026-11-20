@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { TopRight } from '@element-plus/icons-vue'
+import { Opportunity, TopRight } from '@element-plus/icons-vue'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { useNarrowScreen } from '../composables/useNarrowScreen'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { NAV_GROUPS, SEARCH_ONLY_GROUP, canOpenPath } from '../router/nav'
+import { NAV_GROUPS, SEARCH_ONLY_GROUPS, canOpenPath } from '../router/nav'
 import { websitePageUrl } from '../composables/websiteLinks'
+import { tipSectionForPath } from '../tips/pageSections'
 import AdminSidebar from '../components/AdminSidebar.vue'
 import SessionLimitNotice from '../components/SessionLimitNotice.vue'
 
@@ -43,6 +44,12 @@ const pageTitle = computed(() => route.meta.title ?? '')
 // 要用登入回應帶來的官網 origin 組絕對網址（composables/websiteLinks.ts）。
 const websiteHome = computed(() => websitePageUrl('/', auth.features.public_site_origin))
 const websiteNote = '另開新分頁，顯示家長現在看到的版本；還沒發布的草稿不會出現'
+// 使用小技巧（2026-11-20 從側欄最後一項搬到頁首）：在參觀案件、招生、官網內容這些頁面點，
+// 直接打開那一類；其他頁面打開全部。在小技巧頁上點等於清掉分類與搜尋、回到全部。
+const tipsLink = computed(() => {
+  const section = tipSectionForPath(route.name === 'visit-detail' ? '/visit-requests' : route.path)
+  return { path: '/tips', query: section ? { section } : {} }
+})
 // 側欄不掛數字；給自己的內容通知未讀時，
 // 改在頁首出現一個連結，任何頁面都看得到、點了直接進去。
 const unreadLinks = computed(() => {
@@ -57,7 +64,7 @@ const unreadLinks = computed(() => {
 // 沒有區段的分組才用自己的名稱。我的帳號跟側欄搜尋一樣歸在「個人」；找不到頁面
 // 這類不屬於任何分組的頁面不顯示這一行，不寫一個沒有資訊的「管理後台」。
 const groupLabel = computed(() => {
-  const group = [...NAV_GROUPS, SEARCH_ONLY_GROUP].find(group => group.items.some(item =>
+  const group = [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS].find(group => group.items.some(item =>
     item.path === route.path || (route.name === 'visit-detail' && item.name === 'visit-requests'),
   ))
   return group?.section ?? group?.label ?? ''
@@ -139,6 +146,8 @@ async function handleLogout() {
             <span class="top__alert-count num">{{ link.count > 99 ? '99+' : link.count }}</span><span class="top__alert-long">{{ link.label }}</span><span class="top__alert-short" aria-hidden="true">{{ link.short }}</span>
           </router-link>
         </nav>
+        <!-- 手機只留燈泡圖示，字給報讀器（.top__tips-label 在 900px 以下視覺隱藏）。 -->
+        <router-link class="top__tips" :to="tipsLink"><el-icon aria-hidden="true"><Opportunity /></el-icon><span class="top__tips-label">使用小技巧</span></router-link>
         <a class="top__site" :href="websiteHome" target="_blank" rel="noopener" aria-describedby="top-site-note"
           :title="websiteNote">查看官網 <el-icon><TopRight /></el-icon></a>
         <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
@@ -156,20 +165,23 @@ async function handleLogout() {
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px; border-radius: var(--radius); background: var(--ink); color: var(--surface); }
 .skip-link:focus { top: 12px; }
 /* overflow:hidden 是保險：側欄裡絕對定位的東西（例如數字的報讀文字）不能把整頁撐高。 */
-.side { position: sticky; top: 0; height: 100svh; overflow: hidden; background: var(--sidebar-bg); }
+/* view-transition-name：登入頁左邊的側欄與這裡同名，登入成功時原地展開（LoginView.vue 的 enterAdmin）。 */
+.side { position: sticky; top: 0; height: 100svh; overflow: hidden; background: var(--sidebar-bg); view-transition-name: admin-side; }
 .main-col { display: flex; flex-direction: column; min-width: 0; }
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; min-height: var(--top-h); padding: 8px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
-.top__heading { min-width: 0; display: grid; gap: 3px; }
+.top__heading { min-width: 0; display: grid; gap: 3px; margin-right: auto; }
 .top__heading h1 { font-size: var(--text-xl); }
 .top__group { font-size: var(--text-xs); color: var(--ink-3); }
-.top__alerts { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
+.top__alerts { display: flex; flex-wrap: wrap; gap: 8px; }
 .top__alert { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--brand-gold); border-radius: var(--radius); background: var(--surface); font-size: var(--text-sm); color: var(--ink); }
 .top__alert:hover { background: var(--surface-2); text-decoration: none; }
 .top__alert-count { min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand-gold); color: var(--ink); font-size: var(--text-xs); font-weight: 600; line-height: 20px; text-align: center; }
 .top__alert-short { display: none; }
-.top__alerts + .top__site { margin-left: 0; }
-.top__site { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: var(--text-sm); color: var(--ink-2); }
-.top__site:hover { background: var(--surface-2); text-decoration: none; }
+.top__site, .top__tips { flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line); border-radius: var(--radius); font-size: var(--text-sm); color: var(--ink-2); }
+.top__site:hover, .top__tips:hover { background: var(--surface-2); text-decoration: none; }
+/* 圖示在字前面，跟「查看官網」字後面的 ↗ 一樣大；在小技巧頁上標成目前位置。 */
+.top__tips .el-icon { font-size: var(--text-md); }
+.top__tips.router-link-active { background: var(--surface-2); color: var(--ink); }
 .top__menu { display: grid; place-items: center; flex-shrink: 0; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--radius); cursor: pointer; font-size: var(--text-2xl); }
 .main { flex: 1; min-width: 0; padding: 28px 28px 48px; scroll-margin-top: var(--top-h); outline: none; }
 @media (max-width: 900px) {
@@ -177,10 +189,13 @@ async function handleLogout() {
   .top { padding: 0 16px; }
   .top__heading h1 { font-size: var(--text-xl); }
   .top__site { min-height: 44px; padding: 0 8px; }
+  .top__tips { justify-content: center; min-width: 44px; min-height: 44px; padding: 0; }
+  .top__tips .el-icon { font-size: var(--text-xl); }
+  .top__tips-label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .top__alert { min-height: 44px; padding: 0 8px; white-space: nowrap; }
   .top__alert-long { display: none; }
   .top__alert-short { display: inline; }
-  .top__heading { flex: 1; }
+  .top__heading { flex: 1; margin-right: 0; }
   .top__alerts { margin-left: 0; flex-wrap: nowrap; }
   .main { padding: 20px 16px 32px; }
 }

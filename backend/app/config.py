@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from typing import Literal
 from urllib.parse import urlsplit
 
@@ -254,6 +255,10 @@ class Settings(BaseSettings):
     telemetry_daily_cap: int = Field(default=20_000, ge=1, le=10_000_000)
     analytics_clicks_global_per_minute: int = Field(default=120, ge=1, le=100_000)
     analytics_clicks_daily_cap: int = Field(default=5_000, ge=1, le=10_000_000)
+    # 後台成效統計（瀏覽與速度、內容興趣）從哪一天（台北）起算（2026-11-20）。網域 11-11 才切到新站，
+    # 之前只有內部的人與自動化驗證在看；11-12 /about 上線驗證又灌進約 250 次造訪。這天以前的紀錄
+    # 照留、不刪，只是不列入統計。測試設成 None（不限），免得以「今天往前 N 天」種資料的測試隨日期失效。
+    analytics_stats_start: date | None = date(2026, 11, 13)
 
     @field_validator(
         "google_client_id", "google_client_secret", "google_redirect_uri",

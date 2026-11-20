@@ -116,10 +116,16 @@
   --text-3xl: 22px;
   --text-4xl: 24px;
   --text-5xl: 28px;
+  /* 例外：只給登入頁的問候語（「早安」，2026-11-19 登入頁方向 1），後台內頁不用。 */
+  --text-display: 44px;
+  --text-display-sm: 34px;
 
-  /* 登入頁：冷色淺底，去背 logo 直接貼著底色，只靠柔和投影托起來。 */
+  /* 設定新密碼頁的冷色淺底（登入頁 2026-11-19 起改用後台的 --surface-2）。 */
   --login-bg: oklch(0.955 0.012 258);
-  --login-crest-shadow: oklch(0.35 0.05 255 / 0.14);
+  /* 登入頁（2026-11-19）：回訪者頭像與提示列的淡操作色底、輸入框聚焦外圈、送出中轉圈的底圈。 */
+  --login-soft: color-mix(in oklch, var(--admin-accent), var(--surface) 88%);
+  --login-ring: color-mix(in oklch, var(--admin-accent), transparent 74%);
+  --login-spinner-track: color-mix(in oklch, var(--surface), transparent 65%);
   /* 登入頁的 Google／LINE 按鈕：第三方品牌規範色，不跟後台主題，數值照官方規範不可改。
      LINE 是綠底白字、8% 黑分隔線，hover／press 疊 10%／30% 黑。 */
   --google-button-fill: #fff;
@@ -872,3 +878,30 @@ a.stat:hover {
 [data-section-anchor] { scroll-margin-top: 80px; }
 [data-section-anchor]:focus { outline: none; }
 [data-section-anchor]:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 4px; }
+
+/* 登入成功的轉場（2026-11-19，LoginView.vue 的 enterAdmin）：登入頁左邊 64px 的側欄與 AdminLayout 的
+   側欄同名（view-transition-name: admin-side），原地展開成真的側欄；兩邊都是深色底，畫面不縮放、
+   只把寬度拉開，右邊工作區交叉淡入。只在登入那一次（html.is-entering-admin）套用。 */
+html.is-entering-admin::view-transition-group(admin-side) {
+  overflow: clip;
+  animation-duration: 0.45s;
+  animation-timing-function: var(--ease-out);
+}
+
+html.is-entering-admin::view-transition-old(admin-side),
+html.is-entering-admin::view-transition-new(admin-side) {
+  width: auto;
+  height: 100%;
+  object-fit: none;
+  object-position: left top;
+}
+
+/* 新的側欄一開始就不透明（兩邊同色），只靠外框變寬把它「拉開」，不會看到半透明疊影。 */
+html.is-entering-admin::view-transition-new(admin-side) {
+  animation: none;
+}
+
+html.is-entering-admin::view-transition-old(root),
+html.is-entering-admin::view-transition-new(root) {
+  animation-duration: 0.3s;
+}

@@ -11,6 +11,75 @@
 - **來源「合併相近寫法」**（`feature/admissions-source-merge-20261120`，接在上面之後另一個 PR）：來源分析多一個開關，把「FB」「Facebook」「臉書」這類寫法合成一列，名稱用筆數最多的寫法、其餘寫在名稱下面。合併與可能範圍在後端算（`GET /admin/admissions/stats` 多回 `by_source_merged`，比對規則在 `backend/app/admissions/source_alias.py`），資料庫裡的原文不動；預設關。匯出跟著畫面（合併時多一欄「包含的寫法」、檔名註明）。契約有新增欄位，沒有 migration。
 - **沒做**：總覽重排與比率上色（會和園務分歧，使用者裁定不動）。
 
+## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
+
+使用者請我看 `/environment` 的 UI 美術還能怎麼優化。評析找出六類問題，照片那一類（教室、套房式衛廁、健康把關、衣物保暖四張最弱）這次不動；其餘做成前後對照給使用者看過，回覆「都幫我修」。規則寫在 DESIGN.md「環境頁美術收尾」。
+
+- 章頭的一句話收回大標正下方；校園環境的章頭改靠左，四章一致。
+- 五顆心打開時，小心形裡先是那顆心的顏色，相連時才褪成照片（原本會露出糊掉的書櫃、切一半的臉）。
+- 五件照顧小事的說明 16px → 17.3px。
+- 遊樂區的黃色文字積木只有內容高、和照片站在同一條底線；視窗高 720 以上，積木上方放一顆珊瑚橘的球。
+- 六個空間舞台：六個形狀的底都貼著底線（半圓不再浮在半空），說明貼底、緊接六顆進度積木。
+- 五所校園面板：照片加一圈米白窗框；左欄沒選中的角落不畫半透明底。
+- 結尾（桌機）：三塊連結積木高低錯落、底邊切平，站在頁尾上緣。
+- 首屏拱窗展開途中，右下那塊綠色小積木不再從橫幅露出一截。
+
+改的檔案：`web/app/assets/css/environment.css`、`web/app/utils/environment-windows.ts`（`heartsFrame` 多回傳 `tint`、`stopShapes` 的半圓貼底）、`web/app/components/EnvironmentContent.vue`（五顆心照片層多一個色片 span）；測試 `environment-windows-20261117.spec.ts` 兩條斷言跟著改、逐字快照更新（差異只有那個色片 span）。
+
+驗證（Node 22.23.2，本機 fixture dev server 3241）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm --prefix web run test:unit` | 165 檔、2,503 項通過 |
+| 後台讀官網原始碼的 4 支（`environmentPageDraft`、`pageCopyFields`、`engagement`、`previewProtocol`） | 109 項通過 |
+| `node scripts/page-copy-stress.cjs /environment`，一般與 `STRESS_MOTION=1` | 320／390／820／901／1024／1100／1440 全部通過 |
+| Playwright 量遊樂區球、舞台說明、結尾積木（901–1920 寬、600–1080 高九種視窗，內建與上限字數） | 球不碰章標題、說明不壓進度積木、結尾三塊底邊切齊站在頁尾上、無橫向捲動 |
+| `tests/e2e/environment-windows.spec.ts`（Chrome／WebKit × 桌機／手機） | 第一輪 37 過 9 紅，只重跑紅的 5 過 4 紅。紅的都不是版面斷言：重新整理後 5 秒內模組還沒載入、dev 模式 `_nuxt/builds/meta/dev.json` 被中斷記成主控台錯誤、瀏覽器 session 斷線、開分頁就花 15 秒而整項逾時（桌機 WebKit 五校分頁那一項 trace 裡每個斷言都通過）。當時本機負載 22–36（其他 session 在跑測試），沒有在低負載下重跑。PR #123 的 CI（正式建置、乾淨環境）E2E 三段 23＋186＋83 全過，含環境頁四組視窗 |
+
+| 部署後正式站（Playwright，擋追蹤、POST 本機回 204） | `release.json` base_commit `b9726e76`；1440×900 與 390×844 的八處改動都生效、無橫向捲動、無頁面錯誤 |
+
+PR 與上線經過、Railway 部署見 `deploy/README.md` 同日段落。沒驗：stack e2e（CI 有跑）、iOS／Safari 實機。
+
+## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`，紀錄見 `deploy/README.md`）
+
+使用者要確認正式站 `/admin/analytics` 的資料正確性。用已登入的後台唯讀抓 API、逐張表對照算法：加總、比例、中位數、時段（台北時間）都對，但資料本身有四個問題，使用者說「全部都幫我修」。
+
+- **混進上線前與內部流量**：網域 11-11 13:55 才切到新站，「近 28 天」2279 次瀏覽有 965 次（42%）是 10/24–11/10 的內部瀏覽；11-12 單日 250 次造訪（28 天 544 次的 46%），239 次直接進站、152 次只看 /about（當天 /about 上線驗證與首屏文案量斷行都用自動化瀏覽器跑正式站），把停留、直接進站比例、時段熱圖都拉歪。
+  - 後端新設定 `analytics_stats_start`（`WEBSITE_ANALYTICS_STATS_START`，預設 **2026-11-13**；測試設 None）：瀏覽與速度、內容興趣的期間碰到它就從它開始，上一期有任何一天在它之前就不比。紀錄照留、不刪。Google 搜尋與 LINE 的期間在後台截（`searchPeriod`），整頁同一段；期間文字補「官網 11/13 起才列入統計」。
+  - 官網第一方統計（瀏覽、速度、內容興趣、預約鈕與聯絡點擊）新閘門 `statsAllowed`：「不要追蹤」之外，`navigator.webdriver`（Playwright、Lighthouse）、爬蟲與無畫面瀏覽器（沿用錯誤回報的 `isAutomatedUserAgent`）、登入過後台的瀏覽器都不送。後台登入或恢復登入成功時寫 `ivy_staff=1`（admin 子網域寫在上層網域 `ivykidschool.com`，約 400 天，登出不清）；GA／Pixel 不看這兩條，照舊只看 DNT／GPC。
+- **測試預約被算成實際預約**：期間唯一一筆預約是 11-17 標成「測試」排除的案件，成效統計卻在「實際預約」「送出預約的造訪」「預約成功」都算 1（招生統計正確顯示 0）。「各校的興趣與預約」的實際預約改讀案件：官網送出、沒被排除（`exclusion.not_excluded()`），和招生統計 `web_cases` 同口徑；後台補登的不算。瀏覽器回報的「送出預約的造訪」連不回案件，改由上面的後台人員閘門擋住之後的測試；已經寫進去的那一筆另外清（見 deploy/README）。
+- **五校預約頁瀏覽漏記約六成**：`/visit` → `/visit/<校>` 共用頁面實例、沒有 `page:finish`，第一方瀏覽統計沒記（11-11 起 36 次，內容興趣 96 次）。比照 11-19 GA 的修法，換頁完成時 `reusesPageInstance` 就補記一次。
+- **小問題**：Google 搜尋的頁面路徑解碼成中文；404 等錯誤頁（例如關掉的 30 週年頁）不再算瀏覽與造訪。核對時 0.18% 顯示成「0%」的問題，PR #120 已改成小比例顯示兩位小數，這裡不另外改。
+
+驗證：合併 PR #120 前後端全套 5825 passed／1 skipped、web 全套單元 2507（一支負載逾時單獨重跑過）；合併 main（`6e724910`，含 #120）後重跑相關的後端 172、web 159、admin 112，web／admin typecheck、contract:check 都過。畫面只多文字（期間後面的起算說明、排除說明、解碼後的路徑），沒有跑 Playwright 截圖。
+
+已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），11-20 上午使用者已用 `railway ssh` 跑完（刪 3 列，刪前已備份）。
+
+## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（`feature/admin-tips-header-20261120`，未部署）
+
+使用者：「幫我優化 /admin/tips，使用小技巧移到頂部區塊」（附「營運總覽」頁首截圖）。
+
+- **入口搬到頁首**：每一頁頁首「查看官網」左邊多一顆「使用小技巧」（燈泡＋字，900px 以下只留燈泡、字給報讀器，44px），側欄最後那一項拿掉；側欄搜尋「教學」「說明」「怎麼用」仍找得到（`nav.ts` 的 `SEARCH_ONLY_GROUP` 改成 `SEARCH_ONLY_GROUPS`，「個人」我的帳號＋「說明」使用小技巧）。在小技巧頁上標成目前位置。
+- **從哪一頁點就先打開那一類**（`admin/src/tips/pageSections.ts`，小檔，不把 tips.ts 內容拉進主程式）：參觀案件與案件明細→參觀案件、參觀場次→參觀場次、招生入學／招生統計→招生入學、官網內容／素材庫／發布紀錄→官網內容、使用者／我的帳號→帳號；其他頁打開全部。
+- **小技巧頁**：原本 34 張卡片連截圖一路攤開（1440 寬整頁約 15,900px），改成每類一個面板、每條一列（標題｜誰能用），點標題展開步驟、前往連結與截圖，全部收起時約 2,540px。「誰能用」寫在面板標題列一次，900px 以下排到標題下面。加「全部展開／全部收起」與搜尋（標題、步驟、誰能用、分類名；⌘K 與 Ctrl＋K 兩種寫法都對得到；空白分開的字都要對到；不寫進網址），找不到時有「清除搜尋」，結果數量給報讀器念。收起的內容用 `hidden="until-found"`：⌘F 找得到並自動展開。從 `#tip-<id>` 連進來那一條自己展開。分類與「只列我能用的」照舊寫在網址；選了某一類又搜到 0 條時那顆分類鈕留著。
+- **驗證**（Node 22，本機負載 15–32）：admin `typecheck` 通過、`vite build` 通過（小技巧內容只在 `TipsView` chunk）；vitest 全套 196 檔，第一輪 3 檔失敗：`adminUx` 字級規則（圖示寫了 px，已改 token）是真的，`siteMetaSeo`、`admissionsRecords` 是負載逾時，單獨重跑全過；修正後相關 34 檔與其餘 162 檔分批重跑全過。新增測試：頁首連結位置與各頁帶的分類、側欄不再列、展開／全部展開、`until-found`／`beforematch`、`#tip-<id>` 自動展開、搜尋。vite dev＋假登入用 Playwright 看 1440／1280／390／360：0 橫向溢出；axe（WCAG 2.2 AA）serious／critical 0，只有「全部展開」滑鼠停著時 4.43:1——是全後台 `el-button` 預設 hover 配色，原本就有。**沒跑**：stack e2e（`a11y` 有 `/tips`，CI 會跑）；macOS `visual` 四張基準要重拍（頁首多一顆、側欄少一列，基準本來就待重拍）。
+
+## 2026-11-19 後台登入頁改版：方向 1「後台的第一個畫面」（`feature/admin-login-rail-20261119`，部署狀態見 `deploy/README.md`）
+
+使用者從第六輪比稿（`design/admin-login-directions-20261119/`，Desktop checkout 未追蹤）選方向 1。登入頁長在後台的殼裡：左邊是 64px 的收合側欄（同後台收合後的圖示欄），右邊是後台淺色工作區，台灣時間的問候語（早安／午安／晚安）＋「官網後台登入」，顏色與控制項跟後台內頁同一套（青藍）。原本的大校徽與白卡拿掉。
+
+- **登入成功的轉場**：支援 View Transition 的瀏覽器，登入頁的側欄與 `AdminLayout` 的 `.side` 同名（`view-transition-name: admin-side`），原地展開成真的側欄、右邊交叉淡入起始頁；不支援或減少動態就直接換頁。只在登入那一次（`html.is-entering-admin`）套用。
+- **回訪者**（`admin/src/composables/lastSignIn.ts`）：登入或恢復登入成功時，在這台瀏覽器的 localStorage 記下 Email、側欄同一套的名字與「角色・校區」；下次打開是「早安 林老師」＋「用 LINE 繼續」（或只問密碼），可「換帳號」、「改用密碼登入」。**主動登出就忘掉是誰**（共用電腦下班），逾時被登出不忘。上次的方式另存、登出不清，用來標「上次使用」並排前面；Google／LINE 要導回後台恢復登入成功才算（按下時先放 sessionStorage）。清除時機是 Claude 的取捨，使用者 11-20 直接要求部署，沒有另外改。
+- **表單**：「帳號」改叫 Email、拿掉星號與重複的提示字；顯示密碼改成有名稱與狀態的按鈕；大寫鎖定提醒；「忘記密碼」點開才說明（畫面在標籤右邊、鍵盤順序在密碼欄之後）；帳密錯誤、限流、被導回原因改成表單內的一列（不再用 el-alert）；只有滑鼠鍵盤的電腦才自動聚焦。
+- **LINE 內建瀏覽器**：LINE 登入排第一，Google 改成「用瀏覽器開啟，改用 Google 登入」（`openExternalBrowser=1`）。
+- 900px 以下（後台改抽屜選單的寬度）側欄變成頂端深色列；矮筆電（1366×657、1280×720）登入鈕在第一屏。
+- **「記住這台裝置 30 天」**（下一段 PR #117，11-20 rebase 時已在 main）：新登入頁沿用同一個 `remember` 與 `remember=1`，勾選框改成原生 checkbox（`data-test="login-remember"` 不變），放在登入鈕上面；回訪者的「用 LINE／Google 繼續」上面也有，勾了網址就帶 `remember=1`。`line_other_browser` 的提示一併搬過來；回訪者從 Google／LINE 失敗導回來（取消、逾時、開到別的瀏覽器）時，密碼欄下面多一個「使用 LINE 登入」原地再試，沒綁定與限流不給。`rememberDevice.test.ts` 每個測試後清 localStorage（登入成功會記住回訪者）。
+- 新增色票 `--login-soft`、`--login-ring`、`--login-spinner-track`，字級例外 `--text-display`／`--text-display-sm`（只給登入頁問候語，`adminUx.test.ts` 守門）；拿掉不再用的 `--login-crest-shadow`（`--login-bg` 留給設定新密碼頁）。stack 的兩個登入步驟改用 `getByLabel('Email')`；登入頁視覺基準用 `page.clock.setFixedTime` 固定在 11-19 週四早上（問候語、日期才不隨拍攝時刻變），`login-chrome-darwin.png` 已在 macOS 重拍。
+- 驗證：admin typecheck 通過；全套單元測試 196 檔 3,680 項中 3,677 項通過、1 項略過，2 項在機器高負載下逾時（`admissionsRecords`、`environmentPageView`），單獨重跑 80 項全過；新增 `loginReturning.test.ts`（併入記住裝置後 21 項）。11-20 rebase 到 main（含 #117）後：typecheck 通過，登入相關 9 檔 214 項通過；stack 重 build 後 a11y、audit-client-info、password-reset、keyboard、sidebar-collapse、visual 54 項全過；假 API 重截 15 種狀態仍無溢出，1366×657 登入鈕底在 460px，鍵盤順序 Email → 密碼 → 顯示密碼 → 忘記密碼 → 記住這台裝置 → 登入 → Google → LINE。本機 vite＋假 API（`output/login-rail/`）截 15 種尺寸與狀態都沒有水平溢出、登入鈕都在第一屏；實測帳密錯誤（焦點回密碼欄並全選）、成功登入與轉場、鍵盤順序（Email → 密碼 → 顯示密碼 → 忘記密碼 → 登入 → Google → LINE）；axe 掃五種狀態沒有 serious／critical。
+- stack e2e（11-20 本機 macOS，`npm run e2e:build` 後跑 a11y、audit-client-info、exports、keyboard、password-reset、roles、sidebar-collapse、visual 八組）：64 項中 63 項通過；`keyboard` 的「1440px：後台主要頁面沒有橫向溢出」第一次卡在五校介紹頁（右側預覽還在「正在確認管理身分…」，該項跑了 50 秒），單獨連跑兩次都通過，判斷是預覽載入慢的偶發，與登入頁無關。
+- 沒驗證：Safari（View Transition 18 起才有）、Firefox、iOS／Android 實機、真的 LINE 內建瀏覽器與真的 Google／LINE 往返沒測。
+
 ## 2026-11-19 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`，紀錄見 `deploy/README.md`）
 
 接在 ChatGPT 的 `feature/analytics-journeys-20261118`（`c313ad24`，11-18「各校預約去向、回訪與來源統計」）之後：保留可用的部分、修掉審核發現的問題，再補齊 11-19 盤點的 8 項。規格與審核結論：`docs/specs/2026-11-19-cookie-stats-design.md`。

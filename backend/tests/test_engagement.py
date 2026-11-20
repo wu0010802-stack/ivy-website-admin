@@ -158,8 +158,14 @@ async def test_admin_summary(admin_client, minghua_client, public_client):
 @pytest.mark.asyncio
 async def test_booking_form_steps_classes_and_campuses(admin_client, minghua_client, public_client, db_session):
     """第二輪：預約表單卡在哪一步、入學試算的班別、各校興趣對照實際預約。"""
-    from app.operations.models import AnalyticsEvent, AnalyticsEventType
+    from datetime import datetime, timezone
+
+    from sqlalchemy import update
+
+    from app.booking.models import VisitRequest
     from app.common.timezones import now_utc
+    from app.operations.models import AnalyticsEvent, AnalyticsEventType
+    from tests.conftest import legacy_request
 
     done, stuck, no_slots, chooser = (str(uuid.uuid4()) for _ in range(4))
     visits = [
@@ -180,10 +186,20 @@ async def test_booking_form_steps_classes_and_campuses(admin_client, minghua_cli
     ]
     for body in visits:
         assert (await public_client.post(URL, json=body)).status_code == 204
+    # 實際預約＝官網送出、沒被排除的案件（2026-11-20 起同招生統計的口徑，不再讀成效事件）：
+    # 義華兩筆官網案件算；標成測試排除的、後台補登（電話）的不算。取消的仍是送出過的預約，照算。
+    await legacy_request(db_session, campus_key="yihua", status="confirmed")
+    await legacy_request(db_session, campus_key="yihua", status="cancelled")
+    excluded = await legacy_request(db_session, campus_key="yihua", status="confirmed")
+    await legacy_request(db_session, campus_key="yihua", status="confirmed", source="phone")
+    await legacy_request(db_session, campus_key="minghua", status="confirmed")
+    await db_session.execute(
+        update(VisitRequest).where(VisitRequest.id == uuid.UUID(excluded))
+        .values(excluded_at=datetime.now(timezone.utc), exclude_reason="test")
+    )
+    # 只有成效事件、沒有案件的（例如 11-13 清掉案件後留下的事件）不算。
     db_session.add_all([
-        AnalyticsEvent(event_type=AnalyticsEventType.REQUEST_CREATED, campus_key="yihua", created_at=now_utc()),
-        AnalyticsEvent(event_type=AnalyticsEventType.REQUEST_CREATED, campus_key="yihua", created_at=now_utc()),
-        AnalyticsEvent(event_type=AnalyticsEventType.REQUEST_CREATED, campus_key="minghua", created_at=now_utc()),
+        AnalyticsEvent(event_type=AnalyticsEventType.REQUEST_CREATED, campus_key="renwu", created_at=now_utc()),
         AnalyticsEvent(event_type=AnalyticsEventType.VISIT_CANCELLED, campus_key="renwu", created_at=now_utc()),
     ])
     await db_session.commit()
@@ -469,3 +485,64 @@ async def test_returning_compares_distinct_visits_and_unknowns(admin_client, pub
     ]
     mobile = await admin_client.get(ADMIN_URL, params={"device": "mobile"})
     assert mobile.json()["cohorts"][-1]["sessions"] == 0
+
+
+def _stored_visit(day, *, session=None, page="home", device="mobile", source="direct", actions=None) -> EngagementVisit:
+    from app.common.timezones import now_utc
+
+    return EngagementVisit(
+        id=uuid.uuid4(), session_id=session or uuid.uuid4(), day=day, page=page, campus_key="", item="", device=device,
+        source=source, active_ms=20_000, scroll_pct=50, sections={}, actions=actions or {}, updated_at=now_utc(), seq=1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_stats_start_trims_the_period_and_drops_the_comparison(db_session):
+    """2026-11-20：起算日（設定 analytics_stats_start）以前的造訪不列入；期間被截短時不跟上一期比。"""
+    today = today_local()
+    db_session.add_all([
+        _stored_visit(today - timedelta(days=10), source="direct"),
+        _stored_visit(today - timedelta(days=3), source="direct"),
+        _stored_visit(today - timedelta(days=1), source="search", actions={"booking_done": 1}),
+        _stored_visit(today, source="line"),
+    ])
+    await db_session.commit()
+
+    summary = await engagement_service.get_engagement_summary(db_session, 7, stats_start=today - timedelta(days=1))
+    assert summary["since"] == (today - timedelta(days=1)).isoformat()
+    assert [row["day"] for row in summary["daily"]] == [(today - timedelta(days=1)).isoformat(), today.isoformat()]
+    assert (summary["totals"]["sessions"], summary["totals"]["booked_sessions"]) == (2, 1)
+    assert sorted(row["source"] for row in summary["sources"]) == ["line", "search"]
+    assert summary["previous"] is None
+    assert all(row["previous_visits"] is None for row in summary["pages"])
+
+    # 起算日還沒到（時鐘早於它）就不限；沒設起算日照舊。
+    later = await engagement_service.get_engagement_summary(db_session, 7, stats_start=today + timedelta(days=1))
+    assert later["totals"]["sessions"] == 3 and len(later["daily"]) == 7
+    assert (await engagement_service.get_engagement_summary(db_session, 7))["totals"]["sessions"] == 3
+
+
+@pytest.mark.asyncio
+async def test_previous_period_only_when_it_is_entirely_after_stats_start(db_session):
+    today = today_local()
+    db_session.add_all([_stored_visit(today - timedelta(days=9)), _stored_visit(today)])
+    await db_session.commit()
+
+    # 這一期 today-6…today、上一期 today-13…today-7：上一期整段在起算日之後才比。
+    whole = await engagement_service.get_engagement_summary(db_session, 7, stats_start=today - timedelta(days=13))
+    assert whole["previous"] is not None and whole["previous"]["sessions"] == 1
+    partial = await engagement_service.get_engagement_summary(db_session, 7, stats_start=today - timedelta(days=12))
+    assert partial["since"] == (today - timedelta(days=6)).isoformat() and len(partial["daily"]) == 7
+    assert partial["previous"] is None
+
+
+@pytest.mark.asyncio
+async def test_admin_route_uses_the_configured_stats_start(app, admin_client, db_session):
+    today = today_local()
+    db_session.add_all([_stored_visit(today - timedelta(days=5)), _stored_visit(today)])
+    await db_session.commit()
+    app.state.settings = app.state.settings.model_copy(update={"analytics_stats_start": today - timedelta(days=2)})
+
+    body = (await admin_client.get(f"{ADMIN_URL}?days=28")).json()
+    assert body["since"] == (today - timedelta(days=2)).isoformat()
+    assert len(body["daily"]) == 3 and body["totals"]["sessions"] == 1

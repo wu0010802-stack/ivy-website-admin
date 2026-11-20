@@ -41,7 +41,7 @@ describe('登入頁的帳號格式', () => {
     await wrapper.find('form').trigger('submit')
     await flushPromises()
     expect(post).not.toHaveBeenCalled()
-    expect(wrapper.get('#admin-email-error').text()).toBe('請輸入帳號（Email）')
+    expect(wrapper.get('#admin-email-error').text()).toBe('請輸入 Email')
     expect(wrapper.get('#current-password-error').text()).toBe('請輸入密碼')
     const email = wrapper.get('input[type="email"]')
     expect(email.attributes('aria-invalid')).toBe('true')

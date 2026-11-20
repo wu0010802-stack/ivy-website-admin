@@ -7,7 +7,7 @@ import {
   Notebook, Notification as NotificationIcon, Opportunity, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
-import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUP } from '../router/nav'
+import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
@@ -86,8 +86,8 @@ const activePath = computed(() => route.name === 'visit-detail' ? '/visit-reques
 const normalizedQuery = computed(() => normalizeSearch(query.value))
 const groups = computed(() => {
   const q = normalizedQuery.value
-  // 「我的帳號」不在側欄選單裡（入口是底部的使用者區塊），只在搜尋時出現。
-  const results = (q ? [...NAV_GROUPS, SEARCH_ONLY_GROUP] : NAV_GROUPS).map(group => {
+  // 「我的帳號」「使用小技巧」不在側欄選單裡（入口是底部的使用者區塊與頁首），只在搜尋時出現。
+  const results = (q ? [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS] : NAV_GROUPS).map(group => {
     const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
     // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項；
     // nav.ts 標了 flat 的分組（官網內容最下面的素材庫、發布紀錄）也一樣。

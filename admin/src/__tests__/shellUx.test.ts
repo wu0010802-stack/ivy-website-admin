@@ -11,7 +11,7 @@ import LoginView from '../views/LoginView.vue'
 import AccountView from '../views/AccountView.vue'
 import NotFoundView from '../views/NotFoundView.vue'
 import { authGuard, reloadAfterChunkError, routes } from '../router'
-import { landingPath, NAV_GROUPS, safeRedirectPath, SEARCH_ONLY_GROUP } from '../router/nav'
+import { landingPath, NAV_GROUPS, safeRedirectPath, SEARCH_ONLY_GROUPS } from '../router/nav'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useAuthStore } from '../stores/auth'
 import { api, ApiError, setUnauthorizedHandler } from '../api/client'
@@ -99,6 +99,44 @@ describe('頁首「查看官網」（shell-1）', () => {
     expect(note.text()).toContain('草稿不會出現')
     // 滑鼠提示與報讀說明同一句，報讀器不會念兩種說法。
     expect(link.attributes('title')).toBe(note.text())
+  })
+})
+
+// ------------------------------------------------------------- 使用小技巧
+describe('頁首「使用小技巧」（2026-11-20 從側欄搬來）', () => {
+  async function layoutAt(path: string) {
+    vi.spyOn(api, 'get').mockResolvedValue({} as never)
+    const pinia = createPinia()
+    useAuthStore(pinia).user = user('reception')
+    const router = createRouter({ history: createMemoryHistory(), routes: [
+      { path: '/', component: AdminLayout, children: [{ path: ':rest(.*)*', component: { render: () => h('div') } }] },
+      { path: '/login', name: 'login', component: { render: () => h('div') } },
+    ] })
+    await router.push(path)
+    await router.isReady()
+    const wrapper = mount(RouterView, { global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    return { wrapper, router }
+  }
+
+  it('排在「查看官網」左邊，從參觀案件點直接打開參觀案件那一類', async () => {
+    const { wrapper } = await layoutAt('/visit-requests')
+    const links = wrapper.findAll('header.top a')
+    const tips = wrapper.get('a.top__tips')
+    expect(links.indexOf(links.find(link => link.classes('top__tips'))!)).toBe(links.findIndex(link => link.classes('top__site')) - 1)
+    expect(tips.text()).toBe('使用小技巧')
+    expect(tips.attributes('href')).toBe('/tips?section=visits')
+    expect(tips.attributes('target')).toBeUndefined()
+    // 側欄裡沒有了（櫃台的側欄原本最後一項就是它）
+    expect(wrapper.find('.sidebar__nav a[href="/tips"]').exists()).toBe(false)
+  })
+
+  it('對不到分類的頁面打開全部；在小技巧頁上標成目前位置', async () => {
+    const dashboard = await layoutAt('/')
+    expect(dashboard.wrapper.get('a.top__tips').attributes('href')).toBe('/tips')
+    const tipsPage = await layoutAt('/tips?section=visits')
+    expect(tipsPage.wrapper.get('a.top__tips').attributes('aria-current')).toBe('page')
   })
 })
 
@@ -269,8 +307,8 @@ describe('被導回登入頁時說明原因（shell-2c）', () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const { wrapper } = await mountLogin(`/login?redirect=%2Fmedia&reason=${reason}`)
     expect(wrapper.get('[data-test="login-reason"]').text()).toContain(text)
-    expect(wrapper.find(`.el-alert--${type}`).exists()).toBe(true)
-    expect(wrapper.find('.el-alert--error').exists()).toBe(false)
+    expect(wrapper.get('[data-test="login-reason"]').attributes('data-kind')).toBe(type)
+    expect(wrapper.find('[data-kind="error"]').exists()).toBe(false)
   })
 
   it('不認得的 reason 不顯示', async () => {
@@ -572,7 +610,7 @@ describe('側欄搜尋比對員工自己的說法（v-shell-07／shell-8）', ()
     // 「密碼」跟我的帳號的關鍵字完全相同，排在「使用者」（重設密碼）前面。
     expect(await admin.search('密碼')).toEqual(['我的帳號', '使用者'])
     expect(admin.wrapper.find('.sidebar__nav a[href="/account"] .el-icon svg').exists()).toBe(true)
-    expect(SEARCH_ONLY_GROUP.items.map(item => item.path)).toEqual(['/account'])
+    expect(SEARCH_ONLY_GROUPS.flatMap(group => group.items.map(item => item.path))).toEqual(['/account', '/tips'])
     const reception = await sidebar('reception')
     expect(await reception.search('密碼')).toEqual(['我的帳號'])
     expect(await reception.search('預約')).toEqual(['參觀案件', '參觀場次'])

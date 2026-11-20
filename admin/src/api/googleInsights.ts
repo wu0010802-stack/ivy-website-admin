@@ -3,6 +3,7 @@
 // 後端：backend/app/insights/。沒設定回 {configured:false}，Google 失敗回 {configured:true, error}。
 import type { components } from '../../../contracts/generated/website-api'
 import { taipeiToday } from '../admissions/academic'
+import { STATS_START } from '../components/analytics/filters'
 import { campusLabel } from './labels'
 import { type TrafficVital } from './traffic'
 
@@ -18,11 +19,23 @@ export type CruxValue = Schemas['CruxValueOut']
 
 // ---- Google 搜尋 ----
 
-/** 整頁共用的「近 N 天」換成 Search Console 的起訖（台北日期，含今天）。 */
-export function searchPeriod(days: number, today: string = taipeiToday()): { start: string; end: string } {
+/**
+ * 整頁共用的「近 N 天」換成 Search Console 的起訖（台北日期，含今天）。早於成效統計起算日（STATS_START）
+ * 時從起算日開始，和瀏覽、內容興趣同一段（2026-11-20：Search Console 網域資源連 Wix 舊站時期的點擊都有）。
+ */
+export function searchPeriod(days: number, today: string = taipeiToday(), floor: string = STATS_START): { start: string; end: string } {
   const [year = 0, month = 1, day = 1] = today.split('-').map(Number)
-  const start = new Date(Date.UTC(year, month - 1, day - (days - 1)))
-  return { start: start.toISOString().slice(0, 10), end: today }
+  const start = new Date(Date.UTC(year, month - 1, day - (days - 1))).toISOString().slice(0, 10)
+  return { start: start < floor && floor <= today ? floor : start, end: today }
+}
+
+/** Search Console 給的路徑是百分比編碼（Wix 舊站的中文網址）：畫面顯示解碼後的樣子，解不開就照原樣。 */
+export function readablePath(path: string): string {
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
 }
 
 /** 點閱率是 0～1 的小數；沒有曝光時是 null。 */

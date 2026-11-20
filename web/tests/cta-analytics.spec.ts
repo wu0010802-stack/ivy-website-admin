@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   CTA_ENTRIES,
   bookingActionClickKind,
@@ -12,9 +12,13 @@ import {
   isSamePage,
   reportBookingActionClick,
   sendCtaEvent,
+  statsAllowed,
   trackingAllowed,
   tracksClicks
 } from '../app/utils/cta-analytics'
+
+// happy-dom 的 navigator.webdriver 是 true（它自認是自動化環境）；第一方統計會因此整支不送（statsAllowed），測試改回一般瀏覽器的 false。
+beforeAll(() => { Object.defineProperty(navigator, 'webdriver', { configurable: true, get: () => false }) })
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -78,6 +82,21 @@ describe('預約鈕與聯絡連結點擊（B11 #63）', () => {
     expect(trackingAllowed(false, { doNotTrack: null } as Navigator)).toBe(false)
     expect(trackingAllowed(true, { doNotTrack: '1' } as Navigator)).toBe(false)
     expect(trackingAllowed(true, { doNotTrack: null, globalPrivacyControl: true } as Navigator & { globalPrivacyControl: boolean })).toBe(false)
+  })
+
+  it('第一方成效統計另外排除自動化瀏覽器、爬蟲與登入過後台的瀏覽器（2026-11-20）', () => {
+    const chrome = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1'
+    const nav = (overrides: Partial<Navigator> = {}) => ({ doNotTrack: null, webdriver: false, userAgent: chrome, ...overrides }) as Navigator
+    expect(statsAllowed(true, nav(), '')).toBe(true)
+    expect(statsAllowed(true, nav(), 'ivy_src=abc; other=1')).toBe(true)
+    expect(statsAllowed(false, nav(), '')).toBe(false)
+    expect(statsAllowed(true, nav({ doNotTrack: '1' }), '')).toBe(false)
+    expect(statsAllowed(true, nav({ webdriver: true }), '')).toBe(false)
+    expect(statsAllowed(true, nav({ userAgent: 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/131.0.0.0 Safari/537.36' }), '')).toBe(false)
+    expect(statsAllowed(true, nav({ userAgent: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)' }), '')).toBe(false)
+    expect(statsAllowed(true, nav(), 'a=1; ivy_staff=1')).toBe(false)
+    // 只認值是 1 的那個名稱，不是名稱開頭一樣的其他 cookie。
+    expect(statsAllowed(true, nav(), 'ivy_staff_old=1; ivy_staff=0')).toBe(true)
   })
 
   it('每次點擊送一個隨機 event id，只帶事件、校區與入口；重送沿用同一個 id', async () => {

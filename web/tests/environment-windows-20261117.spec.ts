@@ -423,7 +423,12 @@ describe('捲動敘事的純函式', () => {
     // 心形窗一開始是蓋子的 0.96 倍：蓋子完全蓋住窗，照片露不出來
     expect(start.clip).toBe(`path('${[120, 360, 600, 840, 1080].map((x) => heartPath(x, 0.38 * 513, 0.96 * g.s)).join('')}')`)
     const end = heartsFrame(g, 1)
-    expect(end).toEqual({ names: 0, lids: [120, 360, 600, 840, 1080].map((x) => ({ x, y: 555, k: 30 })), clip: 'none' })
+    expect(end).toEqual({ names: 0, lids: [120, 360, 600, 840, 1080].map((x) => ({ x, y: 555, k: 30 })), clip: 'none', tint: 0 })
+    // 色片（2026-11-20）：蓋子落下去時窗裡還是那顆心的顏色（不露出照片的碎片），五扇窗相連之後才褪成照片
+    expect(start.tint).toBe(1)
+    expect(heartsFrame(g, 0.16).tint).toBe(1)
+    expect(heartsFrame(g, 0.31).tint).toBeGreaterThan(0.4)
+    expect(heartsFrame(g, 0.46).tint).toBe(0)
     // 最大的心形窗蓋得住整張照片：每顆心負責自己那一欄（寬 240），最遠的角是左右下角
     const reach = 0.457 * g.kmax * g.s
     expect(reach).toBeGreaterThanOrEqual(120 + 513 * (1 - 0.38))
@@ -443,7 +448,9 @@ describe('捲動敘事的純函式', () => {
       expect(top + bottom).toBeLessThan(631)
     }
     expect(table.circle).toEqual([0, 84.5, 0, 84.5, 315.5, 315.5, 315.5, 315.5])
-    expect(table.dome.slice(0, 4)).toEqual([115.5, 0, 115.5, 0])
+    // 半圓貼著底（2026-11-20）：六個形狀的底邊都在窗的底線上，換站時不會浮在半空
+    expect(table.dome.slice(0, 4)).toEqual([231, 0, 0, 0])
+    for (const shape of Object.values(table)) expect(shape[2]).toBe(0)
     const shapes = ['rect', 'circle', 'arch', 'u', 'dome', 'leaf'].map((name) => table[name]!)
     const first = stopsFrame(shapes, 0)
     expect(first.clip).toBe('inset(0.0px 0.0px 0.0px 0.0px round 32.0px 32.0px 32.0px 32.0px)')

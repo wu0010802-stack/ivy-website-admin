@@ -433,12 +433,14 @@ async def resolve_error_group(
 
 @router.get("/admin/analytics/traffic")
 async def get_traffic(
+    request: Request,
     days: int = Query(28, ge=7, le=90),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> dict:
     # 全站匿名彙總（沒有個資、也不分權限範圍），登入的後台帳號都能看。
-    summary = await traffic_service.get_traffic_summary(db, days)
+    # 期間碰到成效統計的起算日就從起算日開始（since 會晚於「今天往前 days 天」）。
+    summary = await traffic_service.get_traffic_summary(db, days, request.app.state.settings.analytics_stats_start)
     summary["as_of"] = now_utc()
     return summary
 
@@ -687,6 +689,7 @@ class EngagementSummaryOut(BaseModel):
 
 @router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
 async def get_engagement(
+    request: Request,
     days: int = Query(28, ge=7, le=90),
     device: Literal["mobile", "desktop"] | None = Query(None, description="只看手機或電腦；省略＝全部"),
     current_user: User = Depends(get_current_user),
@@ -697,7 +700,9 @@ async def get_engagement(
     booking_campuses = frozenset(
         key for key in CAMPUS_KEYS if has_capability(current_user, "admissions.stats") and covers_campus(current_user, key)
     )
-    summary = await engagement_service.get_engagement_summary(db, days, device, booking_campuses)
+    summary = await engagement_service.get_engagement_summary(
+        db, days, device, booking_campuses, stats_start=request.app.state.settings.analytics_stats_start
+    )
     summary["as_of"] = now_utc()
     return summary
 

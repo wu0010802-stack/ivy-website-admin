@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common.timezones import now_utc, today_local
 from app.operations.models import PageViewDaily, WebVitalSample
+from app.operations.stats_window import stats_since
 
 VITAL_RETENTION_DAYS = 90
 # Google 對 Core Web Vitals 的「良好／需要改善」門檻（p75）。
@@ -61,9 +62,11 @@ def _rating(metric: str, p75: float) -> str:
     return "good" if p75 <= good else "needs_improvement" if p75 <= poor else "poor"
 
 
-async def get_traffic_summary(db: AsyncSession, days: int) -> dict:
+async def get_traffic_summary(db: AsyncSession, days: int, stats_start: date | None = None) -> dict:
+    """stats_start：成效統計的起算日（設定 analytics_stats_start），期間碰到它就從它開始（stats_window.py）。"""
     today = today_local()
-    since = today - timedelta(days=days - 1)
+    since = stats_since(today, days, stats_start)
+    span = (today - since).days + 1
 
     rows = (await db.execute(
         select(PageViewDaily.day, PageViewDaily.page, PageViewDaily.campus_key, PageViewDaily.device,
@@ -71,7 +74,7 @@ async def get_traffic_summary(db: AsyncSession, days: int) -> dict:
         .where(PageViewDaily.day >= since)
         .group_by(PageViewDaily.day, PageViewDaily.page, PageViewDaily.campus_key, PageViewDaily.device)
     )).all()
-    by_day = {since + timedelta(days=i): 0 for i in range(days)}
+    by_day = {since + timedelta(days=i): 0 for i in range(span)}
     by_page: dict[tuple[str, str], int] = {}
     by_device: dict[str, int] = {}
     for day, page, campus_key, device, views in rows:

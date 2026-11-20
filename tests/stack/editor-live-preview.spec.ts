@@ -464,9 +464,16 @@ test('資安（真瀏覽器）：草稿不進預覽網址、storage、cookie、r
   })
   console.log('[資安] storage 內容', JSON.stringify(stores))
   expect(JSON.stringify(stores)).not.toContain(token)
-  // 後台本來就會記側欄展開狀態（ivy-admin-nav-expanded，只有選單開合），預覽相關的只有桌機／手機偏好。
-  expect(Object.keys(stores.local).filter((key) => key !== 'ivy-admin-nav-expanded')).toEqual(['ivy-admin-preview-viewport'])
+  // 後台本來就會記側欄展開狀態（ivy-admin-nav-expanded，只有選單開合）與登入頁的回訪者
+  // （ivy-admin-last-user／ivy-admin-last-method，2026-11-19 登入頁改版，composables/lastSignIn.ts）；
+  // 預覽相關的只有桌機／手機偏好。
+  const ADMIN_KEYS = ['ivy-admin-nav-expanded', 'ivy-admin-last-user', 'ivy-admin-last-method']
+  expect(Object.keys(stores.local).filter((key) => !ADMIN_KEYS.includes(key))).toEqual(['ivy-admin-preview-viewport'])
   expect(stores.local['ivy-admin-preview-viewport']).toBe('desktop')
+  // 回訪者只能有 Email、名字、「角色・校區」三個欄位，不放權杖或其他資料。
+  if (stores.local['ivy-admin-last-user']) {
+    expect(Object.keys(JSON.parse(stores.local['ivy-admin-last-user'])).sort()).toEqual(['email', 'line', 'name'])
+  }
   // sessionStorage 只允許案件備註草稿的「主人」（ivy-visit-note-draft-owner，只存登入者編號，2026-10-13 掃描第 6 項）；
   // 內容編輯器的草稿一律不進 storage，上面的 token 比對已確認任何 storage 都沒有草稿文字。
   expect(Object.keys(stores.session).filter((key) => key !== 'ivy-visit-note-draft-owner')).toEqual([])
