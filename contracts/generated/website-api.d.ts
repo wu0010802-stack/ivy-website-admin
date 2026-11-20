@@ -6094,6 +6094,19 @@ export interface components {
             starts: string;
         };
         /**
+         * AreaTrendsHousingSourceOut
+         * @description 各里房價與租金（2026-11-20 規格 §7.2）：表裡最新的季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）；
+         *     note 是畫面照引的來源與口徑（沒匯入是空字串）。
+         */
+        AreaTrendsHousingSourceOut: {
+            /** Latest */
+            latest: string | null;
+            /** Note */
+            note: string;
+            /** Seasons */
+            seasons: string[];
+        };
+        /**
          * AreaTrendsIncomeSourceOut
          * @description 各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。
          */
@@ -6220,6 +6233,7 @@ export interface components {
         /** AreaTrendsSourcesOut */
         AreaTrendsSourcesOut: {
             births: components["schemas"]["AreaTrendsMonthsOut"];
+            housing: components["schemas"]["AreaTrendsHousingSourceOut"];
             income: components["schemas"]["AreaTrendsIncomeSourceOut"];
             marriages: components["schemas"]["AreaTrendsMonthsOut"];
             migration: components["schemas"]["AreaTrendsMonthsOut"];
@@ -6247,6 +6261,14 @@ export interface components {
             distance_m: number;
             /** District */
             district: string;
+            /** Housing Rent Count */
+            housing_rent_count: number;
+            /** Housing Rent Median */
+            housing_rent_median: number | null;
+            /** Housing Sale Count */
+            housing_sale_count: number;
+            /** Housing Sale Median */
+            housing_sale_median: number | null;
             /** Income Boundary Changed */
             income_boundary_changed: boolean;
             /** Income Median */

@@ -133,6 +133,15 @@ class AreaTrendsPresaleSourceOut(BaseModel):
     note: str
 
 
+class AreaTrendsHousingSourceOut(BaseModel):
+    """各里房價與租金（2026-11-20 規格 §7.2）：表裡最新的季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）；
+    note 是畫面照引的來源與口徑（沒匯入是空字串）。"""
+
+    latest: str | None
+    seasons: list[str]
+    note: str
+
+
 class AreaTrendsSourcesOut(BaseModel):
     population: AreaTrendsPopulationSourceOut
     births: AreaTrendsMonthsOut
@@ -144,6 +153,7 @@ class AreaTrendsSourcesOut(BaseModel):
     income: AreaTrendsIncomeSourceOut
     new_homes: AreaTrendsNewHomesSourceOut
     presale: AreaTrendsPresaleSourceOut
+    housing: AreaTrendsHousingSourceOut
     school_districts: AreaTrendsSchoolDistrictSourceOut
 
 
@@ -237,6 +247,12 @@ class AreaTrendsVillageOut(BaseModel):
     # 合併組整組相加；presale_by_code 是各代碼自己的戶數（只列有的），地圖用它替組內各里上色。
     presale_households: int | None
     presale_by_code: dict[str, int]
+    # 房價與租金（2026-11-20 規格 §7.2）：近 4 季到里的買賣單價（元／坪）與整戶月租（元）中位數，只當背景，不著色、不排序；
+    # 少於 5 筆中位數是 null、筆數照給；合併組用組內全部代碼合併算；沒匯入或五校並排是 null、0。
+    housing_sale_median: int | None
+    housing_sale_count: int
+    housing_rent_median: int | None
+    housing_rent_count: int
     # 國小學區（D 段）：整里在前、部分在後。
     schools: list[AreaTrendsVillageSchoolOut]
 

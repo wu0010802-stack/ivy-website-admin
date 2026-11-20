@@ -6438,6 +6438,40 @@
         "title": "AreaTrendsBirthPeriodOut",
         "type": "object"
       },
+      "AreaTrendsHousingSourceOut": {
+        "description": "各里房價與租金（2026-11-20 規格 §7.2）：表裡最新的季（還沒匯入是 null）、近 4 季裡表有資料的季（舊到新）；\nnote 是畫面照引的來源與口徑（沒匯入是空字串）。",
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "seasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "latest",
+          "seasons",
+          "note"
+        ],
+        "title": "AreaTrendsHousingSourceOut",
+        "type": "object"
+      },
       "AreaTrendsIncomeSourceOut": {
         "description": "各里所得（C 段）：使用中的年度（民國，還沒匯入是 null）；note 是畫面照引的顯名與官方附註（沒匯入是空字串）。",
         "properties": {
@@ -6794,6 +6828,9 @@
           "births": {
             "$ref": "#/components/schemas/AreaTrendsMonthsOut"
           },
+          "housing": {
+            "$ref": "#/components/schemas/AreaTrendsHousingSourceOut"
+          },
           "income": {
             "$ref": "#/components/schemas/AreaTrendsIncomeSourceOut"
           },
@@ -6829,6 +6866,7 @@
           "income",
           "new_homes",
           "presale",
+          "housing",
           "school_districts"
         ],
         "title": "AreaTrendsSourcesOut",
@@ -6873,6 +6911,36 @@
           "district": {
             "title": "District",
             "type": "string"
+          },
+          "housing_rent_count": {
+            "title": "Housing Rent Count",
+            "type": "integer"
+          },
+          "housing_rent_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Housing Rent Median"
+          },
+          "housing_sale_count": {
+            "title": "Housing Sale Count",
+            "type": "integer"
+          },
+          "housing_sale_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Housing Sale Median"
           },
           "income_boundary_changed": {
             "title": "Income Boundary Changed",
@@ -7034,6 +7102,10 @@
           "new_homes_by_code",
           "presale_households",
           "presale_by_code",
+          "housing_sale_median",
+          "housing_sale_count",
+          "housing_rent_median",
+          "housing_rent_count",
           "schools"
         ],
         "title": "AreaTrendsVillageOut",

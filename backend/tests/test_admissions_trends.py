@@ -19,6 +19,7 @@ from app.admissions.geo import village_series as series_io
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo.models import (
     GeoDatasetStatus,
+    GeoHousingDeal,
     GeoNewHomeSale,
     GeoPresaleBuildcase,
     GeoVillageAges,
@@ -199,6 +200,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
     assert body["sources"]["income"] == {"year": None, "note": ""}
     assert body["sources"]["new_homes"] == {"latest": None, "seasons": [], "unplaced": 0, "note": ""}
     assert body["sources"]["presale"] == {"version": None, "unplaced": 0, "note": ""}
+    assert body["sources"]["housing"] == {"latest": None, "seasons": [], "note": ""}
     rows = _by_key(body)
     assert rows[BENYANG] == {
         "key": BENYANG, "district": "三民區", "village": "本揚里", "codes": [BENYANG], "merged": False,
@@ -207,6 +209,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "births_12m": 24, "marriages_12m": None, "migration_net_12m": 84, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
+        "housing_sale_median": None, "housing_sale_count": 0, "housing_rent_median": None, "housing_rent_count": 0,
         "schools": [_school("東光國小")],
     }
     assert (rows[BAOYE]["kids_net"], rows[BAOYE]["kids_level"]) == (0, "flat")
@@ -218,6 +221,7 @@ async def test_trends_one_km(admin_client, db_session, located_campus):
         "births_12m": None, "marriages_12m": None, "migration_net_12m": None, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
+        "housing_sale_median": None, "housing_sale_count": 0, "housing_rent_median": None, "housing_rent_count": 0,
         "schools": [_school("光武國小")],
     }
     # 排序：淨增由大到小，算不出來的在最後。
@@ -251,6 +255,7 @@ async def test_boundary_adjusted_villages_are_merged_with_the_old_codes(admin_cl
         "births_12m": 0, "marriages_12m": None, "migration_net_12m": 0, "income_median": None, "income_boundary_changed": False,
         "new_homes": None, "new_homes_latest": None, "new_homes_by_code": {},
         "presale_households": None, "presale_by_code": {},
+        "housing_sale_median": None, "housing_sale_count": 0, "housing_rent_median": None, "housing_rent_count": 0,
         "schools": [_school("東光國小")],
     }
 
@@ -727,3 +732,78 @@ async def test_never_writes_audit_entries(admin_client, db_session, located_camp
     before = await db_session.scalar(select(func.count()).select_from(AuditLogEntry))
     await _get(admin_client)
     assert await db_session.scalar(select(func.count()).select_from(AuditLogEntry)) == before
+
+
+# ---- 各里房價與租金（2026-11-20 規格 §7.2、§7.3）----
+
+
+def _deal(kind: str, serial: str, village: str, value: int, *, season: str = "115S3", level: str = "exact") -> GeoHousingDeal:
+    return GeoHousingDeal(
+        kind=kind, serial=serial, season=season, building_type="住宅大樓", district="三民區", street="義華路",
+        village=village, match_level=level, doorplate_version="115-10",
+        unit_price=value if kind == "sale" else None, monthly_rent=value if kind == "rent" else None,
+    )
+
+
+async def _seed_housing(db) -> None:
+    """本揚里買賣 6 筆（單價 300,000～350,000）、租賃 2 筆，另有一筆 114S3 在近 4 季外；本上里（合併組）買賣 3 筆、
+    租賃 3 筆；寶國里買賣 5 筆，另有只比到區的一筆不算。"""
+    rows = [_deal("sale", f"B{i}", "本揚里", 300_000 + i * 10_000) for i in range(6)]
+    rows += [_deal("rent", f"R{i}", "本揚里", 18_000 + i * 1_000) for i in range(2)]
+    rows += [_deal("sale", f"S{i}", "本上里", 400_000 + i * 10_000, season="115S1") for i in range(3)]
+    rows += [_deal("rent", f"T{i}", "本上里", 20_000 + i * 1_000, level="street") for i in range(3)]
+    rows += [_deal("sale", f"W{i}", "寶國里", 500_000) for i in range(5)] + [_deal("sale", "WX", "寶國里", 900_000, level="district")]
+    rows += [_deal("sale", "OLD", "本揚里", 100_000, season="114S3")]  # 期間外
+    db.add_all(rows)
+    db.add(GeoDatasetStatus(dataset="housing", active_version="115S3", label="115S3", synced_at=NOW))
+    await db.commit()
+
+
+async def test_trends_village_housing_columns(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    await _seed_housing(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["housing"] == {
+        "latest": "115S3", "seasons": ["115S1", "115S3"],
+        "note": "內政部不動產交易實價查詢服務網；近 4 季，排除親友、特殊關係、預售屋交屋等非一般交易，房價扣除車位",
+    }
+    rows = _by_key(body)
+    # 6 筆買賣單價 300,000～350,000 → 中位數 325,000；租賃只有 2 筆，中位數 null、筆數照給。
+    assert (rows[BENYANG]["housing_sale_median"], rows[BENYANG]["housing_sale_count"]) == (325_000, 6)
+    assert (rows[BENYANG]["housing_rent_median"], rows[BENYANG]["housing_rent_count"]) == (None, 2)
+    # 滿 5 筆才給中位數；只到區的不算進筆數。
+    assert (rows[BAOGUO]["housing_sale_median"], rows[BAOGUO]["housing_sale_count"]) == (500_000, 5)
+    assert (rows[BAOYE]["housing_sale_median"], rows[BAOYE]["housing_sale_count"]) == (None, 0)
+
+
+async def test_trends_merged_group_housing_combines_codes(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    await _seed_housing(db_session)
+    group = _by_key(await _get(admin_client))[f"group:三民區:{BENSHANG}"]
+    # 合併組用組內全部代碼的交易合併算：本上里買賣 3 筆（不足 5）、租賃 3 筆。
+    assert (group["housing_sale_median"], group["housing_sale_count"]) == (None, 3)
+    assert (group["housing_rent_median"], group["housing_rent_count"]) == (None, 3)
+    # 交易合併後夠 5 筆才給中位數：再補本上里 2 筆。
+    db_session.add_all([_deal("sale", f"S{i}", "本上里", 450_000 + i, season="115S3") for i in (7, 8)])
+    await db_session.commit()
+    group = _by_key(await _get(admin_client))[f"group:三民區:{BENSHANG}"]
+    assert (group["housing_sale_median"], group["housing_sale_count"]) == (420_000, 5)
+
+
+async def test_trends_housing_not_imported(admin_client, db_session, located_campus):
+    await _seed(db_session)
+    body = await _get(admin_client)
+    assert body["sources"]["housing"] == {"latest": None, "seasons": [], "note": ""}
+    assert all(
+        row["housing_sale_median"] is None and row["housing_sale_count"] == 0
+        and row["housing_rent_median"] is None and row["housing_rent_count"] == 0
+        for row in body["villages"]
+    )
+
+
+async def test_trends_kids_only_skips_housing(db_session, located_campus):
+    await _seed(db_session)
+    await _seed_housing(db_session)
+    light = await trends.query_trends(db_session, "yihua", school_year=None, semester=None, radius_km=1, kids_only=True)
+    assert light["sources"]["housing"] == {"latest": None, "seasons": [], "note": ""}
+    assert all(row["housing_sale_median"] is None and row["housing_sale_count"] == 0 for row in light["villages"])

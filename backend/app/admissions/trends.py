@@ -39,6 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.admissions.area import campus_out
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
+from app.admissions.geo import housing as housing_io
 from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo import school_districts as sd
@@ -472,6 +473,7 @@ async def query_trends(
             "income": {"year": None, "note": ""},
             "new_homes": {"latest": None, "seasons": [], "unplaced": 0, "note": ""},
             "presale": {"version": None, "unplaced": 0, "note": ""},
+            "housing": {"latest": None, "seasons": [], "note": ""},
             "school_districts": {"school_year": sd.SCHOOL_DISTRICT_YEAR, "note": sd.SOURCE_NOTE},
         },
         "baseline": None,
@@ -587,6 +589,18 @@ async def query_trends(
     def net_moves(row: GeoVillageMigration) -> int:
         return row.moved_in - row.moved_out + row.address_in - row.address_out
 
+    # 房價與租金（2026-11-20 規格 §7.2）：所有里（含合併組的全部代碼）一次讀；五校並排不讀。
+    if kids_only:
+        housing_by_code: dict[str, tuple[list[int], list[int]]] = {}
+    else:
+        unit_codes = {code for unit in units.values() for code in unit["codes"]}
+        housing_latest, housing_seasons, housing_by_code = await housing_io.deals_by_code(db, unit_codes)
+        if housing_latest is not None:
+            result["sources"]["housing"] = {
+                "latest": housing_latest, "seasons": housing_seasons,
+                "note": f"{housing_io.SOURCE_NOTE}；近 4 季，排除親友、特殊關係、預售屋交屋等非一般交易，房價扣除車位",
+            }
+
     villages = []
     for unit in units.values():
         codes = unit["codes"]
@@ -641,6 +655,7 @@ async def query_trends(
                     sum(presale.get(code, (0, 0))[0] for code in codes) if presale_version is not None else None
                 ),
                 "presale_by_code": {code: presale[code][0] for code in codes if code in presale},
+                **{f"housing_{key}": value for key, value in housing_io.summarize(housing_by_code, codes).items()},
             }
         )
     villages.sort(
