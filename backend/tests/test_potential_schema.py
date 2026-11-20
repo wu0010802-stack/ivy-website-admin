@@ -110,9 +110,9 @@ def test_check_conditions_match_the_migration_verbatim():
     for constraint in checks:
         assert str(constraint.sqltext) in source, constraint.name
         assert f'"{constraint.name}"' in source, constraint.name
-    # elementary 加進 dataset 約束：migration 的新字串去掉後來加的 marriages（c4d2e8a1f6b3）就是這支的條件。
+    # elementary 加進 dataset 約束：migration 的新字串去掉後來加的 marriages（c4d2e8a1f6b3）、housing（a7c3e9d15b42）就是這支的條件。
     [dataset_check] = [c for c in GeoDatasetStatus.__table__.constraints if isinstance(c, CheckConstraint)]
-    assert str(dataset_check.sqltext).replace(", 'marriages'", "") in source
+    assert str(dataset_check.sqltext).replace(", 'marriages'", "").replace(", 'housing'", "") in source
 
 
 def test_migration_follows_previous_head_without_branching_and_only_adds():

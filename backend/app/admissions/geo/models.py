@@ -10,11 +10,11 @@
 這些表都是官網專用，不進園務轉移契約。geo_doorplates／geo_kindergartens／geo_kindergarten_fees／geo_kindergarten_penalties／geo_kindergarten_evaluations／geo_babycare／geo_provider_events／
 geo_village_population／geo_village_births／geo_village_migration／geo_village_ages／
 geo_village_ages_september／geo_elementary_grade1／
-geo_village_income／geo_new_home_sales／geo_presale_buildcases／geo_parcel_points／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
+geo_village_income／geo_new_home_sales／geo_housing_deals／geo_presale_buildcases／geo_parcel_points／geo_dataset_status 是公開資料、與校區無關；recruitment_visit_geo 一筆訪視一列，不存家長座標。
 列舉用 String＋CheckConstraint，條件字串與建立（或最後改寫）該約束的 migration 逐字相同：
-geo_dataset_status 的 dataset 最後改寫在 76c4bf84b907（多收 elementary），geo_kindergarten_fees 是 f2b8c4d1e7a9，
+geo_dataset_status 的 dataset 最後改寫在 a7c3e9d15b42（多收 housing），geo_kindergarten_fees 是 f2b8c4d1e7a9，
 geo_kindergarten_penalties 的 kind、subject 是 b8e2d6a4f931，geo_babycare、geo_provider_events 是 c6a9e3f15d27，
-geo_new_home_sales 的 match_level 是 e4f1a8c6b203，geo_presale_buildcases 的 match_level 是 a3d7f1c9b5e2，
+geo_new_home_sales 的 match_level 是 e4f1a8c6b203，geo_housing_deals 的 kind、match_level 是 a7c3e9d15b42，geo_presale_buildcases 的 match_level 是 a3d7f1c9b5e2，
 其餘是 e7a1c4d9b2f6（tests/test_geo_schema.py 檢查）。
 
 這個模組不 import app.admissions.models：admissions/models.py 檔尾會 import 這裡，
@@ -65,6 +65,7 @@ STREET_KINDS = ("road", "area")
 # （名稱超過原本的 20 字，同一支 migration 把 dataset 欄放寬到 32 字）。
 # elementary：教育部國民小學各校一年級人數（2026-10-20 招生潛力與市佔率），migration 76c4bf84b907 加進約束。
 # marriages：各里每月結婚對數（2026-11-16 廣告成效，docs/specs/2026-11-16-ad-roi-design.md），migration c4d2e8a1f6b3 加進約束。
+# housing：各里房價與租金（2026-11-20，docs/specs/2026-11-20-area-point-overlay-housing-design.md §7），migration a7c3e9d15b42 加進約束。
 DATASETS = (
     "doorplates",
     "kindergartens",
@@ -81,6 +82,7 @@ DATASETS = (
     "kindergarten_evaluations",
     "elementary",
     "marriages",
+    "housing",
 )
 # 預售建案的比對等級（2026-10-20 規格 P5）：parcel 是地號座標點入里界，其餘同 MATCH_LEVELS 的門牌街名法；
 # 沒有 unlocated（鄉鎮市區欄一定有值），門牌表還沒匯入且沒有地號座標時是 pending。
@@ -484,6 +486,41 @@ class GeoNewHomeSale(Base):
     match_level: Mapped[str] = mapped_column(String(16), nullable=False)
     # 比對當時的門牌月份（「115-10」）；門牌還沒匯入（pending）是 null。
     doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+
+
+HOUSING_KINDS = ("sale", "rent")
+
+
+class GeoHousingDeal(Base):
+    """各里房價與租金（2026-11-20 規格 §7.1）：實價登錄買賣（H1）與租賃（H2）篩過後的一筆交易一列，PK 是
+    (kind, serial)；只存最新季往回 4 季，同一個編號出現在較新的季檔時覆蓋。unit_price 是扣車位後的元／坪（買賣才有），
+    monthly_rent 是月租元（租賃才有）。不存地址原文、樓層、總價、面積、交易日、格局、建案名稱，只存換門牌版本時
+    重比要用的門牌鍵（同 geo_new_home_sales）與比對結果。"""
+
+    __tablename__ = "geo_housing_deals"
+    __table_args__ = (
+        CheckConstraint(_in("kind", HOUSING_KINDS), name="ck_geo_housing_deals_kind"),
+        CheckConstraint(_in("match_level", MATCH_LEVELS), name="ck_geo_housing_deals_match_level"),
+        Index("ix_geo_housing_deals_season", "season"),
+        Index("ix_geo_housing_deals_village", "district", "village"),
+    )
+
+    kind: Mapped[str] = mapped_column(String(4), primary_key=True)
+    serial: Mapped[str] = mapped_column(String(40), primary_key=True)
+    season: Mapped[str] = mapped_column(String(5), nullable=False)
+    building_type: Mapped[str] = mapped_column(String(16), nullable=False)
+    district: Mapped[str] = mapped_column(String(8), nullable=False)
+    street: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    lane: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    alley: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    number: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    number_sub: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    village: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    match_level: Mapped[str] = mapped_column(String(16), nullable=False)
+    # 比對當時的門牌月份（「115-10」）；門牌還沒匯入（pending）是 null。
+    doorplate_version: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    unit_price: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    monthly_rent: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
 
 class GeoPresaleBuildcase(Base):

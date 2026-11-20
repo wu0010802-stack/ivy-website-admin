@@ -32,6 +32,7 @@ from app.admissions.geo.models import (
     GeoKindergartenEvaluation,
     GeoKindergartenFee,
     GeoKindergartenPenalty,
+    GeoHousingDeal,
     GeoNewHomeSale,
     GeoParcelPoint,
     GeoPresaleBuildcase,
@@ -57,6 +58,7 @@ PROVIDER_MIGRATION = BACKEND / "migrations" / "versions" / "c6a9e3f15d27_provide
 FEES_MIGRATION = BACKEND / "migrations" / "versions" / "f2b8c4d1e7a9_peer_fees.py"
 PRESALE_MIGRATION = BACKEND / "migrations" / "versions" / "a3d7f1c9b5e2_admissions_presale.py"
 PENALTIES_MIGRATION = BACKEND / "migrations" / "versions" / "b8e2d6a4f931_peer_penalties_evaluations.py"
+HOUSING_MIGRATION = BACKEND / "migrations" / "versions" / "a7c3e9d15b42_geo_housing_deals.py"
 POTENTIAL_MIGRATION = BACKEND / "migrations" / "versions" / "76c4bf84b907_admissions_potential_share.py"
 # 約束最後一次寫進資料庫的 migration：dataset 的條件 10-13 放寬成多收 population、10-14 再多收 births、
 # migration，同日 C 段多收 income、B 段多收 new_homes，托嬰與異動最後再多收 babycare；新成屋的比對等級在 B 段；
@@ -66,7 +68,10 @@ POTENTIAL_MIGRATION = BACKEND / "migrations" / "versions" / "76c4bf84b907_admiss
 # 處分種類與對象類別約束；10-20 招生潛力與市佔率再多收 elementary（接在裁罰與評鑑之後）。
 CONSTRAINT_MIGRATIONS = {
     # marriages 是 2026-11-16 廣告成效那支 migration 加進去的（接在 elementary 之後）。
-    "ck_geo_dataset_status_dataset": AD_ROI_MIGRATION,
+    # housing 是 2026-11-20 區域分析房價租金那支 migration 加進去的（接在 marriages 之後）。
+    "ck_geo_dataset_status_dataset": HOUSING_MIGRATION,
+    "ck_geo_housing_deals_kind": HOUSING_MIGRATION,
+    "ck_geo_housing_deals_match_level": HOUSING_MIGRATION,
     "ck_geo_kindergarten_penalties_kind": PENALTIES_MIGRATION,
     "ck_geo_kindergarten_penalties_subject": PENALTIES_MIGRATION,
     "ck_geo_presale_buildcases_match_level": PRESALE_MIGRATION,
@@ -78,7 +83,7 @@ CONSTRAINT_MIGRATIONS = {
 }
 MODELS = (
     GeoDoorplate, GeoKindergarten, GeoVillagePopulation, GeoVillageBirths, GeoVillageMigration, GeoVillageAges,
-    GeoVillageIncome, GeoNewHomeSale, GeoDatasetStatus, RecruitmentVisitGeo, GeoBabycare, GeoProviderEvent,
+    GeoVillageIncome, GeoNewHomeSale, GeoHousingDeal, GeoDatasetStatus, RecruitmentVisitGeo, GeoBabycare, GeoProviderEvent,
     GeoKindergartenFee, GeoPresaleBuildcase, GeoParcelPoint, GeoKindergartenPenalty, GeoKindergartenEvaluation,
 )
 # 加減約束要改這裡，同時改 models.py 與 migration。
@@ -89,6 +94,8 @@ CHECK_NAMES = {
     "ck_recruitment_visit_geo_match_level",
     "ck_recruitment_visit_geo_reason",
     "ck_geo_new_home_sales_match_level",
+    "ck_geo_housing_deals_kind",
+    "ck_geo_housing_deals_match_level",
     "ck_geo_babycare_kind",
     "ck_geo_provider_events_provider",
     "ck_geo_provider_events_change",
@@ -376,7 +383,7 @@ async def test_check_constraint_names_in_database_are_the_locked_set(db_session)
                 "SELECT conname FROM pg_constraint WHERE contype = 'c' AND conrelid IN "
                 "('geo_doorplates'::regclass, 'geo_kindergartens'::regclass, "
                 "'geo_dataset_status'::regclass, 'recruitment_visit_geo'::regclass, 'geo_new_home_sales'::regclass, "
-                "'geo_babycare'::regclass, 'geo_provider_events'::regclass, 'geo_kindergarten_fees'::regclass, "
+                "'geo_housing_deals'::regclass, 'geo_babycare'::regclass, 'geo_provider_events'::regclass, 'geo_kindergarten_fees'::regclass, "
                 "'geo_presale_buildcases'::regclass, 'geo_kindergarten_penalties'::regclass, "
                 "'geo_kindergarten_evaluations'::regclass)"
             )
@@ -407,6 +414,7 @@ async def test_tables_exist(db_session):
         "geo_babycare", "geo_provider_events", "geo_kindergarten_fees", "geo_presale_buildcases", "geo_parcel_points",
         "geo_kindergarten_penalties", "geo_kindergarten_evaluations", "geo_village_ages_september", "geo_elementary_grade1",
         "geo_change_notices", "geo_change_notice_baselines", "geo_village_marriages",
+        "geo_housing_deals",
     }
 
 
