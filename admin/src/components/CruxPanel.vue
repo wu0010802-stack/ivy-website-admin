@@ -110,7 +110,7 @@ const slash = (day: string) => day.replaceAll('-', '/')
                   <div v-if="cell.value && cell.value.p75 !== null" class="crux__cell">
                     <span class="num crux__value">{{ row.format(cell.value.p75) }}</span>
                     <el-tag v-if="cell.rating" size="small" :type="RATING_TAG[cell.rating]">{{ RATING_LABELS[cell.rating] }}</el-tag>
-                    <span class="hint num">良好 {{ formatRatio(cell.value.good) }}・需要改善 {{ formatRatio(cell.value.needs_improvement) }}・不佳 {{ formatRatio(cell.value.poor) }}</span>
+                    <span class="hint num crux__dist"><span>良好 {{ formatRatio(cell.value.good) }}・</span><span>需要改善 {{ formatRatio(cell.value.needs_improvement) }}・</span><span>不佳 {{ formatRatio(cell.value.poor) }}</span></span>
                   </div>
                   <span v-else-if="cell.status === 'insufficient'" class="hint">Chrome 使用者數量還不夠</span>
                   <span v-else class="hint">沒有資料</span>
@@ -223,6 +223,17 @@ const slash = (day: string) => day.replaceAll('-', '/')
 
 .crux__cell .hint {
   flex-basis: 100%;
+}
+
+/* 三段分布接在數值下面、靠左；欄位窄（手機）時在「・」後面換行，一段裡的字不拆開。
+   （原本整串不換行又靠右，手機上會蓋到隔壁欄。2026-11-20 可讀性） */
+.crux__table .crux__dist {
+  text-align: left;
+  white-space: normal;
+}
+
+.crux__dist > span {
+  white-space: nowrap;
 }
 
 .crux__trend {

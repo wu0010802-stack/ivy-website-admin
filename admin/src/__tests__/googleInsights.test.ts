@@ -84,7 +84,8 @@ describe('Google 搜尋面板', () => {
     const totals = wrapper.find('[data-test="search-totals"]')
     expect(totals.text()).toContain('點進官網')
     expect(totals.text()).toContain('42')
-    expect(totals.text()).toContain('1000')
+    // 2026-11-20：四位數以上加千分位。
+    expect(totals.text()).toContain('1,000')
     expect(totals.text()).toContain('4.2%')
     expect(totals.text()).toContain('8.8')
     // 期間、單位與涵蓋範圍；資料延遲寫在區塊小字。
@@ -271,6 +272,8 @@ describe('Chrome 真實使用者面板', () => {
     expect(lcp[0]!.text()).toContain('2.2 秒')
     expect(lcp[0]!.text()).toContain('良好')
     expect(lcp[0]!.text()).toContain('良好 82%・需要改善 15%・不佳 3%')
+    // 2026-11-20：三段各自不拆開，欄位窄時在「・」後面換行（原本整串不換行，手機上蓋到隔壁欄）。
+    expect(lcp[0]!.findAll('.crux__dist > span').map((part) => part.text())).toEqual(['良好 82%・', '需要改善 15%・', '不佳 3%'])
     expect(lcp[1]!.text()).toContain('3.1 秒')
     expect(lcp[1]!.text()).toContain('需要改善')
     expect(rows[1]!.findAll('td')[0]!.text()).toContain('204 毫秒')

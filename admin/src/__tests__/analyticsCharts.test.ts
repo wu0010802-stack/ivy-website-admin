@@ -32,7 +32,19 @@ describe('每日直條', () => {
     // 2026-11-20：10 天以內每根直條上面直接寫數字、下面寫日期，不放只有起訖日的軸線。
     expect(wrapper.find('.daily-bars__axis').exists()).toBe(false)
     expect(wrapper.findAll('.daily-bars__value').map((value) => value.text())).toEqual(['2', '0', '4'])
-    expect(wrapper.findAll('.daily-bars__days span').map((day) => day.text())).toEqual(['09/28', '09/29', '09/30'])
+    expect(wrapper.findAll('.daily-bars__day').map((day) => day.text())).toEqual(['09/28', '09/29', '09/30'])
+  })
+
+  it('2026-11-20：日期拆成月與日，第一根與換月那一根標記要留月份（手機上其餘只寫日）；數字加千分位', () => {
+    const cross = [{ day: '2026-10-30', value: 1200 }, { day: '2026-10-31', value: 3 }, { day: '2026-11-01', value: 5 }, { day: '2026-11-02', value: 0 }]
+    const wrapper = mountBars({ points: cross })
+    const days = wrapper.findAll('.daily-bars__day')
+    expect(days.map((day) => day.text())).toEqual(['10/30', '10/31', '11/01', '11/02'])
+    expect(days.map((day) => day.classes().includes('is-month-start'))).toEqual([true, false, true, false])
+    expect(days.map((day) => day.get('.daily-bars__month').text())).toEqual(['10/', '10/', '11/', '11/'])
+    expect(wrapper.findAll('.daily-bars__value')[0]!.text()).toBe('1,200')
+    expect(wrapper.find('.daily-bars__plot').attributes('aria-label')).toContain('共 1,208 次')
+    expect(wrapper.findAll('.daily-bars__table tbody tr').at(-1)!.text()).toContain('1,200')
   })
 
   it('超過 10 天放不下每根的數字：只在兩端寫起訖日與最多的那天', () => {
