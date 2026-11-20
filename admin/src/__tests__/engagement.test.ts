@@ -517,6 +517,115 @@ describe('內容興趣面板', () => {
     expect(campaigns).toContain('20%')
   })
 
+  // ---- 2026-11-20 可讀性 ----
+  it('可讀性：次數與括號裡的比例分成兩格（次數對齊），文字內容不變', async () => {
+    const { wrapper } = await mountPanel(summary(), 'journey')
+    const cells = wrapper.findAll('[data-test="interest-sources"] tbody tr')[0]!.findAll('td')
+    expect(cells.map((cell) => cell.text())).toEqual(['40（40%）', '5（13%）'])
+    expect(cells[0]!.get('.count-note__count').text()).toBe('40')
+    expect(cells[0]!.get('.count-note__note').text()).toBe('（40%）')
+    // 可能寫「樣本太少」的欄位用寬一點的格子。
+    expect(cells[0]!.get('.count-note').classes()).not.toContain('count-note--wide')
+    expect(cells[1]!.get('.count-note').classes()).toContain('count-note--wide')
+    // 只在離開頁出現的頁面：第一頁那一格是 0、不寫比例，但仍用同一種格子，數字才對得齊。
+    const exitOnly = wrapper.findAll('[data-test="interest-entries"] tbody tr')[2]!.findAll('td')[0]!
+    expect(exitOnly.text()).toBe('0')
+    expect(exitOnly.find('.count-note__note').exists()).toBe(true)
+  })
+
+  it('可讀性：來源名稱括號裡的補充拆成名稱下面的小字；匯出仍是完整名稱', async () => {
+    const save = vi.spyOn(csvExport, 'saveAnalyticsCsv').mockImplementation(() => {})
+    const data = summary()
+    data.sources = [{ source: 'direct', sessions: 60, booked_sessions: 3, booked_rate: 0.05 }, ...data.sources]
+    data.browser!.sources = [{ source: 'direct', browsers: 30, booked_browsers: 2, booked_rate: 0.0667 }, ...data.browser!.sources]
+    const { wrapper } = await mountPanel(data, 'journey')
+    for (const name of ['interest-sources', 'interest-browser-sources']) {
+      const head = wrapper.findAll(`[data-test="${name}"] tbody tr`)[0]!.get('th')
+      expect(head.element.firstChild!.textContent).toBe('直接進站')
+      expect(head.get('.interest__label-note').text()).toBe('輸入網址、書籤、看不出來源')
+    }
+    // 沒有括號的名稱不多一行。
+    expect(wrapper.findAll('[data-test="interest-sources"] tbody tr')[1]!.find('.interest__label-note').exists()).toBe(false)
+    // 開頭那一句只用名稱。
+    expect(wrapper.get('[data-test="interest-lede"]').text().replace(/\s+/g, '')).toContain('最多是直接進站（60次')
+    await wrapper.get('[data-test="interest-csv-sources"]').trigger('click')
+    expect(save.mock.calls[0]![2][0]![0]).toBe(SOURCE_LABELS.direct)
+  })
+
+  it('可讀性：回訪表一個行為一列、兩種造訪各一欄；匯出仍是一種造訪一列', async () => {
+    const save = vi.spyOn(csvExport, 'saveAnalyticsCsv').mockImplementation(() => {})
+    const { wrapper } = await mountPanel(summary(), 'journey')
+    const table = wrapper.get('[data-test="interest-cohorts"]')
+    expect(table.findAll('thead th').map((th) => th.text())).toEqual(['做了什麼', '首次觀測當天', '跨日回訪'])
+    expect(table.findAll('tbody tr').map((row) => row.findAll('th, td').map((cell) => cell.text()))).toEqual([
+      ['造訪次數', '60', '20'],
+      ['查看校區', '25（42%）', '9（45%）'],
+      ['點電話或 LINE', '5（8%）', '4（20%）'],
+      ['進預約頁', '20（33%）', '10（50%）'],
+    ])
+    await wrapper.get('[aria-labelledby="interest-cohorts-title"] .panel__head button').trigger('click')
+    expect(save.mock.calls[0]![1].slice(0, 2)).toEqual(['造訪分類', '造訪次數'])
+    expect(save.mock.calls[0]![2].map((row) => row[0])).toEqual(['首次觀測當天', '跨日回訪', '無法分類'])
+  })
+
+  it('可讀性：各頁停留多一份手機用的小卡（一頁一張），內容同表格', async () => {
+    const { wrapper } = await mountPanel()
+    // 表格在手機上由共用樣式收起（.data-table），小卡顯示（.mobile-records）。
+    expect(wrapper.get('[data-test="interest-pages"]').element.parentElement!.classList.contains('data-table')).toBe(true)
+    const records = wrapper.get('[data-test="interest-pages-records"]')
+    expect(records.classes()).toContain('mobile-records')
+    const cards = records.findAll('li')
+    expect(cards).toHaveLength(2)
+    expect(cards[0]!.get('strong').text()).toBe('首頁')
+    expect(cards[0]!.get('.interest__record-head').text()).toContain('120 次瀏覽（+50%）')
+    expect(cards[0]!.findAll('dl > div').map((item) => item.text())).toEqual(['停留1 分 5 秒', '10 秒內離開25%', '捲動深度48%'])
+    // 上一期沒有紀錄時不寫「和上一期比」。
+    const data = summary()
+    data.previous = { visits: 0, sessions: 0, booked_sessions: 0, booked_rate: null, median_session_ms: 0, pages_per_session: null }
+    const plain = (await mountPanel(data)).wrapper.get('[data-test="interest-pages-records"] li .interest__record-head').text()
+    expect(plain).toContain('120 次瀏覽')
+    expect(plain).not.toContain('（')
+  })
+
+  it('可讀性：四位數以上加千分位；表頭標了可以斷行的位置，文字不變', async () => {
+    const data = summary()
+    data.totals = { ...data.totals, sessions: 12345, visits: 23456 }
+    data.pages[0] = { ...data.pages[0]!, visits: 1289 }
+    data.sources[0] = { ...data.sources[0]!, sessions: 4321 }
+    const content = (await mountPanel(data)).wrapper
+    expect(content.get('.stat__value').text()).toBe('12,345')
+    expect(content.get('.stat__hint').text()).toContain('共看了 23,456 頁')
+    expect(content.get('[data-test="interest-pages"] tbody td').text()).toBe('1,289')
+    const journey = (await mountPanel(data, 'journey')).wrapper
+    expect(journey.get('[data-test="interest-lede"]').text()).toContain('12,345')
+    expect(journey.get('[data-test="interest-sources"] .count-note__count').text()).toBe('4,321')
+    const convert = (await mountPanel(summary(), 'convert')).wrapper
+    const heads = convert.findAll('[data-test="interest-destinations"] thead th')
+    expect(heads.map((th) => th.text().replace(/\u00a0/g, ' '))).toEqual(['校區', '有場次可選', '看到無場次', '點電話', '點 LINE', '完成線上預約', '無場次後點聯絡'])
+    expect(heads[1]!.find('wbr').exists()).toBe(true)
+  })
+
+  it('可讀性：「類別：內容」的名稱拆成兩塊（在冒號後換行、類別淡一階），文字不變', async () => {
+    const { wrapper } = await mountPanel()
+    const label = wrapper.get('[data-test="interest-actions"] li .interest__bar-label')
+    expect(label.text()).toBe('孩子的一天：翻開「一起用餐」')
+    expect(label.findAll('.interest__label-part').map((part) => part.text())).toEqual(['孩子的一天：', '翻開「一起用餐」'])
+    expect(label.get('.interest__label-prefix').text()).toBe('孩子的一天：')
+    const convert = (await mountPanel(summary(), 'convert')).wrapper
+    const heads = convert.findAll('[data-test="interest-conversion"] tbody th')
+    expect(heads[0]!.findAll('.interest__label-part').map((part) => part.text())).toEqual(['首頁：', '孩子的一天'])
+    // 沒有類別的名稱只有一塊。
+    expect(heads[1]!.text()).toBe('首頁')
+    expect(heads[1]!.find('.interest__label-prefix').exists()).toBe(false)
+  })
+
+  it('可讀性：時段表每列的「星期」另外包一層（手機上收起來，七個時段才放得下）', async () => {
+    const { wrapper } = await mountPanel(summary(), 'journey')
+    const head = wrapper.findAll('[data-test="interest-hours"] tbody tr')[2]!.get('th')
+    expect(head.text()).toBe('星期三')
+    expect(head.get('.interest__weekday').text()).toBe('星期')
+  })
+
   it('讀取失敗可以重新載入', async () => {
     const get = vi.spyOn(api, 'get').mockRejectedValueOnce(new Error('boom')).mockResolvedValue(summary() as never)
     const wrapper = mount(ContentInterestPanel, { props: { view: 'content' }, global: { plugins: [ElementPlus] } })

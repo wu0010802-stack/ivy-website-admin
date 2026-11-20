@@ -8,6 +8,7 @@ import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import DailyBars from './analytics/DailyBars.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './analytics/csvExport'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
+import { formatCount } from './analytics/format'
 
 // 期間由成效統計頁首共用的那一組決定（2026-11-12，原本面板自己有一個選單），這裡只管讀資料與顯示。
 // 換期間時告訴頁首「正在更新」（updating），提示寫在期間旁邊。
@@ -49,7 +50,7 @@ const shortRange = computed(() => (summary.value ? `${summary.value.since.slice(
 const dailyAverageText = computed(() => {
   const list = summary.value?.daily ?? []
   const average = list.length ? (summary.value?.total_views ?? 0) / list.length : 0
-  return average > 0 && average < 1 ? '平均每天不到 1 次' : `平均每天 ${Math.round(average)} 次`
+  return average > 0 && average < 1 ? '平均每天不到 1 次' : `平均每天 ${formatCount(Math.round(average))} 次`
 })
 const mobileShare = computed(() => {
   const total = summary.value?.total_views ?? 0
@@ -104,12 +105,12 @@ function exportVitals() {
           <div class="stat-list traffic__stats">
             <div class="stat">
               <span class="stat__label">這段期間</span>
-              <span class="stat__value">{{ summary.total_views }}</span>
+              <span class="stat__value">{{ formatCount(summary.total_views) }}</span>
               <span class="stat__hint">{{ dailyAverageText }}</span>
             </div>
             <div class="stat">
               <span class="stat__label">今天</span>
-              <span class="stat__value">{{ today }}</span>
+              <span class="stat__value">{{ formatCount(today) }}</span>
             </div>
             <div class="stat">
               <span class="stat__label">手機瀏覽比例</span>
@@ -139,7 +140,7 @@ function exportVitals() {
             <li v-for="p in pages" :key="`${p.page}-${p.campus_key}`" class="traffic__row">
               <span class="traffic__label">{{ p.label }}</span>
               <span class="traffic__track" aria-hidden="true"><span class="traffic__bar" :style="{ width: `${p.ratio * 100}%` }" /></span>
-              <span class="traffic__value num">{{ p.views }}</span>
+              <span class="traffic__value num">{{ formatCount(p.views) }}</span>
             </li>
           </ol>
         </div>
@@ -164,7 +165,7 @@ function exportVitals() {
                     <div v-if="row[device.key]" class="traffic__vital">
                       <span class="num traffic__vital-value">{{ formatVital(row.metric, row[device.key]!.p75) }}</span>
                       <el-tag size="small" :type="RATING_TAG[ratingOf(row[device.key]!)]">{{ RATING_LABELS[ratingOf(row[device.key]!)] }}</el-tag>
-                      <span class="hint num">量測 {{ row[device.key]!.samples }} 次</span>
+                      <span class="hint num">量測 {{ formatCount(row[device.key]!.samples) }} 次</span>
                     </div>
                     <span v-else class="hint">沒有資料</span>
                   </td>
@@ -235,7 +236,7 @@ function exportVitals() {
 
 .traffic__row {
   display: grid;
-  grid-template-columns: 140px minmax(0, 1fr) 56px;
+  grid-template-columns: 140px minmax(0, 1fr) 60px;
   align-items: center;
   gap: 12px;
   padding: 7px 0;
@@ -327,7 +328,7 @@ function exportVitals() {
 
 @media (max-width: 600px) {
   .traffic__row {
-    grid-template-columns: 110px minmax(0, 1fr) 44px;
+    grid-template-columns: 110px minmax(0, 1fr) 52px;
   }
 
   .traffic__vitals th,

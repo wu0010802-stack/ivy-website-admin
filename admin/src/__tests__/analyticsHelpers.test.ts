@@ -3,6 +3,7 @@ import { api } from '../api/client'
 import {
   PENDING_KINDS, SMALL_SAMPLE, getBookingOutcomes, getClassDistribution, getEventTrend, isSmallSample, pendingLink, rangeKey, rateText,
 } from '../api/analytics'
+import { formatCount, splitLabel, splitPrefix } from '../components/analytics/format'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -44,5 +45,26 @@ describe('成效統計的比率、樣本與連結', () => {
       '/admin/analytics/event-trend?campus_key=yihua&from=2026-09-01&to=2026-09-30',
       '/admin/analytics/class-distribution?campus_key=yihua&school_year=115',
     ])
+  })
+})
+
+// 2026-11-20 可讀性：畫面上的次數與名稱格式（匯出不經過這兩個函式）。
+describe('成效統計畫面上的次數與名稱', () => {
+  it('次數加千分位；沒有值寫「—」', () => {
+    expect([0, 7, 999, 1000, 1617, 12345, 1234567].map(formatCount)).toEqual(['0', '7', '999', '1,000', '1,617', '12,345', '1,234,567'])
+    expect([formatCount(null), formatCount(undefined)]).toEqual(['—', '—'])
+  })
+
+  it('名稱最後的括號拆成名稱與補充；沒有括號、括號不在最後的照原樣', () => {
+    expect(splitLabel('直接進站（輸入網址、書籤、看不出來源）')).toEqual({ name: '直接進站', note: '輸入網址、書籤、看不出來源' })
+    expect(splitLabel('搜尋引擎')).toEqual({ name: '搜尋引擎', note: '' })
+    expect(splitLabel('首頁（選校）預約')).toEqual({ name: '首頁（選校）預約', note: '' })
+  })
+
+  it('「類別：內容」在第一個冒號拆成兩段；沒有冒號、冒號在頭尾的整串當內容', () => {
+    expect(splitPrefix('孩子的一天：翻開「一起用餐」')).toEqual({ prefix: '孩子的一天：', name: '翻開「一起用餐」' })
+    expect(splitPrefix('常見問題：補助：怎麼申請？')).toEqual({ prefix: '常見問題：', name: '補助：怎麼申請？' })
+    expect(splitPrefix('入學資訊')).toEqual({ prefix: '', name: '入學資訊' })
+    expect(splitPrefix('結尾是冒號：')).toEqual({ prefix: '', name: '結尾是冒號：' })
   })
 })

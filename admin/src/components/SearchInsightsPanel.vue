@@ -10,6 +10,7 @@ import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
 import RowsToggle from './analytics/RowsToggle.vue'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
+import { formatCount } from './analytics/format'
 
 // Google 搜尋（2026-11-12，Search Console）：家長在 Google 搜尋什麼字、點進官網哪一頁。
 // 期間由成效統計頁首共用的那一組決定；只有切到這一類（active）才向 Google 要資料，
@@ -110,12 +111,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
           <div class="stat-list search__stats" data-test="search-totals">
             <div class="stat">
               <span class="stat__label">點進官網</span>
-              <span class="stat__value">{{ totals.clicks }}</span>
+              <span class="stat__value">{{ formatCount(totals.clicks) }}</span>
               <span class="stat__hint">次</span>
             </div>
             <div class="stat">
               <span class="stat__label">出現在搜尋結果</span>
-              <span class="stat__value">{{ totals.impressions }}</span>
+              <span class="stat__value">{{ formatCount(totals.impressions) }}</span>
               <span class="stat__hint">次</span>
             </div>
             <div class="stat">
@@ -148,9 +149,9 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                 <tbody>
                   <tr v-for="row in queryGroups" :key="row.group" :data-test="`search-group-${row.group}`">
                     <th scope="row">{{ SEARCH_GROUP_LABELS[row.group].label }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].hint }}</span></th>
-                    <td class="num">{{ row.queries }}</td>
-                    <td class="num">{{ row.clicks }}</td>
-                    <td class="num">{{ row.impressions }}</td>
+                    <td class="num">{{ formatCount(row.queries) }}</td>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
                     <td class="num">{{ formatCtr(row.ctr) }}</td>
                     <td class="num">{{ formatPosition(row.position) }}</td>
                   </tr>
@@ -174,8 +175,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                 <tbody>
                   <tr v-for="row in missed" :key="row.query">
                     <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].label }}</span></th>
-                    <td class="num">{{ row.impressions }}</td>
-                    <td class="num">{{ row.clicks }}</td>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
                     <td class="num">{{ formatPosition(row.position) }}</td>
                   </tr>
                 </tbody>
@@ -199,8 +200,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                 <tbody>
                   <tr v-for="row in visibleQueries" :key="row.query">
                     <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group]?.label }}</span></th>
-                    <td class="num">{{ row.clicks }}</td>
-                    <td class="num">{{ row.impressions }}</td>
+                    <td class="num">{{ formatCount(row.clicks) }}</td>
+                    <td class="num">{{ formatCount(row.impressions) }}</td>
                     <td class="num">{{ formatCtr(row.ctr) }}</td>
                     <td class="num">{{ formatPosition(row.position) }}</td>
                   </tr>
@@ -222,11 +223,11 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   <tbody>
                     <tr v-for="row in visiblePages" :key="row.page">
                       <th scope="row">
-                        <template v-if="row.label">{{ row.label }}<span class="hint search__path">{{ row.path }}</span></template>
+                        <template v-if="row.label">{{ row.label }}<span class="hint search__path search__path--extra">{{ row.path }}</span></template>
                         <template v-else>{{ row.path }}</template>
                       </th>
-                      <td class="num">{{ row.clicks }}</td>
-                      <td class="num">{{ row.impressions }}</td>
+                      <td class="num">{{ formatCount(row.clicks) }}</td>
+                      <td class="num">{{ formatCount(row.impressions) }}</td>
                       <td class="num">{{ formatCtr(row.ctr) }}</td>
                       <td class="num">{{ formatPosition(row.position) }}</td>
                     </tr>
@@ -247,9 +248,9 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   <tbody>
                     <tr v-for="row in devices" :key="row.device">
                       <th scope="row">{{ SEARCH_DEVICE_LABELS[row.device] }}</th>
-                      <td class="num">{{ row.clicks }}</td>
+                      <td class="num">{{ formatCount(row.clicks) }}</td>
                       <td class="num">{{ deviceShare(row.clicks) }}</td>
-                      <td class="num">{{ row.impressions }}</td>
+                      <td class="num">{{ formatCount(row.impressions) }}</td>
                       <td class="num">{{ formatCtr(row.ctr) }}</td>
                       <td class="num">{{ formatPosition(row.position) }}</td>
                     </tr>
@@ -351,9 +352,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
   font-weight: 500;
 }
 
+/* 搜尋字詞多半是用空格隔開的幾個詞（「高雄 幼兒園 推薦」）：欄位窄時在空格換行、不把一個詞拆開；
+   沒有空格又放不下的長字串（路徑）才任意斷。 */
 .search__table tbody th {
   font-weight: 400;
   color: var(--ink);
+  word-break: keep-all;
   overflow-wrap: anywhere;
 }
 
@@ -383,6 +387,12 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
   .search__table th,
   .search__table td {
     padding: 10px 6px;
+  }
+
+  /* 手機上頁面名稱那一欄只有一百多 px：已經有中文名稱的頁面不再重複寫路徑（會斷成「/environmen／t」）；
+     認不得的路徑照舊顯示。完整路徑在桌機與 Search Console 看得到。 */
+  .search__path--extra {
+    display: none;
   }
 }
 </style>

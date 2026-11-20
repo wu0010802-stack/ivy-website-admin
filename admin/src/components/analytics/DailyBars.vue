@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, useId } from 'vue'
 import { saveAnalyticsCsv } from './csvExport'
+import { formatCount } from './format'
 
 // 每日直條（DESIGN.md 招生入學統計：表格＋CSS 長條、不裝圖表套件，數字一定寫出來）。
 // 直條只用來看起伏，每天的數字在下方「每日數字」。markers 是口徑改變的日子
@@ -34,11 +35,21 @@ const dense = computed(() => props.points.length > DENSE_POINTS)
 // 天數多就放不下，照舊只在兩端寫起訖日與最多的那天（2026-11-20）。
 const LABELED_POINTS = 10
 const labeled = computed(() => props.points.length <= LABELED_POINTS)
+// 每根下面的日期拆成「月/」與「日」：圖表窄（手機）時一欄只有 40px，「11/13」「11/14」會黏成一串，
+// 這時只留日，月份只寫在第一根與換月的那一根（2026-11-20 可讀性；隱藏由樣式的 container query 決定）。
+const dayLabels = computed(() =>
+  props.points.map((point, index) => ({
+    key: point.day,
+    month: `${point.day.slice(5, 7)}/`,
+    date: point.day.slice(8),
+    monthStart: index === 0 || point.day.slice(5, 7) !== props.points[index - 1]!.day.slice(5, 7),
+  })),
+)
 // 有數字的日子至少 1px 高，免得 1/300 四捨五入成 0% 看不見。
 const height = (value: number) => (max.value ? `${Math.round((value / max.value) * 100)}%` : '0%')
 const summary = computed(() =>
   peak.value
-    ? `${props.title}：${short(first.value)}–${short(last.value)} 共 ${total.value} ${props.unit}，最多是 ${short(peak.value.day)} 的 ${peak.value.value} ${props.unit}`
+    ? `${props.title}：${short(first.value)}–${short(last.value)} 共 ${formatCount(total.value)} ${props.unit}，最多是 ${short(peak.value.day)} 的 ${formatCount(peak.value.value)} ${props.unit}`
     : `${props.title}：沒有資料`,
 )
 const newestFirst = computed(() => [...props.points].reverse())
@@ -67,17 +78,17 @@ function exportCsv() {
           :key="point.day"
           class="daily-bars__col"
           :class="{ 'is-marked': markedDays.has(point.day) }"
-          :title="`${short(point.day)}：${point.value} ${unit}`"
+          :title="`${short(point.day)}：${formatCount(point.value)} ${unit}`"
         >
-          <span v-if="labeled" class="daily-bars__value num" :class="{ 'is-zero': !point.value }" :style="{ bottom: height(point.value) }" aria-hidden="true">{{ point.value }}</span>
+          <span v-if="labeled" class="daily-bars__value num" :class="{ 'is-zero': !point.value }" :style="{ bottom: height(point.value) }" aria-hidden="true">{{ formatCount(point.value) }}</span>
           <span class="daily-bars__fill" :class="{ 'has-value': point.value > 0 }" :style="{ height: height(point.value) }" />
         </span>
       </div>
       <div v-if="labeled" class="daily-bars__days hint num" :style="{ '--n': points.length }" aria-hidden="true">
-        <span v-for="point in points" :key="point.day">{{ short(point.day) }}</span>
+        <span v-for="label in dayLabels" :key="label.key" class="daily-bars__day" :class="{ 'is-month-start': label.monthStart }"><span class="daily-bars__month">{{ label.month }}</span>{{ label.date }}</span>
       </div>
       <div v-else class="daily-bars__axis hint num">
-        <span>{{ short(first) }}</span><span>最多 {{ max }} {{ unit }}</span><span>{{ short(last) }}</span>
+        <span>{{ short(first) }}</span><span>最多 {{ formatCount(max) }} {{ unit }}</span><span>{{ short(last) }}</span>
       </div>
       <p v-for="marker in visibleMarkers" :key="marker.day" class="hint daily-bars__marker">{{ short(marker.day) }} 起：{{ marker.label }}</p>
       <details class="daily-bars__table">
@@ -88,7 +99,7 @@ function exportCsv() {
         <table>
           <thead><tr><th scope="col">日期</th><th scope="col">{{ valueLabel }}</th></tr></thead>
           <tbody>
-            <tr v-for="point in newestFirst" :key="point.day"><th scope="row" class="num">{{ short(point.day) }}</th><td class="num">{{ point.value }}</td></tr>
+            <tr v-for="point in newestFirst" :key="point.day"><th scope="row" class="num">{{ short(point.day) }}</th><td class="num">{{ formatCount(point.value) }}</td></tr>
           </tbody>
         </table>
       </details>
@@ -97,9 +108,11 @@ function exportCsv() {
 </template>
 
 <style scoped>
+/* container：直條之間的縫與日期要不要寫月份，看圖表自己的寬度，不看視窗（面板在兩欄裡時比視窗窄很多）。 */
 .daily-bars {
   min-width: 0;
   margin: 0;
+  container-type: inline-size;
 }
 
 .daily-bars__title {
@@ -121,8 +134,10 @@ function exportCsv() {
   gap: 0;
 }
 
-/* 每根上面要寫數字：最高那根的數字寫在圖的上緣外面，先留一行的高度。 */
+/* 每根上面要寫數字：最高那根的數字寫在圖的上緣外面，先留一行的高度。
+   天數少時直條之間留縫（手機上一欄只有 40px，沒有縫會連成一整面色塊）；下面的日期列用同一個縫才對得齊。 */
 .daily-bars__plot.is-labeled {
+  gap: clamp(4px, 2cqw, 12px);
   margin-top: 20px;
 }
 
@@ -148,9 +163,17 @@ function exportCsv() {
 .daily-bars__days {
   display: grid;
   grid-template-columns: repeat(var(--n), minmax(0, 1fr));
-  gap: 1px;
+  gap: clamp(4px, 2cqw, 12px);
   margin-top: 4px;
   text-align: center;
+  white-space: nowrap;
+}
+
+/* 圖表窄於 480px（手機）：日期只留「日」，月份只寫在第一根與換月那一根。 */
+@container (max-width: 480px) {
+  .daily-bars__day:not(.is-month-start) .daily-bars__month {
+    display: none;
+  }
 }
 
 .daily-bars__col {
