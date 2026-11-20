@@ -177,7 +177,7 @@ onMounted(editor.load)
           <p class="page-copy__item-title">第 {{ i + 1 }} 個空間</p>
           <PageCopyField v-model="space.title" label="名稱" hint="envSpaceTitle" :fonts="ENV_HEAD_FONTS" />
           <PageCopyField v-model="space.text" label="說明" hint="envSpaceText" multiline />
-          <PageCopyField v-model="space.campus_label" label="照片上的校名" hint="envSpaceCampus" help="只有確定是哪一校拍的照片才填，其餘留空就不顯示校名。" />
+          <PageCopyField v-model="space.campus_label" label="照片上的校名" hint="envSpaceCampus" :help="i === 2 ? '戶外廣場的校名僅供後台留存。' : '只有確定是哪一校拍的照片才填，其餘留空就不顯示校名。'" />
           <PagePhotoField
             v-model:photo="space.photo"
             v-model:alt="space.photo_alt"
