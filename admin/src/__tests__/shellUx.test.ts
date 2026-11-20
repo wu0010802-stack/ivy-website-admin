@@ -307,8 +307,8 @@ describe('被導回登入頁時說明原因（shell-2c）', () => {
     vi.spyOn(api, 'get').mockResolvedValue({ google: false, line: false })
     const { wrapper } = await mountLogin(`/login?redirect=%2Fmedia&reason=${reason}`)
     expect(wrapper.get('[data-test="login-reason"]').text()).toContain(text)
-    expect(wrapper.find(`.el-alert--${type}`).exists()).toBe(true)
-    expect(wrapper.find('.el-alert--error').exists()).toBe(false)
+    expect(wrapper.get('[data-test="login-reason"]').attributes('data-kind')).toBe(type)
+    expect(wrapper.find('[data-kind="error"]').exists()).toBe(false)
   })
 
   it('不認得的 reason 不顯示', async () => {

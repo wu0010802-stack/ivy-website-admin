@@ -165,7 +165,8 @@ async function handleLogout() {
 .skip-link { position: fixed; top: -100px; left: 16px; z-index: 3000; padding: 12px; border-radius: var(--radius); background: var(--ink); color: var(--surface); }
 .skip-link:focus { top: 12px; }
 /* overflow:hidden 是保險：側欄裡絕對定位的東西（例如數字的報讀文字）不能把整頁撐高。 */
-.side { position: sticky; top: 0; height: 100svh; overflow: hidden; background: var(--sidebar-bg); }
+/* view-transition-name：登入頁左邊的側欄與這裡同名，登入成功時原地展開（LoginView.vue 的 enterAdmin）。 */
+.side { position: sticky; top: 0; height: 100svh; overflow: hidden; background: var(--sidebar-bg); view-transition-name: admin-side; }
 .main-col { display: flex; flex-direction: column; min-width: 0; }
 .top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; gap: 12px; min-height: var(--top-h); padding: 8px 28px; background: var(--surface); border-bottom: 1px solid var(--line); }
 .top__heading { min-width: 0; display: grid; gap: 3px; margin-right: auto; }

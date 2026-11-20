@@ -10,7 +10,8 @@ import { testUser } from './fixtures'
 
 // 登入頁「記住這台裝置」（2026-11-19）：勾了保持登入 30 天，帳密、Google、LINE 三種都適用。
 const wrappers: VueWrapper[] = []
-afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
+// 登入成功會記住回訪者（composables/lastSignIn.ts），下一個測試就變成「只問密碼」：每個測試都從新裝置開始。
+afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks(); localStorage.clear(); sessionStorage.clear() })
 
 async function mountLogin(path = '/login') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:rest(.*)', name: 'dashboard', component: defineComponent({ template: '<div />' }) }] })

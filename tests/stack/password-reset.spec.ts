@@ -33,7 +33,7 @@ test('總管理者寄重設連結，同事從信裡設定新密碼後用新密�
   await page.getByRole('button', { name: '設定新密碼' }).click()
   await expect(page.getByText('密碼已更新，請用新密碼登入')).toBeVisible()
 
-  await page.getByLabel('帳號', { exact: true }).fill(RESET_TARGET.email)
+  await page.getByLabel('Email', { exact: true }).fill(RESET_TARGET.email)
   await page.getByLabel('密碼', { exact: true }).fill(NEW_PASSWORD)
   await page.getByRole('button', { name: '登入', exact: true }).click()
   await expect(page).not.toHaveURL(/\/admin\/login/)

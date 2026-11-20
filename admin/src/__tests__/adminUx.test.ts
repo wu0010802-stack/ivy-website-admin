@@ -480,8 +480,13 @@ describe('2026-10-05 後台第九輪 UI/UX', () => {
   describe('字級只用 style.css 的十級 token', () => {
     it('token 定義在 :root，從 12 到 28', () => {
       const css = readFileSync(join(SRC, 'style.css'), 'utf8')
-      const sizes = [...css.matchAll(/--text-([\w]+):\s*(\d+)px;/g)].map(m => Number(m[2]))
+      const sizes = [...css.matchAll(/--text-(?!display)([\w]+):\s*(\d+)px;/g)].map(m => Number(m[2]))
       expect(sizes).toEqual([12, 13, 14, 15, 16, 18, 20, 22, 24, 28])
+    })
+
+    it('例外的 --text-display（登入頁問候語，2026-11-19）只有登入頁用', () => {
+      const users = styleFiles().filter(file => /var\(--text-display/.test(readFileSync(file, 'utf8'))).map(file => relative(SRC, file))
+      expect(users).toEqual(['views/LoginView.vue'])
     })
 
     it('元件與頁面不直接寫 px 字級（自訂屬性 --el-font-size-base 這種不算）', () => {
