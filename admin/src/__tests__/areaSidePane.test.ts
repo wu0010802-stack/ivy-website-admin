@@ -401,4 +401,30 @@ describe('右欄容器（AreaSidePane）', () => {
     expect(wrapper.get('[aria-live="polite"]').text()).toBe('')
     expect(wrapper.find('[aria-live="polite"]').exists()).toBe(true)
   })
+
+  it('優先序：里卡片 ＞ 地點卡片（point slot）＞ 標題與排行；排行區只藏不卸載', async () => {
+    const wrapper = mountIt(AreaSidePane, paneProps({ point: true }), { point: '<div class="point-slot">這一點</div>' })
+    expect(wrapper.find('.point-slot').exists()).toBe(true)
+    expect(wrapper.find('.area-pane__head').exists()).toBe(false)
+    expect(wrapper.get('.area-pane__body').isVisible()).toBe(false)
+    await wrapper.setProps({ facts: facts() })
+    expect(wrapper.find('.point-slot').exists()).toBe(false)
+    expect(wrapper.find('.village-card').exists()).toBe(true)
+    await wrapper.setProps({ facts: null })
+    expect(wrapper.find('.point-slot').exists()).toBe(true)
+    await wrapper.setProps({ point: false })
+    expect(wrapper.find('.point-slot').exists()).toBe(false)
+    expect(wrapper.get('h2').text()).toBe('參觀')
+    expect(wrapper.get('.area-pane__body').isVisible()).toBe(true)
+  })
+
+  it('同業模式有圖釘：同業 slot 留在 DOM（藏起來），搜尋字不歸零', async () => {
+    const wrapper = mountIt(AreaSidePane, paneProps({ peers: true, point: true }), {
+      default: '<input class="peers-search" value="大樹">', point: '<div class="point-slot" />',
+    })
+    expect(wrapper.find('.peers-search').exists()).toBe(true)
+    expect(wrapper.get('.area-pane__body').isVisible()).toBe(false)
+    await wrapper.setProps({ point: false })
+    expect(wrapper.get('.area-pane__body').isVisible()).toBe(true)
+  })
 })

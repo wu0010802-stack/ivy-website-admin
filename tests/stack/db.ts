@@ -277,3 +277,39 @@ export function seedEnrolled(campus: string, points: readonly EnrolledSeed[], st
     { campus },
   )
 }
+
+/** 在籍清冊清掉（五校版圖測試用：不讓虛構的別校清冊留在共用測試庫裡）。 */
+export function clearEnrolled(campus: string): void {
+  psql(
+    `DELETE FROM enrolled_student_points WHERE campus_key = :'campus';
+     DELETE FROM enrolled_rosters WHERE campus_key = :'campus';`,
+    { campus },
+  )
+}
+
+/**
+ * 各里房價租金（2026-11-20）：stack 不抓實價登錄，這裡直接寫虛構交易——左營區新上里 6 筆買賣（單價 38–48 萬／坪）、
+ * 5 筆整戶月租，都在 115S3；加上 geo_dataset_status 的 housing 列。可以重跑。
+ */
+export function seedHousing(): void {
+  const sales = [380000, 400000, 420000, 440000, 460000, 480000].map(
+    (price, index) => `('sale', 'e2e-sale-${index}', '115S3', '住宅大樓', '左營區', '明華一路', '', '', ${index + 1}, 0, '新上里', 'street', '115-10', ${price}, NULL)`,
+  )
+  const rents = [14000, 16000, 18000, 20000, 22000].map(
+    (rent, index) => `('rent', 'e2e-rent-${index}', '115S3', '住宅大樓', '左營區', '明華一路', '', '', ${index + 1}, 0, '新上里', 'street', '115-10', NULL, ${rent})`,
+  )
+  psql(
+    `DELETE FROM geo_housing_deals WHERE serial LIKE 'e2e-%';
+     INSERT INTO geo_housing_deals (kind, serial, season, building_type, district, street, lane, alley, number, number_sub, village, match_level, doorplate_version, unit_price, monthly_rent)
+     VALUES ${[...sales, ...rents].join(',\n')};
+     INSERT INTO geo_dataset_status (dataset, active_version, label, synced_at, checked_at)
+     VALUES ('housing', '115S3', '115S3', now(), now())
+     ON CONFLICT (dataset) DO UPDATE SET active_version = '115S3', label = '115S3', synced_at = now(), checked_at = now(), last_error = NULL;`,
+    {},
+  )
+}
+
+/** 房價租金清掉（交易與狀態列）。 */
+export function clearHousing(): void {
+  psql(`DELETE FROM geo_housing_deals WHERE serial LIKE 'e2e-%'; DELETE FROM geo_dataset_status WHERE dataset = 'housing';`, {})
+}

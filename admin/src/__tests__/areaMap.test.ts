@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import {
-  areaBabycare, areaEnrolled, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, button, presaleItem,
+  areaBabycare, areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaPresale, areaStats, areaTrends, babycareItem, button, presaleItem,
   villageBoundaries,
 } from './admissionsTestKit'
 
@@ -28,6 +28,7 @@ const leaflet = vi.hoisted(() => {
       bindTooltip: vi.fn(() => self),
       openPopup: vi.fn(() => self),
       setRadius: vi.fn(() => self),
+      setLatLng: vi.fn(() => self),
       redraw: vi.fn(() => self),
       bringToBack: vi.fn(() => self),
       bringToFront: vi.fn(() => self),
@@ -1164,7 +1165,7 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
       await button(wrapper, '重試')!.trigger('click')
       await settle()
       expect(leaflet.created.map).toHaveLength(1)
-      expect(leaflet.created.layerGroup).toHaveLength(4) // 幼兒園、托嬰、在籍學生、在建預售
+      expect(leaflet.created.layerGroup).toHaveLength(5) // 幼兒園、托嬰、在籍學生、在建預售、五校版圖
       expect(one('map').addLayer).toHaveBeenCalledWith(enrolledGroup())
       expect(enrolledMarkers()).toHaveLength(3)
     } finally {
@@ -1461,5 +1462,183 @@ describe('地圖工作台：模式由外層決定、點里選取、選取外框�
     expect(wrapper.find('.area-map__modes').exists()).toBe(false)
     expect(wrapper.find('.area-map__mode-note').exists()).toBe(false)
     expect(wrapper.find('[aria-label="地圖著色"]').exists()).toBe(false)
+  })
+})
+
+describe('區域分析地圖：圖釘（2026-11-20）', () => {
+  const PIN = { lat: 22.6512, lng: 120.3101 }
+  const pinMarker = () => leaflet.created.marker!.find((item) => item.options.title === '圖釘')
+
+  it('沒有 point 就沒有圖釘與圖釘圈；有 point：可拖曳的 divIcon 圖釘（Phosphor MapPin）＋實線不填色的半徑圈', async () => {
+    const none = await mountMap()
+    expect(pinMarker()).toBeUndefined()
+    expect(leaflet.created.circle!.some((item) => item.options.className === 'area-point-radius')).toBe(false)
+    none.unmount()
+    leaflet.reset()
+    await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    expect(marker.latlng).toEqual([22.6512, 120.3101])
+    expect(marker.options).toMatchObject({ draggable: true, keyboard: false })
+    const icon = leaflet.module.divIcon.mock.calls.map((call) => call[0]).find((options) => options.className === 'area-point')!
+    expect(String(icon.html)).toContain('viewBox="0 0 256 256"')
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    expect(circle.latlng).toEqual([22.6512, 120.3101])
+    expect(circle.options).toMatchObject({ radius: 3000, fill: false, interactive: false })
+    expect(circle.options.dashArray).toBeUndefined()
+  })
+
+  it('圖釘圈顏色走 --area-point token；放點游標是十字', () => {
+    const source = readFileSync(join(__dirname, '../components/admissions/area/AreaMap.vue'), 'utf8')
+    expect(source).toMatch(/\.area-point-radius\) \{\s*stroke: var\(--area-point\)/)
+    expect(source).toMatch(/area-map__canvas--placing[\s\S]*cursor: crosshair/)
+    expect(readFileSync(join(__dirname, '../style.css'), 'utf8')).toMatch(/--area-point: /)
+  })
+
+  it('換半徑：圖釘圈跟著；座標換了只移動圖釘與圈、不重建', async () => {
+    const wrapper = await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    await wrapper.setProps({ radiusKm: 6 })
+    expect(circle.setRadius).toHaveBeenCalledWith(6000)
+    await wrapper.setProps({ point: { lat: 22.7, lng: 120.4 } })
+    expect(marker.setLatLng).toHaveBeenCalledWith([22.7, 120.4])
+    expect(circle.setLatLng).toHaveBeenCalledWith([22.7, 120.4])
+    expect(leaflet.created.marker!.filter((item) => item.options.title === '圖釘')).toHaveLength(1)
+    await wrapper.setProps({ point: null })
+    expect(marker.remove).toHaveBeenCalled()
+    expect(circle.remove).toHaveBeenCalled()
+  })
+
+  it('本校沒座標、也不知道哪一區：網址帶圖釘時，視野先取好才加圖釘圈（向量圖層的 renderer 要有視野）', async () => {
+    await mountMap({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error: 'pending', district: null }, point: PIN })
+    const fit = one('map').fitBounds.mock.invocationCallOrder[0]!
+    const pinCircle = leaflet.created.circle!.findIndex((item) => item.options.className === 'area-point-radius')
+    expect(pinCircle).toBeGreaterThanOrEqual(0)
+    expect(leaflet.module.circle.mock.invocationCallOrder[pinCircle]!).toBeGreaterThan(fit)
+    expect(leaflet.created.marker!.some((item) => item.options.title === '圖釘')).toBe(true)
+  })
+
+  it('拖曳中圖釘圈跟著走', async () => {
+    await mountMap({ point: PIN })
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    pinMarker()!.fire('drag', { latlng: { lat: 22.68, lng: 120.35 } })
+    expect(circle.setLatLng).toHaveBeenLastCalledWith({ lat: 22.68, lng: 120.35 })
+  })
+
+  it('placing 時點地圖發出 place-point（4 位小數）；沒在放點時點地圖不發', async () => {
+    const wrapper = await mountMap()
+    one('map').fire('click', { latlng: { lat: 22.65123456, lng: 120.31019999 } })
+    expect(wrapper.emitted('place-point')).toBeUndefined()
+    await wrapper.setProps({ placing: true })
+    expect(wrapper.get('.area-map__canvas').classes()).toContain('area-map__canvas--placing')
+    one('map').fire('click', { latlng: { lat: 22.65123456, lng: 120.31019999 } })
+    expect(wrapper.emitted('place-point')).toEqual([[{ lat: 22.6512, lng: 120.3102 }]])
+    await wrapper.setProps({ placing: false })
+    expect(wrapper.get('.area-map__canvas').classes()).not.toContain('area-map__canvas--placing')
+  })
+
+  it('placing 時點里不發 select-village（那一下是放點）；不放點照舊選里', async () => {
+    const wrapper = await mountMap()
+    const layer = villageLayerStub()
+    one('geoJSON').options.onEachFeature({ properties: { TOWNNAME: '三民區', VILLNAME: '本揚里', VILLCODE: '64000050015' } }, layer)
+    await wrapper.setProps({ placing: true })
+    layer.click()
+    expect(wrapper.emitted('select-village')).toBeUndefined()
+    await wrapper.setProps({ placing: false })
+    layer.click()
+    expect(wrapper.emitted('select-village')).toHaveLength(1)
+  })
+
+  it('拖完圖釘（dragend）發 place-point；focusPoint 把地圖移到圖釘', async () => {
+    const wrapper = await mountMap({ point: PIN })
+    const marker = pinMarker()!
+    marker.getLatLng.mockReturnValue({ lat: 22.70004, lng: 120.40006 })
+    marker.fire('dragend')
+    expect(wrapper.emitted('place-point')).toEqual([[{ lat: 22.7, lng: 120.4001 }]])
+    ;(wrapper.vm as unknown as { focusPoint: () => void }).focusPoint()
+    expect(one('map').setView).toHaveBeenCalledWith([22.6512, 120.3101], 14)
+  })
+})
+
+
+describe('五校版圖（2026-11-20 規格 §6）', () => {
+  const campusGroup = (): any => leaflet.created.layerGroup![4]
+  const dots = (): any[] => (leaflet.created.circleMarker ?? []).filter((marker) => String(marker.options.className).startsWith('area-campus'))
+  const stars = (): any[] => (leaflet.created.marker ?? []).filter((marker) => String(marker.options.icon?.divIcon?.className).startsWith('area-campus-star'))
+  async function choose(wrapper: VueWrapper, mode: string) {
+    await wrapper.setProps({ mode })
+    await flushPromises()
+  }
+  const props = () => ({ overview: areaEnrolledOverview(), campusKey: 'yihua' })
+
+  it('切到五校版圖：點圖層加到地圖，每（校，格）一點、class 帶校區 key、兩位以上畫大一級；切走就收起', async () => {
+    const wrapper = await mountMap(props())
+    one('map').addLayer.mockClear()
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'campuses')
+    expect(one('map').addLayer).toHaveBeenCalledWith(campusGroup())
+    expect(dots().map((marker) => [marker.latlng, marker.options.className, marker.options.radius])).toEqual([
+      [[22.642, 120.344], 'area-campus area-campus--yihua', 7],
+      [[22.65, 120.35], 'area-campus area-campus--yihua', 5],
+      [[22.642, 120.344], 'area-campus area-campus--minghua', 7],
+    ])
+    expect(dots()[0].options.weight).toBe(1.5)
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'visits')
+    expect(one('map').removeLayer).toHaveBeenCalledWith(campusGroup())
+  })
+
+  it('其他四校畫小一號的星（本校的星不重畫），用各校色的 class', async () => {
+    await mountMap({ ...props(), mode: 'campuses' })
+    expect(stars().map((marker) => [marker.options.icon.divIcon.className, marker.options.title, marker.latlng])).toEqual([
+      ['area-campus-star area-campus-star--minghua', '明華', [22.61, 120.31]],
+      ['area-campus-star area-campus-star--chongde', '崇德', [22.64, 120.3]],
+      ['area-campus-star area-campus-star--international', '國際', [22.64, 120.3]],
+      ['area-campus-star area-campus-star--renwu', '仁武', [22.7, 120.35]],
+    ])
+    expect(stars()[0].options.icon.divIcon.iconSize).toEqual([20, 20])
+  })
+
+  it('里依幾校有在籍著色：0 校不上色、1 校 l1、2 校以上 l3', async () => {
+    await mountMap({ ...props(), mode: 'campuses' })
+    const { options } = leaflet.created.geoJSON![0]
+    const className = (village: string, code: string) => options.style(feature('三民區', village, code)).className
+    expect(className('寶業里', '64000050025')).toBe('area-village area-village--l0')
+    expect(className('本揚里', '64000050015')).toBe('area-village area-village--l1')
+    expect(className('鼎金里', '64000050001')).toBe('area-village area-village--l3')
+  })
+
+  it('這個模式不畫幼兒園、托嬰與一般在籍點：幼兒園圖層收起、開關與圖例不出現；離開後還原', async () => {
+    const wrapper = await mountMap({ ...props(), babycare: areaBabycare().items })
+    const kindergartenGroup = leaflet.created.layerGroup![0]
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(true)
+    one('map').removeLayer.mockClear()
+    await choose(wrapper, 'campuses')
+    expect(one('map').removeLayer).toHaveBeenCalledWith(kindergartenGroup)
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="在地圖上顯示托嬰中心"]').exists()).toBe(false)
+    one('map').addLayer.mockClear()
+    await choose(wrapper, 'visits')
+    expect(one('map').addLayer).toHaveBeenCalledWith(kindergartenGroup)
+    expect(wrapper.find('[aria-label="在地圖上顯示幼兒園"]').exists()).toBe(true)
+  })
+
+  it('圖例：五校色點＋校名＋人數，未匯入的灰字寫「尚未匯入」；里著色兩級', async () => {
+    const wrapper = await mountMap({ ...props(), mode: 'campuses' })
+    const items = wrapper.findAll('[aria-label="五校圖例"] li')
+    expect(items.map((item) => item.text())).toEqual(['義華 40 位', '明華 25 位', '崇德 尚未匯入', '國際 尚未匯入', '仁武 尚未匯入'])
+    expect(items.map((item) => item.classes().includes('area-legend__off'))).toEqual([false, false, true, true, true])
+    expect(items[0]!.find('.area-dot').attributes('style')).toContain('--area-campus-yihua')
+    expect(wrapper.findAll('[aria-label="里著色圖例"] li').map((item) => item.text())).toEqual(['一校有在籍', '兩校以上有在籍'])
+  })
+
+  it('總覽換了就重畫點；點的彈出框寫校名與人數', async () => {
+    const wrapper = await mountMap({ ...props(), mode: 'campuses' })
+    const cleared = campusGroup().clearLayers.mock.calls.length
+    await wrapper.setProps({ overview: areaEnrolledOverview({ points: [{ lat: 22.7, lng: 120.3, campus_key: 'minghua', count: 1 }] }) })
+    expect(campusGroup().clearLayers.mock.calls.length).toBeGreaterThan(cleared)
+    const drawn = dots().at(-1)
+    expect(drawn.latlng).toEqual([22.7, 120.3])
+    expect((drawn.bindPopup.mock.calls[0]![0]() as HTMLElement).textContent).toBe('明華 1 位')
   })
 })

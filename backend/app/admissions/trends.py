@@ -36,9 +36,10 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.admissions.area import campus_out
+from app.admissions.area import resolve_center
 from app.admissions.geo import boundaries
 from app.admissions.geo import income as income_io
+from app.admissions.geo import housing as housing_io
 from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import presale as presale_io
 from app.admissions.geo import school_districts as sd
@@ -436,17 +437,20 @@ async def _schools(
 
 async def query_trends(
     db: AsyncSession,
-    campus_key: str,
+    campus_key: str | None,
     *,
     school_year: int | None,
     semester: int | None,
     radius_km: int,
     now: datetime | None = None,
     kids_only: bool = False,
+    center: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """kids_only（2026-11-16 五校並排）：只算 2–5 歲孩子與這一年淨增，不讀所得、新屋、預售、國小學區；回應鍵不變，
     其他來源維持初始值、schools 是空的。孩子數與淨增（含里界調整合併組）和完整模式完全相同。"""
-    campus = await campus_out(db, campus_key)
+    if center is not None and not kids_only:
+        raise ValueError("任意圓心只支援 kids_only（完整模式含本校參觀與國小學區）")
+    campus = await resolve_center(db, campus_key, center)
     current = await _label(db, "population")
     births_latest = await _label(db, "births")
     migration_latest = await _label(db, "migration")
@@ -460,7 +464,7 @@ async def query_trends(
 
     result: dict[str, Any] = {
         "as_of": now or datetime.now(timezone.utc),
-        "filters": {"campus_key": campus_key, "school_year": school_year, "semester": semester},
+        "filters": {"campus_key": campus_key or "", "school_year": school_year, "semester": semester},
         "radius_km": radius_km,
         "campus": campus,
         "sources": {
@@ -472,6 +476,7 @@ async def query_trends(
             "income": {"year": None, "note": ""},
             "new_homes": {"latest": None, "seasons": [], "unplaced": 0, "note": ""},
             "presale": {"version": None, "unplaced": 0, "note": ""},
+            "housing": {"latest": None, "seasons": [], "note": ""},
             "school_districts": {"school_year": sd.SCHOOL_DISTRICT_YEAR, "note": sd.SOURCE_NOTE},
         },
         "baseline": None,
@@ -587,6 +592,18 @@ async def query_trends(
     def net_moves(row: GeoVillageMigration) -> int:
         return row.moved_in - row.moved_out + row.address_in - row.address_out
 
+    # 房價與租金（2026-11-20 規格 §7.2）：所有里（含合併組的全部代碼）一次讀；五校並排不讀。
+    if kids_only:
+        housing_by_code: dict[str, tuple[list[int], list[int]]] = {}
+    else:
+        unit_codes = {code for unit in units.values() for code in unit["codes"]}
+        housing_latest, housing_seasons, housing_by_code = await housing_io.deals_by_code(db, unit_codes)
+        if housing_latest is not None:
+            result["sources"]["housing"] = {
+                "latest": housing_latest, "seasons": housing_seasons,
+                "note": housing_io.SOURCE_NOTE_FULL,
+            }
+
     villages = []
     for unit in units.values():
         codes = unit["codes"]
@@ -641,6 +658,7 @@ async def query_trends(
                     sum(presale.get(code, (0, 0))[0] for code in codes) if presale_version is not None else None
                 ),
                 "presale_by_code": {code: presale[code][0] for code in codes if code in presale},
+                **{f"housing_{key}": value for key, value in housing_io.summarize(housing_by_code, codes).items()},
             }
         )
     villages.sort(

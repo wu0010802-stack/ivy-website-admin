@@ -16,14 +16,16 @@ import NearbyKindergartens from '../components/admissions/area/NearbyKindergarte
 import NearbyPanel from '../components/admissions/area/NearbyPanel.vue'
 import PeerFeesPanel from '../components/admissions/area/PeerFeesPanel.vue'
 import { NOT_JUDGED_NOTE } from '../components/admissions/area/areaFormat'
+import { ApiError } from '../api/client'
+import { point as pointData } from './pointTestKit'
 import { DEFAULT_AREA_VIEW, type AreaTableTab, type AreaView } from '../admissions/areaView'
 import {
-  areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
+  areaBabycare, areaChanges, areaChildrenHistory, areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaPeerFees, areaPresale, areaStats, areaTrends, button, cleanup,
   deferred,
   mockGet, mountWith, pathsTo, queryOf, villageBoundaries,
 } from './admissionsTestKit'
 
-const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn(), focusVillage: vi.fn() }))
+const mapStub = vi.hoisted(() => ({ focus: vi.fn(), focusBabycare: vi.fn(), reveal: vi.fn(), focusVillage: vi.fn(), focusPoint: vi.fn(), syncPoint: vi.fn() }))
 vi.mock('../components/admissions/area/AreaMap.vue', async () => {
   const { defineComponent, h } = await import('vue')
   // __esModule：AreaTab 用 defineAsyncComponent 載入，Vue 靠它判斷要取 default（真的模組是 ES module namespace，mock 工廠的回傳值不是）。
@@ -33,12 +35,13 @@ vi.mock('../components/admissions/area/AreaMap.vue', async () => {
       name: 'AreaMap',
       props: [
         'boundaries', 'villages', 'campus', 'campusName', 'kindergartens', 'radiusKm', 'narrow', 'mode', 'selectedCode', 'opportunity',
-        'babycare', 'trends', 'presale', 'enrolled', 'gradeFilter', 'childrenShade',
+        'babycare', 'trends', 'presale', 'enrolled', 'overview', 'campusKey', 'gradeFilter', 'childrenShade', 'point', 'placing',
       ],
-      emits: ['select-village'],
+      emits: ['select-village', 'place-point'],
       setup(_, { expose }) {
         expose({
           focusKindergarten: mapStub.focus, focusBabycare: mapStub.focusBabycare, revealBabycare: mapStub.reveal, focusVillage: mapStub.focusVillage,
+          focusPoint: mapStub.focusPoint, syncPoint: mapStub.syncPoint,
         })
         return () => h('div', { class: 'area-map-stub' })
       },
@@ -52,6 +55,8 @@ afterEach(() => {
   mapStub.focusBabycare.mockClear()
   mapStub.reveal.mockClear()
   mapStub.focusVillage.mockClear()
+  mapStub.focusPoint.mockClear()
+  mapStub.syncPoint.mockClear()
   cleanup()
 })
 
@@ -73,6 +78,9 @@ const routes = (area: unknown = areaStats(), opportunity: unknown = areaOpportun
   '/admin/admissions/area/trends': areaTrends(),
   '/admin/admissions/area/presale': areaPresale(),
   '/admin/admissions/area/enrolled': enrolled,
+  '/admin/admissions/area/enrolled-overview': areaEnrolledOverview(),
+  '/admin/admissions/area/point': pointData(),
+  '/admin/admissions/area/locate': { lat: 22.65123, lng: 120.31019, district: '三民區', village: '寶興里', match_level: 'exact' },
   '/admin/admissions/area': area,
 })
 async function mountTab(changes: Record<string, unknown> = {}, area: unknown = areaStats(), opportunity: unknown = areaOpportunity()) {
@@ -139,11 +147,11 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.get('.area-footer__status').text()).toBe(STATUS)
   })
 
-  it('工具列：左「看什麼」八個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
+  it('工具列：左「看什麼」九個模式、右「範圍」1／3／6 公里（預設 3），在工作台上方；幼兒園與托嬰清單沒有自己的半徑鈕', async () => {
     const { wrapper } = await mountTab()
     const toolbar = wrapper.get('.area-toolbar')
     expect(toolbar.get('[aria-label="看什麼"]').attributes('role')).toBe('radiogroup')
-    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
+    expect(modeButtons(wrapper).map((item) => item.text())).toEqual(['在籍學生', '五校版圖', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
     const range = toolbar.get('[aria-label="範圍"]')
     expect(range.attributes('role')).toBe('radiogroup')
     expect(range.findAll('.el-radio-button').map((item) => item.text())).toEqual(['1 公里', '3 公里', '6 公里'])
@@ -209,13 +217,13 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('點看什麼：右欄與地圖跟著換；和預設不同才寫進 view，選回預設是 null', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '參觀')
-    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: 'visits', village: '', table: 'village', year: null, point: null })
     expect(checkedMode(wrapper)).toBe('參觀')
     expect(paneTitle(wrapper)).toBe('參觀')
     expect(areaMap(wrapper).props('mode')).toBe('visits')
     expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區本揚里', '三民區寶業里', '鼓山區龍子里'])
     await chooseMode(wrapper, '在籍學生')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'village', year: null, point: null })
     expect(areaMap(wrapper).props('mode')).toBe('enrolled')
   })
 
@@ -250,7 +258,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
   it('falls back when map is disabled：網址 map=enrolled、清冊未匯入 → 工具列選 2–5 歲孩子、emit update:view 的 map 是 null', async () => {
     const slow = deferred<unknown>()
     mockGet(routes(areaStats(), areaOpportunity(), () => slow.promise))
-    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school', year: null }))
+    const { wrapper } = await mountReady(withView({ map: 'enrolled', table: 'school', year: null, point: null }))
     // 讀取中不算停用：先照網址看在籍學生。
     expect(checkedMode(wrapper)).toBe('在籍學生')
     expect(wrapper.emitted('update:view')).toBeUndefined()
@@ -259,7 +267,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
     expect(modeInput(wrapper, '在籍學生').disabled).toBe(true)
     expect(modeInput(wrapper, '在籍學生').checked).toBe(false)
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'school', year: null, point: null })
     expect(areaMap(wrapper).props('mode')).toBe('children')
   })
 
@@ -267,7 +275,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     const slowBoundaries = deferred<unknown>()
     const slowEnrolled = deferred<unknown>()
     mockGet({ ...routes(areaStats(), areaOpportunity(), () => slowEnrolled.promise), '/admin/admissions/area/boundaries': () => slowBoundaries.promise })
-    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school', year: null })
+    const view = ref<AreaView>({ map: 'enrolled', village: '64000099999', table: 'school', year: null, point: null })
     const Host = defineComponent({
       setup: () => () => h(AreaTab, { ...props(), view: view.value, 'onUpdate:view': (next: AreaView) => { view.value = next } }),
     })
@@ -277,7 +285,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     slowEnrolled.resolve(areaEnrolled({ status: 'not_imported' }))
     await vi.waitFor(() => expect(wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(view.value).toEqual({ map: null, village: '', table: 'school', year: null })
+    expect(view.value).toEqual({ map: null, village: '', table: 'school', year: null, point: null })
   })
 
   it('同一個畫面裡網址換到停用的模式（上一頁／下一頁）：也退回預設、map 寫回 null，不來回觸發', async () => {
@@ -287,7 +295,7 @@ describe('區域分析：讀取、工具列與頁尾', () => {
     expect(wrapper.emitted('update:view')).toBeUndefined()
     await wrapper.setProps({ view: { ...DEFAULT_AREA_VIEW, map: 'enrolled' } })
     await flushPromises()
-    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village', year: null }]])
+    expect(wrapper.emitted('update:view')).toEqual([[{ map: null, village: '', table: 'village', year: null, point: null }]])
     expect(checkedMode(wrapper)).toBe('2–5 歲孩子')
   })
 })
@@ -427,7 +435,7 @@ describe('區域分析：選取的里', () => {
     const { wrapper } = await mountTab()
     areaMap(wrapper).vm.$emit('select-village', PB)
     await flushPromises()
-    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '64000050015', table: 'village', year: null, point: null })
     expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
     expect(side(wrapper).get('[aria-live="polite"]').text()).toBe('已選取三民區本揚里')
     expect(areaMap(wrapper).props('selectedCode')).toBe('64000050015')
@@ -633,7 +641,7 @@ describe('區域分析：選取的里', () => {
     slow.resolve(villageBoundaries())
     await vi.waitFor(() => expect(missing.wrapper.find('.area-map-stub').exists()).toBe(true))
     await flushPromises()
-    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village', year: null })
+    expect(lastView(missing.wrapper)).toEqual({ map: null, village: '', table: 'village', year: null, point: null })
     cleanup()
 
     // 里界裡有的代碼：讀到後照開卡片，不清。
@@ -915,7 +923,7 @@ describe('區域分析：各份資料各自成敗', () => {
     await flushPromises()
     expect(wrapper.get('.area-map-error').text()).toContain('里界載入失敗，地圖無法顯示。')
     expect(wrapper.find('.area-workbench__placeholder .area-map-error').exists()).toBe(true)
-    expect(modeButtons(wrapper)).toHaveLength(8)
+    expect(modeButtons(wrapper)).toHaveLength(9)
     expect(paneTitle(wrapper)).toBe('在籍學生')
     expect(wrapper.find('.area-full-tables').exists()).toBe(true)
     fail = false
@@ -1387,7 +1395,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('在建預售模式：右欄是戶數排行與摘要，地圖拿到 presale；網址帶 map=presale', async () => {
     const { wrapper } = await mountTab()
     await chooseMode(wrapper, '在建預售')
-    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village', year: null })
+    expect(lastView(wrapper)).toEqual({ map: 'presale', village: '', table: 'village', year: null, point: null })
     expect(paneTitle(wrapper)).toBe('在建預售')
     expect(areaMap(wrapper).props('mode')).toBe('presale')
     expect(side(wrapper).text()).toContain('半徑內在建預售 5 案、376 戶，最多的是三民區鼎金里（220 戶）、三民區本揚里（156 戶）。')
@@ -1398,7 +1406,7 @@ describe('附近預售建案（2026-10-20 規格 P11、P12）', () => {
   it('預售建案分頁：清單在各里之後；點案名＝選取所在的里（地圖移過去、右欄出現里卡片）', async () => {
     const { wrapper } = await mountTab()
     await openTable(wrapper, 'presale')
-    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale', year: null })
+    expect(lastView(wrapper)).toEqual({ map: null, village: '', table: 'presale', year: null, point: null })
     expect(tableTitles(wrapper)).toEqual(['附近預售建案（本校 3 公里內）'])
     expect(bodyRows(block(wrapper, '附近預售建案（本校 3 公里內）')).map((row) => row[1])).toEqual(['乙案', '甲案', '丙案'])
     await wrapper.findAll('.area-full-tables .stats-table__name-link')[2]!.trigger('click')
@@ -1553,5 +1561,402 @@ describe('附近同業收費（2026-10-15 規格 7.1）', () => {
     await wrapper.get('.peer-fees .el-alert .el-button').trigger('click')
     await flushPromises()
     expect(wrapper.find('.peer-fees__summary').exists()).toBe(true)
+  })
+})
+
+describe('區域分析：地點（2026-11-20）', () => {
+  const placeBtn = (wrapper: VueWrapper) => wrapper.findAll('.area-toolbar__point button').find((item) => item.text() === '放一個點')!
+  const clearBtn = (wrapper: VueWrapper) => wrapper.find('.area-toolbar__point .area-toolbar__clear')
+  // 視窗寬度：只回答 max-width 查詢（同「選取的里」那組）。
+  async function withViewport(width: number, run: (scroll: ReturnType<typeof vi.fn>) => Promise<void>) {
+    vi.stubGlobal('matchMedia', (query: string) => {
+      const max = /max-width:\s*(\d+)px/.exec(query)?.[1]
+      return { matches: max ? width <= Number(max) : false, media: query, addEventListener: () => {}, removeEventListener: () => {} }
+    })
+    const scroll = vi.fn()
+    Element.prototype.scrollIntoView = scroll
+    try {
+      await run(scroll)
+    } finally {
+      vi.unstubAllGlobals()
+      delete (Element.prototype as Partial<Element>).scrollIntoView
+    }
+  }
+  const pointCalls = (get: ReturnType<typeof mockGet>) => pathsTo(get, '/admin/admissions/area/point')
+  const placeAt = async (wrapper: VueWrapper, lat = 22.6512, lng = 120.3101) => {
+    areaMap(wrapper).vm.$emit('place-point', { lat, lng })
+    await flushPromises()
+  }
+
+  it('工具列有「地點」：放一個點（aria-pressed）、地址輸入框＋找；沒圖釘就沒有清除', async () => {
+    const { wrapper } = await mountTab()
+    const group = wrapper.get('.area-toolbar__point')
+    expect(group.text()).toContain('地點')
+    expect(placeBtn(wrapper).attributes('aria-pressed')).toBe('false')
+    expect(group.get('input').attributes('placeholder')).toBe('輸入地址找位置')
+    expect(group.findAll('button').map((item) => item.text())).toEqual(['放一個點', '找'])
+    expect(clearBtn(wrapper).exists()).toBe(false)
+    await placeBtn(wrapper).trigger('click')
+    expect(placeBtn(wrapper).attributes('aria-pressed')).toBe('true')
+    expect(areaMap(wrapper).props('placing')).toBe(true)
+  })
+
+  it('放點狀態按 Esc 取消；放完圖釘也結束放點狀態', async () => {
+    const { wrapper } = await mountTab()
+    await placeBtn(wrapper).trigger('click')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await flushPromises()
+    expect(areaMap(wrapper).props('placing')).toBe(false)
+    await placeBtn(wrapper).trigger('click')
+    await placeAt(wrapper)
+    expect(areaMap(wrapper).props('placing')).toBe(false)
+  })
+
+  it('地圖 place-point：網址 pt 寫入、右欄是地點卡片、帶座標／半徑／校區讀 /area/point；出現清除', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(areaMap(wrapper).props('point')).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(Object.fromEntries(queryOf(pointCalls(get).at(-1)!))).toEqual({ lat: '22.6512', lng: '120.3101', radius_km: '3', campus_key: 'yihua' })
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 3 公里內')
+    expect(side(wrapper).find('.area-pane__head').exists()).toBe(false)
+    expect(clearBtn(wrapper).exists()).toBe(true)
+  })
+
+  it('同座標再放一次：不重寫網址、不重讀；拖到別處才更新', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    const writes = wrapper.emitted('update:view')!.length
+    const reads = pointCalls(get).length
+    await placeAt(wrapper, 22.6512, 120.3101)
+    expect(wrapper.emitted('update:view')).toHaveLength(writes)
+    expect(pointCalls(get)).toHaveLength(reads)
+    await placeAt(wrapper, 22.66, 120.32)
+    expect(wrapper.emitted('update:view')).toHaveLength(writes + 1)
+    expect(pointCalls(get)).toHaveLength(reads + 1)
+  })
+
+  it('有圖釘時點里：里卡片優先；關掉後回到地點卡片', async () => {
+    const { wrapper } = await mountTab()
+    await placeAt(wrapper)
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+    expect(side(wrapper).find('.point-card').exists()).toBe(false)
+    await side(wrapper).get('.village-card').trigger('keydown', { key: 'Escape' })
+    await flushPromises()
+    expect(side(wrapper).find('.village-card').exists()).toBe(false)
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 3 公里內')
+  })
+
+  it('清除：pt 拿掉、回到原本右欄、地址欄清空、焦點留在右欄', async () => {
+    const { wrapper } = await mountTab()
+    await wrapper.get('.area-toolbar__point input').setValue('高雄市三民區民族一路 1 號')
+    await placeAt(wrapper)
+    await clearBtn(wrapper).trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toBeNull()
+    expect(areaMap(wrapper).props('point')).toBeNull()
+    expect(side(wrapper).find('.point-card').exists()).toBe(false)
+    expect(paneTitle(wrapper)).not.toBe('')
+    expect((wrapper.get('.area-toolbar__point input').element as HTMLInputElement).value).toBe('')
+    expect(clearBtn(wrapper).exists()).toBe(false)
+    expect(document.activeElement).toBe(side(wrapper).element)
+  })
+
+  it('地點卡片的「清除」也拿掉圖釘；卡片沒有自己的 Esc', async () => {
+    const { wrapper } = await mountTab()
+    await placeAt(wrapper)
+    await side(wrapper).get('.point-card').trigger('keydown', { key: 'Escape' })
+    expect(lastView(wrapper)!.point).not.toBeNull()
+    await side(wrapper).findAll('.point-card__head button').find((item) => item.text() === '清除')!.trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toBeNull()
+  })
+
+  it('換範圍：重新讀 /area/point（帶新的 radius_km）', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper)
+    const reads = pointCalls(get).length
+    await chooseRadius(wrapper, 6)
+    await flushPromises()
+    expect(pointCalls(get)).toHaveLength(reads + 1)
+    expect(queryOf(pointCalls(get).at(-1)!).get('radius_km')).toBe('6')
+    expect(side(wrapper).get('.point-card h2').text()).toBe('這一點 6 公里內')
+  })
+
+  it('讀取中卡片是骨架；失敗寫原因加重試，重試成功恢復', async () => {
+    const first = deferred<unknown>()
+    const get = mockGet({ ...routes(), '/admin/admissions/area/point': () => first.promise })
+    const { wrapper } = await mountReady()
+    await placeAt(wrapper)
+    expect(side(wrapper).find('.point-card .el-skeleton').exists()).toBe(true)
+    first.reject(new Error('x'))
+    await flushPromises()
+    expect(side(wrapper).text()).toContain('讀不到這一點的資料')
+    get.mockRestore()
+    mockGet(routes())
+    await side(wrapper).findAll('.point-card button').find((item) => item.text() === '重試')!.trigger('click')
+    await flushPromises()
+    expect(side(wrapper).find('.point-card__table').exists()).toBe(true)
+  })
+
+  it('連續放兩個點：先送出的晚回，不蓋掉後來的（卡片是 B 的資料）', async () => {
+    const a = deferred<unknown>()
+    const b = deferred<unknown>()
+    const queue = [a, b]
+    mockGet({ ...routes(), '/admin/admissions/area/point': () => queue.shift()!.promise })
+    const { wrapper } = await mountReady()
+    await placeAt(wrapper, 22.65, 120.31)
+    await placeAt(wrapper, 22.66, 120.32)
+    const place = (village: string) => pointData({}, {}, { point: { lat: 22.66, lng: 120.32, district: '前鎮區', village, village_code: '64000090001' } })
+    b.resolve(place('乙里'))
+    await flushPromises()
+    a.resolve(place('甲里'))
+    await flushPromises()
+    expect(side(wrapper).get('.point-card__place').text()).toContain('乙里')
+    expect(side(wrapper).text()).not.toContain('甲里')
+  })
+
+  it('單欄（≤1199px）：從地圖放圖釘把右欄捲進視野（同點里），桌機並排不捲', async () => {
+    await withViewport(1024, async (scroll) => {
+      const { wrapper } = await mountTab()
+      await placeAt(wrapper)
+      expect(scroll).toHaveBeenCalledTimes(1)
+      expect(scroll).toHaveBeenCalledWith({ block: 'nearest' })
+      expect(scroll.mock.contexts[0]).toBe(side(wrapper).element)
+    })
+    await withViewport(1400, async (scroll) => {
+      const { wrapper } = await mountTab()
+      await placeAt(wrapper)
+      expect(scroll).not.toHaveBeenCalled()
+    })
+  })
+
+  it('放圖釘（點地圖、拖曳、地址定位）一併取消選取的里：右欄是地點卡片，只寫一次網址', async () => {
+    const { wrapper } = await mountTab()
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    expect(cardTitle(wrapper).text()).toBe('三民區本揚里')
+    const writes = wrapper.emitted('update:view')!.length
+    await placeAt(wrapper)
+    expect(wrapper.emitted('update:view')).toHaveLength(writes + 1)
+    expect(lastView(wrapper)).toMatchObject({ village: '', point: { lat: 22.6512, lng: 120.3101 } })
+    expect(side(wrapper).find('.village-card').exists()).toBe(false)
+    expect(side(wrapper).find('.point-card').exists()).toBe(true)
+    areaMap(wrapper).vm.$emit('select-village', PB)
+    await flushPromises()
+    await wrapper.get('.area-toolbar__point input').setValue('某處')
+    await wrapper.get('.area-toolbar__locate').trigger('submit')
+    await flushPromises()
+    expect(lastView(wrapper)).toMatchObject({ village: '', point: { lat: 22.6512, lng: 120.3102 } })
+    expect(side(wrapper).find('.village-card').exists()).toBe(false)
+  })
+
+  it('還在找地址時清除或另外放點：晚回的定位結果不再把圖釘搬回來', async () => {
+    const late = deferred<unknown>()
+    mockGet({ ...routes(), '/admin/admissions/area/locate': () => late.promise })
+    const { wrapper } = await mountReady()
+    await placeAt(wrapper)
+    await wrapper.get('.area-toolbar__point input').setValue('某處')
+    await wrapper.get('.area-toolbar__locate').trigger('submit')
+    await clearBtn(wrapper).trigger('click')
+    await flushPromises()
+    late.resolve({ lat: 22.7, lng: 120.4, district: null, village: null, match_level: 'exact' })
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toBeNull()
+    expect(mapStub.focusPoint).not.toHaveBeenCalled()
+    // 另外放一個點也一樣。
+    const second = deferred<unknown>()
+    mockGet({ ...routes(), '/admin/admissions/area/locate': () => second.promise })
+    await wrapper.get('.area-toolbar__point input').setValue('某處')
+    await wrapper.get('.area-toolbar__locate').trigger('submit')
+    await placeAt(wrapper, 22.6512, 120.3101)
+    second.resolve({ lat: 22.7, lng: 120.4, district: null, village: null, match_level: 'exact' })
+    await flushPromises()
+    expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3101 })
+  })
+
+  it('範圍外的點（地圖可縮到高雄以外）：不收、寫「不在高雄市」、圖釘放回原位、不讀 /area/point', async () => {
+    const { wrapper, get } = await mountTab()
+    await placeAt(wrapper, 25.03, 121.56)
+    expect(lastView(wrapper)).toBeUndefined()
+    expect(wrapper.get('.area-toolbar__locate-note--error').text()).toBe('不在高雄市')
+    expect(mapStub.syncPoint).toHaveBeenCalledTimes(1)
+    expect(pathsTo(get, '/admin/admissions/area/point')).toHaveLength(0)
+    await placeAt(wrapper)
+    expect(wrapper.find('.area-toolbar__locate-note--error').exists()).toBe(false)
+  })
+
+  it('網址帶 pt 重新整理：一進來就有圖釘與地點卡片', async () => {
+    mockGet(routes())
+    const mounted = await mountWith(AreaTab, { props: { ...props(), ...withView({ point: { lat: 22.6512, lng: 120.3101 } }) } })
+    await vi.waitFor(() => expect(mounted.wrapper.find('.area-map-stub').exists()).toBe(true))
+    await flushPromises()
+    expect(areaMap(mounted.wrapper).props('point')).toEqual({ lat: 22.6512, lng: 120.3101 })
+    expect(side(mounted.wrapper).find('.point-card').exists()).toBe(true)
+  })
+
+  describe('地址定位', () => {
+    const find = async (wrapper: VueWrapper, text: string) => {
+      await wrapper.get('.area-toolbar__point input').setValue(text)
+      await wrapper.get('.area-toolbar__locate').trigger('submit')
+      await flushPromises()
+    }
+    const failWith = (status: number, detail: unknown) => {
+      mockGet({ ...routes(), '/admin/admissions/area/locate': () => { throw new ApiError(status, detail) } })
+    }
+
+    it('找到：圖釘放在 4 位小數座標、地圖移過去、焦點到卡片標題', async () => {
+      const { wrapper, get } = await mountTab()
+      await find(wrapper, '高雄市三民區民族一路 1 號')
+      // 地址放 X-Ivy-Search header，不進網址（2026-10-22 資安稽核）。
+      const call = get.mock.calls.find((args) => String(args[0]).startsWith('/admin/admissions/area/locate'))!
+      expect(call[0]).toBe('/admin/admissions/area/locate')
+      const header = (call[1] as { headers: Record<string, string> }).headers['X-Ivy-Search']!
+      expect(JSON.parse(decodeURIComponent(header))).toEqual({ address: '高雄市三民區民族一路 1 號' })
+      expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3102 })
+      expect(mapStub.focusPoint).toHaveBeenCalledTimes(1)
+      expect(document.activeElement).toBe(side(wrapper).get('.point-card h2').element)
+      expect(wrapper.find('.area-toolbar__locate-note--error').exists()).toBe(false)
+    })
+
+    it('沒輸入就按找：提示請輸入地址，不送請求', async () => {
+      const { wrapper, get } = await mountTab()
+      await find(wrapper, '   ')
+      expect(wrapper.get('.area-toolbar__locate-note--error').text()).toBe('請輸入地址')
+      expect(pathsTo(get, '/admin/admissions/area/locate')).toHaveLength(0)
+    })
+
+    it.each([
+      ['outside_kaohsiung', '不在高雄市'],
+      ['no_doorplate', '找不到這個門牌'],
+      ['pending', '門牌資料尚未匯入'],
+      ['no_address', '找不到這個地址'],
+      ['imprecise', '找不到這個地址'],
+    ])('404 reason %s → %s（寫在輸入框下方，不放圖釘）', async (reason, text) => {
+      failWith(404, { code: 'ADDRESS_NOT_FOUND', message: 'x', reason })
+      const { wrapper } = await mountReady().then((mounted) => mounted)
+      await find(wrapper, '某處')
+      expect(wrapper.get('.area-toolbar__locate-note--error').text()).toBe(text)
+      expect(wrapper.emitted('update:view')).toBeUndefined()
+    })
+
+    it('422 與其他錯誤也有說法', async () => {
+      failWith(422, { code: 'INVALID_ADDRESS' })
+      const first = await mountReady()
+      await find(first.wrapper, '某處')
+      expect(first.wrapper.get('.area-toolbar__locate-note--error').text()).toBe('請輸入正確的地址')
+      cleanup()
+      failWith(500, 'boom')
+      const second = await mountReady()
+      await find(second.wrapper, '某處')
+      expect(second.wrapper.get('.area-toolbar__locate-note--error').text()).toBe('暫時查不到地址，請稍後再試')
+    })
+  })
+})
+
+describe('區域分析：五校版圖（2026-11-20 規格 §6）', () => {
+  const overviewCalls = (get: ReturnType<typeof mockGet>) => pathsTo(get, '/admin/admissions/area/enrolled-overview')
+
+  it('沒進這個模式就不讀總覽', async () => {
+    const { get } = await mountTab()
+    expect(overviewCalls(get)).toHaveLength(0)
+  })
+
+  it('網址 map=campuses：讀一次總覽、交給地圖；右欄是兩段排行，點清單的里就選里；切走再切回來不重讀', async () => {
+    const { wrapper, get } = await mountTab(withView({ map: 'campuses' }))
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(checkedMode(wrapper)).toBe('五校版圖')
+    expect(areaMap(wrapper).props('overview')).toMatchObject({ gap_radius_km: 6 })
+    expect(areaMap(wrapper).props('campusKey')).toBe('yihua')
+    expect(paneTitle(wrapper)).toBe('五校版圖')
+    expect(side(wrapper).text()).toContain('只算已匯入清冊的校：義華、明華')
+    expect(side(wrapper).findAll('h3').map((title) => title.text())).toEqual(['兩校以上都在收的里', '孩子多、五校都沒有在籍的里'])
+    expect(rankingItems(wrapper).map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區鼎金里', '三民區寶業里'])
+    await rankingItems(wrapper)[0]!.trigger('click')
+    await flushPromises()
+    expect(lastView(wrapper)?.village).toBe('64000050001')
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(1)
+  })
+
+  it('從工具列切到五校版圖才讀，網址寫 map=campuses', async () => {
+    const { wrapper, get } = await mountTab()
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(lastView(wrapper)?.map).toBe('campuses')
+  })
+
+  it('沒有任何校區匯入清冊：這個模式停用並寫原因，網址的 map 拿掉、退回預設', async () => {
+    const none = areaEnrolledOverview()
+    none.campuses = none.campuses.map((item) => ({ ...item, imported: false, total: 0 }))
+    const get = mockGet({ ...routes(), '/admin/admissions/area/enrolled-overview': none })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(get).toBeDefined()
+    expect(disabledModes(wrapper)).toContain('五校版圖')
+    expect(modeNotes(wrapper)).toContain('還沒有任何校區匯入在籍清冊')
+    expect(areaMap(wrapper).props('mode')).toBe('enrolled')
+    expect(lastView(wrapper)?.map).toBeNull()
+  })
+
+  it('讀取失敗：右欄寫原因與重試，重試讀到就好', async () => {
+    let fail = true
+    mockGet({
+      ...routes(),
+      '/admin/admissions/area/enrolled-overview': () => {
+        if (fail) throw new Error('boom')
+        return areaEnrolledOverview()
+      },
+    })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(areaMap(wrapper).props('mode')).toBe('campuses')
+    expect(side(wrapper).text()).toContain('無法讀取五校在籍學生，請重新載入。')
+    fail = false
+    await button(side(wrapper), '重試')!.trigger('click')
+    await flushPromises()
+    expect(side(wrapper).text()).not.toContain('無法讀取五校在籍學生')
+    expect(rankingItems(wrapper)).toHaveLength(2)
+  })
+
+  it('讀取失敗後切走再切回五校版圖：自動重讀；讀到之後再切回來不重讀', async () => {
+    let fail = true
+    const get = mockGet({
+      ...routes(),
+      '/admin/admissions/area/enrolled-overview': () => {
+        if (fail) throw new Error('boom')
+        return areaEnrolledOverview()
+      },
+    })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(side(wrapper).text()).toContain('無法讀取五校在籍學生，請重新載入。')
+    fail = false
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    await flushPromises()
+    expect(overviewCalls(get)).toHaveLength(2)
+    expect(side(wrapper).text()).not.toContain('無法讀取五校在籍學生')
+    expect(rankingItems(wrapper)).toHaveLength(2)
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(2)
+  })
+
+  it.each([
+    ['115-09', '目前沒有兩校以上都在收的里，也沒有孩子多但五校都沒有在籍的里。'],
+    [null, '目前沒有兩校以上都在收的里；各里人口尚未匯入，無法列出孩子多的里。'],
+  ])('兩段排行都空（人口 %s）：右欄寫一句，不畫空的排行', async (population, text) => {
+    mockGet({ ...routes(), '/admin/admissions/area/enrolled-overview': areaEnrolledOverview({ overlap: [], gaps: [], population_version: population }) })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(side(wrapper).get('.area-pane__empty').text()).toBe(text)
+    expect(rankingItems(wrapper)).toHaveLength(0)
+    expect(side(wrapper).text()).toContain('已匯入 2 所校，共 65 位在籍學生。')
+  })
+
+  it('里卡片的在籍列改列各校人數', async () => {
+    const { wrapper } = await mountTab(withView({ map: 'campuses', village: '64000050001' }))
+    expect(side(wrapper).text()).toContain('義華 3・明華 2')
   })
 })

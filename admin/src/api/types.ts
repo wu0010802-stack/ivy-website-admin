@@ -628,6 +628,11 @@ export type AreaChildrenHistoryRetired = components['schemas']['AreaChildrenHist
 // 五校周邊環境比較（2026-11-16 規格 §6）：五校並排，每校一列。
 export type AreaCompare = components['schemas']['AreaCompareOut']
 export type AreaCompareRow = components['schemas']['AreaCompareRowOut']
+// 圖釘查點、地址定位、在籍學生總覽（2026-11-20）。
+export type AreaPoint = components['schemas']['AreaPointOut']
+export type AreaPointRow = components['schemas']['AreaPointRowOut']
+export type AreaLocate = components['schemas']['AreaLocateOut']
+export type AreaEnrolledOverview = components['schemas']['AreaEnrolledOverviewOut']
 // 里的變化（2026-10-14 規格 §6）：本校半徑內各里這一年 2–5 歲孩子的淨增、近 12 個月出生與淨遷入。
 export type AreaTrends = components['schemas']['AreaTrendsOut']
 /** 半徑內一個里，或同區里界調整過的一組（merged）。 */

@@ -75,7 +75,7 @@ describe('區域分析：地圖元件載入失敗', () => {
     const wrapper = await mountBroken()
 
     const modes = wrapper.get('.area-toolbar [aria-label="看什麼"]').findAll('.el-radio-button')
-    expect(modes.map((item) => item.text())).toEqual(['在籍學生', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
+    expect(modes.map((item) => item.text())).toEqual(['在籍學生', '五校版圖', '2–5 歲孩子', '孩子增減', '新屋交屋', '在建預售', '參觀', '招生機會', '同業'])
     expect(side(wrapper).get('h2').text()).toBe('在籍學生')
     const items = side(wrapper).findAll('.area-ranking__item')
     expect(items.map((item) => item.get('.area-ranking__name').text())).toEqual(['三民區本揚里', '三民區寶業里', '左營區新上里'])
@@ -85,7 +85,7 @@ describe('區域分析：地圖元件載入失敗', () => {
     const title = side(wrapper).get('.village-card__title')
     expect(title.text()).toBe('三民區本揚里')
     expect(document.activeElement).toBe(title.element)
-    expect(wrapper.emitted('update:view')!.at(-1)).toEqual([{ map: null, village: '64000050015', table: 'village', year: null }])
+    expect(wrapper.emitted('update:view')!.at(-1)).toEqual([{ map: null, village: '64000050015', table: 'village', year: null, point: null }])
     // 各里表點里名也一樣能選。
     await side(wrapper).get('button[aria-label="關閉里卡片"]').trigger('click')
     await flushPromises()

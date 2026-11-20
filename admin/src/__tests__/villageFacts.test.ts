@@ -6,7 +6,7 @@ import {
 import { opportunitySummary } from '../components/admissions/area/areaFormat'
 import type { AdmissionsArea, AreaKindergarten, AreaOpportunityRow, VillageFeature } from '../api/types'
 import {
-  areaEnrolled, areaKindergartens, areaOpportunity, areaStats, areaTrends, kindergarten, villageBoundaries,
+  areaEnrolled, areaEnrolledOverview, areaKindergartens, areaOpportunity, areaStats, areaTrends, kindergarten, villageBoundaries,
 } from './admissionsTestKit'
 
 const sources = (changes: Partial<FactsSources> = {}): FactsSources => ({
@@ -66,7 +66,7 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     expect(rows(f.kids)).toEqual([
       ['2–5 歲', '317 位'], ['0–1 歲', '90 位'], ['這一年淨增', '+36（+12.8%）', '增加多'],
       ['近 12 個月出生', '36 位'], ['近 12 個月結婚', '—'], ['近 12 個月淨遷入', '−122 人'], ['近 4 季新屋交屋', '24 筆'], ['在建預售', '156 戶'],
-      ['所得中位數', '45.8 萬'],
+      ['所得中位數', '45.8 萬'], ['房價中位', '—'], ['整戶月租中位', '—'],
       ['招生機會', '參觀 6 位（2.0%）', '照附近應有約 6 位・差不多'],
     ])
     expect(find(f.kids, '這一年淨增')!.tone).toBe('up')
@@ -94,6 +94,7 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     expect(value(f.kids, '近 12 個月出生')).toBe('90 位')
     expect(value(f.kids, '近 12 個月淨遷入')).toBe('+30 人')
     expect(value(f.kids, '所得中位數')).toBe('—')
+    expect(value(f.kids, '房價中位')).toBe('—')
     expect(value(f.kids, '招生機會')).toBe('參觀 11 位（5.5%）') // 組內只有寶業里有列：11 ÷ 寶業里 200（不除含半徑外組員的 583，2026-10-20 稽核）
     expect(detail(f.kids, '招生機會')).toBe('照附近應有約 4 位') // 合併組不寫判讀
     // 副標用這個里自己的距離（龍子里沒有招生機會列，用里中心算；不沿用組裡最近那個里的 300 m，2026-10-20 稽核）與組的學區
@@ -279,6 +280,22 @@ describe('里卡片的資料組合（2026-10-16 規格 §2.4）', () => {
     })
   })
 
+  describe('五校版圖模式（2026-11-20）', () => {
+    const campuses = (changes: Partial<FactsSources> = {}) => sources({ campusesMode: true, overview: areaEnrolledOverview(), ...changes })
+
+    it('在籍那一列改成各校人數，只列 > 0 的校；沒有人寫 0 位；參觀照舊', () => {
+      expect(rows(villageFacts('64000050001', campuses())!.ours)).toEqual([['在籍', '義華 3・明華 2', '共 5 位'], ['參觀', '0 位']])
+      expect(rows(villageFacts('64000050015', campuses())!.ours)[0]).toEqual(['在籍', '義華 6', '共 6 位'])
+      expect(rows(villageFacts('64000020015', campuses())!.ours)[0]).toEqual(['在籍', '0 位'])
+    })
+
+    it('總覽讀取中是 loading、讀取失敗是 failed；不影響一般模式的在籍列', () => {
+      expect(villageFacts('64000050001', campuses({ overview: null }))!.ours).toMatchObject({ state: 'loading', rows: [{ label: '參觀' }] })
+      expect(villageFacts('64000050001', campuses({ overview: null, overviewFailed: true }))!.ours.state).toBe('failed')
+      expect(villageFacts('64000050015', sources({ overview: areaEnrolledOverview() }))!.ours.rows[0]).toMatchObject({ value: '3 位' })
+    })
+  })
+
   describe('在籍', () => {
     it('清冊未匯入：不列在籍；ready 但這個里沒有人：寫 0 位', () => {
       const notImported = villageFacts('64000050015', sources({ enrolled: areaEnrolled({ status: 'not_imported', villages: [] }) }))!
@@ -437,5 +454,34 @@ describe('里界幾何', () => {
     expect(featureCode(boundaries, '鼓山區', '龍子里')).toBe('64000020015')
     expect(featureCode(boundaries, '三民區', '龍子里')).toBeNull()
     expect(featureCode(boundaries, '三民區', '不存在里')).toBeNull()
+  })
+})
+
+describe('里卡片的房價與整戶月租', () => {
+  it('有中位數：值帶單位、detail 寫近 4 季筆數', () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      villages: base.villages.map((row, i) => (i === 0
+        ? { ...row, housing_sale_median: 385700, housing_sale_count: 6, housing_rent_median: 18500, housing_rent_count: 9 }
+        : row)),
+    })
+    const f = villageFacts('64000050015', sources({ trends }))!
+    expect(value(f.kids, '房價中位')).toBe('38.6 萬／坪')
+    expect(detail(f.kids, '房價中位')).toBe('近 4 季 6 筆')
+    expect(value(f.kids, '整戶月租中位')).toBe('18,500 元／月')
+    expect(detail(f.kids, '整戶月租中位')).toBe('近 4 季 9 筆')
+    expect(f.kids.rows.map((r) => r.label).slice(-3, -1)).toEqual(['房價中位', '整戶月租中位'])
+  })
+  it('不到 5 筆（中位數 null）：寫「—（N 筆）」、沒有 detail；0 筆只寫「—」（同地點卡片）', () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      villages: base.villages.map((row, i) => (i === 0
+        ? { ...row, housing_sale_median: null, housing_sale_count: 3, housing_rent_median: null, housing_rent_count: 0 }
+        : row)),
+    })
+    const f = villageFacts('64000050015', sources({ trends }))!
+    expect(value(f.kids, '房價中位')).toBe('—（3 筆）')
+    expect(detail(f.kids, '房價中位')).toBeUndefined()
+    expect(value(f.kids, '整戶月租中位')).toBe('—')
   })
 })

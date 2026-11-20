@@ -125,8 +125,8 @@ def season_of_day(day: date) -> str:
     return f"{roc + 1:03d}S1"
 
 
-def season_url(season: str) -> str:
-    return f"{PLVR_ROOT}?season={season}&fileName={FILE_NAME}"
+def season_url(season: str, file_name: str = FILE_NAME) -> str:
+    return f"{PLVR_ROOT}?season={season}&fileName={file_name}"
 
 
 # ---- 解析 ----

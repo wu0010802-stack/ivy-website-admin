@@ -27,6 +27,22 @@ def _blank(campus_key: str, unavailable: str, locate_error: str | None) -> dict[
     return {"campus_key": campus_key, "unavailable": unavailable, "locate_error": locate_error, **dict.fromkeys(_NUMBER_KEYS)}
 
 
+def derive_fields(
+    opp: dict[str, Any], kids: dict[str, Any], fees: dict[str, Any], babycare: dict[str, Any], changes: dict[str, Any]
+) -> dict[str, Any]:
+    """五校比較表與任意點評估（area_point）共用：同一組查詢結果換成同一批欄位，兩邊的數字才會一致。"""
+    groups = {group["kind"]: group for group in fees["groups"]}
+    return {
+        "children": opp["baseline"]["children"] if opp["baseline"] is not None else None,
+        "kids_net": kids["baseline"]["kids_net"] if kids["baseline"] is not None else None,
+        "kids_unavailable": kids["kids_unavailable"],
+        "kindergartens": {kind: groups[kind]["schools"] for kind in peer_fees.GROUP_ORDER},
+        "babycare": babycare["summary"]["count"],
+        "fee_median": groups["private"]["median"],
+        "changes_12m": len(changes["items"]),
+    }
+
+
 async def _row(db: AsyncSession, campus_key: str, radius_km: int) -> tuple[dict[str, Any], int | None]:
     point = await matcher.campus_point(db, campus_key)
     if point.lat is None or point.lng is None:
@@ -44,25 +60,18 @@ async def _row(db: AsyncSession, campus_key: str, radius_km: int) -> tuple[dict[
     except Exception:
         logger.exception("五校周邊環境：%s 計算失敗", campus_key)
         return _blank(campus_key, "error", None), None
-    groups = {group["kind"]: group for group in fees["groups"]}
-    private = groups["private"]
+    private = {group["kind"]: group for group in fees["groups"]}["private"]
     own = fees["own"]
     row = {
         "campus_key": campus_key,
         "unavailable": None,
         "locate_error": None,
-        "children": opp["baseline"]["children"] if opp["baseline"] is not None else None,
-        "kids_net": kids["baseline"]["kids_net"] if kids["baseline"] is not None else None,
-        "kids_unavailable": kids["kids_unavailable"],
-        "kindergartens": {kind: groups[kind]["schools"] for kind in peer_fees.GROUP_ORDER},
-        "babycare": babycare["summary"]["count"],
+        **derive_fields(opp, kids, fees, babycare, changes),
         "own_fee": own["semester_total"] if own is not None else None,
         "own_kind": own["kind"] if own is not None else None,
         "own_missing": fees["own_missing"],
-        "fee_median": private["median"],
         "fee_rank": private["own_rank"],
         "fee_rank_total": private["rank_total"],
-        "changes_12m": len(changes["items"]),
     }
     return row, fees["school_year"]
 

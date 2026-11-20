@@ -95,6 +95,7 @@ from app.admissions.geo import elementary as elementary_io
 from app.admissions.geo import evaluations as evaluations_io
 from app.admissions.geo import fees as fees_io
 from app.admissions.geo import income as income_io
+from app.admissions.geo import housing as housing_io
 from app.admissions.geo import new_homes as new_homes_io
 from app.admissions.geo import penalties as penalties_io
 from app.admissions.geo import population as population_io
@@ -188,6 +189,7 @@ FETCH_RETRY_WAITS = (2.0, 4.0, 8.0)
 NEW_HOMES_MAX_BYTES = 32 * 1024 * 1024
 NEW_HOMES_TIME_BUDGET = timedelta(minutes=20)
 NEW_HOMES_LOOKAHEAD = 2
+HOUSING_TIME_BUDGET = NEW_HOMES_TIME_BUDGET
 PRESALE_TIME_BUDGET = timedelta(minutes=10)
 # 幼兒園裁罰（2026-10-20 規格 C7–C9）：每 7 天；一所一檔，正常約 1 KB；整輪 10 分鐘，請求間隔 0.2 秒。
 PENALTIES_MAX_BYTES = 256 * 1024
@@ -381,6 +383,10 @@ class GeoSyncResult:
     new_homes_version: str | None = None
     new_homes_seasons: int = 0
     new_homes_rematched: int = 0
+    housing: str = "skipped"
+    housing_version: str | None = None
+    housing_seasons: int = 0
+    housing_rematched: int = 0
     # 預售建案（2026-10-20）：結果、使用中的版本（label）、這一輪寫入的案數、這一輪重比改變的案數；
     # 地號座標（只有指定檔案時才匯入）：結果與匯入的列數。
     presale_buildcases: str = "skipped"
@@ -633,6 +639,7 @@ def _error_text(exc: Exception) -> str:
         series_io.SeriesFormatError,
         income_io.IncomeFormatError,
         new_homes_io.NewHomesFormatError,
+        housing_io.HousingFormatError,
         presale_io.PresaleFormatError,
         parcels_io.ParcelFormatError,
         penalties_io.PenaltyFormatError,
@@ -1800,6 +1807,91 @@ async def sync_new_homes(
         return "failed", written
 
 
+async def _housing_text(client: httpx.AsyncClient, season: str, file_name: str) -> str | None:
+    """一季的買賣或租賃檔（文字）；錯誤頁（那一季還沒出）回 None。"""
+    body = await _fetch_retrying(
+        client, new_homes_io.season_url(season, file_name), max_bytes=NEW_HOMES_MAX_BYTES
+    )
+    return new_homes_io.decode(body)
+
+
+def _housing_files(files: list[Path]) -> list[tuple[str, str, str]]:
+    """(季別, 買賣檔文字, 租賃檔文字)，舊到新。檔名要有季別與檔名（「115S3_e_lvr_land_a.csv」「115S3_e_lvr_land_c.csv」），
+    同一季買賣與租賃兩個檔都要有。"""
+    pairs: dict[str, dict[str, str]] = {}
+    for path in files:
+        season = new_homes_io.season_of_filename(path.name)
+        lowered = path.name.lower()
+        kind = "sale" if housing_io.SALE_FILE in lowered else "rent" if housing_io.RENT_FILE in lowered else None
+        if season is None or kind is None:
+            raise GeoSyncError(
+                f"房價租金檔名要有季別與檔名（例：115S3_e_lvr_land_a.csv 與 115S3_e_lvr_land_c.csv）：{path.name}"
+            )
+        text_ = new_homes_io.decode(path.read_bytes())
+        if text_ is None:
+            raise GeoSyncError(f"房價租金檔 {path.name} 不是實價登錄的季檔（可能是錯誤頁）")
+        if kind in pairs.setdefault(season, {}):
+            raise GeoSyncError(f"房價租金檔 {season} 的{'買賣' if kind == 'sale' else '租賃'}檔給了兩次")
+        pairs[season][kind] = text_
+    for season, pair in pairs.items():
+        if len(pair) != 2:
+            missing = housing_io.RENT_FILE if "sale" in pair else housing_io.SALE_FILE
+            raise GeoSyncError(f"房價租金檔 {season} 缺 {missing}（同一季買賣與租賃兩個檔都要給）")
+    return [(season, pairs[season]["sale"], pairs[season]["rent"]) for season in sorted(pairs)]
+
+
+async def sync_housing(
+    session_factory: async_sessionmaker[AsyncSession],
+    client: httpx.AsyncClient | None,
+    *,
+    now: datetime,
+    force: bool,
+    files: list[Path] | None,
+) -> tuple[str, int]:
+    """各里房價與租金（2026-11-20 規格 §7.1）。回傳 (結果, 這一輪寫入的季數)。
+    網路：找最新季（沿用新成屋的買賣檔探測），最新往回 4 季內表裡沒有的逐季抓買賣與租賃（force 時最新季重抓）；
+    任一個檔是錯誤頁就跳過那一季。每季一個交易，中途失敗已寫的保留，到期只看 checked_at。檔案：同季兩個檔成對，不連外。"""
+    status = await _status(session_factory, "housing")
+    if not files and (client is None or (not force and not _series_due(status, now))):
+        return "skipped", 0
+    written = 0
+    try:
+        if files:
+            for season, sale_text, rent_text in await asyncio.to_thread(_housing_files, files):
+                batch = await asyncio.to_thread(
+                    housing_io.parse_season, sale_text, rent_text, season, minimum=housing_io.MIN_SEASON_ROWS
+                )
+                await housing_io.write_season(session_factory, batch, now=now)
+                written += 1
+            await _record(session_factory, "housing", now=now, checked=True)
+            return "updated", written
+        assert client is not None
+        active = status.label if status is not None and status.active_version else None
+        latest, fetched = await discover_new_home_seasons(client, active)
+        async with session_factory() as db:
+            present = await housing_io.seasons_in_table(db)
+        for season in reversed(new_homes_io.window(latest, housing_io.KEEP_SEASONS)):  # 新到舊：中途失敗時先保住最新的季
+            if season in present and not (force and season == latest):
+                continue
+            sale_text = fetched.get(season) or await _housing_text(client, season, housing_io.SALE_FILE)
+            rent_text = await _housing_text(client, season, housing_io.RENT_FILE) if sale_text is not None else None
+            if sale_text is None or rent_text is None:
+                continue  # 那一季來源缺一個檔：不寫、不動舊資料
+            batch = await asyncio.to_thread(
+                housing_io.parse_season, sale_text, rent_text, season, minimum=housing_io.MIN_SEASON_ROWS
+            )
+            await housing_io.write_season(session_factory, batch, now=now)
+            written += 1
+        await _record(session_factory, "housing", now=now, checked=True)
+        if written:
+            logger.info("房價租金已更新：最新 %s，這一輪寫入 %s 季", latest, written)
+        return ("updated" if written else "skipped"), written
+    except Exception as exc:  # noqa: BLE001 - 一種資料失敗不擋其他
+        logger.warning("房價租金同步失敗：%s", _error_text(exc), exc_info=True)
+        await _record(session_factory, "housing", now=now, error=_error_text(exc))
+        return "failed", written
+
+
 async def sync_presale_parcels(
     session_factory: async_sessionmaker[AsyncSession], *, now: datetime, file: Path
 ) -> tuple[str, int]:
@@ -2034,6 +2126,7 @@ async def run_geo_sync(
     income_year: int | None = None,
     new_homes_files: list[Path] | None = None,
     new_homes_season: str | None = None,
+    housing_files: list[Path] | None = None,
     presale_buildcases_file: Path | None = None,
     presale_parcels_file: Path | None = None,
     kindergarten_penalties_file: Path | None = None,
@@ -2049,7 +2142,7 @@ async def run_geo_sync(
         file_mode = (
             doorplates_file is not None or kindergartens_file is not None or babycare_file is not None
             or bool(population_files) or bool(births_files) or bool(marriages_files) or bool(migration_files) or income_file is not None
-            or bool(new_homes_files) or presale_buildcases_file is not None or presale_parcels_file is not None
+            or bool(new_homes_files) or bool(housing_files) or presale_buildcases_file is not None or presale_parcels_file is not None
             or kindergarten_penalties_file is not None or kindergarten_evaluations_file is not None
             or bool(september_files) or bool(elementary_files)
         )
@@ -2160,6 +2253,10 @@ async def run_geo_sync(
                     session_factory, network, now=now, force=force, files=new_homes_files, season=new_homes_season
                 ),
             )
+            housing, housing_seasons = await _within_budget(
+                session_factory, "housing", HOUSING_TIME_BUDGET, now=now,
+                work=sync_housing(session_factory, network, now=now, force=force, files=housing_files),
+            )
             # 預售建案：先換建案檔，再匯入地號座標（匯入後下面整批重比，座標才派上用場；地號座標匯入失敗的訊息也才不會被
             # 建案換版成功清掉）。
             presale, presale_cases = await _within_budget(
@@ -2189,6 +2286,13 @@ async def run_geo_sync(
             logger.warning("新成屋重比失敗：%s", _error_text(exc), exc_info=True)
             await _record(session_factory, "new_homes", now=now, error=f"重比失敗：{_error_text(exc)}")
             new_homes_rematched = 0
+        # 房價租金：同上，失敗只記在 housing。
+        try:
+            housing_rematched = await housing_io.rematch(session_factory)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("房價租金重比失敗：%s", _error_text(exc), exc_info=True)
+            await _record(session_factory, "housing", now=now, error=f"重比失敗：{_error_text(exc)}")
+            housing_rematched = 0
         # 預售建案：門牌換版的案重比；這一輪匯入了地號座標就全部重比（P9）。失敗只記在 presale_buildcases。
         try:
             presale_rematched = await presale_io.rematch(session_factory, everything=presale_parcels == "updated")
@@ -2205,6 +2309,7 @@ async def run_geo_sync(
         migration_status = await _status(session_factory, "migration")
         income_status = await _status(session_factory, "income")
         new_homes_status = await _status(session_factory, "new_homes")
+        housing_status = await _status(session_factory, "housing")
         presale_status = await _status(session_factory, "presale_buildcases")
         fees_status = await _status(session_factory, "kindergarten_fees")
         penalties_status = await _status(session_factory, "kindergarten_penalties")
@@ -2236,6 +2341,10 @@ async def run_geo_sync(
             new_homes_version=new_homes_status.label if new_homes_status and new_homes_status.active_version else None,
             new_homes_seasons=new_homes_seasons,
             new_homes_rematched=new_homes_rematched,
+            housing=housing,
+            housing_version=housing_status.label if housing_status and housing_status.active_version else None,
+            housing_seasons=housing_seasons,
+            housing_rematched=housing_rematched,
             presale_buildcases=presale,
             presale_buildcases_version=(
                 presale_status.label if presale_status and presale_status.active_version else None

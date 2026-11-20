@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import area as area_service
+from app.admissions import area_point as area_point_service
 from app.admissions import journey as journey_service
 from app.admissions import area_compare as area_compare_service
 from app.admissions import children_history as children_history_service
@@ -32,9 +33,12 @@ from app.admissions import presale_area as presale_area_service
 from app.admissions import share as share_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
+from app.admissions.enrolled import overview as enrolled_overview
 from app.admissions.enrolled import query as enrolled_query
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.geo import kindergarten_records as geo_records
+from app.admissions.geo import matcher as geo_matcher
+from app.admissions.geo.kaohsiung import KAOHSIUNG_LAT_RANGE, KAOHSIUNG_LNG_RANGE
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsAreaOut,
@@ -46,7 +50,10 @@ from app.admissions.schemas import (
     AreaChangesOut,
     AreaChildrenHistoryOut,
     AreaCompareOut,
+    AreaLocateOut,
+    AreaPointOut,
     AreaEnrolledOut,
+    AreaEnrolledOverviewOut,
     AreaKindergartenRecordsOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
@@ -80,6 +87,7 @@ from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
 from app.common import csv_export
 from app.common.http_cache import etag_matches
+from app.common.search_header import SEARCH_HEADER, search_fields
 from app.common.timezones import today_local
 from app.operations import audit_service
 
@@ -1058,6 +1066,68 @@ async def get_admissions_area_compare(
 
 
 @router.get(
+    "/admin/admissions/area/point",
+    response_model=AreaPointOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_point(
+    lat: float,
+    lng: float,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaPointOut:
+    """任意點評估（2026-11-20 規格 §5.2）：地圖上一點半徑內的孩子、幼兒園、托嬰、收費、預售、異動、房價與在籍人數；
+    給 campus_key 時另回該校同一組數字（同一條計算路徑）。座標進計算前取到小數 4 位。只讀，不寫稽核。"""
+    if campus_key is not None:
+        _require_campus(current_user, "admissions.stats", campus_key)
+    else:
+        require_scope(current_user, "admissions.stats")
+    if not (KAOHSIUNG_LAT_RANGE[0] <= lat <= KAOHSIUNG_LAT_RANGE[1] and KAOHSIUNG_LNG_RANGE[0] <= lng <= KAOHSIUNG_LNG_RANGE[1]):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "POINT_OUT_OF_RANGE", "message": "座標不在高雄範圍內"},
+        )
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await area_point_service.query_point(db, lat=lat, lng=lng, radius_km=radius_km, campus_key=campus_key)
+    return AreaPointOut.model_validate(result)
+
+
+# 地址定位：header 裡的地址先收到 200 字（前後空白留給 strip），去空白後 1–100 字才查；超過回 INVALID_ADDRESS。
+_LOCATE_ADDRESS_MAX = 100
+_LOCATE_HEADER_MAX = 200
+
+
+@router.get("/admin/admissions/area/locate", response_model=AreaLocateOut)
+async def get_admissions_area_locate(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+    search: str | None = Header(default=None, alias=SEARCH_HEADER, description="地址：{\"address\": …}（JSON、百分比編碼）；不收查詢參數"),
+) -> AreaLocateOut:
+    """地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log。
+    地址只收 X-Ivy-Search header（同 common/search_header.py 的搜尋字；網址的查詢字串可能留在 web 服務那一層的
+    HTTP 紀錄裡），不收查詢參數。比到門牌（exact／nearby）才算找到。"""
+    require_scope(current_user, "admissions.stats")
+    text = search_fields(search, {"address": _LOCATE_HEADER_MAX}).get("address", "").strip()
+    if not 1 <= len(text) <= _LOCATE_ADDRESS_MAX:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_ADDRESS", "message": "地址長度要在 1 到 100 字之間"},
+        )
+    match = await geo_matcher.locate(db, text, version=await geo_matcher.active_doorplate_version(db))
+    if match.match_level not in ("exact", "nearby") or match.lat is None or match.lng is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ADDRESS_NOT_FOUND", "message": "找不到這個地址", "reason": match.unlocated_reason or ("pending" if match.match_level == "pending" else "imprecise")},
+        )
+    return AreaLocateOut(
+        lat=match.lat, lng=match.lng, district=match.district, village=match.village, match_level=match.match_level
+    )
+
+
+@router.get(
     "/admin/admissions/area/trends",
     response_model=AreaTrendsOut,
     dependencies=[Depends(_require_integer_radius)],
@@ -1132,6 +1202,18 @@ async def get_admissions_journey(
         )
     result = await journey_service.query_journey(db, campus_key, date_from, end, source)
     return JourneyOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area/enrolled-overview", response_model=AreaEnrolledOverviewOut)
+async def get_admissions_area_enrolled_overview(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaEnrolledOverviewOut:
+    """五校在籍彙總（2026-11-20 規格 §6.2）：各校清冊概況、同校同格合併的點、各里在籍人數與跨校重疊、
+    「孩子多、五校都沒有在籍」的里。權限同 /area/compare（只列授權範圍內的校區）。只讀，不寫稽核。"""
+    require_scope(current_user, "admissions.stats")
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    return AreaEnrolledOverviewOut.model_validate(await enrolled_overview.query_enrolled_overview(db, campus_keys))
 
 
 @router.get("/admin/admissions/area/enrolled", response_model=AreaEnrolledOut)

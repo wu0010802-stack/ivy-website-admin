@@ -3,7 +3,7 @@ import {
   MAP_MODES, NEARBY_KINDS, babycareFeeText, babycareKindLabel, babycareMeta, babycareShortName, babycareStatusText, babycareSummaryText, bandLabel, campusNotLocatedReason,
   changeDateText, changeLabel, changesEmptyText, changesSubtitle, districtBounds, doorplateVersionLabel, enrolledBandRows, enrolledLegendText, enrolledMapNote,
   enrolledVillageRows, expectedText, formatDistance, gradeOptions,
-  homesCount, homesMapNote, homesMax, homesText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
+  homesCount, homesMapNote, homesMax, homesText, housingPriceText, housingRentText, incomeText, kidsLevelTone, kidsNetText, kindChangeText, kindLabel, legendRanges, levelOf, opportunitySummary, opportunityUnavailable,
   pointCount, pointPopupText, providerLabel, reasonLabel, schoolKidsNetText, schoolVillagesText, seasonRange, shortName, signalText, signalTone, signedCount, taipeiMonthDay,
   trackingNote, trendMapNote, trendsPlaceName, trendsSummary, villageSchoolsText, visitGeoText,
   NO_CHILDREN_DATA_TEXT, NO_LOCATED_VISITS_TEXT, NO_NEW_HOMES_TEXT, NO_PRESALE_TEXT, PRESALE_CAPTION, presaleCount, presaleDeliveryLine,
@@ -514,8 +514,8 @@ describe('新屋交屋的文字（2026-10-14 里的變化 B2 段）', () => {
     expect(homesMapNote(unlocated)).toBe('本校位置未標示（找不到本校地址），算不出附近有哪些里。')
   })
 
-  it('地圖著色轉出 areaView 的八種模式：在籍學生排第一、參觀改叫「參觀」、多一個「同業」（2026-10-16 工作台）、在建預售接在新屋交屋後面（2026-10-20）', () => {
-    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['enrolled', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
+  it('地圖著色轉出 areaView 的九種模式：在籍學生排第一、五校版圖第二（2026-11-20）、參觀改叫「參觀」、多一個「同業」（2026-10-16 工作台）、在建預售接在新屋交屋後面（2026-10-20）', () => {
+    expect(MAP_MODES.map((mode) => mode.value)).toEqual(['enrolled', 'campuses', 'children', 'trend', 'homes', 'presale', 'visits', 'opportunity', 'peers'])
     expect(MAP_MODES.find((mode) => mode.value === 'presale')!.label).toBe('在建預售')
     expect(MAP_MODES[0]!.label).toBe('在籍學生')
     expect(MAP_MODES.find((mode) => mode.value === 'visits')!.label).toBe('參觀')
@@ -730,5 +730,18 @@ describe('在籍學生（2026-10-15 規格 §6）', () => {
       ['三民區/寶業里', null, '三民區', '寶業里'],
       ['64000030020', '64000030020', '左營區', '新上里'],
     ])
+  })
+})
+
+describe('房價與整戶月租（C 段，只當背景）', () => {
+  it('房價：元／坪換成萬元／坪取一位小數；不到 5 筆（null）寫「—」', () => {
+    expect(housingPriceText(385700, 6)).toBe('38.6')
+    expect(housingPriceText(299000, 12)).toBe('29.9')
+    expect(housingPriceText(null, 3)).toBe('—')
+  })
+  it('整戶月租：千分位；沒有寫「—」', () => {
+    expect(housingRentText(18500, 9)).toBe('18,500')
+    expect(housingRentText(1200000, 5)).toBe('1,200,000')
+    expect(housingRentText(null, 2)).toBe('—')
   })
 })

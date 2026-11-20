@@ -44,9 +44,17 @@ def _group(
     return group
 
 
-async def query_peer_fees(db: AsyncSession, campus_key: str, *, radius_km: int, age: int) -> dict[str, Any]:
+async def query_peer_fees(
+    db: AsyncSession, campus_key: str | None, *, radius_km: int, age: int, center: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    """center（任意圓心，2026-11-20 規格 §5.3）：沒有本校，own／own_missing 都是 null、不排名；is_own 仍照五校座標標。"""
     points = await matcher.campus_points(db)
-    campus = await area.campus_out(db, campus_key, points[campus_key])
+    if center is not None:
+        campus = center
+    elif campus_key is None:
+        raise ValueError("campus_key 與 center 至少要給一個")
+    else:
+        campus = await area.campus_out(db, campus_key, points[campus_key])
     status = await db.get(GeoDatasetStatus, "kindergarten_fees")
     current_school_year, _ = current_term(today_local())
     result: dict[str, Any] = {
@@ -79,21 +87,24 @@ async def query_peer_fees(db: AsyncSession, campus_key: str, *, radius_km: int, 
         item.source_id: any(haversine_m(item.lat, item.lng, a, b) <= area.OWN_CAMPUS_RADIUS_M for a, b in own_points)
         for item in found
     }
-    own_school, own_fee = await geo_fees.own_fee(db, lat, lng, age=age, radius_m=area.OWN_CAMPUS_RADIUS_M)
-    if own_school is None:
-        result["own_missing"] = "not_found"
-    elif own_fee is None:
-        result["own_missing"] = "no_fee"
-    else:
-        result["own"] = {
-            "source_id": own_school.source_id,
-            "name": own_school.name,
-            "semester_total": own_fee.semester_total,
-            "months": float(own_fee.months) if own_fee.months is not None else None,
-            "monthly_average": geo_fees.monthly_average(own_fee.semester_total, own_fee.months),
-            "items": _items(own_fee),
-            "transport_note": own_fee.transport_note,
-        }
+    # 任意圓心沒有本校：不查、不排名，own、own_missing 維持 null。
+    own_school = own_fee = None
+    if center is None:
+        own_school, own_fee = await geo_fees.own_fee(db, lat, lng, age=age, radius_m=area.OWN_CAMPUS_RADIUS_M)
+        if own_school is None:
+            result["own_missing"] = "not_found"
+        elif own_fee is None:
+            result["own_missing"] = "no_fee"
+        else:
+            result["own"] = {
+                "source_id": own_school.source_id,
+                "name": own_school.name,
+                "semester_total": own_fee.semester_total,
+                "months": float(own_fee.months) if own_fee.months is not None else None,
+                "monthly_average": geo_fees.monthly_average(own_fee.semester_total, own_fee.months),
+                "items": _items(own_fee),
+                "transport_note": own_fee.transport_note,
+            }
     fee_year = result["school_year"]
 
     def kind_of(kind: str, pre_public_period: str | None) -> str:
