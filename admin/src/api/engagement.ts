@@ -104,6 +104,7 @@ export function actionLabel(key: string, label?: string | null): string | null {
 export const SOURCE_LABELS: Record<string, string> = {
   direct: '直接進站（輸入網址、書籤、看不出來源）',
   search: '搜尋引擎',
+  ai: 'AI 助理（ChatGPT、Gemini、Perplexity 等）',
   facebook: 'Facebook',
   instagram: 'Instagram',
   line: 'LINE',

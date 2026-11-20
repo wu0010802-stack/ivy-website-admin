@@ -50,8 +50,8 @@ const search = (overrides: Partial<SearchInsights> = {}): SearchInsights => ({
   as_of: '2026-11-12T06:00:00Z',
   totals: { clicks: 42, impressions: 1000, ctr: 0.042, position: 8.8 },
   queries: [
-    { query: '常春藤幼兒園', clicks: 20, impressions: 300, ctr: 0.0667, position: 2.3 },
-    { query: '義華 幼兒園', clicks: 9, impressions: 200, ctr: 0.045, position: 5.5 },
+    { query: '常春藤幼兒園', group: 'brand', clicks: 20, impressions: 300, ctr: 0.0667, position: 2.3 },
+    { query: '義華 幼兒園', group: 'brand', clicks: 9, impressions: 200, ctr: 0.045, position: 5.5 },
   ],
   pages: [
     { page: '/', clicks: 25, impressions: 500, ctr: 0.05, position: 4 },
@@ -93,7 +93,7 @@ describe('Google 搜尋面板', () => {
   })
 
   it('2026-11-20：搜尋字詞超過 10 個先列前 10 個，可以展開', async () => {
-    const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
+    const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, group: 'other' as const, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
     const { wrapper } = await mountPanel(search({ queries }))
     expect(wrapper.findAll('[data-test="search-queries"] tbody tr')).toHaveLength(10)
     const toggle = wrapper.get('[data-test="search-queries-toggle"]')

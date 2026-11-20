@@ -24,7 +24,8 @@ const MEDIA_PATH = /^\/(?:public|admin)\/media\//
 // web/server/api/client-errors.post.ts 打。從這裡直接打會繞過那兩支的 Origin／Sec-Fetch-Site
 // 檢查、4 KB 本文上限與每來源配額（稽核 public-telemetry-analytics-storage-flood；
 // engagement 2026-11-12 補上）。
-const SERVER_ONLY_PATH = /^\/+public\/+(?:telemetry|engagement|client-errors)\/*$/
+// not-found（訪客 404，經 telemetry.post.ts）與 crawler-hits（伺服器每分鐘彙總，server/plugins/crawler-hits.ts）2026-11-20 加。
+const SERVER_ONLY_PATH = /^\/+public\/+(?:telemetry|engagement|client-errors|not-found|crawler-hits)\/*$/
 
 export default defineEventHandler(async (event) => {
   // 方法白名單放最前面：不支援的方法（TRACE…）回 405，不進路徑判斷、不送上游。

@@ -78,6 +78,25 @@ describe('LINE 群組通知開關', () => {
     })
   })
 
+  it('2026-11-20：總部群組多一個「官網統計異常」，切其他開關時不會把它洗掉', async () => {
+    const plain = await mountPage(settings([group()]))
+    expect(plain.find('[data-test="line-group-C1-stats-health"]').exists()).toBe(false)
+    plain.unmount()
+    wrappers.length = 0
+    const hq = group({ is_hq: true, kinds: [...ALL_KINDS, 'stats_health'] })
+    const wrapper = await mountPage(settings([hq]))
+    expect(wrapper.get('[data-test="line-group-C1-stats-health"]').text()).toContain('官網統計異常')
+    const put = vi.spyOn(api, 'put').mockResolvedValue(settings([hq]) as never)
+    await wrapper.get('[data-test="line-group-C1-visit_request_cancelled"] .el-switch__input').trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/line/groups/C1', expect.objectContaining({
+      kinds: ['visit_request_created', 'visit_request_confirmed', 'visit_request_rescheduled', 'stats_health'],
+    }))
+    await wrapper.get('[data-test="line-group-C1-stats-health"] .el-switch__input').trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/line/groups/C1', expect.objectContaining({ kinds: ALL_KINDS }))
+  })
+
   it('unverified groups show no switches', async () => {
     const wrapper = await mountPage(settings([group({ verified_at: null })]))
     expect(wrapper.find('[data-test="line-group-settings-C1"]').exists()).toBe(false)

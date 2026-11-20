@@ -100,3 +100,14 @@ async def test_missing_or_left_group_is_404(app, fake_line, admin_client, db_ses
 async def test_non_authorized_user_forbidden(app, fake_line, minghua_client, db_session):
     await _seed(db_session, GROUP, verified=True)
     assert (await minghua_client.put(f"{API}/admin/line/groups/{GROUP}", json=BODY)).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_stats_health_kind_is_accepted_and_kept_last(app, fake_line, admin_client, db_session):
+    """官網統計異常（2026-11-20）：預設不開，開了排在案件通知後面。"""
+    await _seed(db_session, GROUP, verified=True)
+    body = {**BODY, "kinds": ["stats_health", "visit_request_created"], "is_hq": True}
+    resp = await admin_client.put(f"{API}/admin/line/groups/{GROUP}", json=body)
+    assert resp.status_code == 200, resp.text
+    assert _group(resp.json(), GROUP)["kinds"] == ["visit_request_created", "stats_health"]
+    assert "stats_health" not in STAFF_KINDS

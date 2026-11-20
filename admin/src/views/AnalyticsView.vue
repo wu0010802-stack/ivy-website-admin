@@ -2,6 +2,11 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
+import ContactHoursPanel from '../components/analytics/ContactHoursPanel.vue'
+import CrawlerPanel from '../components/analytics/CrawlerPanel.vue'
+import MonthlyPanel from '../components/analytics/MonthlyPanel.vue'
+import NotFoundPanel from '../components/analytics/NotFoundPanel.vue'
+import StatsHealthBanner from '../components/analytics/StatsHealthBanner.vue'
 import { searchPeriod } from '../api/googleInsights'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
 import CruxPanel from '../components/CruxPanel.vue'
@@ -51,10 +56,13 @@ const device = queryChoice<AnalyticsDevice>('device', ANALYTICS_DEVICE_OPTIONS.m
 
 // 後三類共用同一個內容興趣面板（同一份資料）。兩個面板一進頁就各自讀好，換分類只是切換顯示；
 // 在看「瀏覽與速度」時，內容興趣停在上一次看的那一類，不跟著重排。
-const onInterest = computed(() => tab.value !== 'traffic')
-const interestView = ref<InterestView>(tab.value === 'traffic' ? 'content' : tab.value)
+// 2026-11-20 多了第五類「每月比較」：它自己一張表（一列一個月），不用期間與裝置選單。
+const isInterestTab = (value: AnalyticsTab): value is InterestView => value !== 'traffic' && value !== 'monthly'
+const onInterest = computed(() => isInterestTab(tab.value))
+const onMonthly = computed(() => tab.value === 'monthly')
+const interestView = ref<InterestView>(isInterestTab(tab.value) ? tab.value : 'content')
 watch(tab, (value) => {
-  if (value !== 'traffic') interestView.value = value
+  if (isInterestTab(value)) interestView.value = value
 })
 
 // 只提示正在看的那一類：另一類在背景重讀不用寫出來。
@@ -78,10 +86,11 @@ const statusText = computed(() => {
 <template>
   <div class="page analytics">
     <PageHeader
-      lead="官網有多少人看、看了什麼、從哪裡來、有沒有走到預約，全站五校合計。"
+      lead="官網有多少人看、看了什麼、從哪裡來、有沒有走到預約，全站五校合計；「每月比較」可以和去年同月比。"
       more="各校參觀預約的結果（五校比較、到場與取消、每日變化、來源與預約鈕點擊）與預約孩子的班別，在「招生統計 → 參觀預約」（限總管理者）。"
     />
 
+    <StatsHealthBanner />
     <div class="analytics__bar">
       <div class="status-tabs analytics__tabs" role="group" aria-label="要看哪一類統計">
         <button
@@ -94,7 +103,7 @@ const statusText = computed(() => {
           @click="tab = item.key"
         >{{ item.label }}</button>
       </div>
-      <div class="analytics__filters">
+      <div v-if="!onMonthly" class="analytics__filters">
         <span class="hint analytics__status" role="status">{{ statusText }}</span>
         <el-select v-if="onInterest" v-model="device" class="analytics__device" aria-label="要看哪一種裝置的造訪" data-test="analytics-device">
           <el-option v-for="option in ANALYTICS_DEVICE_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
@@ -105,13 +114,18 @@ const statusText = computed(() => {
       </div>
     </div>
 
-    <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
+    <SiteTrafficPanel v-show="tab === 'traffic'" :days="days" @updating="updating.traffic = $event" />
     <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
+    <!-- 找不到的網址、搜尋引擎與 AI 爬蟲（2026-11-20）：全站匿名計數，登入的帳號都看得到。 -->
+    <NotFoundPanel v-show="tab === 'traffic'" :days="days" :active="tab === 'traffic'" />
+    <CrawlerPanel v-show="tab === 'traffic'" :days="days" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
     <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange" :period-label="bookingPeriod" />
+    <ContactHoursPanel v-show="tab === 'convert'" :days="days" :active="tab === 'convert'" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
     <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
     <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
+    <MonthlyPanel v-show="onMonthly" :active="onMonthly" />
   </div>
 </template>
 
