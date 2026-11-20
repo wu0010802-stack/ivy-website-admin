@@ -33,6 +33,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 部署後唯讀檢查（只發 GET、不登入）：正式 `/release.json` 的 base_commit 為 `7b84998f8c3c3371199a4dd33ca0d3f5dec23a4d`，snapshot `c519081145b7517c2dc6ee8fbc3ff8d7427f6dbea5235cdd06598e5854bc59d0`；後台入口 `index-B58x7_vi.js` 有 `top__tips`、「使用小技巧」、分類對照，沒有小技巧內文（內容只在 `TipsView-d9CrTCBK.js`，200，含 `until-found`、`onBeforematch`、搜尋與全部展開）。
 - 沒驗：登入正式後台實際看頁首與小技巧頁（本機 vite dev＋假登入驗過 1440／1280／390／360）；iOS 實機；macOS stack `visual` 四張基準（頁首多一顆、側欄少一列）待重拍。
 
+## 2026-11-20 後台招生統計：四類導覽與黏住的條件列（PR #125，已部署 main `738e3118`）
+
+[PR #125](https://github.com/wu0010802-stack/ivy-website-admin/pull/125) 以 merge commit 合併為 `738e3118`（接在 #122 `7b84998f`、#121 `65f338ea` 之後）；[main CI/CD 44668034328](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44668034328) 全部成功（backend 三組、web、admin、E2E、Deploy Railway production）。這一筆部署同時帶上 #121（後台登入頁）與 #122（使用小技巧頁首）：#121 自己的 main run 44666694394 在排隊時被這次合併取代成 cancelled，不要重跑它（會用舊快照蓋回去）。
+
+- 只改 `admin/` 與 `tests/stack`，後端、契約沒改，沒有 migration、沒有 Railway 環境變數變更。內容見 README 頂部 11-20「後台招生統計」段落與 DESIGN.md「招生統計：四類導覽與黏住的條件列」。
+- API deployment：`0da2d72e-a619-4d03-a79c-7cb499bac489`；web deployment：`608bf1ff-188f-40f5-bcab-bfec3c520e41`，兩者 SUCCESS；部署 smoke（release、live API、CMS、首頁、後台入口）通過。
+- PR 過程：第一輪 E2E 紅 5 條，都是 `admissions-area.spec.ts` 的「不橫向溢出」（1440 寬多 10px、390 寬多 23px）。原因是招生統計的分頁列不再用 el-tabs，少了 `.el-tabs__content` 自帶的 `overflow: hidden`，區域分析裡比容器寬的內容不再被裁掉；本機的假資料截圖沒涵蓋區域分析所以沒看到。`b412944a` 在內容區補回橫向裁切（`overflow-x: clip`，不支援時退回 `hidden`）後第二輪全綠。**是哪個元素比容器寬沒有查到**（當時正式站登入已失效、沒辦法在舊版上量），這個修正是恢復成和舊版一樣的行為。之後 main 連進幾筆（#124、#123 與它們的部署紀錄、#122、#121），README／DESIGN.md 頂部相鄰段落衝突三次，各段都留。
+- 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `738e3118254761eb21eb777a787959493a02ef13`，snapshot `9a01eb321c521ecef40d04618a28e999687c4fa2032b9d0906c25f4cfc29dc80`；線上 `/admin/assets/AdmissionsStatsView-ptN75Dz2.js` 有「招生轉換」「五校與廣告」「預約成效」「看名單」與 `stats-nav`，已經沒有「統計範圍：」。
+- 沒驗：登入正式後台實際操作（分類切換、排序、未預繳數字卡、「查看」開單筆）；正式站招生訪視目前是 0 筆，總覽、班別、來源、接待、未預繳只看得到空狀態，有數字的版面只在假資料截圖與 E2E 的測試資料上看過。iOS／Safari 實機沒驗。
+- 接著的 PR #126（來源「合併相近寫法」，會動後端與契約、沒有 migration）還沒併。
+
 ## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
 
 [PR #123](https://github.com/wu0010802-stack/ivy-website-admin/pull/123) 以 merge commit 合併為 `b9726e76`（接在 #124 的部署紀錄 `51387c74` 之後，兩邊沒有重疊檔案）；[main CI/CD 44662042293](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44662042293) 全部成功（web、admin、後端三組、E2E 23＋186＋83、Deploy），Deploy 台灣時間 10:45–10:48。
