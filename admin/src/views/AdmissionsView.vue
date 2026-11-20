@@ -16,7 +16,7 @@ import { isAdmissionsTab, useAdmissionsFilters } from '../admissions/useAdmissio
 const RecordsTab = lazyComponent(() => import('../components/admissions/RecordsTab.vue'))
 const RosterTab = lazyComponent(() => import('../components/admissions/roster/RosterTab.vue'))
 const {
-  campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, visibleCampusKeys, defaultYear, clearTerm,
+  campus, schoolYear, semester, tab, visitRequestId, month, area, withdraw, openRecordId, visibleCampusKeys, defaultYear, clearTerm,
 } = useAdmissionsFilters()
 const availability = useAdmissionsAvailability(campus)
 
@@ -77,6 +77,7 @@ function showUnscoped() {
           v-model:visitRequestId="visitRequestId"
           v-model:area="area"
           v-model:withdrawCategory="withdraw"
+          v-model:openRecordId="openRecordId"
           :campus-key="campus"
           :school-year="schoolYear"
           :semester="semester"

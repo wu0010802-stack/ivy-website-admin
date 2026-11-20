@@ -196,8 +196,9 @@ for (const { name, device } of VIEWPORTS) {
     await expect(page.locator('.el-skeleton')).toHaveCount(0)
     await test.step('stats', () => expectNoHorizontalOverflow(page))
     await page.screenshot({ path: path.join(SHOTS, `admissions-stats-${name}.png`), fullPage: true })
-    // 總管理者看得到五校比較。
-    await page.getByRole('tab', { name: '五校比較' }).click()
+    // 總管理者看得到五校比較（2026-11-20 起在「五校與廣告」這一類底下，第一頁就是五校比較）。
+    await page.getByRole('button', { name: '五校與廣告' }).click()
+    await expect(page.getByRole('tab', { name: '五校比較', selected: true })).toBeVisible()
     await page.waitForLoadState('networkidle')
     await expect(page.locator('.el-skeleton')).toHaveCount(0)
     await test.step('stats-compare', () => expectNoHorizontalOverflow(page))

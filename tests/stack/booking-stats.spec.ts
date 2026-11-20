@@ -6,7 +6,9 @@ import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT, SLOTS_CAMPUS } from './stack-env'
 
 // 2026-10-13：成效統計的「各校預約」「預約孩子的班別」搬到招生入學 → 統計分析 → 參觀預約；
-// 成效統計只留官網瀏覽與速度。2026-10-16 統計分析抽成獨立的招生統計頁，只有總管理者看得到。家長在官網送出一筆預約後，參觀預約子分頁的各面板都在、
+// 成效統計只留官網瀏覽與速度。2026-10-16 統計分析抽成獨立的招生統計頁，只有總管理者看得到。
+// 2026-11-20 招生統計分成四類：這一頁在「參觀預約」類底下，分頁改名「預約成效」，第一張表改名「各校預約」；
+// 不分入學學年學期的分頁，頁首的學年學期整個不出現（原本是停用並寫一句說明）。家長在官網送出一筆預約後，參觀預約子分頁的各面板都在、
 // 入學學年學期停用，1440／390 不橫向溢出；截圖存 output/playwright/（給人看，不比對像素）。
 
 const SHOTS = path.join(ROOT, 'output/playwright')
@@ -24,7 +26,8 @@ test.beforeAll(async () => {
 
 async function openBookingStats(page: Page): Promise<void> {
   await gotoAdmin(page, BOOKING_PATH, '招生統計')
-  await expect(page.getByRole('tab', { name: '參觀預約', selected: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: '參觀預約', pressed: true })).toBeVisible()
+  await expect(page.getByRole('tab', { name: '預約成效', selected: true })).toBeVisible()
   await expect(page.locator('.funnel__row').first()).toBeVisible()
   await page.waitForLoadState('networkidle')
 }
@@ -33,19 +36,24 @@ for (const { name, device } of VIEWPORTS) {
   test(`${name}px：招生統計 → 參觀預約有原本各校預約與班別的面板`, async ({ browser }) => {
     const { context, page } = await openAs(browser, 'super_admin', device)
     await openBookingStats(page)
-    for (const heading of [/^五校比較/, /^預約結果・義華校/, /^預約流程/, /^每日變化・義華校/, /^預約孩子的班別・義華校/, /^依來源/, /^預約鈕點擊/]) {
+    for (const heading of [/^各校預約/, /^預約結果・義華校/, /^預約流程/, /^每日變化・義華校/, /^預約孩子的班別・義華校/, /^依來源/, /^預約鈕點擊/]) {
       await expect(page.getByRole('heading', { level: 2, name: heading })).toBeVisible()
     }
     // 送出的那一筆算在「已送出需求」：至少 1。
     await expect(page.locator('.funnel__row').first().locator('.funnel__value')).not.toHaveText('0')
     // 招生統計的範圍說明只屬於招生子分頁。
     await expect(page.getByText('統計範圍：')).toHaveCount(0)
+    // 這一頁不分入學學年學期：頁首只剩校區，學年學期不出現。
+    await expect(page.getByText('資料時間')).toHaveCount(0)
     if (name === '1440') {
-      await expect(page.getByText('這個分頁不分入學學年學期')).toBeVisible()
-      await expect(page.locator('.admissions__filters .el-select__wrapper.is-disabled')).toHaveCount(2)
+      await expect(page.locator('.admissions__filters').getByRole('combobox', { name: '校區' })).toBeVisible()
+      await expect(page.locator('.admissions__filters').getByRole('combobox', { name: '入學學年' })).toHaveCount(0)
+      await expect(page.locator('.admissions__filters').getByRole('combobox', { name: '入學學期' })).toHaveCount(0)
     } else {
-      await expect(page.locator('.admissions__summary')).toContainText('不分學年學期')
+      await expect(page.locator('.admissions__summary')).not.toContainText('學年')
     }
+    // 更新時間在分頁頂端寫一次（「開站至今」選單上已經寫了，那一行不重複期間）。
+    await expect(page.locator('[data-test="booking-meta"]')).toContainText('更新')
     await expectNoHorizontalOverflow(page)
     mkdirSync(SHOTS, { recursive: true })
     await page.screenshot({ path: path.join(SHOTS, `booking-stats-${name}.png`), fullPage: true })

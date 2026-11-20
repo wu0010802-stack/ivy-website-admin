@@ -548,11 +548,14 @@ describe('招生統計的子分頁', () => {
     const { wrapper, router } = await mountWith(AdmissionsStatsView, { path: '/admissions-stats?campus=yihua&sy=114&sem=2&sub=imports' })
     const stats = wrapper.findComponent(StatsTab)
     expect(stats.props('sub')).toBe('imports')
-    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()).at(-2)).toBe('資料匯入')
+    // 資料匯入不在分頁列，是分類旁的一顆按鈕；選中時 aria-pressed、分頁列沒有任何分頁選中。
+    expect(wrapper.get('.stats-nav__imports').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.find('.stats-tab[aria-selected="true"]').exists()).toBe(false)
     expect(wrapper.find('section[aria-label="資料匯入"]').exists()).toBe(true)
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
-    const selects = ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label)!)
-    expect(selects.map((item) => item.props('disabled'))).toEqual([true, true])
+    expect(wrapper.find('.stats-asof').exists()).toBe(false)
+    // 不分入學學年學期：兩個下拉整個不出現（不是停用）。
+    const selects = ['入學學年', '入學學期'].map((label) => wrapper.findAllComponents({ name: 'ElSelect' }).find((item) => item.props('ariaLabel') === label))
+    expect(selects).toEqual([undefined, undefined])
     expect(queryOf(pathsTo(get, STATUS)[0]!).get('campus_key')).toBe('yihua')
     expect(router.currentRoute.value.query).toEqual({ campus: 'yihua', sy: '114', sem: '2', sub: 'imports' })
 

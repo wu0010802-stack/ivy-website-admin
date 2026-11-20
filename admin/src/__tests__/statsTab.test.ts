@@ -5,7 +5,7 @@ import StatsTab from '../components/admissions/StatsTab.vue'
 import NoDepositList from '../components/admissions/NoDepositList.vue'
 import type { AdmissionsStats } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
-import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, pathsTo, potentialData, queryOf } from './admissionsTestKit'
+import { button, cleanup, deferred, emptyWithdrawReasons, mockGet, mountWith, openStatsSub, pathsTo, potentialData, queryOf, statsTabLabels, areaCompare } from './admissionsTestKit'
 
 vi.mock('../components/admissions/area/AreaTab.vue', async () => {
   const { defineComponent, h } = await import('vue')
@@ -38,6 +38,14 @@ vi.mock('../components/admissions/JourneyTab.vue', async () => {
       setup: () => () => h('div', { class: 'journey-tab-stub' }),
     }),
   }
+})
+vi.mock('../components/admissions/ads/AdsTab.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return { default: defineComponent({ name: 'AdsTab', props: ['active'], setup: () => () => h('div', { class: 'ads-tab-stub' }) }) }
+})
+vi.mock('../components/admissions/imports/ImportsTab.vue', async () => {
+  const { defineComponent, h } = await import('vue')
+  return { default: defineComponent({ name: 'ImportsTab', props: ['campusKey', 'active'], setup: () => () => h('div', { class: 'imports-tab-stub' }) }) }
 })
 vi.mock('../utils/csv', async (importOriginal) => ({ ...(await importOriginal<typeof import('../utils/csv')>()), downloadCsv: vi.fn() }))
 import { downloadCsv } from '../utils/csv'
@@ -168,13 +176,9 @@ const block = (root: VueWrapper | Dom, title: string) =>
   root.findAll('.stats-block').find((section) => section.get('.stats-block__title').text() === title)!
 const headers = (section: Dom) => section.findAll('thead th').map((th) => th.text())
 const bodyRows = (section: Dom) => section.findAll('tbody tr').map(cells)
+const activeTab = (wrapper: VueWrapper) => wrapper.get('.stats-tab[aria-selected="true"]').text()
 
-async function openSubTab(wrapper: VueWrapper, label: string): Promise<Dom> {
-  const tab = wrapper.findAll('.stats-subtabs .el-tabs__item').find((item) => item.text() === label)!
-  await tab.trigger('click')
-  await flushPromises()
-  return wrapper.get(`#${tab.attributes('id')!.replace(/^tab-/, 'pane-')}`)
-}
+const openSubTab = openStatsSub
 
 describe('統計分頁：總覽', () => {
   it('依頁首校區與學期查詢；決策摘要四張卡、月比徽章、快照、月比、月度與年度表', async () => {
@@ -182,9 +186,12 @@ describe('統計分頁：總覽', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
     expect(queryOf(pathsTo(get, '/admin/admissions/stats')[0]!).toString()).toBe('campus_key=yihua&school_year=115&semester=1')
-    const overview = wrapper.get('#pane-stats-overview')
+    const overview = wrapper.get('#stats-pane-overview')
     expect(overview.get('.decision h3').text()).toBe('主管決策摘要')
-    expect(overview.get('.decision .hint').text()).toBe('參考月份：115.09')
+    // 參考月份只在標題列一處：選單（沒選時 placeholder 寫「最新（115.09）」），不再另有一行文字。
+    expect(overview.get('.decision__tools .stats-month-field').text()).toContain('參考月份')
+    expect(overview.get('.decision__tools .stats-month').text()).toContain('最新（115.09）')
+    expect(overview.find('.decision__tools > .hint').exists()).toBe(false)
     expect(overview.get('.decision__badge').text()).toBe('▼ 月比預繳率 -80.0 個百分點')
     expect(overview.findAll('.decision__card h4').map((n) => n.text())).toEqual(['本月', '近 30 天', '近 90 天', '年度累計'])
     expect(overview.findAll('.decision__visit').map((n) => n.text())).toEqual(['5 人次', '6 人次', '7 人次', '8 人次'])
@@ -253,14 +260,23 @@ describe('統計分頁：總覽', () => {
     expect(snapshot).not.toContain('6.3%')
   })
 
-  it('統計頂部有收起的說明：可能範圍與預繳速度怎麼看', async () => {
+  it('說明各在用得到的地方：警示卡裡「警示怎麼比預繳速度」，有區間條的表上「怎麼看可能範圍」；頁面頂端不再有', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
-    const explainer = wrapper.get('[data-test="stats-explainer"]')
+    const overview = wrapper.get('#stats-pane-overview')
+    const pace = overview.get('[data-test="pace-explainer"]')
+    expect(pace.element.tagName).toBe('DETAILS')
+    expect(pace.attributes('open')).toBeUndefined()
+    expect(pace.get('summary').text()).toBe('警示怎麼比預繳速度')
+    expect(pace.text()).toContain('依過去的速度，算到今天應該有幾筆預繳再比較')
+    expect(overview.find('[data-test="stats-explainer"]').exists()).toBe(false)
+
+    const grade = block(await openSubTab(wrapper, '班別分析'), '班別統計')
+    const explainer = grade.get('[data-test="stats-explainer"]')
     expect(explainer.element.tagName).toBe('DETAILS')
     expect(explainer.attributes('open')).toBeUndefined()
-    expect(explainer.get('summary').text()).toBe('怎麼看可能範圍與預繳速度')
+    expect(explainer.get('summary').text()).toBe('怎麼看可能範圍')
     expect(explainer.text()).toContain('3 筆裡 3 筆不代表比較好')
   })
 
@@ -275,7 +291,7 @@ describe('統計分頁：總覽', () => {
 
     await wrapper.findAll('.action-item')[0]!.trigger('click')
     await flushPromises()
-    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳與退出原因')
+    expect(activeTab(wrapper)).toBe('未預繳與退出原因')
   })
 })
 
@@ -283,8 +299,8 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
   it('sub 決定現在的子分頁；點子分頁回報 update:sub，不自己改（父層放網址）', async () => {
     mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'nodeposit' }) })
-    expect(wrapper.get('.stats-subtabs .el-tabs__item.is-active').text()).toBe('未預繳與退出原因')
-    const tab = wrapper.findAll('.stats-subtabs .el-tabs__item').find((item) => item.text() === '來源分析')!
+    expect(activeTab(wrapper)).toBe('未預繳與退出原因')
+    const tab = wrapper.findAll('.stats-tab').find((item) => item.text() === '來源分析')!
     await tab.trigger('click')
     expect(wrapper.emitted('update:sub')).toEqual([['source']])
   })
@@ -298,8 +314,7 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
   it('區域分析在接待之後、未預繳之前；sub=area 才掛，帶頁首條件、空狀態與匯出檔名；查看明細交給頁面', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'area' }) })
-    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入'])
+    expect(statsTabLabels(wrapper)).toEqual(['區域分析', '招生潛力與市佔率'])
     const tab = wrapper.findComponent({ name: 'AreaTab' })
     expect(tab.props()).toMatchObject({ campusKey: 'yihua', schoolYear: 115, semester: 1 })
     expect(tab.props('emptyText')).toContain('還沒有招生訪視')
@@ -331,23 +346,25 @@ describe('統計分頁：子分頁由 sub 控制（X2a 3A）', () => {
 })
 
 describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', () => {
-  it('排在五校比較之後、預約全程之前；sub=booking 才掛，拿頁首校區與看得到的校區；上方的招生統計範圍與說明不顯示', async () => {
+  it('排在五校比較之後、預約全程之前；sub=booking 才掛，拿頁首校區與看得到的校區；資料時間（.stats-asof）不顯示', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'booking', campusKeys: ['yihua', 'minghua'] }) })
-    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()))
-      .toEqual(['總覽', '班別分析', '來源分析', '接待分析', '區域分析', '未預繳與退出原因', '五校比較', '參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入', '廣告成效'])
+    // 只列這一類（參觀預約）的分頁；分類列有四類，「資料匯入」另在分類旁。
+    expect(statsTabLabels(wrapper)).toEqual(['預約成效', '預約全程'])
+    expect(wrapper.findAll('.stats-nav__cats .status-tab').map((item) => item.text())).toEqual(['招生轉換', '參觀預約', '區域與市場', '五校與廣告'])
+    expect(wrapper.get('.stats-nav__imports').text()).toBe('資料匯入')
     const pane = wrapper.findComponent({ name: 'BookingStatsPane' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', campusKeys: ['yihua', 'minghua'] })
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.stats-asof').exists()).toBe(false)
     expect(wrapper.find('[data-test="stats-explainer"]').exists()).toBe(false)
   })
 
-  it('沒點開參觀預約不掛；切回總覽時統計範圍與說明回來', async () => {
+  it('沒點開參觀預約不掛；切回總覽時資料時間回來', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     expect(wrapper.findComponent({ name: 'BookingStatsPane' }).exists()).toBe(false)
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(true)
-    await openSubTab(wrapper, '參觀預約')
+    expect(wrapper.find('.stats-asof').exists()).toBe(true)
+    await openSubTab(wrapper, '預約成效')
     expect(wrapper.emitted('update:sub')?.at(-1)).toEqual(['booking'])
   })
 
@@ -362,8 +379,9 @@ describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', ()
     mockGet({ '/admin/admissions/stats': () => { throw new Error('network') } })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     expect(wrapper.get('.el-alert').text()).toContain('無法讀取統計資料，請重新載入。')
-    const labels = wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text())
-    expect(labels).toContain('參觀預約')
+    expect(wrapper.findAll('.stats-nav__cats .status-tab').map((item) => item.text())).toContain('參觀預約')
+    await openSubTab(wrapper, '預約成效')
+    expect(wrapper.emitted('update:sub')?.at(-1)).toEqual(['booking'])
     await wrapper.setProps({ sub: 'booking' })
     await flushPromises()
     expect(wrapper.find('.el-alert').exists()).toBe(false)
@@ -372,15 +390,14 @@ describe('統計分頁：參觀預約（2026-10-13 從成效統計搬來）', ()
 })
 
 describe('統計分頁：預約全程（2026-10-15）', () => {
-  it('排在參觀預約之後；sub=journey 才掛，拿頁首校區與網址上的篩選；上方的招生統計範圍與說明不顯示', async () => {
+  it('排在參觀預約之後；sub=journey 才掛，拿頁首校區與網址上的篩選；資料時間（.stats-asof）不顯示', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const filter = { period: '180', from: '', to: '', source: 'web' }
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'journey', journey: filter }) })
-    const labels = wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text())
-    expect(labels.slice(-4)).toEqual(['參觀預約', '預約全程', '招生潛力與市佔率', '資料匯入'])
+    expect(statsTabLabels(wrapper)).toEqual(['預約成效', '預約全程'])
     const pane = wrapper.findComponent({ name: 'JourneyTab' })
     expect(pane.props()).toMatchObject({ campusKey: 'yihua', filter })
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.stats-asof').exists()).toBe(false)
     expect(wrapper.find('[data-test="stats-explainer"]').exists()).toBe(false)
   })
 
@@ -397,7 +414,7 @@ describe('統計分頁：預約全程（2026-10-15）', () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     expect(wrapper.findComponent({ name: 'JourneyTab' }).exists()).toBe(false)
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(true)
+    expect(wrapper.find('.stats-asof').exists()).toBe(true)
     await openSubTab(wrapper, '預約全程')
     expect(wrapper.emitted('update:sub')?.at(-1)).toEqual(['journey'])
   })
@@ -422,14 +439,14 @@ describe('統計分頁：預約全程（2026-10-15）', () => {
 })
 
 describe('統計分頁：招生潛力與市佔率（2026-10-20）', () => {
-  it('排在預約全程之後；sub=potential 才讀，拿頁首校區；上方的招生統計範圍與說明不顯示', async () => {
+  it('排在預約全程之後；sub=potential 才讀，拿頁首校區；資料時間（.stats-asof）不顯示', async () => {
     const get = mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ sub: 'potential' }) })
-    expect(wrapper.findAll('.stats-subtabs .el-tabs__item').map((item) => item.text()).slice(-2)).toEqual(['招生潛力與市佔率', '資料匯入'])
+    expect(statsTabLabels(wrapper)).toEqual(['區域分析', '招生潛力與市佔率'])
     expect(wrapper.findComponent({ name: 'PotentialTab' }).props()).toMatchObject({ campusKey: 'yihua', active: true })
     expect(wrapper.get('.potential-card__value').text()).toBe('1.93%')
     expect(queryOf(pathsTo(get, '/admin/admissions/potential')[0]!).get('campus_key')).toBe('yihua')
-    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.find('.stats-asof').exists()).toBe(false)
     expect(wrapper.find('[data-test="stats-explainer"]').exists()).toBe(false)
   })
 
@@ -496,8 +513,12 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
 
     expect(bodyRows(block(pane, '接待人員統計'))[1]).toEqual(['張老師', '3', '2', '66.7%', '40–74%'])
     expect(pane.text()).toContain('依訪視表單的「帶參觀老師」計算，一筆有多位老師時每位各算一次。')
+    expect(pane.text()).toContain('格內上面是預繳率，下面是參觀人數。')
+    const split = block(pane, '接待人員 × 各年級預繳率').findAll('tbody tr')[1]!.findAll('.stats-table__split')[0]!
+    expect(split.findAll('.num').map((n) => n.text())).toEqual(['0.0%', '1人'])
+    expect(split.get('small').text()).toBe('1人')
     expect(headers(block(pane, '接待人員 × 各年級預繳率'))).toEqual(['接待人員', '幼幼班', '小班', '中班', '大班', '未填寫'])
-    expect(bodyRows(block(pane, '接待人員 × 各年級預繳率'))[1]).toEqual(['張老師', '1人 / 0.0%', '—', '2人 / 100.0%', '—', '—'])
+    expect(bodyRows(block(pane, '接待人員 × 各年級預繳率'))[1]).toEqual(['張老師', '0.0%1人', '—', '100.0%2人', '—', '—'])
     expect(headers(block(pane, '接待人員 × 來源 交叉分析'))).toEqual(['接待人員', 'Facebook', '親友介紹', 'Google 評論', '未填寫', '合計'])
     expect(bodyRows(block(pane, '接待人員 × 來源 交叉分析'))[0]).toEqual(['林老師', '4', '1', '0', '0', '5'])
   })
@@ -507,7 +528,7 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '未預繳與退出原因')
 
-    expect(pane.findAll('.nodeposit-kpi').map((n) => n.text().replace(/\s+/g, ''))).toEqual(['高潛力未預繳2', '逾14天待追3', '冷名單0'])
+    expect(pane.findAll('.nodeposit-kpi').map((n) => n.text().replace(/\s+/g, ''))).toEqual(['高潛力未預繳2看名單', '逾14天待追3看名單', '冷名單0看名單'])
     expect(pane.get('.nodeposit-priority').text().replace(/\s+/g, '')).toBe('高潛力2・中潛力0・低潛力0・未歸類1（共3筆）')
     expect(headers(block(pane, '未預繳原因分佈'))).toEqual(['原因分類', '轉換潛力', '筆數', '幼幼班', '小班', '中班', '大班', '未填寫'])
     expect(bodyRows(block(pane, '未預繳原因分佈'))).toEqual([
@@ -556,7 +577,7 @@ describe('統計分頁：狀態', () => {
     mockGet({ '/admin/admissions/stats': emptyStats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
 
-    const overview = wrapper.get('#pane-stats-overview')
+    const overview = wrapper.get('#stats-pane-overview')
     expect(overview.get('.stats-empty').text()).toBe('義華在 115 上學期還沒有招生訪視。新增訪視，或在參觀案件標記家長已到場後，這裡就會有統計。')
     expect(overview.get('.stats-empty').classes()).toContain('empty-note')
     expect(overview.find('.decision').exists()).toBe(false)
@@ -570,7 +591,7 @@ describe('統計分頁：狀態', () => {
   it('沒選學年：寫「所有學年」', async () => {
     mockGet({ '/admin/admissions/stats': emptyStats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ schoolYear: null, semester: null }) })
-    expect(wrapper.get('#pane-stats-overview .stats-empty').text()).toContain('義華在所有學年還沒有招生訪視。')
+    expect(wrapper.get('#stats-pane-overview .stats-empty').text()).toContain('義華在所有學年還沒有招生訪視。')
   })
 
   it('讀取失敗：顯示錯誤與重新載入，重試成功後恢復', async () => {
@@ -605,7 +626,7 @@ describe('統計分頁：狀態', () => {
     yihua.resolve(stats())
     await flushPromises()
 
-    expect(wrapper.get('.decision .hint').text()).toBe('參考月份：115.08')
+    expect(wrapper.get('.decision__tools .stats-month').text()).toContain('最新（115.08）')
   })
 
   it('參考月份選單在總覽裡（只影響總覽）；總覽有口徑說明；參考月份是目前這個月時「本月」卡標「進行中」', async () => {
@@ -613,9 +634,9 @@ describe('統計分頁：狀態', () => {
     vi.setSystemTime(new Date('2026-09-20T09:00:00+08:00'))
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
-    const overview = wrapper.get('#pane-stats-overview')
+    const overview = wrapper.get('#stats-pane-overview')
     expect(overview.find('[aria-label="參考月份"]').exists()).toBe(true)
-    expect(wrapper.get('.stats-toolbar').find('[aria-label="參考月份"]').exists()).toBe(false)
+    expect(wrapper.find('.stats-asof [aria-label="參考月份"]').exists()).toBe(false)
     expect(overview.get('.decision__basis').text()).toContain('本月依參觀月份；近 30／90 天依建檔時間')
     expect(overview.findAll('.decision__card h4')[0]!.text()).toContain('進行中')
     expect(overview.findAll('.decision__card h4')[1]!.text()).not.toContain('進行中')
@@ -663,7 +684,7 @@ describe('統計分頁：未預繳明細（C3b）', () => {
     expect(pane.text()).not.toContain('名單請到「訪視明細」')
 
     await button(pane, '查看')!.trigger('click')
-    expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09' }]])
+    expect(wrapper.emitted('open-records')).toEqual([[{ month: '115.09', open: '11111111-0000-4000-8000-000000000001' }]])
   })
 
   it('行動入口「查看高風險未預繳」把 target_filter 帶進名單（同園務 applyNoDepositFilter）', async () => {
@@ -698,14 +719,14 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
   it('總覽與班別、來源、接待分析的每張表都能匯出，檔名含校區、學期與日期', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
-    const overview = wrapper.get('#pane-stats-overview')
+    const overview = wrapper.get('#stats-pane-overview')
     expect(tables(overview).length).toBeGreaterThan(0)
     expect(tables(overview).every((section) => section.find('[data-test="stats-csv"]').exists())).toBe(true)
     for (const label of ['班別分析', '來源分析', '接待分析']) {
       const pane = await openSubTab(wrapper, label)
       expect(tables(pane).every((section) => section.find('[data-test="stats-csv"]').exists()), label).toBe(true)
     }
-    await block(wrapper.get('#pane-stats-overview'), '月度明細表').get('[data-test="stats-csv"]').trigger('click')
+    await block(wrapper.get('#stats-pane-overview'), '月度明細表').get('[data-test="stats-csv"]').trigger('click')
     expect(lastDownload()[0]).toMatch(/^招生統計-月度明細表-義華-115 上學期-\d{4}-\d{2}-\d{2}\.csv$/)
   })
 
@@ -733,7 +754,7 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
   it('匯出內容同畫面：月度明細表的欄名一致，分母 0 的比率寫空白、不寫「—」，計數照寫', async () => {
     mockGet({ '/admin/admissions/stats': stats({ monthly: [{ month: '115.09', ...snap(0, 0, 0, 0, 0, 0, null, null, null, null) }, { month: '115.10', ...snap(4, 2, 1, 0, 1, 2, 50, 25, 50, 50) }] }) })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
-    const section = block(wrapper.get('#pane-stats-overview'), '月度明細表')
+    const section = block(wrapper.get('#stats-pane-overview'), '月度明細表')
     expect(section.text()).toContain('—')
     await section.get('[data-test="stats-csv"]').trigger('click')
     expect(lastDownload()[1].split('\r\n')).toEqual([
@@ -760,14 +781,14 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
   it('沒選學年：檔名寫「全部學年」', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ schoolYear: null, semester: null }) })
-    await block(wrapper.get('#pane-stats-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
+    await block(wrapper.get('#stats-pane-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
     expect(lastDownload()[0]).toBe(`招生統計-年度統計-義華-全部學年-${taipeiToday()}.csv`)
   })
 
   it('沒選學年但選了下學期：檔名寫「全部學年下學期」，不把只有下學期的數字寫成全部', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props({ schoolYear: null, semester: 2 }) })
-    await block(wrapper.get('#pane-stats-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
+    await block(wrapper.get('#stats-pane-overview'), '年度統計').get('[data-test="stats-csv"]').trigger('click')
     expect(lastDownload()[0]).toBe(`招生統計-年度統計-義華-全部學年下學期-${taipeiToday()}.csv`)
   })
 
@@ -841,3 +862,282 @@ describe('統計總覽：預繳速度（2026-10-12）', () => {
     expect(third.find('[data-test="deposit-pace"]').exists()).toBe(false)
   })
 })
+
+describe('統計總覽（2026-11-20）：警示排序、月度走勢、合計主次', () => {
+  const alert = (code: AdmissionsStats['alerts'][number]['code'], level: 'danger' | 'warning' | 'info', title: string): AdmissionsStats['alerts'][number] =>
+    ({ code, level, title, message: `${title}的說明`, target_tab: 'records', target_filter: { month: '115.09' } })
+
+  it('異常警示依嚴重度排：高（danger）→ 中（warning）→ 低（info）；同一級維持後端順序', async () => {
+    mockGet({
+      '/admin/admissions/stats': stats({
+        alerts: [alert('FUNNEL_DROP', 'info', '提示甲'), alert('SOURCE_IMBALANCE', 'warning', '警示乙'), alert('HIGH_POTENTIAL_BACKLOG', 'danger', '危急丙')],
+      }),
+    })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findAll('.alert-item strong').map((item) => item.text())).toEqual(['危急丙', '警示乙', '提示甲'])
+    expect(wrapper.findAll('.alert-item .el-tag').map((item) => item.text())).toEqual(['高', '中', '低'])
+    cleanup()
+
+    mockGet({
+      '/admin/admissions/stats': stats({
+        alerts: [alert('SOURCE_IMBALANCE', 'danger', '危急丁'), alert('FUNNEL_DROP', 'info', '提示戊'), alert('HIGH_POTENTIAL_BACKLOG', 'danger', '危急己')],
+      }),
+    })
+    const same = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(same.findAll('.alert-item strong').map((item) => item.text())).toEqual(['危急丁', '危急己', '提示戊'])
+  })
+
+  it('沒有警示：寫「目前沒有明顯異常」，說明（pace-explainer）仍在警示卡裡', async () => {
+    mockGet({ '/admin/admissions/stats': stats({ alerts: [] }) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.text()).toContain('目前沒有明顯異常')
+    expect(wrapper.find('.alert-item').exists()).toBe(false)
+    expect(wrapper.find('[data-test="pace-explainer"]').exists()).toBe(true)
+  })
+
+  it('月度走勢卡：月份多於一個才有；只有一個月就沒有', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const many = (await mountWith(StatsTab, { props: props() })).wrapper
+    const card = many.get('[data-test="monthly-trend"]')
+    expect(card.get('h3').text()).toBe('月度走勢')
+    expect(card.find('figure.trend svg[role="img"]').exists()).toBe(true)
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': stats({ monthly: [{ month: '115.09', ...snap(5, 1, 0, 0, 1, 1, 20, 0, 0, 0) }] }) })
+    const one = (await mountWith(StatsTab, { props: props() })).wrapper
+    expect(one.find('[data-test="monthly-trend"]').exists()).toBe(false)
+  })
+
+  it('本範圍合計分主次：六個常看的在上，其餘口徑四項收在預設收起的「其他口徑」，有效預繳與排除轉期各多一句算法', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const main = wrapper.get('.kpi--main')
+    expect(main.findAll('dt').map((item) => item.text())).toEqual(['參觀', '預繳', '註冊', '預繳未註冊', '參觀→預繳率', '參觀→註冊率'])
+    expect(main.findAll('dd').map((item) => item.text().replace(/\s+/g, ''))).toEqual(['9唯一幼生8', '5唯一幼生4', '2', '2', '55.6%', '22.2%'])
+
+    const more = wrapper.get('details.kpi-more')
+    expect(more.attributes('open')).toBeUndefined()
+    expect(more.get('summary').text()).toBe('其他口徑：轉其他學期、有效預繳、排除轉期')
+    expect(more.findAll('dt').map((item) => item.text())).toEqual(['轉其他學期', '有效預繳', '預繳→註冊率', '排除轉期→註冊率'])
+    expect(more.text()).toContain('預繳且沒有轉其他學期')
+    expect(more.text()).toContain('註冊 ÷ 有效預繳')
+  })
+
+  it('月比變化：沒有變化寫「持平」，不寫「– 0.0 個百分點」', async () => {
+    const base = stats()
+    mockGet({ '/admin/admissions/stats': stats({ month_over_month: { ...base.month_over_month, visit_to_deposit_rate: rateDiff(20, 20, 0) } }) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findAll('.mom__list dd')[0]!.text()).toBe('持平')
+  })
+})
+
+describe('統計分頁：導覽（分類、分頁列、資料匯入）（2026-11-20）', () => {
+  const catButtons = (wrapper: VueWrapper) => wrapper.findAll('.stats-nav__cats .status-tab')
+
+  it('分類四類；選中的有 is-active 與 aria-pressed；分頁列只列這一類，選中的 aria-selected，並有 tablist 與 aria-label', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ campusKeys: ['yihua', 'minghua'] }) })
+
+    expect(catButtons(wrapper).map((item) => item.text())).toEqual(['招生轉換', '參觀預約', '區域與市場', '五校與廣告'])
+    expect(catButtons(wrapper).map((item) => item.attributes('aria-pressed'))).toEqual(['true', 'false', 'false', 'false'])
+    expect(catButtons(wrapper)[0]!.classes()).toContain('is-active')
+    expect(catButtons(wrapper)[1]!.classes()).not.toContain('is-active')
+    expect(statsTabLabels(wrapper)).toEqual(['總覽', '班別分析', '來源分析', '接待分析', '未預繳與退出原因'])
+    const list = wrapper.get('.stats-tabs')
+    expect(list.attributes('role')).toBe('tablist')
+    expect(list.attributes('aria-label')).toBe('招生轉換的分頁')
+    expect(wrapper.findAll('.stats-tab').map((tab) => [tab.attributes('role'), tab.attributes('aria-selected')])).toEqual([
+      ['tab', 'true'], ['tab', 'false'], ['tab', 'false'], ['tab', 'false'], ['tab', 'false'],
+    ])
+    expect(wrapper.get('#stats-tab-overview').attributes('aria-controls')).toBe('stats-pane-overview')
+    // 還沒開過的分頁沒有內容區：不寫 aria-controls（指到不存在的 id 是無效的 ARIA 值）；開過就有。
+    expect(wrapper.find('#stats-pane-class').exists()).toBe(false)
+    expect(wrapper.get('#stats-tab-class').attributes('aria-controls')).toBeUndefined()
+    await wrapper.get('#stats-tab-class').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('#stats-tab-class').attributes('aria-controls')).toBe('stats-pane-class')
+    expect(wrapper.find('#stats-pane-class').exists()).toBe(true)
+  })
+
+  it('只看得到一校：沒有「五校與廣告」這一類', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(catButtons(wrapper).map((item) => item.text())).toEqual(['招生轉換', '參觀預約', '區域與市場'])
+  })
+
+  it('每一類的分頁：參觀預約＝預約成效、預約全程；區域與市場＝區域分析、招生潛力與市佔率；五校與廣告＝五校比較、廣告成效', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData(), '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 115, semester: 1, seat_semester: 1, rows: [] }, '/admin/admissions/area/compare': areaCompare() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ campusKeys: ['yihua', 'minghua'] }) })
+    const seen: Record<string, string[]> = {}
+    for (const cat of ['參觀預約', '區域與市場', '五校與廣告']) {
+      await catButtons(wrapper).find((item) => item.text() === cat)!.trigger('click')
+      seen[cat] = statsTabLabels(wrapper)
+    }
+    expect(seen).toEqual({
+      參觀預約: ['預約成效', '預約全程'], 區域與市場: ['區域分析', '招生潛力與市佔率'], 五校與廣告: ['五校比較', '廣告成效'],
+    })
+  })
+
+  it('點分類＝切到那一類上次看的分頁（第一次是該類第一頁）；點目前這一類不動', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const last = () => wrapper.emitted('update:sub')!.at(-1)
+
+    await catButtons(wrapper).find((item) => item.text() === '區域與市場')!.trigger('click')
+    expect(last()).toEqual(['area'])
+    await wrapper.get('#stats-tab-potential').trigger('click')
+    expect(last()).toEqual(['potential'])
+    await catButtons(wrapper).find((item) => item.text() === '招生轉換')!.trigger('click')
+    expect(last()).toEqual(['overview'])
+    await wrapper.get('#stats-tab-nodeposit').trigger('click')
+    await catButtons(wrapper).find((item) => item.text() === '區域與市場')!.trigger('click')
+    expect(last()).toEqual(['potential'])
+    await catButtons(wrapper).find((item) => item.text() === '招生轉換')!.trigger('click')
+    expect(last()).toEqual(['nodeposit'])
+
+    const count = wrapper.emitted('update:sub')!.length
+    await catButtons(wrapper).find((item) => item.text() === '招生轉換')!.trigger('click')
+    expect(wrapper.emitted('update:sub')).toHaveLength(count)
+  })
+
+  it('「資料匯入」是分類旁的按鈕、不在分頁列；點了 emit update:sub=imports，選中時 aria-pressed 且沒有分類被選中', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(statsTabLabels(wrapper)).not.toContain('資料匯入')
+    const imports = wrapper.get('.stats-nav__imports')
+    expect(imports.attributes('aria-pressed')).toBe('false')
+    await imports.trigger('click')
+    expect(wrapper.emitted('update:sub')!.at(-1)).toEqual(['imports'])
+    expect(wrapper.get('.stats-nav__imports').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.stats-nav__imports').classes()).toContain('is-active')
+    expect(catButtons(wrapper).some((item) => item.classes().includes('is-active'))).toBe(false)
+    expect(wrapper.find('.stats-tabs').exists()).toBe(false)
+    expect(wrapper.find('#stats-pane-imports').exists()).toBe(true)
+  })
+
+  it('分頁列的鍵盤：右鍵下一頁、左鍵上一頁（頭尾循環）、Home 第一頁、End 最後一頁；焦點跟著選中的分頁', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const list = wrapper.get('.stats-tabs')
+    const last = () => wrapper.emitted('update:sub')!.at(-1)![0]
+
+    await list.trigger('keydown', { key: 'ArrowRight' })
+    expect(last()).toBe('class')
+    await list.trigger('keydown', { key: 'ArrowRight' })
+    expect(last()).toBe('source')
+    await list.trigger('keydown', { key: 'ArrowLeft' })
+    expect(last()).toBe('class')
+    await list.trigger('keydown', { key: 'End' })
+    expect(last()).toBe('nodeposit')
+    await list.trigger('keydown', { key: 'ArrowRight' })
+    expect(last()).toBe('overview')
+    await list.trigger('keydown', { key: 'ArrowLeft' })
+    expect(last()).toBe('nodeposit')
+    await list.trigger('keydown', { key: 'Home' })
+    expect(last()).toBe('overview')
+    const count = wrapper.emitted('update:sub')!.length
+    await list.trigger('keydown', { key: 'a' })
+    expect(wrapper.emitted('update:sub')).toHaveLength(count)
+  })
+
+  it('沒選中的分頁 tabindex=-1（只有選中的在 Tab 順序裡）', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.findAll('.stats-tab').map((tab) => tab.attributes('tabindex'))).toEqual(['0', '-1', '-1', '-1', '-1'])
+  })
+
+  it('內容區開過才掛（包含總覽、班別、來源、接待），之後用 v-show 切、不卸載', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.find('#stats-pane-overview').exists()).toBe(true)
+    for (const sub of ['class', 'source', 'staff', 'nodeposit']) expect(wrapper.find(`#stats-pane-${sub}`).exists(), sub).toBe(false)
+
+    await openSubTab(wrapper, '班別分析')
+    expect(wrapper.find('#stats-pane-class').exists()).toBe(true)
+    expect(wrapper.find('#stats-pane-source').exists()).toBe(false)
+    expect(wrapper.get('#stats-pane-class').attributes('style') ?? '').not.toContain('display: none')
+    expect(wrapper.get('#stats-pane-overview').attributes('style')).toContain('display: none')
+
+    await openSubTab(wrapper, '來源分析')
+    // 回頭看過的分頁還在（只是藏起來），不重掛。
+    expect(wrapper.get('#stats-pane-class').attributes('style')).toContain('display: none')
+    expect(wrapper.get('#stats-pane-class').attributes('role')).toBe('tabpanel')
+    expect(wrapper.get('#stats-pane-class').attributes('aria-labelledby')).toBe('stats-tab-class')
+  })
+
+  it('資料時間（.stats-asof）只在吃招生統計的分頁、且 stats 讀到時出現；booking、journey、potential、imports、ads 都不出現', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/potential': potentialData(), '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 115, semester: 1, seat_semester: 1, rows: [] }, '/admin/admissions/area/compare': areaCompare() })
+    const { wrapper } = await mountWith(StatsTab, { props: props({ campusKeys: ['yihua', 'minghua'] }) })
+    expect(wrapper.get('.stats-asof').text()).toMatch(/^資料時間\s+2026\/10\/01/)
+    for (const label of ['班別分析', '區域分析']) {
+      await openSubTab(wrapper, label)
+      expect(wrapper.find('.stats-asof').exists(), label).toBe(true)
+    }
+    for (const label of ['預約成效', '預約全程', '招生潛力與市佔率', '資料匯入', '廣告成效']) {
+      await openSubTab(wrapper, label)
+      expect(wrapper.find('.stats-asof').exists(), label).toBe(false)
+    }
+  })
+
+  it('原本的「統計範圍」那一行（.stats-toolbar）與頁面頂端的說明沒有了', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    expect(wrapper.find('.stats-toolbar').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('統計範圍')
+    expect(wrapper.find('.stats-subtabs').exists()).toBe(false)
+  })
+
+  it('#filters slot：頁首條件放在導覽列右邊', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith({
+      components: { StatsTab },
+      props: ['p'],
+      template: '<StatsTab v-bind="p"><template #filters><span class="slot-probe">條件</span></template></StatsTab>',
+    }, { props: { p: props() } })
+    expect(wrapper.get('.stats-nav__filters .slot-probe').text()).toBe('條件')
+  })
+})
+
+describe('統計分頁：未預繳數字卡與五校比較空狀態（2026-11-20）', () => {
+  it('未預繳三張數字卡是按鈕：點了把 NoDepositList 的 preset 設成高潛力、逾 14 天、冷名單的篩選', async () => {
+    const get = mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
+    const cards = pane.findAll('button.nodeposit-kpi')
+    expect(cards).toHaveLength(3)
+    expect(cards.map((item) => item.attributes('aria-label'))).toEqual(['高潛力未預繳 2 筆，看名單', '逾 14 天待追 3 筆，看名單', '冷名單 0 筆，看名單'])
+    const preset = () => wrapper.findComponent(NoDepositList).props('preset')
+
+    await cards[0]!.trigger('click')
+    expect(preset()).toEqual({ priority: 'high' })
+    await cards[1]!.trigger('click')
+    expect(preset()).toEqual({ priority: 'all', overdue_days: 14 })
+    await cards[2]!.trigger('click')
+    expect(preset()).toEqual({ priority: 'all', cold_only: 1 })
+    await flushPromises()
+    expect(queryOf(pathsTo(get, NO_DEPOSIT_PATH).at(-1)!).get('cold_only')).toBe('true')
+  })
+
+  it('同一張數字卡連點兩次：第二次也重新套用（preset 每次是新物件）', async () => {
+    mockGet({ '/admin/admissions/stats': stats(), [NO_DEPOSIT_PATH]: noDepositRecords })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '未預繳與退出原因')
+    await pane.findAll('button.nodeposit-kpi')[0]!.trigger('click')
+    const first = wrapper.findComponent(NoDepositList).props('preset')
+    await pane.findAll('button.nodeposit-kpi')[0]!.trigger('click')
+    const second = wrapper.findComponent(NoDepositList).props('preset')
+    expect(second).toEqual(first)
+    expect(second).not.toBe(first)
+  })
+
+  it('五校比較：五校 visit 全是 0 不畫表，改寫一句；有一校有訪視就畫表', async () => {
+    const compareRow = (campus_key: string, visit: number) => ({ campus_key, active: true, booking_mode: null, visit, deposit: 0, enrolled: 0, transfer_term: 0, pending_deposit: 0, effective_deposit: 0 })
+    const rows = (visits: number[]) => visits.map((visit, index) => compareRow(['yihua', 'minghua', 'chongde', 'international', 'renwu'][index]!, visit))
+    mockGet({ '/admin/admissions/stats': stats(), '/admin/admissions/compare': { as_of: '2026-10-01T04:00:00Z', school_year: 115, semester: 1, seat_semester: 1, rows: rows([0, 0, 0, 0, 0]) }, '/admin/admissions/area/compare': { radius_km: 3, rows: [] } })
+    const empty = (await mountWith(StatsTab, { props: props({ campusKeys: ['yihua', 'minghua'] }) })).wrapper
+    const pane = await openSubTab(empty, '五校比較')
+    expect(pane.get('[data-test="compare-empty"]').text()).toContain('115 上學期五校都還沒有招生訪視')
+    expect(pane.find('.compare-table').exists()).toBe(false)
+  })
+})
+

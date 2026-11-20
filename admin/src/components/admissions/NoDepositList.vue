@@ -15,7 +15,7 @@ import { useServerCsvExport } from '../../composables/useServerCsvExport'
 // 未預繳明細（園務 RecruitmentNoDepositTab 的「未預繳明細」；2026-10-01 使用者裁定統計頁要列名單）。
 // 資料來自 GET /admin/admissions/no-deposit-records（C2b），母體同統計：未預繳且未退出。
 // 篩選、表頭、tag、空狀態照園務原文；園務的三張數字卡在 StatsTab（用 /stats 的數字），這裡不重複。
-// 「查看」帶這筆的月份切到訪視明細：B 的明細只吃 month、vr 兩個網址參數，帶不到單筆（C 計畫調整表）。
+// 「查看」帶這筆的月份與 id 切到訪視明細（2026-11-20）：明細篩到那個月，並直接開這一筆（網址 open），不必到了再找一次人。
 type PriorityFilter = 'all' | 'high' | 'medium' | 'low'
 type Preset = Record<string, string | number>
 
@@ -28,7 +28,7 @@ const props = defineProps<{
   /** 這個範圍的未預繳總筆數（統計的 no_deposit_total），用來對照篩選後的筆數。 */
   overallTotal?: number
 }>()
-const emit = defineEmits<{ 'open-records': [filter: { month: string }] }>()
+const emit = defineEmits<{ 'open-records': [filter: { month: string; open: string }] }>()
 
 // 園務 RecruitmentStatsPanel 的 ndFilter.page_size。
 const PAGE_SIZE = 50
@@ -70,7 +70,8 @@ function applyPreset(preset: Preset | null | undefined) {
   overdueDays.value = Number.isInteger(days) && days > 0 ? days : null
   reason.value = ''
   grade.value = ''
-  coldOnly.value = false
+  // 統計頁的「冷名單」數字卡（2026-11-20）帶 cold_only。
+  coldOnly.value = Boolean(preset?.cold_only)
   page.value = 1
 }
 
@@ -191,7 +192,7 @@ const emptyText = computed(() =>
 const orDash = (value: string | null | undefined) => value || NO_VALUE
 
 function openRecords(row: NoDepositRecord) {
-  emit('open-records', { month: row.month })
+  emit('open-records', { month: row.month, open: row.id })
 }
 </script>
 
@@ -245,7 +246,7 @@ function openRecords(row: NoDepositRecord) {
         </div>
       </div>
     </div>
-    <p class="hint nd-caption">「查看」會切到訪視明細，並篩這筆的月份。</p>
+    <p class="hint nd-caption">「查看」會到訪視明細開這一筆。</p>
 
     <el-alert v-if="failed" type="error" :closable="false" show-icon title="無法讀取未預繳名單，請重新載入。">
       <el-button size="small" @click="load()">重新載入</el-button>
@@ -293,7 +294,7 @@ function openRecords(row: NoDepositRecord) {
                 link
                 type="primary"
                 size="small"
-                :aria-label="`查看 ${row.month} 的訪視明細（${row.child_name}）`"
+                :aria-label="`查看 ${row.child_name} 的訪視資料（${row.month}）`"
                 @click="openRecords(row)"
               >
                 查看

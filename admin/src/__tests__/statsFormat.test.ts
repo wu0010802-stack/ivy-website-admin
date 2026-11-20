@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  alertLevelLabel, barWidth, formatPoints, formatRange, formatRate, gradeColumns, priorityLabel, rateCsvCell, rateLevel, ratio, toRange, trendOf, TREND_MARK,
+  alertLevelLabel, barWidth, formatPoints, formatRange, formatRate, gradeColumns, priorityLabel, rateCsvCell, rateLevel, ratio, toRange, trendLabel, trendOf, TREND_MARK,
 } from '../admissions/statsFormat'
 
 describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—」不寫 0）', () => {
@@ -35,6 +35,14 @@ describe('統計顯示格式（規格 9.2：分母 0 是 null，畫面寫「—�
     expect(formatPoints(null)).toBe('—')
     expect([trendOf(2), trendOf(-0.1), trendOf(0), trendOf(null)]).toEqual(['up', 'down', 'flat', 'none'])
     expect(TREND_MARK.up + TREND_MARK.down + TREND_MARK.flat).toBe('▲▼–')
+  })
+
+  it('月比標籤：沒有變化寫「持平」（不寫「– 0.0 個百分點」）；有變化帶符號；沒有值只寫「—」', () => {
+    expect(trendLabel(0)).toBe('持平')
+    expect(trendLabel(-80)).toBe('▼ -80.0 個百分點')
+    expect(trendLabel(3.25)).toBe('▲ +3.3 個百分點')
+    expect(trendLabel(null)).toBe('—')
+    expect(trendLabel(undefined)).toBe('—')
   })
 
   it('決策摘要上色門檻同園務：>= 60 高、>= 30 中、其餘低；沒有比率不上色', () => {

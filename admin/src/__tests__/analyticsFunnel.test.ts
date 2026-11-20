@@ -322,7 +322,21 @@ describe('參觀預約統計（原成效統計各校預約）：期間、取消�
     const { wrapper } = await setup()
     const panel = wrapper.findAll('.panel').find((item) => item.text().includes('預約流程'))!
     expect(panel.text()).toContain('單位：事件次數（依發生日期）')
-    expect(panel.text()).toContain('10/03 14:05')
+    // 期間與更新時間在分頁頂端寫一次（booking-meta），卡片的註腳只留單位。
+    expect(panel.text()).not.toContain('10/03 14:05')
+    expect(panel.text()).not.toContain('更新')
+    expect(panel.find('.analytics-meta').text()).toBe('單位：事件次數（依發生日期）')
+  })
+
+  it('分頁頂端一行寫更新時間；「開站至今」選單上已經寫了不重複，有起訖日的期間才寫出日期；卡片註腳仍只留單位', async () => {
+    const { wrapper } = await setup()
+    const meta = wrapper.get('[data-test="booking-meta"]')
+    expect(meta.findAll('span').map((item) => item.text())).toEqual(['更新 10/03 14:05'])
+
+    await pickRange(wrapper, '2026-09-01', '2026-09-30')
+    expect(wrapper.get('[data-test="booking-meta"]').findAll('span')[0]!.text()).toBe('期間 2026/09/01–2026/09/30')
+    const panel = wrapper.findAll('.panel').find((item) => item.text().includes('預約流程'))!
+    expect(panel.find('.analytics-meta').text()).toBe('單位：事件次數（依發生日期）')
   })
 })
 

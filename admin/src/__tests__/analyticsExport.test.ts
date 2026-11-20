@@ -208,7 +208,7 @@ async function mountOutcomes(data: BookingOutcomesOut) {
   return wrapper
 }
 
-describe('參觀預約統計匯出：五校比較', () => {
+describe('參觀預約統計匯出：各校預約（2026-11-20 起原「五校比較」改名）', () => {
   it('欄名同畫面（「現在」標籤併進欄名）；比率沒有分母寫空白、停用的校區照畫面寫；最後一列是合計', async () => {
     const wrapper = await mountOutcomes(outcomes([
       outcomeRow('yihua'),
@@ -217,7 +217,7 @@ describe('參觀預約統計匯出：五校比較', () => {
     ]))
     await click(wrapper, 'analytics-csv-compare')
     const { filename, lines } = lastDownload()
-    expect(filename).toBe(`招生統計-參觀預約-五校比較-開站至今-${today}.csv`)
+    expect(filename).toBe(`招生統計-參觀預約-各校預約-開站至今-${today}.csv`)
     expect(lines).toEqual([
       `${CSV_BOM}校區,預約方式,預約案件,已到場,未到場,到場率,已取消,取消率,待標記到場（現在）,到期待追蹤（現在）`,
       '義華,自選場次,8,2,1,66.7%,2,25.0%,2,3',
@@ -232,7 +232,7 @@ describe('參觀預約統計匯出：五校比較', () => {
     const wrapper = await mountOutcomes(outcomes([outcomeRow('yihua')]))
     await wrapper.setProps({ periodLabel: '2026/09/01–2026/09/30' }) // 還沒重抓完，畫面仍是舊資料
     await click(wrapper, 'analytics-csv-compare')
-    expect(lastDownload().filename).toBe(`招生統計-參觀預約-五校比較-開站至今-${today}.csv`)
+    expect(lastDownload().filename).toBe(`招生統計-參觀預約-各校預約-開站至今-${today}.csv`)
   })
 
   it('沒有任何校區的資料時不顯示匯出鈕', async () => {

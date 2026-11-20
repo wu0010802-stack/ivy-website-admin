@@ -275,6 +275,12 @@ async function remove(entry: AdSpendEntry) {
   gap: 12px;
 }
 
+/* 月份區間不拉滿整列（原本約 900px 寬，兩個月份離很遠）。 */
+.ads-head :deep(.el-date-editor) {
+  flex: 0 1 280px;
+  max-width: 280px;
+}
+
 .ads-scroll {
   overflow-x: auto;
 }
