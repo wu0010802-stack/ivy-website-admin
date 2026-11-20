@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台成效統計第三輪 UI/UX：條件列黏住、每一類先講答案（PR #127，已部署 main `1f856c21`）
+
+[PR #127](https://github.com/wu0010802-stack/ivy-website-admin/pull/127)（feature `d3f196b8`）PR 組 CI 全綠（含 E2E）；推送組被 concurrency 取消後重跑通過，以 merge commit `1f856c21` 併入 main。[main CI/CD 44686773382](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44686773382) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 14:42 完成。
+
+- 只動 admin（`AnalyticsView.vue`、`ContentInterestPanel.vue`、`SearchInsightsPanel.vue`、`analytics/DailyBars.vue`、新增 `analytics/RowsToggle.vue`）＋四個測試檔＋README／DESIGN.md。沒有 API、契約、migration、Railway 環境變數變更。`DailyBars` 是共用元件，招生統計「預約成效」的每日圖一起變。
+- 部署後唯讀檢查（只發 GET、不登入）：正式 `/release.json` 的 base_commit 為 `1f856c210b6bc60804dd3c5cebc85019fa24ef4b`，snapshot `0cca7d817b3e921fbbfdbdbf562fe3166b14788c69f320c2babea0d66df5f6b7`；線上 `AnalyticsView-BFsnBGkt.js` 有 `analytics__bar` 的新樣式，內容興趣面板的 chunk 有「次進到預約頁」「顯示全部」等新文字。
+- 沒驗：登入後四類的實際畫面（條件列黏住、兩句開頭、空表收成一列）、Safari 與手機實機。
+
 ## 2026-11-20 後台登入頁改版「後台的第一個畫面」（PR #121，已部署 main `65f338ea`，線上 `738e3118`）
 
 [PR #121](https://github.com/wu0010802-stack/ivy-website-admin/pull/121) 在 feature `748f72cf` 的 PR 組與推送組（rerun）CI 全綠，之後只再併入 main（#122、#123 與部署紀錄，本機 admin typecheck 與全套單元測試 3,710 項通過，1 項負載逾時單獨重跑通過）成為 `6dd100c8`，以 merge commit `65f338ea` 推上 main；它自己的 main run 44666694394 排隊時被 #125 的 push 取代成 cancelled（不要重跑：舊快照會蓋回線上），接著的 [main CI/CD 44668034328](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44668034328)（main `738e3118`，含 #121、#122、#125）全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 12:00 完成部署。改動內容見 README 的 2026-11-19「後台登入頁改版」。
