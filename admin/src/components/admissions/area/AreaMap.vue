@@ -14,6 +14,7 @@ import {
   type GradeFilter, type MapMode, type RadiusKm,
 } from './areaFormat'
 import type { ChildrenShade } from './childrenHistory'
+import { round4 } from '../../../admissions/areaView'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
 // 標出本校、半徑虛線圓與附近幼兒園。Leaflet 的 fillColor 寫不了 CSS 變數，所以圖形只掛 class，
@@ -84,7 +85,6 @@ const STAR_SVG =
 // Phosphor MapPin（Regular）：圖釘，尖端在圖示底部中央。
 const PIN_SVG =
   '<svg viewBox="0 0 256 256" width="32" height="32" aria-hidden="true"><path d="M128,64a40,40,0,1,0,40,40A40,40,0,0,0,128,64Zm0,64a24,24,0,1,1,24-24A24,24,0,0,1,128,128Zm0-112a88.1,88.1,0,0,0-88,88c0,31.4,14.51,64.68,42,96.25a254.19,254.19,0,0,0,41.45,38.3,8,8,0,0,0,9.18,0A254.19,254.19,0,0,0,174,200.25c27.45-31.57,42-64.85,42-96.25A88.1,88.1,0,0,0,128,16Zm0,206c-16.53-13-72-60.75-72-118a72,72,0,0,1,144,0C200,161.23,144.53,209,128,222Z"/></svg>'
-const round4 = (n: number) => Math.round(n * 10000) / 10000
 const DIAMOND_SVG = '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M8 1l7 7-7 7-7-7z"/></svg>'
 
 type LeafletModule = typeof Leaflet
@@ -380,6 +380,11 @@ function drawPoint() {
     keyboard: false,
     zIndexOffset: 1100,
   }).addTo(map)
+  // 拖曳中圈跟著走。
+  pointMarker.on('drag', (event: Leaflet.LeafletEvent) => {
+    const at = (event as Leaflet.LeafletMouseEvent).latlng
+    if (at) pointCircle?.setLatLng(at)
+  })
   pointMarker.on('dragend', () => {
     const at = pointMarker?.getLatLng()
     if (at) emit('place-point', { lat: round4(at.lat), lng: round4(at.lng) })
@@ -570,7 +575,7 @@ function focusBabycare(id: string) {
   map.setView(marker.getLatLng(), Math.max(map.getZoom(), 15))
   marker.openPopup()
 }
-defineExpose({ focusKindergarten, focusBabycare, revealBabycare, focusVillage, focusPoint })
+defineExpose({ focusKindergarten, focusBabycare, revealBabycare, focusVillage, focusPoint, syncPoint: drawPoint })
 
 function setInteractive(value: boolean) {
   interactive.value = value
@@ -660,7 +665,7 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   // 先有視野再加圖層：地圖還沒有視野時，Leaflet 把「加圖層」都排到 load 事件、依登記順序執行；
   // 半徑圓一加就先建好向量圖層共用的 renderer、排在里界與幼兒園點之後，那兩種圖層先被加進還沒
   // 初始化的 renderer 而丟 TypeError（真瀏覽器才會發生，mock 看不到）。視野要靠里界圖層本身算
-  // （本校沒座標、也不知道在哪一區）時沒有半徑圓，等里界畫好再取。
+  // （本校沒座標、也不知道在哪一區）時沒有半徑圓，等里界畫好再取。圖釘的圈同理，放在視野確定之後才加。
   const viewFirst = campusLocated.value || districtBox.value !== null
   if (viewFirst) fitInitialView()
   tiles = leaflet.tileLayer(TILE_URL, { attribution: TILE_ATTRIBUTION, maxZoom: 18 })
@@ -675,7 +680,6 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   presaleGroup = leaflet.layerGroup()
   drawVillages()
   drawCampus()
-  drawPoint()
   drawKindergartens()
   drawBabycare()
   drawEnrolled()
@@ -683,6 +687,8 @@ function buildMap(leaflet: LeafletModule, element: HTMLElement) {
   drawPresale()
   syncPresaleLayer()
   if (!viewFirst) fitInitialView()
+  // 圖釘圈同半徑圈，也是直接加到地圖的向量圖層：一定要在視野建好之後才加（見上面的說明），所以排在最後取視野之後。
+  drawPoint()
   // 子分頁切走再切回來時容器尺寸會變，Leaflet 要重算。子分頁切走是 v-show 藏起來（容器 0×0），
   // 藏著的時候重建的地圖 fitBounds 是在 0×0 裡算的（縮到最小級）：容器從沒尺寸變回有尺寸，視野要重取。
   if (typeof ResizeObserver !== 'undefined') {

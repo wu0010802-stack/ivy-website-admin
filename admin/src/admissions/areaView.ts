@@ -59,12 +59,17 @@ const POINT_LAT_RANGE = [22.4, 23.5] as const
 const POINT_LNG_RANGE = [120.1, 121.1] as const
 export const round4 = (n: number) => Math.round(n * 10000) / 10000
 
+/** 座標在高雄範圍內（同後端）；放圖釘前先擋，範圍外後端會回 422。 */
+export function inKaohsiung(lat: number, lng: number): boolean {
+  return lat >= POINT_LAT_RANGE[0] && lat <= POINT_LAT_RANGE[1] && lng >= POINT_LNG_RANGE[0] && lng <= POINT_LNG_RANGE[1]
+}
+
 function parsePoint(raw: string): AreaView['point'] {
   const m = POINT.exec(raw)
   if (!m) return null
   const lat = Number(m[1])
   const lng = Number(m[2])
-  if (lat < POINT_LAT_RANGE[0] || lat > POINT_LAT_RANGE[1] || lng < POINT_LNG_RANGE[0] || lng > POINT_LNG_RANGE[1]) return null
+  if (!inKaohsiung(lat, lng)) return null
   return { lat: round4(lat), lng: round4(lng) }
 }
 

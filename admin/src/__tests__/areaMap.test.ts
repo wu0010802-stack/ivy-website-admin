@@ -1509,6 +1509,22 @@ describe('區域分析地圖：圖釘（2026-11-20）', () => {
     expect(circle.remove).toHaveBeenCalled()
   })
 
+  it('本校沒座標、也不知道哪一區：網址帶圖釘時，視野先取好才加圖釘圈（向量圖層的 renderer 要有視野）', async () => {
+    await mountMap({ campus: { key: 'yihua', name: '義華', lat: null, lng: null, locate_error: 'pending', district: null }, point: PIN })
+    const fit = one('map').fitBounds.mock.invocationCallOrder[0]!
+    const pinCircle = leaflet.created.circle!.findIndex((item) => item.options.className === 'area-point-radius')
+    expect(pinCircle).toBeGreaterThanOrEqual(0)
+    expect(leaflet.module.circle.mock.invocationCallOrder[pinCircle]!).toBeGreaterThan(fit)
+    expect(leaflet.created.marker!.some((item) => item.options.title === '圖釘')).toBe(true)
+  })
+
+  it('拖曳中圖釘圈跟著走', async () => {
+    await mountMap({ point: PIN })
+    const circle = leaflet.created.circle!.find((item) => item.options.className === 'area-point-radius')!
+    pinMarker()!.fire('drag', { latlng: { lat: 22.68, lng: 120.35 } })
+    expect(circle.setLatLng).toHaveBeenLastCalledWith({ lat: 22.68, lng: 120.35 })
+  })
+
   it('placing 時點地圖發出 place-point（4 位小數）；沒在放點時點地圖不發', async () => {
     const wrapper = await mountMap()
     one('map').fire('click', { latlng: { lat: 22.65123456, lng: 120.31019999 } })

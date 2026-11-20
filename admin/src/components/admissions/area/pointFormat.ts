@@ -51,7 +51,7 @@ const LABELS = [
   '在建預售（戶）', '近 12 個月園所異動', '房價中位數（萬元／坪）', '整戶月租中位數（元）', '常春藤在籍住在圈內',
 ]
 
-/** 表格列（順序照規格示意）。campusName 不影響內容，留給呼叫端對齊欄頭。 */
+/** 表格列（順序照規格示意）；欄頭文字另見 pointCampusHeader。 */
 export function pointRows(data: AreaPoint): PointTableRow[] {
   const point = cells(data.rows.point)
   const campus = data.rows.campus ? cells(data.rows.campus) : Array(LABELS.length).fill(NO_VALUE)

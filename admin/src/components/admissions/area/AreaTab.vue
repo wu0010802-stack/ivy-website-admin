@@ -17,7 +17,7 @@ import type {
   VillageBoundaries,
 } from '../../../api/types'
 import { areaQuery } from '../../../admissions/areaFilter'
-import { DEFAULT_AREA_VIEW, isMapMode, round4, samePoint, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
+import { DEFAULT_AREA_VIEW, inKaohsiung, isMapMode, round4, samePoint, type AreaTableTab, type AreaView } from '../../../admissions/areaView'
 import { useNarrowScreen } from '../../../composables/useNarrowScreen'
 import { useRequestSequence } from '../../../composables/useRequestSequence'
 import {
@@ -421,6 +421,8 @@ type MapApi = {
   revealBabycare: () => void
   focusVillage: (code: string) => void
   focusPoint: () => void
+  /** 圖釘回到 view.point 的位置（拖到範圍外被拒絕時用）。 */
+  syncPoint: () => void
 }
 const map = ref<MapApi | null>(null)
 // 地圖 chunk 載入失敗時，ref 可能接到的是空元件（不是地圖實例）：一律當成沒有地圖，不呼叫它（規格 §4）。
@@ -510,14 +512,34 @@ watch(placing, (on) => {
 })
 onBeforeUnmount(() => document.removeEventListener('keydown', onPlacingKey))
 
-/** 地圖點一下（放點狀態）或拖完圖釘：圖釘到那裡；放完就結束放點狀態，要調整直接拖。 */
-function placePoint(next: { lat: number; lng: number }) {
+/**
+ * 圖釘落點的共同出口（點地圖、拖曳、地址定位）：先作廢還在飛的地址定位（晚回的結果不能把圖釘搬回去），結束放點狀態；
+ * 範圍外（地圖可以縮到高雄以外）不收，寫「不在高雄市」並把圖釘放回原位；收下時一併取消選取的里
+ * （右欄是地點卡片，不留一個看不到的選取），和 point 合成一個 patch。
+ */
+function commitPoint(next: { lat: number; lng: number }): boolean {
+  locateRequests.begin()
+  locating.value = false
   placing.value = false
+  if (!inKaohsiung(next.lat, next.lng)) {
+    locateError.value = '不在高雄市'
+    mapApi.value?.syncPoint()
+    return false
+  }
   locateError.value = ''
-  patchView({ point: next })
+  patchView({ point: next, village: '' })
+  return true
+}
+/** 地圖點一下（放點狀態）或拖完圖釘：圖釘到那裡；放完就結束放點狀態，要調整直接拖。單欄時把右欄捲進視野（同選里）。 */
+async function placePoint(next: { lat: number; lng: number }) {
+  if (!commitPoint(next) || !stacked.value) return
+  await nextTick()
+  sideEl.value?.scrollIntoView({ block: narrow.value ? 'start' : 'nearest' })
 }
 /** 清除圖釘：網址拿掉 pt、地址欄清空；焦點留在右欄。 */
 async function clearPoint() {
+  locateRequests.begin()
+  locating.value = false
   placing.value = false
   address.value = ''
   locateError.value = ''
@@ -559,8 +581,7 @@ async function findAddress() {
   try {
     const result = await locateAreaAddress(text)
     if (!locateRequests.isCurrent(request)) return
-    placing.value = false
-    patchView({ point: { lat: round4(result.lat), lng: round4(result.lng) } })
+    if (!commitPoint({ lat: round4(result.lat), lng: round4(result.lng) })) return
     await nextTick()
     mapApi.value?.focusPoint()
     pointCard.value?.focusTitle()
