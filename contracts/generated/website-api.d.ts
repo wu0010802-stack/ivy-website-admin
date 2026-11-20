@@ -331,8 +331,9 @@ export interface paths {
         };
         /**
          * Get Admissions Area Locate
-         * @description 地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log
-         *     （uvicorn 存取紀錄不含查詢字串，見 logging_config.StripQueryString）。比到門牌（exact／nearby）才算找到。
+         * @description 地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log。
+         *     地址只收 X-Ivy-Search header（同 common/search_header.py 的搜尋字；網址的查詢字串可能留在 web 服務那一層的
+         *     HTTP 紀錄裡），不收查詢參數。比到門牌（exact／nearby）才算找到。
          */
         get: operations["get_admissions_area_locate_api_website_v1_admin_admissions_area_locate_get"];
         put?: never;
@@ -13963,10 +13964,10 @@ export interface operations {
     };
     get_admissions_area_locate_api_website_v1_admin_admissions_area_locate_get: {
         parameters: {
-            query?: {
-                address?: string;
-            };
+            query?: never;
             header?: {
+                /** @description 地址：{"address": …}（JSON、百分比編碼）；不收查詢參數 */
+                "X-Ivy-Search"?: string | null;
                 "x-csrf-token"?: string | null;
             };
             path?: never;

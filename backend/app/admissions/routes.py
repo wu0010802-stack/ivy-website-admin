@@ -87,6 +87,7 @@ from app.booking.models import VisitRequest, VisitRequestStatus
 from app.campuses.models import CAMPUS_KEYS
 from app.common import csv_export
 from app.common.http_cache import etag_matches
+from app.common.search_header import SEARCH_HEADER, search_fields
 from app.common.timezones import today_local
 from app.operations import audit_service
 
@@ -1094,17 +1095,23 @@ async def get_admissions_area_point(
     return AreaPointOut.model_validate(result)
 
 
+# 地址定位：header 裡的地址先收到 200 字（前後空白留給 strip），去空白後 1–100 字才查；超過回 INVALID_ADDRESS。
+_LOCATE_ADDRESS_MAX = 100
+_LOCATE_HEADER_MAX = 200
+
+
 @router.get("/admin/admissions/area/locate", response_model=AreaLocateOut)
 async def get_admissions_area_locate(
-    address: str = "",
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
+    search: str | None = Header(default=None, alias=SEARCH_HEADER, description="地址：{\"address\": …}（JSON、百分比編碼）；不收查詢參數"),
 ) -> AreaLocateOut:
-    """地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log
-    （uvicorn 存取紀錄不含查詢字串，見 logging_config.StripQueryString）。比到門牌（exact／nearby）才算找到。"""
+    """地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log。
+    地址只收 X-Ivy-Search header（同 common/search_header.py 的搜尋字；網址的查詢字串可能留在 web 服務那一層的
+    HTTP 紀錄裡），不收查詢參數。比到門牌（exact／nearby）才算找到。"""
     require_scope(current_user, "admissions.stats")
-    text = address.strip()
-    if not 1 <= len(text) <= 100:
+    text = search_fields(search, {"address": _LOCATE_HEADER_MAX}).get("address", "").strip()
+    if not 1 <= len(text) <= _LOCATE_ADDRESS_MAX:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail={"code": "INVALID_ADDRESS", "message": "地址長度要在 1 到 100 字之間"},

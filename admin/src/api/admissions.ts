@@ -214,9 +214,9 @@ export function getAreaPoint(params: { lat: number; lng: number; radiusKm: 1 | 3
   return api.get<AreaPoint>(`/admin/admissions/area/point?${toQuery({ lat: params.lat, lng: params.lng, radius_km: params.radiusKm, campus_key: params.campusKey })}`)
 }
 
-/** 地址轉座標（2026-11-20）。 */
+/** 地址轉座標（2026-11-20）。地址放 X-Ivy-Search header、不進網址（同搜尋字，2026-10-22 資安稽核）。 */
 export function locateAreaAddress(address: string): Promise<AreaLocate> {
-  return api.get<AreaLocate>(`/admin/admissions/area/locate?${toQuery({ address })}`)
+  return api.get<AreaLocate>('/admin/admissions/area/locate', { headers: searchHeaders({ address }) })
 }
 
 /** 在籍學生總覽（2026-11-20）。 */

@@ -8,7 +8,7 @@ app/admissions/geo/models.py 逐字相同（tests/test_geo_schema.py 檢查）�
 降級先刪 housing 狀態列（否則還原舊約束會失敗），再還原約束、刪表。
 
 Revision ID: a7c3e9d15b42
-Revises: d8b1a9e5c274
+Revises: a6c3e9f2d417
 Create Date: 2026-11-20
 """
 from __future__ import annotations
@@ -17,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "a7c3e9d15b42"
-down_revision = "d8b1a9e5c274"
+down_revision = "a6c3e9f2d417"
 branch_labels = None
 depends_on = None
 

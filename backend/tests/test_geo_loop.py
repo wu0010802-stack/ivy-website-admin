@@ -304,12 +304,14 @@ def test_cli_options_with_files():
         "force": False, "doorplates_file": csv, "doorplates_version": None, "kindergartens_file": data,
         "kindergartens_registry_file": REGISTRY_CSV,
         "babycare_file": None, "population_files": None, "births_files": None, "marriages_files": None, "migration_files": None,
-        "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
+        "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "housing_files": None, "bundle": None,
         "presale_buildcases_file": None, "presale_parcels_file": None,
         "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None, "elementary_files": None,
     }
     assert geo_sync_options(["--force"])["force"] is True
     assert geo_sync_options(["--doorplates-file", str(csv), "--doorplates-version", "115-10"])["doorplates_version"] == "115-10"
+    # --housing-file 可重複（同一季的買賣 _a 與租賃 _c、或多季）；季別在同步時才從檔名讀。
+    assert geo_sync_options(["--housing-file", str(csv), "--housing-file", str(data)])["housing_files"] == [csv, data]
 
 
 @pytest.mark.parametrize(
@@ -490,7 +492,7 @@ def test_cli_main_dispatches_geo_sync_with_parsed_options(monkeypatch):
             "force": True, "doorplates_file": SAMPLE_CSV, "doorplates_version": "115-10", "kindergartens_file": None,
             "kindergartens_registry_file": None,
             "babycare_file": None, "population_files": None, "births_files": None, "marriages_files": None, "migration_files": None,
-            "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "bundle": None,
+            "income_file": None, "income_year": None, "new_homes_files": None, "new_homes_season": None, "housing_files": None, "bundle": None,
             "presale_buildcases_file": None, "presale_parcels_file": None,
             "kindergarten_penalties_file": None, "kindergarten_evaluations_file": None, "september_files": None, "elementary_files": None,
         }

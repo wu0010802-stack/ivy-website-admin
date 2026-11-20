@@ -143,10 +143,10 @@ housing: { sale_median, sale_count, rent_median, rent_count } | None   # 實價�
 enrolled: list[{ campus_key, count }]  # 只列已匯入清冊的校（count 可為 0），順序同 CAMPUS_KEYS
 ```
 
-`GET /api/website/v1/admin/admissions/area/locate?address=`
-- 權限同上。`address` 去頭尾空白後 1–100 字，否則 422。
+`GET /api/website/v1/admin/admissions/area/locate`（地址放 `X-Ivy-Search: {"address": …}` header，2026-11-20 審查後改）
+- 權限同上。地址只收 header（同後台搜尋字，`common/search_header.py`；不收查詢參數），去頭尾空白後 1–100 字，否則 422 `INVALID_ADDRESS`；header 格式不對 422 `INVALID_SEARCH_HEADER`。
 - 用 `matcher.locate(db, address, version=<使用中門牌版本>)`；`match_level` 是 exact／nearby 且有座標才算找到，回 `{ lat, lng, district, village, match_level }`；否則 404 `ADDRESS_NOT_FOUND`，`detail.reason` 是 `GeoMatch.unlocated_reason`（外縣市、查無門牌、門牌尚未匯入…）。
-- 地址**不寫稽核、不進 log**（請求 log 若會記 query string，這支改用 POST body；實作時先查 `app` 的請求 log 會不會記 query，會就改 `POST /area/locate`，body `{address}`）。
+- 地址**不寫稽核、不進 log**：網址的查詢字串可能留在 web 服務那一層（Railway）的 HTTP 紀錄裡，所以地址走 header，不放網址（2026-10-22 資安稽核的做法）。
 
 ### 5.3 後端做法
 
@@ -275,7 +275,7 @@ gap_radius_km: int   # 6
 ## 10. 留給實作者決定（寫在這裡的是建議）
 
 - `--area-campus-*` 五色的實際色值（守上面的對比與區隔規則；寫進 `admin/src/style.css` 的 `--area-*` 區塊並附一行理由）。
-- 地址定位用 GET 或 POST（看請求 log 會不會記 query string）。
+- 地址定位用 GET 或 POST（已定：GET＋header，見 §11 第 6 項）。
 - `discover_new_home_seasons` 是否抽成共用。
 - CLI 旗標名稱。
 
@@ -288,7 +288,7 @@ gap_radius_km: int   # 6
 3. **「孩子多、五校都沒有在籍」的範圍**（§6.2 gaps）：候選里＝**已匯入清冊的校**中任一校 6 公里內；再排除「五校中最近的校是**尚未匯入**的校」的里（那是別校的腹地，我們沒資料，不能說沒人）。「最近的校」欄位從五校挑。只有義華匯入時，靠近仁武的里因此不列。
 4. **`geo_housing_deals` 主鍵 `(kind, serial)`**：照 `new_homes.replace_season` 的寫法，先刪該季再以 `(kind, serial)` upsert，`where 舊列.season < 新列.season`（更正案件在較新的季就覆蓋，較舊的季不蓋新的）。
 5. **中位數另寫**：`geo_fees.median`（`geo/fees.py:131`）少於 3 筆回 None，不適用；新寫 `housing.median(values, minimum=5)`：少於 5 筆回 None，偶數筆取中間兩筆平均四捨五入。§7.2 最後一句以此為準。
-6. **`/area/locate` 用 GET**：API 的 uvicorn 存取紀錄已拿掉查詢字串（`backend/app/logging_config.py:8-11` 的 `StripQueryString`），應用層 log 只印 path（`main.py`）。Nuxt 同源代理不記查詢字串（實作時再確認 `web/server` 的代理；若會記，改 POST）。
+6. **`/area/locate` 用 GET＋`X-Ivy-Search` header**（2026-11-20 整支分支審查後改）：API 的 uvicorn 存取紀錄雖已拿掉查詢字串，但瀏覽器先打官網 web 服務，Railway 那一層的 HTTP 紀錄可能留著查詢字串（2026-10-22 資安稽核）；地址比照後台搜尋字放 header（`search_fields(..., {"address": …})`），網址上不帶地址、也不收 `?address=`。
 7. **季檔下載**：`new_homes.season_url` 加 `file_name` 參數（預設 `e_lvr_land_a.csv`，既有呼叫不變）；`discover_new_home_seasons`（`geo/sync.py:1716`）只看買賣檔有沒有出，房價沿用它找最新季，再逐季抓租賃檔；`KEEP_SEASONS` 房價自己一個常數 4。
 8. **`village_at(lng, lat)`** 參數 lng 在前、只回代碼；名稱用 `boundaries.village_names()[code]` 反查（district, village）。
 9. **六支查詢的簽名**：`campus_key` 改成 `str | None`，`center` 給了就不讀 `campus_key`；`campus_key` 與 `center` 都沒給時 raise `ValueError`。`query_kindergartens` 不在任意點範圍內（家數用 `query_peer_fees` 的 groups，同五校比較表），不改。

@@ -1810,7 +1810,11 @@ describe('區域分析：地點（2026-11-20）', () => {
     it('找到：圖釘放在 4 位小數座標、地圖移過去、焦點到卡片標題', async () => {
       const { wrapper, get } = await mountTab()
       await find(wrapper, '高雄市三民區民族一路 1 號')
-      expect(queryOf(pathsTo(get, '/admin/admissions/area/locate')[0]!).get('address')).toBe('高雄市三民區民族一路 1 號')
+      // 地址放 X-Ivy-Search header，不進網址（2026-10-22 資安稽核）。
+      const call = get.mock.calls.find((args) => String(args[0]).startsWith('/admin/admissions/area/locate'))!
+      expect(call[0]).toBe('/admin/admissions/area/locate')
+      const header = (call[1] as { headers: Record<string, string> }).headers['X-Ivy-Search']!
+      expect(JSON.parse(decodeURIComponent(header))).toEqual({ address: '高雄市三民區民族一路 1 號' })
       expect(lastView(wrapper)!.point).toEqual({ lat: 22.6512, lng: 120.3102 })
       expect(mapStub.focusPoint).toHaveBeenCalledTimes(1)
       expect(document.activeElement).toBe(side(wrapper).get('.point-card h2').element)

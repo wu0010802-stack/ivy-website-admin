@@ -5,6 +5,9 @@
 
 from __future__ import annotations
 
+import json
+from urllib.parse import quote
+
 import pytest
 from sqlalchemy import func, select
 
@@ -25,6 +28,11 @@ HERE = f"lat={YIHUA_LAT}&lng={YIHUA_LNG}"
 SEA = "lat=22.55&lng=120.20"
 
 
+def _address(address: str) -> dict[str, str]:
+    """地址放 X-Ivy-Search header（同後台 searchHeaders），不放網址。"""
+    return {"X-Ivy-Search": quote(json.dumps({"address": address}, ensure_ascii=False), safe="")}
+
+
 async def _get(client, query: str = HERE, radius: int = 3, status: int = 200):
     response = await client.get(f"{POINT}?{query}&radius_km={radius}")
     assert response.status_code == status, response.text
@@ -34,7 +42,7 @@ async def _get(client, query: str = HERE, radius: int = 3, status: int = 200):
 async def test_point_requires_stats_scope(admin_client, reception_yihua_client, readonly_yihua_client, minghua_client, located_campus):  # noqa: F811
     for client in (reception_yihua_client, readonly_yihua_client, minghua_client):
         assert (await client.get(f"{POINT}?{HERE}&radius_km=3")).status_code == 403
-        assert (await client.get(f"{LOCATE}?address=x")).status_code == 403
+        assert (await client.get(LOCATE, headers=_address("x"))).status_code == 403
     assert (await admin_client.get(f"{POINT}?{HERE}&radius_km=3")).status_code == 200
 
 
@@ -155,7 +163,7 @@ async def test_point_writes_no_audit(admin_client, db_session, located_campus): 
 
 async def test_locate_found(admin_client, db_session):
     await load_geo_samples(db_session)
-    response = await admin_client.get(LOCATE, params={"address": f"  {SAMPLE_ADDRESSES['yihua_exact']} "})
+    response = await admin_client.get(LOCATE, headers=_address(f"  {SAMPLE_ADDRESSES['yihua_exact']} "))
     assert response.status_code == 200, response.text
     body = response.json()
     assert body["district"] == "三民區" and body["village"] == "本揚里" and body["match_level"] == "exact"
@@ -168,7 +176,7 @@ async def test_locate_found(admin_client, db_session):
 )
 async def test_locate_not_found_reason(admin_client, db_session, key, reason):
     await load_geo_samples(db_session)
-    response = await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES[key]})
+    response = await admin_client.get(LOCATE, headers=_address(SAMPLE_ADDRESSES[key]))
     assert response.status_code == 404
     detail = response.json()["detail"]
     assert (detail["code"], detail["reason"]) == ("ADDRESS_NOT_FOUND", reason)
@@ -176,18 +184,41 @@ async def test_locate_not_found_reason(admin_client, db_session, key, reason):
 
 
 async def test_locate_before_doorplates_are_imported(admin_client):
-    response = await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES["yihua_exact"]})
+    response = await admin_client.get(LOCATE, headers=_address(SAMPLE_ADDRESSES["yihua_exact"]))
     assert response.status_code == 404 and response.json()["detail"]["reason"] == "pending"
 
 
-@pytest.mark.parametrize("address", ["", "   ", "路" * 101])
+@pytest.mark.parametrize("address", ["", "   ", "路" * 101, " " * 50 + "路" * 101])
 async def test_locate_rejects_bad_address(admin_client, address):
-    assert (await admin_client.get(LOCATE, params={"address": address})).status_code == 422
+    response = await admin_client.get(LOCATE, headers=_address(address))
+    assert response.status_code == 422
+    assert response.json()["detail"]["code"] == "INVALID_ADDRESS"
+
+
+async def test_locate_ignores_address_in_query_string(admin_client, db_session):
+    """2026-10-22 資安稽核：網址的查詢字串可能留在 web 服務那一層的 HTTP 紀錄；地址只收 header。"""
+    await load_geo_samples(db_session)
+    response = await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES["yihua_exact"]})
+    assert response.status_code == 422 and response.json()["detail"]["code"] == "INVALID_ADDRESS"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "not-json",
+        quote(json.dumps({"q": "路"}), safe=""),
+        quote(json.dumps({"address": 1}), safe=""),
+        quote(json.dumps({"address": "路" * 201}, ensure_ascii=False), safe=""),
+    ],
+)
+async def test_locate_rejects_malformed_header(admin_client, raw):
+    response = await admin_client.get(LOCATE, headers={"X-Ivy-Search": raw})
+    assert response.status_code == 422 and response.json()["detail"]["code"] == "INVALID_SEARCH_HEADER"
 
 
 async def test_locate_writes_no_audit(admin_client, db_session):
     await load_geo_samples(db_session)
     before = await db_session.scalar(select(func.count()).select_from(AuditLogEntry))
-    await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES["yihua_exact"]})
-    await admin_client.get(LOCATE, params={"address": SAMPLE_ADDRESSES["outside"]})
+    await admin_client.get(LOCATE, headers=_address(SAMPLE_ADDRESSES["yihua_exact"]))
+    await admin_client.get(LOCATE, headers=_address(SAMPLE_ADDRESSES["outside"]))
     assert await db_session.scalar(select(func.count()).select_from(AuditLogEntry)) == before
