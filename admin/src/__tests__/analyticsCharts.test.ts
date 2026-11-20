@@ -29,7 +29,18 @@ describe('每日直條', () => {
   it('每日數字表的第二欄表頭用呼叫端給的欄名；摘要、軸線的單位仍是「次」', () => {
     const wrapper = mountBars({ points, valueLabel: '預約鈕點擊次數' })
     expect(wrapper.findAll('.daily-bars__table thead th').map((th) => th.text())).toEqual(['日期', '預約鈕點擊次數'])
+    // 2026-11-20：10 天以內每根直條上面直接寫數字、下面寫日期，不放只有起訖日的軸線。
+    expect(wrapper.find('.daily-bars__axis').exists()).toBe(false)
+    expect(wrapper.findAll('.daily-bars__value').map((value) => value.text())).toEqual(['2', '0', '4'])
+    expect(wrapper.findAll('.daily-bars__days span').map((day) => day.text())).toEqual(['09/28', '09/29', '09/30'])
+  })
+
+  it('超過 10 天放不下每根的數字：只在兩端寫起訖日與最多的那天', () => {
+    const many = Array.from({ length: 11 }, (_, index) => ({ day: `2026-10-${String(index + 1).padStart(2, '0')}`, value: index === 3 ? 4 : 1 }))
+    const wrapper = mountBars({ points: many })
+    expect(wrapper.find('.daily-bars__value').exists()).toBe(false)
     expect(wrapper.get('.daily-bars__axis').text()).toContain('最多 4 次')
+    expect(wrapper.get('.daily-bars__axis').text()).toContain('10/01')
   })
 
   it('讀屏摘要寫期間、合計與最多的那天', () => {

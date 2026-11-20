@@ -92,6 +92,18 @@ describe('Google 搜尋面板', () => {
     expect(wrapper.text()).toContain('2–3 天延遲')
   })
 
+  it('2026-11-20：搜尋字詞超過 10 個先列前 10 個，可以展開', async () => {
+    const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
+    const { wrapper } = await mountPanel(search({ queries }))
+    expect(wrapper.findAll('[data-test="search-queries"] tbody tr')).toHaveLength(10)
+    const toggle = wrapper.get('[data-test="search-queries-toggle"]')
+    expect(toggle.text()).toBe('顯示全部 14 項')
+    await toggle.trigger('click')
+    expect(wrapper.findAll('[data-test="search-queries"] tbody tr')).toHaveLength(14)
+    // 頁面只有 2 列，不出現展開鈕。
+    expect(wrapper.find('[data-test="search-pages-toggle"]').exists()).toBe(false)
+  })
+
   it('搜尋字詞與頁面各一張表；頁面對得上的寫名稱加路徑，其餘只寫路徑', async () => {
     const { wrapper } = await mountPanel(search())
     const queries = wrapper.findAll('[data-test="search-queries"] tbody tr')

@@ -2,8 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
-import { taipeiToday } from '../admissions/academic'
-import { addDays } from '../utils/visitSchedule'
+import { searchPeriod } from '../api/googleInsights'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
 import CruxPanel from '../components/CruxPanel.vue'
 import LineInsightsPanel from '../components/LineInsightsPanel.vue'
@@ -41,10 +40,13 @@ function queryChoice<T extends string | number>(name: string, allowed: readonly 
 
 const tab = queryChoice<AnalyticsTab>('tab', ANALYTICS_TABS.map((item) => item.key), DEFAULT_ANALYTICS_TAB)
 const days = queryChoice<AnalyticsDays>('days', ANALYTICS_DAY_OPTIONS.map((item) => item.value), DEFAULT_ANALYTICS_DAYS)
+// 「走到預約」頁尾的網站來源讀預約案件，期間跟整頁同一段：早於成效統計起算日就從起算日開始，
+// 同一類裡不會一張表寫 11/13 起、另一張寫 10/24 起（2026-11-20）。
 const bookingRange = computed(() => {
-  const to = taipeiToday()
-  return { from: addDays(to, 1 - days.value), to }
+  const { start, end } = searchPeriod(days.value)
+  return { from: start, to: end }
 })
+const bookingPeriod = computed(() => `${bookingRange.value.from.replaceAll('-', '/')}–${bookingRange.value.to.replaceAll('-', '/')}`)
 const device = queryChoice<AnalyticsDevice>('device', ANALYTICS_DEVICE_OPTIONS.map((item) => item.value), DEFAULT_ANALYTICS_DEVICE)
 
 // 後三類共用同一個內容興趣面板（同一份資料）。兩個面板一進頁就各自讀好，換分類只是切換顯示；
@@ -106,8 +108,7 @@ const statusText = computed(() => {
     <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
     <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
-    <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange"
-      :period-label="`${bookingRange.from}–${bookingRange.to}`" />
+    <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange" :period-label="bookingPeriod" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
     <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
     <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
@@ -115,18 +116,51 @@ const statusText = computed(() => {
 </template>
 
 <style scoped>
-/* 分類在左、條件在右；放不下時條件整組換到下一行靠右。 */
+/* 分類在左、條件在右；放不下時條件整組換到下一行靠右。
+   整列黏在頁首下面（2026-11-20）：一類有 1,400～4,500px，捲到中段也換得了分類與期間、看得到現在是哪一段。
+   做法同招生統計的導覽列：底色用 box-shadow 往右鋪滿、clip-path 裁成一條（不用負邊距，不會多出橫向捲軸、不蓋到側欄）。 */
 .analytics__bar {
+  position: sticky;
+  top: var(--top-h);
+  z-index: 5;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
   margin-bottom: 20px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 100vmax var(--surface-2);
+  clip-path: inset(0 -100vmax 0 -28px);
+}
+
+/* 用 Tab 走到被黏住那一列蓋住的位置時，瀏覽器捲動要多留一列的高度，焦點才不會藏在條件列底下。 */
+@media (min-width: 901px) {
+  .analytics :deep(:focus-visible) {
+    scroll-margin-top: calc(var(--top-h) + 76px);
+  }
+}
+
+/* 900px 以下不黏：分類排成兩列、條件再一列，加起來約 170px，會吃掉手機三分之一的畫面。 */
+@media (max-width: 900px) {
+  .analytics__bar {
+    position: static;
+    padding: 0;
+    border-bottom: 0;
+    box-shadow: none;
+    clip-path: none;
+  }
 }
 
 .analytics__tabs {
   margin-bottom: 0;
+}
+
+/* 網站來源接在內容興趣面板後面：前一個兄弟不是 .panel，共用樣式的 .panel + .panel 間距吃不到，這裡補上。 */
+.analytics > .attribution {
+  margin-top: 20px;
 }
 
 .analytics__filters {

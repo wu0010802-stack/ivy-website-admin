@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { defineComponent, h } from 'vue'
@@ -7,6 +7,7 @@ import { createPinia } from 'pinia'
 import type { Role } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
+import { STATS_START } from '../components/analytics/filters'
 import { testUser } from './fixtures'
 
 // 成效統計（2026-11-12）：18 張表分成四類、整頁共用一組期間與裝置，三個選擇都寫在網址。
@@ -39,6 +40,12 @@ const SearchStub = defineComponent({
   setup: (props) => () => h('div', { 'data-stub': 'search', 'data-days': props.days, 'data-active': String(props.active) }),
 })
 
+const AttributionStub = defineComponent({
+  name: 'BookingAttributionPanel',
+  props: { range: Object, periodLabel: String },
+  setup: (props) => () => h('div', { 'data-stub': 'attribution', 'data-from': (props.range as { from: string } | undefined)?.from, 'data-period': props.periodLabel }),
+})
+
 async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin') {
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/analytics', component: AnalyticsView }] })
   await router.push({ path: '/analytics', query })
@@ -49,7 +56,7 @@ async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin
     attachTo: document.body,
     global: {
       plugins: [router, ElementPlus, pinia],
-      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub },
+      stubs: { SiteTrafficPanel: TrafficStub, ContentInterestPanel: InterestStub, CruxPanel: CruxStub, SearchInsightsPanel: SearchStub, BookingAttributionPanel: AttributionStub },
     },
   })
   wrappers.push(wrapper)
@@ -64,6 +71,21 @@ async function mountView(query: LocationQueryRaw = {}, role: Role = 'super_admin
 }
 
 describe('成效統計的分類與條件', () => {
+  it('2026-11-20：「走到預約」的網站來源和整頁同一段期間（不早於起算日），日期用斜線', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-11-20T04:00:00Z'))
+    try {
+      const { wrapper } = await mountView({ tab: 'convert' })
+      const panel = wrapper.get('[data-stub="attribution"]')
+      expect(panel.attributes('data-from')).toBe(STATS_START)
+      expect(panel.attributes('data-period')).toBe('2026/11/13–2026/11/20')
+      const week = (await mountView({ tab: 'convert', days: '7' })).wrapper.get('[data-stub="attribution"]')
+      expect(week.attributes('data-period')).toBe('2026/11/14–2026/11/20')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('四類寫成家長會問的問題，預設在「瀏覽與速度」、近 28 天', async () => {
     const { wrapper, traffic, interest, tabs, pressed } = await mountView()
     expect(tabs().map((tab) => tab.text())).toEqual(['瀏覽與速度', '看了什麼', '怎麼來、怎麼逛', '走到預約'])

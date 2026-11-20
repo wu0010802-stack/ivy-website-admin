@@ -30,6 +30,10 @@ const markedDays = computed(() => new Set(visibleMarkers.value.map((marker) => m
 // 點數多時不留縫：390px 手機圖表內寬約 324px，一年 365 天加 1px 縫會讓每根寬度歸零。
 const DENSE_POINTS = 60
 const dense = computed(() => props.points.length > DENSE_POINTS)
+// 天數少（近 7 天，或統計剛起算）時每根直條上面直接寫數字、下面寫日期，不必打開「每日數字」才知道哪天幾次；
+// 天數多就放不下，照舊只在兩端寫起訖日與最多的那天（2026-11-20）。
+const LABELED_POINTS = 10
+const labeled = computed(() => props.points.length <= LABELED_POINTS)
 // 有數字的日子至少 1px 高，免得 1/300 四捨五入成 0% 看不見。
 const height = (value: number) => (max.value ? `${Math.round((value / max.value) * 100)}%` : '0%')
 const summary = computed(() =>
@@ -53,7 +57,7 @@ function exportCsv() {
     <template v-else>
       <div
         class="daily-bars__plot"
-        :class="{ 'is-dense': dense }"
+        :class="{ 'is-dense': dense, 'is-labeled': labeled }"
         :style="{ '--n': points.length }"
         role="img"
         :aria-label="summary"
@@ -65,10 +69,14 @@ function exportCsv() {
           :class="{ 'is-marked': markedDays.has(point.day) }"
           :title="`${short(point.day)}：${point.value} ${unit}`"
         >
+          <span v-if="labeled" class="daily-bars__value num" :class="{ 'is-zero': !point.value }" :style="{ bottom: height(point.value) }" aria-hidden="true">{{ point.value }}</span>
           <span class="daily-bars__fill" :class="{ 'has-value': point.value > 0 }" :style="{ height: height(point.value) }" />
         </span>
       </div>
-      <div class="daily-bars__axis hint num">
+      <div v-if="labeled" class="daily-bars__days hint num" :style="{ '--n': points.length }" aria-hidden="true">
+        <span v-for="point in points" :key="point.day">{{ short(point.day) }}</span>
+      </div>
+      <div v-else class="daily-bars__axis hint num">
         <span>{{ short(first) }}</span><span>最多 {{ max }} {{ unit }}</span><span>{{ short(last) }}</span>
       </div>
       <p v-for="marker in visibleMarkers" :key="marker.day" class="hint daily-bars__marker">{{ short(marker.day) }} 起：{{ marker.label }}</p>
@@ -113,6 +121,38 @@ function exportCsv() {
   gap: 0;
 }
 
+/* 每根上面要寫數字：最高那根的數字寫在圖的上緣外面，先留一行的高度。 */
+.daily-bars__plot.is-labeled {
+  margin-top: 20px;
+}
+
+.daily-bars__value {
+  position: absolute;
+  right: 0;
+  left: 0;
+  margin-bottom: 3px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--ink-2);
+  text-align: center;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.daily-bars__value.is-zero {
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.daily-bars__days {
+  display: grid;
+  grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 4px;
+  text-align: center;
+}
+
 .daily-bars__col {
   display: flex;
   align-items: flex-end;
@@ -134,9 +174,12 @@ function exportCsv() {
   pointer-events: none;
 }
 
+/* 天數少時一根會有一百多 px 寬，變成一整面色塊；限寬置中，看起來才是直條。 */
 .daily-bars__fill {
   display: block;
   width: 100%;
+  max-width: 44px;
+  margin-inline: auto;
   border-radius: 2px 2px 0 0;
   background: var(--el-color-primary);
 }
