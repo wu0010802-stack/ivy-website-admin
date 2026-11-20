@@ -55,7 +55,7 @@ PR 與上線經過、Railway 部署見 `deploy/README.md` 同日段落。沒驗�
 
 已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），11-20 上午使用者已用 `railway ssh` 跑完（刪 3 列，刪前已備份）。
 
-## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（`feature/admin-tips-header-20261120`，未部署）
+## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（PR #122，已部署 main `7b84998f`，紀錄見 `deploy/README.md`）
 
 使用者：「幫我優化 /admin/tips，使用小技巧移到頂部區塊」（附「營運總覽」頁首截圖）。
 

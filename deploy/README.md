@@ -14,6 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（PR #122，已部署 main `7b84998f`）
+
+[PR #122](https://github.com/wu0010802-stack/ivy-website-admin/pull/122) 以 merge commit 合併為 `7b84998f`（接在 #123 `b9726e76` 之後）；[main CI/CD 44665538553](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44665538553) 全部成功（web、admin、後端三組、E2E、Deploy），Deploy 台灣時間 11:18 完成。之後別的 session 併 #121、#125 的 run 44668034328（main `738e3118`）也包含這筆。
+
+- 只動 admin（`AdminLayout.vue` 頁首、`nav.ts` 的 `SEARCH_ONLY_GROUPS`、`router/index.ts`、新增 `tips/pageSections.ts`、`TipsView.vue` 與三支測試）＋README／DESIGN.md，沒有 API、migration、Railway 環境變數變更。
+- PR 過程：PR 組 CI 綠了兩次都因 main 前進（#120 部署紀錄、#124）在 README 頂部相鄰段落衝突，rebase 兩次；第三次把 README 段落放在 #124 那段下面避開相鄰。PR 組全綠後合併被分支保護擋下（推送那組被同 concurrency 取消），`gh run rerun` 推送組綠了才合併（這個 repo 不允許 `--auto`）。
+- 部署後唯讀檢查（只發 GET、不登入）：正式 `/release.json` 的 base_commit 為 `7b84998f8c3c3371199a4dd33ca0d3f5dec23a4d`，snapshot `c519081145b7517c2dc6ee8fbc3ff8d7427f6dbea5235cdd06598e5854bc59d0`；後台入口 `index-B58x7_vi.js` 有 `top__tips`、「使用小技巧」、分類對照，沒有小技巧內文（內容只在 `TipsView-d9CrTCBK.js`，200，含 `until-found`、`onBeforematch`、搜尋與全部展開）。
+- 沒驗：登入正式後台實際看頁首與小技巧頁（本機 vite dev＋假登入驗過 1440／1280／390／360）；iOS 實機；macOS stack `visual` 四張基準（頁首多一顆、側欄少一列）待重拍。
+
 ## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
 
 [PR #123](https://github.com/wu0010802-stack/ivy-website-admin/pull/123) 以 merge commit 合併為 `b9726e76`（接在 #124 的部署紀錄 `51387c74` 之後，兩邊沒有重疊檔案）；[main CI/CD 44662042293](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44662042293) 全部成功（web、admin、後端三組、E2E 23＋186＋83、Deploy），Deploy 台灣時間 10:45–10:48。
