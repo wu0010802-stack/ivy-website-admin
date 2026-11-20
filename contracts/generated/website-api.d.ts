@@ -301,6 +301,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/locate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Locate
+         * @description 地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log
+         *     （uvicorn 存取紀錄不含查詢字串，見 logging_config.StripQueryString）。比到門牌（exact／nearby）才算找到。
+         */
+        get: operations["get_admissions_area_locate_api_website_v1_admin_admissions_area_locate_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/opportunity": {
         parameters: {
             query?: never;
@@ -314,6 +335,27 @@ export interface paths {
          *     明顯偏少的里。母體同 /area；半徑規則同 /area/kindergartens。只讀，不寫稽核；只有里層級的聚合數字。
          */
         get: operations["get_admissions_area_opportunity_api_website_v1_admin_admissions_area_opportunity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/admissions/area/point": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Point
+         * @description 任意點評估（2026-11-20 規格 §5.2）：地圖上一點半徑內的孩子、幼兒園、托嬰、收費、預售、異動、房價與在籍人數；
+         *     給 campus_key 時另回該校同一組數字（同一條計算路徑）。座標進計算前取到小數 4 位。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_area_point_api_website_v1_admin_admissions_area_point_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5636,6 +5678,22 @@ export interface components {
             /** Synced At */
             synced_at: string | null;
         };
+        /** AreaLocateOut */
+        AreaLocateOut: {
+            /** District */
+            district: string | null;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /**
+             * Match Level
+             * @enum {string}
+             */
+            match_level: "exact" | "nearby";
+            /** Village */
+            village: string | null;
+        };
         /**
          * AreaOpportunityBaselineOut
          * @description 本校半徑內（里的面積重心在圈內）的合計。rate＝visit ÷ children 的百分比（小數一位，分母 0 是 null）；
@@ -5876,6 +5934,117 @@ export interface components {
             recent: boolean;
             /** Subject */
             subject: ("operator" | "staff") | null;
+        };
+        /** AreaPointEnrolledOut */
+        AreaPointEnrolledOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * AreaPointHousingOut
+         * @description 圈內近 4 季實價登錄的買賣單價（元／坪）與整戶月租（元）；不到 5 筆中位數是 null、筆數照給。
+         */
+        AreaPointHousingOut: {
+            /** Rent Count */
+            rent_count: number;
+            /** Rent Median */
+            rent_median: number | null;
+            /** Sale Count */
+            sale_count: number;
+            /** Sale Median */
+            sale_median: number | null;
+        };
+        /** AreaPointHousingSourceOut */
+        AreaPointHousingSourceOut: {
+            /** Latest */
+            latest: string | null;
+            /** Note */
+            note: string;
+            /** Seasons */
+            seasons: string[];
+        };
+        /** AreaPointNearestOut */
+        AreaPointNearestOut: {
+            /** Distance M */
+            distance_m: number;
+            /** Key */
+            key: string;
+            /** Name */
+            name: string;
+        };
+        /** AreaPointOut */
+        AreaPointOut: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            nearest_campus: components["schemas"]["AreaPointNearestOut"] | null;
+            point: components["schemas"]["AreaPointPlaceOut"];
+            /** Radius Km */
+            radius_km: number;
+            rows: components["schemas"]["AreaPointRowsOut"];
+            sources: components["schemas"]["AreaPointSourcesOut"];
+        };
+        /** AreaPointPlaceOut */
+        AreaPointPlaceOut: {
+            /** District */
+            district: string | null;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+            /** Village */
+            village: string | null;
+            /** Village Code */
+            village_code: string | null;
+        };
+        /**
+         * AreaPointRowOut
+         * @description 一欄（這一點、本校）。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝計算失敗；
+         *     兩種情況數字都是 null、enrolled 是空清單。fee_median 是私立一般 3 歲一學期公告收費的中位數；
+         *     presale_households、housing 在對應資料沒匯入時是 null；enrolled 只列有清冊的校（count 可為 0）。
+         */
+        AreaPointRowOut: {
+            /** Babycare */
+            babycare: number | null;
+            /** Changes 12M */
+            changes_12m: number | null;
+            /** Children */
+            children: number | null;
+            /** Enrolled */
+            enrolled: components["schemas"]["AreaPointEnrolledOut"][];
+            /** Fee Median */
+            fee_median: number | null;
+            housing: components["schemas"]["AreaPointHousingOut"] | null;
+            /** Infants */
+            infants: number | null;
+            /** Kids Net */
+            kids_net: number | null;
+            /** Kids Unavailable */
+            kids_unavailable: string | null;
+            kindergartens: components["schemas"]["AreaCompareKindergartensOut"] | null;
+            /** Locate Error */
+            locate_error: string | null;
+            /** Presale Households */
+            presale_households: number | null;
+            /** Unavailable */
+            unavailable: ("no_campus_point" | "error") | null;
+        };
+        /** AreaPointRowsOut */
+        AreaPointRowsOut: {
+            campus: components["schemas"]["AreaPointRowOut"] | null;
+            point: components["schemas"]["AreaPointRowOut"];
+        };
+        /** AreaPointSourcesOut */
+        AreaPointSourcesOut: {
+            /** Fee School Year */
+            fee_school_year: number | null;
+            housing: components["schemas"]["AreaPointHousingSourceOut"];
+            /** Population Version */
+            population_version: string | null;
         };
         /**
          * AreaPopulationOut
@@ -13179,6 +13348,41 @@ export interface operations {
             };
         };
     };
+    get_admissions_area_locate_api_website_v1_admin_admissions_area_locate_get: {
+        parameters: {
+            query?: {
+                address?: string;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaLocateOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_admissions_area_opportunity_api_website_v1_admin_admissions_area_opportunity_get: {
         parameters: {
             query: {
@@ -13206,6 +13410,45 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaOpportunityOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_point_api_website_v1_admin_admissions_area_point_get: {
+        parameters: {
+            query: {
+                lat: number;
+                lng: number;
+                /** @description 半徑公里：1、3 或 6 */
+                radius_km?: number;
+                campus_key?: string | null;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaPointOut"];
                 };
             };
             /** @description Validation Error */

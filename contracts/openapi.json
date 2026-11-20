@@ -5085,6 +5085,57 @@
         "title": "AreaKindergartensOut",
         "type": "object"
       },
+      "AreaLocateOut": {
+        "properties": {
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "match_level": {
+            "enum": [
+              "exact",
+              "nearby"
+            ],
+            "title": "Match Level",
+            "type": "string"
+          },
+          "village": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "district",
+          "village",
+          "match_level"
+        ],
+        "title": "AreaLocateOut",
+        "type": "object"
+      },
       "AreaOpportunityBaselineOut": {
         "description": "本校半徑內（里的面積重心在圈內）的合計。rate＝visit ÷ children 的百分比（小數一位，分母 0 是 null）；\njudged＝visit 至少 10 位，才判斷哪些里偏少。",
         "properties": {
@@ -5844,6 +5895,441 @@
           "recent"
         ],
         "title": "AreaPenaltyRecordOut",
+        "type": "object"
+      },
+      "AreaPointEnrolledOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campus_key",
+          "count"
+        ],
+        "title": "AreaPointEnrolledOut",
+        "type": "object"
+      },
+      "AreaPointHousingOut": {
+        "description": "圈內近 4 季實價登錄的買賣單價（元／坪）與整戶月租（元）；不到 5 筆中位數是 null、筆數照給。",
+        "properties": {
+          "rent_count": {
+            "title": "Rent Count",
+            "type": "integer"
+          },
+          "rent_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rent Median"
+          },
+          "sale_count": {
+            "title": "Sale Count",
+            "type": "integer"
+          },
+          "sale_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sale Median"
+          }
+        },
+        "required": [
+          "sale_median",
+          "sale_count",
+          "rent_median",
+          "rent_count"
+        ],
+        "title": "AreaPointHousingOut",
+        "type": "object"
+      },
+      "AreaPointHousingSourceOut": {
+        "properties": {
+          "latest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "seasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Seasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "latest",
+          "seasons",
+          "note"
+        ],
+        "title": "AreaPointHousingSourceOut",
+        "type": "object"
+      },
+      "AreaPointNearestOut": {
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "distance_m"
+        ],
+        "title": "AreaPointNearestOut",
+        "type": "object"
+      },
+      "AreaPointOut": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "nearest_campus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaPointNearestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point": {
+            "$ref": "#/components/schemas/AreaPointPlaceOut"
+          },
+          "radius_km": {
+            "title": "Radius Km",
+            "type": "integer"
+          },
+          "rows": {
+            "$ref": "#/components/schemas/AreaPointRowsOut"
+          },
+          "sources": {
+            "$ref": "#/components/schemas/AreaPointSourcesOut"
+          }
+        },
+        "required": [
+          "as_of",
+          "radius_km",
+          "point",
+          "nearest_campus",
+          "sources",
+          "rows"
+        ],
+        "title": "AreaPointOut",
+        "type": "object"
+      },
+      "AreaPointPlaceOut": {
+        "properties": {
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          },
+          "village": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village"
+          },
+          "village_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Village Code"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "district",
+          "village",
+          "village_code"
+        ],
+        "title": "AreaPointPlaceOut",
+        "type": "object"
+      },
+      "AreaPointRowOut": {
+        "description": "一欄（這一點、本校）。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝計算失敗；\n兩種情況數字都是 null、enrolled 是空清單。fee_median 是私立一般 3 歲一學期公告收費的中位數；\npresale_households、housing 在對應資料沒匯入時是 null；enrolled 只列有清冊的校（count 可為 0）。",
+        "properties": {
+          "babycare": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Babycare"
+          },
+          "changes_12m": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes 12M"
+          },
+          "children": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Children"
+          },
+          "enrolled": {
+            "items": {
+              "$ref": "#/components/schemas/AreaPointEnrolledOut"
+            },
+            "title": "Enrolled",
+            "type": "array"
+          },
+          "fee_median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Median"
+          },
+          "housing": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaPointHousingOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "infants": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Infants"
+          },
+          "kids_net": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Net"
+          },
+          "kids_unavailable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kids Unavailable"
+          },
+          "kindergartens": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaCompareKindergartensOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "locate_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locate Error"
+          },
+          "presale_households": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Presale Households"
+          },
+          "unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "no_campus_point",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unavailable"
+          }
+        },
+        "required": [
+          "unavailable",
+          "locate_error",
+          "children",
+          "infants",
+          "kids_net",
+          "kids_unavailable",
+          "kindergartens",
+          "babycare",
+          "fee_median",
+          "presale_households",
+          "changes_12m",
+          "housing",
+          "enrolled"
+        ],
+        "title": "AreaPointRowOut",
+        "type": "object"
+      },
+      "AreaPointRowsOut": {
+        "properties": {
+          "campus": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AreaPointRowOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "point": {
+            "$ref": "#/components/schemas/AreaPointRowOut"
+          }
+        },
+        "required": [
+          "point",
+          "campus"
+        ],
+        "title": "AreaPointRowsOut",
+        "type": "object"
+      },
+      "AreaPointSourcesOut": {
+        "properties": {
+          "fee_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee School Year"
+          },
+          "housing": {
+            "$ref": "#/components/schemas/AreaPointHousingSourceOut"
+          },
+          "population_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population Version"
+          }
+        },
+        "required": [
+          "population_version",
+          "fee_school_year",
+          "housing"
+        ],
+        "title": "AreaPointSourcesOut",
         "type": "object"
       },
       "AreaPopulationOut": {
@@ -27669,6 +28155,82 @@
         ]
       }
     },
+    "/api/website/v1/admin/admissions/area/locate": {
+      "get": {
+        "description": "地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log\n（uvicorn 存取紀錄不含查詢字串，見 logging_config.StripQueryString）。比到門牌（exact／nearby）才算找到。",
+        "operationId": "get_admissions_area_locate_api_website_v1_admin_admissions_area_locate_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "address",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Address",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaLocateOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Locate",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
     "/api/website/v1/admin/admissions/area/opportunity": {
       "get": {
         "description": "招生機會（2026-10-13 招生機會規格 §6）：本校半徑內各里的 2–5 歲孩子數、參觀率，以及和附近平均比\n明顯偏少的里。母體同 /area；半徑規則同 /area/kindergartens。只讀，不寫稽核；只有里層級的聚合數字。",
@@ -27789,6 +28351,118 @@
           }
         },
         "summary": "Get Admissions Area Opportunity",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/point": {
+      "get": {
+        "description": "任意點評估（2026-11-20 規格 §5.2）：地圖上一點半徑內的孩子、幼兒園、托嬰、收費、預售、異動、房價與在籍人數；\n給 campus_key 時另回該校同一組數字（同一條計算路徑）。座標進計算前取到小數 4 位。只讀，不寫稽核。",
+        "operationId": "get_admissions_area_point_api_website_v1_admin_admissions_area_point_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "title": "Lat",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "required": true,
+            "schema": {
+              "title": "Lng",
+              "type": "number"
+            }
+          },
+          {
+            "description": "半徑公里：1、3 或 6",
+            "in": "query",
+            "name": "radius_km",
+            "required": false,
+            "schema": {
+              "default": 3,
+              "description": "半徑公里：1、3 或 6",
+              "title": "Radius Km",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campus Key"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaPointOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Point",
         "tags": [
           "admissions"
         ]

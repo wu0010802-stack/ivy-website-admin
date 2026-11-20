@@ -601,7 +601,7 @@ async def query_trends(
         if housing_latest is not None:
             result["sources"]["housing"] = {
                 "latest": housing_latest, "seasons": housing_seasons,
-                "note": f"{housing_io.SOURCE_NOTE}；近 4 季，排除親友、特殊關係、預售屋交屋等非一般交易，房價扣除車位",
+                "note": housing_io.SOURCE_NOTE_FULL,
             }
 
     villages = []

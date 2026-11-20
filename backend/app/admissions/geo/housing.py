@@ -38,6 +38,8 @@ MIN_DEALS = 5
 MIN_SEASON_ROWS = 1000
 PING_M2 = 3.30579
 SOURCE_NOTE = "內政部不動產交易實價查詢服務網"
+# 畫面上資料來源的完整說明（里的變化與任意點共用）。
+SOURCE_NOTE_FULL = f"{SOURCE_NOTE}；近 4 季，排除親友、特殊關係、預售屋交屋等非一般交易，房價扣除車位"
 RESIDENTIAL_TYPES = ("住宅大樓", "華廈", "公寓", "透天厝", "套房")
 MIN_NET_AREA = Decimal("10")
 SALE_REQUIRED = (

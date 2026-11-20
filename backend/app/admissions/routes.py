@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic, booking_link, constants, download, follow_up, funnel, intake, records
 from app.admissions import area as area_service
+from app.admissions import area_point as area_point_service
 from app.admissions import journey as journey_service
 from app.admissions import area_compare as area_compare_service
 from app.admissions import children_history as children_history_service
@@ -35,6 +36,8 @@ from app.admissions import trends as trends_service
 from app.admissions.enrolled import query as enrolled_query
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.geo import kindergarten_records as geo_records
+from app.admissions.geo import matcher as geo_matcher
+from app.admissions.geo.kaohsiung import KAOHSIUNG_LAT_RANGE, KAOHSIUNG_LNG_RANGE
 from app.admissions.models import RecruitmentEventLog, RecruitmentVisit
 from app.admissions.schemas import (
     AdmissionsAreaOut,
@@ -46,6 +49,8 @@ from app.admissions.schemas import (
     AreaChangesOut,
     AreaChildrenHistoryOut,
     AreaCompareOut,
+    AreaLocateOut,
+    AreaPointOut,
     AreaEnrolledOut,
     AreaKindergartenRecordsOut,
     AreaKindergartensOut,
@@ -1055,6 +1060,62 @@ async def get_admissions_area_compare(
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
     result = await area_compare_service.query_area_compare(db, campus_keys, radius_km=radius_km)
     return AreaCompareOut.model_validate(result)
+
+
+@router.get(
+    "/admin/admissions/area/point",
+    response_model=AreaPointOut,
+    dependencies=[Depends(_require_integer_radius)],
+)
+async def get_admissions_area_point(
+    lat: float,
+    lng: float,
+    radius_km: int = Query(default=3, description="半徑公里：1、3 或 6"),
+    campus_key: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaPointOut:
+    """任意點評估（2026-11-20 規格 §5.2）：地圖上一點半徑內的孩子、幼兒園、托嬰、收費、預售、異動、房價與在籍人數；
+    給 campus_key 時另回該校同一組數字（同一條計算路徑）。座標進計算前取到小數 4 位。只讀，不寫稽核。"""
+    if campus_key is not None:
+        _require_campus(current_user, "admissions.stats", campus_key)
+    else:
+        require_scope(current_user, "admissions.stats")
+    if not (KAOHSIUNG_LAT_RANGE[0] <= lat <= KAOHSIUNG_LAT_RANGE[1] and KAOHSIUNG_LNG_RANGE[0] <= lng <= KAOHSIUNG_LNG_RANGE[1]):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "POINT_OUT_OF_RANGE", "message": "座標不在高雄範圍內"},
+        )
+    if radius_km not in area_service.RADIUS_CHOICES:
+        raise _invalid_radius()
+    result = await area_point_service.query_point(db, lat=lat, lng=lng, radius_km=radius_km, campus_key=campus_key)
+    return AreaPointOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area/locate", response_model=AreaLocateOut)
+async def get_admissions_area_locate(
+    address: str = "",
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaLocateOut:
+    """地址定位（2026-11-20 規格 §5.2）：地址 → 座標，給地圖放圖釘。只讀；地址不寫稽核、不進 log
+    （uvicorn 存取紀錄不含查詢字串，見 logging_config.StripQueryString）。比到門牌（exact／nearby）才算找到。"""
+    require_scope(current_user, "admissions.stats")
+    text = address.strip()
+    if not 1 <= len(text) <= 100:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"code": "INVALID_ADDRESS", "message": "地址長度要在 1 到 100 字之間"},
+        )
+    match = await geo_matcher.locate(db, text, version=await geo_matcher.active_doorplate_version(db))
+    if match.match_level not in ("exact", "nearby") or match.lat is None or match.lng is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"code": "ADDRESS_NOT_FOUND", "message": "找不到這個地址", "reason": match.unlocated_reason or "imprecise"},
+        )
+    return AreaLocateOut(
+        lat=match.lat, lng=match.lng, district=match.district, village=match.village, match_level=match.match_level
+    )
 
 
 @router.get(

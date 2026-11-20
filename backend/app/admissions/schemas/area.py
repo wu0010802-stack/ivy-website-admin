@@ -404,3 +404,88 @@ class AreaCompareOut(BaseModel):
     population_version: str | None
     fee_school_year: int | None
     rows: list[AreaCompareRowOut]
+
+
+# ---- 任意點評估與地址定位（2026-11-20 規格 §5.2）----
+
+
+class AreaPointHousingOut(BaseModel):
+    """圈內近 4 季實價登錄的買賣單價（元／坪）與整戶月租（元）；不到 5 筆中位數是 null、筆數照給。"""
+
+    sale_median: int | None
+    sale_count: int
+    rent_median: int | None
+    rent_count: int
+
+
+class AreaPointEnrolledOut(BaseModel):
+    campus_key: str
+    count: int
+
+
+class AreaPointRowOut(BaseModel):
+    """一欄（這一點、本校）。unavailable：no_campus_point＝本校沒座標（原因在 locate_error）、error＝計算失敗；
+    兩種情況數字都是 null、enrolled 是空清單。fee_median 是私立一般 3 歲一學期公告收費的中位數；
+    presale_households、housing 在對應資料沒匯入時是 null；enrolled 只列有清冊的校（count 可為 0）。"""
+
+    unavailable: Literal["no_campus_point", "error"] | None
+    locate_error: str | None
+    children: int | None
+    infants: int | None
+    kids_net: int | None
+    kids_unavailable: str | None
+    kindergartens: AreaCompareKindergartensOut | None
+    babycare: int | None
+    fee_median: int | None
+    presale_households: int | None
+    changes_12m: int | None
+    housing: AreaPointHousingOut | None
+    enrolled: list[AreaPointEnrolledOut]
+
+
+class AreaPointRowsOut(BaseModel):
+    point: AreaPointRowOut
+    campus: AreaPointRowOut | None
+
+
+class AreaPointPlaceOut(BaseModel):
+    lat: float
+    lng: float
+    district: str | None
+    village: str | None
+    village_code: str | None
+
+
+class AreaPointNearestOut(BaseModel):
+    key: str
+    name: str
+    distance_m: int
+
+
+class AreaPointHousingSourceOut(BaseModel):
+    latest: str | None
+    seasons: list[str]
+    note: str
+
+
+class AreaPointSourcesOut(BaseModel):
+    population_version: str | None
+    fee_school_year: int | None
+    housing: AreaPointHousingSourceOut
+
+
+class AreaPointOut(BaseModel):
+    as_of: datetime
+    radius_km: int
+    point: AreaPointPlaceOut
+    nearest_campus: AreaPointNearestOut | None
+    sources: AreaPointSourcesOut
+    rows: AreaPointRowsOut
+
+
+class AreaLocateOut(BaseModel):
+    lat: float
+    lng: float
+    district: str | None
+    village: str | None
+    match_level: Literal["exact", "nearby"]
