@@ -35,6 +35,8 @@ export const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 /** 釘住的條件（不用範圍寫法：Safari 16.4 以前不認得） */
 export const PIN_QUERY = '(min-width: 1100px) and (min-height: 600px)'
 export const MOTION_QUERY = '(prefers-reduced-motion: no-preference)'
+/** 換版面時找「正在看的那一塊」：頂端過了頁首線（scroll-padding）幾 px 內都算（WebKit 整數捲動的小數誤差） */
+export const ANCHOR_SLACK = 4
 
 /**
  * 首屏：標題收了多少（t，0→1）與捲動進度（w，0→1）→ 還沒打開多少（qt：標題、q：拱窗；1＝起始、0＝完成）。
@@ -496,10 +498,13 @@ export function createEnvironmentWindows(root: HTMLElement, options: Environment
     stopsTravel = Math.max(1, (el.stopsSec?.offsetHeight ?? 0) - (el.stopsStage?.offsetHeight ?? 0))
     heroLayout(); heartsLayout(); stopsLayout()
   }
-  /** 使用者正在看的那一塊（頂端在頁首以上、最靠下的一塊）與它現在的位置：換版面後把它放回原位 */
+  /** 使用者正在看的那一塊（頂端在頁首以上、最靠下的一塊）與它現在的位置：換版面後把它放回原位。
+   *  判斷線多留 ANCHOR_SLACK：WebKit 的捲動位置只能是整數，章節頂端會帶著小數誤差（實測 #meals 落在 113.4、線在 113），
+   *  只留 1px 時會改挑上一塊（六個空間），換回釘住版面後那一塊長高 751px，正在看的章節就被推走（2026-11-20）。
+   *  每一塊都高好幾百 px，多幾 px 不會挑錯。 */
   function anchor(): { target: Element; top: number } | null {
     let found: { target: Element; top: number } | null = null
-    const edge = Math.max(HH, parseFloat(getComputedStyle(html).scrollPaddingTop) || 0) + 1
+    const edge = Math.max(HH, parseFloat(getComputedStyle(html).scrollPaddingTop) || 0) + ANCHOR_SLACK
     for (const target of $$(':scope > section, .renv-stops-sec')) {
       const top = target.getBoundingClientRect().top
       if (top <= edge) found = { target, top }

@@ -1,4 +1,32 @@
-## 2026-11-20 招生統計區域分析：往下捲時地圖不再壓在頁首與條件列上面（`feature/area-map-stacking-20261120`，未部署）
+## 2026-11-20 環境頁：章節卡只留章名、菜單書夾書籤、一天五餐盤子優先、五校分頁都接得上（PR #115，未部署）
+
+PR #115（11-18）rebase 到 main `bb4a7a47`（接上 11-20 的美術收尾 `b9726e76`）後，使用者 11-20 再指定六處。菜單書與一天五餐比稿兩個方向（私人 Artifact https://claude.ai/artifact/NvhTPbY2W8wZjtDYqfiNQJ ），**兩題都選 A**，比稿參數已移除。規則寫在 DESIGN.md 最上面同日那一節。
+
+- 首屏四張章節卡只留章名，拿掉箭頭與小字，整張卡片仍可跳到該章。
+- 五所校園面板拿掉地址與地圖連結，校名下面直接接角落。
+- **菜單書看得出能點**：封面後面露出一疊白色書頁、右緣夾一張寫當月的索引籤（手機也看得到）；桌機懸停時書浮起、封面從書脊掀開一點，滑到「看 N 月菜單」按鈕時書也一起動。
+- **一天五餐盤子優先**：拿掉盤子上方那排大數字時間，改成掛在盤緣的小牌子；正餐寬欄、水果窄欄；圓點小路照舊穿過盤心。
+- **修正：選第 2～5 校時分頁和面板斷開，只有義華接得上。** `.renv-tour-panel+.renv-tour-panel{margin-top:40px}` 原本寫在 `@media (scripting:none)` 外面，隱藏的面板也算前一個兄弟，打開的面板被推下 40px（分頁與面板從重疊 16px 變成相距 24px）；家長上次選過別校，一進頁就是斷開的。改成只在沒有腳本時才有間距，並補回歸測試。
+- 同一個 PR 原本就有的：戶外廣場拿掉「明華校」膠囊（後台欄位保留）、「看 N 月菜單」按鈕拿掉箭頭（保留另開分頁的報讀提示）。
+- **修正：桌機 Safari 從 `#meals` 進頁、切換減少動態後章節被推走 751px**（PR #115 原本在 WebKit 就會紅，main 不會）。`environment-windows.ts` 的 `anchor()` 判斷「正在看哪一章」只容許頁首線下 1px；WebKit 捲動位置只能是整數，`#meals` 落在 113.4（線在 113），改挑成上一章「六個空間」，換回釘住版面後那章長高 751px。判斷線改成多留 `ANCHOR_SLACK = 4`。PR #115 拿掉章節卡小字後版面剛好帶小數才觸發，main 也有同樣的潛在問題。
+- 測試：`environment-windows-20261117.spec.ts` 補分頁銜接、盤子優先、菜單書、章節判斷容差四條；`:has()` 守門改成也放行「`.renv-meals-top:has(` 開頭、最外層沒有逗號」的獨立規則，`color-mix` 守門改成「每個都包在 `@supports` 裡」；渲染快照更新。
+
+驗證（Node 22.23.2，本機 fixture dev server 3232）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm --prefix web run test:unit` | 167 檔、2,530 項通過 |
+| 後台 `environmentPageView`、`environmentPageDraft`、`pageCopyFields`、`previewProtocol`、`engagement` ＋ `admin typecheck` | 140 項通過、型別通過 |
+| `npx playwright test -c playwright.environment.config.ts`（Chrome／WebKit × 桌機／手機） | 修正前桌機 WebKit「切換減少動態」穩定紅（暫時 worktree 對照：PR #115 原提交紅、origin/main 綠、只套 PR 的元件修改就紅）；修正後 45 過 2 略過 1 紅，紅的是負載 22 時手機 WebKit「五校分頁」，單獨連跑兩次都過 |
+| Playwright 逐校點分頁量分頁底與面板頂（1440、390） | 五校都重疊 16px（修正前第 2～5 校相距 24px） |
+| Playwright 320–1920 十種寬度 | 無橫向捲動、文字不重疊；320 寬索引籤不出畫面 |
+| Playwright 一般動態捲到一天五餐 | 盤子與時間牌一起上桌（縮放），沒有頁面錯誤 |
+| axe（章節卡、餐點、五所校園；1440／390 × 預設／明華／仁武） | 0 違規 |
+
+沒驗：iPhone／Safari 實機、stack e2e。
+
+## 2026-11-20 招生統計區域分析：往下捲時地圖不再壓在頁首與條件列上面（PR #128）
 
 使用者截圖：正式站 `/admin/admissions-stats?sub=area` 往下捲，地圖蓋住頁首（使用小技巧那一列）與黏住的條件列（校區、學年、分頁）。Leaflet 的圖層與控制鈕自帶 z-index 200–1000，地圖外框 `.area-map__frame` 原本只有 `position: relative`，沒有自成一層，這些圖層就直接跟頁首（10）、條件列（5）比。PR #125 讓條件列黏住之後才明顯（頁首本來就黏著，同一個問題早就有，只是蓋到的範圍小）。只動 `admin/` 一行 CSS 與 `tests/stack`，規則寫進 DESIGN.md「招生統計：四類導覽與黏住的條件列」。
 
