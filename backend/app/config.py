@@ -197,6 +197,10 @@ class Settings(BaseSettings):
     line_tag_id: str | None = None
     line_capi_token: str | None = Field(default=None, repr=False)
     line_capi_test: bool = False
+    # 園務系統定期拉官網招生資料用的唯讀同步端點（2026-11-20，docs/specs/2026-11-20-ivy-management-sync-api.md）：
+    # JSON 物件「校區代號 → 金鑰的 SHA-256 十六進位字串（64 個 hex）」，例 {"yihua":"<64 hex>"}。env 只放雜湊、
+    # 不放金鑰明文；沒設或空物件＝功能關閉（路由不掛，404）。啟動時驗證並正規化成小寫 hex；任何錯誤訊息都不帶內容。
+    ivy_sync_key_hashes: str | None = Field(default=None, repr=False)
     # API 內建定期工作（排程發布、補時段、通知、清限流計數）的間隔秒數。
     # 沒設定時 production 每 60 秒一輪，其他環境關閉；設 0 明確關閉。
     background_jobs_interval_seconds: int | None = None
@@ -390,6 +394,36 @@ class Settings(BaseSettings):
             raise ValueError("WEBSITE_GA4_PROPERTY_ID 應為 GA4 資源編號（純數字）")
         return value
 
+    @field_validator("ivy_sync_key_hashes", mode="before")
+    @classmethod
+    def _parse_ivy_sync_key_hashes(cls, value: object) -> str | None:
+        """正規化成排序過的緊湊 JSON（hex 一律小寫）；空白、空物件視為未設定。
+        校區必須是已知校區、值必須是 64 個 hex。訊息一律不帶輸入內容（那是金鑰的雜湊）。"""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if not value.strip():
+                return None
+            try:
+                value = json.loads(value)
+            except ValueError:
+                raise ValueError("WEBSITE_IVY_SYNC_KEY_HASHES 必須是 JSON 物件（校區代號 → SHA-256 十六進位字串）") from None
+        if not isinstance(value, dict):
+            raise ValueError("WEBSITE_IVY_SYNC_KEY_HASHES 必須是 JSON 物件（校區代號 → SHA-256 十六進位字串）")
+        if not value:
+            return None
+        # 延後匯入：app.campuses.models 經 app.db 匯入本模組，頂層匯入會循環。
+        from app.campuses.models import CAMPUS_KEYS
+
+        normalized: dict[str, str] = {}
+        for campus, digest in value.items():
+            if campus not in CAMPUS_KEYS:
+                raise ValueError("WEBSITE_IVY_SYNC_KEY_HASHES 含有不認得的校區代號")
+            if not isinstance(digest, str) or re.fullmatch(r"[0-9a-fA-F]{64}", digest) is None:
+                raise ValueError(f"WEBSITE_IVY_SYNC_KEY_HASHES 的 {campus} 必須是 64 個十六進位字元（金鑰的 SHA-256）")
+            normalized[campus] = digest.lower()
+        return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
+
     @field_validator("facebook_pages")
     @classmethod
     def _parse_facebook_pages(cls, value: str | None) -> str | None:
@@ -554,6 +588,18 @@ class Settings(BaseSettings):
         if not self.facebook_pages:
             return {}
         return dict(pair.split("=", 1) for pair in self.facebook_pages.split(","))
+
+    @property
+    def ivy_sync_hashes(self) -> dict[str, str]:
+        """校區 → 金鑰的 SHA-256（小寫 hex；格式已在 _parse_ivy_sync_key_hashes 驗過）。"""
+        if not self.ivy_sync_key_hashes:
+            return {}
+        return dict(json.loads(self.ivy_sync_key_hashes))
+
+    @property
+    def ivy_sync_enabled(self) -> bool:
+        """園務同步端點有沒有開：至少一個校區設了金鑰雜湊。"""
+        return bool(self.ivy_sync_hashes)
 
     @property
     def turnstile_enabled(self) -> bool:

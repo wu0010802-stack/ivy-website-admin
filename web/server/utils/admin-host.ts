@@ -5,7 +5,7 @@
 // （例如 admin.ivykidschool.com）之後，同一個 web 服務依 Host 分流：
 //
 // - 後台主機：只服務後台頁、草稿預覽與 API；首頁轉 /admin/，其他公開頁 301 回官網。
-// - 其他主機（www）：後台頁與預覽 301 到後台主機；後台與登入 API 一律 404。
+// - 其他主機（www）：後台頁與預覽 301 到後台主機；後台、登入與園務同步（integrations）API 一律 404。
 //   後台 session cookie 是 __Host- 前綴、只屬於後台主機（backend/app/auth/deps.py），
 //   官網頁面上的腳本就算被注入，也拿不到、送不出後台的登入狀態。
 //
@@ -24,8 +24,9 @@ export type AdminHostDecision =
 // Nuxt 路由不分大小寫（/Preview 一樣渲染草稿預覽）、靜態處理器連 ///admin/ 都找得到後台入口，
 // 區分的話這些寫法會被當成公開頁放行。正式網址另由 plugins/url-canonical.ts 301 成單一寫法，這裡是轉址被繞過時的第二道。
 const ADMIN_PAGE = /^\/(?:admin|preview)(?:\/|$)|^\/api\/site-fixture(?:\/|$)/i
-// 只屬於後台的 API（官網主機上一律 404）。
-const ADMIN_API = /^\/api\/website\/v1\/+(?:admin|auth)(?:\/|$)/i
+// 只屬於後台的 API（官網主機上一律 404）。integrations 是園務系統拉招生資料的機器端點（2026-11-20，
+// 金鑰驗證、不用 session）：不屬於公開訪客，園務只該打後台主機，官網主機上一律 404。
+const ADMIN_API = /^\/api\/website\/v1\/+(?:admin|auth|integrations)(?:\/|$)/i
 // 後台主機上照常服務的共用路徑。
 const SHARED = new RegExp([
   '^/_nuxt/',

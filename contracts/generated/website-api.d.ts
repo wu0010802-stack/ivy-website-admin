@@ -3871,6 +3871,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/integrations/ivy-management/leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Leads
+         * @description 一校的 lead 清單（官網預約＋沒有預約的招生訪視），游標分頁，取到 next_cursor 為 null 為止。
+         */
+        get: operations["list_leads_api_website_v1_integrations_ivy_management_leads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/public/analytics-events": {
         parameters: {
             query?: never;
@@ -9212,6 +9232,94 @@ export interface components {
             from_enrolled: number;
             /** Total */
             total: number;
+        };
+        /**
+         * Lead
+         * @description 一個家長報名／訪視（園務系統的招生一筆）。
+         *
+         *     id 規則：官網預約是 `vr:<預約 uuid>`（origin＝visit_request，不論有沒有招生訪視）；沒有預約的招生訪視
+         *     （手動建立，或原預約已刪除）是 `rv:<招生訪視 uuid>`（origin＝manual_visit）。個資欄位在預約或招生訪視任一
+         *     已匿名化（anonymized＝true）時一律是 null。
+         */
+        Lead: {
+            /** Address */
+            address: string | null;
+            /** Anonymized */
+            anonymized: boolean;
+            /** Birthday */
+            birthday: string | null;
+            /** Booking Source */
+            booking_source: string | null;
+            /** Booking Status */
+            booking_status: ("confirmed" | "completed" | "no_show" | "cancelled") | null;
+            /** Child Name */
+            child_name: string | null;
+            /** Contact Name */
+            contact_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deposit Collector */
+            deposit_collector: string | null;
+            /** District */
+            district: string | null;
+            /** Enrolled */
+            enrolled: boolean;
+            /** Grade */
+            grade: string | null;
+            /** Has Deposit */
+            has_deposit: boolean;
+            /** Id */
+            id: string;
+            /** Month */
+            month: string | null;
+            /** Notes */
+            notes: string | null;
+            /**
+             * Origin
+             * @enum {string}
+             */
+            origin: "visit_request" | "manual_visit";
+            /** Parent Response */
+            parent_response: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Recruitment Visit Id */
+            recruitment_visit_id: string | null;
+            /** Referrer */
+            referrer: string | null;
+            /** Source */
+            source: string | null;
+            /** Stage */
+            stage: ("visited" | "deposited" | "enrolled" | "withdrawn") | null;
+            /** Target School Year */
+            target_school_year: number | null;
+            /** Target Semester */
+            target_semester: number | null;
+            /** Transfer Term */
+            transfer_term: boolean;
+            /** Updated At */
+            updated_at: string | null;
+            /** Visit Date */
+            visit_date: string | null;
+            /** Visit Request Id */
+            visit_request_id: string | null;
+        };
+        /** LeadsPage */
+        LeadsPage: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Campus Key */
+            campus_key: string;
+            /** Items */
+            items: components["schemas"]["Lead"][];
+            /** Next Cursor */
+            next_cursor?: string | null;
         };
         /** LeaveRequest */
         LeaveRequest: {
@@ -21077,6 +21185,43 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+        };
+    };
+    list_leads_api_website_v1_integrations_ivy_management_leads_get: {
+        parameters: {
+            query: {
+                /** @description 上一頁回傳的 next_cursor；不透明字串，不要自己組 */
+                cursor?: string | null;
+                limit?: number;
+                /** @description 要拉哪一校的資料（義華 yihua、明華 minghua…） */
+                campus_key: string;
+            };
+            header?: {
+                "X-Ivy-Integration-Key"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LeadsPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

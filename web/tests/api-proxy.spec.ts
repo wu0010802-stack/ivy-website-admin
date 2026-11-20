@@ -301,6 +301,8 @@ describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12
         'idempotency-key': 'key-1',
         'x-ivy-parent': '1',
         'x-ivy-search': '["a"]',
+        // 園務同步端點的機器金鑰（2026-11-20）：靠 x-ivy- 前綴規則轉送，不必進白名單。
+        'x-ivy-integration-key': 'integration-key',
         'x-line-signature': 'sig',
         'x-request-id': 'req-12345678',
         'x-forwarded-for': '6.6.6.6, 203.0.113.9',
@@ -318,7 +320,7 @@ describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12
     expect(response.headers.server).toBeUndefined()
     expect(response.headers['x-request-id']).toBe('abc12345')
     expect(response.headers['set-cookie']).toEqual(['ivy_admin_session=new; HttpOnly'])
-    for (const name of ['content-type', 'cookie', 'origin', 'user-agent', 'sec-fetch-site', 'x-csrf-token', 'idempotency-key', 'x-ivy-parent', 'x-ivy-search', 'x-line-signature', 'x-request-id']) {
+    for (const name of ['content-type', 'cookie', 'origin', 'user-agent', 'sec-fetch-site', 'x-csrf-token', 'idempotency-key', 'x-ivy-parent', 'x-ivy-search', 'x-ivy-integration-key', 'x-line-signature', 'x-request-id']) {
       expect(seen[name], name).toBeDefined()
     }
     expect(seen['x-website-client-ip']).toBe('203.0.113.9')

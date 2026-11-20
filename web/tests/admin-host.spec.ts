@@ -32,7 +32,10 @@ describe('官網主機（www）', () => {
     '/api/website/v1/auth/google/callback?code=x',
     '/api/website/v1//admin/users',
     '/api/website/v1/%61dmin/users',
-  ])('後台與登入 API 一律 404：%s', (url) => {
+    '/api/website/v1/integrations/ivy-management/leads?campus_key=yihua',
+    '/api/website/v1//integrations/ivy-management/leads',
+    '/api/website/v1/%69ntegrations/ivy-management/leads',
+  ])('後台、登入與園務同步 API 一律 404：%s', (url) => {
     expect(decide('www.ivykidschool.com', url, 'POST')).toEqual({ action: 'not-found' })
     expect(decide('www.ivykidschool.com', url, 'GET')).toEqual({ action: 'not-found' })
   })
@@ -49,7 +52,7 @@ describe('官網主機（www）', () => {
 describe('後台主機', () => {
   it.each([
     '/admin/', '/admin/assets/index-abc.js', '/admin/sw.js', '/preview?page=news',
-    '/api/website/v1/admin/users', '/api/website/v1/auth/login', '/api/website/v1/public/media/x/file', '/api/website/v1/line/webhook', '/api/website/v1/health',
+    '/api/website/v1/admin/users', '/api/website/v1/auth/login', '/api/website/v1/integrations/ivy-management/leads?campus_key=yihua', '/api/website/v1/public/media/x/file', '/api/website/v1/line/webhook', '/api/website/v1/health',
     '/api/site-fixture', '/api/published-site', '/api/client-errors', '/_nuxt/entry.js', '/assets/fonts/x.woff2', '/favicon.ico', '/release.json',
   ])('後台、預覽、API 與靜態檔照常：%s', (url) => {
     expect(decide('admin.ivykidschool.com', url)).toEqual({ action: 'pass' })
@@ -124,7 +127,7 @@ describe('多重斜線與大小寫不能繞過分流', () => {
     expect(decide('www.ivykidschool.com', url)).toEqual({ action: 'redirect', location: `https://admin.ivykidschool.com${url}`, status: 301 })
   })
 
-  it.each(['/api//website/v1/admin/users', '/api/website//v1///admin/users', '/API/Website/V1/Admin/users', '/api/website/v1/Auth/login', '//api/website/v1/admin/users'])('官網主機：後台 API %s 一律 404', (url) => {
+  it.each(['/api//website/v1/admin/users', '/api/website//v1///admin/users', '/API/Website/V1/Admin/users', '/api/website/v1/Auth/login', '//api/website/v1/admin/users', '/API/website/v1/Integrations/ivy-management/leads', '/api/website//v1///integrations/ivy-management/leads'])('官網主機：後台 API %s 一律 404', (url) => {
     expect(decide('www.ivykidschool.com', url, 'POST')).toEqual({ action: 'not-found' })
   })
 
