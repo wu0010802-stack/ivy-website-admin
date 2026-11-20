@@ -58,6 +58,11 @@ export function pointRows(data: AreaPoint): PointTableRow[] {
   return LABELS.map((label, index) => ({ label, point: point[index], campus: campus[index] }))
 }
 
+/** 第一欄欄頭：「這一點」那一欄算失敗時註明（同第二欄的寫法）。 */
+export function pointHeader(data: AreaPoint): string {
+  return data.rows.point.unavailable === 'error' ? '這一點（讀取失敗）' : '這一點'
+}
+
 /** 第二欄欄頭：本校沒座標或算失敗時在校名後註明原因。 */
 export function pointCampusHeader(data: AreaPoint, campusName: string): string {
   const row = data.rows.campus
@@ -70,12 +75,12 @@ export function pointCampusHeader(data: AreaPoint, campusName: string): string {
   return campusName
 }
 
-/** 卡片副標：「三民區寶興里・最近的校區 義華 1.8 公里」。 */
+/** 卡片副標：「三民區寶興里・最近的校區 義華 1.8 公里」。校名用 campusLabel（API 的 name 是「義華校」）。 */
 export function pointPlace(data: AreaPoint): string {
   const { district, village } = data.point
   const place = village ? `${district ?? ''}${village}` : '不在任何里界內'
   const near = data.nearest_campus
-  return near ? `${place}・最近的校區 ${near.name} ${formatDistance(near.distance_m).replace(' km', ' 公里').replace(' m', ' 公尺')}` : place
+  return near ? `${place}・最近的校區 ${campusLabel(near.key)} ${formatDistance(near.distance_m).replace(' km', ' 公里').replace(' m', ' 公尺')}` : place
 }
 
 /** 資料來源一行：「人口 115-10・收費 114 學年・實價 115S3（近 4 季）」，缺的那段省略。 */

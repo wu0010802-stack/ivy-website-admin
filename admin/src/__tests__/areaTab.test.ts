@@ -1920,6 +1920,41 @@ describe('區域分析：五校版圖（2026-11-20 規格 §6）', () => {
     expect(rankingItems(wrapper)).toHaveLength(2)
   })
 
+  it('讀取失敗後切走再切回五校版圖：自動重讀；讀到之後再切回來不重讀', async () => {
+    let fail = true
+    const get = mockGet({
+      ...routes(),
+      '/admin/admissions/area/enrolled-overview': () => {
+        if (fail) throw new Error('boom')
+        return areaEnrolledOverview()
+      },
+    })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(overviewCalls(get)).toHaveLength(1)
+    expect(side(wrapper).text()).toContain('無法讀取五校在籍學生，請重新載入。')
+    fail = false
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    await flushPromises()
+    expect(overviewCalls(get)).toHaveLength(2)
+    expect(side(wrapper).text()).not.toContain('無法讀取五校在籍學生')
+    expect(rankingItems(wrapper)).toHaveLength(2)
+    await chooseMode(wrapper, '參觀')
+    await chooseMode(wrapper, '五校版圖')
+    expect(overviewCalls(get)).toHaveLength(2)
+  })
+
+  it.each([
+    ['115-09', '目前沒有兩校以上都在收的里，也沒有孩子多但五校都沒有在籍的里。'],
+    [null, '目前沒有兩校以上都在收的里；各里人口尚未匯入，無法列出孩子多的里。'],
+  ])('兩段排行都空（人口 %s）：右欄寫一句，不畫空的排行', async (population, text) => {
+    mockGet({ ...routes(), '/admin/admissions/area/enrolled-overview': areaEnrolledOverview({ overlap: [], gaps: [], population_version: population }) })
+    const { wrapper } = await mountReady(withView({ map: 'campuses' }))
+    expect(side(wrapper).get('.area-pane__empty').text()).toBe(text)
+    expect(rankingItems(wrapper)).toHaveLength(0)
+    expect(side(wrapper).text()).toContain('已匯入 2 所校，共 65 位在籍學生。')
+  })
+
   it('里卡片的在籍列改列各校人數', async () => {
     const { wrapper } = await mountTab(withView({ map: 'campuses', village: '64000050001' }))
     expect(side(wrapper).text()).toContain('義華 3・明華 2')

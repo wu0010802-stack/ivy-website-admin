@@ -12,7 +12,7 @@ export const pointRow = (changes: Partial<AreaPointRow> = {}): AreaPointRow => (
 export const point = (point: Partial<AreaPointRow> = {}, campus: Partial<AreaPointRow> | null = {}, extra: Partial<AreaPoint> = {}): AreaPoint => ({
   as_of: '2026-11-20T00:00:00Z', radius_km: 3,
   point: { lat: 22.65, lng: 120.31, district: '三民區', village: '寶興里', village_code: '64000050001' },
-  nearest_campus: { key: 'yihua', name: '義華', distance_m: 1800 },
+  nearest_campus: { key: 'yihua', name: '義華校', distance_m: 1800 },  // name 照 API；副標用 campusLabel 的「義華」
   sources: { population_version: '115-10', fee_school_year: 114, housing: { latest: '115S3', seasons: ['a', 'b', 'c', 'd'], note: '' } },
   rows: { point: pointRow(point), campus: campus === null ? null : pointRow(campus) },
   ...extra,

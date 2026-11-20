@@ -39,6 +39,12 @@ describe('PointCard', () => {
     expect(mountCard({ data }).text()).toContain('義華（位置未標示：找不到本校地址）')
   })
 
+  it('這一點那一欄算失敗：欄頭註明「讀取失敗」', () => {
+    const data = point({ unavailable: 'error', enrolled: [] })
+    expect(mountCard({ data }).findAll('thead th').map((th) => th.text())).toContain('這一點（讀取失敗）')
+    expect(mountCard({}).findAll('thead th').map((th) => th.text())).toContain('這一點')
+  })
+
   it('讀取中畫骨架', () => {
     const wrapper = mountCard({ data: null, loading: true })
     expect(wrapper.find('.el-skeleton').exists()).toBe(true)

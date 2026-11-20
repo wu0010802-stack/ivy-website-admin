@@ -345,9 +345,10 @@ export function villageCsvColumns(allChildren: boolean): StatsColumn[] {
     { key: 'income_year', label: '所得年度' },
     { key: 'income_changed', label: '界線在所得年度後調整' },
   )
-  // 房價、月租各多一欄成交筆數（近 4 季，不到 5 筆中位數留白）。
-  columns.splice(at('housing_price_text') + 1, 0, { key: 'housing_price_count', label: '房價成交筆數' })
-  columns.splice(at('housing_rent_text') + 1, 0, { key: 'housing_rent_count', label: '整戶月租筆數' })
+  // 房價、月租各多一欄成交筆數（近 4 季，不到 5 筆中位數留白）；欄名照規格 §7.4，月租中位寫明單位。
+  columns.splice(at('housing_rent_text'), 1, { key: 'housing_rent_text', label: '月租中位數（元）' })
+  columns.splice(at('housing_price_text') + 1, 0, { key: 'housing_price_count', label: '房價筆數' })
+  columns.splice(at('housing_rent_text') + 1, 0, { key: 'housing_rent_count', label: '月租筆數' })
   columns.splice(at('housing_rent_count') + 1, 0, { key: 'housing_seasons', label: '房價租金季別' })
   columns.splice(at('enrolled') + 1, 0, ...ENROLLED_GRADE_ORDER.map((grade): StatsColumn => ({ key: `enrolled:${grade}`, label: `在籍${grade}` })))
   return columns
@@ -473,7 +474,10 @@ function trendsHow(data: AreaTrends | null): string {
     ? `結婚缺 ${sources.marriages.missing.map((month) => populationVersionLabel(month)).join('、')}的資料。`
     : ''
   const income = sources.income.note ? `${sources.income.note}。` : ''
-  const housing = sources.housing.note ? `${sources.housing.note}。` : ''
+  // 房價租金的季別由這裡組（後端的 note 不含季別）；沒匯入不寫。
+  const housing = sources.housing.seasons.length
+    ? `房價、月租：內政部實價登錄近 4 季（${seasonRange(sources.housing.seasons)}），排除親友、特殊關係、預售屋交屋等非一般交易；房價扣除車位。`
+    : ''
   const homes = sources.new_homes.note ? `${sources.new_homes.note}。` : ''
   const presale = sources.presale.note ? `資料來源：${sources.presale.note}（${populationVersionLabel(sources.presale.version!)}版）。` : ''
   const schools = `國小學區依 ${sources.school_districts.school_year} 學年度一覽表，「部分」是只有部分鄰屬於那所國小。`

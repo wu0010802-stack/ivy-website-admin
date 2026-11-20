@@ -1,5 +1,6 @@
 import { areaQuery } from '../../../admissions/areaFilter'
 import { NO_VALUE, formatRate } from '../../../admissions/statsFormat'
+import { campusLabel } from '../../../api/labels'
 import type {
   AdmissionsArea, AreaEnrolled, AreaEnrolledOverview, AreaKindergartens, AreaOpportunity, AreaOpportunityRow, AreaTrends, AreaTrendsVillage,
   EnrolledGrade, VillageBoundaries,
@@ -141,9 +142,11 @@ export function outsideRadiusText(centroidDistanceM: number, radiusKm: RadiusKm)
 const factRow = (label: string, value: string, detail?: string, tone?: 'up' | 'down'): FactRow => ({
   label, value, ...(detail ? { detail } : {}), ...(tone ? { tone } : {}),
 })
-/** 房價／月租列：有中位數才帶單位與「近 4 季 N 筆」；沒有（不到 5 筆）寫「—」。 */
-const housingRow = (label: string, median: number | null, count: number, text: (m: number | null, c: number) => string, unit: string): FactRow =>
-  median === null ? factRow(label, NO_VALUE) : factRow(label, `${text(median, count)} ${unit}`, `近 4 季 ${formatCount(count)} 筆`)
+/** 房價／月租列：有中位數才帶單位與「近 4 季 N 筆」；沒有中位數（不到 5 筆）寫「—（N 筆）」，一筆都沒有寫「—」（同地點卡片）。 */
+const housingRow = (label: string, median: number | null, count: number, text: (m: number | null, c: number) => string, unit: string): FactRow => {
+  if (median !== null) return factRow(label, `${text(median, count)} ${unit}`, `近 4 季 ${formatCount(count)} 筆`)
+  return factRow(label, count > 0 ? `${NO_VALUE}（${formatCount(count)} 筆）` : NO_VALUE)
+}
 const toneOf = (value: number | null | undefined): 'up' | 'down' | undefined => (!value ? undefined : value > 0 ? 'up' : 'down')
 const countText = (value: number | null | undefined, unit: string): string =>
   value === null || value === undefined ? NO_VALUE : `${formatCount(value)} ${unit}`
@@ -262,8 +265,7 @@ function enrolledRow(enrolled: AreaEnrolled, code: string, district: string, vil
 /** 五校版圖的在籍一列：各校人數（只列 > 0，「義華 3・明華 2」），小字寫合計；這個里沒有人寫 0 位。 */
 function campusesRow(overview: AreaEnrolledOverview, code: string): FactRow {
   const match = overview.villages.find((item) => item.village_code === code)
-  const names = new Map(overview.campuses.map((item) => [item.key, item.name]))
-  const text = match ? campusCountsText(match.counts, (key) => names.get(key) ?? key, overview.campuses.map((item) => item.key)) : ''
+  const text = match ? campusCountsText(match.counts, campusLabel, overview.campuses.map((item) => item.key)) : ''
   return text ? factRow('在籍', text, `共 ${formatCount(match!.total)} 位`) : factRow('在籍', '0 位')
 }
 

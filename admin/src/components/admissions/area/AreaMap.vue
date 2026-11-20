@@ -16,6 +16,7 @@ import {
 import { campusClass, overlayLegend, overlayLevel } from './campusOverlay'
 import type { ChildrenShade } from './childrenHistory'
 import { round4 } from '../../../admissions/areaView'
+import { campusLabel } from '../../../api/labels'
 
 // 區域分析的地圖（2026-10-08 規格 9.3）：國土測繪電子地圖當底圖，里界依參觀人數分 5 級著色，
 // 標出本校、半徑虛線圓與附近幼兒園。Leaflet 的 fillColor 寫不了 CSS 變數，所以圖形只掛 class，
@@ -575,8 +576,7 @@ function syncEnrolledLayer() {
 function campusPopup(key: string, count: number): HTMLElement {
   const root = document.createElement('div')
   root.className = 'area-popup'
-  const name = props.overview?.campuses.find((item) => item.key === key)?.name ?? key
-  root.append(popupLine(`${name} ${formatCount(count)} 位`))
+  root.append(popupLine(`${campusLabel(key)} ${formatCount(count)} 位`))
   return root
 }
 
@@ -600,8 +600,8 @@ function drawCampusLayer() {
     group.addLayer(
       L.marker([item.lat, item.lng], {
         icon: L.divIcon({ className: `area-campus-star area-campus-star--${item.key}`, html: STAR_SVG, iconSize: [20, 20], iconAnchor: [10, 10] }),
-        title: item.name,
-        alt: item.name,
+        title: campusLabel(item.key),
+        alt: campusLabel(item.key),
         keyboard: false,
         zIndexOffset: 900,
       }),

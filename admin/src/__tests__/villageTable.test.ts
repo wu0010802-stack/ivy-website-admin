@@ -295,7 +295,7 @@ describe('各里表：在建預售（2026-10-20 P10）', () => {
 describe('各里表的 CSV', () => {
   const HEADER = [
     '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
+    '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價筆數', '月租中位數（元）', '月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
     '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
   ]
 
@@ -520,7 +520,7 @@ describe('AreaVillageTable', () => {
 
 const HEADER_LINE = [
   '#', '里', '里代碼', '距本校', '2–5 歲', '0–1 歲', '這一年淨增', '一年前 1–4 歲', '孩子增減', '近 12 個月出生', '近 12 個月結婚（對）', '近 12 個月淨遷入',
-  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價成交筆數', '整戶月租中位', '整戶月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
+  '近 4 季新屋', '最近一季新屋', '在建預售（戶）', '所得中位數（千元）', '所得年度', '界線在所得年度後調整', '房價中位（萬／坪）', '房價筆數', '月租中位數（元）', '月租筆數', '房價租金季別', '國小學區', '在籍', '在籍幼幼班',
   '在籍小班', '在籍中班', '在籍大班', '在籍其他', '參觀人數', '參觀率', '照附近應有', '判讀',
 ].join(',')
 
@@ -618,12 +618,19 @@ describe('各里表的房價與月租', () => {
     expect(rowOf(rows, '三民區鼎金里')).toMatchObject({ housing_price_text: '—', housing_rent_text: '—' })
     const columns = villageCsvColumns(true)
     const cell = (label: string) => villageCsvCell(row, columns.find((c) => c.label === label)!)
-    expect([cell('房價中位（萬／坪）'), cell('房價成交筆數'), cell('整戶月租中位'), cell('整戶月租筆數')]).toEqual([38.6, 6, 18500, 9])
+    // CSV 欄名照規格 §7.4：房價中位（萬／坪）、房價筆數、月租中位數（元）、月租筆數、房價租金季別。
+    const labels = columns.map((c) => c.label)
+    const start = labels.indexOf('房價中位（萬／坪）')
+    expect(labels.slice(start, start + 5)).toEqual(['房價中位（萬／坪）', '房價筆數', '月租中位數（元）', '月租筆數', '房價租金季別'])
+    expect([cell('房價中位（萬／坪）'), cell('房價筆數'), cell('月租中位數（元）'), cell('月租筆數')]).toEqual([38.6, 6, 18500, 9])
     const empty = rowOf(rows, '三民區鼎金里')
     expect(villageCsvCell(empty, columns.find((c) => c.label === '房價中位（萬／坪）')!)).toBe('')
   })
   it('說明：有出處才顯示', () => {
-    expect(villageHowText(withHousing(), areaOpportunity())).toContain('近 4 季買賣')
+    // 季別由前端從 sources.housing.seasons 組（seasonRange），後端的 note 不照引。
+    const text = villageHowText(withHousing(), areaOpportunity())
+    expect(text).toContain('房價、月租：內政部實價登錄近 4 季（114S4–115S3），排除親友、特殊關係、預售屋交屋等非一般交易；房價扣除車位。')
+    expect(text).not.toContain('近 4 季買賣')
     expect(villageHowText(areaTrends(), areaOpportunity())).not.toContain('房價')
   })
 })
@@ -638,7 +645,7 @@ describe('CSV 房價租金季別欄', () => {
   }
   it('欄在四個房價租金欄之後；寫季別範圍', () => {
     const { labels, value } = seasonsOf(['114S4', '115S1', '115S2', '115S3'])
-    expect(labels.indexOf('房價租金季別')).toBe(labels.indexOf('整戶月租筆數') + 1)
+    expect(labels.indexOf('房價租金季別')).toBe(labels.indexOf('月租筆數') + 1)
     expect(value).toBe('114S4–115S3')
     expect(seasonsOf(['115S3']).value).toBe('115S3')
   })

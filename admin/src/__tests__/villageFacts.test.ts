@@ -472,4 +472,16 @@ describe('里卡片的房價與整戶月租', () => {
     expect(detail(f.kids, '整戶月租中位')).toBe('近 4 季 9 筆')
     expect(f.kids.rows.map((r) => r.label).slice(-3, -1)).toEqual(['房價中位', '整戶月租中位'])
   })
+  it('不到 5 筆（中位數 null）：寫「—（N 筆）」、沒有 detail；0 筆只寫「—」（同地點卡片）', () => {
+    const base = areaTrends()
+    const trends = areaTrends({
+      villages: base.villages.map((row, i) => (i === 0
+        ? { ...row, housing_sale_median: null, housing_sale_count: 3, housing_rent_median: null, housing_rent_count: 0 }
+        : row)),
+    })
+    const f = villageFacts('64000050015', sources({ trends }))!
+    expect(value(f.kids, '房價中位')).toBe('—（3 筆）')
+    expect(detail(f.kids, '房價中位')).toBeUndefined()
+    expect(value(f.kids, '整戶月租中位')).toBe('—')
+  })
 })

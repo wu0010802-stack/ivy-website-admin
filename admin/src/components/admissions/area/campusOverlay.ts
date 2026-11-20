@@ -1,9 +1,10 @@
+import { campusLabel } from '../../../api/labels'
 import type { AreaEnrolledOverview } from '../../../api/types'
 import { formatCount } from './areaFormat'
 import type { RankingItem, RankingSection } from './areaPane'
 
 // 區域分析「五校版圖」模式（2026-11-20 規格 §6）：各校在籍學生的點、依「幾校有在籍」給里著色、右欄兩段排行與圖例。
-// 純函式，不碰 Vue／Leaflet／API；只用各校各格各里的人數，不碰個別學生。
+// 純函式，不碰 Vue／Leaflet／API；只用各校各格各里的人數，不碰個別學生。校名一律 campusLabel（「義華」），不用 API 的 name（「義華校」）。
 
 type Counts = Record<string, number>
 
@@ -64,14 +65,22 @@ export interface OverlayLegendItem {
 export function overlayLegend(overview: AreaEnrolledOverview): OverlayLegendItem[] {
   return overview.campuses.map((item) => ({
     key: item.key,
-    label: item.name,
+    label: campusLabel(item.key),
     count: item.imported ? `${formatCount(item.total)} 位` : '尚未匯入',
     imported: item.imported,
   }))
 }
 
+/** 兩段排行都空時右欄的那一句（有段就回空字串）；各里人口沒匯入時列不出「孩子多」那段，照實寫原因。 */
+export function overlayEmpty(overview: AreaEnrolledOverview): string {
+  if (overview.overlap.length || overview.gaps.length) return ''
+  return overview.population_version
+    ? '目前沒有兩校以上都在收的里，也沒有孩子多但五校都沒有在籍的里。'
+    : '目前沒有兩校以上都在收的里；各里人口尚未匯入，無法列出孩子多的里。'
+}
+
 /** 標題下一句；全都沒匯入時這句也是停用這個模式的原因。 */
 export function overlayNote(overview: AreaEnrolledOverview): string {
-  const names = overview.campuses.filter((item) => item.imported).map((item) => item.name)
+  const names = overview.campuses.filter((item) => item.imported).map((item) => campusLabel(item.key))
   return names.length ? `只算已匯入清冊的校：${names.join('、')}` : '還沒有任何校區匯入在籍清冊'
 }

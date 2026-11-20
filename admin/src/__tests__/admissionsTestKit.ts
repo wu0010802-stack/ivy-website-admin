@@ -512,9 +512,10 @@ export function areaEnrolledOverview(changes: Partial<AreaEnrolledOverview> = {}
   })
   return {
     campuses: [
-      campus('yihua', '義華', { imported: true, roster_date: '2026-10-15', total: 40, placed: 38, lat: 22.642, lng: 120.344 }),
-      campus('minghua', '明華', { imported: true, roster_date: '2026-10-16', total: 25, placed: 24, lat: 22.61, lng: 120.31 }),
-      campus('chongde', '崇德'), campus('international', '國際'), campus('renwu', '仁武', { lat: 22.7, lng: 120.35 }),
+      // name 照 API（Campus.name「義華校」）；畫面要用 campusLabel 的「義華」。
+      campus('yihua', '義華校', { imported: true, roster_date: '2026-10-15', total: 40, placed: 38, lat: 22.642, lng: 120.344 }),
+      campus('minghua', '明華校', { imported: true, roster_date: '2026-10-16', total: 25, placed: 24, lat: 22.61, lng: 120.31 }),
+      campus('chongde', '崇德校'), campus('international', '國際校'), campus('renwu', '仁武校', { lat: 22.7, lng: 120.35 }),
     ],
     points: [
       { lat: 22.642, lng: 120.344, campus_key: 'yihua', count: 3 },

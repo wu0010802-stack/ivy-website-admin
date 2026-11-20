@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AreaPoint } from '../api/types'
-import { pointCampusHeader, pointFootnotes, pointPlace, pointRows, pointSources } from '../components/admissions/area/pointFormat'
+import { pointCampusHeader, pointFootnotes, pointHeader, pointPlace, pointRows, pointSources } from '../components/admissions/area/pointFormat'
 
 import { point } from './pointTestKit'
 const cell = (data: AreaPoint, label: string) => pointRows(data).find((row) => row.label === label)!
@@ -38,6 +38,13 @@ describe('pointFormat', () => {
     expect(pointRows(data).every((row) => row.campus === '—')).toBe(true)
     expect(pointCampusHeader(data, '義華')).toBe('義華（位置未標示：門牌資料尚未匯入）')
     expect(pointCampusHeader(point(), '義華')).toBe('義華')
+  })
+
+  it('這一點那一欄算失敗：欄頭「這一點（讀取失敗）」、格子全「—」；正常是「這一點」', () => {
+    const data = point({ unavailable: 'error', children: null, enrolled: [] })
+    expect(pointHeader(data)).toBe('這一點（讀取失敗）')
+    expect(pointRows(data).every((row) => row.point === '—')).toBe(true)
+    expect(pointHeader(point())).toBe('這一點')
   })
 
   it('沒給校區時第二欄也是「—」', () => {

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, useId } from 'vue'
 import type { AreaPoint } from '../../../api/types'
-import { pointCampusHeader, pointFootnotes, pointPlace, pointRows, pointSources } from './pointFormat'
+import { pointCampusHeader, pointFootnotes, pointHeader, pointPlace, pointRows, pointSources } from './pointFormat'
 
 // 區域分析右欄的地點卡片（2026-11-20 規格 §5.1）：這一點與頁首選的校區並排。資料文字全由 pointFormat 組好，
 // 這裡只畫：讀取中骨架、失敗寫原因加重試、成功畫兩欄表與註腳。關閉叫「清除」（拿掉圖釘）。
@@ -18,6 +18,7 @@ defineExpose({ focusTitle })
 const ready = computed(() => (props.loading || props.failed ? null : props.data))
 const rows = computed(() => (ready.value ? pointRows(ready.value) : []))
 const hasCampus = computed(() => ready.value?.rows.campus != null)
+const pointColumnHeader = computed(() => (ready.value ? pointHeader(ready.value) : '這一點'))
 const campusHeader = computed(() => (ready.value ? pointCampusHeader(ready.value, props.campusName) : props.campusName))
 const notes = computed(() => (ready.value ? pointFootnotes(ready.value) : []))
 </script>
@@ -42,7 +43,7 @@ const notes = computed(() => (ready.value ? pointFootnotes(ready.value) : []))
         <thead>
           <tr>
             <th scope="col"><span class="visually-hidden">項目</span></th>
-            <th scope="col" class="num">這一點</th>
+            <th scope="col" class="num">{{ pointColumnHeader }}</th>
             <th v-if="hasCampus" scope="col" class="num">{{ campusHeader }}</th>
           </tr>
         </thead>

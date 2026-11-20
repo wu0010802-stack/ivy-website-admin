@@ -9,7 +9,7 @@ import {
   trendsPlaceName, trendsSummary, type GradeFilter, type RadiusKm,
 } from './areaFormat'
 import { campusLabel } from '../../../api/labels'
-import { overlayNote, overlaySections } from './campusOverlay'
+import { overlayEmpty, overlayNote, overlaySections } from './campusOverlay'
 import { childrenStops, stopKey, yearChangeText, type YearStop } from './childrenHistory'
 import { feeLagNote, peerSummaryText } from './peerFeesFormat'
 import { featureCode, findFeature } from './villageFacts'
@@ -296,6 +296,7 @@ export function paneHead(mode: MapMode, data: PaneData): PaneHead {
         ...head,
         lines: [`已匯入 ${imported.length} 所校，共 ${formatCount(total)} 位在籍學生${overlap}。`],
         note: overlayNote(overview),
+        empty: overlayEmpty(overview),
       }
     }
     case 'children': {

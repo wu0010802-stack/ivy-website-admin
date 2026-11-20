@@ -549,4 +549,11 @@ describe('右欄：五校版圖（2026-11-20 規格 §6）', () => {
     })
     expect(paneHead('campuses', data())).toEqual({ title: '五校版圖', lines: [], note: '', empty: '' })
   })
+
+  it('兩段排行都空：empty 是一句話（人口沒匯入照實寫原因）；有一段就不寫', () => {
+    const empty = (changes: Parameters<typeof areaEnrolledOverview>[0]) => paneHead('campuses', data({ overview: areaEnrolledOverview(changes) })).empty
+    expect(empty({ overlap: [], gaps: [] })).toBe('目前沒有兩校以上都在收的里，也沒有孩子多但五校都沒有在籍的里。')
+    expect(empty({ overlap: [], gaps: [], population_version: null })).toBe('目前沒有兩校以上都在收的里；各里人口尚未匯入，無法列出孩子多的里。')
+    expect(empty({ overlap: [] })).toBe('')
+  })
 })

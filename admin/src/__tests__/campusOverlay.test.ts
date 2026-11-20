@@ -6,8 +6,9 @@ import type { AreaEnrolledOverview } from '../api/types'
 const NAMES: Record<string, string> = { yihua: '義華', minghua: '明華', chongde: '崇德', international: '國際', renwu: '仁武' }
 const name = (key: string) => NAMES[key] ?? key
 
+// API 的 name 是「義華校」（Campus.name）；畫面一律用 campusLabel 的「義華」，圖例與說明不能照搬 name。
 const campus = (key: string, changes: Partial<AreaEnrolledOverview['campuses'][number]> = {}) => ({
-  key, name: name(key), imported: false, roster_date: null, total: 0, placed: 0, lat: 22.64, lng: 120.3, ...changes,
+  key, name: `${name(key)}校`, imported: false, roster_date: null, total: 0, placed: 0, lat: 22.64, lng: 120.3, ...changes,
 })
 const overview = (changes: Partial<AreaEnrolledOverview> = {}): AreaEnrolledOverview => ({
   campuses: [

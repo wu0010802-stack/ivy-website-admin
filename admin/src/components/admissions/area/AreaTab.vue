@@ -307,15 +307,20 @@ const enrolledNote = computed(() => enrolledMapNote(enrolled.value, enrolledFail
 const overview = ref<AreaEnrolledOverview | null>(null)
 const overviewFailed = ref(false)
 const overviewRequests = useRequestSequence()
+// 讀取中：再進模式不重發（不需要畫面跟著變，用一般變數）。
+let overviewPending = false
 async function loadOverview() {
   const request = overviewRequests.begin()
   overview.value = null
   overviewFailed.value = false
+  overviewPending = true
   try {
     const result = await getAreaEnrolledOverview()
     if (overviewRequests.isCurrent(request)) overview.value = result
   } catch {
     if (overviewRequests.isCurrent(request)) overviewFailed.value = true
+  } finally {
+    if (overviewRequests.isCurrent(request)) overviewPending = false
   }
 }
 const campusesNote = computed(() =>
@@ -335,7 +340,8 @@ const notes = computed<ModeNotes>(() => ({
 }))
 const mapMode = computed(() => resolveMapMode(view.value.map, notes.value))
 watch(mapMode, (mode) => {
-  if (mode === 'campuses' && !overview.value && !overviewFailed.value) void loadOverview()
+  // 還沒讀過、或上次讀取失敗（overview 是 null、不在讀取中）就讀；讀到了不重讀。
+  if (mode === 'campuses' && !overview.value && !overviewPending) void loadOverview()
 }, { immediate: true })
 
 // ---- 2–5 歲孩子的年份滑桿（2026-11-16 規格 §5.3）----
