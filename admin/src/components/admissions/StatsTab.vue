@@ -269,12 +269,33 @@ const GRADE_COLUMNS: StatsColumn[] = [
   { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range', rangeOf: 'visit_to_deposit_rate' },
 ]
 const SOURCE_COLUMNS: StatsColumn[] = [
-  { key: 'source', label: '來源', sticky: true },
+  { key: 'source', label: '來源', sticky: true, noteKey: 'variants_note' },
   { key: 'visit', label: '參觀人數', kind: 'bar' },
   { key: 'deposit', label: '預繳人數', kind: 'count' },
   { key: 'visit_to_deposit_rate', label: '預繳率', kind: 'rate' },
   { key: 'visit_to_deposit_range', label: '可能範圍', kind: 'range', rangeOf: 'visit_to_deposit_rate' },
 ]
+// 來源是自由文字，「FB」「Facebook」「臉書」會拆成三列（園務也是）。「合併相近寫法」（2026-11-20）打開時改用後端合好的
+// by_source_merged：筆數、預繳率、可能範圍都是後端用合併後的筆數算的（前端不重算比率），名稱是那一組筆數最多的寫法，
+// 併進來的其他寫法寫在名稱下面。只影響這張表的顯示與它的匯出（多一欄「包含的寫法」、檔名註明），資料與其他統計不變。
+// 預設關（原文分組，同園務）；這是畫面狀態，不進網址。
+const mergeSources = ref(false)
+const mergeableSources = computed(() => (stats.value ? stats.value.by_source.length - stats.value.by_source_merged.length : 0))
+const sourceRows = computed(() => {
+  if (!stats.value) return []
+  if (!mergeSources.value) return stats.value.by_source
+  return stats.value.by_source_merged.map((row) => ({
+    ...row,
+    variants_note: row.variants.length ? `含 ${row.variants.join('、')}` : '',
+    variants_csv: row.variants.join('、'),
+  }))
+})
+const SOURCE_MERGED_CSV_COLUMNS: StatsColumn[] = [...SOURCE_COLUMNS, { key: 'variants_csv', label: '包含的寫法' }]
+// 換校區或學期後沒有可合併的寫法：開關收回去，免得停在一個按不掉的狀態。
+watch(mergeableSources, (count) => {
+  if (count === 0) mergeSources.value = false
+})
+
 // 接待人員＝帶參觀老師（2026-10-06 起，原本看介紹者欄；和園務分歧）。一筆有多位老師時每位各算一次。
 const STAFF_COLUMNS: StatsColumn[] = [
   { key: 'tour_guide', label: '接待人員', sticky: true },
@@ -510,18 +531,26 @@ function openWithdrawRecords(row: { code: string }) {
       <div v-if="visited.has('source') && stats" v-show="sub === 'source'" id="stats-pane-source" role="tabpanel" aria-labelledby="stats-tab-source" tabindex="0" class="stats-pane">
         <StatsDimensionTable
           title="來源排名明細"
-          :export-filename="csvName('來源排名明細')"
-          :rows="stats.by_source"
+          :export-filename="csvName(mergeSources ? '來源排名明細（合併相近寫法）' : '來源排名明細')"
+          :rows="sourceRows"
           :columns="SOURCE_COLUMNS"
+          :csv-columns="mergeSources ? SOURCE_MERGED_CSV_COLUMNS : undefined"
           row-key="source"
           numbered
           empty-text="此區間尚無來源資料"
-          caption="依家長填的來源原文分組，寫法不同會分開算（例如「FB」和「臉書」）。"
+          :caption="mergeSources ? '相近的寫法合成一列，名稱用筆數最多的那個寫法；資料本身沒有改。' : '依家長填的來源原文分組，寫法不同會分開算（例如「FB」和「臉書」）。'"
           sortable
           compact
           :average="stats.kpi.visit_to_deposit_rate"
           :pin-last="UNFILLED_LABEL"
-        />
+        >
+          <template v-if="stats.by_source.length" #intro>
+            <div class="source-merge" data-test="source-merge">
+              <el-checkbox v-model="mergeSources" :disabled="mergeableSources === 0">合併相近寫法</el-checkbox>
+              <span class="hint">{{ mergeableSources ? `有 ${mergeableSources} 個寫法可以併進別列` : '目前沒有相近的寫法' }}</span>
+            </div>
+          </template>
+        </StatsDimensionTable>
       </div>
 
       <div v-if="visited.has('staff') && stats" v-show="sub === 'staff'" id="stats-pane-staff" role="tabpanel" aria-labelledby="stats-tab-staff" tabindex="0" class="stats-pane">
@@ -849,6 +878,14 @@ function openWithdrawRecords(row: { code: string }) {
   display: grid;
   gap: 24px;
   min-width: 0;
+}
+
+.source-merge {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 12px;
+  margin: -6px 0 2px;
 }
 
 .nodeposit-summary {

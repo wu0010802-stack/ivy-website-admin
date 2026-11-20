@@ -4803,6 +4803,23 @@ export interface components {
             /** Low */
             low: number;
         };
+        /**
+         * AdmissionsSourceMergedRow
+         * @description 相近寫法合成一列的來源（2026-11-20）：source 是這一組參觀最多的寫法，variants 是併進來的其他寫法。
+         */
+        AdmissionsSourceMergedRow: {
+            /** Deposit */
+            deposit: number;
+            /** Source */
+            source: string;
+            /** Variants */
+            variants: string[];
+            /** Visit */
+            visit: number;
+            visit_to_deposit_range: components["schemas"]["AdmissionsRateRange"] | null;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
+        };
         /** AdmissionsSourceRow */
         AdmissionsSourceRow: {
             /** Deposit */
@@ -4928,6 +4945,8 @@ export interface components {
             by_grade: components["schemas"]["AdmissionsGradeRow"][];
             /** By Source */
             by_source: components["schemas"]["AdmissionsSourceRow"][];
+            /** By Source Merged */
+            by_source_merged: components["schemas"]["AdmissionsSourceMergedRow"][];
             /** By Tour Guide */
             by_tour_guide: components["schemas"]["AdmissionsTourGuideRow"][];
             /** By Year */

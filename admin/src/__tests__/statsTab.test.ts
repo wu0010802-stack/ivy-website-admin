@@ -115,6 +115,13 @@ function stats(changes: Partial<AdmissionsStats> = {}): AdmissionsStats {
       { source: 'Google 評論', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
       { source: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 } },
     ],
+    // 這批來源沒有相近寫法：合併後和原文一樣，只多空的 variants。
+    by_source_merged: [
+      { source: 'Facebook', visit: 5, deposit: 4, visit_to_deposit_rate: 80, visit_to_deposit_range: { low: 46.9, high: 78.4 }, variants: [] },
+      { source: '親友介紹', visit: 2, deposit: 1, visit_to_deposit_rate: 50, visit_to_deposit_range: { low: 35.5, high: 71.8 }, variants: [] },
+      { source: 'Google 評論', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 }, variants: [] },
+      { source: '未填寫', visit: 1, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: { low: 30.6, high: 68.6 }, variants: [] },
+    ],
     top_source_names: ['Facebook', '親友介紹', 'Google 評論', '未填寫'],
     by_tour_guide: [
       { tour_guide: '林老師', visit: 5, deposit: 3, visit_to_deposit_rate: 60, visit_to_deposit_range: { low: 40, high: 72.4 }, by_grade: { 小班: { visit: 5, deposit: 3 } } },
@@ -161,7 +168,7 @@ function emptyStats(): AdmissionsStats {
       visit_to_deposit_rate: rateDiff(null, null, null), visit_to_enrolled_rate: rateDiff(null, null, null),
       deposit_to_enrolled_rate: rateDiff(null, null, null), effective_to_enrolled_rate: rateDiff(null, null, null),
     },
-    alerts: [], top_action_queue: [], monthly: [], by_year: [], by_grade: [], month_grade: {}, by_source: [],
+    alerts: [], top_action_queue: [], monthly: [], by_year: [], by_grade: [], month_grade: {}, by_source: [], by_source_merged: [],
     top_source_names: [], by_tour_guide: [], tour_guide_source_cross: { tour_guides: [], sources: [] }, no_deposit_reasons: [],
     no_deposit_total: 0, no_deposit_priority: { high: 0, medium: 0, low: 0, other: 0 },
     no_deposit_summary: { high_potential_count: 0, overdue_followup_count: 0, cold_count: 0, high_potential_backlog_count: 0 },
@@ -506,6 +513,91 @@ describe('統計分頁：其他子分頁（表頭照園務原文）', () => {
     expect(pane.get('.stats-bar__fill').attributes('style')).toContain('width: 100%')
   })
 
+  // 合併相近寫法（2026-11-20）：後端回 by_source_merged（筆數、預繳率、可能範圍都用合併後的筆數算），前端只切換顯示。
+  const range = (low: number, high: number) => ({ low, high })
+  const splitSources = {
+    by_source: [
+      { source: '親友介紹', visit: 41, deposit: 31, visit_to_deposit_rate: 75.6, visit_to_deposit_range: range(63, 80) },
+      { source: 'Facebook', visit: 33, deposit: 18, visit_to_deposit_rate: 54.5, visit_to_deposit_range: range(45, 65) },
+      { source: 'FB', visit: 9, deposit: 5, visit_to_deposit_rate: 55.6, visit_to_deposit_range: range(40, 70) },
+      { source: '臉書', visit: 6, deposit: 3, visit_to_deposit_rate: 50, visit_to_deposit_range: range(37, 69) },
+      { source: '未填寫', visit: 3, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: range(25, 60) },
+    ],
+    by_source_merged: [
+      { source: 'Facebook', visit: 48, deposit: 26, visit_to_deposit_rate: 54.2, visit_to_deposit_range: range(46, 63), variants: ['FB', '臉書'] },
+      { source: '親友介紹', visit: 41, deposit: 31, visit_to_deposit_rate: 75.6, visit_to_deposit_range: range(63, 80), variants: [] },
+      { source: '未填寫', visit: 3, deposit: 0, visit_to_deposit_rate: 0, visit_to_deposit_range: range(25, 60), variants: [] },
+    ],
+  }
+
+  it('來源分析「合併相近寫法」：預設關（原文分組）；打開改用後端合好的列，名稱下寫併進來的寫法，說明跟著換', async () => {
+    mockGet({ '/admin/admissions/stats': stats(splitSources) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '來源分析')
+    const table = () => block(pane, '來源排名明細')
+    const toggle = pane.get('[data-test="source-merge"]')
+
+    expect(toggle.text()).toContain('合併相近寫法')
+    expect(toggle.text()).toContain('有 2 個寫法可以併進別列')
+    expect(bodyRows(table()).map((row) => row[1])).toEqual(['親友介紹', 'Facebook', 'FB', '臉書', '未填寫'])
+    expect(table().text()).toContain('寫法不同會分開算')
+    expect(table().find('.stats-table__note').exists()).toBe(false)
+
+    await toggle.get('input').setValue(true)
+    await flushPromises()
+    // 數字是後端給的，不是前端把三列加起來再除。
+    expect(bodyRows(table())).toEqual([
+      ['1', 'Facebook含 FB、臉書', '48', '26', '54.2%', '46–63%'],
+      ['2', '親友介紹', '41', '31', '75.6%', '63–80%'],
+      ['', '未填寫', '3', '0', '0.0%', '25–60%'],
+    ])
+    expect(table().findAll('.stats-table__note').map((note) => note.text())).toEqual(['含 FB、臉書'])
+    expect(table().text()).toContain('相近的寫法合成一列')
+    expect(table().text()).not.toContain('寫法不同會分開算')
+
+    await toggle.get('input').setValue(false)
+    await flushPromises()
+    expect(bodyRows(table())).toHaveLength(5)
+  })
+
+  it('來源分析「合併相近寫法」：沒有相近寫法時開關停用並寫明；沒有來源資料時不出現', async () => {
+    mockGet({ '/admin/admissions/stats': stats() })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '來源分析')
+    const toggle = pane.get('[data-test="source-merge"]')
+    expect(toggle.text()).toContain('目前沒有相近的寫法')
+    expect(toggle.get('input').attributes('disabled')).toBeDefined()
+    cleanup()
+
+    mockGet({ '/admin/admissions/stats': stats({ by_source: [], by_source_merged: [] }) })
+    const empty = await mountWith(StatsTab, { props: props() })
+    expect((await openSubTab(empty.wrapper, '來源分析')).find('[data-test="source-merge"]').exists()).toBe(false)
+  })
+
+  it('來源分析「合併相近寫法」的匯出：合併時檔名註明、多一欄「包含的寫法」；沒合併時照舊', async () => {
+    mockGet({ '/admin/admissions/stats': stats(splitSources) })
+    const { wrapper } = await mountWith(StatsTab, { props: props() })
+    const pane = await openSubTab(wrapper, '來源分析')
+    const exportButton = () => block(pane, '來源排名明細').get('[data-test="stats-csv"]')
+
+    await exportButton().trigger('click')
+    const [plainName, plainCsv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(plainName).toContain('來源排名明細-')
+    expect(plainName).not.toContain('合併相近寫法')
+    expect(String(plainCsv).split('\r\n')[0]).not.toContain('包含的寫法')
+
+    await pane.get('[data-test="source-merge"] input').setValue(true)
+    await flushPromises()
+    await exportButton().trigger('click')
+    const [mergedName, mergedCsv] = vi.mocked(downloadCsv).mock.calls.at(-1)!
+    expect(mergedName).toContain('來源排名明細（合併相近寫法）-')
+    const lines = String(mergedCsv).split('\r\n')
+    expect(lines[0]).toContain('包含的寫法')
+    expect(lines[1]).toContain('Facebook')
+    expect(lines[1]).toContain('FB、臉書')
+    vi.mocked(downloadCsv).mockClear()
+  })
+
   it('接待分析：接待人員（帶參觀老師）統計、× 各年級、× 來源', async () => {
     mockGet({ '/admin/admissions/stats': stats() })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
@@ -793,7 +885,7 @@ describe('統計表匯出 CSV（2026-10-03）', () => {
   })
 
   it('沒有資料的表不顯示匯出鈕', async () => {
-    mockGet({ '/admin/admissions/stats': stats({ by_source: [] }) })
+    mockGet({ '/admin/admissions/stats': stats({ by_source: [], by_source_merged: [] }) })
     const { wrapper } = await mountWith(StatsTab, { props: props() })
     const pane = await openSubTab(wrapper, '來源分析')
     expect(block(pane, '來源排名明細').find('[data-test="stats-csv"]').exists()).toBe(false)

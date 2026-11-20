@@ -113,6 +113,7 @@ uv run python scripts/export_ivy_recruitment.py --campus yihua=1 --campus renwu=
     - 班別、來源、帶參觀老師、行政區、里、距離帶、五校比較每列多 `visit_to_deposit_range`：Beta 收縮（事前強度 10、全體 (預繳+1)/(參觀+2)）的 80% 範圍。
     - 算法集中在 `backend/app/admissions/estimation.py`（只用標準函式庫），併入時由園務決定要不要跟進。
 20. 退出原因分類（2026-10-15，`docs/specs/2026-10-15-withdraw-reason-category-design.md`）：退預繳、退註冊時必選八項之一、說明選填；園務是必填的自由文字。官網的取消註冊（已註冊往回退）照舊必填文字。`/stats` 多 `withdraw_reasons`（分退預繳、退註冊，「未分類」＝改版前退出）與 `withdraw_total`。
+21. 來源的相近寫法（2026-11-20）：`/stats` 新增 `by_source_merged`，把「FB」「Facebook」「臉書」這類寫法合成一列（`source` 是那一組參觀最多的寫法，`variants` 是併進來的其他寫法），筆數、預繳率、可能範圍用合併後的筆數算。讀取時計算，不改 `recruitment_visits.source` 的原文、不改匯出；`by_source`（園務的原文分組）照舊。比對規則在 `backend/app/admissions/source_alias.py`（只用標準函式庫），併入時由園務決定要不要跟進。
 
 ## 漂移檢查（手動，不進 CI）
 
