@@ -7,6 +7,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './filters'
+import { formatCount } from './format'
 
 // 搜尋引擎與 AI 爬蟲抓了哪些頁（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §7）：看 GEO（被 AI 助理引用）
 // 與 SEO 的能見度。官網伺服器看 User-Agent 記，自稱的、沒有反查，數字當參考。
@@ -67,7 +68,7 @@ function exportCsv() {
       <p v-else-if="!groups.length" class="hint" data-test="crawlers-empty">這段期間還沒有記到爬蟲。</p>
       <template v-else>
         <p class="crawlers__lede" data-test="crawlers-lede">
-          {{ period }}，爬蟲來抓官網 <strong class="num">{{ data!.hits }}</strong> 次，其中 AI 相關 <strong class="num">{{ aiHits }}</strong> 次<template v-if="aiUserHits">（有人在 AI 助理裡問到、它當下來讀的 <strong class="num">{{ aiUserHits }}</strong> 次）</template>。
+          {{ period }}，爬蟲來抓官網 <strong class="num">{{ formatCount(data!.hits) }}</strong> 次，其中 AI 相關 <strong class="num">{{ formatCount(aiHits) }}</strong> 次<template v-if="aiUserHits">（有人在 AI 助理裡問到、它當下來讀的 <strong class="num">{{ formatCount(aiUserHits) }}</strong> 次）</template>。
         </p>
         <div class="crawlers__scroll" role="region" tabindex="0" aria-label="各爬蟲抓了什麼（可左右捲動）">
           <table class="crawlers__table" data-test="crawlers-table">
@@ -83,15 +84,15 @@ function exportCsv() {
             <tbody v-for="group in groups" :key="group.group">
               <tr class="crawlers__group">
                 <th scope="colgroup" colspan="5">
-                  {{ CRAWLER_GROUP_LABELS[group.group].label }}<span class="num crawlers__group-hits">{{ group.hits }} 次</span>
+                  {{ CRAWLER_GROUP_LABELS[group.group].label }}<span class="num crawlers__group-hits">{{ formatCount(group.hits) }} 次</span>
                   <span class="hint crawlers__sub">{{ CRAWLER_GROUP_LABELS[group.group].hint }}</span>
                 </th>
               </tr>
               <tr v-for="bot in group.bots" :key="bot.bot" :data-test="`crawler-${bot.bot}`">
                 <th scope="row">{{ CRAWLER_LABELS[bot.bot] ?? bot.bot }}</th>
-                <td class="num">{{ bot.hits }}</td>
+                <td class="num">{{ formatCount(bot.hits) }}</td>
                 <td class="crawlers__pages">{{ topPages(bot) }}</td>
-                <td class="num">{{ bot.errors || '' }}</td>
+                <td class="num">{{ bot.errors ? formatCount(bot.errors) : '' }}</td>
                 <td class="num">{{ bot.last_day.slice(5).replace('-', '/') }}</td>
               </tr>
             </tbody>

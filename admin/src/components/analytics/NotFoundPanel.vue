@@ -5,6 +5,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './filters'
+import { formatCount } from './format'
 import RowsToggle from './RowsToggle.vue'
 
 // 找不到的網址（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §4）：訪客與搜尋引擎落在哪些不存在的網址，
@@ -71,7 +72,7 @@ function exportCsv() {
       <p v-else-if="!paths.length" class="hint" data-test="not-found-empty">這段期間沒有人或搜尋引擎打開不存在的網址。</p>
       <template v-else>
         <p class="not-found__lede" data-test="not-found-lede">
-          {{ period }}，訪客打開不存在的網址 <strong class="num">{{ visitorTotal }}</strong> 次，搜尋引擎與 AI 爬蟲另外抓到 <strong class="num">{{ crawlerTotal }}</strong> 次，共 {{ data!.paths_total }} 個網址。
+          {{ period }}，訪客打開不存在的網址 <strong class="num">{{ formatCount(visitorTotal) }}</strong> 次，搜尋引擎與 AI 爬蟲另外抓到 <strong class="num">{{ formatCount(crawlerTotal) }}</strong> 次，共 {{ formatCount(data!.paths_total) }} 個網址。
         </p>
         <div class="not-found__scroll" role="region" tabindex="0" aria-label="找不到的網址（可左右捲動）">
           <table class="not-found__table" data-test="not-found-paths">
@@ -87,9 +88,9 @@ function exportCsv() {
             <tbody>
               <tr v-for="row in shown" :key="row.path">
                 <th scope="row" class="not-found__path">{{ row.path }}</th>
-                <td class="num">{{ row.visitor_hits }}</td>
+                <td class="num">{{ formatCount(row.visitor_hits) }}</td>
                 <td class="not-found__refs">{{ refText(row.refs) || '—' }}</td>
-                <td class="num">{{ crawlerHits(row.refs) }}</td>
+                <td class="num">{{ formatCount(crawlerHits(row.refs)) }}</td>
                 <td class="num">{{ row.last_day.slice(5).replace('-', '/') }}</td>
               </tr>
             </tbody>
@@ -147,7 +148,10 @@ function exportCsv() {
   font-weight: 500;
 }
 
+/* min-width：手機上其他欄都不換行，沒有下限的話網址會被擠成三個字一行（「/po／st/2／023…」七行）；
+   留 11 個字寬，放不下就讓整張表左右捲（2026-11-20 可讀性）。 */
 .not-found__path {
+  min-width: 11em;
   max-width: 28em;
   overflow-wrap: anywhere;
   white-space: normal !important;

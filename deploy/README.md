@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台成效統計第四輪：可讀性（PR #130，已部署 main `19a52c2b`）
+
+[PR #130](https://github.com/wu0010802-stack/ivy-website-admin/pull/130)（feature `cdf5be3e`）PR 組 CI 全綠（含 E2E），Codex 自動審查沒有意見。等 CI 期間 main 併入 #129（成效統計補強七項）造成三處衝突（`README.md`、`DESIGN.md`、`SearchInsightsPanel.vue`），把 main 併進分支（`bf6d3a51`，兩邊內容都保留）後 PR 組 CI 重跑全綠（含 E2E）才合併。使用者要求合併；以 merge commit `19a52c2b` 併入 main，[main CI/CD 44715558517](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44715558517) 成功，台灣時間 18:17 完成。
+
+- 只動 admin（`ContentInterestPanel.vue`、`SiteTrafficPanel.vue`、`CruxPanel.vue`、`SearchInsightsPanel.vue`、`LineInsightsPanel.vue`、`analytics/DailyBars.vue`，新增 `analytics/CountNote.vue`、`analytics/format.ts`）＋四個測試檔＋README／DESIGN.md。沒有 API、契約、migration、Railway 環境變數變更。`DailyBars` 是共用元件，招生統計「預約成效」的每日圖一起變。
+- 部署後唯讀檢查（只發 GET、不登入）：正式 `/release.json` 的 base_commit 為 `19a52c2b53927201d85abd2a33c356e39de7a882`，snapshot `f3a5fc430c77e25ada11ec214ae5d15d8fca9b5f1459f87f106ab0116d9461ca`；線上 `AnalyticsView-CKYXx3UI.js`／`AnalyticsView-C4Pw9Vba.css` 有 `count-note`、`interest__label-part`、`crux__dist`、`line-insights__tables`、`interest-pages-records`，`DailyBars-uJo-F_UF.js` 有 `daily-bars__month`。
+- 沒驗：登入後正式資料下的實際畫面（手機的各頁停留小卡、回訪表轉向、時段表七段、每日直條日期）、Safari 與手機實機。
+
 ## 2026-11-20 招生統計區域分析：往下捲時地圖不再壓在頁首與條件列上面（PR #128，已部署 main `2b088671`）
 
 [PR #128](https://github.com/wu0010802-stack/ivy-website-admin/pull/128)（feature `9970e442`，併入 main 的 #115 與部署紀錄後為 `39e85222`）PR 組 CI 全綠（含 E2E）；推送組兩次被 concurrency 取消、重跑通過。等 #115 的 main run 44697755455 部署完才合併，沒有取代別人的 run。以 merge commit `2b088671` 併入 main，[main CI/CD 44703921774](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44703921774) 全部成功（web、admin、後端三組、E2E、Deploy）。
