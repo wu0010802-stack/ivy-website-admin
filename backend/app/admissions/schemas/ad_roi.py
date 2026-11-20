@@ -65,6 +65,11 @@ class AdRoiRowOut(BaseModel):
     completed: int
     no_show: int
     deposited: int
+    # 助攻（touch=last）／收尾（touch=first）：另一次進站是這個平台的廣告、但歸屬給別的來源的案件，與其中到場、預繳。
+    # 不分攤花費、不算進成本（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §1）。
+    assist_cases: int
+    assist_completed: int
+    assist_deposited: int
     cost_per_case: int | None
     cost_per_completed: int | None
     cost_per_deposit: int | None
@@ -95,3 +100,34 @@ class AdRoiOut(BaseModel):
     rows: list[AdRoiRowOut]
     pending: AdRoiPendingOut
     by_campus: list[AdRoiCampusOut]
+
+
+class AdConversionEventOut(BaseModel):
+    event: Literal["visit_attended", "deposit_paid"]
+    pending: int
+    sent: int
+    failed: int
+    skipped: int
+
+
+class AdConversionPlatformOut(BaseModel):
+    platform: Literal["ga4", "meta", "openai", "line"]
+    # 正式站有沒有設好這個平台的伺服器端金鑰（沒設就不會記識別碼，也不會排入）。
+    configured: bool
+    events: list[AdConversionEventOut]
+    last_sent_at: datetime | None
+    # 最近一筆失敗或略過的原因（HTTP 狀態與平台錯誤摘要，或 expired／no_identifier／anonymized／not_configured）；不含個資。
+    last_problem: str | None
+    last_problem_at: datetime | None
+    # 期間內送出的官網預約，帶到這個平台識別碼的件數。
+    cases_with_ids: int
+
+
+class AdConversionStatusOut(BaseModel):
+    """回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）。"""
+
+    as_of: datetime
+    days: int
+    # 期間內送出的官網預約（排除測試／重複），識別碼覆蓋率的分母。
+    cases: int
+    platforms: list[AdConversionPlatformOut]

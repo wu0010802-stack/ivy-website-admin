@@ -243,7 +243,9 @@ async def test_unknown_platform_and_direct_fallback(admin_client, public_client,
     last = _rows(await _get(admin_client, touch="last"))
     assert (last["unknown"]["cases"], last["organic"]["cases"], last["openai"]["cases"]) == (1, 1, 1)
     first = _rows(await _get(admin_client, touch="first"))
-    assert (first["unknown"]["cases"], first["organic"]["cases"], first.get("openai")) == (1, 1, None)
+    # 第一次口徑下 openai 沒有歸屬的案件；那筆最後一次是 openai 廣告，列成「收尾」（2026-11-19）。
+    assert (first["unknown"]["cases"], first["organic"]["cases"]) == (1, 1)
+    assert (first["openai"]["cases"], first["openai"]["assist_cases"]) == (0, 1)
     assert first["unrecorded"]["cases"] == 1
 
 
@@ -251,7 +253,9 @@ async def test_ads_touch_wins_over_ignored_platform_when_fallback(admin_client, 
     # 沒有最後點擊來源、只有第一次是廣告：算 direct → organic，不是廣告
     await _case(admin_client, public_client, db_session, first_touch_source="ads", first_touch_ad_platform="meta", last_touch_source=None, last_touch_ad_platform="meta")
     rows = _rows(await _get(admin_client, touch="last"))
-    assert rows["organic"]["cases"] == 1 and "meta" not in rows
+    assert rows["organic"]["cases"] == 1
+    # meta 沒有歸屬的案件，只列成助攻（2026-11-19，不算進預約與成本）。
+    assert (rows["meta"]["cases"], rows["meta"]["assist_cases"], rows["meta"]["cost_per_case"]) == (0, 1, None)
 
 
 async def test_google_error_is_reported(admin_client, public_client, db_session, google):

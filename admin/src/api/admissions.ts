@@ -4,7 +4,7 @@
 import { api } from './client'
 import { searchHeaders } from './searchHeader'
 import type {
-  AdRoi, AdSpendEntry, AdSpendList, AdSpendPlatform, AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaCompare, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
+  AdConversionStatus, AdRoi, AdSpendEntry, AdSpendList, AdSpendPlatform, AdmissionsArea, AdmissionsCompare, AdmissionsJourney, AdmissionsOptions, AdmissionsStaff, AdmissionsStats, AreaBabycare, AreaChanges, AreaChildrenHistory, AreaCompare, AreaEnrolled, AreaKindergartenRecords, AreaKindergartens, AreaOpportunity, AreaPeerFees, AreaPresale, AreaTrends, ContactLog, ContactLogCreate,
   ContactLogResult, EnrolledApplyResult, EnrolledClearResult, EnrolledImportPayload, EnrolledPreview, EnrolledPreviewRequest, EnrollmentHistoryPayload,
   FollowUpUpdate, FunnelBoard, HistoryApplyResult, HistoryPreview, HistoryPreviewRequest, ImportStatus, NoDepositRecords, Potential, RecruitmentEvent, RecruitmentVisit,
   RecruitmentVisitCreate, RecruitmentVisitUpdate, SeatRequest, SeatResult, TransitionRequest, VillageBoundaries,
@@ -303,6 +303,11 @@ export function applyHistoryImport(campusKey: string, payload: EnrollmentHistory
 // 廣告成效（2026-11-16）：from／to 是 YYYY-MM；花費每月每平台一筆手填（Google 花費由後端讀 GA4）。
 export function getAdRoi(from: string, to: string, touch: 'last' | 'first'): Promise<AdRoi> {
   return api.get<AdRoi>(`/admin/admissions/ad-roi?${toQuery({ from, to, touch })}`)
+}
+
+// 回傳廣告平台的狀態（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §8）：近 N 天。
+export function getAdConversionStatus(days = 30): Promise<AdConversionStatus> {
+  return api.get<AdConversionStatus>(`/admin/admissions/ad-conversions?${toQuery({ days })}`)
 }
 
 export function listAdSpend(from: string, to: string): Promise<AdSpendList> {

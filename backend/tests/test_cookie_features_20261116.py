@@ -414,3 +414,30 @@ async def test_last_touch_falls_back_to_direct(admin_client, public_client, db_s
     await book_slot(admin_client, public_client)
     last = (await admin_client.get(f"{API}/admin/analytics/booking-attribution", params={"touch": "last"})).json()
     assert [row["source"] for row in last["rows"]] == ["direct"]
+
+
+@pytest.mark.asyncio
+async def test_decision_delay_uses_taipei_booking_day_and_keeps_missing_data(admin_client, db_session):
+    from tests.analytics_fixtures import add_case, taipei
+    from datetime import date
+
+    booking_day = date(2026, 11, 18)
+    for gap in (0, 1, 3, 4, 7, 8, -1, None):
+        key = await add_case(db_session, created_at=taipei(booking_day, 0, 5), status="cancelled")
+        if gap is not None:
+            await db_session.execute(update(VisitRequest).where(VisitRequest.id == key).values(
+                first_touch_source="facebook", first_touch_on=booking_day - timedelta(days=gap),
+                last_touch_source="search",
+            ))
+    await db_session.commit()
+    response = await admin_client.get(f"{API}/admin/analytics/booking-attribution", params={
+        "campus_key": "yihua", "from": booking_day.isoformat(), "to": booking_day.isoformat(),
+    })
+    assert response.status_code == 200, response.text
+    report = response.json()
+    assert report["delays"] == {
+        "same_day": 1, "days_1_3": 2, "days_4_7": 2, "days_8_30": 1, "days_31_plus": 0, "unrecorded": 2,
+    }
+    assert [(row["first"], row["last"], row["cases"]) for row in report["source_paths"]] == [
+        ("facebook", "search", 7), ("unrecorded", "unrecorded", 1),
+    ]

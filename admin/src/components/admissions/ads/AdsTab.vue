@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import AdConversionStatus from './AdConversionStatus.vue'
 import AdSpendDialog from './AdSpendDialog.vue'
 import { deleteAdSpend, getAdRoi, listAdSpend } from '../../../api/admissions'
 import { apiErrorMessage } from '../../../api/errors'
@@ -70,6 +71,18 @@ const zoneNote = computed(() => googleZoneNote(data.value?.google.time_zone ?? n
 const anyPartial = computed(() => data.value?.rows.some((row) => row.cost_partial) ?? false)
 const showCurrency = computed(() => !!currency.value && currency.value !== 'TWD')
 const count = (value: number | null) => (value === null ? NO_VALUE : formatCount(value))
+
+// 助攻／收尾（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §1）：另一次進站是這個平台的廣告、
+// 但這筆歸給別的來源。只有廣告列有意義；寫「預約 / 到場 / 預繳」。不分攤花費、不算進成本。
+const AD_KEYS = new Set(['google', 'openai', 'meta', 'line', 'other', 'unknown'])
+const assistLabel = computed(() => (touch.value === 'last' ? '助攻' : '收尾'))
+const assistNote = computed(() => (touch.value === 'last'
+  ? '助攻：第一次由這個平台的廣告帶進站，但預約前最後一次是別的來源（例如之後自己搜尋回來）的預約／到場／預繳；不算進上面的預約與成本。'
+  : '收尾：預約前最後一次是點這個平台的廣告進來，但第一次是從別的來源認識的預約／到場／預繳；不算進上面的預約與成本。'))
+function assistText(row: AdRoi['rows'][number]) {
+  if (!AD_KEYS.has(row.key)) return NO_VALUE
+  return row.assist_cases ? `${formatCount(row.assist_cases)} / ${formatCount(row.assist_completed)} / ${formatCount(row.assist_deposited)}` : '0'
+}
 
 // 各校表：平台 × 校，每格「預約 / 到場 / 預繳」；沒有資料的格子是破折號。
 const CAMPUS_ORDER = ['yihua', 'minghua', 'chongde', 'international', 'renwu']
@@ -142,6 +155,7 @@ async function remove(entry: AdSpendEntry) {
               <th scope="col">預約</th>
               <th scope="col">到場</th>
               <th scope="col">預繳</th>
+              <th scope="col">{{ assistLabel }}</th>
               <th scope="col">每筆預約</th>
               <th scope="col">每位到場</th>
               <th scope="col">每位預繳</th>
@@ -155,6 +169,7 @@ async function remove(entry: AdSpendEntry) {
               <td class="num">{{ formatCount(row.cases) }}</td>
               <td class="num">{{ formatCount(row.completed) }}</td>
               <td class="num">{{ formatCount(row.deposited) }}</td>
+              <td class="num" data-test="ads-assist">{{ assistText(row) }}</td>
               <td class="num">{{ costCellText(row.cost_per_case, row.cost_partial) }}</td>
               <td class="num">{{ costCellText(row.cost_per_completed, row.cost_partial) }}</td>
               <td class="num">{{ costCellText(row.cost_per_deposit, row.cost_partial) }}</td>
@@ -166,6 +181,7 @@ async function remove(entry: AdSpendEntry) {
       <p v-if="pending" class="ads-note ads-pending">{{ pending }}</p>
       <p v-if="!data.google.configured" class="hint ads-note">Google 花費尚未設定。</p>
       <p v-else-if="data.google.error" class="hint ads-note">Google 花費讀取失敗：{{ data.google.error }}</p>
+      <p class="hint ads-note">{{ assistNote }}</p>
       <p class="hint ads-note">預約含之後取消的。沒有計入：開了「不要追蹤」的訪客、看到廣告後直接來電或到校的家長。</p>
       <p class="hint ads-note">Google 花費約晚一天。<template v-if="showCurrency">Google 花費以 {{ currency }} 計。</template></p>
       <p v-if="zoneNote" class="hint ads-note ads-zone">{{ zoneNote }}</p>
@@ -217,6 +233,8 @@ async function remove(entry: AdSpendEntry) {
           </table>
         </div>
       </section>
+
+      <AdConversionStatus :active="loadedOnce" />
 
       <section class="ads-block ads-spend" aria-label="每月花費">
         <div class="ads-spend__head">

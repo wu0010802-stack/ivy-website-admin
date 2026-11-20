@@ -1,4 +1,4 @@
-import { publicPage, type PublicPage } from './telemetry'
+import { campusKeys, publicPage, type PublicPage } from './telemetry'
 
 // 內容興趣統計（2026-11-11）：一次頁面瀏覽的停留、捲動、各區塊停留與互動次數。
 // 只送代碼與數字：不帶網址、query、來源網址或任何家長資料。規則要和後端
@@ -13,6 +13,13 @@ export type AdPlatform = (typeof AD_PLATFORMS)[number]
 
 export const ENGAGEMENT_MAX_ACTIVE_MS = 1_800_000
 export const ENGAGEMENT_MAX_KEYS = 24
+export const CAMPUS_TRACKING = 'campus_tracking'
+export const SLOTS_AVAILABLE = 'form_slots_available'
+export const CONTACT_AFTER_EMPTY = 'contact_after_empty'
+export const CAMPUS_ACTIONS = new Set([
+  CAMPUS_TRACKING, SLOTS_AVAILABLE, CONTACT_AFTER_EMPTY, 'form_no_slots', 'booking_done',
+  ...campusKeys.flatMap((key) => [`contact_phone_${key}`, `contact_line_${key}`])
+])
 export const ENGAGEMENT_MAX_SEQ = 500
 /** 區塊與互動代碼：小寫英數、底線、連字號與冒號，最長 48 字（冒號給各校消息的代號用，例如 sn_yihua:open-day）。 */
 export const ENGAGEMENT_KEY = /^[a-z0-9][a-z0-9_:-]{0,47}$/
@@ -33,6 +40,9 @@ export type EngagementEvent = PublicPage & {
   /** 最新消息內文頁的消息代號 */
   item?: string
   source: EngagementSource
+  returning?: boolean
+  /** 造訪開始時 ivy_campus 記住的校區（2026-11-19 §7） */
+  pref?: string
   active_ms: number
   scroll: number
   sections: Record<string, number>
@@ -54,17 +64,17 @@ export function newsItemOf(path: string): string | undefined {
   return ITEM.test(id) ? id : undefined
 }
 
-function isCounts(value: unknown, min: number, max: number): value is Record<string, number> {
+function isCounts(value: unknown, min: number, max: number, reserved?: Set<string>): value is Record<string, number> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   const entries = Object.entries(value)
-  return entries.length <= ENGAGEMENT_MAX_KEYS
+  return entries.filter(([key]) => !reserved?.has(key)).length <= ENGAGEMENT_MAX_KEYS
     && entries.every(([key, count]) => ENGAGEMENT_KEY.test(key) && Number.isInteger(count) && count >= min && count <= max)
 }
 
 export function validateEngagement(input: unknown): EngagementEvent | null {
   if (!input || typeof input !== 'object' || Array.isArray(input)) return null
   const item = input as Record<string, unknown>
-  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign', 'rev']
+  const allowed = ['event', 'id', 'session', 'page', 'campus', 'device', 'item', 'source', 'active_ms', 'scroll', 'sections', 'actions', 'seq', 'campaign', 'rev', 'returning', 'pref']
   if (item.event !== 'engagement' || Object.keys(item).some((key) => !allowed.includes(key))) return null
   if (typeof item.id !== 'string' || !UUID.test(item.id) || typeof item.session !== 'string' || !UUID.test(item.session)) return null
   if (typeof item.page !== 'string' || !['mobile', 'desktop'].includes(item.device as string)) return null
@@ -73,10 +83,12 @@ export function validateEngagement(input: unknown): EngagementEvent | null {
   const page = publicPage(path)
   if (!page || page.page !== item.page || page.campus !== item.campus) return null
   if (item.item !== undefined && (typeof item.item !== 'string' || !ITEM.test(item.item) || item.page !== 'news')) return null
+  if (item.returning !== undefined && typeof item.returning !== 'boolean') return null
+  if (item.pref !== undefined && !campusKeys.some((key) => key === item.pref)) return null
   if (!ENGAGEMENT_SOURCES.some((source) => source === item.source)) return null
   if (!Number.isInteger(item.active_ms) || (item.active_ms as number) < 0 || (item.active_ms as number) > ENGAGEMENT_MAX_ACTIVE_MS) return null
   if (!Number.isInteger(item.scroll) || (item.scroll as number) < 0 || (item.scroll as number) > 100) return null
-  if (!isCounts(item.sections, 0, ENGAGEMENT_MAX_ACTIVE_MS) || !isCounts(item.actions, 1, 99)) return null
+  if (!isCounts(item.sections, 0, ENGAGEMENT_MAX_ACTIVE_MS) || !isCounts(item.actions, 1, 99, CAMPUS_ACTIONS)) return null
   if (item.seq !== undefined && (!Number.isInteger(item.seq) || (item.seq as number) < 1 || (item.seq as number) > ENGAGEMENT_MAX_SEQ)) return null
   if (item.campaign !== undefined && (typeof item.campaign !== 'string' || !ENGAGEMENT_CAMPAIGN.test(item.campaign))) return null
   if (item.rev !== undefined && (!Number.isInteger(item.rev) || (item.rev as number) < 1 || (item.rev as number) > ENGAGEMENT_MAX_REV)) return null

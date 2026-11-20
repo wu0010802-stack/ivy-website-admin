@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
+import { taipeiToday } from '../admissions/academic'
+import { addDays } from '../utils/visitSchedule'
 import ContentInterestPanel from '../components/ContentInterestPanel.vue'
 import CruxPanel from '../components/CruxPanel.vue'
 import LineInsightsPanel from '../components/LineInsightsPanel.vue'
@@ -38,6 +41,10 @@ function queryChoice<T extends string | number>(name: string, allowed: readonly 
 
 const tab = queryChoice<AnalyticsTab>('tab', ANALYTICS_TABS.map((item) => item.key), DEFAULT_ANALYTICS_TAB)
 const days = queryChoice<AnalyticsDays>('days', ANALYTICS_DAY_OPTIONS.map((item) => item.value), DEFAULT_ANALYTICS_DAYS)
+const bookingRange = computed(() => {
+  const to = taipeiToday()
+  return { from: addDays(to, 1 - days.value), to }
+})
 const device = queryChoice<AnalyticsDevice>('device', ANALYTICS_DEVICE_OPTIONS.map((item) => item.value), DEFAULT_ANALYTICS_DEVICE)
 
 // 後三類共用同一個內容興趣面板（同一份資料）。兩個面板一進頁就各自讀好，換分類只是切換顯示；
@@ -99,6 +106,8 @@ const statusText = computed(() => {
     <SiteTrafficPanel v-show="!onInterest" :days="days" @updating="updating.traffic = $event" />
     <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
     <ContentInterestPanel v-show="onInterest" :days="days" :device="device" :view="interestView" @updating="updating.interest = $event" />
+    <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange"
+      :period-label="`${bookingRange.from}–${bookingRange.to}`" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
     <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
     <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />

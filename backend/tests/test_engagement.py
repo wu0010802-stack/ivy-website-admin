@@ -379,3 +379,93 @@ async def test_polaroid_actions_carry_published_card_labels(admin_client, public
     labels = {row["key"]: row["label"] for row in body["actions"]}
     # 下架的卡、非拍立得的互動沒有名稱，後台照舊用內建對照。
     assert labels == {"polaroid_moment-1793877225050": "戶外寫生", "polaroid_gone": None, "campus_yihua": None}
+
+
+@pytest.mark.asyncio
+async def test_campus_destinations_follow_contacted_school_and_action_order(admin_client, minghua_client, public_client, db_session):
+    from app.operations.models import (
+        ENGAGEMENT_BOOKED_ACTION, ENGAGEMENT_CAMPUS_TRACKING, ENGAGEMENT_CONTACT_AFTER_EMPTY,
+        ENGAGEMENT_FORM_AVAILABLE, ENGAGEMENT_FORM_NO_SLOTS,
+    )
+
+    # 舊版也有「沒有場次」「預約成功」，但沒有完整去向；不能拿來補成 0 或混進新版比較。
+    assert (await public_client.post(URL, json=_visit(
+        page="visit", campus="renwu", actions={"booking_done": 1, "form_no_slots": 1}
+    ))).status_code == 204
+    legacy = (await admin_client.get(f"{ADMIN_URL}?days=7")).json()["campus_destinations"]
+    assert legacy == {"tracked_visits": 0, "first_day": None, "rows": []}
+
+    a, b, c, d = [str(uuid.uuid4()) for _ in range(4)]
+
+    def visit(session, seq, campus, *actions, device="mobile"):
+        return _visit(
+            session=session, seq=seq, page="visit" if campus else "home", campus=campus,
+            device=device, actions=dict.fromkeys((ENGAGEMENT_CAMPUS_TRACKING, *actions), 1),
+        )
+
+    older = visit(d, 1, "renwu", ENGAGEMENT_FORM_NO_SLOTS)
+    events = [
+        # 同次造訪先看義華無場次，在另一頁先後點兩校；再進義華看到有場次、完成線上預約。
+        visit(a, 3, "yihua", ENGAGEMENT_FORM_AVAILABLE, ENGAGEMENT_BOOKED_ACTION),
+        visit(a, 2, None, "contact_phone_yihua", "contact_line_renwu"),
+        visit(a, 1, "yihua", ENGAGEMENT_FORM_NO_SLOTS),
+        visit(a, 4, "yihua", ENGAGEMENT_FORM_AVAILABLE, "contact_phone_yihua"),
+        # 聯絡明華在先，不算無場次後聯絡；同頁先打電話再看到無場次也不算。
+        visit(b, 1, None, "contact_phone_minghua"),
+        visit(b, 2, "minghua", ENGAGEMENT_FORM_NO_SLOTS, "contact_phone_minghua"),
+        # 同一頁先看無場次再點兩種聯絡，合計一次；別的校區未曾看到無場次。
+        visit(c, 1, "minghua", ENGAGEMENT_FORM_NO_SLOTS, ENGAGEMENT_CONTACT_AFTER_EMPTY,
+              "contact_phone_minghua", "contact_line_minghua", "contact_line_chongde", device="desktop"),
+        # 超出期間的無場次不能把本期的聯絡也算成「先無場次」，即使是同次造訪。
+        older, visit(d, 2, None, "contact_phone_renwu"),
+    ]
+    for event in events:
+        assert (await public_client.post(URL, json=event)).status_code == 204
+    await db_session.execute(text("UPDATE engagement_visits SET day = :day WHERE id = :id"), {
+        "day": today_local() - timedelta(days=10), "id": uuid.UUID(older["id"]),
+    })
+    await db_session.commit()
+
+    body = (await minghua_client.get(f"{ADMIN_URL}?days=7")).json()
+    report = body["campus_destinations"]
+    assert report["tracked_visits"] == len(events) - 1
+    assert report["first_day"] == today_local().isoformat()
+    rows = {row["campus_key"]: row for row in report["rows"]}
+    assert list(rows) == ["yihua", "minghua", "chongde", "international", "renwu"]
+    # 校區帳號沒有招生統計權限：「完成線上預約」比照各校實際預約數，一律 None（2026-11-19 審核修正）。
+    assert {row["booked"] for row in rows.values()} == {None}
+    full = {row["campus_key"]: row for row in (await admin_client.get(f"{ADMIN_URL}?days=7")).json()["campus_destinations"]["rows"]}
+    assert full["yihua"] == {"campus_key": "yihua", "available": 1, "empty": 1, "phone": 1, "line": 0,
+                             "booked": 1, "contact_after_empty": 1}
+    assert full["minghua"] == {"campus_key": "minghua", "available": 0, "empty": 2, "phone": 2, "line": 1,
+                               "booked": 0, "contact_after_empty": 1}
+    assert {key: value for key, value in rows["yihua"].items() if key != "booked"} == {
+        key: value for key, value in full["yihua"].items() if key != "booked"
+    }
+    assert rows["chongde"]["line"] == 1 and rows["chongde"]["contact_after_empty"] == 0
+    assert rows["renwu"]["line"] == rows["renwu"]["phone"] == 1 and rows["renwu"]["contact_after_empty"] == 0
+    assert full["international"]["booked"] == rows["international"]["empty"] == 0
+    assert not body["actions"]
+
+    mobile = (await admin_client.get(f"{ADMIN_URL}?days=7&device=mobile")).json()["campus_destinations"]
+    assert mobile["tracked_visits"] == report["tracked_visits"] - 1
+    assert next(row for row in mobile["rows"] if row["campus_key"] == "minghua")["contact_after_empty"] == 0
+    desktop = (await admin_client.get(f"{ADMIN_URL}?days=7&device=desktop")).json()["campus_destinations"]
+    assert desktop["tracked_visits"] == 1
+
+
+@pytest.mark.asyncio
+async def test_returning_compares_distinct_visits_and_unknowns(admin_client, public_client):
+    first = _visit(returning=False, actions={"campus_yihua": 2})
+    repeat = _visit(page="visit", campus="yihua", returning=True, actions={"contact_phone_yihua": 1})
+    for payload in (first, repeat, {**repeat, "id": str(uuid.uuid4())}, _visit(device="desktop")):
+        assert (await public_client.post(URL, json=payload)).status_code == 204
+    response = await admin_client.get(ADMIN_URL)
+    assert response.status_code == 200, response.text
+    assert response.json()["cohorts"] == [
+        {"returning": False, "sessions": 1, "campus_sessions": 1, "contact_sessions": 0, "visit_sessions": 0},
+        {"returning": True, "sessions": 1, "campus_sessions": 1, "contact_sessions": 1, "visit_sessions": 1},
+        {"returning": None, "sessions": 1, "campus_sessions": 0, "contact_sessions": 0, "visit_sessions": 0},
+    ]
+    mobile = await admin_client.get(ADMIN_URL, params={"device": "mobile"})
+    assert mobile.json()["cohorts"][-1]["sessions"] == 0

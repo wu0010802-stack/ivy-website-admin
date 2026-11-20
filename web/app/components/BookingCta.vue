@@ -42,6 +42,8 @@ function trackClick(kind: BookingActionKind, event: MouseEvent) {
   </NuxtLink>
   <a
     data-booking-cta
+    :data-contact-channel="action.kind"
+    :data-campus-key="campusKey"
     v-else-if="!pending && (action.kind === 'line' || action.kind === 'external') && action.href"
     :class="buttonClass"
     :href="action.href"
@@ -53,6 +55,8 @@ function trackClick(kind: BookingActionKind, event: MouseEvent) {
   </a>
   <a
     data-booking-cta
+    :data-contact-channel="action.kind"
+    :data-campus-key="campusKey"
     v-else-if="!pending && action.kind === 'phone' && action.href"
     :class="buttonClass"
     :href="action.href"

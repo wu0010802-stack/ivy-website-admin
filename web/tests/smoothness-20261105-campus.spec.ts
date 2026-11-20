@@ -813,6 +813,37 @@ describe('審查後：CampusBoard 只在有換校意圖時算多邊形、強制�
       expect(prepared.every((p) => p.wash === false && !p.colourSrc)).toBe(true)
     }
   })
+  it('五校興趣涵蓋頁籤、鍵盤、鄰卡、觸控滑動與進度點；重選和自動播放不計', async () => {
+    const host = await mountBoard()
+    const { startVisit, setCurrentVisit } = await import('../app/utils/engagement')
+    const visit = startVisit('/', { id: crypto.randomUUID(), source: 'direct', pages: 1 }, 'mobile')!
+    setCurrentVisit(visit)
+    try {
+      advance() // 義華 → 明華，自動
+      await nextTick()
+      expect(visit.takePayload()!.actions).toEqual({ campus_tracking: 1 })
+      const chongde = tab(host, 'chongde')
+      expect(chongde.hasAttribute('data-track-action')).toBe(false)
+      chongde.click()
+      chongde.click()
+      chongde.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })) // 國際
+      await nextTick()
+      host.querySelector<HTMLElement>('.photo-card[aria-label="選擇仁武校"]')!.click()
+      const viewport = host.querySelector('.gallery-viewport')!
+      for (const [type, clientX] of [['pointerdown', 170], ['pointermove', 110], ['pointerup', 95]] as const) {
+        viewport.dispatchEvent(new PointerEvent(type, { pointerType: 'touch', pointerId: 2, isPrimary: true, clientX, clientY: 200 }))
+      }
+      await nextTick()
+      expect(tab(host, 'yihua').getAttribute('aria-selected')).toBe('true')
+      host.querySelectorAll<HTMLButtonElement>('.page-dot')[1]!.click()
+      advance()
+      expect(visit.takePayload()!.actions).toEqual({
+        campus_tracking: 1, campus_chongde: 1, campus_international: 1, campus_renwu: 1, campus_yihua: 1, campus_minghua: 1,
+      })
+    } finally {
+      setCurrentVisit(null)
+    }
+  })
   it('手動換校：新的左右鄰卡連多邊形一起準備（淡彩層照舊不載）', async () => {
     const host = await mountBoard()
     prepared = []
