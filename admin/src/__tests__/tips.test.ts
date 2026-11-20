@@ -1,15 +1,17 @@
 // 使用小技巧頁（2026-11-10）：內容資料的完整性（連結、角色、截圖）與頁面的篩選、角色顯示。
-import { afterEach, describe, expect, it } from 'vitest'
+// 2026-11-20：入口從側欄搬到頁首；頁面改成可展開的清單＋搜尋。
+import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Role } from '../api/types'
 import { routes } from '../router'
-import { NAV_GROUPS, canListNavItem, navItem } from '../router/nav'
+import { NAV_GROUPS, SEARCH_ONLY_GROUPS, canListNavItem } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
 import { TIPS, TIP_SECTIONS, formatKey, splitKeys, stepText } from '../tips/tips'
+import { tipSectionForPath } from '../tips/pageSections'
 import TipsView from '../views/TipsView.vue'
 import { testUser } from './fixtures'
 
@@ -73,15 +75,41 @@ describe('小技巧資料', () => {
   })
 })
 
-describe('側欄入口', () => {
-  it('所有角色都看得到「使用小技巧」，排在側欄最後', () => {
-    const item = navItem('tips')!
+describe('入口', () => {
+  it('不在側欄；側欄搜尋找得到，所有角色都看得到', () => {
+    expect(NAV_GROUPS.flatMap(group => group.items).some(item => item.path === '/tips')).toBe(false)
+    const item = SEARCH_ONLY_GROUPS.flatMap(group => group.items).find(i => i.name === 'tips')!
     expect(item.path).toBe('/tips')
-    expect(NAV_GROUPS.at(-1)!.items.map(i => i.name)).toEqual(['tips'])
     for (const role of ['super_admin', 'campus_admin', 'editor', 'reception', 'readonly'] as Role[]) {
       expect(canListNavItem(item, testUser(role), { admissions: false }), role).toBe(true)
     }
+    const route = routes.flatMap(record => [record, ...(record.children ?? [])]).find(record => record.name === 'tips')!
+    expect(route.meta!.title).toBe('使用小技巧')
   })
+
+  it('頁首從哪一頁點，先打開那一頁相關的分類；其他頁打開全部', () => {
+    expect(tipSectionForPath('/visit-requests')).toBe('visits')
+    expect(tipSectionForPath('/visit-requests/42')).toBe('visits')
+    expect(tipSectionForPath('/visit-calendar')).toBe('sessions')
+    expect(tipSectionForPath('/admissions')).toBe('admissions')
+    expect(tipSectionForPath('/admissions-stats')).toBe('admissions')
+    expect(tipSectionForPath('/content/home-hero')).toBe('content')
+    expect(tipSectionForPath('/media')).toBe('content')
+    expect(tipSectionForPath('/users')).toBe('account')
+    expect(tipSectionForPath('/')).toBeNull()
+    expect(tipSectionForPath('/analytics')).toBeNull()
+    expect(tipSectionForPath('/tips')).toBeNull()
+    expect(tipSectionForPath('/visit-requests-old')).toBeNull()
+    // 對到的分類都真的有小技巧
+    for (const path of ['/visit-requests', '/visit-calendar', '/admissions', '/content/x', '/users']) {
+      expect(TIPS.some(tip => tip.section === tipSectionForPath(path)), path).toBe(true)
+    }
+  })
+})
+
+// jsdom 沒有 scrollIntoView（從 #tip-<id> 連進來時會捲過去）。
+beforeAll(() => {
+  Element.prototype.scrollIntoView ??= () => {}
 })
 
 const wrappers: VueWrapper[] = []
@@ -108,7 +136,7 @@ const titles = (wrapper: VueWrapper) => wrapper.findAll('.tip__title').map(el =>
 describe('小技巧頁', () => {
   it('預設列出全部（通用版），每條寫出誰能用', async () => {
     const { wrapper } = await mountTips('reception')
-    expect(wrapper.findAll('article.tip')).toHaveLength(TIPS.length)
+    expect(wrapper.findAll('li.tip')).toHaveLength(TIPS.length)
     const search = wrapper.get('#tip-search')
     expect(search.get('.tip__who').text()).toBe('誰能用：所有人')
     expect(wrapper.get('#tip-users-more .tip__who').text()).toBe('誰能用：總管理者')
@@ -161,6 +189,82 @@ describe('小技巧頁', () => {
     const { wrapper } = await mountTips('super_admin')
     const kbd = wrapper.get('#tip-search .tip__title kbd').text()
     expect(['⌘K', 'Ctrl＋K']).toContain(kbd)
+  })
+
+  it('預設只列標題；點標題展開步驟，再點收起；全部展開／全部收起', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    const toggle = wrapper.get('#tip-search .tip__toggle')
+    const body = wrapper.get('#tip-search-body')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    expect(toggle.attributes('aria-controls')).toBe('tip-search-body')
+    // 收起時用 until-found：頁內尋找（⌘F）找得到，內容仍在 DOM 裡
+    expect(body.attributes('hidden')).toBe('until-found')
+    expect(body.text()).toContain('游標會跳到')
+    await toggle.trigger('click')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+    expect(body.attributes('hidden')).toBeUndefined()
+    await toggle.trigger('click')
+    expect(body.attributes('hidden')).toBe('until-found')
+
+    const expandAll = wrapper.get('.tips__expand-all')
+    expect(expandAll.text()).toBe('全部展開')
+    await expandAll.trigger('click')
+    expect(wrapper.findAll('.tip__body[hidden]')).toHaveLength(0)
+    expect(expandAll.text()).toBe('全部收起')
+    await expandAll.trigger('click')
+    expect(wrapper.findAll('.tip__body[hidden]')).toHaveLength(TIPS.length)
+  })
+
+  it('頁內尋找找到收起的內容時（beforematch）跟著標成展開', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    await wrapper.get('#tip-search-body').trigger('beforematch')
+    expect(wrapper.get('#tip-search .tip__toggle').attributes('aria-expanded')).toBe('true')
+  })
+
+  it('從 #tip-<id> 連進來時那一條自己展開', async () => {
+    const pinia = createPinia()
+    const auth = useAuthStore(pinia)
+    auth.user = testUser('reception', { campus_keys: ['yihua'] })
+    auth.features = { admissions: true, password_reset_email: false }
+    const router = createRouter({ history: createMemoryHistory(), routes })
+    await router.push({ path: '/tips', hash: '#tip-notes' })
+    await router.isReady()
+    const wrapper = mount(TipsView, { attachTo: document.body, global: { plugins: [pinia, router, ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    expect(wrapper.get('#tip-notes .tip__toggle').attributes('aria-expanded')).toBe('true')
+    expect(wrapper.get('#tip-search .tip__toggle').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('搜尋比對標題、步驟與按鍵的兩種寫法，分類數字跟著變；找不到時可以清除', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    const input = wrapper.get('.tips__search input')
+    await input.setValue('匯出')
+    expect(titles(wrapper).some(title => title.includes('匯出 CSV'))).toBe(true)
+    expect(titles(wrapper).length).toBeLessThan(TIPS.length)
+    expect(wrapper.get('.status-tab').text()).toContain(String(titles(wrapper).length))
+    // ⌘ 與 Ctrl 都對得到「`mod+K`」
+    await input.setValue('ctrl+k')
+    expect(wrapper.find('#tip-search').exists()).toBe(true)
+    await input.setValue('⌘k')
+    expect(wrapper.find('#tip-search').exists()).toBe(true)
+    // 步驟裡的字也算（標題沒有「游標」）
+    await input.setValue('游標')
+    expect(wrapper.find('#tip-search').exists()).toBe(true)
+    // 每個字都要對到
+    await input.setValue('匯出 沒有這個字')
+    expect(wrapper.findAll('li.tip')).toHaveLength(0)
+    expect(wrapper.get('.empty-note').text()).toContain('沒有符合「匯出 沒有這個字」的小技巧')
+    await wrapper.get('.empty-note button').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('li.tip')).toHaveLength(TIPS.length)
+  })
+
+  it('選了某一類又搜到 0 條時，那一類的按鈕仍在、標成選取', async () => {
+    const { wrapper } = await mountTips('super_admin', { query: { section: 'sessions' } })
+    await wrapper.get('.tips__search input').setValue('匯出 CSV')
+    const pressed = wrapper.findAll('.status-tab').filter(tab => tab.attributes('aria-pressed') === 'true')
+    expect(pressed.map(tab => tab.text())).toEqual(['參觀場次0 條'])
   })
 
   it('有截圖的條目附上圖片與說明文字，延遲載入', async () => {

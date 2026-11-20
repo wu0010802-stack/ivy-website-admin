@@ -5,7 +5,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter, matchedRouteKey, RouterView } from 'vue-router'
 import ElementPlus from 'element-plus'
 import AdminSidebar from '../components/AdminSidebar.vue'
-import { NAV_GROUPS, SEARCH_ONLY_GROUP } from '../router/nav'
+import { NAV_GROUPS, SEARCH_ONLY_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
 import AdminLayout from '../layouts/AdminLayout.vue'
@@ -44,7 +44,7 @@ async function mountSidebar(path = '/', props: { mobile?: boolean } = {}) {
 describe('側欄圖示（2026-10-05）', () => {
   it('只用線條圖示，不混實心的', () => {
     const solid = ['HomeFilled', 'Grid', 'List', 'TrendCharts', 'Menu', 'Histogram']
-    const icons = [...NAV_GROUPS, SEARCH_ONLY_GROUP].flatMap(group => group.items.map(item => item.icon ?? ''))
+    const icons = [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS].flatMap(group => group.items.map(item => item.icon ?? ''))
     expect(icons.filter(icon => solid.includes(icon) || icon.endsWith('Filled'))).toEqual([])
   })
 })
