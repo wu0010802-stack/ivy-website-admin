@@ -92,7 +92,7 @@ class HousingBatch:
 
 def _records(text: str, required: tuple[str, ...], label: str) -> Iterable[dict[str, str]]:
     """逐列產出必要欄位的值（去空白）。表頭缺欄、編號空白過長或重複都丟 HousingFormatError。"""
-    reader = csv.reader(io.StringIO(text.lstrip("﻿")))
+    reader = csv.reader(io.StringIO(text.lstrip("\N{ZERO WIDTH NO-BREAK SPACE}")))
     try:
         header = [cell.strip() for cell in next(reader)]
     except (StopIteration, csv.Error) as exc:
