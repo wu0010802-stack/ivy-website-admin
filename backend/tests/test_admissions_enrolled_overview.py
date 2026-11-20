@@ -146,7 +146,10 @@ async def test_overview_gaps_rules(admin_client, db_session, monkeypatch):
     other_lat, other_lng = boundaries.village_centroids()[other_code]
     _place(monkeypatch, yihua=(YIHUA_LAT, YIHUA_LNG), minghua=(other_lat, other_lng))
     await _import(db_session, "yihua", [student(**_name(enrolled_code))])
-    per_age = {code: 10 + i for i, code in enumerate(inside + outside[:3])}
+    # 被排除的三種里孩子數都最高：少了對應規則就會排進前 15 名。
+    per_age = {code: 10 + i for i, code in enumerate(inside[2:])}
+    per_age.update({enrolled_code: 1000, other_code: 999})
+    per_age.update({code: 2000 for code in outside[:3]})
     await _population(db_session, per_age)
 
     gaps = (await _get(admin_client))["gaps"]
@@ -154,17 +157,49 @@ async def test_overview_gaps_rules(admin_client, db_session, monkeypatch):
     assert len(gaps) == GAP_LIMIT
     assert enrolled_code not in codes and other_code not in codes and not set(codes) & set(outside)
     assert [g["children"] for g in gaps] == sorted((g["children"] for g in gaps), reverse=True)
+    # 前 15 名是剩下的里中孩子最多的 15 個；離明華（未匯入）比離義華近的里也不列。
+    centroids = boundaries.village_centroids()
+    kept = [
+        code for code in inside[2:]
+        if haversine_m(YIHUA_LAT, YIHUA_LNG, *centroids[code]) < haversine_m(other_lat, other_lng, *centroids[code])
+    ]
+    assert len(kept) >= GAP_LIMIT
+    expected = sorted(kept, key=lambda code: -per_age[code])[:GAP_LIMIT]
+    assert sorted(codes) == sorted(expected)
     for gap in gaps:
         assert gap["children"] == 4 * per_age[gap["village_code"]]
         assert gap["nearest_campus_key"] in ("yihua", "minghua") and gap["distance_m"] % 100 == 0
 
 
-async def test_overview_gaps_tie_breaks_and_nearest_among_all(admin_client, db_session, monkeypatch):
-    ranked = _near_yihua()
-    codes = [code for dist, code in ranked if dist <= 3000][:4]
-    _place(monkeypatch, yihua=(YIHUA_LAT, YIHUA_LNG))
-    await _import(db_session, "yihua", [student()])
-    await _population(db_session, {code: 7 for code in codes})
+async def test_overview_gaps_nearest_among_all_campuses_and_tie_break(admin_client, db_session, monkeypatch):
+    centroids = boundaries.village_centroids()
+    near = [code for dist, code in _near_yihua() if dist <= 3000]
+    blocked = near[0]  # 明華（未匯入）放在它的重心上
+    mh_lat, mh_lng = centroids[blocked]
+    _place(monkeypatch, yihua=(YIHUA_LAT, YIHUA_LNG), minghua=(mh_lat, mh_lng))
+
+    def d_yihua(code):
+        return haversine_m(YIHUA_LAT, YIHUA_LNG, *centroids[code])
+
+    def d_minghua(code):
+        return haversine_m(mh_lat, mh_lng, *centroids[code])
+
+    closer_to_yihua = [c for c in near[1:] if d_yihua(c) < d_minghua(c)]
+    # 兩個孩子數相同、區里名順序和距離順序相反的里。
+    pair = next(
+        (a, b)
+        for a in closer_to_yihua
+        for b in closer_to_yihua
+        if d_yihua(a) < d_yihua(b) and (_name(a)["district"], _name(a)["village"]) > (_name(b)["district"], _name(b)["village"])
+    )
+    # 義華的在籍學生放在 3 公里外的里，才不會讓預設的本揚里把 blocked 擋掉。
+    elsewhere = next(code for dist, code in _near_yihua() if dist > 3000)
+    await _import(db_session, "yihua", [student(**_name(elsewhere))])
+    await _population(db_session, {blocked: 500, pair[0]: 20, pair[1]: 20})
+
     gaps = (await _get(admin_client))["gaps"]
-    assert [(g["district"], g["village"]) for g in gaps] == sorted((g["district"], g["village"]) for g in gaps)
-    assert {g["nearest_campus_key"] for g in gaps} == {"yihua"}
+    assert blocked not in [g["village_code"] for g in gaps]  # 孩子最多，但最近的校（明華）沒有清冊
+    assert [g["village_code"] for g in gaps] == [pair[1], pair[0]]  # 同孩子數依區、里名，不依距離或寫入順序
+    for gap in gaps:
+        assert gap["nearest_campus_key"] == "yihua"
+        assert gap["distance_m"] == int(round(d_yihua(gap["village_code"]) / 100.0)) * 100
