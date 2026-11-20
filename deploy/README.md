@@ -14,6 +14,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台登入頁改版「後台的第一個畫面」（PR #121，已部署 main `65f338ea`，線上 `738e3118`）
+
+[PR #121](https://github.com/wu0010802-stack/ivy-website-admin/pull/121) 在 feature `748f72cf` 的 PR 組與推送組（rerun）CI 全綠，之後只再併入 main（#122、#123 與部署紀錄，本機 admin typecheck 與全套單元測試 3,710 項通過，1 項負載逾時單獨重跑通過）成為 `6dd100c8`，以 merge commit `65f338ea` 推上 main；它自己的 main run 44666694394 排隊時被 #125 的 push 取代成 cancelled（不要重跑：舊快照會蓋回線上），接著的 [main CI/CD 44668034328](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44668034328)（main `738e3118`，含 #121、#122、#125）全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 12:00 完成部署。改動內容見 README 的 2026-11-19「後台登入頁改版」。
+
+- 只動 admin（`LoginView.vue` 重寫、新增 `composables/lastSignIn.ts`、`stores/auth.ts` 記住／忘掉回訪者、`AdminLayout.vue` 側欄加 `view-transition-name`、`style.css` 色票與登入專用字級）＋測試與 stack 基準（`login-chrome-darwin.png` 固定時間重拍、`editor-live-preview` 的 localStorage 白名單加回訪者兩個鍵）＋README／DESIGN.md。沒有 API、migration、Railway 環境變數變更。
+- 和 #117（記住這台裝置 30 天）合併：#117 先上線，這版 rebase 時把勾選框、`remember=1`、`line_other_browser` 提示搬進新登入頁；`stores/auth.ts` 與 #124 的 `markStaffBrowser()` 並存。
+- PR 過程：main 在等 CI 期間前進五次（#117、#120、#124、#122、#123 與各自的部署紀錄），README／DESIGN.md 頂部連續衝突；最後一次把 main 併進 feature（`git merge-base --is-ancestor` 確認已含 main），再在 main 上做 `--no-ff` merge 推上去，樹與 feature 頭相同，GitHub 自動把 #121 標成 merged。
+- 部署後唯讀檢查（只發 GET、不登入、不送表單）：正式 `/release.json` 的 base_commit 為 `738e3118254761eb21eb777a787959493a02ef13`，snapshot `9a01eb321c521ecef40d04618a28e999687c4fa2032b9d0906c25f4cfc29dc80`；`https://admin.ivykidschool.com/admin/login` 回 200，Playwright（真 Chrome）1440×900 與 390×844 都是新版：左側 64px 深色側欄（手機為頂端深色列）、台灣時間問候「午安」、Email 欄、「記住這台裝置 30 天」、Google 與 LINE 兩顆、沒有水平溢出、登入鈕底在 579／464px；主控台只有未登入時 `/auth/me` 的 401（預期）。
+- 沒驗：實際登入後的側欄展開轉場、回訪者畫面、Google／LINE 往返與「記住這台裝置」在正式站的行為（需要本人帳號）；Safari、Firefox、iOS／Android 實機、LINE 內建瀏覽器。
+
 ## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（PR #122，已部署 main `7b84998f`）
 
 [PR #122](https://github.com/wu0010802-stack/ivy-website-admin/pull/122) 以 merge commit 合併為 `7b84998f`（接在 #123 `b9726e76` 之後）；[main CI/CD 44665538553](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44665538553) 全部成功（web、admin、後端三組、E2E、Deploy），Deploy 台灣時間 11:18 完成。之後別的 session 併 #121、#125 的 run 44668034328（main `738e3118`）也包含這筆。
