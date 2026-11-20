@@ -101,6 +101,9 @@ class Session(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # 登入時勾了「記住這台裝置」（2026-11-19）：最長 30 天（閒置也是 30 天），cookie 帶 Max-Age；
+    # 沒勾是瀏覽器 session cookie、最長 12 小時（見 app/auth/service.py 的 session_ttl）。
+    remember: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     user: Mapped[User] = relationship(back_populates="sessions")
 

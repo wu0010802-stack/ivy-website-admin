@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, AsyncSession
 
 from app.notifications import service as notification_service
 from app.notifications.email_adapter import EmailAdapter
@@ -21,6 +21,23 @@ DRAIN_TIME_BUDGET_SECONDS = 30.0
 
 
 async def process_outbox_batch(
+    db: AsyncSession,
+    adapter: EmailAdapter | None,
+    **options,
+) -> dict[str, int]:
+    """每個資料庫同時只有一批可執行發送，即使其中一筆工作超過租約期限。"""
+    engine = db.bind
+    if isinstance(engine, AsyncConnection):
+        engine = engine.engine
+    if not isinstance(engine, AsyncEngine):
+        raise TypeError("outbox worker requires an async engine")
+    async with lease_service.exclusive_dispatch(engine) as worker_db:
+        if worker_db is None:
+            return {"sent": 0, "failed": 0, "skipped": 0}
+        return await _process_outbox_batch(worker_db, adapter, **options)
+
+
+async def _process_outbox_batch(
     db: AsyncSession,
     adapter: EmailAdapter | None,
     *,
@@ -44,14 +61,16 @@ async def process_outbox_batch(
         message = await lease_service.claim_next(db, worker_id)
         if message is None:
             break
+        lease = lease_service.lease_identity(message)
+        message_id, kind = message.id, message.kind
         await db.commit()  # 先讓 lease 生效，避免同一批裡的下一輪重複認領同一筆
 
         try:
             delivered = await notification_service.dispatch_outbox_message(
                 db,
-                outbox_message_id=message.id,
+                outbox_message_id=message_id,
                 campus_key=message.payload.get("campus_key", ""),
-                kind=message.kind,
+                kind=kind,
                 payload=message.payload,
                 adapter=adapter,
                 # 人工重新排入的訊息從重新排入的時間算新舊，否則超過 24 小時
@@ -70,26 +89,29 @@ async def process_outbox_batch(
             # 每重試一次就多一筆重複通知。
             logger.warning(
                 "通知寄送失敗，稍後重試：outbox=%s kind=%s error=%s",
-                message.id, message.kind, type(exc).__name__,
+                message_id, kind, type(exc).__name__,
             )
+            # PostgreSQL 斷線會一併失去發送鎖，不能讓 session 重連後繼續這批。
+            if isinstance(db.bind, AsyncConnection) and db.bind.invalidated:
+                raise
             await db.rollback()
             # rollback 會把 message 實例 expire 掉，async 下直接碰屬性會
             # 觸發 lazy load（MissingGreenlet），所以先明確重新載入。
             await db.refresh(message)
-            await lease_service.fail(db, message, error_code=type(exc).__name__)
+            recorded = await lease_service.fail(db, message, error_code=type(exc).__name__, lease=lease)
             await db.commit()
-            failed += 1
+            failed += int(recorded)
             continue
 
         if not delivered:
-            await lease_service.skip(db, message)
+            recorded = await lease_service.skip(db, message, lease=lease)
             await db.commit()
-            skipped += 1
+            skipped += int(recorded)
             continue
 
-        await lease_service.ack(db, message)
+        recorded = await lease_service.ack(db, message, lease=lease)
         await db.commit()
-        sent += 1
+        sent += int(recorded)
 
     return {"sent": sent, "failed": failed, "skipped": skipped}
 

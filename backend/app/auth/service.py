@@ -48,13 +48,27 @@ logger = logging.getLogger("app.auth")
 
 # 後台 session 的絕對上限：不管多活躍，登入滿 12 小時一律重新登入。
 # 閒置逾時另見 settings.session_idle_minutes；expires_at 存的是「滑動」的
-# 到期時間（最後一次活動＋閒置分鐘數，但不超過 created_at＋SESSION_TTL）。
+# 到期時間（最後一次活動＋閒置分鐘數，但不超過 created_at＋上限）。
 SESSION_TTL = timedelta(hours=12)
+# 登入時勾「記住這台裝置」（2026-11-19 使用者要求保持登入 30 天）：上限 30 天，閒置也是 30 天
+# （使用者裁定，30 天內不會因為沒用而登出），cookie 帶同樣的 Max-Age（routes._set_session_cookie）。改密碼、停權、解除綁定照樣撤銷；
+# 新增登入方式等敏感操作看的是登入時間（reauth.REAUTH_WINDOW），不因 session 長而免密碼。
+REMEMBER_TTL = timedelta(days=30)
+REMEMBER_IDLE = timedelta(days=30)
+
+
+def session_ttl(session: Session) -> timedelta:
+    return REMEMBER_TTL if session.remember else SESSION_TTL
 
 
 def session_max_expiry(session: Session) -> datetime:
-    """登入滿 12 小時的時間：閒置延長推不過這個上限（_sliding_expiry）。"""
-    return session.created_at + SESSION_TTL
+    """這次登入最晚到什麼時候（12 小時，記住這台裝置是 30 天）：閒置延長推不過這個上限（_sliding_expiry）。"""
+    return session.created_at + session_ttl(session)
+
+
+def _idle_window(remember: bool, idle: timedelta) -> timedelta:
+    """閒置窗口：一般 session 用設定值（settings.session_idle_minutes），記住這台裝置用 REMEMBER_IDLE。"""
+    return REMEMBER_IDLE if remember else idle
 
 
 # 每個請求都寫一次 DB 太浪費：到期時間至少能往後推這麼多（且不超過閒置
@@ -375,11 +389,14 @@ def session_idle(settings) -> timedelta:
 
 
 def _sliding_expiry(session: Session, now: datetime, idle: timedelta) -> datetime:
-    return min(session.created_at + SESSION_TTL, now + idle)
+    return min(session_max_expiry(session), now + _idle_window(session.remember, idle))
 
 
-async def create_session(db: AsyncSession, user: User, *, idle: timedelta) -> tuple[str, str]:
-    """回傳 (raw_token, csrf_token)；raw_token 只在這裡出現一次，存庫的是 hash。"""
+async def create_session(
+    db: AsyncSession, user: User, *, idle: timedelta, remember: bool = False
+) -> tuple[str, str]:
+    """回傳 (raw_token, csrf_token)；raw_token 只在這裡出現一次，存庫的是 hash。
+    remember＝登入時勾了「記住這台裝置」（上限與閒置見 REMEMBER_TTL／REMEMBER_IDLE）。"""
     raw_token = secrets.token_urlsafe(_TOKEN_BYTES)
     csrf_token = secrets.token_urlsafe(_TOKEN_BYTES)
     now = datetime.now(timezone.utc)
@@ -388,7 +405,8 @@ async def create_session(db: AsyncSession, user: User, *, idle: timedelta) -> tu
         user_id=user.id,
         csrf_token=csrf_token,
         created_at=now,
-        expires_at=min(now + SESSION_TTL, now + idle),
+        expires_at=min(now + (REMEMBER_TTL if remember else SESSION_TTL), now + _idle_window(remember, idle)),
+        remember=remember,
     )
     db.add(session)
     await db.flush()
@@ -400,7 +418,7 @@ def _session_usable(session: Session, now: datetime) -> bool:
         session.revoked_at is not None
         or session.expires_at <= now
         # 絕對上限另外再檢查一次：上線前發出的 session 的 expires_at 不一定對。
-        or session.created_at + SESSION_TTL <= now
+        or session_max_expiry(session) <= now
     )
 
 
@@ -451,7 +469,7 @@ async def refresh_session_expiry(
     fail-closed，多了這裡的寫入會讓公開送單更容易吃 429。"""
     now = now or datetime.now(timezone.utc)
     target = _sliding_expiry(session, now, idle)
-    step = min(SESSION_REFRESH_STEP, idle / 4)
+    step = min(SESSION_REFRESH_STEP, _idle_window(session.remember, idle) / 4)
     if not (target - session.expires_at >= step or target < session.expires_at):
         return False
     try:

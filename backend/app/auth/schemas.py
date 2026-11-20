@@ -68,6 +68,8 @@ ExistingPassword = Annotated[str, Field(max_length=PASSWORD_MAX_CHARS)]
 class LoginRequest(BaseModel):
     email: EmailStr
     password: ExistingPassword
+    # 「記住這台裝置」（2026-11-19）：登入保持 30 天（沒用也不登出）；沒勾是關瀏覽器就登出、最長 12 小時。
+    remember: bool = False
 
 
 class FeatureFlags(BaseModel):

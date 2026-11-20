@@ -72,6 +72,28 @@ export interface ApiProxyOptions {
 
 const PAYLOAD_METHODS = new Set(['PATCH', 'POST', 'PUT', 'DELETE'])
 
+/**
+ * 上游回應的 Location 指回 API 自己（內網位址）時，改成站內路徑（2026-11-19 資安審查）。
+ *
+ * FastAPI 對結尾多一個斜線的路徑回 307，Location 用它收到的 Host 組成，也就是
+ * http://api.railway.internal:8000/...：原樣轉給瀏覽器會露出內網主機與埠，瀏覽器也連不過去。
+ * API 掛在同一個 /api/website/v1 前綴下，留下路徑、query 與 hash 就會再經過這支代理。
+ * 外部網址（OAuth 轉去 Google／LINE）回傳 null，原樣保留。
+ */
+export function publicRedirectLocation(location: string, upstream: string): string | null {
+  let resolved: URL
+  let upstreamOrigin: string
+  try {
+    upstreamOrigin = new URL(upstream).origin
+    resolved = new URL(location, upstream)
+  } catch {
+    return null
+  }
+  if (resolved.origin !== upstreamOrigin) return null
+  // 開頭多個斜線會被瀏覽器當成別的主機（//evil.example/…），收成一個。
+  return `${resolved.pathname.replace(/^\/+/, '/')}${resolved.search}${resolved.hash}`
+}
+
 export async function proxyApiRequest(event: H3Event, target: string, options: ApiProxyOptions): Promise<unknown> {
   let body: BodyInit | undefined
   let duplex: 'half' | undefined
@@ -111,6 +133,10 @@ export async function proxyApiRequest(event: H3Event, target: string, options: A
         clearTimeout(timer)
         // 不透露後端框架（uvicorn 固定送 server: uvicorn）。
         removeResponseHeader(proxyEvent, 'server')
+        // 不透露 API 的內網位址（見 publicRedirectLocation）。
+        const location = response.headers.get('location')
+        const rewritten = location === null ? null : publicRedirectLocation(location, target)
+        if (rewritten !== null && rewritten !== location) setResponseHeader(proxyEvent, 'location', rewritten)
         await options.onResponse?.(proxyEvent, response)
       }
     })

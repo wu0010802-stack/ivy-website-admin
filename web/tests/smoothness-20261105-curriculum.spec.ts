@@ -666,6 +666,61 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     expect(page.transitions).toHaveLength(1)
   })
 
+  it.each(['beforeunload', 'pagehide'])('%s 後晚到的編碼不讀 Blob；返回時能重新產生遮罩', async (event) => {
+    const { api, stores } = fakeCaches()
+    const page = mount(api)
+    await tick(); await tick()
+    runIdle(page.idle) // 第一張已開始編碼，但 toBlob 回呼尚未回來。
+    expect(page.drawn()).toBe(1)
+    window.dispatchEvent(new Event(event))
+    await settle(page.idle)
+    expect(page.drawn()).toBe(1)
+    expect(page.blobs.size).toBe(0)
+    expect(stores.get('ivy-cur-enter-v1-build-a')!.size).toBe(0)
+    expect(page.navigate()).toBeUndefined()
+    window.dispatchEvent(new Event('pageshow'))
+    await settle(page.idle)
+    expect(page.drawn()).toBe(4)
+    expect(page.blobs.size).toBe(3)
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
+  })
+
+  it('快取先轉成 ArrayBuffer，不把會在重整時被取消的 Blob 交給 Response', async () => {
+    const bodies: (BodyInit | null | undefined)[] = []
+    vi.stubGlobal('Response', class extends Response {
+      constructor(body?: BodyInit | null, init?: ResponseInit) {
+        super(body, init)
+        bodies.push(body)
+      }
+    })
+    const { api, stores } = fakeCaches()
+    const page = mount(api)
+    await settle(page.idle)
+    expect(bodies).toHaveLength(3)
+    for (const body of bodies) expect(body).toBeInstanceOf(ArrayBuffer)
+    expect(await Promise.all([...stores.get('ivy-cur-enter-v1-build-a')!.values()].map(blob => blob.text()))).toEqual(['drawn-1', 'drawn-2', 'drawn-3'])
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
+  })
+
+  it.each(['Response 同步拋錯', 'put 同步拋錯', 'put 非同步拒絕'])('快取寫入失敗（%s）：仍完成三張遮罩並可轉場', async (failure) => {
+    const put = vi.fn(() => {
+      if (failure === 'put 同步拋錯') throw new DOMException('Cache unavailable', 'SecurityError')
+      if (failure === 'put 非同步拒絕') return Promise.reject(new DOMException('Cache unavailable', 'SecurityError'))
+      return Promise.resolve()
+    })
+    const page = mount({ open: async () => ({ match: async () => undefined, put }), keys: async () => [], delete: async () => false })
+    if (failure === 'Response 同步拋錯') {
+      vi.stubGlobal('Response', vi.fn(function () { throw new DOMException('Cannot load blob', 'SecurityError') }))
+    }
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+    expect(page.blobs.size).toBe(3)
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
+  })
+
   it('減少動態：不查快取、不畫、不暈開', async () => {
     const { api } = fakeCaches()
     vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({ matches: query.includes('reduce') }) as MediaQueryList)

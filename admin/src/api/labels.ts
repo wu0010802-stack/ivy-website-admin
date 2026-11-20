@@ -613,6 +613,8 @@ export const AUDIT_REASON_LABELS: Record<string, string> = {
   link_expired: '連結已過期',
   link_used: '連結已經用過',
   link_revoked: '連結已作廢（寄了新連結、密碼已變更或帳號停用）',
+  // 官方帳號被移出 LINE 群組後又被拉回，系統解除原本的校區綁定（line.campus_target.update，2026-11-19）。
+  line_group_rejoined: '官方帳號被移出群組後又被拉回，需重新設定',
 }
 
 export function auditReasonLabel(reason: string): string {

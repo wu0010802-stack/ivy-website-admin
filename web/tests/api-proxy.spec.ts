@@ -4,6 +4,7 @@ import { Readable } from 'node:stream'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { createApp, createError, defineEventHandler, getHeader, toNodeListener } from 'h3'
 import { trustedClientIp } from '../server/utils/client-ip'
+import { DEFAULT_BODY_LIMIT } from '../shared/request-guard'
 
 const servers: Server[] = []
 async function listen(server: Server) {
@@ -113,6 +114,31 @@ describe('/public/client-errors 同樣只給伺服器內部轉送（2026-11-05 �
   it.each(['/api/website/v1/public/client-errors', '/api/website/v1/public/client-errors/', '/api/website/v1/public/%63lient-errors', '/api/website/v1//public//client-errors'])('%s → 404', async (path) => {
     const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
     expect(response.status).toBe(404)
+    expect(upstreamHits).toEqual([])
+  })
+})
+
+describe('同源 API 請求本文大小限制', () => {
+  const LOGIN = '/api/website/v1/auth/login'
+
+  it('宣告大小超過上限時，只收到標頭就回 413', async () => {
+    const response = await rawRequest(proxyPort, LOGIN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': String(DEFAULT_BODY_LIMIT + 1) },
+    })
+
+    expect(response.status).toBe(413)
+    expect(upstreamHits).toEqual([])
+  })
+
+  it('缺少 Content-Length 的串流請求回 411', async () => {
+    const response = await rawRequest(proxyPort, LOGIN, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'transfer-encoding': 'chunked' },
+      body: '{}',
+    })
+
+    expect(response.status).toBe(411)
     expect(upstreamHits).toEqual([])
   })
 })
@@ -307,6 +333,39 @@ describe('一般 API 只轉白名單請求標頭、不回傳 server（2026-11-12
       'content-length', 'content-type', 'cookie', 'dnt', 'idempotency-key', 'if-modified-since', 'if-none-match', 'if-range',
       'origin', 'range', 'sec-fetch-site', 'sec-gpc', 'user-agent', 'x-csrf-token', 'x-request-id',
     ])
+  })
+})
+
+describe('轉址不露出 API 的內網位址（2026-11-19 資安審查）', () => {
+  function redirectTo(location: string) {
+    upstreamHandler = (_req, res) => {
+      res.writeHead(307, { location })
+      res.end()
+    }
+  }
+
+  it('指回 API 自己的 Location 改成站內路徑（FastAPI 對結尾斜線回 307）', async () => {
+    redirectTo(`${upstreamBase}/api/website/v1/public/slots?campus=yihua`)
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/slots/?campus=yihua')
+    expect(response.status).toBe(307)
+    expect(response.headers.location).toBe('/api/website/v1/public/slots?campus=yihua')
+  })
+
+  it('開頭多個斜線收成一個，瀏覽器不會當成別的主機', async () => {
+    redirectTo(`${upstreamBase}//evil.example/x`)
+    const response = await rawRequest(proxyPort, '/api/website/v1/public/slots/')
+    expect(response.headers.location).toBe('/evil.example/x')
+  })
+
+  it.each([
+    'https://accounts.google.com/o/oauth2/v2/auth?state=abc',
+    'https://admin.example.com/admin/settings/account',
+    '/admin/settings/account?linked=line',
+  ])('外部網址與站內相對路徑原樣保留：%s', async (location) => {
+    redirectTo(location)
+    const response = await rawRequest(proxyPort, '/api/website/v1/auth/google/callback')
+    expect(response.status).toBe(307)
+    expect(response.headers.location).toBe(location)
   })
 })
 

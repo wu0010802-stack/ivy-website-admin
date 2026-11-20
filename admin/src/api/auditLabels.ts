@@ -251,6 +251,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   failed_attempts: (v) => `密碼錯誤達 ${countOf(v)} 次`,
   line_unlinked: (v) => (v ? '解除 LINE 登入綁定' : null),
   google_unlinked: (v) => (v ? '解除 Google 登入綁定' : null),
+  // 登入時勾了「記住這台裝置」（2026-11-19）；沒勾的登入不記這個鍵。
+  remember: (v) => (v ? '記住這台裝置 30 天' : null),
   // 家長管理連結、改期
   expires_at: (v, action) => `${action.startsWith('line.') ? '驗證碼到期' : '連結到期'}：${auditWhen(v)}`,
   replaced_previous: (v) => (v ? '先前的連結同時失效' : null),

@@ -10,6 +10,103 @@
 - ChatGPT 分支的處理：各校預約去向的「完成線上預約」改成比照各校實際預約數的權限（沒權限回 `null`、畫面「—」）；預約表單送出流程的改寫還原（超出範圍、動到預約核心），只留場次有無的記錄；`_rate` 小比例不四捨五入還原。首頁五校卡「切到這一校」改在 `pick()` 計數（鍵盤、拖曳、鄰卡、進度點都算，重選不算）保留，**口徑從部署日起改變**。
 - migration `d8b1a9e5c274`（ChatGPT 版擴充）：`engagement_visits` 加 `returning`、`browser_key`（含索引）、`campus_pref`，新表 `visit_remembered_daily`；只新增，不需備份閘門。
 - **上線前**：隱私權政策分析 cookie 那段要補一句匿名代號的說明（擬稿在規格「上線前要做的事」）。
+## 2026-11-19 後台「記住這台裝置」保持登入 30 天＋手機 LINE 登入修正（`feature/admin-remember-20261119`，未部署）
+
+使用者要求後台保持登入、做 30 天。登入頁密碼欄下方加「記住這台裝置 30 天」勾選框（預設不勾，旁邊寫「共用的電腦請不要勾」），帳密、Google、LINE 三種登入都適用：
+
+- **有勾**：session cookie 帶 `Max-Age` 30 天；伺服器端 session 最長 30 天，閒置也是 30 天（使用者裁定，30 天內沒開後台也不會登出；`backend/app/auth/service.py` 的 `REMEMBER_TTL`、`REMEMBER_IDLE`）。
+- **沒勾**：跟原本一樣，是瀏覽器 session cookie（關掉瀏覽器就登出），閒置 120 分鐘失效、最長 12 小時。
+- Google／LINE 的入口網址加 `remember=1`，這個選擇寫進簽章過的握手，回呼時照著建 session。
+- 安全機制照舊：改密碼、重設密碼、停權、解除綁定仍會登出所有裝置；綁定 LINE／Google、改角色這類要重新驗證的動作，看的還是「登入後 10 分鐘內」，session 再長也不能免輸入密碼。
+- 稽核：有勾的登入在 `user.login_password`／`login_google`／`login_line` 記 `{"remember": true}`，操作紀錄顯示「記住這台裝置 30 天」。
+- 到期前 15 分鐘的提醒拿掉「每次登入最長 12 小時」這句（記住的 session 上限是 30 天）。
+- migration `e7a4c1d9b3f2`：`sessions` 加 `remember`（boolean，預設 false），只新增欄位、既有 session 一律當成沒勾，不需要先備份。
+
+**手機 LINE 登入失敗**（使用者回報「明明綁定了，LINE 授權後又無法登入」）：正式站 HTTP 紀錄 11-17 23:13、11-18 23:47 兩次都是 iPhone **Safari** 按 LINE 登入，3 秒後回呼卻從 **Chrome** 打進來。有 PKCE 時 LINE 預設自動登入、直接跳 LINE App，App 把回呼開在預設瀏覽器（使用者的是 Chrome），握手 cookie 在 Safari，於是一律「LINE 登入未完成」。另外使用者 11-17 23:14 在 Chrome 解除了 LINE 綁定、重新綁定沒有完成，正式庫目前沒有任何帳號綁 LINE，要重新綁一次。
+
+- 授權網址加 `disable_auto_login=true`（登入與綁定都帶）：LINE 不再自動跳 App，流程留在同一個瀏覽器；在這個瀏覽器登入過 LINE 的顯示一鍵 SSO，沒有的要輸入 LINE 的 Email 與密碼。
+- 回呼帶 state 但這個瀏覽器沒有握手 cookie 時，改回 `oauth_error=line_other_browser`，登入頁提示「在這個瀏覽器再按一次」，不再是含糊的「未完成或已逾時」。沒有 state 的隨手請求照舊 `line_failed`。
+
+## 2026-11-19 官網追蹤修正：GA4 事件被 CSP 擋下、換頁標題落後一頁、選校沒記到（PR #118，已部署 main `cead8b64`）
+
+使用者要求確認 GA4、Google Ads、GCLID、跨頁追蹤與招生轉換是否正常。正式站實測（Playwright 的 Chrome、WebKit 各跑一次，加上使用者本人的 Chrome）找到三個問題：
+
+- **GA4 一筆事件都送不出去（最嚴重）**：11-16 GA4 連結 Google Ads 之後，`gtag.js` 把事件改送 `analytics.google.com/g/collect`，失敗再退回 `www.google.com/g/collect`。公開頁 CSP 的 `connect-src` 只有 `*.analytics.google.com`（萬用字元不含裸網域）、沒有 `www.google.com`，兩個都被擋。GA4 報表：每日活躍使用者 11-16 約 30 人、11-17 掉到約 4 人；28 天內重要事件（`generate_lead`）0 筆，所以匯進 Google Ads 的「官網預約參觀 generate_lead」轉換也只會是 0。修正：GA 的 `connect-src` 加 `https://*.google.com`（Google 官方 GA4 CSP 基準）。Google 信號／再行銷名單的 `stats.g.doubleclick.net`、`www.google.<國碼>/ads/ga-audiences` 刻意維持擋下（廣告個人化是關的），主控台會留這兩支 CSP 違規。
+- **換頁的 `page_title` 落後一頁**：11-14 升級的 Nuxt 4.6 帶 unhead v3，head 重繪排在 `setTimeout` 之後，`page:finish` 當下 `document.title` 還是上一頁（正式站 `/visit` 記成首頁標題、`/curriculum` 記成預約頁標題）。改成等 unhead 的 `dom:rendered` 才送 `page_view`，500ms 保底（`afterHeadRendered`）。
+- **`/visit` → `/visit/<校>` 沒有 `page_view`**：預約頁 `definePageMeta({ key: 'visit' })` 讓兩個網址共用同一個頁面實例，不會有 `page:finish`。改成路由換頁完成時，若是同一頁面實例換網址（`reusesPageInstance`）也排一次 `page_view`。Meta Pixel 與 LINE Tag 走同一個掛鉤，一起修好。
+
+確認正常、沒改的：apex／http 轉 `www` 保留 `gclid` 與 utm；落地頁 `page_location` 保留 `gclid`、`_gcl_aw` cookie 寫入、站內換頁維持同一個 session（`sid` 不變）；預約成功送 `generate_lead`（`campus_key`、`entry=visit_page`，網址不帶 token）與 OpenAI `appointment_scheduled`；第一方 `ivy_src` 記成 `ads`／`google`＋活動代碼。Meta Pixel 在真 Chrome 有送 `PageView`（Playwright 看不到是 Meta 對自動化瀏覽器不送）。
+
+驗證（Node 22.23.2）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm run test:website` | 165 檔、2,490 項通過 |
+| 正式站頁面套修正版 CSP（Playwright 攔下文件回應換 CSP，GA／Meta／OpenAI 請求本機回 204） | 帶 `gclid` 進站 → 4 次換頁 → `page_view` 全部送出、同一個 session；只剩上述兩支預期的違規 |
+| 正式站走完預約表單（所有 POST 本機攔下、送出回假的 confirmed，不寫正式庫、不發通知） | 同一個 session 送出 `generate_lead`（`campus_key=yihua`、`entry=visit_page`） |
+| 本機 `nuxt dev`（fixture）首頁 → `/visit` → `/visit/yihua` → `/curriculum` → `/about` → 上一頁 | 6 筆 `page_view` 標題都對到該頁，`/visit/yihua` 有記到 |
+
+GA4 後台（使用者要求、11-19 用 Chrome 調整）：資料收集 →「允許廣告個人化的進階設定」由 307 個區域全開改成 0 個區域，與 11-16「個人化廣告關」的裁定一致；重要事件仍會匯出到 Google Ads，只標成不可用於個人化（官網事件本來就帶 `npa=1`）。Google 信號資料收集、收集使用者提供的資料、Google 代碼容器的三個 `false` 參數、Ads 連結的個人化廣告原本就是關的，沒動。改完 30 分鐘後重測，`stats.g.doubleclick.net` 與 `ga-audiences` 仍會嘗試（gtag 連著 Ads 時固有），繼續由 CSP 擋下。
+
+部署後正式站實測（不改 CSP，送往 Google 的請求本機回 204）：帶 `gclid` 進站 → `/visit` → `/visit/yihua` → `/curriculum` → `/about`，5 筆 `page_view` 全部送出、標題各自正確、同一個 session；走完預約表單（POST 全部本機攔下）送出 `generate_lead`。
+
+未驗證：GA4「即時」與 Google Ads 轉換欄是否真的開始有數字（要等真家長從廣告進來預約，匯入延遲 24–48 小時）。第一方統計外掛（`telemetry.client.ts`）也是掛 `page:finish`，`/visit` → `/visit/<校>` 可能同樣漏記，這輪沒動（另一個 session 正在改第一方統計）。
+
+## 2026-11-19 資安審查三項修正（`fix/security-review-20261119`，部署狀態見 `deploy/README.md`）
+
+對 `origin/main` `14900354` 做資安審查（10-27 稽核之後新增的功能為主），沒有高、中風險；以下三項低風險修掉，修正接在 `6b9b60f1` 之後。
+
+- **API 轉址不再露出內網位址**：路徑結尾多一個斜線時，FastAPI 回 307，`Location` 用 API 收到的內網主機組成，代理原樣轉給瀏覽器。`web/server/utils/api-proxy.ts` 的 `publicRedirectLocation` 把指回 API 自己的 `Location` 改成站內路徑（開頭多個斜線收成一個）；Google／LINE 等外部網址與站內相對路徑照舊。
+- **錯誤通知的節流分成兩類**：`backend/app/notifications/error_alerts.py` 原本全站共用 15 分鐘窗口，匿名的瀏覽器錯誤回報能一直佔住它，連 API 的真實錯誤都不推。現在 API 與瀏覽器回報（官網、後台）各算各的。瀏覽器回報本來就無法辨識真假，這一類仍可能被偽造的回報佔住或重新開啟。
+- **LINE 群組被移出後再拉回，不恢復校區綁定**：總部群組本來就在離開時取消；校區群組改在官方帳號回到群組的那一刻解除綁定，要總管理者在後台重新選（`_unbind_rejoined_group`）。離開期間保留綁定，後台照樣顯示「群組已離開」。解除會記一筆操作紀錄（`line.campus_target.update`，原因 `line_group_rejoined`），後台已加中文說明。
+
+沒有 migration，API 契約不變。驗證（基準 `7095ea05`）：後端全套 5,798 過、1 略過；三條新測試在原版確認失敗；web、admin 型別檢查與 `npm run contract:check` 通過；web 全套 2,483 項中 1 項 CSS 掃描測試在本機高負載下逾時（與修改無關），admin 稽核與 LINE 相關 220 項（1 項負載逾時、單跑通過）。接上 `6b9b60f1` 後以 PR 的 CI 為準。
+
+## 2026-11-19 Claude 審查 ChatGPT 分支並修正 CI（`feature/chatgpt-security-review-20261118`）
+
+- **修正 LINE 通知端點被誤擋**：11-18 把共用的 `_require_same_visit_request` 改成「沒帶案件 id 就回 409」，但 LINE 通知的查詢、取代碼、解除三個端點也共用它，CI 後端第 3 組 23 項失敗（`test_line_integrations_20261116.py`）。改回「有帶才比對」，「取消一定要帶 id」只在 `parent_cancel` 檢查，QA「A 分頁取消到 B 的預約」的防護不變。正式站官網一直都有帶 id，家長端沒有受到影響。
+- **npm audit 閘門紅燈**：11-18 起各分支 web job 卡在 picomatch 公告 GHSA-fc5q-39xc-vjpf。GitHub 已於 11-18 15:38（UTC）撤回該公告，本機 `npm audit` 回 0，不升套件也不登記放行。
+- **審查記下、這次沒改的通知 worker 行為**（頻率低）：發送途中資料庫斷線時直接中止該批，這筆不記失敗次數，之後靠租約到期重領；一批裡有租約被接手時 drain 會提早結束，等下一個 60 秒；發送鎖讓全站同時只跑一批（API 目前單一副本）。
+- 驗證：後端全套（修正前）5,779 過、23 失敗，失敗全在上述 LINE 測試；修正後 LINE、家長存取、QA 迴歸、預約存取並發、LINE 通知五檔 102 項通過；`web/tests/api-proxy.spec.ts` 43 項通過；`npm run contract:check` 通過。
+
+## 2026-11-18 三輪 QA 修正交接
+
+補齊 CMS 首次開啟的併發處理、通知租約保護，以及家長取消預約時的案件比對。逐項核對與驗證方式見 [QA 修正交接](docs/website-admin/qa-review-2026-11-18.md)。
+
+## 2026-11-18 ChatGPT（Codex）資安複核（11-19 Claude 已審查，見上）
+
+分支為 `feature/chatgpt-security-review-20261118`，基於 GitHub 的 `main` `14900354`。11 月 17 日掃描的版本是較舊的 `feature/website-admin` `d11d7e79`。兩項程式問題的防護已在主分支上。
+
+- **API 代理**在讀取本文前限制大小。超過上限回 `413`，沒有 `Content-Length` 的串流請求回 `411`。ChatGPT 新增兩個走實際代理路由的回歸測試，確認這兩種情況都不會轉送後端。測試使用本機模擬後端。
+- **CSV 匯出**已使用共用的 `csv_export.safe_cell`。前導 TAB、空白、控制字元與全形公式符號由既有防護處理。這一輪複核只新增代理測試與本段交接紀錄；分支另含上面 11-18 三輪 QA 的後端修正（通知 worker、CMS 首次建立、家長取消），合併時要一起看。
+
+驗證結果（Node 22.23.2、Python 3.12.13）
+
+- `npm --prefix web run typecheck` 通過。
+- `npm run test:website` 共 165 檔、2,480 項通過，包含兩個新增案例。
+- 在 `backend/` 以 `WEBSITE_SKIP_DEFAULT_APP=1 python -m pytest --noconftest -q tests/test_csv_export.py` 驗證既有 CSV 防護，38 項通過。這組測試使用合成資料，未連資料庫。
+
+## 2026-11-18 WebKit 重整時停止舊頁面的轉場遮罩工作（部署狀態見 `deploy/README.md`）
+
+正式版 HTTPS 的 WebKit 回歸找到全站轉場外掛的背景快取問題：`beforeunload` 之後，舊頁面仍開始產生遮罩並讀取 Blob；WebKit 此時已拒絕讀取，光接住 Promise 或改快取格式仍會回報資源錯誤。實際時序記錄在 `/private/tmp/ivy-blob-lifecycle.log`，CI trace 留在本機 `output/env-webkit-ci-second/`。
+
+- `curriculum-enter.client.ts` 從 `beforeunload`／`pagehide` 起停止背景遮罩工作，以世代編號使晚到回呼失效，釋放未完成的 Blob URL；bfcache 返回時重新排入閒置工作。已完成的遮罩保留，正常轉場畫面不變。
+- 快取以 ArrayBuffer 寫入，並接住同步／非同步儲存失敗；快取不可用時仍完成這次的三張遮罩。
+- 新增實際掛載外掛的回歸，涵蓋離頁後延遲回呼、返回後重建、快取圖片內容與同步／非同步失敗。離頁測試先在修正前重現兩項失敗，再確認修正後通過。
+- 最終驗證：web typecheck 通過、165 檔 **2,484 項單元測試通過**、官網與後台正式建置通過；正式版 HTTPS 的 Chrome／WebKit 各桌機與手機 **46 項通過、2 項依手機版設計略過**。日誌 `output/env-cache-{typecheck,unit,build,e2e}.log`。
+- WebKit 手機的四個直接連結重整、無 hash 返回、延遲圖片情境各重複三次，**18 項全部通過**，日誌 `output/env-cache-repeat.log`；沒有啟用失敗重試。
+- CI 把正式版 WebKit 提到完整 stack／公開站 e2e 前面，及早顯示引擎差異；三組仍全部執行。沒有 migration、API 或正式環境變數異動。
+
+## 2026-11-17 環境頁正式版 WebKit 重整修正（部署狀態見 `deploy/README.md`）
+
+首次部署後的正式網域唯讀驗收，找到 WebKit 在圖片載完前後再次套用原生 hash 定位，蓋掉離開前的捲動位置。正式版 hydrate 比開發版快，原本只等模組、字型與穩定高度不足；整頁重新整理／歷史返回現在先等文件 load，再還原位置，SPA 導航維持原流程。
+
+- 新增延遲圖片的真瀏覽器回歸：已在修正前的正式建置重現 WebKit 桌機／手機失敗，修正後通過。
+- `E2E_ENVIRONMENT_BUILD=1 npm run test:e2e:environment` 可直接驗正式建置，使用本機 fixture 與一次性 HTTPS 憑證；WebKit 正式版 Secure cookie 也能實際驗證。測試 cookie 網址取自當次 `baseURL`。
+- CI 加跑正式版 WebKit 桌機與手機，失敗時保留 trace；11-18 起先跑 WebKit，再跑完整 stack／公開站 e2e。首輪 Linux WebKit 抓到測試在初始章節定位／Nuxt manifest 預抓完成前就開始操作；已改成等待實際完成條件，保留錯誤與鍵盤焦點斷言，沒有加入重試或略過。
+- 實際驗證：web typecheck 通過、165 檔 2,478 項單元測試通過、官網與後台正式建置通過；正式版 Chrome／WebKit 各桌機／手機共 **46 項通過、2 項手機不啟用釘住舞台而略過**，沒有重試。日誌 `output/env-webkit-{typecheck,unit,build,full-final}.log`。
+- 本次只修 Router 與測試環境，沒有 API、migration 或正式環境變數異動。Safari／iPhone 實機仍未驗證。
 
 ## 2026-11-17 環境頁接手修正與驗收（`feature/env-windows-20261117`，實作完成，部署狀態見 `deploy/README.md`）
 

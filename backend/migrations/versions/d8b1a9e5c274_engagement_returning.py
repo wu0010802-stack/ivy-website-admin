@@ -4,7 +4,7 @@
 只新增可空欄位與一張新表，不改既有資料，不需要事先備份正式庫。
 
 Revision ID: d8b1a9e5c274
-Revises: d5e1f7a3b9c2
+Revises: e7a4c1d9b3f2
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "d8b1a9e5c274"
-down_revision = "d5e1f7a3b9c2"
+down_revision = "e7a4c1d9b3f2"
 branch_labels = None
 depends_on = None
 

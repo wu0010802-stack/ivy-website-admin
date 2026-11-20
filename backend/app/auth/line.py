@@ -29,7 +29,7 @@ from app.auth.models import Session as AuthSession
 from app.auth.models import User
 from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
 from app.auth.reauth import require_recent_auth
-from app.auth.routes import _set_session_cookie
+from app.auth.routes import _set_session_cookie, login_audit_metadata
 from app.auth.schemas import LineLinkStart, ReauthRequest
 from app.common.ratelimit import Limit, client_key, limiter
 from app.config import Settings
@@ -72,6 +72,11 @@ class LineOAuth:
             "nonce": nonce,
             "code_challenge": create_s256_code_challenge(code_verifier),
             "code_challenge_method": "S256",
+            # 關掉 LINE 的自動登入（2026-11-19）。有 PKCE 時預設會在手機上直接跳 LINE App，App 授權完
+            # 把回呼開在「預設瀏覽器」；從非預設瀏覽器發起（iPhone 預設 Chrome、後台開在 Safari）就拿不到
+            # 握手 cookie（正式站 11-17、11-18 各一次）。關掉後流程留在同一個瀏覽器：登入過 LINE 的顯示
+            # 一鍵 SSO，沒有的輸入 LINE 的 Email 與密碼。
+            "disable_auto_login": "true",
         })
 
     async def fetch_subject(self, code: str, code_verifier: str, nonce: str) -> str:
@@ -176,14 +181,17 @@ def _link_result(result: str) -> Response:
 
 
 @router.get("/line/login", response_class=RedirectResponse, status_code=302)
-async def line_login(request: Request, redirect: str | None = None) -> Response:
+async def line_login(request: Request, redirect: str | None = None, remember: bool = False) -> Response:
+    """remember＝登入頁勾了「記住這台裝置」，放進簽章過的握手，callback 照著建 30 天的 session。"""
     if request.app.state.line_oauth is None:
         return _login_failure("line_unavailable")
     try:
         await service.check_login_source_rate_limit(limiter(request), client_key(request))
     except service.LoginRateLimited:
         return _login_failure("rate_limited")
-    url, sealed = _begin(request, mode="login", return_to=safe_admin_path(redirect))
+    url, sealed = _begin(
+        request, mode="login", return_to=safe_admin_path(redirect), remember="1" if remember else ""
+    )
     response = RedirectResponse(url, status_code=302)
     _set_handshake(response, request.app.state.settings, sealed)
     return private(response)
@@ -279,6 +287,10 @@ async def _complete(request: Request, db: AsyncSession, handshake: dict | None) 
     if client is None:
         return await fail("unavailable")
     state = request.query_params.get("state") or ""
+    if handshake is None and state and request.cookies.get(HANDSHAKE_COOKIE) is None:
+        # 帶著 state 回來，這個瀏覽器卻完全沒有握手 cookie：多半是在另一個瀏覽器發起
+        # （或超過 10 分鐘 cookie 已過期）。請使用者在這個瀏覽器重按一次，就會從這裡發起、回到這裡。
+        return _login_failure("line_other_browser")
     if handshake is None or not secrets.compare_digest(state.encode(), handshake["state"].encode()):
         return await fail("failed")
     if not await limiter(request).consume_marker(STATE_MARKER, handshake["state"]):
@@ -311,13 +323,21 @@ async def _finish_login(request: Request, db: AsyncSession, handshake: dict, sub
     previous = request.cookies.get(SESSION_COOKIE_NAME)
     if previous:
         await service.revoke_session(db, previous)
-    raw_token, _ = await service.create_session(db, user, idle=service.session_idle(request.app.state.settings))
+    remember = handshake.get("remember") == "1"
+    raw_token, _ = await service.create_session(
+        db, user, idle=service.session_idle(request.app.state.settings), remember=remember
+    )
     await audit_service.log_action(
-        db, actor_user_id=user.id, action="user.login_line", target_type="user", target_id=str(user.id)
+        db,
+        actor_user_id=user.id,
+        action="user.login_line",
+        target_type="user",
+        target_id=str(user.id),
+        metadata=login_audit_metadata(remember),
     )
     await db.commit()
     response = RedirectResponse("/admin" + safe_admin_path(handshake.get("return_to")), status_code=303)
-    _set_session_cookie(response, request.app.state.settings, raw_token)
+    _set_session_cookie(response, request.app.state.settings, raw_token, remember=remember)
     return response
 
 

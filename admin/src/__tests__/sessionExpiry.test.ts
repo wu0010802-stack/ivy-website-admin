@@ -427,7 +427,9 @@ describe('2026-10-03 第八輪：登入逾時時未儲存的修改', () => {
     it('剩 15 分鐘內才出現，寫幾點到期、請先儲存', () => {
       const soon = mountNotice(10)
       expect(soon.text()).toContain('登入會在')
-      expect(soon.text()).toContain('到期（每次登入最長 12 小時）')
+      expect(soon.text()).toContain('到期')
+      // 記住這台裝置的上限是 30 天（2026-11-19），不能再寫死 12 小時。
+      expect(soon.text()).not.toContain('12 小時')
       expect(soon.text()).toContain('還沒儲存的修改請先儲存')
       expect(mountNotice(30).find('.session-limit').exists()).toBe(false)
       expect(mountNotice(-1).find('.session-limit').exists()).toBe(false)
