@@ -184,8 +184,8 @@ describe('內容興趣面板', () => {
 
   it('三類各放哪幾張表', async () => {
     expect(titles((await mountPanel(summary(), 'content')).wrapper)).toEqual(['造訪概況', '各頁停留', '各區塊有多少人看到', '點開了什麼', '單篇消息', '首頁點開的消息', '家長查的是哪個班別'])
-    expect(titles((await mountPanel(summary(), 'journey')).wrapper)).toEqual(['同一瀏覽器的回訪', '同一瀏覽器的跨次造訪', '從哪裡來', '哪一則貼文或廣告帶來的', '從哪一頁進來、哪一頁離開', '最常見的瀏覽順序', '什麼時候有人看'])
-    expect(titles((await mountPanel(summary(), 'convert')).wrapper)).toEqual(['各校預約去向', '帶著記住的校區回來', '預約表單卡在哪一步', '各校的興趣與預約', '看過哪些內容的造訪比較會預約'])
+    expect(titles((await mountPanel(summary(), 'journey')).wrapper)).toEqual(['從哪裡來', '哪一則貼文或廣告帶來的', '同一瀏覽器的跨次造訪', '從哪一頁進來、哪一頁離開', '最常見的瀏覽順序', '同一瀏覽器的回訪', '什麼時候有人看'])
+    expect(titles((await mountPanel(summary(), 'convert')).wrapper)).toEqual(['預約表單卡在哪一步', '各校的興趣與預約', '各校預約去向', '看過哪些內容的造訪比較會預約', '帶著記住的校區回來'])
   })
 
   it('讀近 28 天，列出各頁停留、區塊、互動與消息', async () => {
@@ -219,7 +219,11 @@ describe('內容興趣面板', () => {
     expect(sources).toContain('13%')
     const context = wrapper.find('[data-test="interest-context"]').text()
     expect(context).toContain('期間 2026/10/15–2026/11/11')
-    expect(context).toContain('共 100 次造訪')
+    // 2026-11-20：開頭先用一句話回答「最多從哪裡來」，造訪次數寫在這一句，不在小字裡再寫一次。
+    expect(wrapper.get('[data-test="interest-lede"]').text().replace(/\s+/g, '')).toBe('100次造訪裡，最多是Facebook（40次，40%），其次是LINE（6次，6%）。')
+    expect(context).not.toContain('共 100 次造訪')
+    // 來源表的造訪旁邊寫占比。
+    expect(sources).toContain('40（40%）')
     expect(context).toContain('不是人數')
     // 「看了什麼」的造訪概況已經寫了，不重複一行。
     expect((await mountPanel()).wrapper.find('[data-test="interest-context"]').exists()).toBe(false)
@@ -238,6 +242,61 @@ describe('內容興趣面板', () => {
     const fewRows = few.findAll('tbody tr').map((row) => row.text())
     expect(fewRows).toHaveLength(1)
     expect(fewRows[0]).toContain('30 週年')
+  })
+
+  it('2026-11-20：「走到預約」開頭一句話寫有多少造訪進到預約頁、送出預約', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
+    expect(wrapper.get('[data-test="interest-lede"]').text().replace(/\s+/g, '')).toBe(`100次造訪裡，40次進到預約頁（40%），${summary().totals.booked_sessions}次送出預約。`)
+    const empty = (await mountPanel(emptySummary(), 'convert')).wrapper
+    expect(empty.get('[data-test="interest-lede"]').text()).toBe('這段期間還沒有造訪紀錄。')
+  })
+
+  it('2026-11-20：整段期間沒有人預約時不排一整排 0%，各項次數收在下面', async () => {
+    const data = summary()
+    data.totals = { ...data.totals, booked_sessions: 0, booked_rate: 0 }
+    data.conversion = data.conversion.map((row) => ({ ...row, booked_sessions: 0, booked_rate: 0 }))
+    const { wrapper } = await mountPanel(data, 'convert')
+    expect(wrapper.find('[data-test="interest-conversion"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="interest-conversion-nobody"]').text()).toContain('還沒有造訪送出預約')
+    // 認不得的代碼不列，其餘三項的造訪數看得到。
+    expect(wrapper.findAll('[data-test="interest-conversion-counts"] tbody tr')).toHaveLength(3)
+  })
+
+  it('2026-11-20：沒有紀錄的表收成一列（標題＋一句話），位置不變', async () => {
+    const data = summary()
+    data.news = []
+    const { wrapper } = await mountPanel(data)
+    const news = wrapper.get('[aria-labelledby="interest-news-title"]')
+    expect(news.classes()).toContain('is-empty')
+    expect(news.text()).toContain('這段期間還沒有人打開消息內文頁')
+    expect(wrapper.get('[aria-labelledby="interest-pages-title"]').classes()).not.toContain('is-empty')
+    // 活動代碼沒有紀錄時要教怎麼加，維持完整的卡片。
+    const journey = (await mountPanel({ ...summary(), campaigns: [] }, 'journey')).wrapper
+    expect(journey.get('[aria-labelledby="interest-campaigns-title"]').classes()).not.toContain('is-empty')
+  })
+
+  it('2026-11-20：「點開了什麼」超過 10 項先列前 10 項，可以展開；匯出仍是全部', async () => {
+    const data = summary()
+    data.actions = ['polaroid_lunch', 'polaroid_hello', 'polaroid_rest', 'faq_tuition', 'faq_fees', 'faq_diaper', 'campus_minghua', 'campus_yihua', 'campus_renwu', 'campus_chongde', 'campus_international', 'hero_video']
+      .map((key, index) => ({ page: key.startsWith('faq') ? 'admission' : 'home', key, visits: 50 - index, total: 60 - index }))
+    const { wrapper } = await mountPanel(data)
+    expect(wrapper.findAll('[data-test="interest-actions"] li')).toHaveLength(10)
+    const toggle = wrapper.get('[data-test="interest-actions-toggle"]')
+    // 認得的互動代碼才列，總數寫在按鈕上。
+    const total = Number(/^顯示全部 (\d+) 項$/.exec(toggle.text())?.[1])
+    expect(total).toBeGreaterThan(10)
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+    await toggle.trigger('click')
+    expect(wrapper.findAll('[data-test="interest-actions"] li')).toHaveLength(total)
+    expect(toggle.text()).toBe('只看前 10 項')
+  })
+
+  it('2026-11-20：各校去向每一格都是 0 時只寫一句話，不排一張全是 0 的表', async () => {
+    const data = summary()
+    data.campus_destinations = { ...data.campus_destinations!, rows: data.campus_destinations!.rows.map((row) => ({ ...row, available: 0, empty: 0, phone: 0, line: 0, booked: 0, contact_after_empty: 0 })) }
+    const { wrapper } = await mountPanel(data, 'convert')
+    expect(wrapper.find('[data-test="interest-destinations"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="interest-destinations-quiet"]').text()).toContain('12／240 頁')
   })
 
   it('內容與預約：每一項都還不到樣本數時寫一句話，不放空表', async () => {

@@ -7,6 +7,7 @@ import {
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
+import RowsToggle from './analytics/RowsToggle.vue'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './analytics/filters'
 
 // Google 搜尋（2026-11-12，Search Console）：家長在 Google 搜尋什麼字、點進官網哪一頁。
@@ -60,7 +61,13 @@ const configured = computed(() => data.value?.configured === true)
 const rangeText = computed(() => (data.value?.start && data.value.end ? periodText(data.value.start, data.value.end) : ''))
 const totals = computed(() => data.value?.totals ?? null)
 const queries = computed(() => data.value?.queries ?? [])
+// 兩張表各有最多 25 列（各約 1,000px）：先列前 10 項，要看全部再展開（2026-11-20）。
+const LIST_LIMIT = 10
+const queriesExpanded = ref(false)
+const pagesExpanded = ref(false)
+const visibleQueries = computed(() => (queriesExpanded.value ? queries.value : queries.value.slice(0, LIST_LIMIT)))
 const pages = computed(() => (data.value?.pages ?? []).map((row) => ({ ...row, label: searchPageLabel(row.page), path: readablePath(row.page) })))
+const visiblePages = computed(() => (pagesExpanded.value ? pages.value : pages.value.slice(0, LIST_LIMIT)))
 const devices = computed(() => data.value?.devices ?? [])
 const deviceClicks = computed(() => devices.value.reduce((sum, row) => sum + row.clicks, 0))
 const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((clicks / deviceClicks.value) * 100)}%` : '—')
@@ -128,14 +135,14 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
 
       <div class="search__cols">
         <section class="panel" aria-labelledby="search-queries-title">
-          <div class="panel__head"><h2 id="search-queries-title">搜尋字詞<span class="search__sub">點進官網最多的前 25 個</span></h2></div>
+          <div class="panel__head"><h2 id="search-queries-title">搜尋字詞<span class="search__sub">點進官網最多的，最多列 25 個</span></h2></div>
           <div class="panel__body search__body">
             <p v-if="!queries.length" class="hint">這段期間沒有資料。</p>
             <div v-else class="search__scroll" role="region" tabindex="0" aria-label="搜尋字詞（可左右捲動）">
               <table class="search__table" data-test="search-queries">
                 <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                 <tbody>
-                  <tr v-for="row in queries" :key="row.query">
+                  <tr v-for="row in visibleQueries" :key="row.query">
                     <th scope="row">{{ row.query }}</th>
                     <td class="num">{{ row.clicks }}</td>
                     <td class="num">{{ row.impressions }}</td>
@@ -145,19 +152,20 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                 </tbody>
               </table>
             </div>
+            <RowsToggle v-model="queriesExpanded" :total="queries.length" :limit="LIST_LIMIT" data-test="search-queries-toggle" />
           </div>
         </section>
 
         <div class="search__col">
           <section class="panel" aria-labelledby="search-pages-title">
-            <div class="panel__head"><h2 id="search-pages-title">被點進去的頁面<span class="search__sub">前 25 頁</span></h2></div>
+            <div class="panel__head"><h2 id="search-pages-title">被點進去的頁面<span class="search__sub">最多列 25 頁</span></h2></div>
             <div class="panel__body search__body">
               <p v-if="!pages.length" class="hint">這段期間沒有資料。</p>
               <div v-else class="search__scroll" role="region" tabindex="0" aria-label="被點進去的頁面（可左右捲動）">
                 <table class="search__table" data-test="search-pages">
                   <thead><tr><th scope="col">頁面</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                   <tbody>
-                    <tr v-for="row in pages" :key="row.page">
+                    <tr v-for="row in visiblePages" :key="row.page">
                       <th scope="row">
                         <template v-if="row.label">{{ row.label }}<span class="hint search__path">{{ row.path }}</span></template>
                         <template v-else>{{ row.path }}</template>
@@ -170,6 +178,7 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
                   </tbody>
                 </table>
               </div>
+              <RowsToggle v-model="pagesExpanded" :total="pages.length" :limit="LIST_LIMIT" data-test="search-pages-toggle" />
             </div>
           </section>
 
