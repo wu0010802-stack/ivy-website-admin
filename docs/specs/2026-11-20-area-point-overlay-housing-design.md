@@ -215,14 +215,14 @@ gap_radius_km: int   # 6
 - 115S3 實測：可用 4,108 筆、中位數 29.9 萬／坪。
 
 **租賃（H2）**，全部符合才收：
-- 交易標的含「房屋」；出租型態 =「整棟(戶)出租」。
+- 交易標的含「房屋」；主要用途含「住」；出租型態 =「整棟(戶)出租」。
 - 建物型態同 H1 的住宅清單。
 - 備註不含：親友、員工、特殊關係。
 - 月租＝總額元（> 0）。
 - 115S3 實測：整戶出租 4,230 筆、月租中位數 18,500 元。
 
 **存什麼**（新表 `geo_housing_deals`，一支 migration 只新增這張表）：
-`kind`（sale／rent）、`serial`（編號；PK＝(kind, serial)）、`season`、`building_type`、`district`、門牌鍵（`street`、`lane`、`alley`、`number`、`number_sub`，同 `GeoNewHomeSale`）、`village`、`village_code`、`match_level`、`doorplate_version`、`unit_price`（買賣，元／坪）、`monthly_rent`（租賃，元）。
+`kind`（sale／rent）、`serial`（編號；PK＝(kind, serial)）、`season`、`building_type`、`district`、門牌鍵（`street`、`lane`、`alley`、`number`、`number_sub`，同 `GeoNewHomeSale`）、`village`、`match_level`、`doorplate_version`、`unit_price`（買賣，元／坪）、`monthly_rent`（租賃，元）。
 **不存**：地址原文、樓層、總價、面積、交易日、格局、建案名稱。
 
 **比對**：地址解析與門牌比對完全沿用 `new_homes`（`_address`、`match_keys`、`_district_of`）；門牌換版時和新成屋一起重比（`rematch`）。
@@ -293,3 +293,5 @@ gap_radius_km: int   # 6
 8. **`village_at(lng, lat)`** 參數 lng 在前、只回代碼；名稱用 `boundaries.village_names()[code]` 反查（district, village）。
 9. **六支查詢的簽名**：`campus_key` 改成 `str | None`，`center` 給了就不讀 `campus_key`；`campus_key` 與 `center` 都沒給時 raise `ValueError`。`query_kindergartens` 不在任意點範圍內（家數用 `query_peer_fees` 的 groups，同五校比較表），不改。
 10. **`MAP_MODES` 順序**：「在籍學生」是第一個，`campuses` 放第二個（緊接在籍學生）。
+11. **租賃也要主要用途含「住」**（Task 1 實作時補）：§7.1 實測的 4,230 筆／18,500 元就是加了這條；不加是 4,640 筆／18,000 元（混進店面住商）。
+12. **不存 `village_code`**：同 `GeoNewHomeSale` 只存（區, 里）名稱，查詢時用 `boundaries.village_code` 轉；里界換版時不必回寫代碼。
