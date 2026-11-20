@@ -14,6 +14,15 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 環境頁：章節卡只留章名、菜單書夾書籤、一天五餐盤子優先、五校分頁都接得上（PR #115，已部署 main `d13b4768`）
+
+[PR #115](https://github.com/wu0010802-stack/ivy-website-admin/pull/115)（11-18 開的分支，11-20 rebase 到 `bb4a7a47` 後強制推送為 `14e4b76c`）PR 組 CI [44693001382](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44693001382) 全綠（含 E2E）；推送組 [44692993268](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44692993268) 被 concurrency 取消後 rerun 第 2 次全綠，以 merge commit `d13b4768` 併入 main。[main CI/CD 44697755455](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44697755455) 全部成功（web、admin、後端三組、E2E、Deploy 07:56:49–08:00:45Z）。
+
+- 只動 web（`EnvironmentContent.vue`、`environment.css`、`utils/environment-windows.ts`）、admin 一行欄位提示（`EnvironmentPageView.vue`）＋測試、渲染快照、README／DESIGN.md。沒有 API、契約、migration、Railway 環境變數變更。
+- 內容：章節卡只留章名、五校面板拿掉地址、戶外廣場拿掉「明華校」膠囊、菜單按鈕拿掉箭頭、營養餐點書加書頁與當月索引籤、一天五餐改盤子優先；修五校分頁只有義華接得上、桌機 WebKit 從 `#meals` 切換減少動態被推走 751px。
+- 部署後唯讀檢查（只發 GET、擋追蹤與遙測、不送表單）：正式 `/release.json` 的 base_commit 為 `d13b4768d8909e5cea9e013e9224071f2b4354ae`，snapshot `5512e84a2d777643674926b1e2fcea76796fbf34baa6a9d3a90475f7f70c6ed8`；Playwright（真 Chrome 與 WebKit，1440×900、390×844）`/environment` 章節卡沒有小字與箭頭、索引籤寫「11 月」、一天五餐有 `--cols`、時間牌 19.2px（手機 16px）、五校逐一點分頁都和面板重疊 16px、面板沒有地址連結、無橫向捲動、無頁面錯誤。
+- 沒驗：iPhone／Safari 實機、桌機懸停掀封面在實機的手感。
+
 ## 2026-11-20 後台成效統計第三輪 UI/UX：條件列黏住、每一類先講答案（PR #127，已部署 main `1f856c21`）
 
 [PR #127](https://github.com/wu0010802-stack/ivy-website-admin/pull/127)（feature `d3f196b8`）PR 組 CI 全綠（含 E2E）；推送組被 concurrency 取消後重跑通過，以 merge commit `1f856c21` 併入 main。[main CI/CD 44686773382](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44686773382) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 14:42 完成。

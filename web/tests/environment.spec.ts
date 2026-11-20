@@ -155,10 +155,9 @@ describe('常春藤環境頁沿用的裁定', () => {
     }
   })
 
-  it('照片不放說明與註解（使用者 10-30）：沒有圖說、便條、小路與選校提示、校園探索說明句；戶外廣場的校別標示照留', () => {
+  it('照片不放說明與註解（使用者 10-30）：沒有圖說、便條、小路與選校提示、校園探索說明句', () => {
     for (const field of ['heroCaption', 'careCaption', 'carePhotoNote', 'feature.note', 'space.note', 'trailHint', 'tourHint', 'scene.intro']) expect(template).not.toContain(field)
     expect(template).not.toContain('<figcaption')
-    expect(template).toContain('<p v-if="space.campusLabel" class="renv-stop-campus">{{ space.campusLabel }}</p>')
   })
 
   it('沒有手繪層、GSAP、蠟筆塗鴉、圓點小路的腳本；也沒有紋理（使用者 10-30：舊版髒、像解析度不夠）', () => {
