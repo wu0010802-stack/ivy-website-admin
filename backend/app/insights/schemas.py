@@ -19,12 +19,26 @@ class SearchMetricsOut(BaseModel):
     position: float | None
 
 
+SearchQueryGroup = Literal["brand", "local", "category", "other"]
+
+
 class SearchQueryRowOut(BaseModel):
     query: str
+    # 2026-11-20：brand＝找我們、local＝帶高雄地名、category＝找園所沒帶地名、other（search_console.query_group）。
+    group: SearchQueryGroup
     clicks: int
     impressions: int
     ctr: float
     position: float
+
+
+class SearchQueryGroupOut(BaseModel):
+    group: SearchQueryGroup
+    queries: int
+    clicks: int
+    impressions: int
+    ctr: float | None
+    position: float | None
 
 
 class SearchPageRowOut(BaseModel):
@@ -56,6 +70,10 @@ class SearchInsightsOut(BaseModel):
     queries: list[SearchQueryRowOut] = Field(default_factory=list)
     pages: list[SearchPageRowOut] = Field(default_factory=list)
     devices: list[SearchDeviceRowOut] = Field(default_factory=list)
+    # 2026-11-20：Google 回了幾個搜尋字詞（最多 500）、各群加總、曝光多點擊少的字詞（最多 10 個）。
+    queries_seen: int | None = None
+    query_groups: list[SearchQueryGroupOut] = Field(default_factory=list)
+    missed_queries: list[SearchQueryRowOut] = Field(default_factory=list)
 
 
 class CruxValueOut(BaseModel):

@@ -5,7 +5,8 @@ import { campusKeys, publicPage, type PublicPage } from './telemetry'
 // backend/app/operations/routes.py 的 EngagementIn 一致。
 
 // 造訪來源只分這幾種代碼；要和後端 operations/models.py 的 ENGAGEMENT_SOURCES 一致（測試會比對）。
-export const ENGAGEMENT_SOURCES = ['direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other'] as const
+// ai（2026-11-20）：ChatGPT、Perplexity、Gemini、Copilot 等 AI 助理的回答裡點進來；廣告一律算 ads。
+export const ENGAGEMENT_SOURCES = ['direct', 'search', 'ai', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other'] as const
 export type EngagementSource = (typeof ENGAGEMENT_SOURCES)[number]
 // 廣告來自哪個平台（來源是 ads 時才有）；要和後端 booking/attribution.py 的 AD_PLATFORMS 一致（測試會比對）。
 export const AD_PLATFORMS = ['google', 'openai', 'meta', 'line', 'other'] as const

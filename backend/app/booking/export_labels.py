@@ -21,7 +21,7 @@ EXPORT_HEADERS = (
 
 # 網站來源代碼（和後端 operations/models.py 的 ENGAGEMENT_SOURCES、後台 api/engagement.ts 的 SOURCE_LABELS 同一組）。
 TOUCH_SOURCE_LABELS = {
-    "direct": "直接進站", "search": "搜尋引擎", "facebook": "Facebook", "instagram": "Instagram",
+    "direct": "直接進站", "search": "搜尋引擎", "ai": "AI 助理", "facebook": "Facebook", "instagram": "Instagram",
     "line": "LINE", "youtube": "YouTube", "ads": "付費廣告", "other": "其他網站",
 }
 

@@ -204,6 +204,8 @@ const LINE_GROUP_KIND_LABELS: Record<string, string> = {
   visit_request_confirmed: '參觀預約已確認',
   visit_request_rescheduled: '參觀預約已改期',
   visit_request_cancelled: '參觀預約已取消',
+  // 2026-11-20：總部群組的官網統計異常提醒（backend/app/operations/stats_health.py）。
+  stats_health: '官網統計異常',
 }
 
 // 在 LINE 群組填招生結果欄位（line.group.recruitment_field，2026-11-17）：一次一個欄位。

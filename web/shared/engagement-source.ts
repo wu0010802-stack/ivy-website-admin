@@ -15,6 +15,10 @@ export function campaignOf(search: string): string | undefined {
 }
 
 const SEARCH_HOSTS = /(^|\.)(google\.[a-z.]+|bing\.com|yahoo\.com|duckduckgo\.com|baidu\.com)$/
+// AI 助理（2026-11-20）：回答裡的連結點進來。gemini.google.com 也符合上面的 google.*，所以要先比這個。
+// ChatGPT 的連結會自己加 utm_source=chatgpt.com，Perplexity、Copilot 有時也會帶，utm_source 另外認（bySourceName）。
+const AI_HOSTS = /(^|\.)(chatgpt\.com|chat\.openai\.com|perplexity\.ai|gemini\.google\.com|bard\.google\.com|copilot\.microsoft\.com|copilot\.cloud\.microsoft|claude\.ai|chat\.deepseek\.com|poe\.com|grok\.com|meta\.ai|you\.com)$/
+const AI_SOURCE_NAME = /^(chatgpt|openai|perplexity|gemini|bard|copilot|claude|deepseek|grok|poe)/
 const PAID_MEDIUM = /^(cpc|ppc|paid|paid_social|paidsocial|ads?|display|banner)$/i
 
 /**
@@ -37,7 +41,7 @@ export function adPlatformOf(search: string): AdPlatform | undefined {
 
 /**
  * 這次造訪從哪裡來，只分成幾種代碼，不保留來源網址。順序：廣告參數 → utm_source → fbclid（Instagram 的線索先於它）→
- * 來源網站 → App 內建瀏覽器（LINE、Facebook、Instagram 常不帶來源網站，從 User-Agent 認）→ 直接進站。
+ * 來源網站（AI 助理先於搜尋引擎） → App 內建瀏覽器（LINE、Facebook、Instagram 常不帶來源網站，從 User-Agent 認）→ 直接進站。
  */
 export function classifySource(referrer: string, search: string, origin: string, userAgent = ''): EngagementSource {
   const params = new URLSearchParams(search)
@@ -49,6 +53,7 @@ export function classifySource(referrer: string, search: string, origin: string,
   // Meta 在 Instagram 的外連連結上也會加 fbclid：Instagram 的線索（來源網站、沒有來源網站時的 App 內建瀏覽器）要先於 fbclid。
   if (params.has('fbclid')) return /(^|\.)instagram\.com$/.test(host) || (!host && /Instagram/.test(userAgent)) ? 'instagram' : 'facebook'
   if (host) {
+    if (AI_HOSTS.test(host)) return 'ai'
     if (SEARCH_HOSTS.test(host)) return 'search'
     if (/(^|\.)(facebook\.com|fb\.com|fb\.me)$/.test(host)) return 'facebook'
     if (/(^|\.)instagram\.com$/.test(host)) return 'instagram'
@@ -68,6 +73,12 @@ function bySourceName(name: string): EngagementSource | null {
   if (/^(instagram|ig)/.test(name)) return 'instagram'
   if (/^line/.test(name)) return 'line'
   if (/^(youtube|yt)/.test(name)) return 'youtube'
+  if (AI_SOURCE_NAME.test(name)) return 'ai'
   if (/^(google|bing|yahoo)/.test(name)) return 'search'
   return 'other'
+}
+
+/** 來源網站是不是搜尋引擎（404 統計分「從哪裡來」用，2026-11-20）。 */
+export function isSearchHost(host: string): boolean {
+  return SEARCH_HOSTS.test(host.toLowerCase())
 }

@@ -456,3 +456,14 @@ describe('請求方法白名單（2026-11-12 QA L3）', () => {
     expect([...API_PROXY_METHODS]).toEqual(['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE'])
   })
 })
+
+describe('/public/not-found、/public/crawler-hits 同樣只給伺服器內部轉送（2026-11-20 成效統計補強）', () => {
+  it.each([
+    '/api/website/v1/public/not-found', '/api/website/v1/public/not-found/', '/api/website/v1/public/%6eot-found',
+    '/api/website/v1/public/crawler-hits', '/api/website/v1//public//crawler-hits', '/api/website/v1/public/%63rawler-hits',
+  ])('%s → 404', async (path) => {
+    const response = await rawRequest(proxyPort, path, { method: 'POST', headers: { 'content-type': 'application/json', 'content-length': '2' }, body: '{}' })
+    expect(response.status).toBe(404)
+    expect(upstreamHits).toEqual([])
+  })
+})

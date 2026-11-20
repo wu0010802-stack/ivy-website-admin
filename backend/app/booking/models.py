@@ -122,15 +122,15 @@ class VisitRequest(Base):
             name="ck_visit_requests_exclude_reason",
         ),
         CheckConstraint("(excluded_at IS NULL) = (exclude_reason IS NULL)", name="ck_visit_requests_excluded_pair"),
-        # 2026-11-16 網站來源：代碼與第一方統計的 ENGAGEMENT_SOURCES 相同（app/booking/attribution.py）。
+        # 2026-11-16 網站來源：代碼與第一方統計的 ENGAGEMENT_SOURCES 相同（app/booking/attribution.py）；2026-11-20 加 ai。
         CheckConstraint(
             "first_touch_source IS NULL OR first_touch_source IN "
-            "('direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
+            "('direct', 'search', 'ai', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
             name="ck_visit_requests_first_touch_source",
         ),
         CheckConstraint(
             "last_touch_source IS NULL OR last_touch_source IN "
-            "('direct', 'search', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
+            "('direct', 'search', 'ai', 'facebook', 'instagram', 'line', 'youtube', 'ads', 'other')",
             name="ck_visit_requests_last_touch_source",
         ),
         # 2026-11-16 廣告平台（docs/specs/2026-11-16-ad-roi-design.md）：代碼與 attribution.AD_PLATFORMS 相同，

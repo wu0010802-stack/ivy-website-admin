@@ -209,6 +209,12 @@ def _reset_process_caches():
     line_accounts.clear_quota_cache()
     line_insights.clear_cache()
     traffic_service._last_purge = None
+    # 成效統計補強（2026-11-20）：每月彙總、404 清除、健康檢查都有「今天做過了」的程序內記號。
+    from app.operations import crawler_service, monthly_service, stats_health
+
+    monthly_service.reset_rollup_clock()
+    crawler_service._last_purge = None
+    stats_health.reset_clean_day()
     media_service._release_media_cache = None
     public_caps._last_logged.clear()
     content_routes._public_site_cache.reset()

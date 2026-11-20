@@ -1,3 +1,16 @@
+## 2026-11-20 成效統計補強七項：每月比較、統計健康檢查、AI 助理來源、找不到的網址、Google 搜尋字詞分群、電話與 LINE 的時段、搜尋引擎與 AI 爬蟲（`feature/analytics-more-20261120`，未部署）
+
+使用者問 `/admin/analytics` 還有什麼統計可以做，看完盤點說「這些都做」。規格 `docs/specs/2026-11-20-analytics-more-design.md`。migration `a6c3e9f2d417`：四張新表＋預約來源 CHECK 加 `ai`，只放寬與新增、不改既有資料。
+
+- **每月比較**（成效統計第五類）：內容興趣原始紀錄只留 90 天，定期工作每天把「整個月的紀錄都還在」的月份重算一次存進 `engagement_monthly`，之後一直留著；一列一個月（瀏覽、造訪、手機占、回訪占、每次看幾頁、停留、進到預約頁、送出預約、實際預約），明年同月起每一格下面寫「去年 ±x%」。另有每月來源、表單各步、各頁三張表。
+- **統計健康檢查**：昨天瀏覽歸零、內容興趣不到瀏覽兩成、近 7 天官網預約都沒有網站來源、GA4 前天零事件（有設 GA4 資源編號才查）時，成效統計頁頂端顯示；總部 LINE 群組可以開「官網統計異常」（預設不開），每天 09:00–12:00 推一次。
+- **AI 助理來源**：來源多一個 `ai`（ChatGPT、Perplexity、Gemini、Copilot、Claude 等的回答裡點進來，含 `utm_source=chatgpt.com`）；廣告仍算付費廣告。部署後才開始分，不回補。
+- **找不到的網址**（瀏覽與速度）：訪客看到 404 時記路徑與從哪裡來；搜尋引擎與 AI 爬蟲抓到 404 另記。看 Wix 舊網址要補哪些轉址；留 90 天。
+- **Google 搜尋**：字詞多抓到 500 個，分「找我們／帶高雄地名／找園所／其他」四群，另列「常出現、卻很少人點」（曝光 ≥ 20、點閱率 < 2%）。
+- **電話與 LINE 的時段**（走到預約）：讀點擊當下的成效事件，算上班時間（暫定週一到週五 8–18 點）以外的比例、星期 × 時段、各校。
+- **搜尋引擎與 AI 爬蟲**（瀏覽與速度）：官網伺服器依 User-Agent 認 35 種爬蟲，每分鐘彙總一次，依「AI 即時來讀／AI 搜尋索引／AI 訓練／搜尋引擎／社群預覽／SEO／監測」分組，看抓了哪些頁與錯誤。
+- **驗證**：後端全套 5,865 passed（唯一紅燈是爬蟲表欄位叫 `status` 被狀態機守門擋下，改名 `status_class` 後相關 76 條重跑過）；admin 全套 3,804 passed（兩條舊測試補 stub／維護步驟中文後重跑過）、web 全套 2,561 passed；兩邊 typecheck、`contract:check`、deploy 測試過；migration 升降各一次。官網正式建置（fixture）＋假 API 實測：Googlebot／GPTBot 的正常頁、301、404 都進一分鐘彙總，404 不會因內部錯誤頁記兩次，`/_nuxt` 與一般瀏覽器不算；真 Chrome 打開不存在的網址回報 `not_found`（來源搜尋引擎）；直接打 `/api/website/v1/public/crawler-hits` 404。後台新畫面以假資料在 1470／390 截圖：橫向溢出 0、console 錯誤 0、axe 0。沒驗：正式資料下的畫面、GA4 事件數查詢（正式站沒設 GA4 資源編號）、LINE 實際推播。
+
 ## 2026-11-20 環境頁：章節卡只留章名、菜單書夾書籤、一天五餐盤子優先、五校分頁都接得上（PR #115，已部署 main `d13b4768`，紀錄見 `deploy/README.md`）
 
 PR #115（11-18）rebase 到 main `bb4a7a47`（接上 11-20 的美術收尾 `b9726e76`）後，使用者 11-20 再指定六處。菜單書與一天五餐比稿兩個方向（私人 Artifact https://claude.ai/artifact/NvhTPbY2W8wZjtDYqfiNQJ ），**兩題都選 A**，比稿參數已移除。規則寫在 DESIGN.md 最上面同日那一節。
@@ -327,7 +340,6 @@ GA4 後台（使用者要求、11-19 用 Chrome 調整）：資料收集 →「�
 
 ## 2026-11-16 環境頁五所校園分頁改直立積木（`feature/env-tour-tabs-20261116`，已部署 main `ffe857e3`）
 
-
 使用者說第四章五校分頁「有點扁」。原因是桌機視窗高不到 760px 時積木被壓成 1:0.66（1280×720 筆電量到 219×145），白框裡的校舍也只佔中間一條。比稿 A–D 選 A：積木改成比寬略高（桌機 1:1.1、矮視窗 1:0.98、手機 1:1.14 最矮 116px），兩層線稿 `cover` 貼底放大、依校別往下挪到地面貼齊白框；選中從「3px 墨綠框＋小圓點」改成「按下去＋校名深綠底白字」，鍵盤操作不再出現兩圈黑框。只動 `web/app/assets/css/environment.css`，規則記在 DESIGN.md「五所校園直立積木分頁」，守門測試在 `web/tests/environment.spec.ts`。驗證：web typecheck、`test:unit` 全過；fixture dev server 1440×900、1280×720、1280×650、820、390、320 截圖無溢出，鍵盤左右鍵換校只有一圈焦點框。
 
 ## 2026-11-16 廣告成效與各里結婚對數（`feature/ad-roi-20261116`，已部署 main `3d05fa33`）
@@ -592,7 +604,6 @@ migration `a7c3e9f1b250` 只新增欄位與一張表。上線前要做的事見 
 - 圖說「明華校 · 仁武校」（fixture、`overlay-baseline`、後台 `DayExperienceView.vue` 三處）。
 - 驗證：`npm --prefix web run typecheck`、`npm run test:website` 150 檔 2292 過、後端 `tests/test_media_slots.py` 21 過（自己的測試庫）、fixture dev server 用 Playwright 看 1440×900／1440×560／390×844（新片有播、沒有紗、沒有 console 錯誤與橫向捲動）。
 - **沒驗／已知**：紗拿掉後開場大標、圖說直接壓在亮的影片上，量到的背景對比（不計文字陰影）大標 1.20、圖說 1.60，遠低於 4.5——使用者看過比稿與本機預覽後的選擇；陰影加上去之後沒有再量。admin 測試、e2e、stack、實機都沒跑。
-
 
 ## 2026-11-13 預約表單 Email 改選填、「孩子」改稱「寶貝」（`feature/visit-email-optional-20261113`）
 
@@ -879,7 +890,6 @@ migration `a7c3e9f1b250` 只新增欄位與一張表。上線前要做的事見 
 - **後台資料（不是程式）**：從各校 FB 粉專「關於」、站內搜尋貼文與 IG 自介查到明華 `@541hvofc`／`ivyschool_mh`、崇德 `@313cwble`／`ivyschool_chongde`、國際 `@786vupcx`／`ivyinternationalkindergarten`、仁武 `@392jltmc`／`ivyschool_2021`。經使用者同意，在正式站後台「五校介紹」四校的 LINE（`https://line.me/R/ti/p/@ID`）與 Instagram 欄填入並發布（12:42–12:44），發布前四校都沒有未發布草稿、確認框只更新這兩欄。明華、仁武各有一個較舊的帳號（`@316crhph`、`@474kdbpd`），取最近貼文用的那個；明華 YouTube `@ivy_minghua` 沒填。`site-fixture.json` 沒改（正式站讀後台）。
 - **程式**：`CampusBoard.vue` 社群列的「LINE 好友」改成「Line」（aria-label 同步），和旁邊的 Facebook、Instagram 一樣只寫平台名。頁首選單「義華校 LINE」等其他地方沒動。
 - 驗證：web `typecheck` 過、`npm run test:website` 140 檔 1888 項過；dev server（fixture 模式）Playwright 看 1440×900 與 390×844 義華卡片顯示「Line | Facebook | Instagram | YouTube」；正式站 HTML 不輸出模板註解。**沒跑**：後端測試（沒動 fixture）、`tests/stack`、實機。
-
 
 ## 2026-11-12 環境頁「定時消毒」換照片（`feature/env-care-clean-20261112`）
 
@@ -1387,7 +1397,6 @@ PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫�
 - 未驗證：iOS／Android 實機；stack e2e 沒在本機跑；正式建置沒跑。
 - 被還原的兩份修改留著備查（gitignore）：`output/admission-ux-20261109-pre-merge.patch`（11-09 那輪）、`output/admission-r1r2-combined-20261110.patch`（兩輪疊在一起）。
 
-
 ## 2026-11-09 前台技術稽核修正：素材原檔、字型字表、撥號膠囊（`feature/web-tech-audit-20261109`）
 
 使用者：「幫我看看前台有哪裡可以優化的」→ 對正式站（release 120c7953）做技術稽核 15/20，「都幫我處理」。規則見 DESIGN.md 最上方一段。
@@ -1514,7 +1523,6 @@ PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫�
   - AVIF 版面：本機 production build 用正式站內容（live）對正式站，7 頁 × 桌機 1440／手機 390，每張 `<img>` 位置、大小、頁高逐一比對，修正後 14 組 0 差異、無 pageerror。圖片傳輸量（含延遲載入）：桌機 /visit 1385→924 KB、/curriculum 2505→1931 KB、/about 561→418 KB，手機 /about 961→681 KB、/visit 374→260 KB；首頁內建照片 2458→1721 KB（另有約 2.3 MB 後台素材未轉）。AVIF 偵測用的 1×1 data URI 在 Chrome 解得開。
   - 後台畫面：stack 環境用測試金鑰截桌機與手機，錯誤列表、手機通知各狀態（可開啟、iPhone 未加入主畫面、編輯者看不到）、無橫向捲動、無 pageerror；headless Chrome 沒有推播服務，按「開啟通知」會失敗並提示「通知沒有開啟成功，請再試一次」，Service worker 有註冊成功。
 - **沒驗**：真實推播服務（FCM／Apple／Mozilla）的送達與 VAPID 簽章、iPhone 從主畫面開啟的實機流程、Safari 實機的 AVIF 與偵測、GitHub 排程的實際執行與失敗信。
-
 
 ## 2026-11-05 首頁「關於常春藤」照片對齊、換照、內文改寫（`feature/home-about-a-20261105`）
 
@@ -1673,7 +1681,6 @@ PR #70 合併後自動審查指出：後台「家長查的是哪個班別」寫�
 - **驗證**：`npm --prefix web run typecheck` 通過；`npm run test:website` 110 檔 1351 項全過（先紅 2 項＝overlay 基準，同步後過）；admin `editVersionsUx`／`pageCopyFields`／`aboutPage` 85 項過；後端用獨立測試庫跑 `test_media_slots.py` 21 項、讀 fixture 的另 9 檔 252 項全過；fixture dev server 用 Playwright 看 1440（DPR2，載 1600w）與 390（DPR3，載 1200w），替代文字正確。
 - **stack e2e**：本機 156 項 155 過；`admissions-flow.spec.ts:184`（390px 五校比較）在負載 30 時骨架 10 秒內沒消失，單獨重跑該檔 4 項全過。視覺基準只拍後台頁面，不含首頁這區。
 - **沒跑**：iOS 實機。
-
 
 ## 2026-11-03 特色教學換三張明華校 FB 粉專照片（`feature/minghua-fb-photos-20261103`）
 
@@ -4201,7 +4208,6 @@ git commit -m "說明本次修改"
 
 園方於 2026-09-10 選定方向 B：標題改用 LINE Seed TW（Bold 700、hero 800），字型子集放在 `assets/fonts/`（含說明與重新產生指令），頁尾註明字型來源；`package_preview.py` 會把字型內嵌進單檔版。
 
-
 ## 五校介紹加地圖與社群（2026-09-15，已採用方向 B）
 
 首頁五校卡片與各校「交通與聯絡」頁加入 Google 地圖、LINE 官方帳號、Facebook。三個呈現方向的比較頁仍留在 `design/campus-directions/`（A 地圖清單／B 卡片加地圖抽屜／C 校區分頁）供參考；使用者選定 **B 卡片加地圖抽屜**，已實作進站：
@@ -4232,7 +4238,6 @@ git commit -m "說明本次修改"
 - 打包器改為替換 `photoSrc` 單一定義；`preview.html` 已重打包，照片、字型皆內嵌。
 - 驗證：1440px 與 390px 無水平溢出、無主控台錯誤；tab／方向鍵／上一下一校／圖釘切換後照片、介紹、資訊、地圖、路線、播報全部同步。改前快照 `versions/before-campus-carousel-20260916-152420/`（目錄版）與 `versions/before-campus-a2-20260916-153422/`（A3 版）；規則在 DESIGN.md「五校分區輪播」。
 
-
 ## 最新消息 A 版（2026-09-16）
 
 - 已套用到首頁 `#/home/latest-news`，位置在分校資訊後，接續頁尾；導覽列與頁尾均有最新消息入口。
@@ -4246,7 +4251,6 @@ git commit -m "說明本次修改"
 ## 首頁收尾調整（2026-09-16）
 
 依園方要求，首頁暫時移除 FAQ 與底部「親自走一趟」預約橫幅，最新消息後直接接頁尾；導覽列的「參觀須知」與頁尾的「常見問題」連結同步移除。頁首預約參觀、預約表單及各分校頁面保留原有功能。`preview.html` 已同步更新。
-
 
 ## 關於常春藤 B2（2026-09-17 定案）
 

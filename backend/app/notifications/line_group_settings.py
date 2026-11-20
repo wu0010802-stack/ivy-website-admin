@@ -19,6 +19,10 @@ STAFF_KINDS: tuple[str, ...] = (
     "visit_request_rescheduled",
     "visit_request_cancelled",
 )
+# 不是案件通知、預設不開的種類（2026-11-20）：stats_health＝官網統計異常（app/operations/stats_health.py），
+# 只推給開了它的總部群組。
+EXTRA_KINDS: tuple[str, ...] = ("stats_health",)
+GROUP_KINDS: tuple[str, ...] = (*STAFF_KINDS, *EXTRA_KINDS)
 
 
 @dataclass(frozen=True)

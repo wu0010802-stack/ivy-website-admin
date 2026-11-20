@@ -200,6 +200,31 @@ describe('瀏覽統計送不送（2026-11-20 成效統計資料核對）', () =>
     expect(pageViews(fetch)).toEqual([{ page: 'home', campus: null }])
   })
 
+  it('404 頁回報找不到的網址（路徑與從哪裡來，2026-11-20），同一個路徑只記一次', () => {
+    history.replaceState(null, '', '/Blank-1/?utm=x')
+    vi.spyOn(document, 'referrer', 'get').mockReturnValue('https://www.google.com.tw/')
+    const error = { value: { statusCode: 404 } as unknown }
+    const fetch = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', fetch)
+    vi.stubGlobal('useRuntimeConfig', () => ({ public: { telemetryEnabled: true } }))
+    vi.stubGlobal('useError', () => error)
+    vi.stubGlobal('useRouter', () => ({ afterEach: () => {} }))
+    const hooks: Record<string, () => void> = {}
+    plugin({ hook: (name, fn) => { hooks[name] = fn } })
+    hooks['app:mounted']!()
+    hooks['page:finish']!()
+    const sent = fetch.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body))).filter((body) => body.event === 'not_found')
+    expect(sent).toEqual([{ event: 'not_found', path: '/blank-1', ref: 'search' }])
+    // 500 之類的錯誤不算找不到。
+    fetch.mockClear()
+    history.replaceState(null, '', '/oops')
+    const other: Record<string, () => void> = {}
+    error.value = { statusCode: 500 }
+    plugin({ hook: (name, fn) => { other[name] = fn } })
+    other['app:mounted']!()
+    expect(fetch.mock.calls.filter(([, init]) => String((init as RequestInit).body).includes('not_found'))).toEqual([])
+  })
+
   it('自動化瀏覽器、爬蟲、登入過後台的瀏覽器整支不啟用', () => {
     const cases: [string, () => void][] = [
       ['webdriver', () => vi.spyOn(navigator, 'webdriver', 'get').mockReturnValue(true)],
