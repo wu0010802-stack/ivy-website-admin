@@ -473,6 +473,10 @@ const KIDS_UNAVAILABLE: Record<NonNullable<AreaTrends['kids_unavailable']>, stri
   no_migration: '遷入遷出資料不到 10 個月，看不出里界有沒有調整，這一年淨增先不算。',
 }
 
+/** 「這一年淨增」算不出來的原因（代碼來自地點卡片的 kids_unavailable）；不認得的代碼回空字串。 */
+export const kidsUnavailableReason = (code: string | null | undefined): string =>
+  (code ? (KIDS_UNAVAILABLE as Record<string, string>)[code] : undefined) ?? ''
+
 /** 「這一年淨增」算不出來的原因；算得出來回空字串。 */
 export const kidsUnavailableText = (data: AreaTrends): string =>
   data.kids_unavailable ? KIDS_UNAVAILABLE[data.kids_unavailable] : ''
