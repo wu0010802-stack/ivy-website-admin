@@ -8,6 +8,7 @@ import {
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
+import { formatCount } from './format'
 
 // 每月比較（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §1）：內容興趣的原始紀錄只留 90 天，
 // 這裡讀的是每天重算、之後一直留著的每月彙總，明年同月起每一格下面多一行「比去年同月」。
@@ -83,7 +84,7 @@ const columns = computed<Column[]>(() => [
 function cell(item: MonthlyItem, column: Column): string {
   const value = column.value(item)
   if (value === null || value === undefined) return '—'
-  return column.format ? column.format(value) : String(value)
+  return column.format ? column.format(value) : formatCount(value)
 }
 
 function yoy(item: MonthlyItem, column: Column): string {
@@ -110,7 +111,7 @@ const STEP_KEYS = ['visit', 'campus', 'form_date', 'form_slot', 'form_contact', 
 function sourceCell(item: MonthlyItem, key: string): string {
   const row = monthRow(item.sources, key)
   if (!row?.sessions || !item.sessions) return '0'
-  return `${row.sessions}（${formatShare(row.sessions / item.sessions)}）`
+  return `${formatCount(row.sessions)}（${formatShare(row.sessions / item.sessions)}）`
 }
 
 function exportOverview() {
@@ -202,7 +203,7 @@ function exportOverview() {
               <tbody>
                 <tr v-for="item in sourceMonths" :key="item.month">
                   <th scope="row">{{ monthLabel(item.month) }}</th>
-                  <td v-for="key in STEP_KEYS" :key="key" class="num">{{ monthRow(item.form, key)?.sessions ?? 0 }}</td>
+                  <td v-for="key in STEP_KEYS" :key="key" class="num">{{ formatCount(monthRow(item.form, key)?.sessions ?? 0) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -220,7 +221,7 @@ function exportOverview() {
                 <tr v-for="item in sourceMonths" :key="item.month">
                   <th scope="row">{{ monthLabel(item.month) }}</th>
                   <td v-for="key in pageKeys" :key="key" class="num">
-                    {{ monthRow(item.pages, key)?.visits ?? 0 }}
+                    {{ formatCount(monthRow(item.pages, key)?.visits ?? 0) }}
                     <span v-if="monthRow(item.pages, key)?.median_ms" class="hint monthly__sub">{{ formatDuration(monthRow(item.pages, key)!.median_ms!) }}</span>
                   </td>
                 </tr>
