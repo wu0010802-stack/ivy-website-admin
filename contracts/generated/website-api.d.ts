@@ -236,6 +236,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/admissions/area/enrolled-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Admissions Area Enrolled Overview
+         * @description 五校在籍彙總（2026-11-20 規格 §6.2）：各校清冊概況、同校同格合併的點、各里在籍人數與跨校重疊、
+         *     「孩子多、五校都沒有在籍」的里。權限同 /area/compare（只列授權範圍內的校區）。只讀，不寫稽核。
+         */
+        get: operations["get_admissions_area_enrolled_overview_api_website_v1_admin_admissions_area_enrolled_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/admissions/area/fees": {
         parameters: {
             query?: never;
@@ -5504,6 +5525,23 @@ export interface components {
             /** Villages */
             villages: components["schemas"]["AreaEnrolledVillageOut"][];
         };
+        /** AreaEnrolledOverviewOut */
+        AreaEnrolledOverviewOut: {
+            /** Campuses */
+            campuses: components["schemas"]["AreaOverviewCampusOut"][];
+            /** Gap Radius Km */
+            gap_radius_km: number;
+            /** Gaps */
+            gaps: components["schemas"]["AreaOverviewGapOut"][];
+            /** Overlap */
+            overlap: components["schemas"]["AreaOverviewVillageOut"][];
+            /** Points */
+            points: components["schemas"]["AreaOverviewPointOut"][];
+            /** Population Version */
+            population_version: string | null;
+            /** Villages */
+            villages: components["schemas"]["AreaOverviewVillageOut"][];
+        };
         /** AreaEnrolledPointOut */
         AreaEnrolledPointOut: {
             /** Counts */
@@ -5786,6 +5824,69 @@ export interface components {
             village_code: string;
             /** Visit */
             visit: number;
+        };
+        /** AreaOverviewCampusOut */
+        AreaOverviewCampusOut: {
+            /** Imported */
+            imported: boolean;
+            /** Key */
+            key: string;
+            /** Lat */
+            lat: number | null;
+            /** Lng */
+            lng: number | null;
+            /** Name */
+            name: string;
+            /** Placed */
+            placed: number;
+            /** Roster Date */
+            roster_date: string | null;
+            /** Total */
+            total: number;
+        };
+        /** AreaOverviewGapOut */
+        AreaOverviewGapOut: {
+            /** Children */
+            children: number;
+            /** Distance M */
+            distance_m: number;
+            /** District */
+            district: string;
+            /** Nearest Campus Key */
+            nearest_campus_key: string;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
+        };
+        /**
+         * AreaOverviewPointOut
+         * @description 同校同格（座標取到小數 3 位）合併的一點，不帶班別。
+         */
+        AreaOverviewPointOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Count */
+            count: number;
+            /** Lat */
+            lat: number;
+            /** Lng */
+            lng: number;
+        };
+        /** AreaOverviewVillageOut */
+        AreaOverviewVillageOut: {
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /** District */
+            district: string;
+            /** Total */
+            total: number;
+            /** Village */
+            village: string;
+            /** Village Code */
+            village_code: string;
         };
         /**
          * AreaPeerFeeGroupOut
@@ -13222,6 +13323,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AreaEnrolledOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admissions_area_enrolled_overview_api_website_v1_admin_admissions_area_enrolled_overview_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaEnrolledOverviewOut"];
                 };
             };
             /** @description Validation Error */

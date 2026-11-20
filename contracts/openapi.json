@@ -4454,6 +4454,71 @@
         "title": "AreaEnrolledOut",
         "type": "object"
       },
+      "AreaEnrolledOverviewOut": {
+        "properties": {
+          "campuses": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOverviewCampusOut"
+            },
+            "title": "Campuses",
+            "type": "array"
+          },
+          "gap_radius_km": {
+            "title": "Gap Radius Km",
+            "type": "integer"
+          },
+          "gaps": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOverviewGapOut"
+            },
+            "title": "Gaps",
+            "type": "array"
+          },
+          "overlap": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOverviewVillageOut"
+            },
+            "title": "Overlap",
+            "type": "array"
+          },
+          "points": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOverviewPointOut"
+            },
+            "title": "Points",
+            "type": "array"
+          },
+          "population_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population Version"
+          },
+          "villages": {
+            "items": {
+              "$ref": "#/components/schemas/AreaOverviewVillageOut"
+            },
+            "title": "Villages",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campuses",
+          "points",
+          "villages",
+          "overlap",
+          "gaps",
+          "population_version",
+          "gap_radius_km"
+        ],
+        "title": "AreaEnrolledOverviewOut",
+        "type": "object"
+      },
       "AreaEnrolledPointOut": {
         "properties": {
           "counts": {
@@ -5379,6 +5444,179 @@
           "signal"
         ],
         "title": "AreaOpportunityRowOut",
+        "type": "object"
+      },
+      "AreaOverviewCampusOut": {
+        "properties": {
+          "imported": {
+            "title": "Imported",
+            "type": "boolean"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "placed": {
+            "title": "Placed",
+            "type": "integer"
+          },
+          "roster_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roster Date"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "imported",
+          "roster_date",
+          "total",
+          "placed",
+          "lat",
+          "lng"
+        ],
+        "title": "AreaOverviewCampusOut",
+        "type": "object"
+      },
+      "AreaOverviewGapOut": {
+        "properties": {
+          "children": {
+            "title": "Children",
+            "type": "integer"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "nearest_campus_key": {
+            "title": "Nearest Campus Key",
+            "type": "string"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "title": "Village Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_code",
+          "district",
+          "village",
+          "children",
+          "nearest_campus_key",
+          "distance_m"
+        ],
+        "title": "AreaOverviewGapOut",
+        "type": "object"
+      },
+      "AreaOverviewPointOut": {
+        "description": "同校同格（座標取到小數 3 位）合併的一點，不帶班別。",
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "lat": {
+            "title": "Lat",
+            "type": "number"
+          },
+          "lng": {
+            "title": "Lng",
+            "type": "number"
+          }
+        },
+        "required": [
+          "lat",
+          "lng",
+          "campus_key",
+          "count"
+        ],
+        "title": "AreaOverviewPointOut",
+        "type": "object"
+      },
+      "AreaOverviewVillageOut": {
+        "properties": {
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "district": {
+            "title": "District",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "village": {
+            "title": "Village",
+            "type": "string"
+          },
+          "village_code": {
+            "title": "Village Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "village_code",
+          "district",
+          "village",
+          "counts",
+          "total"
+        ],
+        "title": "AreaOverviewVillageOut",
         "type": "object"
       },
       "AreaPeerFeeGroupOut": {
@@ -27880,6 +28118,72 @@
           }
         },
         "summary": "Get Admissions Area Enrolled",
+        "tags": [
+          "admissions"
+        ]
+      }
+    },
+    "/api/website/v1/admin/admissions/area/enrolled-overview": {
+      "get": {
+        "description": "五校在籍彙總（2026-11-20 規格 §6.2）：各校清冊概況、同校同格合併的點、各里在籍人數與跨校重疊、\n「孩子多、五校都沒有在籍」的里。權限同 /area/compare（只列授權範圍內的校區）。只讀，不寫稽核。",
+        "operationId": "get_admissions_area_enrolled_overview_api_website_v1_admin_admissions_area_enrolled_overview_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AreaEnrolledOverviewOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Admissions Area Enrolled Overview",
         "tags": [
           "admissions"
         ]

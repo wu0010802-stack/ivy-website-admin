@@ -489,3 +489,53 @@ class AreaLocateOut(BaseModel):
     district: str | None
     village: str | None
     match_level: Literal["exact", "nearby"]
+
+
+# ---- 五校在籍彙總（2026-11-20 規格 §6.2）----
+
+
+class AreaOverviewCampusOut(BaseModel):
+    key: str
+    name: str
+    imported: bool
+    roster_date: date | None
+    total: int
+    placed: int
+    lat: float | None
+    lng: float | None
+
+
+class AreaOverviewPointOut(BaseModel):
+    """同校同格（座標取到小數 3 位）合併的一點，不帶班別。"""
+
+    lat: float
+    lng: float
+    campus_key: str
+    count: int
+
+
+class AreaOverviewVillageOut(BaseModel):
+    village_code: str
+    district: str
+    village: str
+    counts: dict[str, int]
+    total: int
+
+
+class AreaOverviewGapOut(BaseModel):
+    village_code: str
+    district: str
+    village: str
+    children: int
+    nearest_campus_key: str
+    distance_m: int
+
+
+class AreaEnrolledOverviewOut(BaseModel):
+    campuses: list[AreaOverviewCampusOut]
+    points: list[AreaOverviewPointOut]
+    villages: list[AreaOverviewVillageOut]
+    overlap: list[AreaOverviewVillageOut]
+    gaps: list[AreaOverviewGapOut]
+    population_version: str | None
+    gap_radius_km: int

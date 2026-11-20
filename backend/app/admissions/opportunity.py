@@ -50,6 +50,11 @@ def _sum_ages(row: GeoVillagePopulation, band: tuple[int, int]) -> int:
     return sum(getattr(row, f"age_{age}") for age in range(band[0], band[1] + 1))
 
 
+def sum_ages(row: GeoVillagePopulation, band: tuple[int, int]) -> int:
+    """公開名稱：其他模組（五校在籍彙總）取一個里某年齡帶的人數用同一個算法。"""
+    return _sum_ages(row, band)
+
+
 def judge(visit: int, expected: float | None, *, judged: bool) -> str:
     """一個里的判讀（規格 O5、O6）。expected 是照附近應有的參觀人數；沒有附近平均時是 None。"""
     if not judged or expected is None:

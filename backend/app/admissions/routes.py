@@ -33,6 +33,7 @@ from app.admissions import presale_area as presale_area_service
 from app.admissions import share as share_service
 from app.admissions import stats as stats_service
 from app.admissions import trends as trends_service
+from app.admissions.enrolled import overview as enrolled_overview
 from app.admissions.enrolled import query as enrolled_query
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.geo import kindergarten_records as geo_records
@@ -52,6 +53,7 @@ from app.admissions.schemas import (
     AreaLocateOut,
     AreaPointOut,
     AreaEnrolledOut,
+    AreaEnrolledOverviewOut,
     AreaKindergartenRecordsOut,
     AreaKindergartensOut,
     AreaOpportunityOut,
@@ -1193,6 +1195,18 @@ async def get_admissions_journey(
         )
     result = await journey_service.query_journey(db, campus_key, date_from, end, source)
     return JourneyOut.model_validate(result)
+
+
+@router.get("/admin/admissions/area/enrolled-overview", response_model=AreaEnrolledOverviewOut)
+async def get_admissions_area_enrolled_overview(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AreaEnrolledOverviewOut:
+    """五校在籍彙總（2026-11-20 規格 §6.2）：各校清冊概況、同校同格合併的點、各里在籍人數與跨校重疊、
+    「孩子多、五校都沒有在籍」的里。權限同 /area/compare（只列授權範圍內的校區）。只讀，不寫稽核。"""
+    require_scope(current_user, "admissions.stats")
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    return AreaEnrolledOverviewOut.model_validate(await enrolled_overview.query_enrolled_overview(db, campus_keys))
 
 
 @router.get("/admin/admissions/area/enrolled", response_model=AreaEnrolledOut)
