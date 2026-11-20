@@ -122,7 +122,7 @@ describe('L26：單校消息的參觀入口跟著那一校的預約方式', () =
 
   it('致電是 tel: 連結；LINE／外部網站另開分頁；其餘照舊連預約頁', () => {
     expect(article).toContain(`<a v-else-if="visitCta.kind === 'phone'" class="np-book" :href="visitCta.href">{{ visitCta.label }}`)
-    expect(article).toContain(`<a v-else class="np-book" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}`)
+    expect(article).toContain(`<a v-else :data-contact-channel="visitCta.kind" class="np-book" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}`)
     expect(article).toContain(`<NuxtLink v-if="!visitCta || visitCta.kind === 'visit'" class="np-book" :to="campus ? \`/visit/\${campus.key}\` : '/visit'">預約{{ campus ? campus.name : '校園' }}參觀`)
   })
 })

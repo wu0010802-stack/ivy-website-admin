@@ -24,6 +24,7 @@ from app.auth.permissions import (
     has_capability,
     require_scope,
 )
+from app.booking import remembered_stats
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_term_list
@@ -45,6 +46,7 @@ from app.operations import (
 )
 from app.operations.models import (
     CTA_ENTRIES,
+    ENGAGEMENT_CAMPUS_ACTIONS,
     ENGAGEMENT_MAX_ACTIVE_MS,
     ENGAGEMENT_MAX_KEYS,
     ENGAGEMENT_MAX_REV,
@@ -219,19 +221,26 @@ class EngagementIn(BaseModel):
     # 最新消息內文頁的消息代號；其他頁不帶。各校消息帶校區前綴（yihua:open-day）。
     item: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9][A-Za-z0-9_:-]{0,63}$")] | None = None
     source: EngagementSource
+    returning: Annotated[bool, Field(strict=True)] | None = None
     active_ms: int = Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)
     scroll: int = Field(ge=0, le=100)
     sections: dict[EngagementKey, Annotated[int, Field(ge=0, le=ENGAGEMENT_MAX_ACTIVE_MS)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
-    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS)
+    actions: dict[EngagementKey, Annotated[int, Field(ge=1, le=99)]] = Field(max_length=ENGAGEMENT_MAX_KEYS + len(ENGAGEMENT_CAMPUS_ACTIONS))
     # 這次造訪的第幾頁、進站連結上的活動代碼（utm_campaign）：2026-11-11 第二輪加，
     # 還開著舊版頁面的瀏覽器不會帶，所以都是選填。
     seq: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_SEQ)
     campaign: EngagementCampaign | None = None
     # 這次瀏覽的第幾次回報：晚到的舊回報不蓋掉新的區塊與互動。
     rev: int | None = Field(default=None, ge=1, le=ENGAGEMENT_MAX_REV)
+    # 2026-11-19（docs/specs/2026-11-19-cookie-stats-design.md）：browser 由官網代理從 HttpOnly 的 ivy_src 讀出來附上
+    # （瀏覽器端的 validateEngagement 不收這一欄），這裡只存 HMAC 後的代號；pref 是造訪開始時 ivy_campus 記住的校區。
+    browser: Annotated[str, StringConstraints(pattern=r"^[A-Za-z0-9_-]{22}$")] | None = None
+    pref: Literal["yihua", "minghua", "chongde", "international", "renwu"] | None = None
 
     @model_validator(mode="after")
     def _consistent(self) -> "EngagementIn":
+        if len(self.actions.keys() - ENGAGEMENT_CAMPUS_ACTIONS) > ENGAGEMENT_MAX_KEYS:
+            raise ValueError("互動代碼過多")
         if (self.page not in ("campus", "visit") and self.campus is not None) or (self.page == "campus" and self.campus is None):
             raise ValueError("page 與 campus 不一致")
         if self.item is not None and self.page != "news":
@@ -264,7 +273,9 @@ async def record_engagement(
         db, visit_id=payload.id, session_id=payload.session, page=payload.page, campus_key=payload.campus,
         item=payload.item, device=payload.device, source=payload.source, active_ms=payload.active_ms,
         scroll_pct=payload.scroll, sections=dict(payload.sections), actions=dict(payload.actions),
-        seq=payload.seq, campaign=payload.campaign, rev=payload.rev,
+        seq=payload.seq, campaign=payload.campaign, rev=payload.rev, returning=payload.returning,
+        browser_key=engagement_service.browser_key(request.app.state.settings.session_secret, payload.browser),
+        campus_pref=payload.pref,
     )
     await db.commit()
 
@@ -521,6 +532,69 @@ class EngagementCampusOut(BaseModel):
     bookings: int | None
 
 
+class CampusDestinationRowOut(BaseModel):
+    campus_key: str
+    available: int
+    empty: int
+    phone: int
+    line: int
+    # 完成線上預約的造訪：比照各校實際預約數，沒有這校招生統計權限時是 None。
+    booked: int | None
+    contact_after_empty: int
+
+
+class CampusPrefRowOut(BaseModel):
+    """帶著記住的校區（ivy_campus）回來的造訪（2026-11-19 §7）。"""
+
+    campus_key: str
+    sessions: int
+    visit_sessions: int
+    # 同上，沒有這校招生統計權限時是 None。
+    booked_same: int | None
+    booked_other: int | None
+
+
+class BrowserVisitsOut(BaseModel):
+    # "1"、"2"、"3"、"4_plus"
+    visits: str
+    browsers: int
+
+
+class BrowserSourceOut(BaseModel):
+    source: str
+    browsers: int
+    booked_browsers: int
+    booked_rate: float | None
+
+
+class BrowserConversionOut(BaseModel):
+    kind: Literal["page", "section"]
+    page: str
+    key: str | None
+    browsers: int
+    booked_browsers: int
+    booked_rate: float | None
+
+
+class BrowserStatsOut(BaseModel):
+    """同一瀏覽器的跨次統計（2026-11-19 §4～6，只看有匿名代號的紀錄）。"""
+
+    browsers: int
+    booked_browsers: int
+    booked_rate: float | None
+    multi_visit_browsers: int
+    first_day: date | None
+    visits_before_booking: list[BrowserVisitsOut]
+    sources: list[BrowserSourceOut]
+    conversion: list[BrowserConversionOut]
+
+
+class CampusDestinationsOut(BaseModel):
+    tracked_visits: int
+    first_day: date | None
+    rows: list[CampusDestinationRowOut]
+
+
 class EngagementPageOut(BaseModel):
     page: str
     campus_key: str | None
@@ -574,6 +648,14 @@ class EngagementConversionOut(BaseModel):
     booked_rate: float | None
 
 
+class EngagementCohortOut(BaseModel):
+    returning: bool | None
+    sessions: int
+    campus_sessions: int
+    contact_sessions: int
+    visit_sessions: int
+
+
 class EngagementSummaryOut(BaseModel):
     days: int
     since: date
@@ -583,6 +665,7 @@ class EngagementSummaryOut(BaseModel):
     totals: EngagementTotalsOut
     # 上一期（往前同樣天數）；紀錄只留 90 天，選 90 天時沒有上一期。
     previous: EngagementPeriodOut | None
+    cohorts: list[EngagementCohortOut]
     daily: list[EngagementDailyOut]
     pages: list[EngagementPageOut]
     sections: list[EngagementSectionOut]
@@ -597,6 +680,9 @@ class EngagementSummaryOut(BaseModel):
     journey: EngagementJourneyOut
     hours: list[EngagementHourOut]
     campuses: list[EngagementCampusOut]
+    campus_destinations: CampusDestinationsOut
+    campus_prefs: list[CampusPrefRowOut]
+    browser: BrowserStatsOut
 
 
 @router.get("/admin/analytics/engagement", response_model=EngagementSummaryOut)
@@ -831,6 +917,58 @@ class AttributionSourceOut(AttributionCountsOut):
     campaigns: list[AttributionCampaignOut]
 
 
+class AttributionDelayOut(BaseModel):
+    same_day: int
+    days_1_3: int
+    days_4_7: int
+    days_8_30: int
+    days_31_plus: int
+    unrecorded: int
+
+
+class AttributionDelayRowOut(BaseModel):
+    """依第一次來源拆開的天數分段（只算有第一次進站日期的案件）。"""
+
+    source: str
+    cases: int
+    same_day: int
+    days_1_3: int
+    days_4_7: int
+    days_8_30: int
+    days_31_plus: int
+    median_days: float | None
+
+
+class AttributionPathOut(AttributionCountsOut):
+    """第一次 × 最後一次來源組合；last 是 no_external＝之後只直接進站過。"""
+
+    first: str
+    last: str
+
+
+class AttributionReferralSourceOut(BaseModel):
+    source: str
+    cases: int
+
+
+class AttributionReferralOut(BaseModel):
+    """家長自填「如何知道常春藤」的一個選項（none＝沒勾）× 網站記到的第一次來源；複選的案件每個選項各算一次。"""
+
+    referral: str
+    cases: int
+    sources: list[AttributionReferralSourceOut]
+
+
+class RememberedUsageOut(BaseModel):
+    """這台裝置記住預約的使用次數（2026-11-19 §7），依事件發生的台北日落在期間內。"""
+
+    shown: int
+    opened: int
+    opened_without_email: int
+    dismissed: int
+    first_day: date | None
+
+
 class BookingAttributionOut(BaseModel):
     as_of: datetime
     date_from: date | None
@@ -838,6 +976,12 @@ class BookingAttributionOut(BaseModel):
     touch: Literal["first", "last"]
     rows: list[AttributionSourceOut]
     totals: AttributionCountsOut
+    delays: AttributionDelayOut
+    median_days: float | None
+    delay_rows: list[AttributionDelayRowOut]
+    source_paths: list[AttributionPathOut]
+    referral_rows: list[AttributionReferralOut]
+    remembered: RememberedUsageOut
 
 
 @router.get("/admin/analytics/booking-attribution", response_model=BookingAttributionOut)
@@ -854,9 +998,11 @@ async def get_booking_attribution(
     require_scope(current_user, "admissions.stats", campus_keys=[campus_key] if campus_key is not None else None)
     _validate_range(date_from, date_to)
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key) and campus_key in (None, key)]
-    return await booking_outcomes_service.attribution_outcomes(
+    result = await booking_outcomes_service.attribution_outcomes(
         db, campus_keys, analytics_service.FunnelRange(date_from, date_to), touch
     )
+    result["remembered"] = await remembered_stats.summary(db, campus_keys, date_from, date_to)
+    return result
 
 
 class EventTrendDayOut(BaseModel):

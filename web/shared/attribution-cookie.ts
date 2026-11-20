@@ -39,6 +39,11 @@ export interface AttributionCookie {
   b?: AttributionClick
   /** LINE 廣告的點擊代碼（落地網址的 ldtag_cl，2026-11-16；後端回傳到場、預繳給 LINE 時用） */
   n?: AttributionClick
+  /**
+   * 同一瀏覽器的匿名代號（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §4～6）：16 bytes 隨機碼的
+   * base64url。官網代理只把它轉給 API 的內容興趣統計（API 再 HMAC 後存），不寫進預約、不給前端 JS。
+   */
+  i?: string
 }
 
 export interface Landing {
@@ -50,6 +55,7 @@ export interface Landing {
 }
 
 const OPPREF = /^[A-Za-z0-9._~:+/=-]{1,500}$/
+export const BROWSER_ID = /^[A-Za-z0-9_-]{22}$/
 const FBCLID = /^[A-Za-z0-9_-]{1,500}$/
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const MAX_COOKIE_LENGTH = 3000
@@ -102,17 +108,47 @@ export function decodeAttribution(raw: string | undefined | null): AttributionCo
   const o = validClick(record.o, OPPREF)
   const b = validClick(record.b, FBCLID)
   const n = validClick(record.n, OPPREF)
-  return { v: 1, f, ...(l ? { l } : {}), ...(o ? { o } : {}), ...(b ? { b } : {}), ...(n ? { n } : {}) }
+  const i = typeof record.i === 'string' && BROWSER_ID.test(record.i) ? record.i : undefined
+  return { v: 1, f, ...(l ? { l } : {}), ...(o ? { o } : {}), ...(b ? { b } : {}), ...(n ? { n } : {}), ...(i ? { i } : {}) }
+}
+
+/** 新的匿名代號：16 bytes 隨機碼的 base64url（22 字）。Node 與瀏覽器都有 Web Crypto。 */
+export function newBrowserId(): string {
+  const bytes = new Uint8Array(16)
+  globalThis.crypto.getRandomValues(bytes)
+  return toBase64Url(String.fromCharCode(...bytes))
+}
+
+/**
+ * 來源只是從 App 內建瀏覽器的 User-Agent 認出來的（沒有廣告參數、utm_source、fbclid，也沒有外部來源網址）。
+ * LINE／FB／IG 內建瀏覽器重新整理時常常就是這樣，不能拿來蓋掉當天從廣告進來的「最後一次」（2026-11-19 §9）。
+ */
+export function sourceFromUserAgentOnly(landing: Landing): boolean {
+  if (classifySource(landing.referrer, landing.search, NO_ORIGIN, '') !== 'direct') return false
+  return classifySource(landing.referrer, landing.search, NO_ORIGIN, landing.userAgent) !== 'direct'
+}
+
+/** 僅公開同一瀏覽器是否跨台北日回訪。來源、首次日期與廣告代碼留在 HttpOnly cookie。 */
+export function isReturningVisit(raw: string | undefined, now: Date): boolean | null {
+  const firstDay = decodeAttribution(raw)?.f.d
+  if (!firstDay) return null
+  const parsed = new Date(firstDay + 'T00:00:00Z')
+  const today = taipeiDay(now)
+  if (!Number.isFinite(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== firstDay || firstDay > today) return null
+  return firstDay < today
 }
 
 /** 這次進站之後的 cookie 內容。直接進站不蓋掉「最後一次」；點擊代碼只在落地網址有帶時更新。 */
-export function nextAttribution(previous: AttributionCookie | null, landing: Landing, now: Date): AttributionCookie {
+export function nextAttribution(previous: AttributionCookie | null, landing: Landing, now: Date, newId: () => string = newBrowserId): AttributionCookie {
   const source = classifySource(landing.referrer, landing.search, NO_ORIGIN, landing.userAgent)
   const campaign = campaignOf(landing.search)
   const platform = source === 'ads' ? adPlatformOf(landing.search) : undefined
   const touch: AttributionTouch = { s: source, ...(platform ? { p: platform } : {}), d: taipeiDay(now), ...(campaign ? { c: campaign } : {}) }
   const next: AttributionCookie = previous ? { ...previous } : { v: 1, f: touch }
-  if (source !== 'direct') next.l = touch
+  if (!next.i) next.i = newId()
+  // 只靠 User-Agent 認出的 App 來源不蓋掉當天的「最後一次」（App 內建瀏覽器重新整理，§9）；不同天照常更新。
+  const keepToday = previous?.l?.d === touch.d && sourceFromUserAgentOnly(landing)
+  if (source !== 'direct' && !keepToday) next.l = touch
   const params = new URLSearchParams(landing.search)
   const oppref = params.get('oppref')
   if (oppref && OPPREF.test(oppref)) next.o = { v: oppref, t: now.getTime() }

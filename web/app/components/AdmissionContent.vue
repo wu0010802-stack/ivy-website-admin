@@ -606,7 +606,7 @@ onBeforeUnmount(() => {
                       <ul v-else-if="item.slot === 'phones' && phones.length" class="ap-faq-phones">
                         <li v-for="campus in phones" :key="campus.key">
                           <span>{{ campus.name }}</span>
-                          <a :href="`tel:${campus.phone}`" :aria-label="`撥打${campus.name}電話 ${campus.phone}`">{{ campus.phone }}</a>
+                          <a :data-campus-key="campus.key" :href="`tel:${campus.phone}`" :aria-label="`撥打${campus.name}電話 ${campus.phone}`">{{ campus.phone }}</a>
                         </li>
                       </ul>
 

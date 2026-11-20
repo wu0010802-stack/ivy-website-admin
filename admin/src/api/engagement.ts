@@ -121,7 +121,11 @@ export function formatDuration(ms: number): string {
 }
 
 export function formatShare(rate: number | null | undefined): string {
-  return rate === null || rate === undefined ? '—' : `${Math.round(rate * 100)}%`
+  if (rate == null) return '—'
+  const percent = rate * 100
+  if (percent > 0 && percent < 0.01) return '<0.01%'
+  if (percent > 0 && percent < 1) return `${Number(percent.toFixed(2))}%`
+  return `${Math.round(percent)}%`
 }
 
 export interface SectionGroup {

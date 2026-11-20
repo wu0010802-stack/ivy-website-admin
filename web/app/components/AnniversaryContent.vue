@@ -259,7 +259,7 @@ onBeforeUnmount(() => { cleanups.forEach((fn) => fn()); cleanups = [] })
                     <dd>
                       {{ addressParts(row.campus.address)[0] }}<span class="anni-nobr">{{ addressParts(row.campus.address)[1] }}</span> <a class="anni-maplink" :href="campusMapUrl(row.campus)" target="_blank" rel="noopener noreferrer">地圖 ↗<span class="sr-only">（{{ row.campus.name }}，另開新視窗）</span></a>
                     </dd>
-                    <dt>電話</dt><dd><a :href="telHref(row.campus.phone)">{{ row.campus.phone }}</a></dd>
+                    <dt>電話</dt><dd><a :data-campus-key="row.campus.key" :href="telHref(row.campus.phone)">{{ row.campus.phone }}</a></dd>
                   </dl>
                   <div class="anni-campus-actions">
                     <button type="button" class="text-link" :aria-pressed="Boolean(flipped[row.milestone.key])" @click="toggleFlip(row.milestone.key)">

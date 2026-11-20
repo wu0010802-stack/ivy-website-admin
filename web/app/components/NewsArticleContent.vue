@@ -63,11 +63,11 @@ const CARD_SIZES = '(max-width: 599px) 104px, (max-width: 899px) 46vw, 340px'
           <p v-else class="np-article-copy">{{ tidyNewsText(article.description) }}</p>
         </div>
       </article>
-      <div class="np-article-foot">
+      <div class="np-article-foot" :data-campus-key="campus?.key">
         <NuxtLink class="np-back" :to="listLink"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-left" /></svg>{{ campus ? `回${campus.name}的消息` : '回消息列表' }}</NuxtLink>
         <NuxtLink v-if="!visitCta || visitCta.kind === 'visit'" class="np-book" :to="campus ? `/visit/${campus.key}` : '/visit'">預約{{ campus ? campus.name : '校園' }}參觀<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-right" /></svg></NuxtLink>
         <a v-else-if="visitCta.kind === 'phone'" class="np-book" :href="visitCta.href">{{ visitCta.label }}<svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg></a>
-        <a v-else class="np-book" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg></a>
+        <a v-else :data-contact-channel="visitCta.kind" class="np-book" :href="visitCta.href" target="_blank" rel="noopener noreferrer">{{ visitCta.label }}<span class="sr-only">（另開分頁）</span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-arrow-up-right" /></svg></a>
       </div>
       <section v-if="related.length" class="np-related" data-track-section="related" aria-labelledby="np-related-title">
         <h2 id="np-related-title">其他消息</h2>

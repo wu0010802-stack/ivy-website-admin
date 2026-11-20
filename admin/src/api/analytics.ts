@@ -38,8 +38,8 @@ export function getEventTrend(campusKey: string, range: DateRange | null): Promi
 }
 
 /** 官網預約依網站來源分組的到場與預繳（2026-11-16）。touch：last＝預約前最後一次不是直接進站、first＝第一次進站。 */
-export function getBookingAttribution(campusKey: string, touch: 'first' | 'last', range: DateRange | null): Promise<BookingAttributionOut> {
-  return api.get<BookingAttributionOut>(withQuery('/admin/analytics/booking-attribution', { campus_key: campusKey, touch }, range))
+export function getBookingAttribution(campusKey: string | null, touch: 'first' | 'last', range: DateRange | null): Promise<BookingAttributionOut> {
+  return api.get<BookingAttributionOut>(withQuery('/admin/analytics/booking-attribution', { ...(campusKey ? { campus_key: campusKey } : {}), touch }, range))
 }
 
 export function getClassDistribution(campusKey: string, schoolYear: number, range: DateRange | null): Promise<ClassDistributionOut> {

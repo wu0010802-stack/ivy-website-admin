@@ -260,7 +260,7 @@ onBeforeUnmount(() => {
                 <p class="abh-year"><span lang="en">{{ item.year }}</span><small>民國 {{ item.roc }} 年</small></p>
                 <h3 v-if="item.campus">{{ item.campus.name }}<span>{{ item.campus.district }}</span></h3>
                 <p class="abh-stop-line">{{ item.text }}</p>
-                <p v-if="item.campus" class="abh-contact">
+                <p v-if="item.campus" class="abh-contact" :data-campus-key="item.campus.key">
                   <span><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-map-pin" /></svg>{{ item.campus.address }}</span>
                   <a :href="`tel:${item.campus.phone.replace(/[^0-9+]/g, '')}`"><svg class="icon" aria-hidden="true" focusable="false"><use href="#i-phone" /></svg>{{ item.campus.phone }}</a>
                 </p>

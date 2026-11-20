@@ -1,3 +1,4 @@
+import { ATTRIBUTION_COOKIE, decodeAttribution } from '../../shared/attribution-cookie'
 import { validateEngagement } from '../../shared/engagement'
 import { validateTelemetry } from '../../shared/telemetry'
 import { createTelemetryQuota, TELEMETRY_QUOTA } from '../utils/telemetry-quota'
@@ -34,11 +35,16 @@ export default defineEventHandler(async (event) => {
   if (!quota.admit(clientIp)) throw createError({ statusCode: 429 })
   // 內容興趣統計不寫進日誌（同一次瀏覽會回報多次，量大而且已經存進 API）。
   if (!engagement) console.info(JSON.stringify({ type: 'website_telemetry', at: new Date().toISOString(), ...payload }))
+  // 同一瀏覽器的匿名代號（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §4～6）：只有內容興趣統計帶，
+  // 從 HttpOnly 的 ivy_src 讀，瀏覽器端碰不到也送不進來（validateEngagement 不收 browser 這一欄）。
+  // 訪客開了 DNT／GPC 就不帶（瀏覽器端本來就不送，這裡再擋一次）。
+  const optedOut = getHeader(event, 'dnt') === '1' || getHeader(event, 'sec-gpc') === '1'
+  const browser = engagement && !optedOut ? decodeAttribution(getCookie(event, ATTRIBUTION_COOKIE))?.i : undefined
   // 存進 API 的每日瀏覽量／效能樣本（後台「數據」頁）。訪客 IP 只給 API 做限流，
   // 不入庫；API 不通時照樣回 204，觀測資料不影響瀏覽。
   await $fetch(`${config.websiteApiInternalBase}/api/website/v1/public/${engagement ? 'engagement' : 'telemetry'}`, {
     method: 'POST',
-    body: payload,
+    body: browser ? { ...payload, browser } : payload,
     headers: { 'x-website-client-ip': clientIp },
     timeout: 2000
   }).catch((error: unknown) => {

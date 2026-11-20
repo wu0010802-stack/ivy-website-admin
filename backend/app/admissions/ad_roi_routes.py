@@ -8,18 +8,25 @@ import calendar
 import logging
 import re
 import uuid
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
-from sqlalchemy import delete, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ad_conversions.models import EVENTS as AD_CONVERSION_EVENTS
+from app.ad_conversions.models import PLATFORMS as AD_CONVERSION_PLATFORMS
+from app.ad_conversions.models import STATUSES as AD_CONVERSION_STATUSES
+from app.ad_conversions.models import AdConversionJob
 from app.admissions.import_routes import NoEchoValidationRoute
 from app.admissions import ad_roi
 from app.admissions.models import MANUAL_SPEND_PLATFORMS, AdSpendEntry
-from app.admissions.schemas import AdRoiOut, AdSpendEntryOut, AdSpendIn, AdSpendListOut
+from app.admissions.schemas import AdConversionStatusOut, AdRoiOut, AdSpendEntryOut, AdSpendIn, AdSpendListOut
+from app.booking import exclusion
+from app.booking.attribution import PLATFORM_KEYS
+from app.booking.models import VisitRequest, VisitRequestSource
 from app.auth.deps import get_current_user, get_db_session
 from app.auth.models import User
 from app.auth.permissions import covers_campus, require_scope
@@ -244,3 +251,71 @@ async def get_ad_roi(
             google = ad_roi.GoogleState(configured=True, error=str(exc))
     result = ad_roi.compute_ad_roi(months, buckets, spend, google)
     return AdRoiOut.model_validate({"as_of": now, "touch": touch, **result})
+
+
+@router.get("/admin/admissions/ad-conversions", response_model=AdConversionStatusOut)
+async def get_ad_conversion_status(
+    request: Request,
+    days: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> AdConversionStatusOut:
+    """回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）：近 N 天排入的工作依平台 ×
+    事件 × 狀態計數、最近一次送出與最近的問題，以及同期官網預約帶到各平台識別碼的件數。只讀、校區範圍內的案件。"""
+    require_scope(current_user, "admissions.stats")
+    now = now_utc()
+    since = now - timedelta(days=days)
+    campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]
+    configured = set(request.app.state.settings.ad_conversion_platforms)
+    J = AdConversionJob
+    in_scope = (J.visit_request_id == VisitRequest.id) & VisitRequest.campus_key.in_(campus_keys)
+    counts: dict[tuple[str, str], dict[str, int]] = {}
+    last_sent: dict[str, datetime] = {}
+    for platform, event, job_status, total, sent_at in (await db.execute(
+        select(J.platform, J.event, J.status, func.count(), func.max(J.finished_at).filter(J.status == "sent"))
+        .join(VisitRequest, in_scope).where(J.created_at >= since)
+        .group_by(J.platform, J.event, J.status)
+    )).all():
+        counts.setdefault((platform, event), dict.fromkeys(AD_CONVERSION_STATUSES, 0))[job_status] = int(total)
+        if sent_at is not None and (platform not in last_sent or sent_at > last_sent[platform]):
+            last_sent[platform] = sent_at
+    problems: dict[str, tuple[str | None, datetime | None]] = {}
+    for platform, error, finished in (await db.execute(
+        select(J.platform, J.last_error, J.finished_at)
+        .join(VisitRequest, in_scope)
+        .where(J.created_at >= since, J.status.in_(("failed", "skipped")))
+        .order_by(J.platform, J.finished_at.desc().nulls_last())
+        .distinct(J.platform)
+    )).all():
+        problems[platform] = (error, finished)
+    ids_rows = (await db.execute(
+        select(VisitRequest.ad_click_ids).where(
+            VisitRequest.campus_key.in_(campus_keys),
+            VisitRequest.source == VisitRequestSource.WEB.value,
+            VisitRequest.created_at >= since,
+            exclusion.not_excluded(),
+        )
+    )).scalars().all()
+    with_ids = dict.fromkeys(AD_CONVERSION_PLATFORMS, 0)
+    for ids in ids_rows:
+        for platform, keys in PLATFORM_KEYS.items():
+            if ids and any(ids.get(key) for key in keys):
+                with_ids[platform] += 1
+    platforms = []
+    for platform in AD_CONVERSION_PLATFORMS:
+        problem, problem_at = problems.get(platform, (None, None))
+        platforms.append({
+            "platform": platform,
+            "configured": platform in configured,
+            "events": [
+                {"event": event, **counts.get((platform, event), dict.fromkeys(AD_CONVERSION_STATUSES, 0))}
+                for event in AD_CONVERSION_EVENTS
+            ],
+            "last_sent_at": last_sent.get(platform),
+            "last_problem": problem,
+            "last_problem_at": problem_at,
+            "cases_with_ids": with_ids[platform],
+        })
+    return AdConversionStatusOut.model_validate(
+        {"as_of": now, "days": days, "cases": len(ids_rows), "platforms": platforms}
+    )

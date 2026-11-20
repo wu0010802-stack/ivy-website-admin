@@ -393,6 +393,28 @@ class SlotLookupDaily(Base):
     lookups: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
 
+REMEMBERED_ACTIONS = ("shown", "opened", "dismissed")
+
+
+class VisitRememberedDaily(Base):
+    """「這台裝置記住預約」的使用次數（2026-11-19，docs/specs/2026-11-19-cookie-stats-design.md §7）。
+    按台北日期、校區、動作、家長有沒有留 Email 累計：shown＝預約頁顯示「您已預約…」、opened＝按修改或取消、
+    dismissed＝按「不是我」。不存案件代號、IP、cookie，只能看次數。"""
+
+    __tablename__ = "visit_remembered_daily"
+    __table_args__ = (
+        UniqueConstraint("day", "campus_key", "action", "has_email", name="uq_visit_remembered_daily"),
+        CheckConstraint("action IN ('shown', 'opened', 'dismissed')", name="ck_visit_remembered_daily_action"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    day: Mapped[date_] = mapped_column(Date, nullable=False, index=True)
+    campus_key: Mapped[str] = mapped_column(String(32), nullable=False)
+    action: Mapped[str] = mapped_column(String(16), nullable=False)
+    has_email: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class VisitContactNote(Base):
     """接待聯絡紀錄；每筆是一次聯絡歷程，不覆寫舊紀錄。"""
 

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import case, func, literal, select
+from sqlalchemy import Date, case, cast, func, literal, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admissions import academic
@@ -24,7 +24,7 @@ from app.admissions.stats import pct
 from app.booking import exclusion, pending_kinds
 from app.booking.models import BookingConfig, VisitRequest, VisitRequestSource, VisitRequestStatus
 from app.campuses.models import Campus
-from app.common.timezones import now_utc
+from app.common.timezones import OPERATING_TZ, now_utc
 from app.operations.analytics_service import UNKNOWN, FunnelRange
 from app.operations.models import CANCEL_REASONS, ENGAGEMENT_SOURCES
 
@@ -250,53 +250,104 @@ def _attribution_rates(counts: dict) -> dict:
     }
 
 
+# 從第一次進站到送出預約隔幾個台北日（2026-11-18 起，11-19 補 8–30／31 天以上：ivy_src 最後一次造訪後 90 天才失效）。
+DELAY_BUCKETS = ("same_day", "days_1_3", "days_4_7", "days_8_30", "days_31_plus")
+# 「最後一次」沒有外部來源（只直接進站過）的組合代號。
+NO_EXTERNAL = "no_external"
+# 家長沒勾「如何知道常春藤」的那一列。
+NO_REFERRAL = "none"
+
+
+def _delay_bucket(days: int | None) -> str:
+    if days is None or days < 0:
+        return UNRECORDED
+    if days == 0:
+        return "same_day"
+    if days <= 3:
+        return "days_1_3"
+    if days <= 7:
+        return "days_4_7"
+    if days <= 30:
+        return "days_8_30"
+    return "days_31_plus"
+
+
+def _median_days(values: list[int]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    return float(ordered[middle]) if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+
+
 async def attribution_outcomes(
     db: AsyncSession, campus_keys: list[str], period: FunnelRange, touch: str, now: datetime | None = None
 ) -> dict:
+    """依網站來源分組的到場與預繳，加上（2026-11-18／19）：第一次進站到預約的天數（全體與依第一次來源）、
+    第一次 × 最後一次來源組合（含到場、預繳）、網站來源 × 家長自填「如何知道常春藤」。"""
     current = now or now_utc()
+    first = VisitRequest.first_touch_source
+    last = VisitRequest.last_touch_source
+    # 台北日界線與 ivy_src 的日期一致；日期缺漏、晚於預約者另列。
+    lead_days = cast(func.timezone(OPERATING_TZ.key, VisitRequest.created_at), Date) - VisitRequest.first_touch_on
     if touch == "first":
-        source, campaign = VisitRequest.first_touch_source, VisitRequest.first_touch_campaign
+        source, campaign = first, VisitRequest.first_touch_campaign
     else:
         source = case(
-            (VisitRequest.last_touch_source.is_not(None), VisitRequest.last_touch_source),
-            (VisitRequest.first_touch_source.is_not(None), literal("direct")),
+            (last.is_not(None), last),
+            (first.is_not(None), literal("direct")),
             else_=None,
         )
         campaign = VisitRequest.last_touch_campaign
-    per_case = (
-        select(
-            func.coalesce(source, literal(UNRECORDED)).label("source"),
-            campaign.label("campaign"),
-            _outcome(current).label("outcome"),
-            _deposited().label("deposited"),
-        )
-        .where(
-            VisitRequest.campus_key.in_(campus_keys),
-            VisitRequest.source == VisitRequestSource.WEB.value,
-            *period.on(VisitRequest.created_at),
-            exclusion.not_excluded(),
-        )
-        .subquery()
-    )
     rows = (
         await db.execute(
-            select(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited, func.count())
-            .group_by(per_case.c.source, per_case.c.campaign, per_case.c.outcome, per_case.c.deposited)
+            select(
+                func.coalesce(source, literal(UNRECORDED)).label("source"),
+                campaign.label("campaign"),
+                first.label("first_source"),
+                last.label("last_source"),
+                lead_days.label("lead_days"),
+                VisitRequest.referral_sources,
+                _outcome(current).label("outcome"),
+                _deposited().label("deposited"),
+            ).where(
+                VisitRequest.campus_key.in_(campus_keys),
+                VisitRequest.source == VisitRequestSource.WEB.value,
+                *period.on(VisitRequest.created_at),
+                exclusion.not_excluded(),
+            )
         )
     ).all()
     sources: dict[str, dict] = {}
     campaigns: dict[tuple[str, str], dict] = {}
     totals = _attribution_counts()
-    for source_key, campaign_key, outcome, deposited, count in rows:
-        buckets = [totals, sources.setdefault(source_key, _attribution_counts())]
+    delays = dict.fromkeys((*DELAY_BUCKETS, UNRECORDED), 0)
+    delay_by_source: dict[str, dict[str, int]] = {}
+    days_by_source: dict[str, list[int]] = {}
+    all_days: list[int] = []
+    paths: dict[tuple[str, str], dict] = {}
+    referrals: dict[str, dict[str, int]] = {}
+    for source_key, campaign_key, first_source, last_source, days, referral_sources, outcome, deposited in rows:
+        bucket_key = _delay_bucket(days if first_source else None)
+        delays[bucket_key] += 1
+        if bucket_key != UNRECORDED:
+            delay_by_source.setdefault(first_source, dict.fromkeys(DELAY_BUCKETS, 0))[bucket_key] += 1
+            days_by_source.setdefault(first_source, []).append(int(days))
+            all_days.append(int(days))
+        path = (first_source or UNRECORDED, last_source or (NO_EXTERNAL if first_source else UNRECORDED))
+        buckets = [totals, sources.setdefault(source_key, _attribution_counts()), paths.setdefault(path, _attribution_counts())]
         if campaign_key:
             buckets.append(campaigns.setdefault((source_key, campaign_key), _attribution_counts()))
         for bucket in buckets:
-            bucket["cases"] += count
+            bucket["cases"] += 1
             if outcome in ("completed", "no_show"):
-                bucket[outcome] += count
+                bucket[outcome] += 1
             if deposited:
-                bucket["deposited"] += count
+                bucket["deposited"] += 1
+        if first_source:
+            for referral in referral_sources or [NO_REFERRAL]:
+                row = referrals.setdefault(referral, {})
+                row[first_source] = row.get(first_source, 0) + 1
     order = {key: index for index, key in enumerate((*ENGAGEMENT_SOURCES, UNRECORDED))}
     out_rows = []
     for source_key in sorted(sources, key=lambda key: (-sources[key]["cases"], order.get(key, 99))):
@@ -309,6 +360,15 @@ async def attribution_outcomes(
             **_attribution_rates(sources[source_key]),
             "campaigns": [{"campaign": name, **_attribution_rates(counts)} for name, counts in children],
         })
+    delay_rows = [
+        {"source": key, **counts, "cases": sum(counts.values()), "median_days": _median_days(days_by_source[key])}
+        for key, counts in sorted(delay_by_source.items(), key=lambda item: (-sum(item[1].values()), order.get(item[0], 99)))
+    ]
+    referral_rows = [
+        {"referral": key, "cases": sum(counts.values()), "sources": [{"source": src, "cases": n} for src, n in sorted(
+            counts.items(), key=lambda item: (-item[1], order.get(item[0], 99)))]}
+        for key, counts in sorted(referrals.items(), key=lambda item: (item[0] == NO_REFERRAL, -sum(item[1].values()), item[0]))
+    ]
     return {
         "as_of": current,
         "date_from": period.date_from,
@@ -316,4 +376,12 @@ async def attribution_outcomes(
         "touch": touch,
         "rows": out_rows,
         "totals": _attribution_rates(totals),
+        "delays": delays,
+        "median_days": _median_days(all_days),
+        "delay_rows": delay_rows,
+        "source_paths": [
+            {"first": first_key, "last": last_key, **_attribution_rates(counts)}
+            for (first_key, last_key), counts in sorted(paths.items(), key=lambda item: (-item[1]["cases"], item[0]))
+        ],
+        "referral_rows": referral_rows,
     }

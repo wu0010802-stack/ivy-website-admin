@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import { afterEach, describe, expect, it } from 'vitest'
 import { adPlatformOf } from '../shared/engagement-source'
 import { ENGAGEMENT_KEY, ENGAGEMENT_SOURCES, newsItemOf, validateEngagement } from '../shared/engagement'
-import { BOOKED_ACTION, CLASS_ACTIONS, countEngagementAction, FORM_ACTIONS, READ_ACTION, actionKeyOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
+import { BOOKED_ACTION, CLASS_ACTIONS, countEngagementAction, FORM_ACTIONS, READ_ACTION, actionKeyOf, campusContactOf, campaignOf, classActionKey, classifySource, engagementSession, nextPage, sectionKeyAt, setCurrentVisit, startVisit, storyActionKey, trackEngagementAction } from '../app/utils/engagement'
 
 const read = (path: string) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const ORIGIN = 'https://ivy.example'
@@ -77,6 +77,12 @@ describe('內容興趣統計（2026-11-11）', () => {
     expect(engagementSession(storage, () => 'direct')).toEqual(first)
     store.set('ivy-engagement', '{"id":1,"source":"https://evil"}')
     expect(engagementSession(storage, () => 'line').source).toBe('line')
+    const entry = { day: '2026-11-18', newArrival: true }
+    const firstDay = engagementSession(storage, () => 'search', undefined, entry)
+    nextPage(storage, firstDay)
+    const nextDay = { day: '2026-11-19', newArrival: false }
+    expect(engagementSession(storage, () => 'direct', undefined, nextDay).id).toBe(firstDay.id)
+    expect(engagementSession(storage, () => 'facebook', undefined, { ...nextDay, newArrival: true }).id).not.toBe(firstDay.id)
     expect(engagementSession(null, () => 'direct').id).toMatch(/^[0-9a-f-]{36}$/)
   })
 
@@ -108,7 +114,9 @@ describe('內容興趣統計（2026-11-11）', () => {
 
   it('第二輪：預約表單、入學試算、首頁消息都接上統計', () => {
     const form = read('../app/components/VisitForm.vue')
-    for (const key of ['date', 'slot', 'contact', 'noSlots', 'submit', 'invalid']) expect(form).toContain(`trackEngagementAction(FORM_ACTIONS.${key})`)
+    for (const key of ['date', 'slot', 'contact', 'submit', 'invalid']) expect(form).toContain(`trackEngagementAction(FORM_ACTIONS.${key})`)
+    expect(form).toContain('trackEngagementAction(FORM_ACTIONS.noSlots, campus)')
+    expect(form).toContain('trackEngagementAction(SLOTS_AVAILABLE, campus)')
     const admission = read('../app/components/AdmissionContent.vue')
     expect(admission).toContain('classActionKey(value.status, value.position)')
     // 試算查一次算一次：同一頁查了兩個同班別的孩子要算兩次（PR #70 審查）。
@@ -116,7 +124,7 @@ describe('內容興趣統計（2026-11-11）', () => {
     const visit = startVisit('/admission', SESSION, 'mobile', VISIT_ID)!
     setCurrentVisit(visit)
     countEngagementAction('class_small'); countEngagementAction('class_small'); trackEngagementAction('form_date'); trackEngagementAction('form_date')
-    expect(visit.takePayload()?.actions).toEqual({ class_small: 2, form_date: 1 })
+    expect(visit.takePayload()?.actions).toEqual({ campus_tracking: 1, class_small: 2, form_date: 1 })
     const stories = read('../app/components/HomeStories.vue')
     expect(stories).toContain("trackEngagementAction(storyActionKey(id) ?? 'story_open')")
     // 分篇之後卡片上不再另外標 story_open，免得同一下點擊算兩次。
@@ -134,7 +142,7 @@ describe('內容興趣統計（2026-11-11）', () => {
     const payload = visit.takePayload()
     expect(payload).toEqual({
       event: 'engagement', id: VISIT_ID, session: SESSION.id, page: 'news', campus: null, device: 'mobile', item: 'garden',
-      source: 'facebook', active_ms: 4500, scroll: 80, sections: { article: 3000 }, actions: { story_open: 2, read_end: 1 }, rev: 1
+      source: 'facebook', active_ms: 4500, scroll: 80, sections: { article: 3000 }, actions: { campus_tracking: 1, story_open: 2, read_end: 1 }, rev: 1
     })
     expect(validateEngagement(payload)).toEqual(payload)
     expect(visit.takePayload()).toBeNull()
@@ -151,7 +159,47 @@ describe('內容興趣統計（2026-11-11）', () => {
     const visit = startVisit('/visit', SESSION, 'desktop', VISIT_ID)!
     setCurrentVisit(visit)
     trackEngagementAction(BOOKED_ACTION)
-    expect(visit.takePayload()?.actions).toEqual({ booking_done: 1 })
+    expect(visit.takePayload()?.actions).toEqual({ campus_tracking: 1, booking_done: 1 })
+  })
+
+  it('校區聯絡依連結上的校區與用途歸類，無場次後的同頁點擊才加註順序', () => {
+    document.body.innerHTML = `
+      <main data-campus-key="yihua">
+        <a href="tel:000"><span id="first">致電</span></a>
+        <a data-campus-key="renwu" href="tel:000"><span id="other">致電仁武</span></a>
+        <a data-contact-channel="line" href="https://example.test/contact"><span id="line">LINE 洽詢</span></a>
+        <a href="https://lin.ee/example" id="notify">綁定通知</a>
+      </main>
+      <a href="tel:000" id="institution">機構電話</a>`
+    const visit = startVisit('/visit/yihua', SESSION, 'mobile', VISIT_ID)!
+    function click(id: string) {
+      const contact = campusContactOf(document.getElementById(id))
+      if (contact) visit.contact(contact.campus, contact.channel)
+    }
+    click('first')
+    visit.mark(FORM_ACTIONS.noSlots)
+    click('other')
+    click('notify')
+    click('institution')
+    expect(visit.takePayload()?.actions).toEqual({ campus_tracking: 1, contact_phone_yihua: 1, form_no_slots: 1, contact_phone_renwu: 1 })
+    click('line')
+    click('line')
+    expect(visit.takePayload()?.actions).toMatchObject({ contact_line_yihua: 1, contact_after_empty: 1 })
+  })
+
+  it('一般互動達上限時仍記校區去向，切校前的舊回應不歸給新校', () => {
+    const visit = startVisit('/visit/renwu', SESSION, 'mobile', VISIT_ID)!
+    setCurrentVisit(visit)
+    for (let i = 0; i < 30; i++) visit.action(`story_${i}`)
+    trackEngagementAction(BOOKED_ACTION, 'yihua')
+    trackEngagementAction('form_slots_available', 'renwu')
+    visit.contact('renwu', 'phone')
+    const payload = visit.takePayload()!
+    expect(Object.keys(payload.actions).filter((key) => key.startsWith('story_'))).toHaveLength(24)
+    expect(payload.actions).not.toHaveProperty(BOOKED_ACTION)
+    expect(payload.actions).toMatchObject({ contact_phone_renwu: 1, form_slots_available: 1 })
+    expect(validateEngagement(payload)).toEqual(payload)
+    expect(validateEngagement({ ...payload, actions: { ...payload.actions, story_overflow: 1 } })).toBeNull()
   })
 
   it('互動只記打開：已展開的再點一次不算', () => {
