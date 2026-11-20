@@ -5,6 +5,7 @@ import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/ty
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
 import { claimVisitNoteDrafts, clearVisitNoteDrafts } from '../composables/visitNoteDraft'
+import { forgetLastUser, rememberSignedIn } from '../composables/lastSignIn'
 import { useOpenRequestsStore } from './openRequests'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -45,6 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
       csrfToken.value = result.csrf_token
       setCsrfToken(result.csrf_token)
       forgetPreviousUser(result.user.id)
+      rememberSignedIn(result.user, 'password')
       announceSignedIn()
     } finally {
       isLoading.value = false
@@ -111,6 +113,8 @@ export const useAuthStore = defineStore('auth', () => {
     previousUserId.value = outcome === 'session-changed' ? signedInAs : null
     // 主動登出才清案件草稿；逾時被導回登入（只走 clearSession）要留著讓人接著寫。
     clearVisitNoteDrafts()
+    // 登入頁的回訪者也一樣：主動登出（共用電腦下班）就忘掉是誰，逾時回來才一鍵接著用。
+    forgetLastUser()
     return outcome
   }
 
@@ -135,6 +139,7 @@ export const useAuthStore = defineStore('auth', () => {
       setCsrfToken(result.csrf_token)
       sessionMaxExpiresAt.value = result.session_max_expires_at ?? null
       forgetPreviousUser(result.user.id)
+      rememberSignedIn(result.user)
       announceSignedIn()
       return 'restored'
     } catch (error) {

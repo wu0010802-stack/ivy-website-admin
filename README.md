@@ -1,3 +1,18 @@
+## 2026-11-19 後台登入頁改版：方向 1「後台的第一個畫面」（`feature/admin-login-rail-20261119`，部署狀態見 `deploy/README.md`）
+
+使用者從第六輪比稿（`design/admin-login-directions-20261119/`，Desktop checkout 未追蹤）選方向 1。登入頁長在後台的殼裡：左邊是 64px 的收合側欄（同後台收合後的圖示欄），右邊是後台淺色工作區，台灣時間的問候語（早安／午安／晚安）＋「官網後台登入」，顏色與控制項跟後台內頁同一套（青藍）。原本的大校徽與白卡拿掉。
+
+- **登入成功的轉場**：支援 View Transition 的瀏覽器，登入頁的側欄與 `AdminLayout` 的 `.side` 同名（`view-transition-name: admin-side`），原地展開成真的側欄、右邊交叉淡入起始頁；不支援或減少動態就直接換頁。只在登入那一次（`html.is-entering-admin`）套用。
+- **回訪者**（`admin/src/composables/lastSignIn.ts`）：登入或恢復登入成功時，在這台瀏覽器的 localStorage 記下 Email、側欄同一套的名字與「角色・校區」；下次打開是「早安 林老師」＋「用 LINE 繼續」（或只問密碼），可「換帳號」、「改用密碼登入」。**主動登出就忘掉是誰**（共用電腦下班），逾時被登出不忘。上次的方式另存、登出不清，用來標「上次使用」並排前面；Google／LINE 要導回後台恢復登入成功才算（按下時先放 sessionStorage）。清除時機是 Claude 的取捨，使用者 11-20 直接要求部署，沒有另外改。
+- **表單**：「帳號」改叫 Email、拿掉星號與重複的提示字；顯示密碼改成有名稱與狀態的按鈕；大寫鎖定提醒；「忘記密碼」點開才說明（畫面在標籤右邊、鍵盤順序在密碼欄之後）；帳密錯誤、限流、被導回原因改成表單內的一列（不再用 el-alert）；只有滑鼠鍵盤的電腦才自動聚焦。
+- **LINE 內建瀏覽器**：LINE 登入排第一，Google 改成「用瀏覽器開啟，改用 Google 登入」（`openExternalBrowser=1`）。
+- 900px 以下（後台改抽屜選單的寬度）側欄變成頂端深色列；矮筆電（1366×657、1280×720）登入鈕在第一屏。
+- **「記住這台裝置 30 天」**（下一段 PR #117，11-20 rebase 時已在 main）：新登入頁沿用同一個 `remember` 與 `remember=1`，勾選框改成原生 checkbox（`data-test="login-remember"` 不變），放在登入鈕上面；回訪者的「用 LINE／Google 繼續」上面也有，勾了網址就帶 `remember=1`。`line_other_browser` 的提示一併搬過來；回訪者從 Google／LINE 失敗導回來（取消、逾時、開到別的瀏覽器）時，密碼欄下面多一個「使用 LINE 登入」原地再試，沒綁定與限流不給。`rememberDevice.test.ts` 每個測試後清 localStorage（登入成功會記住回訪者）。
+- 新增色票 `--login-soft`、`--login-ring`、`--login-spinner-track`，字級例外 `--text-display`／`--text-display-sm`（只給登入頁問候語，`adminUx.test.ts` 守門）；拿掉不再用的 `--login-crest-shadow`（`--login-bg` 留給設定新密碼頁）。stack 的兩個登入步驟改用 `getByLabel('Email')`；登入頁視覺基準用 `page.clock.setFixedTime` 固定在 11-19 週四早上（問候語、日期才不隨拍攝時刻變），`login-chrome-darwin.png` 已在 macOS 重拍。
+- 驗證：admin typecheck 通過；全套單元測試 196 檔 3,680 項中 3,677 項通過、1 項略過，2 項在機器高負載下逾時（`admissionsRecords`、`environmentPageView`），單獨重跑 80 項全過；新增 `loginReturning.test.ts`（併入記住裝置後 21 項）。11-20 rebase 到 main（含 #117）後：typecheck 通過，登入相關 9 檔 214 項通過；stack 重 build 後 a11y、audit-client-info、password-reset、keyboard、sidebar-collapse、visual 54 項全過；假 API 重截 15 種狀態仍無溢出，1366×657 登入鈕底在 460px，鍵盤順序 Email → 密碼 → 顯示密碼 → 忘記密碼 → 記住這台裝置 → 登入 → Google → LINE。本機 vite＋假 API（`output/login-rail/`）截 15 種尺寸與狀態都沒有水平溢出、登入鈕都在第一屏；實測帳密錯誤（焦點回密碼欄並全選）、成功登入與轉場、鍵盤順序（Email → 密碼 → 顯示密碼 → 忘記密碼 → 登入 → Google → LINE）；axe 掃五種狀態沒有 serious／critical。
+- stack e2e（11-20 本機 macOS，`npm run e2e:build` 後跑 a11y、audit-client-info、exports、keyboard、password-reset、roles、sidebar-collapse、visual 八組）：64 項中 63 項通過；`keyboard` 的「1440px：後台主要頁面沒有橫向溢出」第一次卡在五校介紹頁（右側預覽還在「正在確認管理身分…」，該項跑了 50 秒），單獨連跑兩次都通過，判斷是預覽載入慢的偶發，與登入頁無關。
+- 沒驗證：Safari（View Transition 18 起才有）、Firefox、iOS／Android 實機、真的 LINE 內建瀏覽器與真的 Google／LINE 往返沒測。
+
 ## 2026-11-19 後台「記住這台裝置」保持登入 30 天＋手機 LINE 登入修正（PR #117，已部署 main `71038291`）
 
 使用者要求後台保持登入、做 30 天。登入頁密碼欄下方加「記住這台裝置 30 天」勾選框（預設不勾，旁邊寫「共用的電腦請不要勾」），帳密、Google、LINE 三種登入都適用：

@@ -12,7 +12,7 @@ const IP = '203.0.113.50'
 test('從手機 LINE 登入，操作紀錄寫出裝置與 IP（桌機與手機版面）', async ({ browser }) => {
   const { context, page } = await openAs(browser, null, { userAgent: IPHONE_LINE, extraHTTPHeaders: { 'X-Forwarded-For': IP } })
   await page.goto('/admin/login')
-  await page.getByLabel('帳號', { exact: true }).fill(USERS.super_admin.email)
+  await page.getByLabel('Email', { exact: true }).fill(USERS.super_admin.email)
   await page.getByLabel('密碼', { exact: true }).fill(USERS.super_admin.password)
   await page.getByRole('button', { name: '登入', exact: true }).click()
   await expect(page).not.toHaveURL(/\/admin\/login/)

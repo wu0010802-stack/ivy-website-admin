@@ -87,6 +87,9 @@ test.describe('後台畫面基準', () => {
 })
 
 test('後台登入頁', async ({ page }) => {
+  // 問候語（早安／午安／晚安）、日期與頁尾年份跟著台灣時間走（2026-11-19 登入頁改版）：
+  // 固定在某個週四早上，基準圖才不會隨拍攝時刻改變。
+  await page.clock.setFixedTime(new Date('2026-11-19T09:30:00+08:00'))
   await page.goto('/admin/login')
   await expect(page.getByRole('button', { name: /登入/ }).first()).toBeVisible()
   await settle(page)
