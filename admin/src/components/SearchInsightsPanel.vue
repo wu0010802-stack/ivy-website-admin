@@ -144,8 +144,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
           <div class="panel__head"><h2 id="search-groups-title">大家在找什麼<span class="search__sub">搜尋字詞分四群</span></h2></div>
           <div class="panel__body search__body">
             <div class="search__scroll" role="region" tabindex="0" aria-label="搜尋字詞分群（可左右捲動）">
-              <table class="search__table" data-test="search-groups">
-                <thead><tr><th scope="col">字詞</th><th scope="col" class="num">字詞數</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
+              <table class="search__table search__table--words" data-test="search-groups">
+                <thead><tr><th scope="col">字詞</th><th scope="col" class="num">字詞數</th><th scope="col" class="num">點進<wbr>官網</th><th scope="col" class="num">出現<wbr>次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                 <tbody>
                   <tr v-for="row in queryGroups" :key="row.group" :data-test="`search-group-${row.group}`">
                     <th scope="row">{{ SEARCH_GROUP_LABELS[row.group].label }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].hint }}</span></th>
@@ -170,8 +170,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
           <div class="panel__body search__body">
             <p v-if="!missed.length" class="hint" data-test="search-missed-empty">沒有出現 20 次以上、點進去不到 2% 的字詞。</p>
             <div v-else class="search__scroll" role="region" tabindex="0" aria-label="常出現、卻很少人點的字詞（可左右捲動）">
-              <table class="search__table" data-test="search-missed">
-                <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">排名</th></tr></thead>
+              <table class="search__table search__table--words" data-test="search-missed">
+                <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">出現<wbr>次數</th><th scope="col" class="num">點進<wbr>官網</th><th scope="col" class="num">排名</th></tr></thead>
                 <tbody>
                   <tr v-for="row in missed" :key="row.query">
                     <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group].label }}</span></th>
@@ -195,8 +195,8 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
           <div class="panel__body search__body">
             <p v-if="!queries.length" class="hint">這段期間沒有資料。</p>
             <div v-else class="search__scroll" role="region" tabindex="0" aria-label="搜尋字詞（可左右捲動）">
-              <table class="search__table" data-test="search-queries">
-                <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
+              <table class="search__table search__table--words" data-test="search-queries">
+                <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">點進<wbr>官網</th><th scope="col" class="num">出現<wbr>次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                 <tbody>
                   <tr v-for="row in visibleQueries" :key="row.query">
                     <th scope="row">{{ row.query }}<span class="hint search__path">{{ SEARCH_GROUP_LABELS[row.group]?.label }}</span></th>
@@ -219,7 +219,7 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
               <p v-if="!pages.length" class="hint">這段期間沒有資料。</p>
               <div v-else class="search__scroll" role="region" tabindex="0" aria-label="被點進去的頁面（可左右捲動）">
                 <table class="search__table" data-test="search-pages">
-                  <thead><tr><th scope="col">頁面</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
+                  <thead><tr><th scope="col">頁面</th><th scope="col" class="num">點進<wbr>官網</th><th scope="col" class="num">出現<wbr>次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                   <tbody>
                     <tr v-for="row in visiblePages" :key="row.page">
                       <th scope="row">
@@ -244,7 +244,7 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
               <p v-if="!devices.length" class="hint">這段期間沒有資料。</p>
               <div v-else class="search__scroll">
                 <table class="search__table" data-test="search-devices">
-                  <thead><tr><th scope="col">裝置</th><th scope="col" class="num">點進官網</th><th scope="col" class="num">占</th><th scope="col" class="num">出現次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
+                  <thead><tr><th scope="col">裝置</th><th scope="col" class="num">點進<wbr>官網</th><th scope="col" class="num">占</th><th scope="col" class="num">出現<wbr>次數</th><th scope="col" class="num">比例</th><th scope="col" class="num">排名</th></tr></thead>
                   <tbody>
                     <tr v-for="row in devices" :key="row.device">
                       <th scope="row">{{ SEARCH_DEVICE_LABELS[row.device] }}</th>
@@ -352,13 +352,26 @@ const deviceShare = (clicks: number) => (deviceClicks.value ? `${Math.round((cli
   font-weight: 500;
 }
 
+/* 數字欄的表頭只在模板標了 <wbr> 的位置斷行（「點進／官網」「出現／次數」）：手機上數字欄變窄，
+   字詞那一欄多一點空間；放得下時照舊一行（同內容興趣各表，2026-11-20 可讀性）。 */
+.search__table thead th.num {
+  white-space: normal;
+  word-break: keep-all;
+}
+
 /* 搜尋字詞多半是用空格隔開的幾個詞（「高雄 幼兒園 推薦」）：欄位窄時在空格換行、不把一個詞拆開；
-   沒有空格又放不下的長字串（路徑）才任意斷。 */
+   沒有空格又放不下的長字串（路徑）才任意斷。
+   字詞類的三張表（分群、常出現卻很少人點、搜尋字詞）用 break-word：anywhere 會讓這一欄的最小寬度縮到一個字，
+   數字欄一多（分群表五欄）名稱就被擠成一字一行；break-word 以最長的詞為下限，放不下讓表左右捲。 */
 .search__table tbody th {
   font-weight: 400;
   color: var(--ink);
   word-break: keep-all;
   overflow-wrap: anywhere;
+}
+
+.search__table--words tbody th {
+  overflow-wrap: break-word;
 }
 
 .search__table tbody tr {

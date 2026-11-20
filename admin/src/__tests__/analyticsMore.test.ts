@@ -90,6 +90,17 @@ describe('每月比較', () => {
     expect(wrapper.get('[data-test="monthly-lede"]').text()).toContain('比去年同月')
   })
 
+  it('2026-11-20 可讀性：次數加千分位（比例、停留照舊）', async () => {
+    const { wrapper } = await mountWith(MonthlyPanel, summary([month({ page_views: 14840, sessions: 2930, visits: 6800, sources: [{ key: 'search', sessions: 1200, visits: 0, booked_sessions: 2, median_ms: null }], pages: [{ key: 'home', sessions: 1500, visits: 2650, booked_sessions: 0, median_ms: 30_000 }], form: [{ key: 'visit', sessions: 1030, visits: 0, booked_sessions: 0, median_ms: null }] })]))
+    const row = wrapper.get('[data-test="monthly-2026-11"]').text()
+    expect(row).toContain('14,840')
+    expect(row).toContain('2,930')
+    expect(row).toContain('2.3')
+    expect(wrapper.get('[data-test="monthly-sources"]').text()).toContain('1,200（41%）')
+    expect(wrapper.get('[data-test="monthly-form"]').text()).toContain('1,030')
+    expect(wrapper.get('[data-test="monthly-pages"]').text()).toContain('2,650')
+  })
+
   it('還沒切到這一類不讀', async () => {
     const { get } = await mountWith(MonthlyPanel, summary([]), { active: false })
     expect(get).not.toHaveBeenCalled()
@@ -150,6 +161,27 @@ describe('找不到的網址與爬蟲', () => {
     expect(google).toContain('首頁 7')
     expect(google).toContain('llms.txt 2')
   })
+
+  it('2026-11-20 可讀性：兩張表的次數加千分位', async () => {
+    const missing: NotFoundSummary = {
+      days: 28, since: '2026-11-13', until: '2026-11-20', paths_total: 1, as_of: '',
+      totals: [{ ref: 'search', hits: 1021 }, { ref: 'crawler', hits: 13400 }],
+      paths: [{ path: '/blank-1', hits: 14421, visitor_hits: 1021, last_day: '2026-11-19', refs: [{ ref: 'search', hits: 1021 }, { ref: 'crawler', hits: 13400 }] }],
+    }
+    const notFound = (await mountWith(NotFoundPanel, missing, { days: 28 })).wrapper
+    expect(notFound.get('[data-test="not-found-lede"]').text()).toContain('訪客打開不存在的網址 1,021 次')
+    expect(notFound.get('[data-test="not-found-lede"]').text()).toContain('13,400')
+    expect(notFound.findAll('[data-test="not-found-paths"] tbody td').map((cell) => cell.text()).filter((text) => text.includes(','))).toEqual(['1,021', '13,400'])
+    vi.restoreAllMocks()
+    const crawled: CrawlerSummary = {
+      days: 28, since: '2026-11-13', until: '2026-11-20', hits: 5236, as_of: '',
+      groups: [{ group: 'search', hits: 5236, pages: [{ page: 'home', hits: 5236 }], bots: [{ bot: 'googlebot', group: 'search', hits: 5236, errors: 1612, last_day: '2026-11-20', pages: [{ page: 'home', hits: 5236 }] }] }],
+    }
+    const crawlers = (await mountWith(CrawlerPanel, crawled, { days: 28 })).wrapper
+    expect(crawlers.get('[data-test="crawlers-lede"]').text()).toContain('爬蟲來抓官網 5,236 次')
+    const cells = crawlers.get('[data-test="crawler-googlebot"]').findAll('td').map((cell) => cell.text())
+    expect([cells[0], cells[2]]).toEqual(['5,236', '1,612'])
+  })
 })
 
 describe('電話與 LINE 的時段', () => {
@@ -169,5 +201,8 @@ describe('電話與 LINE 的時段', () => {
     expect(monday.findAll('td').map((cell) => cell.text())).toEqual(['0', '0', '1', '0', '0', '0', '2'])
     expect(monday.findAll('td')[2]!.classes()).toContain('is-office')
     expect(wrapper.get('[data-test="contact-hours-campuses"]').text()).toContain('義華校')
+    // 2026-11-20 可讀性：每列的「星期」另外包一層（手機上收起來，七個時段才放得下），文字不變。
+    expect(monday.get('th').text()).toBe('星期一')
+    expect(monday.get('th .contact-hours__weekday').text()).toBe('星期')
   })
 })

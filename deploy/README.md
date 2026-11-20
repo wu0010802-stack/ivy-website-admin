@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 後台成效統計第四輪：可讀性（PR #130，已部署 main `19a52c2b`）
+
+[PR #130](https://github.com/wu0010802-stack/ivy-website-admin/pull/130)（feature `cdf5be3e`）PR 組 CI 全綠（含 E2E），Codex 自動審查沒有意見。等 CI 期間 main 併入 #129（成效統計補強七項）造成三處衝突（`README.md`、`DESIGN.md`、`SearchInsightsPanel.vue`），把 main 併進分支（`bf6d3a51`，兩邊內容都保留）後 PR 組 CI 重跑全綠（含 E2E）才合併。使用者要求合併；以 merge commit `19a52c2b` 併入 main，[main CI/CD 44715558517](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44715558517) 成功，台灣時間 18:17 完成。
+
+- 只動 admin（`ContentInterestPanel.vue`、`SiteTrafficPanel.vue`、`CruxPanel.vue`、`SearchInsightsPanel.vue`、`LineInsightsPanel.vue`、`analytics/DailyBars.vue`，新增 `analytics/CountNote.vue`、`analytics/format.ts`）＋四個測試檔＋README／DESIGN.md。沒有 API、契約、migration、Railway 環境變數變更。`DailyBars` 是共用元件，招生統計「預約成效」的每日圖一起變。
+- 部署後唯讀檢查（只發 GET、不登入）：正式 `/release.json` 的 base_commit 為 `19a52c2b53927201d85abd2a33c356e39de7a882`，snapshot `f3a5fc430c77e25ada11ec214ae5d15d8fca9b5f1459f87f106ab0116d9461ca`；線上 `AnalyticsView-CKYXx3UI.js`／`AnalyticsView-C4Pw9Vba.css` 有 `count-note`、`interest__label-part`、`crux__dist`、`line-insights__tables`、`interest-pages-records`，`DailyBars-uJo-F_UF.js` 有 `daily-bars__month`。
+- 沒驗：登入後正式資料下的實際畫面（手機的各頁停留小卡、回訪表轉向、時段表七段、每日直條日期）、Safari 與手機實機。
+
 ## 2026-11-20 招生統計區域分析：往下捲時地圖不再壓在頁首與條件列上面（PR #128，已部署 main `2b088671`）
 
 [PR #128](https://github.com/wu0010802-stack/ivy-website-admin/pull/128)（feature `9970e442`，併入 main 的 #115 與部署紀錄後為 `39e85222`）PR 組 CI 全綠（含 E2E）；推送組兩次被 concurrency 取消、重跑通過。等 #115 的 main run 44697755455 部署完才合併，沒有取代別人的 run。以 merge commit `2b088671` 併入 main，[main CI/CD 44703921774](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44703921774) 全部成功（web、admin、後端三組、E2E、Deploy）。
@@ -21,6 +29,17 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 只動 admin 一行 CSS（`AreaMap.vue` 的 `.area-map__frame` 加 `isolation: isolate`）＋`tests/stack/admissions-area.spec.ts` 一條新測試＋README／DESIGN.md。沒有 API、契約、migration、Railway 環境變數變更。
 - 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `2b088671bc395b305842b7bf15fa26554070f365`，snapshot `219195c0c6871add5ce5d7479591ec5e859c811eeff0ffe7ad829a90d577af67`。使用者的 Chrome 新分頁開 `/admin/admissions-stats?campus=yihua&sub=area`（只讀 DOM、沒有注入樣式、沒有改資料）：`.area-map__frame` 計算值 `isolation: isolate`；地圖上緣捲到頁首後面 150px 時，頁首與條件列位置的最上層是頁首 `H1` 與分類列，條件列下方 60px 是里界 `<path>`（地圖照樣點得到）。修前同一個量法兩處都是里界 `<path>`。
 - 沒驗：Safari 與手機實機（900px 以下條件列不黏，理論上不受影響）。
+
+## 2026-11-20 成效統計補強七項：每月比較、統計健康檢查、AI 助理來源、找不到的網址、搜尋字詞分群、電話與 LINE 時段、爬蟲（PR #129，已部署 main `bac46d9a`）
+
+[PR #129](https://github.com/wu0010802-stack/ivy-website-admin/pull/129)（feature `50f716bb`＋併 main `6853dddd`）。推送組 CI 被 concurrency 取消、重跑後全綠（含 E2E）；PR 組的 E2E 因此被擠掉，`gh run rerun --failed` 後通過，PR 變 CLEAN，以 merge commit `bac46d9a` 併入 main。[main CI/CD 44712323675](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44712323675) 前後端與 Deploy 成功。
+
+- 範圍：backend（新服務 `monthly_service`／`stats_health`／`crawler_service`／`contact_hours_service`、新路由 `analytics_more_routes.py`、Search Console 字詞 500 列與分群、GA4 單日事件數、定期工作兩步、LINE 群組種類 `stats_health`）、web（來源 `ai`、404 回報、`server/plugins/crawler-hits.ts`、代理 `SERVER_ONLY_PATH` 加兩支）、admin（第五類「每月比較」、頁頂健康提示、四個新面板、Google 搜尋兩張表、LINE 通知頁總部群組開關）、契約。規格 `docs/specs/2026-11-20-analytics-more-design.md`。
+- migration `a6c3e9f2d417`（接 `d8b1a9e5c274`）：新表 `engagement_monthly`、`not_found_daily`、`crawler_hits_daily`、`stats_health_runs`，`visit_requests` 兩條來源 CHECK 加 `ai`。只新增與放寬，不改寫既有資料，沒有事先備份。沒有 Railway 環境變數變更。
+- 部署後唯讀檢查：`/release.json` base_commit `bac46d9a`；`/api/website/v1/health` 200；`admin.ivykidschool.com` 上 `/admin/analytics/{monthly,health,not-found,crawlers,contact-hours}` 未登入都回 401（不存在的路徑對照 404）；`www` 直接打 `/api/website/v1/public/crawler-hits` 回 404；後台 `AnalyticsView-*.js` 有「每月比較」「統計可能有狀況」「找不到的網址」「家長什麼時候按電話」「大家在找什麼」。沒有用爬蟲 UA 或 404 去打正式站（會寫進正式統計）。
+- 每月彙總由定期工作每天第一輪算（部署後一分鐘內），11 月從 11/13 起算。
+- 待使用者：總部 LINE 群組要收「官網統計異常」得在後台「LINE 通知」打開（預設不開）；GA4 那一項要正式站設 `WEBSITE_GA4_PROPERTY_ID` 才會查。
+- 沒驗：登入後的實際畫面、LINE 實際推播、正式站上爬蟲與 404 的實際寫入。
 
 ## 2026-11-20 環境頁：章節卡只留章名、菜單書夾書籤、一天五餐盤子優先、五校分頁都接得上（PR #115，已部署 main `d13b4768`）
 

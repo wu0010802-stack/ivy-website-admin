@@ -7,6 +7,7 @@ import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
 import { analyticsCsvName, saveAnalyticsCsv } from './csvExport'
 import { DEFAULT_ANALYTICS_DAYS, periodText, type AnalyticsDays } from './filters'
+import { formatCount } from './format'
 
 // 家長什麼時候按電話、LINE（2026-11-20，docs/specs/2026-11-20-analytics-more-design.md §6）：多半在上班時間外的話，
 // LINE 可以設自動回覆、電話可以考慮轉接或語音留言。時段的切法和「什麼時候有人看」不同：上班時間（8–18 點）切在段落邊界上。
@@ -88,22 +89,22 @@ function exportCsv() {
       <p v-else-if="!clicks" class="hint" data-test="contact-hours-empty">這段期間官網上的電話、LINE 按鈕還沒有人點。</p>
       <template v-else>
         <p class="contact-hours__lede" data-test="contact-hours-lede">
-          {{ period }}，電話按鈕被點 <strong class="num">{{ channel('phone')?.clicks ?? 0 }}</strong> 次、LINE 按鈕 <strong class="num">{{ channel('line')?.clicks ?? 0 }}</strong> 次；
-          <strong class="num">{{ outside }}</strong> 次（{{ formatShare(outside / clicks) }}）在上班時間（{{ officeText }}）以外。
+          {{ period }}，電話按鈕被點 <strong class="num">{{ formatCount(channel('phone')?.clicks ?? 0) }}</strong> 次、LINE 按鈕 <strong class="num">{{ formatCount(channel('line')?.clicks ?? 0) }}</strong> 次；
+          <strong class="num">{{ formatCount(outside) }}</strong> 次（{{ formatShare(outside / clicks) }}）在上班時間（{{ officeText }}）以外。
         </p>
         <div class="contact-hours__scroll" role="region" tabindex="0" aria-label="電話與 LINE 的點擊時段（可左右捲動）">
           <table class="contact-hours__table contact-hours__heat" data-test="contact-hours-grid">
             <thead><tr><th scope="col">星期</th><th v-for="band in BANDS" :key="band.label" scope="col" class="num">{{ band.label }}<span class="hint">{{ band.range }}</span></th></tr></thead>
             <tbody>
               <tr v-for="(row, day) in grid.rows" :key="day">
-                <th scope="row">{{ ISO_WEEKDAY_LABELS[day + 1] }}</th>
+                <th scope="row"><span class="contact-hours__weekday">{{ ISO_WEEKDAY_LABELS[day + 1]!.slice(0, 2) }}</span>{{ ISO_WEEKDAY_LABELS[day + 1]!.slice(2) }}</th>
                 <td v-for="(item, band) in row" :key="band" class="num" :class="{ 'is-office': isOffice(day + 1, band) }">
                   <span
                     class="contact-hours__cell"
                     :class="{ 'is-zero': !(item.phone + item.line) }"
                     :style="{ '--heat': grid.max ? (item.phone + item.line) / grid.max : 0 }"
                     :title="`電話 ${item.phone}、LINE ${item.line}`"
-                  >{{ item.phone + item.line }}</span>
+                  >{{ formatCount(item.phone + item.line) }}</span>
                 </td>
               </tr>
             </tbody>
@@ -115,8 +116,8 @@ function exportCsv() {
             <tbody>
               <tr v-for="row in data!.campuses" :key="row.campus_key ?? 'none'">
                 <th scope="row">{{ row.campus_key ? `${campusLabel(row.campus_key)}校` : '不分校' }}</th>
-                <td class="num">{{ row.phone }}</td>
-                <td class="num">{{ row.line }}</td>
+                <td class="num">{{ formatCount(row.phone) }}</td>
+                <td class="num">{{ formatCount(row.line) }}</td>
                 <td class="num">{{ formatShare((row.clicks - row.office) / row.clicks) }}</td>
               </tr>
             </tbody>
@@ -201,5 +202,37 @@ function exportCsv() {
 
 .contact-hours__cell.is-zero {
   color: var(--ink-3);
+}
+
+/* 手機：七個時段一次看完，不左右捲（同「什麼時候有人看」，2026-11-20 可讀性）。格子內距縮小、數字置中，
+   每列的「星期」兩個字收起來（表頭已經寫了；讀屏仍讀得到），第一欄只留「一」到「日」。 */
+@media (max-width: 720px) {
+  .contact-hours__table.contact-hours__heat th,
+  .contact-hours__table.contact-hours__heat td {
+    padding-inline: 1px;
+  }
+
+  .contact-hours__heat thead .hint {
+    font-size: var(--text-xs);
+  }
+
+  .contact-hours__heat thead th.num,
+  .contact-hours__heat tbody th {
+    text-align: center;
+  }
+
+  .contact-hours__cell {
+    padding-inline: 4px;
+    text-align: center;
+  }
+
+  .contact-hours__weekday {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 </style>

@@ -93,6 +93,27 @@ describe('Google 搜尋面板', () => {
     expect(wrapper.text()).toContain('2–3 天延遲')
   })
 
+  it('2026-11-20 可讀性：字詞類的表加千分位、名稱欄以詞為下限、表頭標了斷行位置', async () => {
+    const { wrapper } = await mountPanel(search({
+      queries_seen: 312,
+      query_groups: [
+        { group: 'brand', queries: 41, clicks: 1280, impressions: 19200, ctr: 0.0667, position: 2.8 },
+        { group: 'category', queries: 1180, clicks: 27, impressions: 1410, ctr: 0.0191, position: 18.9 },
+      ],
+      missed_queries: [{ query: '高雄 幼兒園 推薦', group: 'local', clicks: 2, impressions: 3840, ctr: 0.0005, position: 11.2 }],
+    }))
+    const groups = wrapper.get('[data-test="search-groups"]')
+    expect(groups.findAll('tbody tr')[0]!.findAll('td').map((cell) => cell.text()).slice(0, 3)).toEqual(['41', '1,280', '19,200'])
+    expect(groups.findAll('tbody tr')[1]!.findAll('td')[0]!.text()).toBe('1,180')
+    expect(wrapper.get('[data-test="search-missed"] tbody td').text()).toBe('3,840')
+    // 表頭文字不變，只多了可以斷行的位置。
+    expect(groups.findAll('thead th').map((th) => th.text())).toEqual(['字詞', '字詞數', '點進官網', '出現次數', '比例', '排名'])
+    expect(groups.findAll('thead th')[2]!.find('wbr').exists()).toBe(true)
+    for (const name of ['search-groups', 'search-missed', 'search-queries']) expect(wrapper.get(`[data-test="${name}"]`).classes()).toContain('search__table--words')
+    // 頁面表的路徑沒有空格可斷，照舊任意斷。
+    expect(wrapper.get('[data-test="search-pages"]').classes()).not.toContain('search__table--words')
+  })
+
   it('2026-11-20：搜尋字詞超過 10 個先列前 10 個，可以展開', async () => {
     const queries = Array.from({ length: 14 }, (_, index) => ({ query: `字詞 ${index + 1}`, group: 'other' as const, clicks: 20 - index, impressions: 300, ctr: 0.05, position: 3 }))
     const { wrapper } = await mountPanel(search({ queries }))
