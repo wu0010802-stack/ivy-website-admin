@@ -1,3 +1,33 @@
+## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
+
+使用者請我看 `/environment` 的 UI 美術還能怎麼優化。評析找出六類問題，照片那一類（教室、套房式衛廁、健康把關、衣物保暖四張最弱）這次不動；其餘做成前後對照給使用者看過，回覆「都幫我修」。規則寫在 DESIGN.md「環境頁美術收尾」。
+
+- 章頭的一句話收回大標正下方；校園環境的章頭改靠左，四章一致。
+- 五顆心打開時，小心形裡先是那顆心的顏色，相連時才褪成照片（原本會露出糊掉的書櫃、切一半的臉）。
+- 五件照顧小事的說明 16px → 17.3px。
+- 遊樂區的黃色文字積木只有內容高、和照片站在同一條底線；視窗高 720 以上，積木上方放一顆珊瑚橘的球。
+- 六個空間舞台：六個形狀的底都貼著底線（半圓不再浮在半空），說明貼底、緊接六顆進度積木。
+- 五所校園面板：照片加一圈米白窗框；左欄沒選中的角落不畫半透明底。
+- 結尾（桌機）：三塊連結積木高低錯落、底邊切平，站在頁尾上緣。
+- 首屏拱窗展開途中，右下那塊綠色小積木不再從橫幅露出一截。
+
+改的檔案：`web/app/assets/css/environment.css`、`web/app/utils/environment-windows.ts`（`heartsFrame` 多回傳 `tint`、`stopShapes` 的半圓貼底）、`web/app/components/EnvironmentContent.vue`（五顆心照片層多一個色片 span）；測試 `environment-windows-20261117.spec.ts` 兩條斷言跟著改、逐字快照更新（差異只有那個色片 span）。
+
+驗證（Node 22.23.2，本機 fixture dev server 3241）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm --prefix web run test:unit` | 165 檔、2,503 項通過 |
+| 後台讀官網原始碼的 4 支（`environmentPageDraft`、`pageCopyFields`、`engagement`、`previewProtocol`） | 109 項通過 |
+| `node scripts/page-copy-stress.cjs /environment`，一般與 `STRESS_MOTION=1` | 320／390／820／901／1024／1100／1440 全部通過 |
+| Playwright 量遊樂區球、舞台說明、結尾積木（901–1920 寬、600–1080 高九種視窗，內建與上限字數） | 球不碰章標題、說明不壓進度積木、結尾三塊底邊切齊站在頁尾上、無橫向捲動 |
+| `tests/e2e/environment-windows.spec.ts`（Chrome／WebKit × 桌機／手機） | 第一輪 37 過 9 紅，只重跑紅的 5 過 4 紅。紅的都不是版面斷言：重新整理後 5 秒內模組還沒載入、dev 模式 `_nuxt/builds/meta/dev.json` 被中斷記成主控台錯誤、瀏覽器 session 斷線、開分頁就花 15 秒而整項逾時（桌機 WebKit 五校分頁那一項 trace 裡每個斷言都通過）。當時本機負載 22–36（其他 session 在跑測試），沒有在低負載下重跑。PR #123 的 CI（正式建置、乾淨環境）E2E 三段 23＋186＋83 全過，含環境頁四組視窗 |
+
+| 部署後正式站（Playwright，擋追蹤、POST 本機回 204） | `release.json` base_commit `b9726e76`；1440×900 與 390×844 的八處改動都生效、無橫向捲動、無頁面錯誤 |
+
+PR 與上線經過、Railway 部署見 `deploy/README.md` 同日段落。沒驗：stack e2e（CI 有跑）、iOS／Safari 實機。
+
 ## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`，紀錄見 `deploy/README.md`）
 
 使用者要確認正式站 `/admin/analytics` 的資料正確性。用已登入的後台唯讀抓 API、逐張表對照算法：加總、比例、中位數、時段（台北時間）都對，但資料本身有四個問題，使用者說「全部都幫我修」。

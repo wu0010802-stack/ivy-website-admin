@@ -14,6 +14,16 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
+
+[PR #123](https://github.com/wu0010802-stack/ivy-website-admin/pull/123) 以 merge commit 合併為 `b9726e76`（接在 #124 的部署紀錄 `51387c74` 之後，兩邊沒有重疊檔案）；[main CI/CD 44662042293](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44662042293) 全部成功（web、admin、後端三組、E2E 23＋186＋83、Deploy），Deploy 台灣時間 10:45–10:48。
+
+- 只改官網前端（`environment.css`、`environment-windows.ts`、`EnvironmentContent.vue` 與兩支測試），沒有 migration、沒有 Railway 環境變數變更。
+- API deployment：`50aa43b7-ac6d-4053-9b11-7413cbb95a5f`；web deployment：`0bafc146-59e4-4db7-8f0f-662d95584554`，兩者 SUCCESS；部署 smoke（release、live API、CMS、首頁、後台入口）通過。
+- PR 過程：第一次推分支時 push 與 pull_request 兩組 CI 同一 concurrency 群組，push 組被取消（設計如此）；PR 組全綠後，main 多了 #120 的部署紀錄、README 頂部相鄰段落衝突。README／DESIGN.md 的當日段落改成上線後隨這筆紀錄補回，PR 只留程式與測試，再跑一輪 CI 全綠後合併。
+- 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `b9726e761f6b010854c410376aaa94b9080f8739`，snapshot `04c35bac2da30ec89ac61aec5d4ab7f66eab374b0d03d8f8c9caa8b1d33c2cd9`；Playwright（擋外部追蹤、POST 本機回 204）在 1440×900 確認釘住敘事、引言在標題下、校園環境章頭靠左、五顆心色片 5 欄、小事說明 17.28px、黃卡縮成內容高且有球、舞台說明貼底、五校照片 7px 窗框、沒選中的角落透明、結尾積木 236／176／292；390×844 確認五校窗框、結尾積木與球沒被改到。兩個尺寸都沒有橫向捲動與頁面錯誤。
+- 沒驗：iOS／Safari 實機。PR #115（`feature/environment-cleanup-20261118`）也改 `environment.css`／`EnvironmentContent.vue`，併之前要先接上這次的 main。
+
 ## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`）
 
 [PR #124](https://github.com/wu0010802-stack/ivy-website-admin/pull/124) 以 merge commit 合併為 `fc42b711`（接在 `6e724910` 之後，PR 上 CI 全綠）；[main CI/CD 44658983963](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44658983963) 前後端、E2E、Deploy Railway production 全部成功。
