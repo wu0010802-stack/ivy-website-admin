@@ -65,7 +65,7 @@
 - 園務的月份登記表 `recruitment_months`、半年期統計快取 `recruitment_periods`、`expected_start_label` 自動解析、童年綠地專區統計（`chuannian_*`）、行政區統計。
 - 統計 Excel 匯出、任何含個資的匯出。（**2026-10-06 起「任何含個資的匯出」已被使用者裁定取代**，見本節末註記；原文保留供追溯。）
 - 園務端匯入程式、官網預約／CMS／帳號權限併入園務（併入另訂規格）。
-- 過渡期與園務系統串接或同步；官網仍用獨立資料庫，不連 `ivymanagement`（沿用 `docs/specs/2026-09-19-website-admin.md` 第 17、39–40 行）。
+- 過渡期與園務系統串接或同步；官網仍用獨立資料庫，不連 `ivymanagement`（沿用 `docs/specs/2026-09-19-website-admin.md` 第 17、39–40 行）。（**2026-11-20 業主裁定改為提供唯讀同步端點，由園務系統定期來拉官網招生資料，見 `docs/specs/2026-11-20-ivy-management-sync-api.md`**；官網仍不連園務資料庫，這句「不做串接或同步」不再適用，原文保留供追溯。）
 
 > **2026-10-06 更新（使用者裁定，取代上面「任何含個資的匯出」）**：招生訪視明細與未預繳名單開放含個資匯出（後端產生的 CSV，含孩子姓名、電話、地址），沿用「匯出個資」授權 `booking.export`（另需 `admissions.read` 與校區範圍）、每次匯出寫稽核、一次最多 10,000 筆；統計表改提供 CSV，仍不做 Excel（.xlsx）。招生開關 `WEBSITE_ADMISSIONS_ENABLED` 關閉時兩個匯出端點一樣 404，Q1 裁定前正式站不會用到。規則見 DESIGN.md「後台匯出擴充（2026-10-06）」；這份 CSV 和第 12 節給園務匯入程式的 JSONL 匯出（`app/admissions/export.py`）是兩回事，後者不變。
 

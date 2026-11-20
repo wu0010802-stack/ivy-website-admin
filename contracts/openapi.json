@@ -15193,6 +15193,374 @@
         "title": "JourneyWithdrawnOut",
         "type": "object"
       },
+      "Lead": {
+        "description": "一個家長報名／訪視（園務系統的招生一筆）。\n\nid 規則：官網預約是 `vr:<預約 uuid>`（origin＝visit_request，不論有沒有招生訪視）；沒有預約的招生訪視\n（手動建立，或原預約已刪除）是 `rv:<招生訪視 uuid>`（origin＝manual_visit）。個資欄位在預約或招生訪視任一\n已匿名化（anonymized＝true）時一律是 null。",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "anonymized": {
+            "title": "Anonymized",
+            "type": "boolean"
+          },
+          "birthday": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Birthday"
+          },
+          "booking_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Source"
+          },
+          "booking_status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "confirmed",
+                  "completed",
+                  "no_show",
+                  "cancelled"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Booking Status"
+          },
+          "child_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Child Name"
+          },
+          "contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deposit_collector": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit Collector"
+          },
+          "district": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "District"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "boolean"
+          },
+          "grade": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grade"
+          },
+          "has_deposit": {
+            "title": "Has Deposit",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Month"
+          },
+          "notes": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Notes"
+          },
+          "origin": {
+            "enum": [
+              "visit_request",
+              "manual_visit"
+            ],
+            "title": "Origin",
+            "type": "string"
+          },
+          "parent_response": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Response"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "recruitment_visit_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recruitment Visit Id"
+          },
+          "referrer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Referrer"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "stage": {
+            "anyOf": [
+              {
+                "enum": [
+                  "visited",
+                  "deposited",
+                  "enrolled",
+                  "withdrawn"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stage"
+          },
+          "target_school_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target School Year"
+          },
+          "target_semester": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Semester"
+          },
+          "transfer_term": {
+            "title": "Transfer Term",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "visit_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Date"
+          },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
+          }
+        },
+        "required": [
+          "id",
+          "origin",
+          "visit_request_id",
+          "recruitment_visit_id",
+          "booking_status",
+          "booking_source",
+          "stage",
+          "created_at",
+          "updated_at",
+          "visit_date",
+          "month",
+          "child_name",
+          "birthday",
+          "grade",
+          "phone",
+          "contact_name",
+          "address",
+          "district",
+          "source",
+          "referrer",
+          "deposit_collector",
+          "notes",
+          "parent_response",
+          "has_deposit",
+          "enrolled",
+          "transfer_term",
+          "target_school_year",
+          "target_semester",
+          "anonymized"
+        ],
+        "title": "Lead",
+        "type": "object"
+      },
+      "LeadsPage": {
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Lead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "campus_key",
+          "as_of",
+          "items"
+        ],
+        "title": "LeadsPage",
+        "type": "object"
+      },
       "LeaveRequest": {
         "additionalProperties": false,
         "properties": {
@@ -46789,6 +47157,98 @@
           }
         },
         "summary": "Health"
+      }
+    },
+    "/api/website/v1/integrations/ivy-management/leads": {
+      "get": {
+        "description": "一校的 lead 清單（官網預約＋沒有預約的招生訪視），游標分頁，取到 next_cursor 為 null 為止。",
+        "operationId": "list_leads_api_website_v1_integrations_ivy_management_leads_get",
+        "parameters": [
+          {
+            "description": "上一頁回傳的 next_cursor；不透明字串，不要自己組",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "上一頁回傳的 next_cursor；不透明字串，不要自己組",
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "要拉哪一校的資料（義華 yihua、明華 minghua…）",
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "description": "要拉哪一校的資料（義華 yihua、明華 minghua…）",
+              "maxLength": 64,
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Ivy-Integration-Key",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Ivy-Integration-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LeadsPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Leads",
+        "tags": [
+          "integrations"
+        ]
       }
     },
     "/api/website/v1/public/analytics-events": {

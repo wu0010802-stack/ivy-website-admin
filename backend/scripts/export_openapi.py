@@ -34,6 +34,8 @@ def main() -> int:
         session_secret="openapi-export-only-not-a-real-secret",
         # 招生入學預設關閉不掛路由；契約一律包含招生端點，後台型別才產得出來。
         admissions_enabled=True,
+        # 園務同步端點同理：沒設金鑰雜湊不掛路由，契約要包含它（這是假雜湊，不是任何真金鑰的）。
+        ivy_sync_key_hashes='{"yihua":"' + "0" * 64 + '"}',
     )
     app = create_app(settings)
     schema = app.openapi()

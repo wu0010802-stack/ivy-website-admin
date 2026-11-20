@@ -1,3 +1,13 @@
+## 2026-11-20 園務同步端點：園務系統定期拉官網招生資料（`feature/ivy-management-sync-api-20261120`；合併部署後預設關閉，設了金鑰雜湊才啟用）
+
+使用者 2026-11-20 裁定：過渡期就要讓園務持續拿到官網的招生資料，**取代**招生規格（`docs/specs/2026-09-30-website-admissions-design.md` §3.2）「過渡期不與園務串接或同步」那一句。官網仍用獨立資料庫、不連園務資料庫；是園務（另一套 FastAPI）定期來拉官網的唯讀 HTTP 端點。規格：`docs/specs/2026-11-20-ivy-management-sync-api.md`。
+
+- **端點**：`GET /api/website/v1/integrations/ivy-management/leads?campus_key=…&cursor=…&limit=…`（limit 1–200，預設 200）。標頭 `X-Ivy-Integration-Key`；每校一把金鑰，env 只放金鑰的 SHA-256（`WEBSITE_IVY_SYNC_KEY_HASHES`，JSON 物件「校區 → 64 位 hex」）。沒設或空物件＝功能關閉，路由不掛、404；不綁 `WEBSITE_ADMISSIONS_ENABLED`（招生關閉時仍回預約，只是沒有招生訪視）。
+- **驗證**：不用後台 session（帶有效 session 沒金鑰一樣 401）。沒帶、金鑰不對、該校沒設定、校區代號不認得，一律同一種 401；失敗依來源 IP 限流（5 分鐘 20 次，第 21 次起 429＋`Retry-After`），WARNING log 不記金鑰；成功只記一行 INFO，不寫稽核表。
+- **內容**：一筆 lead＝一個家長報名。先是該校沒被排除的預約（`vr:<預約 uuid>`，有招生訪視就帶預繳、註冊、階段），再是沒有預約的招生訪視（`rv:<訪視 uuid>`）。被排除的預約與它的訪視都不回；已匿名化的列個資欄位一律 null。游標分頁（`(created_at, id)` keyset，不用 OFFSET），回應 `Cache-Control: no-store`。
+- **主機**：`web/server/utils/admin-host.ts` 把 `integrations` 與 `admin`、`auth` 同級——設了 `NUXT_ADMIN_HOST` 後，這條路徑只在後台主機（`admin.ivykidschool.com`）服務，官網主機（www）一律 404；`x-ivy-integration-key` 靠既有 `x-ivy-` 前綴規則轉送，不必改白名單。
+- **沒有 migration**、沒有新表或欄位。契約（`contracts/openapi.json`、`contracts/generated/website-api.d.ts`）已重產；`scripts/export_openapi.py` 用假雜湊讓契約包含這支端點。啟用步驟見 `deploy/README.md`，lead 欄位說明見 `contracts/ivy-recruitment/README.md`「持續同步端點」。
+
 ## 2026-11-20 後台成效統計：補強七項的新面板也照可讀性規則走（PR #131，未部署）
 
 PR #130（可讀性）和 PR #129（成效統計補強七項）同一天各自進 main。#129 的新面板寫的時候還沒有可讀性那幾條規則，合在一起後同一頁有兩種寫法（一張表寫 1920、隔壁寫 2,890），手機上也有同類的擠壞。這裡把新面板補齊；只動 `admin/`，後端、契約、匯出內容都沒改。

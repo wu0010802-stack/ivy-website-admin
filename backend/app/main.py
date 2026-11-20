@@ -42,6 +42,7 @@ from app.insights.crux import CruxHistory
 from app.insights.ga4_ads import Ga4Ads
 from app.insights.routes import router as insights_router
 from app.insights.search_console import SearchConsole
+from app.integrations.ivy_management.routes import router as ivy_sync_router
 from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
@@ -66,7 +67,7 @@ _INTERNAL_ERROR = {"code": "INTERNAL_ERROR", "message": "系統發生未預期�
 
 # 後台與登入的回應（家長個資清單、CSV 匯出、一次性家長連結、session 資訊）
 # 不能留在瀏覽器或中間快取；路由自己設了 Cache-Control（例如素材縮圖）就尊重。
-_NO_STORE_PREFIXES = ("/api/website/v1/admin/", "/api/website/v1/auth/")
+_NO_STORE_PREFIXES = ("/api/website/v1/admin/", "/api/website/v1/auth/", "/api/website/v1/integrations/")
 
 
 def _error_body(detail, request_id: str | None) -> dict:
@@ -304,6 +305,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.include_router(admissions_import_router)
         app.include_router(admissions_ad_roi_router)
         app.include_router(admissions_roster_router)
+    if settings.ivy_sync_enabled:
+        # 園務系統拉招生資料的唯讀端點（2026-11-20）：沒設任何校區的金鑰雜湊就不掛路由（404）。
+        # 不綁 admissions_enabled：招生關閉時仍可回預約資料，只是沒有招生訪視。
+        app.include_router(ivy_sync_router)
 
     return app
 
