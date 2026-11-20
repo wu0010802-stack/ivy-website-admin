@@ -274,15 +274,35 @@ html.renv-pin .renv-stops-nav{display:flex;gap:6px;position:absolute;z-index:5;l
 .renv-meals-top{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:64px;padding-bottom:clamp(64px,7vw,96px)}
 .renv-meals-p{max-width:24em;margin-top:22px;font-size:1.12rem;line-height:1.9}
 .renv-btn{display:inline-flex;align-items:center;min-height:58px;margin-top:30px;padding:0 28px;border-radius:999px;background:var(--c);box-shadow:0 7px 0 var(--cs);font:700 1.15rem/1 var(--font-head);color:var(--renv-ink);text-decoration:none;transition:transform .35s var(--renv-ease)}
-/* 營養餐點書立在一座嫩葉綠的半圓上，旁邊一顆珊瑚橘的球 */
+/* 營養餐點書立在一座嫩葉綠的半圓上，旁邊一顆珊瑚橘的球。
+   看得出能點（2026-11-20 使用者選「書籤」，月份貼紙沒選）：封面後面露出一疊白色書頁（再後面是芥末黃的封底），
+   右緣夾一張寫當月的索引籤——翻開就是這個月；手機沒有懸停也看得到。
+   桌機懸停：書浮起來、封面從書脊往外掀開一點、索引籤往外滑；滑到旁邊「看 N 月菜單」按鈕時書也一起動（同一個連結），滑到書上按鈕也浮起來。 */
 .renv-book{position:relative;display:grid;place-items:end center;width:460px;height:470px;margin-right:20px}
 .renv-book i{position:absolute}
 .renv-book .is-dome{left:0;right:0;bottom:0;height:50%;border-radius:50% 50% 0 0 / 100% 100% 0 0;background:var(--renv-sage);box-shadow:0 var(--thick) 0 var(--renv-sage-side)}
 .renv-book .is-ball{right:0;bottom:0;width:92px;height:92px;border-radius:50%;background:var(--renv-terra);box-shadow:0 var(--thick) 0 var(--renv-terra-side)}
-.renv-book-c{position:relative;display:block;width:300px;margin-bottom:-2px;border-radius:4px 12px 12px 4px;overflow:hidden;box-shadow:9px 9px 0 var(--renv-mustard-side)}
-.renv-book-c img{display:block;width:100%;height:auto}
-/* 一天五餐（2026-11-17 使用者指定優化）：一張墨綠的餐桌，圓點小路直接穿過五個盤子的中心（捲到哪亮到哪），
-   盤子上是那一餐的積木圖示，餐名在盤子下面。正餐大盤、水果小盤；盤子外圍留一圈底色，圓點不會貼到盤緣。
+.renv-book-c{position:relative;isolation:isolate;display:block;width:300px;margin-bottom:-2px;perspective:1400px;transition:transform .45s var(--renv-ease)}
+.renv-book-c::before{content:"";position:absolute;z-index:-1;inset:5px -11px -6px 4px;border-radius:3px 12px 12px 3px;background:var(--white);box-shadow:9px 9px 0 var(--renv-mustard-side)}
+.renv-book-c img{position:relative;z-index:1;display:block;width:100%;height:auto;border-radius:4px 12px 12px 4px;transform-origin:0 50%;transition:transform .55s var(--renv-ease)}
+/* 索引籤：左邊 30px 藏在封面底下（疊在書頁上、封面下），露出來的部分寫月份 */
+.renv-book-mark{position:absolute;z-index:0;top:24%;left:calc(100% - 30px);padding:10px 16px 10px 44px;border-radius:0 14px 14px 0;background:var(--renv-terra);box-shadow:0 6px 0 var(--renv-terra-side);font:700 1.15rem/1.2 var(--font-head);color:var(--renv-ink);white-space:nowrap;transition:transform .45s var(--renv-ease)}
+@media (hover:hover){
+  .renv-book-c:hover{transform:translateY(-8px)}
+  .renv-book-c:hover img{transform:rotateY(-18deg)}
+  .renv-book-c:hover .renv-book-mark{transform:translateX(10px)}
+  /* 按鈕與書連動要 :has()（Safari 15.4 起）：每條獨立寫、不和上面的 :hover 併成同一個選擇器清單——
+     不認得 :has() 的瀏覽器只會丟掉這幾條，書本身的懸停照常 */
+  .renv-meals-top:has(.renv-btn:hover) .renv-book-c{transform:translateY(-8px)}
+  .renv-meals-top:has(.renv-btn:hover) .renv-book-c img{transform:rotateY(-18deg)}
+  .renv-meals-top:has(.renv-btn:hover) .renv-book-mark{transform:translateX(10px)}
+  .renv-meals-top:has(.renv-book-c:hover) .renv-btn{transform:translateY(-3px)}
+}
+.renv-book-c:active{transform:translateY(3px)}
+/* 一天五餐（2026-11-17 使用者指定；11-20 改成「盤子優先」，上午／中午／下午三塊積木那版沒選）：一張墨綠的餐桌，
+   圓點小路直接穿過五個盤子的中心（捲到哪亮到哪），盤子上是那一餐的積木圖示。時間不再是盤子上方一排大數字，
+   改成掛在盤子上緣的小牌子（那一餐的顏色）；餐名在盤子下面。正餐大盤寬欄、水果小盤窄欄——欄寬由元件依位置寫進 --cols，
+   小路從第一欄中心（--rl）走到最後一欄中心（--rr）。盤子外圍留一圈底色，圓點不會貼到盤緣。
    圓點小路是一格一顆的漸層（一顆 8px、間距 22px），不是紋理；亮的那一層（i）用 clip-path 從左露到右（--dp，沒寫就是 1＝全亮）。 */
 .renv-day{width:min(1340px,calc(100vw - 2 * clamp(10px,2.4vw,36px)));margin-inline:auto;padding:clamp(52px,6vw,84px) 0 clamp(60px,7vw,96px);border-radius:clamp(28px,4vw,56px);background:var(--renv-deep);color:var(--white)}
 .renv-day-in{width:min(var(--renv-cw),calc(100% - 44px));margin-inline:auto}
@@ -290,20 +310,22 @@ html.renv-pin .renv-stops-nav{display:flex;gap:6px;position:absolute;z-index:5;l
 .renv-day-title span{display:inline-block}
 .renv-day-tl{position:relative;margin-top:clamp(34px,4vw,54px)}
 .renv-day-rail,.renv-day-rail i{background:radial-gradient(circle,currentColor 0 4px,transparent 4.6px) 0 50% / 22px 10px repeat-x}
-.renv-day-rail{position:absolute;left:calc(50% / var(--dn,5));right:calc(50% / var(--dn,5));top:163px;height:10px;color:rgb(var(--on-dark) / .26)}
+.renv-day-rail{position:absolute;left:var(--rl,calc(50% / var(--dn,5)));right:var(--rr,calc(50% / var(--dn,5)));top:93px;height:10px;color:rgb(var(--on-dark) / .26)}
 .renv-day-rail i{position:absolute;inset:0;color:var(--white);clip-path:inset(0 calc((1 - var(--dp,1)) * 100%) 0 0)}
-.renv-day-list{position:relative;display:grid;grid-template-columns:repeat(var(--dn,5),minmax(0,1fr))}
-/* --on：這一盤上桌了沒（0→1，腳本依捲動量寫；預設 1）。欄寬固定是那一格的寬（minmax(0,1fr)）：盤子比欄寬時左右對稱地超出，
-   字照樣在欄裡置中、折行（901–1035 寬一欄不到 176px；盤子也跟著視窗收小一點，不會碰到隔壁的小盤） */
-.renv-day-i{--on:1;display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;grid-template-rows:70px 196px auto auto auto;text-align:center}
-.renv-day-t{align-self:start;font:700 2.5rem/48px var(--font-head);font-variant-numeric:tabular-nums}
-.renv-plate{position:relative;align-self:center;display:grid;place-items:center;width:var(--ps,clamp(150px,17vw,176px));height:var(--ps,clamp(150px,17vw,176px));border-radius:50%;background:var(--white);box-shadow:0 10px 0 var(--cs),0 0 0 10px var(--renv-deep),0 10px 0 10px var(--renv-deep);opacity:var(--on);transform:translateY(calc((1 - var(--on)) * -58px)) scale(calc(.86 + .14 * var(--on)))}
+.renv-day-list{position:relative;display:grid;grid-template-columns:var(--cols,repeat(var(--dn,5),minmax(0,1fr)))}
+/* --on：這一盤上桌了沒（0→1，腳本依捲動量寫；預設 1）。--ps：盤徑，寫在這一格上（時間牌要拿它算盤子上緣在哪）。
+   欄寬固定是那一格的寬：盤子比欄寬時左右對稱地超出，字照樣在欄裡置中、折行；盤子跟著視窗收小，901–1100 寬也不會擠掉小路 */
+.renv-day-i{--on:1;--ps:clamp(140px,15vw,176px);display:grid;grid-template-columns:minmax(0,1fr);justify-items:center;grid-template-rows:196px auto auto auto;text-align:center}
+.renv-day-i.is-small{--ps:clamp(88px,8.5vw,112px)}
+/* 時間牌掛在盤子上緣正中：盤子在 196px 那一列裡置中，上緣＝(196 − 盤徑) ÷ 2；跟著盤子上桌用縮放（字不淡化） */
+.renv-day-t{grid-area:1/1;align-self:start;z-index:1;margin-top:calc((196px - var(--ps)) / 2 - 18px);padding:0 16px;border-radius:999px;background:var(--c);box-shadow:0 4px 0 var(--cs);font:700 1.2rem/36px var(--font-head);font-variant-numeric:tabular-nums;color:var(--renv-ink);transform:scale(var(--on))}
+.renv-plate{position:relative;grid-area:1/1;align-self:center;display:grid;place-items:center;width:var(--ps);height:var(--ps);border-radius:50%;background:var(--white);box-shadow:0 10px 0 var(--cs),0 0 0 10px var(--renv-deep),0 10px 0 10px var(--renv-deep);opacity:var(--on);transform:translateY(calc((1 - var(--on)) * -58px)) scale(calc(.86 + .14 * var(--on)))}
 .renv-plate::before{content:"";position:absolute;inset:9%;border-radius:50%;border:2px solid rgb(var(--ink) / .09)}
 .renv-plate svg{position:relative;width:54%;height:54%;overflow:visible}
-.renv-day-i.is-small .renv-plate{--ps:clamp(106px,12vw,124px)}
-.renv-day-name{margin-top:16px;font:700 1.6rem/1.3 var(--font-head);color:var(--white)}
-.renv-day-n{margin-top:4px;font-size:1rem;line-height:1.6;color:rgb(var(--on-dark) / .86)}
-.renv-day-x{max-width:13em;margin-top:6px;font-size:.95rem;line-height:1.7;color:rgb(var(--on-dark) / .86)}
+.renv-day-name{grid-row:2;margin-top:20px;font:700 1.6rem/1.3 var(--font-head);color:var(--white)}
+.renv-day-i.is-small .renv-day-name{font-size:1.3rem}
+.renv-day-n{grid-row:3;margin-top:4px;font-size:1rem;line-height:1.6;color:rgb(var(--on-dark) / .86)}
+.renv-day-x{grid-row:4;max-width:13em;margin-top:6px;font-size:.95rem;line-height:1.7;color:rgb(var(--on-dark) / .86)}
 
 /* ================= 五所校園：五扇校區窗 ================= */
 .renv-tour{padding:clamp(80px,9vw,130px) 0 clamp(90px,10vw,140px)}
@@ -325,9 +347,9 @@ html.renv-pin .renv-stops-nav{display:flex;gap:6px;position:absolute;z-index:5;l
 /* 面板：左欄（校名、角落按鈕、最下面「下一所」）＋右邊的照片 */
 .renv-tour-panel{display:grid;grid-template-columns:300px minmax(0,1fr);grid-template-rows:1fr auto;grid-template-areas:"info scenes" "next scenes";gap:22px 36px;padding:36px 40px;border-radius:36px;background:var(--c);box-shadow:0 14px 0 var(--cs);color:var(--renv-ink)}
 .renv-tour-panel[hidden]{display:none}
-.renv-tour-panel+.renv-tour-panel{margin-top:40px}
-/* 沒有腳本時分頁按了沒反應：五校的面板全部攤開，內容一樣讀得到 */
-@media (scripting:none){.renv-tour-panel[hidden]{display:grid}}
+/* 沒有腳本時分頁按了沒反應：五校的面板全部攤開，內容一樣讀得到；面板之間的間距也只在這時候才有。
+   （2026-11-20 修：原本寫在媒體查詢外，隱藏的面板也算「前一個兄弟」，選第 2～5 校時打開的面板被推下 40px、和分頁斷開，只有排第一的義華接得上） */
+@media (scripting:none){.renv-tour-panel[hidden]{display:grid}.renv-tour-panel+.renv-tour-panel{margin-top:40px}}
 .renv-panel-info{grid-area:info;display:flex;flex-direction:column;min-width:0}
 .renv-panel-info h3{font-size:clamp(2.4rem,4.4vw,3.6rem);line-height:1.1}
 /* 這一校的角落：小照片＋名稱，按哪一個哪張照片換到大窗 */
@@ -432,20 +454,22 @@ html.renv-pin .renv-stops-nav{display:flex;gap:6px;position:absolute;z-index:5;l
   .renv-meals-top{grid-template-columns:minmax(0,1fr);gap:48px}
   .renv-book{width:min(100%,330px);height:350px;margin:0 auto}
   .renv-book-c{width:220px}
+  .renv-book-mark{padding:8px 12px 8px 40px;font-size:1rem}
   .renv-book .is-ball{width:68px;height:68px}
-  /* 圓點小路改成直的，穿過左邊一排盤子的中心；右邊是時間、餐名、備註 */
+  /* 圓點小路改成直的，穿過左邊一排盤子的中心；右邊是時間牌、餐名、備註 */
   .renv-day-rail,.renv-day-rail i{background:radial-gradient(circle,currentColor 0 3.5px,transparent 4.1px) 50% 0 / 10px 14px repeat-y}
   .renv-day-rail{left:43px;right:auto;top:48px;bottom:48px;width:10px;height:auto}
   .renv-day-rail i{clip-path:inset(0 0 calc((1 - var(--dp,1)) * 100%) 0)}
   .renv-day-list{grid-template-columns:minmax(0,1fr);gap:40px}
-  .renv-day-i{grid-template-columns:96px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:18px;justify-items:start;align-items:center;text-align:left}
-  .renv-plate{--ps:92px;grid-area:1/1/4/2;justify-self:center;box-shadow:0 7px 0 var(--cs),0 0 0 7px var(--renv-deep),0 7px 0 7px var(--renv-deep);transform:translateX(calc((1 - var(--on)) * -30px)) scale(calc(.86 + .14 * var(--on)))}
-  .renv-day-i.is-small .renv-plate{--ps:68px}
+  .renv-day-i{--ps:92px;grid-template-columns:96px minmax(0,1fr);grid-template-rows:auto auto auto;column-gap:18px;justify-items:start;align-items:center;text-align:left}
+  .renv-day-i.is-small{--ps:68px}
+  .renv-plate{grid-area:1/1/4/2;justify-self:center;box-shadow:0 7px 0 var(--cs),0 0 0 7px var(--renv-deep),0 7px 0 7px var(--renv-deep);transform:translateX(calc((1 - var(--on)) * -30px)) scale(calc(.86 + .14 * var(--on)))}
   /* 最後一餐有說明文字時那一格比盤子高，小路會多走一段：那一格裡、盤子以下的圓點用同底色蓋掉（沒有說明文字時這一塊高度是 0） */
   .renv-day-i{position:relative}
   .renv-day-i:last-child::after{content:"";position:absolute;left:36px;top:108px;bottom:0;width:24px;background:var(--renv-deep)}
-  .renv-day-t{grid-area:1/2;align-self:end;font-size:1.5rem;line-height:1.3}
+  .renv-day-t{grid-area:1/2;align-self:end;margin:0 0 6px;padding:0 12px;font-size:1rem;line-height:28px;box-shadow:0 3px 0 var(--cs)}
   .renv-day-name{grid-area:2/2;margin-top:0;font-size:1.35rem}
+  .renv-day-i.is-small .renv-day-name{font-size:1.2rem}
   .renv-day-n{grid-area:3/2;align-self:start;margin-top:0}
   .renv-day-x{grid-area:4/2;max-width:none;margin-top:2px}
 
@@ -475,7 +499,7 @@ html.renv-pin .renv-stops-nav{display:flex;gap:6px;position:absolute;z-index:5;l
   .renv-next-list li:last-child:not(:first-child) .renv-next-link{border-radius:24px 24px 64px 24px}
 }
 @media (max-width:760px){.renv{--renv-hh:79px}}
-@media (max-width:360px){.renv-hb{padding-inline:12px}}
+@media (max-width:360px){.renv-hb{padding-inline:12px}.renv-book-c{margin-right:36px}}
 
 /* 減少動態：直接是完成的畫面（腳本不啟動、上面的媒體查詢不成立），按鈕的位移也不做轉場 */
 @media (prefers-reduced-motion:reduce){

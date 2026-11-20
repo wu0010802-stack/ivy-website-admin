@@ -8,7 +8,7 @@ import fixture from '../server/data/site-fixture.json'
 import type { Campus, EnvironmentPageContent, SiteContent } from '../app/types/site-content'
 import EnvironmentContent from '../app/components/EnvironmentContent.vue'
 import ResponsivePicture from '../app/components/ResponsivePicture.vue'
-import { MOTION_QUERY, PIN_QUERY, dayFrame, easeInOut, heartPath, heartsFrame, heartsGeometry, heroProgress, stopShapes, stopsFrame, titleRow } from '../app/utils/environment-windows'
+import { ANCHOR_SLACK, MOTION_QUERY, PIN_QUERY, dayFrame, easeInOut, heartPath, heartsFrame, heartsGeometry, heroProgress, stopShapes, stopsFrame, titleRow } from '../app/utils/environment-windows'
 
 // 環境頁 2026-11-17「拱窗打開」（比稿 design/environment-grand-directions-20261117/ 方向 B）的守門測試：
 // 伺服器輸出的結構、第四章先開哪一校、校名與下一所、水果小盤的位置、關鍵 CSS 規則、捲動敘事的純函式。
@@ -209,7 +209,18 @@ describe('五所校園：五扇線稿拱窗分頁（WAI-ARIA tabs）', () => {
 
   it('沒有腳本時分頁按了沒反應：五校的面板全部攤開', () => {
     expect(css).toContain('.renv-tour-panel[hidden]{display:none}')
-    expect(css).toContain('@media (scripting:none){.renv-tour-panel[hidden]{display:grid}}')
+    expect(css).toContain('@media (scripting:none){.renv-tour-panel[hidden]{display:grid}.renv-tour-panel+.renv-tour-panel{margin-top:40px}}')
+  })
+
+  it('換版面時「正在看的章節」判斷線留幾 px 容差：WebKit 整數捲動的小數誤差不會讓它改挑上一章（2026-11-20 #meals 被推走 751px）', () => {
+    expect(ANCHOR_SLACK).toBeGreaterThanOrEqual(2)
+    expect(ANCHOR_SLACK).toBeLessThanOrEqual(8)
+    expect(moduleSource).toContain("const edge = Math.max(HH, parseFloat(getComputedStyle(html).scrollPaddingTop) || 0) + ANCHOR_SLACK")
+  })
+
+  it('選哪一校，打開的面板都接在分頁底下：面板間距只在沒有腳本、全部攤開時才有（2026-11-20 只有義華接得上）', () => {
+    const outside = css.replace(/@media \(scripting:none\)\{[^}]*\}[^}]*\}\}/g, '')
+    expect(outside).not.toMatch(/\.renv-tour-panel\+\.renv-tour-panel\{[^}]*margin-top/)
   })
 })
 
@@ -237,9 +248,42 @@ describe('一天五餐：圓點小路穿過盤子、盤子上是食物圖示', (
     expect(css).toContain('.renv-day-rail i{position:absolute;inset:0;color:var(--white);clip-path:inset(0 calc((1 - var(--dp,1)) * 100%) 0 0)}')
     expect(css).toMatch(/\.renv-day-i\{--on:1;/)
     expect(css).toMatch(/\.renv-plate\{[^}]*box-shadow:0 10px 0 var\(--cs\),0 0 0 10px var\(--renv-deep\),0 10px 0 10px var\(--renv-deep\);opacity:var\(--on\);/)
-    expect(css).toContain('.renv-day-i.is-small .renv-plate{--ps:clamp(106px,12vw,124px)}')
+    expect(css).toContain('.renv-day-i.is-small{--ps:clamp(88px,8.5vw,112px)}')
     // 手機：小路改成直的
     expect(css).toMatch(/@media \(max-width:900px\)\{[\s\S]*\.renv-day-rail i\{clip-path:inset\(0 0 calc\(\(1 - var\(--dp,1\)\) \* 100%\) 0\)\}/)
+  })
+
+  it('盤子優先（2026-11-20）：時間是掛在盤緣的小牌子、正餐寬欄水果窄欄、小路從第一欄中心走到最後一欄中心', async () => {
+    reset()
+    const html = await render()
+    const style = html.match(/<div class="renv-day-tl" style="([^"]*)">/)?.[1] ?? ''
+    expect(style).toContain('--dn:5;')
+    expect(style).toContain('--cols:minmax(0,1.25fr) minmax(0,0.75fr) minmax(0,1.25fr) minmax(0,0.75fr) minmax(0,1.25fr);')
+    // 1.25 ÷ 2 ÷ (1.25×3 + 0.75×2) = 11.905%
+    expect(style).toContain('--rl:11.905%;--rr:11.905%;')
+    expect(css).toContain('.renv-day-list{position:relative;display:grid;grid-template-columns:var(--cols,repeat(var(--dn,5),minmax(0,1fr)))}')
+    expect(css).toMatch(/\.renv-day-rail\{position:absolute;left:var\(--rl,calc\(50% \/ var\(--dn,5\)\)\);right:var\(--rr,calc\(50% \/ var\(--dn,5\)\)\);top:93px;/)
+    // 時間牌和盤子在同一格：牌子掛在盤子上緣正中，跟著盤子上桌用縮放（不淡化字）
+    expect(css).toContain('.renv-day-t{grid-area:1/1;align-self:start;z-index:1;margin-top:calc((196px - var(--ps)) / 2 - 18px);')
+    expect(css).toMatch(/\.renv-day-t\{[^}]*transform:scale\(var\(--on\)\)\}/)
+    expect(css).toMatch(/\.renv-plate\{position:relative;grid-area:1\/1;/)
+    // 不再有一排大數字時間
+    expect(css).not.toContain('font:700 2.5rem/48px')
+  })
+
+  it('菜單書看得出能點（2026-11-20 書籤）：封面後露出書頁、右緣夾當月索引籤；桌機懸停掀開封面，按鈕與書互相連動', async () => {
+    reset()
+    const html = await render()
+    const label = html.match(/>看 (\d+) 月菜單</)?.[1]
+    expect(label).toBeTruthy()
+    // 索引籤在封面連結裡（連結本身 aria-hidden、不進 Tab 順序，讀屏走左邊的按鈕）
+    expect(html).toMatch(new RegExp(`<a class="renv-book-c"[^>]*aria-hidden="true">[\\s\\S]*?<span class="renv-book-mark">${label} 月</span></a>`))
+    expect(css).toMatch(/\.renv-book-c::before\{content:"";position:absolute;z-index:-1;[^}]*background:var\(--white\);box-shadow:9px 9px 0 var\(--renv-mustard-side\)\}/)
+    expect(css).toMatch(/\.renv-book-mark\{position:absolute;z-index:0;top:24%;left:calc\(100% - 30px\);/)
+    const hover = css.match(/@media \(hover:hover\)\{\n  \.renv-book-c:hover\{[\s\S]*?\n\}/)?.[0] ?? ''
+    expect(hover).toContain('.renv-book-c:hover img{transform:rotateY(-18deg)}')
+    expect(hover).toContain('.renv-meals-top:has(.renv-btn:hover) .renv-book-c{transform:translateY(-8px)}')
+    expect(hover).toContain('.renv-meals-top:has(.renv-book-c:hover) .renv-btn{transform:translateY(-3px)}')
   })
 })
 
@@ -322,15 +366,24 @@ describe('版面規則（environment.css）', () => {
   it('舊瀏覽器（iOS 15）：不用容器查詢與容器單位；color-mix、svh 先寫舊寫法再用 @supports 換；subgrid 有後備；媒體查詢不用範圍寫法', () => {
     expect(rules).not.toMatch(/@container|container-type|\dcq[whib]\b/)
     expect(rules).not.toMatch(/@media[^{]*[<>]/)
-    // color-mix 只出現在 @supports 裡，外面先給了現成的色票
-    expect(rules.match(/color-mix\(/g)).toHaveLength(2)
+    // color-mix 只出現在 @supports 裡（每個區塊一個條件、一個取值），外面先給了現成的色票
+    const supportsBlocks = rules.match(/@supports \(color:color-mix\(in oklch,red,blue\)\)\{[^{}]*\{[^{}]*color-mix\([^}]*\}\}/g) ?? []
+    expect(supportsBlocks.length).toBeGreaterThan(0)
+    expect(rules.match(/color-mix\(/g)).toHaveLength(supportsBlocks.length * 2)
     expect(rules).toContain('@supports (color:color-mix(in oklch,red,blue)){.renv-tour-tab{background:color-mix(in oklch,var(--c) 34%,var(--renv-paper))}}')
     expect(rules).toMatch(/\.renv-tour-tab\{[^}]*background:var\(--ivy-env-tint-mist\);/)
     expect(rules).toContain('--renv-sh:calc(100vh - var(--renv-hh));')
     expect(rules).toContain('@supports (height:100svh){.renv{--renv-sh:calc(100svh - var(--renv-hh))}}')
     expect(rules).toMatch(/@supports not \(grid-template-rows:subgrid\)\{\s*\.renv-ci\{display:block\}\s*html:not\(\.renv-pin\) \.renv-stop\{display:block\}\s*\}/)
-    // :has() 只有 body:has(.renv)（15.4 起支援）；clip-path:path() 由腳本判斷支援與否
-    expect(rules.match(/:has\(/g)).toHaveLength(1)
+    // :has() 只有 body:has(.renv)（15.4 起支援），以及菜單按鈕與書的懸停連動（每條獨立一個選擇器，不認得的瀏覽器只丟掉這條）；
+    // clip-path:path() 由腳本判斷支援與否
+    const hasRules = rules.match(/[^{}]*:has\([^{}]*\{/g) ?? []
+    const linked = hasRules.filter((rule) => rule.trim().startsWith('.renv-meals-top:has('))
+    // 選擇器清單最外層沒有逗號（:is() 裡面的逗號不算）
+    const topLevel = (rule: string) => { let r = rule; while (/\([^()]*\)/.test(r)) r = r.replace(/\([^()]*\)/g, ''); return r }
+    expect(linked.length).toBeGreaterThan(0)
+    expect(linked.every((rule) => !topLevel(rule).includes(','))).toBe(true)
+    expect(rules.match(/:has\(/g)).toHaveLength(1 + linked.length)
     expect(moduleSource).toContain("CSS.supports?.('clip-path', \"path('M0 0L1 0L1 1Z')\")")
   })
 })

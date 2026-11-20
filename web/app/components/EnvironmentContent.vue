@@ -140,6 +140,20 @@ const meals = computed(() => props.page.meals.map((item, i) => ({ ...item, icon:
 // 遊樂區的標題在 300px 寬的卡片裡：最長那一行的字數交給 CSS 收字級（至少當 4 個字算，短標題不會放得過大）
 const featureChars = computed(() => Math.max(4, ...pageTitleLines(props.page.feature.title).map((line) => [...line].length)))
 const dayTitle = computed(() => plainTitle(props.page.mealsDayTitle).split(/\s+/).filter(Boolean))
+// 一天五餐的欄寬（2026-11-20「盤子優先」）：正餐寬欄、水果窄欄，交給 CSS；圓點小路從第一欄中心走到最後一欄中心
+const MEAL_WEIGHT = { main: 1.25, small: 0.75 }
+const dayStyle = computed(() => {
+  const n = meals.value.length
+  if (!n) return { '--dn': n }
+  const weights = meals.value.map((item) => (item.small ? MEAL_WEIGHT.small : MEAL_WEIGHT.main))
+  const total = weights.reduce((sum, w) => sum + w, 0)
+  return {
+    '--dn': n,
+    '--cols': weights.map((w) => `minmax(0,${w}fr)`).join(' '),
+    '--rl': `${((weights[0]! / 2 / total) * 100).toFixed(3)}%`,
+    '--rr': `${((weights[n - 1]! / 2 / total) * 100).toFixed(3)}%`
+  }
+})
 
 const carePhoto = (item: (typeof careItems.value)[number]) => framedPhoto(item.image, item.photo, [item.look.w, item.look.ar], [item.look.wide ? '(100vw - 40px)' : '(50vw - 27px)', item.look.nar])
 // 六個空間：桌機寫舞台窗的寬（一般的三欄版面比它小，不會糊）；900 以下單欄，框寬＝版心
@@ -398,7 +412,7 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
       </div>
     </section>
 
-    <!-- 幼兒餐點：營養餐點書、一天五餐（圓點小路穿過五個盤子） -->
+    <!-- 幼兒餐點：營養餐點書（右緣夾著當月的索引籤）、一天五餐（圓點小路穿過五個盤子，時間牌掛在盤緣） -->
     <section id="meals" data-track-section="meals" class="renv-section renv-meals" aria-labelledby="meals-title">
       <div class="renv-wrap renv-meals-top">
         <div>
@@ -411,13 +425,14 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
           <i class="is-dome" aria-hidden="true" /><i class="is-ball" aria-hidden="true" />
           <a class="renv-book-c" :href="meal.href" target="_blank" rel="noopener" tabindex="-1" aria-hidden="true">
             <ResponsivePicture v-bind="responsiveImage('env-meal-book', '(max-width: 900px) 220px, 300px')" alt="" loading="lazy" />
+            <span class="renv-book-mark">{{ meal.month }} 月</span>
           </a>
         </div>
       </div>
       <div class="renv-day">
         <div class="renv-day-in">
           <h3 class="renv-day-title"><template v-for="(part, i) in dayTitle" :key="i"><span>{{ part }}</span>{{ i < dayTitle.length - 1 ? ' ' : '' }}</template></h3>
-          <div class="renv-day-tl" :style="{ '--dn': meals.length }">
+          <div class="renv-day-tl" :style="dayStyle">
             <div class="renv-day-rail" aria-hidden="true"><i /></div>
             <ol class="renv-day-list">
               <li v-for="(item, i) in meals" :key="i" class="renv-day-i" :class="[`c-${item.color}`, { 'is-small': item.small }]">
