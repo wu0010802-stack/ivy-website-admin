@@ -2879,6 +2879,11 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 **同步後的異動通知（2026-11-16）**：`run_geo_sync` 在鎖內、重比之後會檢查五校 3 公里內的園所新設、停辦、類型變動與新公布的裁罰，寫進後台「站內通知」（只有總管理者看得到，`area_provider_change`／`area_penalty`）。**上線第一輪只記帳不發通知**（每校每種各寫一列基準，之後才發）；失敗只記 log，同步結果多 `notices`（updated／failed）與 `notices_sent`，CLI `geo-sync` 總結行多「異動通知」。migration `a9c4e7b2d815` 只新增 `geo_change_notices`、`geo_change_notice_baselines` 兩張表，不需要部署前備份；沒有新環境變數。
 
+**房價租金（housing，2026-11-20）**：各里房價與租金，資料集 `housing`、表 `geo_housing_deals`（規格 `docs/specs/2026-11-20-area-point-overlay-housing-design.md` §7、§9）。來源同新成屋：`https://plvr.land.moi.gov.tw/DownloadSeason?season=<115S3>&fileName=e_lvr_land_a.csv`（買賣）與 `e_lvr_land_c.csv`（租賃），篩過後只存最新 4 季；不存地址原文、總價、面積。不需要新的環境變數。
+- 自動：隨 `geo-sync` 每 30 天看一次有沒有新季（`WEBSITE_GEO_AUTO_SYNC=true` 時）。**部署後要立刻有資料**：用 `geo-sync --force`（Railway 上由使用者用 `!` 經 `railway ssh` 跑，同其他資料集）；`--force` 會連門牌等其他資料一起強制重抓，跑之前先看上方各段的注意事項。
+- 離線：`geo-sync --housing-file 115S3_e_lvr_land_a.csv --housing-file 115S3_e_lvr_land_c.csv`（檔名要有季別，同一季兩個檔都要給，可重複給多季）。
+- migration `a7c3e9d15b42` 只新增 `geo_housing_deals` 並放寬 `geo_dataset_status` 的 dataset 檢查，不改既有資料，**沒有備份閘門**。回退：舊映像不認得這個 revision，要退先用新映像 `alembic downgrade` 一版再切舊映像。
+
 **六個環境變數**（api 服務，全部選填；沒設就用預設）：
 
 | 變數 | 預設 | 作用 |

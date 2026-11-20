@@ -4,7 +4,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 import { currentTerm } from '../../admin/src/admissions/academic'
 import { adminApi, taipeiDate, type AdminApi } from './api'
-import { seedBirthSeries, seedEnrolled, seedPeerFees, seedProviderChanges } from './db'
+import { clearEnrolled, clearHousing, seedBirthSeries, seedEnrolled, seedHousing, seedPeerFees, seedProviderChanges } from './db'
 import { expectNoHorizontalOverflow, gotoAdmin, openAs } from './pages'
 import { ROOT } from './stack-env'
 
@@ -1123,4 +1123,106 @@ test('390px：附近同業收費不撐出頁面', async ({ browser }) => {
   await page.screenshot({ path: path.join(SHOTS, 'area-workbench-peer-fees-390-full.png'), fullPage: true })
   expect(errors, '頁面不該有未處理的錯誤').toEqual([])
   await context.close()
+})
+
+// 任意點、五校版圖、各里房價租金（2026-11-20 規格 §8）：虛構的圖釘座標、別校清冊與交易，測完清掉。
+test('地點：放圖釘 → 網址 pt=、右欄「這一點」卡片有 2–5 歲列 → 重新整理還原 → 清除', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const { context, page } = await openAs(browser, 'super_admin', DESKTOP)
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await openArea(page, CAMPUS, 'map=children')
+  const card = page.locator('.area-workbench__side .point-card')
+  await expect(card).toHaveCount(0)
+
+  const pin = page.getByRole('button', { name: '放一個點' })
+  await pin.click()
+  await expect(pin).toHaveAttribute('aria-pressed', 'true')
+  const box = (await page.locator('.area-map__canvas').boundingBox())!
+  await page.mouse.click(box.x + box.width / 2 + 70, box.y + box.height / 2 + 50)
+  await expect.poll(() => queryParam(page, 'pt')).toMatch(/^\d+\.\d+,\d+\.\d+$/)
+  await expect(card.getByRole('heading', { name: /^這一點 \d+ 公里內$/ })).toBeVisible()
+  await expect(card.locator('tbody tr', { has: page.getByRole('rowheader', { name: '2–5 歲孩子' }) })).toHaveCount(1)
+  await expect(pin).toHaveAttribute('aria-pressed', 'false')
+
+  await page.reload()
+  await expect(card.getByRole('heading', { name: /^這一點 \d+ 公里內$/ })).toBeVisible()
+  expect(queryParam(page, 'pt')).not.toBeNull()
+
+  await page.locator('.area-toolbar__clear').click()
+  await expect(card).toHaveCount(0)
+  expect(queryParam(page, 'pt')).toBeNull()
+  expect(errors, '頁面不該有未處理的錯誤').toEqual([])
+  await context.close()
+})
+
+test('地點：輸入地址 → 圖釘與卡片；亂打的地址 → 輸入欄下方寫錯誤', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const { context, page } = await openAs(browser, 'super_admin', DESKTOP)
+  await openArea(page, CAMPUS, 'map=children')
+  const input = page.getByPlaceholder('輸入地址找位置')
+  const card = page.locator('.area-workbench__side .point-card')
+
+  await input.fill('高雄市左營區不存在的路9999號')
+  await page.getByRole('button', { name: '找', exact: true }).click()
+  await expect(page.locator('.area-toolbar__locate-note--error')).toBeVisible()
+  await expect(card).toHaveCount(0)
+  expect(queryParam(page, 'pt')).toBeNull()
+
+  await input.fill('高雄市左營區明華一路175號')
+  await page.getByRole('button', { name: '找', exact: true }).click()
+  await expect.poll(() => queryParam(page, 'pt')).not.toBeNull()
+  await expect(card.getByRole('heading', { name: /^這一點 \d+ 公里內$/ })).toBeVisible()
+  await expect(page.locator('.area-toolbar__locate-note--error')).toHaveCount(0)
+  await context.close()
+})
+
+test('五校版圖：切換 → 網址 map=campuses、圖例五校（未匯入寫尚未匯入）、右欄兩段標題', async ({ browser }) => {
+  test.setTimeout(90_000)
+  const api = await adminApi('super_admin')
+  const near = await api.get<{ campus: { lat: number; lng: number } }>(`/admin/admissions/area?campus_key=${CAMPUS}`)
+  seedEnrolled(CAMPUS, [[near.campus.lat + 0.001, near.campus.lng, '小班', '左營區', '新上里']], 0)
+  // 第二所校（明華）的虛構學生也住新上里：兩校以上都在收的里才有「重疊」那一段。
+  seedEnrolled('minghua', [[near.campus.lat + 0.002, near.campus.lng + 0.001, '中班', '左營區', '新上里']], 0)
+  try {
+    const { context, page } = await openAs(browser, 'super_admin', DESKTOP)
+    await openArea(page, CAMPUS, 'map=children')
+    const modes = page.locator(`${MODE_GROUP} .el-radio-button`)
+    await expect(modes.nth(1)).toContainText('五校版圖')
+    await pickMode(page, '五校版圖')
+    await expect.poll(() => queryParam(page, 'map')).toBe('campuses')
+
+    const legend = page.getByRole('list', { name: '五校圖例' })
+    await expect(legend.locator('li')).toHaveCount(5)
+    await expect(legend.locator('li.area-legend__off').first()).toContainText('尚未匯入')
+    await expect(legend.locator('li:not(.area-legend__off)')).toHaveCount(2)
+
+    const side = page.locator('.area-workbench__side')
+    await expect(side.locator('.area-pane__title')).toHaveText('五校版圖')
+    await expect(side.locator('.area-ranking__title', { hasText: '兩校以上都在收的里' })).toBeVisible()
+    await expect(side.locator('.area-ranking__title', { hasText: '孩子多、五校都沒有在籍的里' })).toBeVisible()
+    await context.close()
+  } finally {
+    clearEnrolled('minghua')
+    await api.dispose()
+  }
+})
+
+test('各里房價租金：各里表有兩欄，有 5 筆以上交易的里顯示中位數', async ({ browser }) => {
+  test.setTimeout(90_000)
+  seedHousing()
+  try {
+    const { context, page } = await openAs(browser, 'super_admin', DESKTOP)
+    await openArea(page, CAMPUS, 'map=children')
+    const table = villageBlock(page)
+    await expect(table.getByRole('columnheader', { name: '房價中位（萬／坪）' })).toBeVisible()
+    await expect(table.getByRole('columnheader', { name: '整戶月租中位' })).toBeVisible()
+    // 新上里 6 筆買賣中位數 (42+44)/2 = 43.0 萬／坪；5 筆租賃中位數 18,000 元。
+    const row = table.locator('tbody tr', { hasText: '新上里' })
+    await expect(row).toContainText('43.0')
+    await expect(row).toContainText('18,000')
+    await context.close()
+  } finally {
+    clearHousing()
+  }
 })
