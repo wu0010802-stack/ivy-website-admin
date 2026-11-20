@@ -327,6 +327,8 @@ watch([() => props.page, () => props.campuses], () => windows?.refresh(), { deep
           <div class="renv-hwin">
             <div class="renv-hwin-ph">
               <ResponsivePicture v-bind="framedPhoto('env-care-teacher', page.carePhoto, [1200, 2.34], ['(100vw - 40px)', 1.5])" :style="pagePhotoStyle('60% 50%', page.carePhoto)" :alt="pagePhotoAlt(CARE_PHOTO_ALT, page.carePhoto, page.carePhotoAlt)" loading="lazy" />
+              <!-- 心形窗的色片：只在捲動敘事啟動時顯示（一顆心一欄），窗長大相連時褪成照片 -->
+              <span class="renv-hwin-tint" aria-hidden="true"><i v-for="(_, i) in page.hearts" :key="i" :class="`c-${HEART_COLORS[i % 5]}`" /></span>
             </div>
           </div>
           <!-- 愛心蓋子：只有捲動敘事啟動時才顯示（蓋在照片上，往下捲縮成小愛心落到名稱上面）；平常名稱上面的小愛心是下面那一份 -->

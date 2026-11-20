@@ -1,4 +1,34 @@
-## 2026-11-20 成效統計資料核對與修正（`fix/analytics-data-20261120`，未部署）
+## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
+
+使用者請我看 `/environment` 的 UI 美術還能怎麼優化。評析找出六類問題，照片那一類（教室、套房式衛廁、健康把關、衣物保暖四張最弱）這次不動；其餘做成前後對照給使用者看過，回覆「都幫我修」。規則寫在 DESIGN.md「環境頁美術收尾」。
+
+- 章頭的一句話收回大標正下方；校園環境的章頭改靠左，四章一致。
+- 五顆心打開時，小心形裡先是那顆心的顏色，相連時才褪成照片（原本會露出糊掉的書櫃、切一半的臉）。
+- 五件照顧小事的說明 16px → 17.3px。
+- 遊樂區的黃色文字積木只有內容高、和照片站在同一條底線；視窗高 720 以上，積木上方放一顆珊瑚橘的球。
+- 六個空間舞台：六個形狀的底都貼著底線（半圓不再浮在半空），說明貼底、緊接六顆進度積木。
+- 五所校園面板：照片加一圈米白窗框；左欄沒選中的角落不畫半透明底。
+- 結尾（桌機）：三塊連結積木高低錯落、底邊切平，站在頁尾上緣。
+- 首屏拱窗展開途中，右下那塊綠色小積木不再從橫幅露出一截。
+
+改的檔案：`web/app/assets/css/environment.css`、`web/app/utils/environment-windows.ts`（`heartsFrame` 多回傳 `tint`、`stopShapes` 的半圓貼底）、`web/app/components/EnvironmentContent.vue`（五顆心照片層多一個色片 span）；測試 `environment-windows-20261117.spec.ts` 兩條斷言跟著改、逐字快照更新（差異只有那個色片 span）。
+
+驗證（Node 22.23.2，本機 fixture dev server 3241）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過（只有 main 既有的 `MediaImage` 重複匯入提示） |
+| `npm --prefix web run test:unit` | 165 檔、2,503 項通過 |
+| 後台讀官網原始碼的 4 支（`environmentPageDraft`、`pageCopyFields`、`engagement`、`previewProtocol`） | 109 項通過 |
+| `node scripts/page-copy-stress.cjs /environment`，一般與 `STRESS_MOTION=1` | 320／390／820／901／1024／1100／1440 全部通過 |
+| Playwright 量遊樂區球、舞台說明、結尾積木（901–1920 寬、600–1080 高九種視窗，內建與上限字數） | 球不碰章標題、說明不壓進度積木、結尾三塊底邊切齊站在頁尾上、無橫向捲動 |
+| `tests/e2e/environment-windows.spec.ts`（Chrome／WebKit × 桌機／手機） | 第一輪 37 過 9 紅，只重跑紅的 5 過 4 紅。紅的都不是版面斷言：重新整理後 5 秒內模組還沒載入、dev 模式 `_nuxt/builds/meta/dev.json` 被中斷記成主控台錯誤、瀏覽器 session 斷線、開分頁就花 15 秒而整項逾時（桌機 WebKit 五校分頁那一項 trace 裡每個斷言都通過）。當時本機負載 22–36（其他 session 在跑測試），沒有在低負載下重跑。PR #123 的 CI（正式建置、乾淨環境）E2E 三段 23＋186＋83 全過，含環境頁四組視窗 |
+
+| 部署後正式站（Playwright，擋追蹤、POST 本機回 204） | `release.json` base_commit `b9726e76`；1440×900 與 390×844 的八處改動都生效、無橫向捲動、無頁面錯誤 |
+
+PR 與上線經過、Railway 部署見 `deploy/README.md` 同日段落。沒驗：stack e2e（CI 有跑）、iOS／Safari 實機。
+
+## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`，紀錄見 `deploy/README.md`）
 
 使用者要確認正式站 `/admin/analytics` 的資料正確性。用已登入的後台唯讀抓 API、逐張表對照算法：加總、比例、中位數、時段（台北時間）都對，但資料本身有四個問題，使用者說「全部都幫我修」。
 
@@ -11,7 +41,16 @@
 
 驗證：合併 PR #120 前後端全套 5825 passed／1 skipped、web 全套單元 2507（一支負載逾時單獨重跑過）；合併 main（`6e724910`，含 #120）後重跑相關的後端 172、web 159、admin 112，web／admin typecheck、contract:check 都過。畫面只多文字（期間後面的起算說明、排除說明、解碼後的路徑），沒有跑 Playwright 截圖。
 
-已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），由使用者用 `railway ssh` 跑。
+已寫進正式庫的那一次測試預約造訪要另外清：`output/analytics-data-20261120/remove-test-booking-visit.sql`（Desktop checkout，未進版控；`-v apply=0` 試跑、`apply=1` 提交，筆數對不上會自己停），11-20 上午使用者已用 `railway ssh` 跑完（刪 3 列，刪前已備份）。
+
+## 2026-11-20 後台「使用小技巧」搬到頁首＋小技巧頁改成可展開的清單（`feature/admin-tips-header-20261120`，未部署）
+
+使用者：「幫我優化 /admin/tips，使用小技巧移到頂部區塊」（附「營運總覽」頁首截圖）。
+
+- **入口搬到頁首**：每一頁頁首「查看官網」左邊多一顆「使用小技巧」（燈泡＋字，900px 以下只留燈泡、字給報讀器，44px），側欄最後那一項拿掉；側欄搜尋「教學」「說明」「怎麼用」仍找得到（`nav.ts` 的 `SEARCH_ONLY_GROUP` 改成 `SEARCH_ONLY_GROUPS`，「個人」我的帳號＋「說明」使用小技巧）。在小技巧頁上標成目前位置。
+- **從哪一頁點就先打開那一類**（`admin/src/tips/pageSections.ts`，小檔，不把 tips.ts 內容拉進主程式）：參觀案件與案件明細→參觀案件、參觀場次→參觀場次、招生入學／招生統計→招生入學、官網內容／素材庫／發布紀錄→官網內容、使用者／我的帳號→帳號；其他頁打開全部。
+- **小技巧頁**：原本 34 張卡片連截圖一路攤開（1440 寬整頁約 15,900px），改成每類一個面板、每條一列（標題｜誰能用），點標題展開步驟、前往連結與截圖，全部收起時約 2,540px。「誰能用」寫在面板標題列一次，900px 以下排到標題下面。加「全部展開／全部收起」與搜尋（標題、步驟、誰能用、分類名；⌘K 與 Ctrl＋K 兩種寫法都對得到；空白分開的字都要對到；不寫進網址），找不到時有「清除搜尋」，結果數量給報讀器念。收起的內容用 `hidden="until-found"`：⌘F 找得到並自動展開。從 `#tip-<id>` 連進來那一條自己展開。分類與「只列我能用的」照舊寫在網址；選了某一類又搜到 0 條時那顆分類鈕留著。
+- **驗證**（Node 22，本機負載 15–32）：admin `typecheck` 通過、`vite build` 通過（小技巧內容只在 `TipsView` chunk）；vitest 全套 196 檔，第一輪 3 檔失敗：`adminUx` 字級規則（圖示寫了 px，已改 token）是真的，`siteMetaSeo`、`admissionsRecords` 是負載逾時，單獨重跑全過；修正後相關 34 檔與其餘 162 檔分批重跑全過。新增測試：頁首連結位置與各頁帶的分類、側欄不再列、展開／全部展開、`until-found`／`beforematch`、`#tip-<id>` 自動展開、搜尋。vite dev＋假登入用 Playwright 看 1440／1280／390／360：0 橫向溢出；axe（WCAG 2.2 AA）serious／critical 0，只有「全部展開」滑鼠停著時 4.43:1——是全後台 `el-button` 預設 hover 配色，原本就有。**沒跑**：stack e2e（`a11y` 有 `/tips`，CI 會跑）；macOS `visual` 四張基準要重拍（頁首多一顆、側欄少一列，基準本來就待重拍）。
 
 ## 2026-11-19 後台登入頁改版：方向 1「後台的第一個畫面」（`feature/admin-login-rail-20261119`，部署狀態見 `deploy/README.md`）
 

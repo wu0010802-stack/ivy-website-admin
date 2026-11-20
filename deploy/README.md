@@ -14,6 +14,25 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-20 環境頁美術收尾（PR #123，已部署 main `b9726e76`）
+
+[PR #123](https://github.com/wu0010802-stack/ivy-website-admin/pull/123) 以 merge commit 合併為 `b9726e76`（接在 #124 的部署紀錄 `51387c74` 之後，兩邊沒有重疊檔案）；[main CI/CD 44662042293](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44662042293) 全部成功（web、admin、後端三組、E2E 23＋186＋83、Deploy），Deploy 台灣時間 10:45–10:48。
+
+- 只改官網前端（`environment.css`、`environment-windows.ts`、`EnvironmentContent.vue` 與兩支測試），沒有 migration、沒有 Railway 環境變數變更。
+- API deployment：`50aa43b7-ac6d-4053-9b11-7413cbb95a5f`；web deployment：`0bafc146-59e4-4db7-8f0f-662d95584554`，兩者 SUCCESS；部署 smoke（release、live API、CMS、首頁、後台入口）通過。
+- PR 過程：第一次推分支時 push 與 pull_request 兩組 CI 同一 concurrency 群組，push 組被取消（設計如此）；PR 組全綠後，main 多了 #120 的部署紀錄、README 頂部相鄰段落衝突。README／DESIGN.md 的當日段落改成上線後隨這筆紀錄補回，PR 只留程式與測試，再跑一輪 CI 全綠後合併。
+- 部署後唯讀檢查：正式 `/release.json` 的 base_commit 為 `b9726e761f6b010854c410376aaa94b9080f8739`，snapshot `04c35bac2da30ec89ac61aec5d4ab7f66eab374b0d03d8f8c9caa8b1d33c2cd9`；Playwright（擋外部追蹤、POST 本機回 204）在 1440×900 確認釘住敘事、引言在標題下、校園環境章頭靠左、五顆心色片 5 欄、小事說明 17.28px、黃卡縮成內容高且有球、舞台說明貼底、五校照片 7px 窗框、沒選中的角落透明、結尾積木 236／176／292；390×844 確認五校窗框、結尾積木與球沒被改到。兩個尺寸都沒有橫向捲動與頁面錯誤。
+- 沒驗：iOS／Safari 實機。PR #115（`feature/environment-cleanup-20261118`）也改 `environment.css`／`EnvironmentContent.vue`，併之前要先接上這次的 main。
+
+## 2026-11-20 成效統計資料核對與修正（PR #124，已部署 main `fc42b711`）
+
+[PR #124](https://github.com/wu0010802-stack/ivy-website-admin/pull/124) 以 merge commit 合併為 `fc42b711`（接在 `6e724910` 之後，PR 上 CI 全綠）；[main CI/CD 44658983963](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44658983963) 前後端、E2E、Deploy Railway production 全部成功。
+
+- 沒有 migration、沒有 Railway 環境變數變更。統計起算日用程式預設值 `analytics_stats_start = 2026-11-13`；要改再設 `WEBSITE_ANALYTICS_STATS_START`（後台 `STATS_START` 要一起改）。
+- 部署後唯讀檢查：`/release.json` base_commit `fc42b7113527480fc700b2bb8a180d2fd5412ca8`（snapshot `9acb040f195cdd0c6c729907535bdd9e1a8391ceb4aaf9ee23886ea043b0fc44`）；後台 `AnalyticsView-CGVrlOxN.js` 有「起才列入統計」、`2026-11-13`、實際預約的新口徑與不計入說明，主程式有 `ivy_staff`；官網 entry chunk 的統計閘門已含 `webdriver`、自動化 UA 與 `ivy_staff` 判斷。
+- 正式庫清理（使用者 11-20 上午用 `railway ssh` 執行，腳本在 Desktop checkout `output/analytics-data-20261120/remove-test-booking-visit.sql`）：刪掉 11-17 07:50–07:53 那次測試預約造訪的 `engagement_visits` 3 列，之後帶 `booking_done` 的造訪為 0；刪前完整備份 `/var/lib/postgresql/data/ivy-website-backups/before-analytics-cleanup-20261120.dump`。
+- 沒驗：登入後的實際畫面（部署時後台登入已逾時）、`ivy_staff` 真的寫進上層網域、官網在這台瀏覽器不再送統計。使用者下次登入後台即會寫入記號。
+
 ## 2026-11-20 前台 cookie 帶來的後台統計補齊（PR #120，已部署 main `70b39bc7`）
 
 [PR #120](https://github.com/wu0010802-stack/ivy-website-admin/pull/120) 以 merge commit 合併為 `70b39bc7`（合併前已併入 #117 與其部署紀錄 `44d8c801`，PR 在最終提交 `91c7ac4a` 上 CI 全綠）；[main CI/CD 44653131744](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/44653131744) 全部成功（web、admin、後端三組、E2E、Deploy），台灣時間 09:41 完成部署。改動內容見 README 的 2026-11-19「前台 cookie 帶來的後台統計補齊」，規格 `docs/specs/2026-11-19-cookie-stats-design.md`。
