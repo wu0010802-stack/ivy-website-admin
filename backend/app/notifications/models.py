@@ -221,10 +221,46 @@ class LineParentCampusAccount(Base):
         ForeignKey("campuses.key", ondelete="CASCADE"), primary_key=True
     )
     account_key: Mapped[str] = mapped_column(String(20), nullable=False)
+    # 這校沒留 Email、也沒綁 LINE 的家長，改用通知型訊息（用電話號碼）送（2026-11-25）。
+    # 帳號還要列在 WEBSITE_LINE_PNP_ACCOUNTS（LINE 已開通）才會真的送。
+    pnp_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_by: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+
+
+class LinePnpMessage(Base):
+    """送給家長的 LINE 通知型訊息（用電話號碼送，2026-11-25，
+    docs/specs/2026-11-25-line-notification-messages-research.md）。一則 outbox 通知最多一列。
+
+    通知型訊息 API 不支援 X-Line-Retry-Key：送出後才逾時，重送可能讓家長收到兩則、也付兩次錢。
+    所以呼叫 LINE 之前先寫這一列並 commit；確定沒送出去（連不上、LINE 回 429／5xx／401）才刪掉這列讓整筆重試，
+    其他情況（逾時、送出後斷線）都留著、不再重送。
+
+    沒有 status 欄：用時間記發生過的事。accepted_at＝LINE 收下（200／202，不代表送到）；
+    rejected_at＝LINE 回 422（這支電話沒有 LINE、拒收或不是台日泰門號）；delivered_at＝webhook 收到送達事件。
+    三個都空＝送出後不知道結果（逾時）。不存電話或其雜湊。"""
+
+    __tablename__ = "line_pnp_messages"
+    __table_args__ = (UniqueConstraint("outbox_message_id", name="uq_line_pnp_messages_outbox_message_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    outbox_message_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("outbox_messages.id", ondelete="CASCADE", name="fk_line_pnp_messages_outbox_message_id"),
+        nullable=False,
+    )
+    visit_request_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("visit_requests.id", ondelete="CASCADE", name="fk_line_pnp_messages_visit_request_id"),
+        nullable=False,
+        index=True,
+    )
+    account_key: Mapped[str] = mapped_column(String(20), nullable=False)
+    template_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    attempted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class LineParentLink(Base):

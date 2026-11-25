@@ -59,7 +59,7 @@ function day(value: string): string {
 }
 
 function accountTitle(account: LineFollowerAccountOut): string {
-  const role = account.key === 'main' ? '園方群組推播帳號' : `${campusNames.value[account.key] ?? account.key}官方帳號`
+  const role = account.key === 'main' ? '園方群組推播帳號' : account.key === 'hq' ? '總部官方帳號' : `${campusNames.value[account.key] ?? account.key}官方帳號`
   const name = account.display_name ?? role
   return account.basic_id ? `${name}（${account.basic_id}）` : name
 }

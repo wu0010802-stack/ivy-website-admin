@@ -85,7 +85,7 @@ stateDiagram-v2
 | 從 | 到 | 寫入的函式 | 條件 | 連帶做的事 |
 |---|---|---|---|---|
 | （建立） | `pending` | `backend/app/booking/outbox.py` 的 `enqueue_outbox` | 給園方的通知 | — |
-| （建立） | `pending` | `backend/app/booking/outbox.py` 的 `enqueue_parent_email` | 給家長的信；沒留 Email 不排 | — |
+| （建立） | `pending` | `backend/app/booking/outbox.py` 的 `enqueue_parent_email` | 給家長的信；沒 Email、沒綁 LINE、這校也沒開通知型訊息才不排 | — |
 | （建立） | `pending` | `backend/app/booking/outbox.py` 的 `enqueue_day_closed_email` | 休假日通知，同一天同一案只排一次 | — |
 | （建立） | `pending` | `backend/app/notifications/reminders.py` 的 `_enqueue` | 定期工作排的提醒 | — |
 | `pending` | `leased` | `backend/app/workers/lease_service.py` 的 `claim_next` | next_attempt_at 已到；租約過期的 leased 也會被重新認領 | — |

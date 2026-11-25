@@ -1,3 +1,17 @@
+## 2026-11-25 家長通知改用 LINE 通知型訊息（用手機號碼送；PR #135 合併進 main，預設關閉）
+
+使用者要用已認證的總部官方帳號，透過 LINE「通知型訊息」用電話號碼把預約通知送到家長的 LINE。研究、查證過的 LINE 規則與使用者的決定：`docs/specs/2026-11-25-line-notification-messages-research.md`。
+
+- **誰會收到**：沒留 Email、也沒綁 LINE 通知的家長（有 Email 的只收信，使用者決定）。綁了 LINE 的照舊推卡片。
+- **範本**：預約成功與變更用 `reservation_completed_zh`、取消用 `reservation_cancellation_zh`、提醒用 `reservation_reminder_zh`；停課沒有合適範本，不送。「查看詳情」按鈕放修改連結（使用者決定；過了線上修改期限不放），取消改連重新預約頁。不放家長姓名、孩子資料。
+- **帳號**：新增總部帳號鍵 `hq`（`WEBSITE_LINE_HQ_*`，每校都能選，webhook `/line/webhook/hq`）；`WEBSITE_LINE_PNP_ACCOUNTS` 列 LINE 已開通的帳號；後台 LINE 通知頁每校多一個「通知型訊息」開關（選的帳號已開通才能開）。
+- **不重複送**：通知型訊息 API 不支援 `X-Line-Retry-Key`，所以先寫 `line_pnp_messages` 再呼叫 LINE。連不上或 LINE 回 4xx／5xx（422 除外）才刪掉重試；422（這支電話收不到）記 `rejected_at` 不重試；送出後逾時不重送。送達靠 webhook 的 `delivery` 事件（`X-Line-Delivery-Tag`＝outbox 訊息 id）記 `delivered_at`。
+- **官網**：這校開了通知型訊息時，預約表單 Email 欄說明多一句「沒填的話…會用 LINE 通知型訊息傳到綁定這支手機號碼的 LINE」。
+- **migration `f2b7c4e9a1d3`** 只新增欄位與表。契約與狀態機文件已重產（只改了「給家長的信」那條轉移的條件文字）。
+- **驗證**（Node 22，獨立測試庫 `ivy_website_test_pnp`）：後端新測試 `tests/test_line_pnp.py` 21 項通過；後端全套其餘 5906 passed；migration 在另一個空庫 upgrade → downgrade → upgrade 都成功。admin typecheck 通過、vitest 204 檔 3824 項全過（`--maxWorkers=2`）；web typecheck 通過、vitest 168 檔 2572 項全過（第一次跑有 1 項失敗，連續重跑 3 次都沒再出現，看起來是不穩定的既有測試）；`contract:check` 一致。後台 LINE 通知頁在 1440×900 與 390×844 用 Playwright（API 用假資料）截圖確認，沒有橫向捲動。
+- **之後要做的**整理在 `docs/website-admin/line-pnp-runbook.md`（申請問題清單、開通步驟、真機驗收、回退、剩下的開發項目）。
+- **沒做**：後台案件頁還看不到單筆的送達狀態（寄送紀錄頁在 LINE 收下時顯示已推 LINE）；每日送達則數 API 沒接。**全部只用模擬回應測過，沒有真的呼叫過 LINE**，要開通後用真機驗證。
+
 ## 2026-11-25 LINE 通知再加七項：待標記、指定日期、卡片人數與取消方、下次聯絡按鈕、導航、會準時到、從「我的預約」取消（`claude/keen-cray-rh7a1w`，未部署）
 
 使用者看完「LINE 通知還能加什麼」的 11 項盤點後挑了 1–4、8、9、11。規格 `docs/specs/2026-11-25-line-more-features-design.md`。除了「取消通知」照舊用掉 1 則，新的互動全是回覆（reply），不計每月則數。

@@ -52,8 +52,9 @@ PARENT_KINDS = frozenset(
 
 
 async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> None:
-    """排一封家長信（沒有 Email、也沒綁 LINE 通知就不排；2026-11-16 起綁了 LINE 的同一則也推 LINE，
-    哪些管道真的送由 notifications.service 在送出當下決定）。
+    """排一封家長信（沒有 Email、沒綁 LINE 通知、這校也沒開通知型訊息就不排；2026-11-16 起綁了 LINE 的同一則
+    也推 LINE，2026-11-25 起沒 Email 也沒綁的家長改送通知型訊息；哪些管道真的送由 notifications.service
+    在送出當下決定）。
 
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
@@ -61,9 +62,11 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
     if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER, PARENT_EMAIL_CHANGED):
         raise ValueError(kind)
     if not visit_request.email:
-        from app.notifications import line_parent
+        from app.notifications import line_parent, line_pnp
 
-        if not await line_parent.has_active_link(db, visit_request.id):
+        if not await line_parent.has_active_link(db, visit_request.id) and not line_pnp.reachable(
+            visit_request, await line_pnp.enabled_campuses(db)
+        ):
             return
     if kind == PARENT_VISIT_CHANGED:
         queued = await db.scalar(
