@@ -1,5 +1,6 @@
 """員工 LINE 群組的文字指令（設計 §4.2、§4.6、§4.7）：「今天／明天／本週參觀」、@官方帳號叫出選單、
-新成員加入時回覆說明。
+新成員加入時回覆說明。2026-11-25 加「下週參觀」「11/28 參觀」與「待標記」
+（docs/specs/2026-11-25-line-more-features-design.md §2、§3）。
 
 只處理已綁定校區（或總部）的群組或多人聊天室；回覆一律用 reply（不計每月則數）。查名單是唯讀的，
 2026-09-29 以前綁定、沒貼過驗證碼的舊群組照常可用（會寫入的按鈕才要驗證過，見 line_group_actions）。
@@ -8,6 +9,8 @@
 from __future__ import annotations
 
 import logging
+import re
+import unicodedata
 from datetime import date, timedelta
 
 import httpx
@@ -25,10 +28,17 @@ logger = logging.getLogger("app.line")
 QUERY_LIMIT = ratelimit.Limit("line_group_query", window_seconds=60, max_per_window=6)
 HELP_LIMIT = ratelimit.Limit("line_group_help", window_seconds=600, max_per_window=1)
 
-_COMMANDS = {"今天參觀": "today", "明天參觀": "tomorrow", "本週參觀": "week"}
-_SHORT_WORDS = {"今天": "today", "明天": "tomorrow", "本週": "week"}
+_COMMANDS = {"今天參觀": "today", "明天參觀": "tomorrow", "本週參觀": "week", "下週參觀": "next_week", "待標記": "awaiting"}
+_SHORT_WORDS = {"今天": "today", "明天": "tomorrow", "本週": "week", "下週": "next_week"}
+# 「11/28 參觀」：先 NFKC（全形數字與「／」轉半形）；@官方帳號 時「11/28」也算。
+_DAY_COMMAND = re.compile(r"([0-9]{1,2})/([0-9]{1,2})\s*參觀")
+_DAY_SHORT = re.compile(r"([0-9]{1,2})/([0-9]{1,2})")
+# 「月/日」取前後這麼多天內的那一天。
+_PAST_DAY_WINDOW = timedelta(days=183)
 _WEEKDAYS = "一二三四五六日"
 EMPTY_TEXT = "這段時間沒有參觀預約。"
+AWAITING_EMPTY_TEXT = "目前沒有待標記到場的參觀。"
+PAST_DAY_TEXT = "已經過去的日期請到後台查看；還沒標記到場的請輸入「待標記」。"
 
 
 def _md(day: date) -> str:
@@ -84,8 +94,29 @@ def _without_self_mentions(text: str, mentionees: list) -> str | None:
         return None
 
 
-def _command(event: dict, text: str) -> tuple[str | None, bool]:
-    """回傳 (查詢種類或 None, 是不是只有 @ 官方帳號沒有其他字)。@官方帳號 可以在訊息任何位置
+def _day_of(month: int, day: int, today: date) -> date | None:
+    """「月/日」換成離今天最近的那一天（前後各約半年內：12 月查「1/5」是明年、1 月查「12/30」是去年）；
+    不存在的日期（2/30）回 None。"""
+    for year in (today.year - 1, today.year, today.year + 1):
+        try:
+            found = date(year, month, day)
+        except ValueError:
+            continue
+        if today - _PAST_DAY_WINDOW <= found < today + _PAST_DAY_WINDOW:
+            return found
+    return None
+
+
+def _specific_day(text: str, mentioned: bool) -> date | None:
+    normalized = unicodedata.normalize("NFKC", text)
+    match = _DAY_COMMAND.fullmatch(normalized) or (_DAY_SHORT.fullmatch(normalized) if mentioned else None)
+    if match is None:
+        return None
+    return _day_of(int(match.group(1)), int(match.group(2)), today_local())
+
+
+def _command(event: dict, text: str) -> tuple[str | date | None, bool]:
+    """回傳 (查詢種類或指定的日期或 None, 是不是只有 @ 官方帳號沒有其他字)。@官方帳號 可以在訊息任何位置
     （「@常春藤 今天」「今天 @常春藤」），名稱含空白也行；其他人的 @ 不剝。"""
     mentioned = _mentions_self(event)
     if mentioned:
@@ -103,17 +134,30 @@ def _command(event: dict, text: str) -> tuple[str | None, bool]:
         return _COMMANDS[text], False
     if mentioned and text in _SHORT_WORDS:
         return _SHORT_WORDS[text], False
-    return None, False
+    return _specific_day(text, mentioned), False
 
 
-async def _visit_reply(db: AsyncSession, campuses: list[str], kind: str) -> dict:
+async def _visit_reply(db: AsyncSession, campuses: list[str], kind: str | date) -> dict:
     today = today_local()
-    if kind == "today":
+    if kind == "awaiting":
+        rows = await line_digest.rows_awaiting_attendance(db, campuses)
+        return line_flex.visit_list_message("待標記到場", rows, empty_text=AWAITING_EMPTY_TEXT)
+    if isinstance(kind, date):
+        if kind < today:
+            # 名單只列已確認的：過去的日子列出來，標記過的都不在，會誤以為沒人來。
+            return line_api.text_message(PAST_DAY_TEXT)
+        start = end = kind
+        title = f"{_day_label(kind)}參觀"
+    elif kind == "today":
         start = end = today
         title = f"今日參觀（{_day_label(today)}）"
     elif kind == "tomorrow":
         start = end = today + timedelta(days=1)
         title = f"明日參觀（{_day_label(start)}）"
+    elif kind == "next_week":
+        start = today + timedelta(days=7 - today.weekday())
+        end = start + timedelta(days=6)
+        title = f"下週參觀（{_md(start)}–{_md(end)}）"
     else:
         start, end = today, today + timedelta(days=6 - today.weekday())
         title = f"本週參觀（{_md(start)}–{_md(end)}）"

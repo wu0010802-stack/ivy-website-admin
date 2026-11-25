@@ -66,7 +66,10 @@ def test_visit_list_empty_returns_text():
 def test_menu_buttons_are_message_actions_with_exact_text():
     msg = lf.menu_message()
     actions = [b["action"] for b in _buttons(msg["contents"])]
-    assert [(a["type"], a["text"]) for a in actions] == [("message", "今天參觀"), ("message", "明天參觀"), ("message", "本週參觀")]
+    # 2026-11-25 加「下週參觀」「待標記」（docs/specs/2026-11-25-line-more-features-design.md §2、§3）。
+    assert [(a["type"], a["text"]) for a in actions] == [
+        ("message", "今天參觀"), ("message", "明天參觀"), ("message", "本週參觀"), ("message", "下週參觀"), ("message", "待標記"),
+    ]
 
 
 def test_help_message_lists_commands():
@@ -114,8 +117,11 @@ def test_result_message_with_recruitment_visit_has_all_field_buttons():
     msg = lf.attended_result_message("王家", recruitment_visit_id=rv, receipt_id="r1",
                                      admin_url="https://x.example/a", already_deposited=False)
     pbs = _postbacks(msg["contents"])
-    assert [decode(b["action"]["data"])[0] for b in pbs] == [RF_DEPOSIT, RF_NODEP_ASK, RF_SOURCE_ASK, RF_BUS, RF_BUS]
-    assert [decode(b["action"]["data"])[1] for b in pbs][3:] == [[rv, "1"], [rv, "0"]]
+    # 2026-11-25 加下次聯絡三顆（rff，明天／3 天後／1 週後）。
+    assert [decode(b["action"]["data"])[0] for b in pbs] == [
+        RF_DEPOSIT, RF_NODEP_ASK, RF_SOURCE_ASK, RF_BUS, RF_BUS, "rff", "rff", "rff",
+    ]
+    assert [decode(b["action"]["data"])[1] for b in pbs][3:] == [[rv, "1"], [rv, "0"], [rv, "1"], [rv, "3"], [rv, "7"]]
     assert len([b for b in _buttons(msg["contents"]) if b["action"]["type"] == "uri"]) == 1
 
 

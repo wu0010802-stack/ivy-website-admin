@@ -552,6 +552,8 @@ class VisitRequestDetailOut(BaseModel):
     cancelled_at: datetime | None
     cancel_reason: str | None = None
     follow_up_at: datetime | None
+    # 家長在 LINE 參觀提醒按「會準時到」的時間（2026-11-25）；回覆時的場次就是目前場次才有值。
+    parent_attendance_confirmed_at: datetime | None = None
     source: VisitSource = "web"
     created_by: uuid.UUID | None = None
     related_request_id: uuid.UUID | None = None

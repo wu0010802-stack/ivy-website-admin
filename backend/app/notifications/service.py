@@ -31,7 +31,7 @@ from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
-from app.notifications import line_flex, line_parent, line_pnp, reminders, web_push
+from app.notifications import line_flex, line_parent, line_parent_actions, line_pnp, reminders, web_push
 from app.notifications.line_group_settings import STAFF_KINDS, targets_for
 from app.notifications.email_adapter import EmailAdapter, outbox_idempotency_key, send_email
 from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email, parent_notice
@@ -159,6 +159,26 @@ async def _campus_name(db: AsyncSession, campus_key: str) -> str:
 campus_display_name = _campus_name
 
 
+async def campus_phone(db: AsyncSession, campus_key: str) -> str | None:
+    """已發布的「五校介紹」裡這校的電話；沒有就 None。"""
+    profile = await content_service.published_payload(db, "campus_profile", campus_key) or {}
+    return str(profile.get("phone") or "").strip() or None
+
+
+def campus_map_url(profile: dict) -> str | None:
+    """家長 LINE 卡片「導航到園所」的網址（2026-11-25）：後台填了驗證過的地圖網址就用它，否則用地址組 Google 地圖搜尋
+    （同官網 web/app/utils/site-links.campusMapUrl）；都沒有回 None。"""
+    from urllib.parse import quote
+
+    from app.content.schemas import is_map_url
+
+    map_url = str(profile.get("map_url") or "").strip()
+    if map_url and is_map_url(map_url):
+        return map_url
+    address = str(profile.get("address") or "").strip()
+    return f"https://www.google.com/maps/search/?api=1&query={quote(address, safe='')}" if address else None
+
+
 async def _campus_active(db: AsyncSession, campus_key: str) -> bool:
     """分校是否仍開放公開預約；查不到校區列時維持原行為（當作開放）。"""
     active = (await db.execute(select(Campus.active).where(Campus.key == campus_key))).scalar_one_or_none()
@@ -197,9 +217,11 @@ def staff_line_message(
     slot: VisitSlot | None = None,
     kind: str = "visit_request_created",
     attend_buttons: bool = False,
+    party_size: int | None = None,
+    cancel_reason: str | None = None,
 ) -> dict:
     """園方群組的卡片訊息（2026-11-16 起取代原本的純文字＋網址）：同樣只帶類型、校區、家長稱呼，
-    多了參觀時段；後台連結做成「開啟案件」按鈕。"""
+    多了參觀時段；後台連結做成「開啟案件」按鈕。2026-11-25 起多帶參觀人數與取消方。"""
     return line_flex.staff_card(
         label,
         campus_name,
@@ -209,6 +231,8 @@ def staff_line_message(
         url=admin_visit_url(admin_origin, receipt_id, external_browser=True),
         kind=kind,
         attend_buttons=attend_buttons,
+        party_size=party_size,
+        cancel_reason=cancel_reason,
     )
 
 
@@ -417,6 +441,7 @@ async def _dispatch_parent_email(
         party_size=visit_request.party_size,
         campus_address=str(profile.get("address") or "").strip() or None,
         campus_phone=str(profile.get("phone") or "").strip() or None,
+        campus_map_url=campus_map_url(profile),
         manage_url=manage_url,
         change_deadline=change_deadline,
         change_window_passed=not change_open,
@@ -459,9 +484,15 @@ async def _dispatch_parent_email(
         client = line_clients.get(line_link.account_key)
         assert client is not None  # _parent_line_link 已確認帳號有設
         try:
+            # 參觀提醒（不是停課內容時）多一顆「會準時到」（2026-11-25）。
+            attend = (
+                line_parent_actions.attendance_data(visit_request.id)
+                if kind == PARENT_VISIT_REMINDER and not closed
+                else None
+            )
             await client.push(
                 line_link.line_user_id,
-                [line_flex.parent_card(parent_notice(mail))],
+                [line_flex.parent_card(parent_notice(mail), attendance_data=attend)],
                 key=line_api.retry_key(outbox_message_id, line_link.line_user_id),
             )
         except (line_api.LinePushError, httpx.HTTPError) as exc:
@@ -747,6 +778,8 @@ async def _dispatch_line_groups(
                     and visit_request.slot is not None
                     and kind != "visit_request_cancelled"
                 ),
+                party_size=visit_request.party_size if visit_request is not None else None,
+                cancel_reason=visit_request.cancel_reason if visit_request is not None else None,
             )
             same_day = kind in MENTION_ALL_KINDS and slot is not None and slot.slot_date == today_local()
         messages = [card]

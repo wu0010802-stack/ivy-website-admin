@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from app.admissions import constants as admissions_constants
 from app.notifications.line import flex_message, text_message
 from app.notifications.line_group_actions import (
-    ATTEND_ASK, ATTEND_OK, CANCEL, NOSHOW_ASK, NOSHOW_OK, RF_BUS, RF_DEPOSIT, RF_DEPOSIT_OK, RF_NODEP, RF_NODEP_ASK,
-    RF_SOURCE, RF_SOURCE_ASK, encode,
+    ATTEND_ASK, ATTEND_OK, CANCEL, NOSHOW_ASK, NOSHOW_OK, RF_BUS, RF_DEPOSIT, RF_DEPOSIT_OK, RF_FOLLOW, RF_NODEP,
+    RF_NODEP_ASK, RF_SOURCE, RF_SOURCE_ASK, encode,
 )
 from app.notifications.parent_email import ParentNotice
 
@@ -31,6 +31,8 @@ KIND_STYLE: dict[str, tuple[str, str]] = {
     "visit_request_cancelled": ("#B3261E", "#B3261E"),
 }
 CANCELLED_KIND = "visit_request_cancelled"
+# 取消卡片的「取消方」（visit_requests.cancel_reason；值同 operations.models.CANCEL_REASONS）。
+CANCEL_SIDE_LABELS = {"parent": "家長取消", "staff": "園方取消", "hold_expired": "占位逾期"}
 SITE_LABEL = "常春藤官網"
 _URI_MAX = 1000
 
@@ -60,13 +62,15 @@ def _button(label: str, uri: str, *, primary: bool = True, color: str = BRAND) -
     return button
 
 
-def _postback_button(label: str, data: str, *, color: str = BRAND, display_text: str | None = None) -> dict:
-    """display_text：按了以後 LINE 以按的人的名義在聊天室送出的字（上限 300 字）；只有確認卡的「確認」用，
-    固定字面、不放家長稱呼。沒給就不送出任何字。"""
+def _postback_button(
+    label: str, data: str, *, color: str = BRAND, display_text: str | None = None, primary: bool = False
+) -> dict:
+    """display_text：按了以後 LINE 以按的人的名義在聊天室送出的字（上限 300 字）；確認卡的「確認」與家長的
+    「會準時到」用，固定字面、不放家長稱呼。沒給就不送出任何字。"""
     action = {"type": "postback", "label": label[:20], "data": data}
     if display_text:
         action["displayText"] = display_text[:300]
-    return {"type": "button", "height": "sm", "style": "link", "color": color, "action": action}
+    return {"type": "button", "height": "sm", "style": "primary" if primary else "link", "color": color, "action": action}
 
 
 def _usable_uri(uri: str | None) -> str | None:
@@ -102,14 +106,21 @@ def staff_card(
     url: str | None,
     kind: str = "visit_request_created",
     attend_buttons: bool = False,
+    party_size: int | None = None,
+    cancel_reason: str | None = None,
 ) -> dict:
     """園方群組推播。parent_name 已經過 service.line_parent_name 清理（拿掉網址、限 20 字）。
-    沒有後台連結（沒設 admin_origin）時改放案件編號，讓群組裡的人還能自己找。"""
+    沒有後台連結（沒設 admin_origin）時改放案件編號，讓群組裡的人還能自己找。
+    2026-11-25 起多帶參觀人數與取消卡片的「取消方」（都不是個資；altText 不變）。"""
     rows = [_row("校區", campus_name)]
     if when:
         rows.append(_row("參觀時段", when))
     if parent_name:
         rows.append(_row("家長", parent_name))
+    if party_size:
+        rows.append(_row("參觀人數", f"{party_size} 位"))
+    if kind == CANCELLED_KIND and cancel_reason in CANCEL_SIDE_LABELS:
+        rows.append(_row("取消方", CANCEL_SIDE_LABELS[cancel_reason]))
     link = _usable_uri(url)
     if receipt_id and not link:
         rows.append(_row("案件編號", receipt_id))
@@ -122,8 +133,14 @@ def staff_card(
     return flex_message(alt, _bubble(SITE_LABEL, label, rows, buttons, title_color=title_color))
 
 
-def parent_card(notice: ParentNotice) -> dict:
-    """家長一對一通知。按鈕：notice 的連結（修改／改約／重新預約）＋撥打電話。"""
+ATTENDANCE_BUTTON = "會準時到"
+MAP_BUTTON = "導航到園所"
+
+
+def parent_card(notice: ParentNotice, *, attendance_data: str | None = None) -> dict:
+    """家長一對一通知。按鈕：會準時到（參觀提醒才有，attendance_data 是 postback data，2026-11-25）、
+    notice 的連結（修改／改約／重新預約）、導航到園所（notice.map_url，2026-11-25）、撥打電話。
+    第一顆是實心按鈕，其餘是文字連結樣式。"""
     body = [_text(notice.intro, size="sm")]
     body.append({"type": "separator", "margin": "md"})
     body.append({
@@ -132,13 +149,18 @@ def parent_card(notice: ParentNotice) -> dict:
     })
     note = notice.note
     buttons: list[dict] = []
+    if attendance_data:
+        buttons.append(_postback_button(ATTENDANCE_BUTTON, attendance_data, display_text=ATTENDANCE_BUTTON, primary=True))
     link = _usable_uri(notice.url)
     if link and notice.button:
         # Email 版寫「請開啟這個連結：」接網址；卡片改指下面的按鈕。
         note = note.replace("請開啟這個連結", "請按下方按鈕").replace("使用這個連結", "按下方按鈕").rstrip("：:") + "。"
         if notice.inline_url:
             note = note.replace("請到。", "請按下方按鈕。")
-        buttons.append(_button(notice.button, link))
+        buttons.append(_button(notice.button, link, primary=not buttons))
+    map_link = _usable_uri(notice.map_url)
+    if map_link and map_link.startswith("https://"):
+        buttons.append(_button(MAP_BUTTON, map_link, primary=False))
     body.append(_text(note, size="sm", color=MUTED, margin="md"))
     # 只留半形數字與 +（全形數字、分機文字不放）；一個數字都沒有就不放按鈕，不送出空的 tel:（LINE 會整則拒收）。
     main_number = re.split(r"分機|轉|#|ext", notice.campus_phone or "", maxsplit=1, flags=re.IGNORECASE)[0]
@@ -149,17 +171,40 @@ def parent_card(notice: ParentNotice) -> dict:
 
 
 def my_visits_carousel(items: list[dict]) -> dict:
-    """「我的預約」：每筆一張卡（最多 10 張，LINE 輪播上限 12）。item：campus_name、when、manage_url（可為 None）、note。"""
+    """「我的預約」：每筆一張卡（最多 10 張，LINE 輪播上限 12）。item：campus_name、when、manage_url（可為 None）、note、
+    cancel_data（「取消預約」的 postback data；線上異動期限過了是 None，2026-11-25）、deadline_note（期限過了的說明）。"""
     bubbles = []
     for item in items[:10]:
         body = [_row("校區", item["campus_name"]), _row("日期與場次", item["when"])]
+        if item.get("deadline_note"):
+            body.append(_text(item["deadline_note"], size="sm", margin="md"))
         if item.get("note"):
             body.append(_text(item["note"], size="xs", color=MUTED, margin="md"))
         link = _usable_uri(item.get("manage_url"))
-        bubbles.append(_bubble("常春藤幼兒園", "參觀預約", body, [_button("查看或修改", link)] if link else []))
+        buttons = [_button("查看或修改", link)] if link else []
+        if item.get("cancel_data"):
+            buttons.append(_postback_button("取消預約", item["cancel_data"], color=MUTED))
+        bubbles.append(_bubble("常春藤幼兒園", "參觀預約", body, buttons))
     alt = f"您有 {len(items)} 筆參觀預約"
     contents = bubbles[0] if len(bubbles) == 1 else {"type": "carousel", "contents": bubbles}
     return flex_message(alt, contents)
+
+
+PARENT_CANCEL_CONFIRM_TEXT = "確定取消"
+
+
+def parent_cancel_confirm(campus_name: str, when: str, *, ok_data: str, keep_data: str) -> dict:
+    """家長在「我的預約」按「取消預約」後的確認卡（2026-11-25）。「確定取消」帶 token 與 displayText。"""
+    body = [
+        _row("校區", campus_name),
+        _row("日期與場次", when),
+        _text("取消後這個時段會開放給其他家長；要再參觀請重新預約。", size="sm", color=MUTED, margin="md"),
+    ]
+    buttons = [
+        _postback_button(PARENT_CANCEL_CONFIRM_TEXT, ok_data, display_text=PARENT_CANCEL_CONFIRM_TEXT, primary=True),
+        _postback_button("不取消", keep_data, color=MUTED),
+    ]
+    return flex_message("確定取消這次參觀？", _bubble("常春藤幼兒園", "確定取消這次參觀？", body, buttons))
 
 
 # ---- 群組互動（2026-11-17，docs/specs/2026-11-17-line-group-interactions-design.md §4.1、§4.2、§4.7、§5、§5.1）----
@@ -178,6 +223,9 @@ class VisitRow:
     when: str
     parent_name: str | None
     status: str
+    # 2026-11-25：參觀人數、家長在 LINE 參觀提醒按了「會準時到」（場次對得上才算）。
+    party_size: int | None = None
+    attendance_confirmed: bool = False
 
 
 def _hbox(contents: list[dict]) -> dict:
@@ -205,6 +253,10 @@ def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str) -> 
         body = [_row("校區", row.campus_name), _row("參觀時段", row.when)]
         if row.parent_name:
             body.append(_row("家長", row.parent_name))
+        if row.party_size:
+            body.append(_row("參觀人數", f"{row.party_size} 位"))
+        if row.attendance_confirmed:
+            body.append(_row("家長回覆", ATTENDANCE_CONFIRMED_TEXT))
         last = overflow and i == len(shown) - 1
         buttons = []
         if row.status == "confirmed" and not last:
@@ -218,7 +270,8 @@ def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str) -> 
     return flex_message(f"{title}（共 {len(rows)} 筆）", {"type": "carousel", "contents": bubbles})
 
 
-_MENU_COMMANDS = ("今天參觀", "明天參觀", "本週參觀")
+_MENU_COMMANDS = ("今天參觀", "明天參觀", "本週參觀", "下週參觀", "待標記")
+ATTENDANCE_CONFIRMED_TEXT = "會準時到"
 
 
 def menu_message() -> dict:
@@ -233,7 +286,9 @@ def menu_message() -> dict:
 def help_message() -> dict:
     return text_message(
         "歡迎使用常春藤官網通知。在這個群組輸入下列文字，可以查詢參觀預約：\n"
-        "・今天參觀\n・明天參觀\n・本週參觀\n"
+        "・今天參觀\n・明天參觀\n・本週參觀\n・下週參觀\n"
+        "・日期加參觀，例如 11/28 參觀\n"
+        "・待標記（參觀時間過了、還沒標記到場的）\n"
         "也可以 @官方帳號 叫出選單。"
     )
 
@@ -261,6 +316,9 @@ def confirm_message(action: str, target_id: str, who: str, when: str, token: str
     return flex_message(alt, _bubble(SITE_LABEL, title, [_text("按下確認才會寫入，誤按請按取消。", size="sm", color=MUTED)], buttons))
 
 
+FOLLOW_UP_BUTTONS = (("明天聯絡", "1"), ("3天後聯絡", "3"), ("1週後聯絡", "7"))
+
+
 def attended_result_message(
     who: str,
     *,
@@ -269,7 +327,7 @@ def attended_result_message(
     admin_url: str | None,
     already_deposited: bool,
 ) -> dict:
-    """到場結果卡。有招生訪視才放結果欄位按鈕（預繳、來源分類、交通車）；後台連結 admin_url 非空才放。
+    """到場結果卡。有招生訪視才放結果欄位按鈕（預繳、來源分類、交通車、下次聯絡）；後台連結 admin_url 非空才放。
     receipt_id 只用於呼叫端對照，卡片上不顯示。"""
     title = f"已標記{who}已到場"
     body: list[dict] = [_text(title, size="sm")]
@@ -288,6 +346,10 @@ def attended_result_message(
         buttons.append(_hbox([
             _postback_button("搭交通車", encode(RF_BUS, rv, "1")),
             _postback_button("不搭", encode(RF_BUS, rv, "0")),
+        ]))
+        # 下次聯絡（2026-11-25）：同後台快捷鍵，台北 10:00。
+        buttons.append(_hbox([
+            _postback_button(label, encode(RF_FOLLOW, rv, days)) for label, days in FOLLOW_UP_BUTTONS
         ]))
     link = _usable_uri(admin_url)
     if link:

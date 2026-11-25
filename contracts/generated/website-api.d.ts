@@ -4596,6 +4596,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -12744,6 +12746,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -12870,6 +12874,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */

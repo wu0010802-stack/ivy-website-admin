@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import date as date_, datetime, time as time_
 
-from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Time, UniqueConstraint
+from sqlalchemy import JSON, Boolean, CheckConstraint, Date, DateTime, Enum, ForeignKey, Index, Integer, String, Time, UniqueConstraint, Uuid
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -253,6 +253,18 @@ class VisitRequest(Base):
     # 到場、預繳回傳廣告平台用的點擊識別碼（同規格 §2，app/ad_conversions/）：GA4 client_id、
     # Meta fbc／fbp、OpenAI oppref／obref。只有該平台設了伺服器端金鑰才記；匿名化時清掉。
     ad_click_ids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 2026-11-25 家長在 LINE 參觀提醒按「會準時到」（docs/specs/2026-11-25-line-more-features-design.md §7）：
+    # 按的時間與當時的場次。改期後場次對不上就不算（parent_attendance_confirmed_at），不必改每條改期路徑。
+    # 不是個資，匿名化不清。
+    attendance_confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    attendance_confirmed_slot_id: Mapped[uuid.UUID | None] = mapped_column(Uuid, nullable=True)
+
+    @property
+    def parent_attendance_confirmed_at(self) -> datetime | None:
+        """家長回覆會準時到的時間；只有回覆時的場次就是目前的場次才算。"""
+        if self.attendance_confirmed_at is None or self.slot_id is None:
+            return None
+        return self.attendance_confirmed_at if self.attendance_confirmed_slot_id == self.slot_id else None
 
     events: Mapped[list["VisitRequestEvent"]] = relationship(
         back_populates="visit_request", cascade="all, delete-orphan"
@@ -443,6 +455,8 @@ class VisitEventSource(str, enum.Enum):
     PARENT = "parent"
     SYSTEM = "system"
     LINE_GROUP = "line_group"
+    # 家長在 LINE 一對一按按鈕（2026-11-25：會準時到、從「我的預約」取消）；誰按的以 line_parent_links 為準。
+    LINE_PARENT = "line_parent"
 
 
 class VisitRequestEvent(Base):

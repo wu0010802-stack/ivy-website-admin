@@ -1,7 +1,7 @@
 """LINE 通知型訊息：各校開關、送出紀錄
 
 Revision ID: f2b7c4e9a1d3
-Revises: a6c3e9f2d417
+Revises: f2b7c4e9a813
 Create Date: 2026-11-25
 
 docs/specs/2026-11-25-line-notification-messages-research.md。line_parent_campus_accounts 加 pnp_enabled
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "f2b7c4e9a1d3"
-down_revision = "a6c3e9f2d417"
+down_revision = "f2b7c4e9a813"
 branch_labels = None
 depends_on = None
 
