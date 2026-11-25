@@ -21,6 +21,8 @@
   轉換會排預繳的廣告轉換回傳（送出就收不回），所以同已到場要二次確認：按「已預繳」只回確認卡（不寫入），
   確認卡的「確認」（rfdok）帶同一種無狀態 token（綁 rfdok 與招生訪視 id），驗過才鎖列重驗、寫入。
   其餘欄位走 records.update_visit。招生歷程由這兩支照常寫（actor_user_id 為空，不另加東西）。
+- 下次聯絡（rff，2026-11-25，docs/specs/2026-11-25-line-more-features-design.md §5）：明天／3 天後／1 週後的台北 10:00
+  （同後台快捷鍵），走 follow_up.update_follow_up（寫 follow_up_updated 歷程）；負責人不動，不做二次確認。
 - 樂觀鎖用當下讀到的 version；VersionConflict 重讀一次再試，仍衝突回「請再按一次」。
 - 稽核 metadata 只記欄位名、值的代碼（原因記索引）、群組 id 與按的人的 userId，不記任何文字。
   群組 id 與 userId 只有 notifications.manage 看得到（operations/audit_service.LINE_GROUP_ACTIONS）。"""
@@ -32,7 +34,7 @@ import hmac
 import logging
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 
 import httpx
 from fastapi import Request
@@ -41,13 +43,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.admissions import constants as admissions_constants
-from app.admissions import funnel, records
+from app.admissions import follow_up, funnel, records
 from app.admissions.models import RecruitmentVisit
 from app.booking import slot_service, workflow_service
 from app.booking.history import Actor
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.common import ratelimit
-from app.common.timezones import today_local
+from app.common.timezones import OPERATING_TZ, today_local
 from app.notifications import line as line_api
 from app.notifications.line_group_settings import campuses_served
 from app.operations import audit_service
@@ -69,6 +71,7 @@ RF_NODEP = "rfnr"
 RF_SOURCE_ASK = "rfs"
 RF_SOURCE = "rfsc"
 RF_BUS = "rfb"
+RF_FOLLOW = "rff"
 
 # 詢問動作 → 確認卡上「確認」的動作；每種動作的參數個數（不符就當作不是我們編的，不回應）。
 _OK_FOR = {ATTEND_ASK: ATTEND_OK, NOSHOW_ASK: NOSHOW_OK}
@@ -76,8 +79,9 @@ _CONFIRMS = (ATTEND_OK, NOSHOW_OK)
 _PART_COUNTS = {
     ATTEND_ASK: 1, NOSHOW_ASK: 1, ATTEND_OK: 2, NOSHOW_OK: 2, CANCEL: 0,
     RF_DEPOSIT: 1, RF_DEPOSIT_OK: 2, RF_NODEP_ASK: 1, RF_NODEP: 2, RF_SOURCE_ASK: 1, RF_SOURCE: 2, RF_BUS: 2,
+    RF_FOLLOW: 2,
 }
-_RF_ACTIONS = (RF_DEPOSIT, RF_DEPOSIT_OK, RF_NODEP_ASK, RF_NODEP, RF_SOURCE_ASK, RF_SOURCE, RF_BUS)
+_RF_ACTIONS = (RF_DEPOSIT, RF_DEPOSIT_OK, RF_NODEP_ASK, RF_NODEP, RF_SOURCE_ASK, RF_SOURCE, RF_BUS, RF_FOLLOW)
 
 TOKEN_TTL_SECONDS = 300
 _TOKEN_SIG_LENGTH = 16
@@ -111,8 +115,25 @@ FIELD_LABELS = {
     "no_deposit_reason": "未預繳原因",
     "source_category": "來源分類",
     "rides_bus": "搭交通車",
+    "follow_up_at": "下次聯絡",
 }
 _BUS_CHOICES = {"1": (True, "搭"), "0": (False, "不搭")}
+# 下次聯絡按鈕帶的天數（同後台快捷鍵「明天 10:00／3 天後／1 週後」，admin/src/admissions/followUp.ts）。
+FOLLOW_UP_DAYS = ("1", "3", "7")
+FOLLOW_UP_HOUR = time(10, 0)
+FOLLOW_UP_NOT_ALLOWED_REPLY = "這筆已不能排下次聯絡"
+_WEEKDAYS = "一二三四五六日"
+
+
+def follow_up_time(days: int, today=None):
+    """台北日期 days 天後的 10:00（有時區）。"""
+    day = (today or today_local()) + timedelta(days=days)
+    return datetime.combine(day, FOLLOW_UP_HOUR, tzinfo=OPERATING_TZ)
+
+
+def _follow_up_text(at: datetime) -> str:
+    local = at.astimezone(OPERATING_TZ)
+    return f"{local.month}/{local.day}（{_WEEKDAYS[local.weekday()]}）{local:%H:%M}"
 
 
 def encode(action: str, *parts: str) -> str:
@@ -372,6 +393,11 @@ def _field_step(action: str, visit: RecruitmentVisit, arg: str | None) -> _Field
             return line_api.text_message(INVALID_CHOICE_REPLY)
         code, label = choices[index]
         return _FieldWrite("source_category", code, code, label)
+    if action == RF_FOLLOW:
+        if arg not in FOLLOW_UP_DAYS:
+            return line_api.text_message(INVALID_CHOICE_REPLY)
+        at = follow_up_time(int(arg))
+        return _FieldWrite("follow_up_at", at, int(arg), _follow_up_text(at))
     choice = _BUS_CHOICES.get(arg or "")
     if choice is None:
         return line_api.text_message(INVALID_CHOICE_REPLY)
@@ -428,6 +454,13 @@ async def _fill(
                     db, visit, to_stage="deposited", expected_version=visit.version, actor_user_id=None
                 )
                 changed = True
+            elif step.field == "follow_up_at":
+                # 同後台「下次聯絡」：寫 follow_up_updated 歷程；已註冊或已退出丟 FollowUpNotAllowed。負責人不動。
+                changed = bool(
+                    await follow_up.update_follow_up(
+                        db, visit, changes={"follow_up_at": step.value}, expected_version=visit.version, actor_user_id=None
+                    )
+                )
             else:
                 changed = bool(
                     await records.update_visit(
@@ -439,6 +472,9 @@ async def _fill(
         except funnel.TransitionNotAllowed:
             await db.rollback()
             return line_api.text_message(DEPOSIT_NOT_ALLOWED_REPLY)
+        except follow_up.FollowUpNotAllowed:
+            await db.rollback()
+            return line_api.text_message(FOLLOW_UP_NOT_ALLOWED_REPLY)
         if changed:
             line_user_id = _line_user(event)
             await audit_service.log_action(

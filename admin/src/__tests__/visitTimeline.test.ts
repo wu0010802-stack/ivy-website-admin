@@ -39,6 +39,21 @@ describe('buildTimeline（2026-10-06 方向 C）', () => {
     expect(row).toMatchObject({ person: 'LINE 群組', tone: 'staff', personEmail: '' })
   })
 
+  it('家長在 LINE 按會準時到、取消（source line_parent，2026-11-25）：寫「家長（LINE）」、用家長的顏色', () => {
+    const rows = buildTimeline({
+      notes: [],
+      history: [
+        event({ id: 'e8', event_type: 'attendance_confirmed', source: 'line_parent', before: null, after: null, created_at: '2026-10-04T01:00:00Z' }),
+        event({ id: 'e9', event_type: 'cancelled', source: 'line_parent', before: { status: 'confirmed' }, after: { status: 'cancelled' }, created_at: '2026-10-04T02:00:00Z' }),
+      ],
+      staff: [],
+    })
+    expect(rows.map((r) => [r.title, r.person, r.tone])).toEqual([
+      ['取消預約', '家長（LINE）', 'parent'],
+      ['家長回覆會準時到', '家長（LINE）', 'parent'],
+    ])
+  })
+
   it('新的在上；同一時間聯絡紀錄排在事件前面', () => {
     const same = '2026-10-03T01:00:00Z'
     const rows = buildTimeline({ notes: [note({ created_at: same })], history: [event({ id: 'e9', event_type: 'rescheduled', source: 'staff', created_at: same }), event()], staff: [] })

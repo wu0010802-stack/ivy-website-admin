@@ -96,8 +96,13 @@ export function buildTimeline(input: TimelineInput): TimelineEntry[] {
 
   const bookingEntry = (event: VisitHistoryOut, source: TimelineEntry['source']): TimelineEntry => ({
     key: `event-${event.id}`, at: event.created_at, kind: 'event',
-    // LINE 群組（園方在群組卡片上按已到場／未到場）也是同事做的，用同事的顏色。
-    tone: event.source === 'parent' ? 'parent' : event.source === 'staff' || event.source === 'line_group' ? 'staff' : 'system',
+    // LINE 群組（園方在群組卡片上按已到場／未到場）也是同事做的，用同事的顏色；家長在 LINE 按的用家長的顏色。
+    tone:
+      event.source === 'parent' || event.source === 'line_parent'
+        ? 'parent'
+        : event.source === 'staff' || event.source === 'line_group'
+          ? 'staff'
+          : 'system',
     person: visitEventActor(event), personEmail: event.source === 'staff' ? staffEmail(staffOf(event, 'actor')) : '',
     title: visitEventTitle(event), body: '', lines: visitEventChanges(event, input.staff), reason: event.reason,
     related: visitEventRelatedId(event), followUp: null, phase: '', source,

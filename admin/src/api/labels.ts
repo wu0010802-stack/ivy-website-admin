@@ -465,6 +465,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.parent_account.update': '更新家長 LINE 通知帳號',
   'line.parent.link': '家長開啟 LINE 通知',
   'line.parent.unlink': '家長關閉 LINE 通知',
+  // 2026-11-25：家長在 LINE「我的預約」確定取消（docs/specs/2026-11-25-line-more-features-design.md §8）。
+  'line.parent.cancel': '家長在 LINE 取消預約',
   'user.create': '新增帳號',
   'user.set_active': '變更帳號啟用狀態',
   'user.set_scope': '變更負責校區',
@@ -657,6 +659,8 @@ export const VISIT_EVENT_LABELS: Record<string, string> = {
   // 排除標記（2026-10-15）：測試或重複的案件不算進統計；原因類別在 after.reason，說明在歷程的 reason。
   excluded: '標記為排除',
   exclusion_removed: '取消排除',
+  // 2026-11-25：家長在 LINE 參觀提醒按「會準時到」（同一場次只記第一次）。
+  attendance_confirmed: '家長回覆會準時到',
 }
 
 export function visitEventLabel(eventType: string): string {
@@ -664,12 +668,14 @@ export function visitEventLabel(eventType: string): string {
 }
 
 // 歷程是誰做的：後台人員另外顯示帳號；家長沒有帳號、系統是定期工作；
-// LINE 群組是園方在群組卡片上按已到場／未到場（2026-11-17，對不到後台帳號）。
+// LINE 群組是園方在群組卡片上按已到場／未到場（2026-11-17，對不到後台帳號）；
+// 家長（LINE）是家長在 LINE 一對一按會準時到、從「我的預約」取消（2026-11-25）。
 export const VISIT_EVENT_SOURCE_LABELS: Record<string, string> = {
   staff: '園方人員',
   parent: '家長',
   system: '系統自動',
   line_group: 'LINE 群組',
+  line_parent: '家長（LINE）',
 }
 
 // 家長資料被改的欄位名（歷程 details_updated 與稽核 visit_request.update_details 都只記欄位名，不記內容）。

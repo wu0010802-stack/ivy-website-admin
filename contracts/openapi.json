@@ -1049,6 +1049,18 @@
             ],
             "title": "Last Touch Source"
           },
+          "parent_attendance_confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Attendance Confirmed At"
+          },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",
             "type": "integer"
@@ -26234,6 +26246,18 @@
             ],
             "title": "Last Touch Source"
           },
+          "parent_attendance_confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Attendance Confirmed At"
+          },
           "parent_name": {
             "title": "Parent Name",
             "type": "string"
@@ -26738,6 +26762,18 @@
               }
             ],
             "title": "Last Touch Source"
+          },
+          "parent_attendance_confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Attendance Confirmed At"
           },
           "parent_change_deadline_hours": {
             "title": "Parent Change Deadline Hours",

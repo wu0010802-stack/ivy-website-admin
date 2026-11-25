@@ -32,12 +32,15 @@ from app.booking.access_routes import (
     require_parent_request,
 )
 from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
+from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_open
 from app.common.timezones import slot_start_utc, today_local
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
 from app.config import LINE_CAMPUS_ACCOUNT_KEYS, LINE_MAIN_ACCOUNT, LineAccountCredentials
 from app.notifications import line as line_api
-from app.notifications import line_accounts, line_flex, line_group_actions, line_group_commands, line_parent
+from app.notifications import (
+    line_accounts, line_flex, line_group_actions, line_group_commands, line_parent, line_parent_actions,
+)
 from app.notifications.line_group_settings import GROUP_KINDS, STAFF_KINDS
 from app.notifications.parent_email import visit_when
 from app.notifications.models import (
@@ -48,7 +51,7 @@ from app.notifications.models import (
     LineParentCampusAccount,
     LineParentLink,
 )
-from app.notifications.service import campus_display_name, campus_line_target, staff_line_message
+from app.notifications.service import campus_display_name, campus_line_target, campus_phone, staff_line_message
 from app.operations import audit_service
 
 logger = logging.getLogger("app.line")
@@ -270,8 +273,8 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
 async def _handle_user_events(
     request: Request, db: AsyncSession, account: LineAccountCredentials, events: list[dict]
 ) -> None:
-    """一對一事件：綁定代碼、「我的預約」、加好友／封鎖。回覆（reply）不計則數，放在 commit 之後送，
-    LINE 慢或失敗都不影響已寫入的綁定。"""
+    """一對一事件：綁定代碼、「我的預約」、加好友／封鎖、卡片按鈕（會準時到、取消預約，2026-11-25，
+    line_parent_actions）。回覆（reply）不計則數，放在 commit 之後送，LINE 慢或失敗都不影響已寫入的資料。"""
     settings = request.app.state.settings
     now = datetime.now(timezone.utc)
     replies: list[tuple[str, str, list[dict]]] = []  # (reply token, userId, messages)
@@ -284,8 +287,22 @@ async def _handle_user_events(
         if kind in ("follow", "unfollow"):
             await line_parent.set_follow_state(db, account.key, user_id, following=kind == "follow", now=now)
             continue
-        text = _event_text(event)
         token = _reply_token(event)
+        if kind == "postback":
+            parsed = line_parent_actions.parse(event)
+            if parsed is None or token is None:
+                continue
+            try:
+                await ratelimit.limiter(request).check(PARENT_MESSAGE_LIMIT, f"{account.key}:{user_id}")
+            except ratelimit.RateLimited:
+                continue
+            # 先 commit 前面事件的寫入（加好友狀態、綁定）：按鈕各自鎖列、各自 commit 或 rollback。
+            await db.commit()
+            message = await line_parent_actions.respond(request, db, account, user_id, *parsed, now)
+            if message is not None:
+                replies.append((token, user_id, [message]))
+            continue
+        text = _event_text(event)
         if text is None:
             continue
         looked_like_code = bool(line_api.parent_code_candidates(text))
@@ -350,11 +367,18 @@ async def _my_visits_messages(
     items = []
     for visit in visits:
         path = await access_service.current_manage_path(db, visit.id, secret=settings.session_secret) if origin else None
+        # 「取消預約」只在線上異動期限內（停課日不受限，同官網家長頁）；過了改寫請來電（2026-11-25）。
+        hours = await change_deadline_hours(db, visit.campus_key)
+        change_open = parent_change_open(visit, hours, day_closed=await day_closed(db, visit))
         items.append({
             "campus_name": f"常春藤{await campus_display_name(db, visit.campus_key)}",
             "when": visit_when(visit.slot.slot_date, visit.slot.start_time),
             "manage_url": f"{origin}{path}" if origin and path else None,
             "note": "請勿把修改連結轉給他人。" if origin and path else None,
+            "cancel_data": line_parent_actions.cancel_data(visit.id) if change_open else None,
+            "deadline_note": (
+                None if change_open else line_parent_actions.deadline_text(await campus_phone(db, visit.campus_key))
+            ),
         })
     return [line_flex.my_visits_carousel(items)]
 
