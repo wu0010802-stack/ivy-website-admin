@@ -1070,6 +1070,35 @@ async def facebook_sync_command(campus_keys: list[str]) -> None:
         raise SystemExit(1)
 
 
+async def google_sync_command() -> None:
+    """立即同步 Google 商家檔案與 Keyword Planner（docs/specs/2026-11-25-business-profile-keyword-planner-design.md §6），
+    不看「今天同步過沒」與失敗後的等待。設定好之後用它確認授權與存取都通；有一項失敗就 exit 1。只印結果與錯誤步驟，
+    不印權杖或 Google 的回應內容。"""
+    from app.workers.google_loop import GoogleSync
+
+    settings = get_settings()
+    if not settings.gbp_enabled and not settings.google_ads_enabled:
+        print("沒有設定 Google 商家檔案（WEBSITE_GBP_*）也沒有設定 Keyword Planner（WEBSITE_GOOGLE_ADS_*）", file=sys.stderr)
+        raise SystemExit(1)
+    result = await GoogleSync().run(await _session_factory(), settings, force=True)
+    failed = False
+    for item in result.business_profile:
+        detail = item.error or f"{item.days} 天的每日指標、{item.keyword_months} 個月的搜尋字詞"
+        print(f"商家檔案 {item.campus_key}：{detail}")
+        failed = failed or item.outcome == "failed"
+    demand = result.search_demand
+    if demand is not None:
+        if demand.outcome == "skipped":
+            print("Keyword Planner：還沒有關鍵字（到後台「招生統計 → 廣告成效 → 搜尋需求」新增）")
+        else:
+            print(f"Keyword Planner：{demand.error if demand.outcome == 'failed' else f'{demand.keywords} 個關鍵字'}")
+            if demand.outcome == "synced" and demand.error:
+                print(f"Keyword Planner 部分地區失敗：{demand.error}")
+        failed = failed or demand.outcome == "failed"
+    if failed:
+        raise SystemExit(1)
+
+
 def main() -> None:
     if len(sys.argv) < 2:
         print(
@@ -1090,7 +1119,7 @@ def main() -> None:
             "enrolled-import --file <JSON>|enrolled-import --clear --campus <key>|"
             "enrollment-history-extract --file <xls> --campus <key> --out <JSON>|"
             "enrollment-history-extract --headers-only --file <xls>|enrollment-history-import --file <JSON>|"
-            "generate-vapid-keys|facebook-sync [<校區> ...]>",
+            "generate-vapid-keys|facebook-sync [<校區> ...]|google-sync>",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -1159,6 +1188,8 @@ def main() -> None:
         asyncio.run(transcode_media_videos(apply="--apply" in args))
     elif command == "facebook-sync":
         asyncio.run(facebook_sync_command(sys.argv[2:]))
+    elif command == "google-sync":
+        asyncio.run(google_sync_command())
     elif command == "geo-sync":
         asyncio.run(geo_sync_command(**geo_sync_options(sys.argv[2:])))
     elif command == "enrolled-match":

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 # 回傳廣告平台的待送表（2026-11-16）只在函式內匯入，這裡先註冊模型（schema 比對、測試清表都靠 Base.metadata）。
 from app.ad_conversions import models as _ad_conversion_models  # noqa: F401
+from app.insights import models as _insights_models  # noqa: F401
 from app.auth.routes import router as auth_router
 from app.auth.password_reset_routes import router as password_reset_router
 from app.common.body_limit import BodySizeLimitMiddleware
@@ -40,6 +41,7 @@ from app.contact_phrases.routes import router as contact_phrases_router
 from app.facebook.routes import router as facebook_router
 from app.insights.crux import CruxHistory
 from app.insights.ga4_ads import Ga4Ads
+from app.insights.google_data_routes import router as google_data_router
 from app.insights.routes import router as insights_router
 from app.insights.search_console import SearchConsole
 from app.integrations.ivy_management.routes import router as ivy_sync_router
@@ -58,6 +60,7 @@ from app.operations import error_reports
 from app.db import create_engine, create_rate_limit_engine, create_session_factory
 from app.workers.facebook_loop import FacebookSyncLoop
 from app.workers.geo_loop import GeoSyncLoop
+from app.workers.google_loop import GoogleSyncLoop
 from app.workers.maintenance import MaintenanceLoop
 from app.workers.media_loop import MediaJobLoop
 
@@ -199,12 +202,22 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, interval_seconds=settings.facebook_sync_seconds
             )
             app.state.facebook_sync.start()
+        # Google 商家檔案與 Keyword Planner（app/workers/google_loop.py）；任一個設定好才跑。
+        if settings.gbp_enabled or settings.google_ads_enabled:
+            app.state.google_sync = GoogleSyncLoop(
+                app.state.session_factory, settings, interval_seconds=settings.google_sync_seconds
+            )
+            app.state.google_sync.start()
         try:
             yield
         finally:
             # 公開資料同步與轉檔迴圈各自最多等 10 秒，並行停，不疊加成 20 秒。先停轉檔迴圈：做到一半
             # 的影片放回佇列，下一個程序馬上接手（不算一次嘗試）；兩者都停了才停 maintenance。
-            stops = [loop.stop() for loop in (app.state.geo_sync, app.state.facebook_sync, app.state.media_jobs) if loop is not None]
+            stops = [
+                loop.stop()
+                for loop in (app.state.geo_sync, app.state.facebook_sync, app.state.google_sync, app.state.media_jobs)
+                if loop is not None
+            ]
             for outcome in await asyncio.gather(*stops, return_exceptions=True):
                 if isinstance(outcome, BaseException):
                     logger.error("背景迴圈停止時出錯", exc_info=outcome)
@@ -229,6 +242,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.media_jobs = None
     app.state.geo_sync = None
     app.state.facebook_sync = None
+    app.state.google_sync = None
     app.state.facebook_transport = None
     # Search Console 與 CrUX（app/insights）：權杖與結果快取各自在這兩個物件裡，測試注入 google_transport。
     app.state.search_console = SearchConsole()
@@ -299,6 +313,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(contact_phrases_router)
     app.include_router(facebook_router)
     app.include_router(insights_router)
+    app.include_router(google_data_router)
     if settings.admissions_enabled:
         # 預設關閉（見 Settings.admissions_enabled）：沒開就不掛路由，招生端點一律 404。
         app.include_router(admissions_router)

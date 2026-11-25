@@ -1,9 +1,12 @@
-"""Google 服務帳戶 access token（Search Console 與 GA4 共用；docs/specs/2026-11-16-ad-roi-design.md §6.1）。
+"""Google access token。
 
-服務帳戶金鑰簽 RS256 JWT，向 oauth2.googleapis.com/token 換 access token；每個物件對應一個 scope，
-token 放程序記憶體、過期前 5 分鐘就換新。
+- ServiceAccountToken：服務帳戶（Search Console 與 GA4 共用；docs/specs/2026-11-16-ad-roi-design.md §6.1）。
+  金鑰簽 RS256 JWT，向 oauth2.googleapis.com/token 換 access token；每個物件對應一個 scope。
+- RefreshTokenAuth：Google 帳號的 OAuth refresh token（商家檔案、Keyword Planner；
+  docs/specs/2026-11-25-business-profile-keyword-planner-design.md §3）。scope 在授權時就定了，這裡只換 access token。
 
-access token、assertion、私鑰都只在記憶體與 Authorization 標頭／POST 本文，不進網址、log、例外、回應。"""
+兩者的 token 都放程序記憶體、過期前 5 分鐘就換新。access token、assertion、私鑰、refresh token、用戶端密鑰
+都只在記憶體與 Authorization 標頭／POST 本文，不進網址、log、例外、回應。"""
 
 from __future__ import annotations
 
@@ -16,7 +19,7 @@ import httpx
 from joserfc import jwt
 from joserfc.jwk import RSAKey
 
-from app.config import GoogleServiceAccount
+from app.config import GoogleServiceAccount, OAuthClient
 from app.insights.http import GoogleApiError, post_json
 
 TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -84,3 +87,42 @@ class ServiceAccountToken:
         if not isinstance(token, str) or not token:
             raise GoogleApiError(STEP_TOKEN, status=status, reason="回應格式不對")
         return token, _number(data.get("expires_in"), 3600.0)
+
+
+STEP_REFRESH = "以 refresh token 取得 Google 權杖"
+
+
+class RefreshTokenAuth:
+    """一把 refresh token 一份。Google 回 400 invalid_grant（被撤銷、過期、OAuth 同意畫面還在「測試」時 7 天到期）
+    只報「HTTP 400」，原因寫在後台說明與 deploy/README.md，不把 Google 的錯誤描述帶出來。"""
+
+    def __init__(self, clock: Callable[[], float] = time.monotonic):
+        self.clock = clock
+        self._token: tuple[str, str, float] | None = None  # (指紋, access token, 換新時間)
+        self._lock = asyncio.Lock()
+
+    async def get(self, client: httpx.AsyncClient, oauth: OAuthClient) -> str:
+        async with self._lock:
+            token = self._token
+            if token and token[0] == oauth.fingerprint and self.clock() < token[2]:
+                return token[1]
+            status, data = await post_json(
+                client, STEP_REFRESH, TOKEN_URL,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": oauth.client_id,
+                    "client_secret": oauth.client_secret,
+                    "refresh_token": oauth.refresh_token,
+                },
+            )
+            if status != 200 or not isinstance(data, dict):
+                raise GoogleApiError(STEP_REFRESH, status=status)
+            value = data.get("access_token")
+            if not isinstance(value, str) or not value:
+                raise GoogleApiError(STEP_REFRESH, status=status, reason="回應格式不對")
+            lifetime = _number(data.get("expires_in"), 3600.0)
+            self._token = (oauth.fingerprint, value, self.clock() + max(0.0, lifetime - TOKEN_REFRESH_MARGIN_SECONDS))
+            return value
+
+    def drop(self) -> None:
+        self._token = None

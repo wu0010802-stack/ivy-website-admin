@@ -8344,6 +8344,27 @@
         "title": "BrowserVisitsOut",
         "type": "object"
       },
+      "BusinessProfileOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "locations": {
+            "items": {
+              "$ref": "#/components/schemas/GbpLocationOut"
+            },
+            "title": "Locations",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configured",
+          "locations"
+        ],
+        "title": "BusinessProfileOut",
+        "type": "object"
+      },
       "CalendarSlotOut": {
         "properties": {
           "booked_count": {
@@ -13894,6 +13915,214 @@
           "tier"
         ],
         "title": "GapBlockOut",
+        "type": "object"
+      },
+      "GbpKeywordOut": {
+        "properties": {
+          "below": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "keyword": {
+            "title": "Keyword",
+            "type": "string"
+          }
+        },
+        "required": [
+          "keyword",
+          "impressions",
+          "below"
+        ],
+        "title": "GbpKeywordOut",
+        "type": "object"
+      },
+      "GbpLocationOut": {
+        "properties": {
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "campus_name": {
+            "title": "Campus Name",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "boolean"
+          },
+          "keyword_total": {
+            "title": "Keyword Total",
+            "type": "integer"
+          },
+          "keywords": {
+            "items": {
+              "$ref": "#/components/schemas/GbpKeywordOut"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "keywords_month": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keywords Month"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Day"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "months": {
+            "items": {
+              "$ref": "#/components/schemas/GbpMonthOut"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campus_key",
+          "campus_name",
+          "last_success_at",
+          "last_attempt_at",
+          "failed",
+          "error",
+          "last_day",
+          "months",
+          "keywords_month",
+          "keywords",
+          "keyword_total"
+        ],
+        "title": "GbpLocationOut",
+        "type": "object"
+      },
+      "GbpMonthOut": {
+        "properties": {
+          "calls": {
+            "title": "Calls",
+            "type": "integer"
+          },
+          "days": {
+            "title": "Days",
+            "type": "integer"
+          },
+          "desktop_maps": {
+            "title": "Desktop Maps",
+            "type": "integer"
+          },
+          "desktop_search": {
+            "title": "Desktop Search",
+            "type": "integer"
+          },
+          "directions": {
+            "title": "Directions",
+            "type": "integer"
+          },
+          "last_day": {
+            "format": "date",
+            "title": "Last Day",
+            "type": "string"
+          },
+          "messages": {
+            "title": "Messages",
+            "type": "integer"
+          },
+          "mobile_maps": {
+            "title": "Mobile Maps",
+            "type": "integer"
+          },
+          "mobile_search": {
+            "title": "Mobile Search",
+            "type": "integer"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "website": {
+            "title": "Website",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "month",
+          "days",
+          "last_day",
+          "desktop_search",
+          "mobile_search",
+          "desktop_maps",
+          "mobile_maps",
+          "calls",
+          "directions",
+          "website",
+          "messages"
+        ],
+        "title": "GbpMonthOut",
         "type": "object"
       },
       "GoogleLinkStart": {
@@ -22656,6 +22885,109 @@
         "title": "ScheduleRequest",
         "type": "object"
       },
+      "SearchDemandGeoOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "label"
+        ],
+        "title": "SearchDemandGeoOut",
+        "type": "object"
+      },
+      "SearchDemandOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "boolean"
+          },
+          "geos": {
+            "items": {
+              "$ref": "#/components/schemas/SearchDemandGeoOut"
+            },
+            "title": "Geos",
+            "type": "array"
+          },
+          "keyword_limit": {
+            "title": "Keyword Limit",
+            "type": "integer"
+          },
+          "keywords": {
+            "items": {
+              "$ref": "#/components/schemas/SearchKeywordOut"
+            },
+            "title": "Keywords",
+            "type": "array"
+          },
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          },
+          "months": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Months",
+            "type": "array"
+          }
+        },
+        "required": [
+          "configured",
+          "geos",
+          "months",
+          "keywords",
+          "keyword_limit",
+          "last_success_at",
+          "last_attempt_at",
+          "failed",
+          "error"
+        ],
+        "title": "SearchDemandOut",
+        "type": "object"
+      },
       "SearchDeviceRowOut": {
         "properties": {
           "clicks": {
@@ -22808,6 +23140,87 @@
           "configured"
         ],
         "title": "SearchInsightsOut",
+        "type": "object"
+      },
+      "SearchKeywordIn": {
+        "properties": {
+          "text": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "SearchKeywordIn",
+        "type": "object"
+      },
+      "SearchKeywordOut": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/SearchKeywordVolumesOut"
+            },
+            "title": "Volumes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "text",
+          "created_at",
+          "synced_at",
+          "volumes"
+        ],
+        "title": "SearchKeywordOut",
+        "type": "object"
+      },
+      "SearchKeywordVolumesOut": {
+        "properties": {
+          "cells": {
+            "items": {
+              "$ref": "#/components/schemas/SearchVolumeCellOut"
+            },
+            "title": "Cells",
+            "type": "array"
+          },
+          "geo": {
+            "title": "Geo",
+            "type": "string"
+          }
+        },
+        "required": [
+          "geo",
+          "cells"
+        ],
+        "title": "SearchKeywordVolumesOut",
         "type": "object"
       },
       "SearchMetricsOut": {
@@ -22985,6 +23398,36 @@
           "position"
         ],
         "title": "SearchQueryRowOut",
+        "type": "object"
+      },
+      "SearchVolumeCellOut": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "month": {
+            "title": "Month",
+            "type": "string"
+          },
+          "searches": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Searches"
+          }
+        },
+        "required": [
+          "month",
+          "available",
+          "searches"
+        ],
+        "title": "SearchVolumeCellOut",
         "type": "object"
       },
       "SeatOut": {
@@ -35816,6 +36259,72 @@
         ]
       }
     },
+    "/api/website/v1/admin/business-profile": {
+      "get": {
+        "description": "Google 商家檔案：各地點按月的曝光、電話、路線、網站點擊、訊息，與最近一個整月的前 25 個搜尋字詞。\n不隨成效統計的期間變動；資料由背景每天同步一次。",
+        "operationId": "get_business_profile_api_website_v1_admin_business_profile_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Business Profile",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
     "/api/website/v1/admin/campuses": {
       "get": {
         "operationId": "list_admin_campuses_api_website_v1_admin_campuses_get",
@@ -42091,6 +42600,217 @@
         "summary": "Retention Run",
         "tags": [
           "operations"
+        ]
+      }
+    },
+    "/api/website/v1/admin/search-demand": {
+      "get": {
+        "description": "搜尋需求：後台維護的關鍵字在高雄市與五校所在區最近 12 個整月的 Google 搜尋量。沒設定 Keyword Planner 時照樣列出\n關鍵字（可以先加好），數字都是空的。",
+        "operationId": "get_search_demand_api_website_v1_admin_search_demand_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchDemandOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Search Demand",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/website/v1/admin/search-demand/keywords": {
+      "post": {
+        "description": "新增一個關鍵字（最多 50 個、不分大小寫不能重複）。下一輪背景同步（一小時內）就會抓它的搜尋量。",
+        "operationId": "create_search_keyword_api_website_v1_admin_search_demand_keywords_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchKeywordIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SearchKeywordOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Search Keyword",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/website/v1/admin/search-demand/keywords/{keyword_id}": {
+      "delete": {
+        "description": "刪掉關鍵字與它存過的搜尋量。",
+        "operationId": "delete_search_keyword_api_website_v1_admin_search_demand_keywords__keyword_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "keyword_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Keyword Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Search Keyword",
+        "tags": [
+          "insights"
         ]
       }
     },

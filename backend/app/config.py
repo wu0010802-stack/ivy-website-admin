@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from dataclasses import dataclass
@@ -51,6 +52,24 @@ class GoogleServiceAccount:
 
     def __repr__(self) -> str:
         return "GoogleServiceAccount(…)"
+
+
+@dataclass(frozen=True, repr=False)
+class OAuthClient:
+    """OAuth 用戶端（ID＋密鑰）與一把 refresh token。repr 不印任何內容。"""
+
+    client_id: str
+    client_secret: str
+    refresh_token: str
+
+    def __repr__(self) -> str:
+        return "OAuthClient(…)"
+
+    @property
+    def fingerprint(self) -> str:
+        """換了任何一個值就換一份快取；只留雜湊，記憶體裡的快取鍵也不放 refresh token 本身。"""
+        raw = f"{self.client_id}\n{self.client_secret}\n{self.refresh_token}".encode()
+        return hashlib.sha256(raw).hexdigest()
 
 
 def parse_google_service_account(raw: str) -> GoogleServiceAccount | None:
@@ -179,6 +198,27 @@ class Settings(BaseSettings):
     ga4_property_id: str | None = None
     # CrUX（Chrome 使用者體驗報告）API 金鑰（§4）：沒設就不查。查的網站是 public_origin（沒設用 admin_origin）。
     crux_api_key: str | None = Field(default=None, repr=False)
+    # Google 商家檔案與 Keyword Planner（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md）：
+    # 兩者都要 Google 帳號的 OAuth 授權（商家檔案的管理員、廣告帳戶的使用者都只能是 Google 帳號），共用一組 OAuth 用戶端
+    # （ID＋密鑰），各自一把 refresh token。用戶端要建在「商家檔案 API 已核准」的那個 Google Cloud 專案。
+    google_api_client_id: str | None = None
+    google_api_client_secret: str | None = Field(default=None, repr=False)
+    # 商家檔案：管理員帳號授權（scope business.manage）的 refresh token ＋「校區=地點ID」逗號分隔（先只有義華）。
+    # 兩個都設才啟用、只設一個拒絕啟動；啟用時 OAuth 用戶端也要設。
+    gbp_refresh_token: str | None = Field(default=None, repr=False)
+    gbp_locations: str | None = None
+    # Keyword Planner：可讀廣告帳戶的 Google 帳號授權（scope adwords）的 refresh token ＋ 廣告帳戶編號，兩個都設才啟用；
+    # 經管理員帳戶存取時再設 login customer id（管理員帳戶編號）。
+    # 存取等級（要 Basic 以上才能用 Keyword Planner）2026-09-09 起綁在 OAuth 用戶端所屬的 Google Cloud 專案，
+    # 開發者權杖 Google 已不看；只有用舊版 API 時才需要設，設了才送。
+    google_ads_refresh_token: str | None = Field(default=None, repr=False)
+    google_ads_customer_id: str | None = None
+    google_ads_login_customer_id: str | None = None
+    google_ads_developer_token: str | None = Field(default=None, repr=False)
+    google_ads_api_version: str = Field(default="v26", pattern=r"^v\d{2,3}$")
+    # 兩者共用的背景迴圈多久醒來一次（秒）；要不要真的向 Google 要資料由同步自己判斷（商家檔案一天一次、
+    # 關鍵字一週一次，新加的關鍵字下一輪就抓）。
+    google_sync_seconds: int = Field(default=3600, ge=600, le=86400)
     # 到場、預繳回傳廣告平台（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §2）：每家都是
     # 「ID＋伺服器端金鑰」兩個都設才啟用、只設一個拒絕啟動；都沒設就不記點擊識別碼、不建待送工作。
     # GA4 Measurement Protocol：評估 ID（G-XXXX）＋ API 密鑰（GA4 管理 → 資料串流 → Measurement Protocol API 密鑰）。
@@ -362,6 +402,8 @@ class Settings(BaseSettings):
         "google_sc_service_account_json", "google_sc_property", "crux_api_key", "ga4_property_id",
         "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
         "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
+        "google_api_client_id", "google_api_client_secret", "gbp_refresh_token", "gbp_locations",
+        "google_ads_developer_token", "google_ads_refresh_token", "google_ads_customer_id", "google_ads_login_customer_id",
     )
     @classmethod
     def _normalize_line_messaging(cls, value: str | None) -> str | None:
@@ -393,6 +435,41 @@ class Settings(BaseSettings):
         if value is not None and re.fullmatch(r"[0-9]{6,12}", value) is None:
             raise ValueError("WEBSITE_GA4_PROPERTY_ID 應為 GA4 資源編號（純數字）")
         return value
+
+    @field_validator("gbp_locations")
+    @classmethod
+    def _parse_gbp_locations(cls, value: str | None) -> str | None:
+        """正規化成「key=id,key=id」：校區要是已知校區，地點 ID 全數字（也收 locations/<ID> 的寫法），同一校不能出現兩次。"""
+        if value is None:
+            return None
+        from app.campuses.models import CAMPUS_KEYS  # 延後匯入，理由同 _parse_ivy_sync_key_hashes
+
+        pairs: dict[str, str] = {}
+        for raw in value.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            match = re.fullmatch(r"([a-z]+)\s*=\s*(?:locations/)?(\d{5,32})", raw)
+            if match is None:
+                raise ValueError("WEBSITE_GBP_LOCATIONS 格式是「校區=地點ID」逗號分隔，例 yihua=12345678901234567890")
+            key, location_id = match.groups()
+            if key not in CAMPUS_KEYS:
+                raise ValueError("WEBSITE_GBP_LOCATIONS 含有不認得的校區代號")
+            if key in pairs:
+                raise ValueError(f"WEBSITE_GBP_LOCATIONS 的 {key} 出現兩次")
+            pairs[key] = location_id
+        return ",".join(f"{k}={v}" for k, v in pairs.items()) or None
+
+    @field_validator("google_ads_customer_id", "google_ads_login_customer_id")
+    @classmethod
+    def _normalize_google_ads_customer(cls, value: str | None) -> str | None:
+        """Google Ads 介面上寫成 582-345-1021；API 要不含連字號的 10 碼。"""
+        if value is None:
+            return None
+        digits = value.replace("-", "").replace(" ", "")
+        if re.fullmatch(r"[0-9]{10}", digits) is None:
+            raise ValueError("Google Ads 帳戶編號應為 10 碼數字（可寫成 123-456-7890）")
+        return digits
 
     @field_validator("ivy_sync_key_hashes", mode="before")
     @classmethod
@@ -558,6 +635,36 @@ class Settings(BaseSettings):
         return parse_google_service_account(self.google_sc_service_account_json)
 
     @property
+    def gbp_enabled(self) -> bool:
+        """商家檔案同步：refresh token、地點、OAuth 用戶端都有（model_validator 保證前兩個有就有第三個）。"""
+        return bool(self.gbp_refresh_token and self.gbp_locations and self.google_api_client_id)
+
+    @property
+    def gbp_oauth(self) -> OAuthClient | None:
+        if not self.gbp_enabled:
+            return None
+        assert self.google_api_client_id and self.google_api_client_secret and self.gbp_refresh_token
+        return OAuthClient(self.google_api_client_id, self.google_api_client_secret, self.gbp_refresh_token)
+
+    @property
+    def google_ads_oauth(self) -> OAuthClient | None:
+        if not self.google_ads_enabled:
+            return None
+        assert self.google_api_client_id and self.google_api_client_secret and self.google_ads_refresh_token
+        return OAuthClient(self.google_api_client_id, self.google_api_client_secret, self.google_ads_refresh_token)
+
+    @property
+    def gbp_location_ids(self) -> dict[str, str]:
+        """校區 → 地點 ID（格式已在 _parse_gbp_locations 驗過）。"""
+        if not self.gbp_locations:
+            return {}
+        return dict(pair.split("=", 1) for pair in self.gbp_locations.split(","))
+
+    @property
+    def google_ads_enabled(self) -> bool:
+        return bool(self.google_ads_refresh_token and self.google_ads_customer_id and self.google_api_client_id)
+
+    @property
     def crux_enabled(self) -> bool:
         return bool(self.crux_api_key)
 
@@ -692,6 +799,28 @@ class Settings(BaseSettings):
         if bool(self.google_sc_service_account_json) != bool(self.google_sc_property):
             raise ValueError(
                 "Search Console 必須同時設定 WEBSITE_GOOGLE_SC_SERVICE_ACCOUNT_JSON 與 WEBSITE_GOOGLE_SC_PROPERTY"
+            )
+        if bool(self.google_api_client_id) != bool(self.google_api_client_secret):
+            raise ValueError(
+                "Google API 的 OAuth 用戶端必須同時設定 WEBSITE_GOOGLE_API_CLIENT_ID 與 WEBSITE_GOOGLE_API_CLIENT_SECRET"
+            )
+        if bool(self.gbp_refresh_token) != bool(self.gbp_locations):
+            raise ValueError("Google 商家檔案必須同時設定 WEBSITE_GBP_REFRESH_TOKEN 與 WEBSITE_GBP_LOCATIONS")
+        if self.gbp_refresh_token and not self.google_api_client_id:
+            raise ValueError(
+                "Google 商家檔案要搭配 OAuth 用戶端：請設定 WEBSITE_GOOGLE_API_CLIENT_ID 與 WEBSITE_GOOGLE_API_CLIENT_SECRET"
+            )
+        ads = (self.google_ads_refresh_token, self.google_ads_customer_id)
+        if any(ads) and not all(ads):
+            raise ValueError("Keyword Planner 必須同時設定 WEBSITE_GOOGLE_ADS_REFRESH_TOKEN 與 WEBSITE_GOOGLE_ADS_CUSTOMER_ID")
+        if all(ads) and not self.google_api_client_id:
+            raise ValueError(
+                "Keyword Planner 要搭配 OAuth 用戶端：請設定 WEBSITE_GOOGLE_API_CLIENT_ID 與 WEBSITE_GOOGLE_API_CLIENT_SECRET"
+            )
+        if (self.google_ads_login_customer_id or self.google_ads_developer_token) and not all(ads):
+            raise ValueError(
+                "WEBSITE_GOOGLE_ADS_LOGIN_CUSTOMER_ID、WEBSITE_GOOGLE_ADS_DEVELOPER_TOKEN 要搭配 "
+                "WEBSITE_GOOGLE_ADS_REFRESH_TOKEN 與 WEBSITE_GOOGLE_ADS_CUSTOMER_ID"
             )
         if self.instagram_enabled and not self.facebook_enabled:
             raise ValueError(
