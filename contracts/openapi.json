@@ -15589,7 +15589,7 @@
         "type": "object"
       },
       "LineAccountOut": {
-        "description": "一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。",
+        "description": "一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，hq＝總部／品牌帳號（2026-11-25），\n其餘是校區鍵（該校自己的帳號）。",
         "properties": {
           "basic_id": {
             "anyOf": [
@@ -15616,6 +15616,11 @@
           "key": {
             "title": "Key",
             "type": "string"
+          },
+          "pnp_available": {
+            "default": false,
+            "title": "Pnp Available",
+            "type": "boolean"
           },
           "quota": {
             "anyOf": [
@@ -16077,6 +16082,11 @@
           "linked_upcoming": {
             "title": "Linked Upcoming",
             "type": "integer"
+          },
+          "pnp_enabled": {
+            "default": false,
+            "title": "Pnp Enabled",
+            "type": "boolean"
           }
         },
         "required": [
@@ -16100,6 +16110,11 @@
               }
             ],
             "title": "Account Key"
+          },
+          "pnp_enabled": {
+            "default": false,
+            "title": "Pnp Enabled",
+            "type": "boolean"
           }
         },
         "required": [
@@ -19811,6 +19826,11 @@
           "line_notify_enabled": {
             "default": false,
             "title": "Line Notify Enabled",
+            "type": "boolean"
+          },
+          "line_pnp_enabled": {
+            "default": false,
+            "title": "Line Pnp Enabled",
             "type": "boolean"
           },
           "line_url": {
@@ -38935,7 +38955,7 @@
     },
     "/api/website/v1/admin/line/parent-accounts/{campus_key}": {
       "put": {
-        "description": "選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；\nmain 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。\n關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。",
+        "description": "選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；\nmain、hq（總部帳號）以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。\n關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。\npnp_enabled（2026-11-25）：沒留 Email、也沒綁 LINE 的家長改用通知型訊息送；選的帳號要 LINE 已開通。",
         "operationId": "update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put",
         "parameters": [
           {

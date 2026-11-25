@@ -328,8 +328,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   no_email: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，要來電` : null),
   with_line: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，用 LINE 通知` : null),
   dropped_links: (v) => (countOf(v) ? `解除 ${countOf(v)} 筆家長的 LINE 綁定（換帳號或關閉後推不到）` : null),
-  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，其餘是校區鍵。
-  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
+  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，hq＝總部官方帳號（2026-11-25），其餘是校區鍵。
+  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : v === 'hq' ? '總部官方帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
+  // LINE 通知型訊息開關（2026-11-25）：只講改完的狀態，改前的不另外列。
+  pnp_before: () => null,
+  pnp_after: (v) => (typeof v === 'boolean' ? `LINE 通知型訊息：${v ? '開啟' : '關閉'}` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
   open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,

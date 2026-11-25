@@ -42,8 +42,12 @@ describe('送出前確認', () => {
   })
 
   it('沒開寄信時，Email 說明不承諾確認信', () => {
-    expect(form).toMatch(/const emailHint = computed\(\(\) => bookingConfig\.value\?\.parent_email_enabled\s*\? '有填的話，確認信與修改連結會寄到這裡。'\s*: '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'\)/)
+    expect(form).toMatch(/const base = bookingConfig\.value\?\.parent_email_enabled\s*\? '有填的話，確認信與修改連結會寄到這裡。'\s*: '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'/)
     expect(form).toContain('<p id="visit-email-hint" class="visit-field-hint">{{ emailHint }}</p>')
+  })
+
+  it('這校開了 LINE 通知型訊息時，送出前就說明沒填 Email 會傳到綁這支手機的 LINE（2026-11-25）', () => {
+    expect(form).toMatch(/return bookingConfig\.value\?\.line_pnp_enabled\s*\? `\$\{base\}沒填的話，預約確認、提醒與修改連結會用 LINE 通知型訊息傳到綁定這支手機號碼的 LINE。`\s*: base/)
   })
 })
 

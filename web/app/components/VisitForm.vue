@@ -379,9 +379,16 @@ const bookingSummary = computed(() => selectedSlot.value
   ? [shortDateLabel(selectedSlot.value.slot_date), slotTime(selectedSlot.value)]
   : [])
 // 線上 parent_email_enabled 為 false 時不會寄信：欄位說明不能承諾確認信。Email 選填（2026-11-13），兩句都以「有填的話」開頭。
-const emailHint = computed(() => bookingConfig.value?.parent_email_enabled
-  ? '有填的話，確認信與修改連結會寄到這裡。'
-  : '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。')
+// 這校開了 LINE 通知型訊息（2026-11-25）：沒填 Email 的家長會用手機號碼在 LINE 收到通知，送出前就要講。
+// 不保證一定收到（家長的 LINE 要綁這支號碼、沒拒收），所以寫「綁定這支號碼的 LINE」。
+const emailHint = computed(() => {
+  const base = bookingConfig.value?.parent_email_enabled
+    ? '有填的話，確認信與修改連結會寄到這裡。'
+    : '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'
+  return bookingConfig.value?.line_pnp_enabled
+    ? `${base}沒填的話，預約確認、提醒與修改連結會用 LINE 通知型訊息傳到綁定這支手機號碼的 LINE。`
+    : base
+})
 // 這位家長會不會收到確認信：有開寄信、而且他有填 Email（選填）。沒填的人不能叫他去信裡找連結。
 const mailedToParent = computed(() => Boolean(bookingConfig.value?.parent_email_enabled && form.email))
 

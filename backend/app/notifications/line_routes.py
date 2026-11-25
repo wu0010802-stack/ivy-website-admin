@@ -35,9 +35,9 @@ from app.booking.models import VisitRequest, VisitRequestStatus, VisitSlot
 from app.common.timezones import slot_start_utc, today_local
 from app.campuses.models import CAMPUS_KEYS, Campus
 from app.common import ratelimit
-from app.config import LINE_CAMPUS_ACCOUNT_KEYS, LINE_MAIN_ACCOUNT, LineAccountCredentials
+from app.config import LINE_MAIN_ACCOUNT, LINE_ONE_TO_ONE_ACCOUNT_KEYS, LINE_SHARED_ACCOUNT_KEYS, LineAccountCredentials
 from app.notifications import line as line_api
-from app.notifications import line_accounts, line_flex, line_group_actions, line_group_commands, line_parent
+from app.notifications import line_accounts, line_flex, line_group_actions, line_group_commands, line_parent, line_pnp
 from app.notifications.line_group_settings import GROUP_KINDS, STAFF_KINDS
 from app.notifications.parent_email import visit_when
 from app.notifications.models import (
@@ -156,6 +156,7 @@ async def line_webhook(request: Request, db: AsyncSession = Depends(get_db_sessi
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     events = await _verified_events(request, account)
+    await _handle_pnp_deliveries(db, events)
     await _handle_group_events(request, db, events)
     await line_group_commands.handle(request, db, events)
     await line_group_actions.handle(request, db, events)
@@ -165,14 +166,31 @@ async def line_webhook(request: Request, db: AsyncSession = Depends(get_db_sessi
 
 @router.post("/line/webhook/{account_key}", include_in_schema=False)
 async def line_campus_webhook(account_key: str, request: Request, db: AsyncSession = Depends(get_db_session)) -> dict:
-    """各校自己官方帳號的 webhook（2026-11-16）：只處理一對一的家長事件（綁定代碼、我的預約、加好友／封鎖）。
-    群組事件不處理：園方群組推播一律用 main 帳號。"""
-    account = request.app.state.settings.line_accounts.get(account_key) if account_key in LINE_CAMPUS_ACCOUNT_KEYS else None
+    """各校自己官方帳號與總部帳號（hq，2026-11-25）的 webhook：只處理一對一的家長事件（綁定代碼、我的預約、
+    加好友／封鎖）與通知型訊息的送達事件。群組事件不處理：園方群組推播一律用 main 帳號。"""
+    settings = request.app.state.settings
+    account = settings.line_accounts.get(account_key) if account_key in LINE_ONE_TO_ONE_ACCOUNT_KEYS else None
     if account is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
     events = await _verified_events(request, account)
+    await _handle_pnp_deliveries(db, events)
     await _handle_user_events(request, db, account, events)
     return {}
+
+
+async def _handle_pnp_deliveries(db: AsyncSession, events: list[dict]) -> None:
+    """通知型訊息送到家長手機：LINE 送 type=delivery，delivery.data 是送出時帶的 X-Line-Delivery-Tag
+    （2026-11-25）。這個事件沒有 source（不知道是誰），只記送達時間。"""
+    now = datetime.now(timezone.utc)
+    matched = False
+    for event in events:
+        if event.get("type") != "delivery":
+            continue
+        delivery = event.get("delivery")
+        if isinstance(delivery, dict) and await line_pnp.mark_delivered(db, delivery.get("data"), now):
+            matched = True
+    if matched:
+        await db.commit()
 
 
 async def _unbind_rejoined_group(db: AsyncSession, target_id: str) -> None:
@@ -405,7 +423,8 @@ class LineQuotaOut(BaseModel):
 
 
 class LineAccountOut(BaseModel):
-    """一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。"""
+    """一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，hq＝總部／品牌帳號（2026-11-25），
+    其餘是校區鍵（該校自己的帳號）。"""
 
     key: str
     webhook_url: str | None
@@ -414,6 +433,8 @@ class LineAccountOut(BaseModel):
     quota: LineQuotaOut | None
     # 查不到額度：LINE 回的 HTTP 狀態碼（401＝金鑰失效）；連不上時為 0。
     quota_error_status: int | None = None
+    # LINE 已開通通知型訊息（列在 WEBSITE_LINE_PNP_ACCOUNTS，2026-11-25）。
+    pnp_available: bool = False
 
 
 class LineParentCampusOut(BaseModel):
@@ -423,6 +444,8 @@ class LineParentCampusOut(BaseModel):
     account_key: str | None
     # 這校目前綁了 LINE 通知、還沒結束的預約數（看有沒有家長在用）。
     linked_upcoming: int
+    # 沒留 Email、也沒綁 LINE 的家長改用通知型訊息送（2026-11-25）。選的帳號沒開通時回 False。
+    pnp_enabled: bool = False
 
 
 class LineSettingsOut(BaseModel):
@@ -436,6 +459,8 @@ class LineSettingsOut(BaseModel):
 
 class LineParentCampusUpdate(BaseModel):
     account_key: str | None
+    # 通知型訊息（2026-11-25）：只有選的帳號已開通（WEBSITE_LINE_PNP_ACCOUNTS）才能打開；沒帶＝關。
+    pnp_enabled: bool = False
 
 
 class LineCampusTargetUpdate(BaseModel):
@@ -470,9 +495,8 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
         row.target_id: row for row in (await db.execute(select(LineGroupSetting))).scalars().all()
     }
     mapping = dict((await db.execute(select(LineCampusTarget.campus_key, LineCampusTarget.target_id))).all())
-    parent_mapping = dict(
-        (await db.execute(select(LineParentCampusAccount.campus_key, LineParentCampusAccount.account_key))).all()
-    )
+    parent_rows = {row.campus_key: row for row in (await db.execute(select(LineParentCampusAccount))).scalars().all()}
+    parent_mapping = {key: row.account_key for key, row in parent_rows.items()}
     configured = settings.line_accounts
     linked = await _linked_upcoming_counts(db)
     # 查 LINE 之前先結束這次的讀取交易，不握著連線等外部 API。
@@ -486,20 +510,26 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
             LineCampusTargetOut(campus_key=c.key, campus_name=c.name, target_id=mapping.get(c.key))
             for c in campuses
         ],
-        accounts=[_account_out(status_) for status_ in statuses],
+        accounts=[_account_out(status_, settings) for status_ in statuses],
         parent_campuses=[
             LineParentCampusOut(
                 campus_key=c.key,
                 campus_name=c.name,
                 account_key=parent_mapping.get(c.key) if parent_mapping.get(c.key) in configured else None,
                 linked_upcoming=linked.get(c.key, 0),
+                pnp_enabled=(
+                    c.key in parent_rows
+                    and parent_rows[c.key].pnp_enabled
+                    and parent_mapping[c.key] in configured
+                    and parent_mapping[c.key] in settings.line_pnp_account_keys
+                ),
             )
             for c in campuses
         ],
     )
 
 
-def _account_out(account: line_accounts.AccountStatus) -> LineAccountOut:
+def _account_out(account: line_accounts.AccountStatus, settings) -> LineAccountOut:
     quota = None
     if account.quota_used is not None:
         quota = LineQuotaOut(limit=account.quota_limit, used=account.quota_used, warning=account.quota_warning)
@@ -510,6 +540,7 @@ def _account_out(account: line_accounts.AccountStatus) -> LineAccountOut:
         basic_id=account.basic_id,
         quota=quota,
         quota_error_status=(account.quota_error_status or 0) if account.quota_error else None,
+        pnp_available=account.key in settings.line_pnp_account_keys,
     )
 
 
@@ -539,21 +570,28 @@ async def update_line_parent_account(
     db: AsyncSession = Depends(get_db_session),
 ) -> LineSettingsOut:
     """選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；
-    main 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
-    關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。"""
+    main、hq（總部帳號）以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
+    關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。
+    pnp_enabled（2026-11-25）：沒留 Email、也沒綁 LINE 的家長改用通知型訊息送；選的帳號要 LINE 已開通。"""
     require_scope(current_user, "notifications.manage")
     await _campus(db, campus_key)
     settings = request.app.state.settings
     if payload.account_key is not None and (
         payload.account_key not in settings.line_accounts
-        or payload.account_key not in (LINE_MAIN_ACCOUNT, campus_key)
+        or payload.account_key not in (*LINE_SHARED_ACCOUNT_KEYS, campus_key)
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={"code": "LINE_ACCOUNT_UNAVAILABLE", "message": "這個官方帳號還沒設定金鑰，或不能用在這個校區"},
         )
+    if payload.pnp_enabled and (payload.account_key is None or payload.account_key not in settings.line_pnp_account_keys):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "LINE_PNP_UNAVAILABLE", "message": "這個官方帳號還沒開通 LINE 通知型訊息"},
+        )
     existing = await db.get(LineParentCampusAccount, campus_key, with_for_update=True)
     before = existing.account_key if existing else None
+    before_pnp = bool(existing and existing.pnp_enabled)
     dropped = 0
     if before != payload.account_key:
         dropped = await line_parent.drop_campus_links(db, campus_key, keep_account=payload.account_key)
@@ -565,12 +603,14 @@ async def update_line_parent_account(
             LineParentCampusAccount(
                 campus_key=campus_key,
                 account_key=payload.account_key,
+                pnp_enabled=payload.pnp_enabled,
                 updated_at=datetime.now(timezone.utc),
                 updated_by=current_user.id,
             )
         )
     else:
         existing.account_key = payload.account_key
+        existing.pnp_enabled = payload.pnp_enabled
         existing.updated_at = datetime.now(timezone.utc)
         existing.updated_by = current_user.id
     await audit_service.log_action(
@@ -580,7 +620,13 @@ async def update_line_parent_account(
         target_type="campus",
         target_id=campus_key,
         campus_key=campus_key,
-        metadata={"before": before, "after": payload.account_key, "dropped_links": dropped},
+        metadata={
+            "before": before,
+            "after": payload.account_key,
+            "dropped_links": dropped,
+            "pnp_before": before_pnp,
+            "pnp_after": payload.pnp_enabled,
+        },
     )
     await db.commit()
     return await _settings_out(request, db)

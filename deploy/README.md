@@ -14,6 +14,24 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-25 LINE 通知型訊息：啟用步驟（`claude/happy-meitner-lkejg1`；**未合併、未部署**，合併部署後預設關閉）
+
+沒留 Email、也沒綁 LINE 的家長，用預約時填的手機號碼在 LINE 收到預約完成、提醒、取消通知（範本型）。研究與規則：`docs/specs/2026-11-25-line-notification-messages-research.md`；申請、開通、真機驗收、回退與之後要繼續做的開發項目：`docs/website-admin/line-pnp-runbook.md`。
+
+- **migration `f2b7c4e9a1d3`**：`line_parent_campus_accounts` 加 `pnp_enabled`（預設 false）、新增 `line_pnp_messages`。只新增，不必先備份。
+- **新變數**（都沒設＝和現在完全一樣）：
+  - `WEBSITE_LINE_HQ_CHANNEL_SECRET`、`WEBSITE_LINE_HQ_ACCESS_TOKEN`：總部／品牌官方帳號的 Messaging API 金鑰，兩個一起設（只設一個拒絕啟動）。
+  - `WEBSITE_LINE_PNP_ACCOUNTS`：LINE **已核准開通**通知型訊息的帳號鍵，逗號分隔（例：`hq`）。列了沒設金鑰的帳號會拒絕啟動。
+
+啟用順序（使用者做）：
+
+1. 向 LINE 申請通知型訊息（tw.linebiz.com「廣告方案洽詢」→ 產品「LINE 通知型訊息」、開發團隊「自行開發」），確認總部帳號能用台灣範本 `reservation_completed_zh`、`reservation_cancellation_zh`、`reservation_reminder_zh`。
+2. 隱私權政策補研究文件附錄 A 的段落並發布。
+3. LINE Developers：總部帳號的 Messaging API channel 取 Channel secret 與長效 access token，在 Railway api 設 `WEBSITE_LINE_HQ_*`；Webhook URL 貼後台 LINE 通知頁列出的 `…/api/website/v1/line/webhook/hq`，打開「Use webhook」（送達事件要靠它）。
+4. LINE 通知開通後，設 `WEBSITE_LINE_PNP_ACCOUNTS=hq`。
+5. 後台 LINE 通知頁「家長 LINE 通知」：先只替一校選「總部官方帳號」並打開「通知型訊息」，用園方自己的手機（不填 Email）預約一筆，看 LINE 收到的樣子；`line_pnp_messages` 那筆要有 `accepted_at`，送到後 `delivered_at` 也要有值（webhook）。沒有 `delivered_at` 超過 24 小時＝沒送到（封鎖、沒同意、號碼沒綁 LINE）。
+6. 看一週送達率再開其他校。
+
 ## 2026-11-20 園務同步端點：啟用步驟（`feature/ivy-management-sync-api-20261120`；合併部署後**預設關閉**）
 
 沒有 migration、不新增表。合併部署後這支端點仍是 404，直到在 api 服務設 `WEBSITE_IVY_SYNC_KEY_HASHES`。規格 `docs/specs/2026-11-20-ivy-management-sync-api.md`。
