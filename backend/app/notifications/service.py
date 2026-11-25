@@ -31,11 +31,17 @@ from app.campuses.models import Campus
 from app.common.timezones import slot_start_utc, today_local
 from app.content import service as content_service
 from app.notifications import line as line_api
-from app.notifications import line_flex, line_parent, reminders, web_push
+from app.notifications import line_flex, line_parent, line_parent_actions, line_pnp, reminders, web_push
 from app.notifications.line_group_settings import STAFF_KINDS, targets_for
 from app.notifications.email_adapter import EmailAdapter, outbox_idempotency_key, send_email
 from app.notifications.parent_email import ParentEmail, build_email_changed_notice, build_parent_email, parent_notice
-from app.notifications.models import LineCampusTarget, LineGroup, NotificationDelivery, NotificationInboxItem
+from app.notifications.models import (
+    LineCampusTarget,
+    LineGroup,
+    LinePnpMessage,
+    NotificationDelivery,
+    NotificationInboxItem,
+)
 
 logger = logging.getLogger("app.notifications")
 
@@ -153,6 +159,26 @@ async def _campus_name(db: AsyncSession, campus_key: str) -> str:
 campus_display_name = _campus_name
 
 
+async def campus_phone(db: AsyncSession, campus_key: str) -> str | None:
+    """已發布的「五校介紹」裡這校的電話；沒有就 None。"""
+    profile = await content_service.published_payload(db, "campus_profile", campus_key) or {}
+    return str(profile.get("phone") or "").strip() or None
+
+
+def campus_map_url(profile: dict) -> str | None:
+    """家長 LINE 卡片「導航到園所」的網址（2026-11-25）：後台填了驗證過的地圖網址就用它，否則用地址組 Google 地圖搜尋
+    （同官網 web/app/utils/site-links.campusMapUrl）；都沒有回 None。"""
+    from urllib.parse import quote
+
+    from app.content.schemas import is_map_url
+
+    map_url = str(profile.get("map_url") or "").strip()
+    if map_url and is_map_url(map_url):
+        return map_url
+    address = str(profile.get("address") or "").strip()
+    return f"https://www.google.com/maps/search/?api=1&query={quote(address, safe='')}" if address else None
+
+
 async def _campus_active(db: AsyncSession, campus_key: str) -> bool:
     """分校是否仍開放公開預約；查不到校區列時維持原行為（當作開放）。"""
     active = (await db.execute(select(Campus.active).where(Campus.key == campus_key))).scalar_one_or_none()
@@ -191,9 +217,11 @@ def staff_line_message(
     slot: VisitSlot | None = None,
     kind: str = "visit_request_created",
     attend_buttons: bool = False,
+    party_size: int | None = None,
+    cancel_reason: str | None = None,
 ) -> dict:
     """園方群組的卡片訊息（2026-11-16 起取代原本的純文字＋網址）：同樣只帶類型、校區、家長稱呼，
-    多了參觀時段；後台連結做成「開啟案件」按鈕。"""
+    多了參觀時段；後台連結做成「開啟案件」按鈕。2026-11-25 起多帶參觀人數與取消方。"""
     return line_flex.staff_card(
         label,
         campus_name,
@@ -203,6 +231,8 @@ def staff_line_message(
         url=admin_visit_url(admin_origin, receipt_id, external_browser=True),
         kind=kind,
         attend_buttons=attend_buttons,
+        party_size=party_size,
+        cancel_reason=cancel_reason,
     )
 
 
@@ -325,6 +355,7 @@ async def _dispatch_parent_email(
     line_clients: line_parent.LineClients | None = None,
 ) -> bool:
     """家長通知：有 Email 就寄信，綁了 LINE 通知（2026-11-16）就推到家長的 LINE，兩個都有就兩個都送。
+    沒留 Email、也沒綁 LINE 的家長，這校開了通知型訊息就用電話號碼送（2026-11-25，line_pnp）。
     回傳 False 代表不適用（沒有任何管道能送、太舊、已匿名化、預約成功／變更信寄出前案件已不是預約成立、
     參觀提醒寄出前場次已換、那天停課或案件已標記排除），runner 會標成 skipped、不重試。"""
     if adapter is None and line_clients is None:
@@ -342,7 +373,14 @@ async def _dispatch_parent_email(
         return False
     email_ok = adapter is not None and bool(visit_request.email)
     line_link = await _parent_line_link(db, visit_request, line_clients)
-    if not email_ok and line_link is None:
+    # 通知型訊息只給沒留 Email、也沒綁 LINE 的家長（有 Email 的只收信，使用者 2026-11-25 決定）。
+    pnp_account: str | None = None
+    pnp_phone_hash: str | None = None
+    if not visit_request.email and line_link is None and line_clients is not None:
+        pnp_phone_hash = line_api.pnp_phone_hash(visit_request.phone)
+        if pnp_phone_hash is not None:
+            pnp_account = await line_pnp.campus_account(db, line_clients.settings, visit_request.campus_key)
+    if not email_ok and line_link is None and pnp_account is None:
         return False
     # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
     # 家長只該收到「已取消」。
@@ -375,7 +413,8 @@ async def _dispatch_parent_email(
     recipient_key = f"parent:{visit_request.id}"
     email_pending = email_ok and not await _already_delivered(db, outbox_message_id, "email", recipient_key)
     line_pending = line_link is not None and not await _already_delivered(db, outbox_message_id, "line", recipient_key)
-    if not email_pending and not line_pending:
+    pnp_pending = pnp_account is not None and not await line_pnp.already_attempted(db, outbox_message_id)
+    if not email_pending and not line_pending and not pnp_pending:
         return True
     # 改期與重新預約連結指向官網（2026-11-12 起後台可能在獨立子網域，見 Settings.parent_origin）。
     origin = public_origin.rstrip("/") if public_origin else None
@@ -402,6 +441,7 @@ async def _dispatch_parent_email(
         party_size=visit_request.party_size,
         campus_address=str(profile.get("address") or "").strip() or None,
         campus_phone=str(profile.get("phone") or "").strip() or None,
+        campus_map_url=campus_map_url(profile),
         manage_url=manage_url,
         change_deadline=change_deadline,
         change_window_passed=not change_open,
@@ -412,6 +452,13 @@ async def _dispatch_parent_email(
         day_word=_day_word(slot.slot_date) if kind == PARENT_VISIT_REMINDER and slot else None,
     )
     recipient = _header_safe(visit_request.email) if email_pending else None
+    pnp_template = line_pnp.template_for(mail) if pnp_pending else None
+    if pnp_pending and pnp_template is None:
+        # 停課內容沒有合適範本：通知型訊息不送。這則通知沒有別的管道時就是不適用（skipped）。
+        pnp_pending = False
+        if not email_pending and not line_pending:
+            return False
+    visit_request_id = visit_request.id
     # 內容組好了：放掉共享鎖再送，不握著案件列鎖等 SMTP 或 LINE。
     await db.commit()
     # 兩個管道互不阻擋（2026-11-16 審查）：一個失敗也先把另一個送完，最後再丟出第一個錯誤讓整筆重試；
@@ -437,9 +484,15 @@ async def _dispatch_parent_email(
         client = line_clients.get(line_link.account_key)
         assert client is not None  # _parent_line_link 已確認帳號有設
         try:
+            # 參觀提醒（不是停課內容時）多一顆「會準時到」（2026-11-25）。
+            attend = (
+                line_parent_actions.attendance_data(visit_request.id)
+                if kind == PARENT_VISIT_REMINDER and not closed
+                else None
+            )
             await client.push(
                 line_link.line_user_id,
-                [line_flex.parent_card(parent_notice(mail))],
+                [line_flex.parent_card(parent_notice(mail), attendance_data=attend)],
                 key=line_api.retry_key(outbox_message_id, line_link.line_user_id),
             )
         except (line_api.LinePushError, httpx.HTTPError) as exc:
@@ -449,9 +502,77 @@ async def _dispatch_parent_email(
         else:
             _record_delivery(db, outbox_message_id, "line", recipient_key)
             await db.commit()
+    if pnp_pending and pnp_account is not None and pnp_template is not None and pnp_phone_hash is not None:
+        assert line_clients is not None
+        try:
+            await _send_pnp(
+                db,
+                line_clients,
+                account_key=pnp_account,
+                outbox_message_id=outbox_message_id,
+                visit_request_id=visit_request_id,
+                phone_hash=pnp_phone_hash,
+                template_key=pnp_template,
+                body=line_pnp.template_body(mail),
+            )
+        except line_api.PnpNotSent as exc:
+            logger.warning("家長 LINE 通知型訊息沒送出，稍後重試：outbox=%s error=%s", outbox_message_id, exc)
+            failure = failure or exc
     if failure is not None:
         raise failure
     return True
+
+
+async def _send_pnp(
+    db: AsyncSession,
+    line_clients: line_parent.LineClients,
+    *,
+    account_key: str,
+    outbox_message_id: uuid.UUID,
+    visit_request_id: uuid.UUID,
+    phone_hash: str,
+    template_key: str,
+    body: dict,
+) -> None:
+    """送一則通知型訊息。通知型訊息不支援 X-Line-Retry-Key，所以先寫 line_pnp_messages 並 commit 再呼叫 LINE：
+    確定沒送出（PnpNotSent）才刪掉這列、丟出讓整筆重試；LINE 回 422（PnpRejected）記 rejected_at、不重試；
+    送出後才逾時（PnpUncertain）留著這列、不重試（重送可能讓家長收到兩則、也付兩次錢）。"""
+    client = line_clients.get(account_key)
+    assert client is not None  # line_pnp.campus_account 已確認帳號有設
+    row_id = uuid.uuid4()
+    db.add(
+        LinePnpMessage(
+            id=row_id,
+            outbox_message_id=outbox_message_id,
+            visit_request_id=visit_request_id,
+            account_key=account_key,
+            template_key=template_key,
+            attempted_at=datetime.now(timezone.utc),
+        )
+    )
+    await db.commit()
+    row = LinePnpMessage.__table__
+    try:
+        await client.pnp_templated_push(
+            phone_hash, template_key, body, delivery_tag=line_api.pnp_delivery_tag(outbox_message_id)
+        )
+    except line_api.PnpNotSent:
+        await db.execute(row.delete().where(row.c.id == row_id))
+        await db.commit()
+        raise
+    except line_api.PnpRejected:
+        # 這支電話沒有 LINE、拒收或不是台日泰門號：不重試，園方從案件頁看得到要改打電話。
+        await db.execute(row.update().where(row.c.id == row_id).values(rejected_at=datetime.now(timezone.utc)))
+        await db.commit()
+        logger.info("家長 LINE 通知型訊息：這支電話收不到（422）outbox=%s", outbox_message_id)
+        return
+    except line_api.PnpUncertain as exc:
+        logger.warning("家長 LINE 通知型訊息送出後逾時，不重送：outbox=%s error=%s", outbox_message_id, exc)
+        return
+    await db.execute(row.update().where(row.c.id == row_id).values(accepted_at=datetime.now(timezone.utc)))
+    # 記成 line 管道（收件人 pnp:<案件>），寄送紀錄頁會顯示已推 LINE。
+    _record_delivery(db, outbox_message_id, "line", f"pnp:{visit_request_id}")
+    await db.commit()
 
 
 async def _parent_line_link(
@@ -657,6 +778,8 @@ async def _dispatch_line_groups(
                     and visit_request.slot is not None
                     and kind != "visit_request_cancelled"
                 ),
+                party_size=visit_request.party_size if visit_request is not None else None,
+                cancel_reason=visit_request.cancel_reason if visit_request is not None else None,
             )
             same_day = kind in MENTION_ALL_KINDS and slot is not None and slot.slot_date == today_local()
         messages = [card]

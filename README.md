@@ -10,6 +10,34 @@
 - **驗證**：後端全套 5,966 passed（本機 PostgreSQL 16，26 分鐘）；新增 60 條（設定 15、商家檔案 22、搜尋需求 23）；migration 升、降、再升各一次。admin typecheck 過、`googleData.test.ts` 21 條＋`adsTab`、`labelCoverage` 通過，admin 全套 vitest 205 檔 3,841 條通過、1 條略過；`contract:check` 過；web typecheck 過（只有既有的 `MediaImage` 重複匯入提示）。假 API 在 1440／390 截圖兩塊：橫向溢出 0、頁面錯誤 0（途中修掉一個：搜尋需求表頭的 `.visually-hidden` 跑出捲動框，把手機頁面撐到 919px）。
 - **沒驗**：真的 Google（沒有核准的專案與 refresh token）、OAuth Playground 實際畫面、商家檔案資料保留多久與晚幾天、Keyword Planner 收不收區層級的地區（三民、左營失敗時只會在畫面註明，高雄市照常）、stack e2e、`backend/.test_durations` 沒重產。
 
+## 2026-11-25 家長通知改用 LINE 通知型訊息（用手機號碼送；PR #135 合併進 main，預設關閉）
+
+使用者要用已認證的總部官方帳號，透過 LINE「通知型訊息」用電話號碼把預約通知送到家長的 LINE。研究、查證過的 LINE 規則與使用者的決定：`docs/specs/2026-11-25-line-notification-messages-research.md`。
+
+- **誰會收到**：沒留 Email、也沒綁 LINE 通知的家長（有 Email 的只收信，使用者決定）。綁了 LINE 的照舊推卡片。
+- **範本**：預約成功與變更用 `reservation_completed_zh`、取消用 `reservation_cancellation_zh`、提醒用 `reservation_reminder_zh`；停課沒有合適範本，不送。「查看詳情」按鈕放修改連結（使用者決定；過了線上修改期限不放），取消改連重新預約頁。不放家長姓名、孩子資料。
+- **帳號**：新增總部帳號鍵 `hq`（`WEBSITE_LINE_HQ_*`，每校都能選，webhook `/line/webhook/hq`）；`WEBSITE_LINE_PNP_ACCOUNTS` 列 LINE 已開通的帳號；後台 LINE 通知頁每校多一個「通知型訊息」開關（選的帳號已開通才能開）。
+- **不重複送**：通知型訊息 API 不支援 `X-Line-Retry-Key`，所以先寫 `line_pnp_messages` 再呼叫 LINE。連不上或 LINE 回 4xx／5xx（422 除外）才刪掉重試；422（這支電話收不到）記 `rejected_at` 不重試；送出後逾時不重送。送達靠 webhook 的 `delivery` 事件（`X-Line-Delivery-Tag`＝outbox 訊息 id）記 `delivered_at`。
+- **官網**：這校開了通知型訊息時，預約表單 Email 欄說明多一句「沒填的話…會用 LINE 通知型訊息傳到綁定這支手機號碼的 LINE」。
+- **migration `f2b7c4e9a1d3`** 只新增欄位與表。契約與狀態機文件已重產（只改了「給家長的信」那條轉移的條件文字）。
+- **驗證**（Node 22，獨立測試庫 `ivy_website_test_pnp`）：後端新測試 `tests/test_line_pnp.py` 21 項通過；後端全套其餘 5906 passed；migration 在另一個空庫 upgrade → downgrade → upgrade 都成功。admin typecheck 通過、vitest 204 檔 3824 項全過（`--maxWorkers=2`）；web typecheck 通過、vitest 168 檔 2572 項全過（第一次跑有 1 項失敗，連續重跑 3 次都沒再出現，看起來是不穩定的既有測試）；`contract:check` 一致。後台 LINE 通知頁在 1440×900 與 390×844 用 Playwright（API 用假資料）截圖確認，沒有橫向捲動。
+- **之後要做的**整理在 `docs/website-admin/line-pnp-runbook.md`（申請問題清單、開通步驟、真機驗收、回退、剩下的開發項目）。
+- **沒做**：後台案件頁還看不到單筆的送達狀態（寄送紀錄頁在 LINE 收下時顯示已推 LINE）；每日送達則數 API 沒接。**全部只用模擬回應測過，沒有真的呼叫過 LINE**，要開通後用真機驗證。
+
+## 2026-11-25 LINE 通知再加七項：待標記、指定日期、卡片人數與取消方、下次聯絡按鈕、導航、會準時到、從「我的預約」取消（`claude/keen-cray-rh7a1w`，未部署）
+
+使用者看完「LINE 通知還能加什麼」的 11 項盤點後挑了 1–4、8、9、11。規格 `docs/specs/2026-11-25-line-more-features-design.md`。除了「取消通知」照舊用掉 1 則，新的互動全是回覆（reply），不計每月則數。
+
+- **群組「待標記」**：參觀時間已開始、還沒標記到場或未到場的預約（同後台總覽「待標記到場」的條件），新的在前，每筆有已到場／未到場按鈕。@官方帳號選單多「待標記」「下週參觀」。
+- **群組指定日期**：「11/28 參觀」（全形也認）、「下週參觀」；@官方帳號時「11/28」「下週」也行。月／日取離今天最近的那一天（12 月查 1/5 是明年）；過去的日子不列名單，改請用「待標記」或後台。
+- **群組卡片**：推播卡片、名單、摘要多一列「參觀人數」；取消卡片多「取消方」（家長取消／園方取消）。altText 不變。
+- **到場結果卡「下次聯絡」**：明天／3 天後／1 週後的台北 10:00（同後台快捷鍵），寫進招生訪視（`follow_up.update_follow_up`，負責人不動）；稽核沿用 `line.group.recruitment_field`（`field=follow_up_at`、值是天數）。
+- **家長卡片「導航到園所」**：預約成功、已變更、參觀提醒三種；後台「五校介紹」填了地圖網址就用它，否則用地址組 Google 地圖搜尋。Email 不變。
+- **參觀提醒「會準時到」**：家長按了記下時間與當時的場次（migration `f2b7c4e9a813`：`visit_requests` 加兩個可為 NULL 的欄位），改期後自動不算。後台案件明細多「家長回覆」一列、歷程多「家長回覆會準時到」（來源「家長（LINE）」），群組名單每筆標出來。
+- **「我的預約」直接取消**：線上異動期限內每張卡多「取消預約」，按了先回確認卡，「確定取消」帶 5 分鐘的無狀態 token；規則同官網家長頁（鎖列重讀、已確認、期限內，停課日不受限），走同一個 `workflow_service.cancel`，取消方算「家長」。期限過了卡片改寫「請來電」。稽核 `line.parent.cancel`。
+- **歷程來源新增 `line_parent`**（後台「家長（LINE）」）：`analytics_service.cancel_reason` 把它算成家長取消。
+- **驗證**：後端全套 5,930 passed（含新測試 26 項）；admin 全套 3,823 passed／1 skipped、typecheck 過；`npm run contract:check` 過；migration `f2b7c4e9a813` 降一版再升回 head 各一次。沒驗：真的 LINE 上按鈕的樣子、一對一聊天的 `displayText`、手機 LINE 開導航。
+
 ## 2026-11-20 園務同步端點：園務系統定期拉官網招生資料（`feature/ivy-management-sync-api-20261120`；合併部署後預設關閉，設了金鑰雜湊才啟用）
 
 使用者 2026-11-20 裁定：過渡期就要讓園務持續拿到官網的招生資料，**取代**招生規格（`docs/specs/2026-09-30-website-admissions-design.md` §3.2）「過渡期不與園務串接或同步」那一句。官網仍用獨立資料庫、不連園務資料庫；是園務（另一套 FastAPI）定期來拉官網的唯讀 HTTP 端點。規格：`docs/specs/2026-11-20-ivy-management-sync-api.md`。

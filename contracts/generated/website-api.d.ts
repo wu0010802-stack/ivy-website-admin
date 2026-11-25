@@ -2125,8 +2125,9 @@ export interface paths {
         /**
          * Update Line Parent Account
          * @description 選這校的家長 LINE 通知用哪個官方帳號（None＝關閉）。只能選設好金鑰的帳號；
-         *     main 以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
+         *     main、hq（總部帳號）以外只能選這校自己的帳號（別校的帳號不能拿來發這校的通知）。
          *     關閉或換帳號時，已綁定的家長之後不再收到 LINE（綁在舊帳號上的 userId 換了帳號也推不到）。
+         *     pnp_enabled（2026-11-25）：沒留 Email、也沒綁 LINE 的家長改用通知型訊息送；選的帳號要 LINE 已開通。
          */
         put: operations["update_line_parent_account_api_website_v1_admin_line_parent_accounts__campus_key__put"];
         post?: never;
@@ -4677,6 +4678,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */
@@ -9481,7 +9484,8 @@ export interface components {
         };
         /**
          * LineAccountOut
-         * @description 一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，其餘是校區鍵（該校自己的帳號）。
+         * @description 一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，hq＝總部／品牌帳號（2026-11-25），
+         *     其餘是校區鍵（該校自己的帳號）。
          */
         LineAccountOut: {
             /** Basic Id */
@@ -9490,6 +9494,11 @@ export interface components {
             display_name: string | null;
             /** Key */
             key: string;
+            /**
+             * Pnp Available
+             * @default false
+             */
+            pnp_available: boolean;
             quota: components["schemas"]["LineQuotaOut"] | null;
             /** Quota Error Status */
             quota_error_status?: number | null;
@@ -9650,11 +9659,21 @@ export interface components {
             campus_name: string;
             /** Linked Upcoming */
             linked_upcoming: number;
+            /**
+             * Pnp Enabled
+             * @default false
+             */
+            pnp_enabled: boolean;
         };
         /** LineParentCampusUpdate */
         LineParentCampusUpdate: {
             /** Account Key */
             account_key: string | null;
+            /**
+             * Pnp Enabled
+             * @default false
+             */
+            pnp_enabled: boolean;
         };
         /** LineQuotaOut */
         LineQuotaOut: {
@@ -10940,6 +10959,11 @@ export interface components {
              * @default false
              */
             line_notify_enabled: boolean;
+            /**
+             * Line Pnp Enabled
+             * @default false
+             */
+            line_pnp_enabled: boolean;
             /** Line Url */
             line_url: string | null;
             /** Message */
@@ -12938,6 +12962,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -13064,6 +13090,8 @@ export interface components {
             last_touch_on?: string | null;
             /** Last Touch Source */
             last_touch_source?: string | null;
+            /** Parent Attendance Confirmed At */
+            parent_attendance_confirmed_at?: string | null;
             /** Parent Change Deadline Hours */
             parent_change_deadline_hours: number;
             /** Parent Name */

@@ -116,7 +116,8 @@ describe('中文標籤涵蓋後端所有代碼', () => {
     const bookingModels = source('booking/models.py')
     const block = bookingModels.slice(bookingModels.indexOf('class VisitEventSource'), bookingModels.indexOf('class VisitRequestEvent'))
     const sources = [...block.matchAll(/^\s+[A-Z_]+ = "([a-z_]+)"/gm)].map((m) => m[1]!)
-    expect(sources).toEqual(['staff', 'parent', 'system', 'line_group'])
+    // 2026-11-25 新增 line_parent（家長在 LINE 按會準時到、取消預約）。
+    expect(sources).toEqual(['staff', 'parent', 'system', 'line_group', 'line_parent'])
     expect(sources.filter((value) => !VISIT_EVENT_SOURCE_LABELS[value])).toEqual([])
   })
 

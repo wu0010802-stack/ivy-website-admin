@@ -7,7 +7,7 @@
 只新增資料表，不改既有資料，不需要事先備份正式庫。
 
 Revision ID: c4e7b2a91f63
-Revises: a6c3e9f2d417
+Revises: f2b7c4e9a1d3
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "c4e7b2a91f63"
-down_revision = "a6c3e9f2d417"
+down_revision = "f2b7c4e9a1d3"
 branch_labels = None
 depends_on = None
 

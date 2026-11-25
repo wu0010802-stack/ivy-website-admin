@@ -60,6 +60,53 @@ class LinePushError(Exception):
     """推播失敗。訊息只帶狀態碼，不帶回應內容（可能含群組資訊）。"""
 
 
+# --- 通知型訊息（用電話號碼送，2026-11-25，docs/specs/2026-11-25-line-notification-messages-research.md） ---
+# 範本型的送出端點；沒開通的帳號 LINE 回 403。
+PNP_TEMPLATED_PUSH_PATH = "/v2/bot/message/pnp/templated/push"
+# 官網表單只收台灣手機（booking.schemas.normalize_phone）：09 開頭 10 碼。
+_TW_MOBILE_RE = re.compile(r"^09[0-9]{8}$")
+
+
+class PnpNotSent(LinePushError):
+    """確定沒送出去（連不上、LINE 回 4xx／5xx 但不是 422）：可以整筆重試。"""
+
+
+class PnpRejected(LinePushError):
+    """LINE 回 422：這支電話沒有 LINE、家長拒收通知型訊息、不是台日泰門號，或沒同意 LINE 的隱私權政策。
+    重試也一樣，不重試。"""
+
+
+class PnpUncertain(LinePushError):
+    """送出後才逾時或斷線：LINE 可能已經收下。通知型訊息不支援 X-Line-Retry-Key，重送可能讓家長收到兩則、
+    也付兩次錢，所以不重試。"""
+
+
+def tw_mobile_e164(phone: str | None) -> str | None:
+    """台灣手機 0912345678 → +886912345678（E.164）；不是台灣手機格式回 None。"""
+    if not phone or not _TW_MOBILE_RE.fullmatch(phone):
+        return None
+    return f"+886{phone[1:]}"
+
+
+def pnp_phone_hash(phone: str | None) -> str | None:
+    """通知型訊息的收件人：E.164 電話的 SHA-256 小寫十六進位（LINE 文件的 Python 範例同算法）。
+    只在送出當下算、不存。"""
+    e164 = tw_mobile_e164(phone)
+    return hashlib.sha256(e164.encode("ascii")).hexdigest() if e164 else None
+
+
+def pnp_delivery_tag(outbox_message_id: uuid.UUID) -> str:
+    """X-Line-Delivery-Tag（16–100 字元）：送達時 LINE 在 webhook 的 delivery.data 原樣送回。
+    用 outbox 訊息 id 的 32 位十六進位，對得回是哪一則通知、也不含個資。"""
+    return outbox_message_id.hex
+
+
+def parse_pnp_delivery_tag(value: object) -> uuid.UUID | None:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{32}", value):
+        return None
+    return uuid.UUID(hex=value)
+
+
 def verify_signature(channel_secret: str, body: bytes, signature: str | None) -> bool:
     """X-Line-Signature＝base64(HMAC-SHA256(channel secret, 原始本文))。"""
     # base64 只會有 ASCII；header 經 latin-1 解碼可能帶 0x80 以上的字元，
@@ -187,6 +234,30 @@ class LineMessagingClient:
             return
         if response.status_code >= 400:
             raise LinePushError(f"LINE_HTTP_{response.status_code}")
+
+    async def pnp_templated_push(
+        self, phone_hash: str, template_key: str, body: dict, *, delivery_tag: str
+    ) -> None:
+        """通知型訊息（範本型）：用電話號碼的雜湊送，對方不必是好友。成功是 202（也接受 200），
+        但不代表送到——真的送到時 webhook 會收到 delivery 事件。
+
+        錯誤分三種（見 PnpNotSent／PnpRejected／PnpUncertain）。連線還沒建立就失敗的算確定沒送出；
+        請求送出後才逾時或斷線的算不知道。"""
+        try:
+            response = await self._http.post(
+                PNP_TEMPLATED_PUSH_PATH,
+                json={"to": phone_hash, "templateKey": template_key, "body": body},
+                headers={"X-Line-Delivery-Tag": delivery_tag},
+            )
+        except (httpx.ConnectError, httpx.ConnectTimeout, httpx.PoolTimeout) as exc:
+            raise PnpNotSent("LINE_UNREACHABLE") from exc
+        except httpx.HTTPError as exc:
+            raise PnpUncertain(f"LINE_{type(exc).__name__}") from exc
+        if response.status_code in (200, 202):
+            return
+        if response.status_code == 422:
+            raise PnpRejected("LINE_HTTP_422")
+        raise PnpNotSent(f"LINE_HTTP_{response.status_code}")
 
     async def reply(self, reply_token: str, messages: list[dict]) -> None:
         """回覆使用者剛傳來的訊息（不計每月則數）。reply token 只能用一次、要在收到後很快用掉。"""

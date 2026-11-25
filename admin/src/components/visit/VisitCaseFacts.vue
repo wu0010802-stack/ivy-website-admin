@@ -37,6 +37,10 @@ const facts = computed<Fact[]>(() => {
   if (d.questions) rows.push({ label: '想了解的事', text: d.questions, pre: true })
   if (d.consent_given) rows.push({ label: '同意紀錄', text: consentRecordLabel(d) })
   if (vc.confirmedAtShown) rows.push({ label: '確認時間', text: formatDateTime(d.confirmed_at) })
+  // 2026-11-25：家長在 LINE 參觀提醒按了「會準時到」（改期後不算，後端只在場次對得上時回）。
+  if (d.status === 'confirmed' && d.parent_attendance_confirmed_at) {
+    rows.push({ label: '家長回覆', text: `會準時到（${formatDateTime(d.parent_attendance_confirmed_at)}，LINE）` })
+  }
   if (d.cancelled_at) rows.push({ label: '取消時間', text: formatDateTime(d.cancelled_at) })
   return rows
 })

@@ -17,6 +17,8 @@ export interface BookingConfig {
   parent_email_enabled?: boolean
   /** 這校有開家長 LINE 通知（2026-11-16）：結果頁顯示「用 LINE 接收通知」 */
   line_notify_enabled?: boolean
+  /** 這校開了 LINE 通知型訊息（2026-11-25）：沒留 Email 的家長會用手機號碼在 LINE 收到通知，Email 欄位說明要講 */
+  line_pnp_enabled?: boolean
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'

@@ -34,6 +34,11 @@ class Actor:
         """園方 LINE 群組的按鈕（2026-11-17 設計 §5）：對不到後台帳號，user_id 為空。"""
         return cls(VisitEventSource.LINE_GROUP.value, None)
 
+    @classmethod
+    def line_parent(cls) -> "Actor":
+        """家長在 LINE 一對一按按鈕（2026-11-25：會準時到、從「我的預約」取消）。"""
+        return cls(VisitEventSource.LINE_PARENT.value, None)
+
 
 PARENT = Actor(VisitEventSource.PARENT.value)
 SYSTEM = Actor(VisitEventSource.SYSTEM.value)

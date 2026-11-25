@@ -214,6 +214,8 @@ const LINE_RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   no_deposit_reason: '未預繳原因',
   source_category: '來源分類',
   rides_bus: '搭交通車',
+  // 2026-11-25：結果卡的下次聯絡按鈕，值是天數（明天＝1、3 天後、1 週後＝7），時間是台北 10:00。
+  follow_up_at: '下次聯絡',
 }
 // 來源分類（2026-10-06 裁定收斂六項）：LINE 群組的分類卡同後台表單只列這六項短標籤（後端 constants.LINE_SOURCE_CHOICES），
 // 稽核記代碼。列成表也讓「家長介紹」這類字在操作紀錄搜得到代碼。
@@ -225,6 +227,7 @@ function lineRecruitmentValue(field: string, value: unknown): string {
   if (field === 'rides_bus') return value ? '搭' : '不搭'
   if (field === 'no_deposit_reason') return typeof value === 'number' ? (NO_DEPOSIT_REASONS[value] ?? `第 ${value + 1} 項`) : String(value)
   if (field === 'source_category') return SOURCE_CATEGORY_AUDIT_LABELS[String(value)] ?? String(value)
+  if (field === 'follow_up_at') return value === 1 ? '明天 10:00' : value === 7 ? '1 週後 10:00' : `${String(value)} 天後 10:00`
   return String(value)
 }
 
@@ -328,8 +331,11 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   no_email: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，要來電` : null),
   with_line: (v) => (countOf(v) ? `${countOf(v)} 位家長沒有 Email，用 LINE 通知` : null),
   dropped_links: (v) => (countOf(v) ? `解除 ${countOf(v)} 筆家長的 LINE 綁定（換帳號或關閉後推不到）` : null),
-  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，其餘是校區鍵。
-  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
+  // 家長 LINE 通知用的官方帳號（2026-11-16）：main＝園方群組推播帳號，hq＝總部官方帳號（2026-11-25），其餘是校區鍵。
+  account_key: (v) => (typeof v === 'string' ? `官方帳號：${v === 'main' ? '園方群組推播帳號' : v === 'hq' ? '總部官方帳號' : `${CAMPUS_LABELS[v] ?? v}的官方帳號`}` : null),
+  // LINE 通知型訊息開關（2026-11-25）：只講改完的狀態，改前的不另外列。
+  pnp_before: () => null,
+  pnp_after: (v) => (typeof v === 'boolean' ? `LINE 通知型訊息：${v ? '開啟' : '關閉'}` : null),
   skipped_exception_days: (v) => (countOf(v) ? `略過 ${countOf(v)} 個休假日` : null),
   // 分校
   open_requests: (v) => `尚未結案的案件 ${countOf(v)} 筆`,

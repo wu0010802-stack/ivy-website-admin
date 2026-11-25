@@ -12,6 +12,9 @@ type LineTarget = LineSettingsOut['targets'][number]
 type ParentCampus = NonNullable<LineSettingsOut['parent_campuses']>[number]
 
 const MAIN_ACCOUNT = 'main'
+// 總部／品牌帳號（2026-11-25）：和 main 一樣每校都能選。
+const HQ_ACCOUNT = 'hq'
+const SHARED_ACCOUNTS = [MAIN_ACCOUNT, HQ_ACCOUNT]
 
 const data = ref<LineSettingsOut | null>(null)
 // loading＝第一次載入（顯示骨架）；refreshing＝已經有內容時重新整理，內容留在
@@ -199,11 +202,14 @@ async function copyWebhook(url = data.value?.webhook_url) {
 const accounts = computed(() => data.value?.accounts ?? [])
 const parentCampuses = computed(() => data.value?.parent_campuses ?? [])
 const campusNames = computed(() => Object.fromEntries((data.value?.targets ?? []).map(target => [target.campus_key, target.campus_name])))
-const campusAccounts = computed(() => accounts.value.filter(account => account.key !== MAIN_ACCOUNT))
+const campusAccounts = computed(() => accounts.value.filter(account => !SHARED_ACCOUNTS.includes(account.key)))
+const pnpAccounts = computed(() => accounts.value.filter(account => account.pnp_available))
 const parentSaving = ref<Record<string, boolean>>({})
 
 function accountRole(account: LineAccountOut): string {
-  return account.key === MAIN_ACCOUNT ? '園方群組推播帳號' : `${campusNames.value[account.key] ?? account.key}的官方帳號`
+  if (account.key === MAIN_ACCOUNT) return '園方群組推播帳號'
+  if (account.key === HQ_ACCOUNT) return '總部官方帳號'
+  return `${campusNames.value[account.key] ?? account.key}的官方帳號`
 }
 
 function accountName(account: LineAccountOut): string {
@@ -223,24 +229,46 @@ function quotaText(account: LineAccountOut): string {
   return quota.limit === null ? `本月已用 ${quota.used} 則（沒有設上限）` : `本月已用 ${quota.used} ／ ${quota.limit} 則`
 }
 
-// 這校能選的帳號：園方群組推播帳號，或這校自己的帳號（別校的帳號不能用）。
+// 這校能選的帳號：園方群組推播帳號、總部帳號，或這校自己的帳號（別校的帳號不能用）。
 function parentOptions(row: ParentCampus): { value: string; label: string }[] {
   return accounts.value
-    .filter(account => account.key === MAIN_ACCOUNT || account.key === row.campus_key)
-    .map(account => ({ value: account.key, label: account.key === MAIN_ACCOUNT ? `園方群組推播帳號（${account.display_name ?? '未命名'}）` : `本校官方帳號（${account.display_name ?? '未命名'}）` }))
+    .filter(account => SHARED_ACCOUNTS.includes(account.key) || account.key === row.campus_key)
+    .map(account => {
+      const name = account.display_name ?? '未命名'
+      const role = account.key === MAIN_ACCOUNT ? '園方群組推播帳號' : account.key === HQ_ACCOUNT ? '總部官方帳號' : '本校官方帳號'
+      return { value: account.key, label: `${role}（${name}）` }
+    })
 }
 
-async function assignParent(row: ParentCampus, accountKey: string | null) {
+// 這校選的帳號已開通 LINE 通知型訊息（WEBSITE_LINE_PNP_ACCOUNTS）才能打開。
+function pnpAvailable(row: ParentCampus): boolean {
+  return Boolean(row.account_key && accounts.value.some(account => account.key === row.account_key && account.pnp_available))
+}
+
+async function saveParent(row: ParentCampus, accountKey: string | null, pnpEnabled: boolean, success: string) {
   if (parentSaving.value[row.campus_key]) return
   parentSaving.value = { ...parentSaving.value, [row.campus_key]: true }
   try {
-    data.value = await api.put<LineSettingsOut>(`/admin/line/parent-accounts/${row.campus_key}`, { account_key: accountKey })
-    ElMessage.success(accountKey ? `${row.campus_name}已開啟家長 LINE 通知` : `${row.campus_name}已關閉家長 LINE 通知`)
+    data.value = await api.put<LineSettingsOut>(`/admin/line/parent-accounts/${row.campus_key}`, {
+      account_key: accountKey,
+      pnp_enabled: pnpEnabled,
+    })
+    ElMessage.success(success)
   } catch (err) {
     notifyError(errorMessage(err, '更新失敗'))
   } finally {
     parentSaving.value = { ...parentSaving.value, [row.campus_key]: false }
   }
+}
+
+function assignParent(row: ParentCampus, accountKey: string | null) {
+  // 換到沒開通通知型訊息的帳號：一併關掉（後端也會拒絕）。
+  const keepPnp = Boolean(row.pnp_enabled && accountKey && accounts.value.some(account => account.key === accountKey && account.pnp_available))
+  return saveParent(row, accountKey, keepPnp, accountKey ? `${row.campus_name}已開啟家長 LINE 通知` : `${row.campus_name}已關閉家長 LINE 通知`)
+}
+
+function togglePnp(row: ParentCampus, on: boolean) {
+  return saveParent(row, row.account_key ?? null, on, on ? `${row.campus_name}已開啟 LINE 通知型訊息` : `${row.campus_name}已關閉 LINE 通知型訊息`)
 }
 
 onMounted(() => load())
@@ -314,6 +342,7 @@ onMounted(() => load())
               <p class="account-list__quota" :class="{ 'is-warning': account.quota?.warning || account.quota_error_status !== null && account.quota_error_status !== undefined }">
                 {{ quotaText(account) }}<template v-if="account.quota?.warning">，快用完了：用完後群組與家長都收不到 LINE 通知，到月底才恢復。</template>
               </p>
+              <el-tag v-if="account.pnp_available" type="success" size="small" class="account-list__pnp">已開通通知型訊息</el-tag>
               <span v-if="account.key !== 'main' && account.webhook_url" class="webhook">
                 <span class="group-list__meta">Webhook</span>
                 <code>{{ account.webhook_url }}</code>
@@ -481,8 +510,20 @@ onMounted(() => load())
               <el-option label="不開放" value="" />
               <el-option v-for="option in parentOptions(row)" :key="option.value" :label="option.label" :value="option.value" />
             </el-select>
+            <el-switch
+              v-if="pnpAccounts.length"
+              :model-value="Boolean(row.pnp_enabled)"
+              :disabled="parentSaving[row.campus_key] || (!row.pnp_enabled && !pnpAvailable(row))"
+              :aria-label="`${row.campus_name}用 LINE 通知型訊息通知沒留 Email 的家長`"
+              active-text="通知型訊息"
+              data-test="line-pnp-switch"
+              @change="(value: string | number | boolean) => togglePnp(row, Boolean(value))"
+            />
             <span v-if="row.linked_upcoming" class="group-list__meta">{{ row.linked_upcoming }} 筆即將參觀的預約已綁定 LINE</span>
           </div>
+          <p v-if="pnpAccounts.length" class="field-help" data-test="line-pnp-help">
+            「通知型訊息」：沒留 Email、也沒綁 LINE 的家長，會用預約時填的手機號碼，在 LINE 收到預約完成、提醒與取消通知（不必先加好友，附查看或修改預約的按鈕）。有留 Email 的家長照舊只收信。停課通知不會用這個方式送，請照舊來電。只有真的送到家長手機的才計費，費用由 LINE 另外計算。
+          </p>
           <p class="field-help">家長要加入所選官方帳號的好友才收得到通知。換帳號或關閉後，已綁定的家長不再收到 LINE（Email 照常），要請家長重新綁定。</p>
           <details class="tech-details">
             <summary>「我的預約」圖文選單與注意事項</summary>
@@ -592,6 +633,10 @@ onMounted(() => load())
 .account-list__name {
   font-weight: 600;
   overflow-wrap: anywhere;
+}
+
+.account-list__pnp {
+  justify-self: start;
 }
 
 .account-list__quota {
