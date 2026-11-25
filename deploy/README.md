@@ -14,7 +14,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 2026-11-25 LINE 通知型訊息：啟用步驟（`claude/happy-meitner-lkejg1`；**未合併、未部署**，合併部署後預設關閉）
+## 2026-11-25 LINE 通知型訊息：啟用步驟（PR #135 合併進 main；部署後**預設關閉**，等 LINE 核准才打開）
 
 沒留 Email、也沒綁 LINE 的家長，用預約時填的手機號碼在 LINE 收到預約完成、提醒、取消通知（範本型）。研究與規則：`docs/specs/2026-11-25-line-notification-messages-research.md`；申請、開通、真機驗收、回退與之後要繼續做的開發項目：`docs/website-admin/line-pnp-runbook.md`。
 

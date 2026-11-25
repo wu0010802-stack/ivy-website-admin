@@ -1,4 +1,4 @@
-## 2026-11-25 家長通知改用 LINE 通知型訊息（用手機號碼送；`claude/happy-meitner-lkejg1`，未合併、預設關閉）
+## 2026-11-25 家長通知改用 LINE 通知型訊息（用手機號碼送；PR #135 合併進 main，預設關閉）
 
 使用者要用已認證的總部官方帳號，透過 LINE「通知型訊息」用電話號碼把預約通知送到家長的 LINE。研究、查證過的 LINE 規則與使用者的決定：`docs/specs/2026-11-25-line-notification-messages-research.md`。
 
