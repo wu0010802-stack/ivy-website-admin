@@ -34,12 +34,12 @@ function settings(overrides: Partial<LineSettingsOut> = {}): LineSettingsOut {
       { campus_key: 'minghua', campus_name: '明華校', target_id: null },
     ],
     accounts: [
-      { key: 'main', webhook_url: 'https://admin.ivy.example/api/website/v1/line/webhook', display_name: '常春藤官網', basic_id: '@ivy-main', quota: { limit: 200, used: 12, warning: false }, quota_error_status: null },
-      { key: 'yihua', webhook_url: 'https://admin.ivy.example/api/website/v1/line/webhook/yihua', display_name: '常春藤義華', basic_id: '@ivy-yihua', quota: { limit: 200, used: 170, warning: true }, quota_error_status: null },
+      { key: 'main', webhook_url: 'https://admin.ivy.example/api/website/v1/line/webhook', display_name: '常春藤官網', basic_id: '@ivy-main', quota: { limit: 200, used: 12, warning: false }, quota_error_status: null, pnp_available: false },
+      { key: 'yihua', webhook_url: 'https://admin.ivy.example/api/website/v1/line/webhook/yihua', display_name: '常春藤義華', basic_id: '@ivy-yihua', quota: { limit: 200, used: 170, warning: true }, quota_error_status: null, pnp_available: false },
     ],
     parent_campuses: [
-      { campus_key: 'yihua', campus_name: '義華校', account_key: 'yihua', linked_upcoming: 3 },
-      { campus_key: 'minghua', campus_name: '明華校', account_key: null, linked_upcoming: 0 },
+      { campus_key: 'yihua', campus_name: '義華校', account_key: 'yihua', linked_upcoming: 3, pnp_enabled: false },
+      { campus_key: 'minghua', campus_name: '明華校', account_key: null, linked_upcoming: 0, pnp_enabled: false },
     ],
     ...overrides,
   }
@@ -71,7 +71,7 @@ describe('LINE 通知頁：帳號額度與家長通知', () => {
 
   it('查不到額度時說明可能是金鑰失效', async () => {
     const wrapper = await mountLinePage(settings({
-      accounts: [{ key: 'main', webhook_url: null, display_name: null, basic_id: null, quota: null, quota_error_status: 401 }],
+      accounts: [{ key: 'main', webhook_url: null, display_name: null, basic_id: null, quota: null, quota_error_status: 401, pnp_available: false }],
     }))
     expect(wrapper.get('[data-test="line-accounts"]').text()).toContain('金鑰可能已失效')
   })
@@ -89,16 +89,71 @@ describe('LINE 通知頁：帳號額度與家長通知', () => {
     expect(minghuaOptions).toEqual(['不開放', '園方群組推播帳號（常春藤官網）'])
     selects[1]!.vm.$emit('change', 'main')
     await flushPromises()
-    expect(put).toHaveBeenCalledWith('/admin/line/parent-accounts/minghua', { account_key: 'main' })
+    expect(put).toHaveBeenCalledWith('/admin/line/parent-accounts/minghua', { account_key: 'main', pnp_enabled: false })
     selects[0]!.vm.$emit('change', '')
     await flushPromises()
-    expect(put).toHaveBeenLastCalledWith('/admin/line/parent-accounts/yihua', { account_key: null })
+    expect(put).toHaveBeenLastCalledWith('/admin/line/parent-accounts/yihua', { account_key: null, pnp_enabled: false })
   })
 
   it('新的操作紀錄都有中文', () => {
     for (const action of ['line.parent_account.update', 'line.parent.link', 'line.parent.unlink']) {
       expect(AUDIT_ACTION_LABELS[action]).toBeTruthy()
     }
+  })
+})
+
+describe('LINE 通知頁：總部帳號與通知型訊息（2026-11-25）', () => {
+  const hq = { key: 'hq', webhook_url: 'https://admin.ivy.example/api/website/v1/line/webhook/hq', display_name: '常春藤總部', basic_id: '@ivy-hq', quota: { limit: null, used: 0, warning: false }, quota_error_status: null, pnp_available: true }
+
+  function withHq(parent: LineSettingsOut['parent_campuses']): LineSettingsOut {
+    const base = settings()
+    return settings({ accounts: [...(base.accounts ?? []), hq], parent_campuses: parent })
+  }
+
+  it('總部帳號每校都能選，列出 webhook 並標示已開通', async () => {
+    const wrapper = await mountLinePage(withHq(settings().parent_campuses))
+    const accounts = wrapper.get('[data-test="line-accounts"]').text()
+    expect(accounts).toContain('總部官方帳號')
+    expect(accounts).toContain('已開通通知型訊息')
+    expect(accounts).toContain('https://admin.ivy.example/api/website/v1/line/webhook/hq')
+    const selects = wrapper.get('[data-test="line-parent-notify"]').findAllComponents({ name: 'ElSelect' })
+    const minghuaOptions = (selects[1]!.findAllComponents({ name: 'ElOption' }) as VueWrapper[]).map(option => (option.props() as { label?: string }).label)
+    expect(minghuaOptions).toEqual(['不開放', '園方群組推播帳號（常春藤官網）', '總部官方帳號（常春藤總部）'])
+  })
+
+  it('選了已開通的帳號才能開通知型訊息；開關送出目前帳號與 pnp_enabled', async () => {
+    const wrapper = await mountLinePage(withHq([
+      { campus_key: 'yihua', campus_name: '義華校', account_key: 'yihua', linked_upcoming: 0, pnp_enabled: false },
+      { campus_key: 'minghua', campus_name: '明華校', account_key: 'hq', linked_upcoming: 0, pnp_enabled: false },
+    ]))
+    const section = wrapper.get('[data-test="line-parent-notify"]')
+    expect(section.get('[data-test="line-pnp-help"]').text()).toContain('有留 Email 的家長照舊只收信')
+    const switches = section.findAllComponents({ name: 'ElSwitch' })
+    expect(switches).toHaveLength(2)
+    // 義華選的是自己的帳號（沒開通）：不能開。
+    expect(switches[0]!.props('disabled')).toBe(true)
+    expect(switches[1]!.props('disabled')).toBe(false)
+    const put = vi.spyOn(api, 'put').mockResolvedValue(settings() as never)
+    switches[1]!.vm.$emit('change', true)
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/admin/line/parent-accounts/minghua', { account_key: 'hq', pnp_enabled: true })
+  })
+
+  it('換到沒開通的帳號時一併關掉通知型訊息', async () => {
+    const wrapper = await mountLinePage(withHq([
+      { campus_key: 'yihua', campus_name: '義華校', account_key: 'hq', linked_upcoming: 0, pnp_enabled: true },
+      { campus_key: 'minghua', campus_name: '明華校', account_key: null, linked_upcoming: 0, pnp_enabled: false },
+    ]))
+    const put = vi.spyOn(api, 'put').mockResolvedValue(settings() as never)
+    const selects = wrapper.get('[data-test="line-parent-notify"]').findAllComponents({ name: 'ElSelect' })
+    selects[0]!.vm.$emit('change', 'yihua')
+    await flushPromises()
+    expect(put).toHaveBeenCalledWith('/admin/line/parent-accounts/yihua', { account_key: 'yihua', pnp_enabled: false })
+  })
+
+  it('沒有任何帳號開通時不顯示開關', async () => {
+    const wrapper = await mountLinePage()
+    expect(wrapper.get('[data-test="line-parent-notify"]').findAllComponents({ name: 'ElSwitch' })).toHaveLength(0)
   })
 })
 

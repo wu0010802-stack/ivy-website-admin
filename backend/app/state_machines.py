@@ -68,7 +68,7 @@ OUTBOX_MESSAGE = StateMachine(
     }),
     transitions=(
         Transition(None, "pending", "app.booking.outbox:enqueue_outbox", guard="給園方的通知"),
-        Transition(None, "pending", "app.booking.outbox:enqueue_parent_email", guard="給家長的信；沒留 Email 不排"),
+        Transition(None, "pending", "app.booking.outbox:enqueue_parent_email", guard="給家長的信；沒 Email、沒綁 LINE、這校也沒開通知型訊息才不排"),
         Transition(None, "pending", "app.booking.outbox:enqueue_day_closed_email", guard="休假日通知，同一天同一案只排一次"),
         Transition(None, "pending", "app.notifications.reminders:_enqueue", guard="定期工作排的提醒"),
         Transition("pending", "leased", "app.workers.lease_service:claim_next",

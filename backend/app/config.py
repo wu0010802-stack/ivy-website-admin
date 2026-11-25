@@ -22,11 +22,17 @@ _FORBIDDEN_DB_NAMES = {"ivymanagement"}
 _PLACEHOLDER_SECRET_MARKERS = ("change-me", "changeme", "change_me", "example", "placeholder")
 
 
-# 可以設 LINE 官方帳號的鍵：main＝園方群組推播用的帳號（WEBSITE_LINE_MESSAGING_*），其餘是五校各自的帳號
-# （WEBSITE_LINE_<校>_*，2026-11-16 docs/specs/2026-11-16-line-integrations-design.md §2）。順序＝後台顯示順序。
+# 可以設 LINE 官方帳號的鍵：main＝園方群組推播用的帳號（WEBSITE_LINE_MESSAGING_*），hq＝總部／品牌帳號
+# （WEBSITE_LINE_HQ_*，2026-11-25 通知型訊息用，docs/specs/2026-11-25-line-notification-messages-research.md），
+# 其餘是五校各自的帳號（WEBSITE_LINE_<校>_*，2026-11-16 docs/specs/2026-11-16-line-integrations-design.md §2）。
+# 順序＝後台顯示順序。main 與 hq 每校都能選來發家長通知；校區帳號只能用在自己那校。
 LINE_MAIN_ACCOUNT = "main"
+LINE_HQ_ACCOUNT = "hq"
+LINE_SHARED_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, LINE_HQ_ACCOUNT)
 LINE_CAMPUS_ACCOUNT_KEYS = ("yihua", "minghua", "chongde", "international", "renwu")
-LINE_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, *LINE_CAMPUS_ACCOUNT_KEYS)
+# 有自己 webhook 網址（/line/webhook/<鍵>）、只處理一對一事件的帳號。
+LINE_ONE_TO_ONE_ACCOUNT_KEYS = (LINE_HQ_ACCOUNT, *LINE_CAMPUS_ACCOUNT_KEYS)
+LINE_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, *LINE_ONE_TO_ONE_ACCOUNT_KEYS)
 
 
 @dataclass(frozen=True, repr=False)
@@ -126,6 +132,12 @@ class Settings(BaseSettings):
     # 各校自己的 LINE 官方帳號（2026-11-16）：家長通知、「我的預約」、好友數。和上面的園方群組推播帳號分開設，
     # 同一校兩個都設才算有；webhook 網址是 /api/website/v1/line/webhook/<校>（後台 LINE 通知頁會列出）。
     # 沒設的校區，家長通知只能選用上面那個帳號或關閉（後台 LINE 通知頁）。
+    # 總部／品牌帳號（2026-11-25）：每校都能選來發家長通知；webhook 是 /api/website/v1/line/webhook/hq。
+    line_hq_channel_secret: str | None = Field(default=None, repr=False)
+    line_hq_access_token: str | None = Field(default=None, repr=False)
+    # LINE 已核准開通「通知型訊息（範本型）」的帳號鍵，逗號分隔（例：hq）。沒列的帳號不會呼叫通知型訊息 API
+    # （沒開通時 LINE 回 403）。列了之後還要在後台 LINE 通知頁替各校打開，才會真的送。
+    line_pnp_accounts: str | None = None
     line_yihua_channel_secret: str | None = Field(default=None, repr=False)
     line_yihua_access_token: str | None = Field(default=None, repr=False)
     line_minghua_channel_secret: str | None = Field(default=None, repr=False)
@@ -351,6 +363,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "line_messaging_channel_secret", "line_messaging_access_token",
+        "line_hq_channel_secret", "line_hq_access_token", "line_pnp_accounts",
         "line_yihua_channel_secret", "line_yihua_access_token",
         "line_minghua_channel_secret", "line_minghua_access_token",
         "line_chongde_channel_secret", "line_chongde_access_token",
@@ -523,6 +536,12 @@ class Settings(BaseSettings):
             if secret and token:
                 accounts[key] = LineAccountCredentials(key, secret, token)
         return accounts
+
+    @property
+    def line_pnp_account_keys(self) -> frozenset[str]:
+        """WEBSITE_LINE_PNP_ACCOUNTS 列的帳號鍵（LINE 已開通通知型訊息）。"""
+        raw = self.line_pnp_accounts or ""
+        return frozenset(part.strip().lower() for part in raw.split(",") if part.strip())
 
     @property
     def background_jobs_interval(self) -> int:
@@ -704,11 +723,18 @@ class Settings(BaseSettings):
             raise ValueError(
                 "LINE 推播必須同時設定 WEBSITE_LINE_MESSAGING_CHANNEL_SECRET 與 WEBSITE_LINE_MESSAGING_ACCESS_TOKEN"
             )
-        for key in LINE_CAMPUS_ACCOUNT_KEYS:
+        for key in LINE_ONE_TO_ONE_ACCOUNT_KEYS:
             secret, token = self._line_pair(key)
             if bool(secret) != bool(token):
                 env = f"WEBSITE_LINE_{key.upper()}"
                 raise ValueError(f"LINE 官方帳號必須同時設定 {env}_CHANNEL_SECRET 與 {env}_ACCESS_TOKEN")
+        # 通知型訊息：列的帳號要是認得的鍵、而且金鑰設好了（打錯字不默默當沒開）。
+        configured = self.line_accounts
+        for key in self.line_pnp_account_keys:
+            if key not in LINE_ACCOUNT_KEYS:
+                raise ValueError(f"WEBSITE_LINE_PNP_ACCOUNTS 有不認得的帳號鍵：{key}（可用：{', '.join(LINE_ACCOUNT_KEYS)}）")
+            if key not in configured:
+                raise ValueError(f"WEBSITE_LINE_PNP_ACCOUNTS 列了 {key}，但這個帳號的 Channel secret 與 access token 還沒設定")
         if bool(self.vapid_public_key) != bool(self.vapid_private_key):
             raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
         # 回傳廣告平台（2026-11-16）：ID 與金鑰成對；ID 格式和官網前端的同名變數一樣嚴格，打錯不會默默送到別的帳戶。
