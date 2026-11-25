@@ -211,6 +211,8 @@ def parent_cancel_confirm(campus_name: str, when: str, *, ok_data: str, keep_dat
 # 全是純函式：不查資料庫、不送出。按鈕的 postback data 只放動作代碼、id、索引，不放中文字面。
 
 CAROUSEL_MAX = 12
+# 下次聯絡的按鈕（到場結果卡與待追蹤名單共用）：文字、天數；時間是台北 10:00（line_group_actions.follow_up_time）。
+FOLLOW_UP_BUTTONS = (("明天聯絡", "1"), ("3天後聯絡", "3"), ("1週後聯絡", "7"))
 GROUP_LIST_EYEBROW = "常春藤官網｜參觀"
 
 
@@ -270,27 +272,101 @@ def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str) -> 
     return flex_message(f"{title}（共 {len(rows)} 筆）", {"type": "carousel", "contents": bubbles})
 
 
-_MENU_COMMANDS = ("今天參觀", "明天參觀", "本週參觀", "下週參觀", "待標記")
 ATTENDANCE_CONFIRMED_TEXT = "會準時到"
+# @官方帳號 的選單（2026-11-25 擴充，docs/specs/2026-11-25-line-group-commands-design.md §8）：兩顆一列；
+# 按了以按的人的名義送出那句指令，再由 line_group_commands 處理。總部群組多統計與額度。
+_MENU_ROWS = (
+    ("今天參觀", "明天參觀"),
+    ("本週參觀", "下週參觀"),
+    ("待標記", "待追蹤"),
+    ("今天名額", "休假日"),
+    ("待辦", "指令"),
+)
+_MENU_HQ_ROW = ("本週統計", "額度")
+MENU_ALT = "參觀名單選單"
 
 
-def menu_message() -> dict:
-    buttons = [
-        {"type": "button", "height": "sm", "style": "primary", "color": BRAND,
-         "action": {"type": "message", "label": text, "text": text}}
-        for text in _MENU_COMMANDS
+def menu_commands(*, is_hq: bool = False) -> tuple[str, ...]:
+    rows = (*_MENU_ROWS, _MENU_HQ_ROW) if is_hq else _MENU_ROWS
+    return tuple(text for row in rows for text in row)
+
+
+def _message_button(text: str) -> dict:
+    return {"type": "button", "height": "sm", "style": "primary", "color": BRAND, "flex": 1,
+            "action": {"type": "message", "label": text, "text": text}}
+
+
+def menu_message(*, is_hq: bool = False) -> dict:
+    rows = (*_MENU_ROWS, _MENU_HQ_ROW) if is_hq else _MENU_ROWS
+    buttons = [_hbox([_message_button(text) for text in row]) for row in rows]
+    return flex_message(MENU_ALT, _bubble(SITE_LABEL, "要查什麼？", [_text("按一下就會查；也可以直接輸入指令。", size="sm", color=MUTED)], buttons))
+
+
+def help_message(*, is_hq: bool = False) -> dict:
+    lines = [
+        "常春藤官網通知：在這個群組輸入下面的文字就能查詢（整則訊息只打指令）。",
+        "【參觀名單】今天參觀、明天參觀、本週參觀、下週參觀、11/28 參觀",
+        "【要處理的】待標記（時間過了還沒標到場）、待追蹤（招生聯絡到期）、待辦（各校現在的數字）",
+        "【名額】今天名額、明天名額、本週名額、下週名額、11/28 名額",
+        "【休假】休假日（近 14 天的休假與停課）",
     ]
-    return flex_message("參觀名單選單", _bubble(SITE_LABEL, "要查哪一段時間的參觀？", [_text("想查看哪一段時間的參觀預約？", size="sm", color=MUTED)], buttons))
+    if is_hq:
+        lines.append("【總部專用】本週統計、上週統計、本月統計、上月統計、額度")
+    lines += [
+        "指令前面可以加校名只看一校，例如「義華 今天參觀」。",
+        "標記官方帳號（@）會跳出選單；輸入「指令」可以再看一次這份說明。",
+    ]
+    return text_message("\n".join(lines))
 
 
-def help_message() -> dict:
-    return text_message(
-        "歡迎使用常春藤官網通知。在這個群組輸入下列文字，可以查詢參觀預約：\n"
-        "・今天參觀\n・明天參觀\n・本週參觀\n・下週參觀\n"
-        "・日期加參觀，例如 11/28 參觀\n"
-        "・待標記（參觀時間過了、還沒標記到場的）\n"
-        "也可以 @官方帳號 叫出選單。"
+@dataclass(frozen=True)
+class FollowUpRow:
+    """待追蹤名單的一筆（招生訪視）。contact 已清理（拿掉網址、限 20 字）；不放孩子姓名與電話。"""
+
+    visit_id: str
+    campus_name: str
+    contact: str | None
+    visited: str
+    due: str
+    # 對應的預約（有才放「開啟案件」）。
+    receipt_id: str | None = None
+
+
+FOLLOW_UP_TITLE = "待追蹤"
+FOLLOW_UP_EYEBROW = "常春藤官網｜招生追蹤"
+
+
+def follow_up_list_message(rows: list[FollowUpRow], *, admin_urls: dict[str, str] | None = None) -> dict:
+    """待追蹤名單（2026-11-25）：第一張總覽（各校筆數），之後每筆一張，按鈕是延後下次聯絡（同到場結果卡的 rff）
+    與「開啟案件」（admin_urls：訪視 id → 後台網址）。超過 11 筆時第 12 張寫「另有 N 筆」。呼叫端確認 rows 不是空的。"""
+    urls = admin_urls or {}
+    counts: dict[str, int] = {}
+    for row in rows:
+        counts[row.campus_name] = counts.get(row.campus_name, 0) + 1
+    summary = _bubble(
+        FOLLOW_UP_EYEBROW, f"{FOLLOW_UP_TITLE}（到期）",
+        [_row("合計", f"{len(rows)} 筆")] + [_row(name, f"{n} 筆") for name, n in counts.items()],
+        [],
     )
+    overflow = len(rows) > CAROUSEL_MAX - 1
+    shown = rows[: CAROUSEL_MAX - 1]
+    bubbles = [summary]
+    for i, row in enumerate(shown):
+        body = [_row("校區", row.campus_name)]
+        if row.contact:
+            body.append(_row("家長", row.contact))
+        body += [_row("參觀日", row.visited), _row("應聯絡", row.due)]
+        last = overflow and i == len(shown) - 1
+        buttons: list[dict] = []
+        if last:
+            body.append(_text(f"另有 {len(rows) - len(shown)} 筆，請開後台", size="sm", color=MUTED, margin="md"))
+        else:
+            buttons.append(_hbox([_postback_button(label, encode(RF_FOLLOW, row.visit_id, days)) for label, days in FOLLOW_UP_BUTTONS]))
+            link = _usable_uri(urls.get(row.visit_id))
+            if link:
+                buttons.append(_button("開啟案件", link, primary=False))
+        bubbles.append(_bubble(FOLLOW_UP_EYEBROW, "下次聯絡已到", body, buttons))
+    return flex_message(f"{FOLLOW_UP_TITLE}（共 {len(rows)} 筆）", {"type": "carousel", "contents": bubbles})
 
 
 # 詢問動作 → (確認動作, 標題用字, altText, 「確認」的 displayText)。altText 不放家長稱呼（鎖定畫面看得到）；
@@ -314,9 +390,6 @@ def confirm_message(action: str, target_id: str, who: str, when: str, token: str
         _postback_button("取消", encode(CANCEL), color=MUTED),
     ]
     return flex_message(alt, _bubble(SITE_LABEL, title, [_text("按下確認才會寫入，誤按請按取消。", size="sm", color=MUTED)], buttons))
-
-
-FOLLOW_UP_BUTTONS = (("明天聯絡", "1"), ("3天後聯絡", "3"), ("1週後聯絡", "7"))
 
 
 def attended_result_message(

@@ -64,19 +64,25 @@ def test_visit_list_empty_returns_text():
 
 
 def test_menu_buttons_are_message_actions_with_exact_text():
-    msg = lf.menu_message()
-    actions = [b["action"] for b in _buttons(msg["contents"])]
-    # 2026-11-25 加「下週參觀」「待標記」（docs/specs/2026-11-25-line-more-features-design.md §2、§3）。
-    assert [(a["type"], a["text"]) for a in actions] == [
-        ("message", "今天參觀"), ("message", "明天參觀"), ("message", "本週參觀"), ("message", "下週參觀"), ("message", "待標記"),
-    ]
+    # 2026-11-25 擴充（docs/specs/2026-11-25-line-group-commands-design.md §8）：兩顆一列，總部群組多統計與額度。
+    campus = ["今天參觀", "明天參觀", "本週參觀", "下週參觀", "待標記", "待追蹤", "今天名額", "休假日", "待辦", "指令"]
+    for is_hq, expected in ((False, campus), (True, [*campus, "本週統計", "額度"])):
+        msg = lf.menu_message(is_hq=is_hq)
+        actions = [b["action"] for b in _buttons(msg["contents"])]
+        assert [(a["type"], a["text"]) for a in actions] == [("message", text) for text in expected]
+        assert all(a["label"] == a["text"] and len(a["label"]) <= 20 for a in actions)
+        assert list(lf.menu_commands(is_hq=is_hq)) == expected
 
 
 def test_help_message_lists_commands():
     msg = lf.help_message()
     assert msg["type"] == "text"
-    for s in ("今天參觀", "明天參觀", "本週參觀", "@官方帳號"):
+    for s in ("今天參觀", "明天參觀", "本週參觀", "待標記", "待追蹤", "今天名額", "休假日", "待辦", "官方帳號", "義華 今天參觀"):
         assert s in msg["text"]
+    # 統計與額度只列給總部群組。
+    assert "統計" not in msg["text"] and "額度" not in msg["text"]
+    hq = lf.help_message(is_hq=True)["text"]
+    assert "本週統計" in hq and "額度" in hq and len(hq) < 5000
 
 
 def test_confirm_message_buttons_carry_token_and_stay_under_300_chars():

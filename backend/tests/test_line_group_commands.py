@@ -165,7 +165,7 @@ async def test_mention_of_other_user_is_not_stripped(app, fake_line, admin_clien
 
 
 def test_self_mention_offsets_are_utf16_code_units():
-    from app.notifications.line_group_commands import _command, _without_self_mentions
+    from app.notifications.line_group_commands import Command, _addressed, _without_self_mentions, parse
 
     self_at = lambda index, length: {"index": index, "length": length, "type": "user", "isSelf": True}  # noqa: E731
     # emoji 在 @ 前面：👍 佔 2 個 UTF-16 單位，@常春藤 從 3 開始；用字元位置切會切錯。
@@ -188,13 +188,17 @@ def test_self_mention_offsets_are_utf16_code_units():
     # 退回舊規則：開頭的 @… 剝到第一個空白。
     event = _group_event("message", text="@常春藤 今天")
     event["message"]["mention"] = {"mentionees": [{"isSelf": True}]}
-    assert _command(event, "@常春藤 今天") == ("today", False)
+    # 2026-11-25 解析改成 _addressed（剝 @）＋ parse（認指令）。
+    text, addressed, typed = _addressed(event, "@常春藤 今天")
+    assert (text, addressed, typed) == ("今天", True, False)
+    assert parse(text, addressed, typed, None) == Command("visits", "today")
 
 
 async def test_confirm_display_texts_are_not_commands(app, fake_line, admin_client, public_client):
     """確認卡「確認」的 displayText 會以按的人的名義送進群組（一般文字訊息事件）：不能被當成指令或選單。"""
     from app.notifications import line_flex
-    from app.notifications.line_group_commands import _command
+    from app.notifications.line_group_commands import _addressed, parse
+    from app.notifications.line_group_reports import campus_names
 
     await _world(app, admin_client, public_client)
     assert set(line_flex.CONFIRM_DISPLAY_TEXTS) == {"確認已到場", "確認未到場", "確認已預繳"}
@@ -202,8 +206,12 @@ async def test_confirm_display_texts_are_not_commands(app, fake_line, admin_clie
     response = await _webhook(app, events, account="main")
     assert response.status_code == 200
     assert fake_line.replies == []
+    async with app.state.session_factory() as db:
+        names = await campus_names(db)
     for event in events:
-        assert _command(event, event["message"]["text"]) == (None, False)
+        text, addressed, typed = _addressed(event, event["message"]["text"])
+        assert (addressed, typed) == (False, False)
+        assert parse(text, addressed, typed, names) is None
 
 
 async def test_bound_room_can_query(app, fake_line, admin_client, public_client):
