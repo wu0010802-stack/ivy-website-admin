@@ -140,6 +140,11 @@ describe('2026-09-28 操作紀錄 UX（H）', () => {
         ['line.group.recruitment_field', { field: 'source_category', value: 'referral', group_id: `C${'a'.repeat(32)}` }, '來源分類：家長介紹／社區招生'],
         ['line.group.recruitment_field', { field: 'source_category', value: 'self_report', group_id: `C${'a'.repeat(32)}` }, '來源分類：自報生（廣告、鄰居、網路、活動）'],
         ['line.group.recruitment_field', { field: 'rides_bus', value: false, group_id: `C${'a'.repeat(32)}` }, '搭交通車：不搭'],
+        // 2026-11-25 結果卡的下次聯絡：值是天數。
+        ['line.group.recruitment_field', { field: 'follow_up_at', value: 1, group_id: `C${'a'.repeat(32)}` }, '下次聯絡：明天 10:00'],
+        ['line.group.recruitment_field', { field: 'follow_up_at', value: 3, group_id: `C${'a'.repeat(32)}` }, '下次聯絡：3 天後 10:00'],
+        ['line.group.recruitment_field', { field: 'follow_up_at', value: 7, group_id: `C${'a'.repeat(32)}` }, '下次聯絡：1 週後 10:00'],
+        ['line.parent.cancel', { account_key: 'yihua' }, '官方帳號：義華的官方帳號'],
       ]
       for (const [action, metadata, expected] of cases) {
         const summary = auditMetadataSummary(metadata, action)

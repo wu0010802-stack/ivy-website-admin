@@ -119,8 +119,10 @@ async def record_internal_event(
 
 
 def cancel_reason(actor: Actor | None) -> str:
-    """後台取消與家長取消都走 workflow_service.cancel，依操作者分原因。"""
-    return CANCEL_REASON_PARENT if actor is not None and actor.source == VisitEventSource.PARENT.value else CANCEL_REASON_STAFF
+    """後台取消與家長取消都走 workflow_service.cancel，依操作者分原因。家長在 LINE「我的預約」取消
+    （line_parent，2026-11-25）也是家長取消。"""
+    parent_sources = (VisitEventSource.PARENT.value, VisitEventSource.LINE_PARENT.value)
+    return CANCEL_REASON_PARENT if actor is not None and actor.source in parent_sources else CANCEL_REASON_STAFF
 
 
 async def record_cancelled(

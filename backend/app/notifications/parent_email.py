@@ -63,6 +63,8 @@ class ParentEmail:
     day_closed: bool = False
     # 寄件當下已過線上修改期限：預約成功／已變更信不寫截止時間、請家長來電。
     change_window_passed: bool = False
+    # 園所的地圖網址（後台填的地圖網址，沒填就用地址組 Google 地圖搜尋）；LINE 卡片的「導航到園所」用（2026-11-25）。
+    campus_map_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -84,6 +86,8 @@ class ParentNotice:
     campus_phone: str | None
     # Email 版把網址接在說明同一行（取消信的重新預約網址）。
     inline_url: bool = False
+    # LINE 卡片的「導航到園所」（2026-11-25）：預約成功、已變更、參觀提醒才有；取消與停課內容沒有。Email 不用。
+    map_url: str | None = None
 
 
 def parent_notice(mail: ParentEmail) -> ParentNotice:
@@ -175,6 +179,11 @@ def parent_notice(mail: ParentEmail) -> ParentNotice:
         private_link=private_link,
         campus_phone=mail.campus_phone,
         inline_url=inline_url,
+        map_url=(
+            mail.campus_map_url
+            if mail.kind in (PARENT_VISIT_BOOKED, PARENT_VISIT_CHANGED, PARENT_VISIT_REMINDER) and not closed_notice
+            else None
+        ),
     )
 
 
