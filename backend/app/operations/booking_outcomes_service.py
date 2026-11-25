@@ -235,6 +235,22 @@ def _deposited():
     )
 
 
+async def deposited_cases(db: AsyncSession, campus_keys: list[str], period: FunnelRange) -> dict[str, int]:
+    """期間內送出的預約裡，招生訪視預繳過的筆數（每校一個數字；口徑同 booking_outcomes 的 cases 與 _deposited）。
+    LINE 總部群組的「統計」指令用（2026-11-25）。"""
+    rows = await db.execute(
+        select(VisitRequest.campus_key, func.count())
+        .where(
+            VisitRequest.campus_key.in_(campus_keys),
+            *period.on(VisitRequest.created_at),
+            exclusion.not_excluded(),
+            _deposited(),
+        )
+        .group_by(VisitRequest.campus_key)
+    )
+    return {key: int(count) for key, count in rows.all()}
+
+
 def _attribution_counts() -> dict:
     return {"cases": 0, "completed": 0, "no_show": 0, "deposited": 0}
 
