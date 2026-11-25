@@ -1,3 +1,10 @@
+## 2026-11-25 補 8 條舊 Wix 網址 301（`fix/legacy-redirects-20261125`）
+
+使用者要判讀 GEO 成效後補轉址。正式庫 `not_found_daily`（11-20 起）顯示搜尋引擎與 AI 爬蟲仍在抓舊站的 Wix 複製頁，6 天共 23 次 404，全部是 `migration-checklist.md` 的 #23–#30 待確認項。`LEGACY_REDIRECTS` 補上對應：美術館 → `/curriculum#gallery`，招生說明會 → `/admission`（入學分頁隱藏時去首頁，沿用既有邏輯），2025 冬令營 → `/curriculum`（消息關著，所以不轉 `/news`），生活影片 → `/#life`，仁武子站的特色課程 → `/curriculum`，其他三頁 → `/?campus=renwu#campuses`。`/pk` 不是舊站網址，照舊回 404。
+
+- 同日 Bing Webmaster「AI 成效」報表：3 個月內 Copilot 引用 15 次，其中舊網址 `/一日流程` 7 次、apex 7 次、`/admission` 1 次；這兩個舊網址早就有 301。另外對入學、課程、預約與五校預約頁共 8 個網址送出了索引要求。
+- 驗證：`site-redirects.spec.ts`、`admission-toggle.spec.ts` 30 條通過，web typecheck 過。
+
 ## 2026-11-25 Google 商家檔案與 Keyword Planner 搜尋量（`claude/sleepy-carson-d23zr2`，未合併、未部署；合併部署後預設關閉）
 
 使用者 11-25 要把廣告成效規格（`docs/specs/2026-11-16-ad-roi-design.md`）的階段二（商家檔案）、階段三（Keyword Planner）先做好，等 Google 核准後設變數即可開。規格 `docs/specs/2026-11-25-business-profile-keyword-planner-design.md`；啟用步驟見 `deploy/README.md` 頂部。migration `c4e7b2a91f63` 只新增六張表。

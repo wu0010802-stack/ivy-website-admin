@@ -37,7 +37,17 @@ export const LEGACY_REDIRECTS: Readonly<Record<string, string>> = {
   '/國際校介紹': '/?campus=international#campuses',
   '/仁武校介紹': '/?campus=renwu#campuses',
   // 舊站「校園生活 Features」（活動分享）→ 最新消息（建議對應，checklist 標待確認）
-  '/活動分享': '/news'
+  '/活動分享': '/news',
+  // 2026-11-25：切換後搜尋引擎與 AI 爬蟲仍在抓的舊網址（not_found_daily），原本是 checklist #23–#30 的待確認。
+  // 舊站標題寫在後面；Wix 複製頁沒改網址，所以網址和標題對不上。
+  '/作品照片分享': '/curriculum#gallery', // 常春藤兒童美術館 Art Gallery
+  '/副本-2025冬令營': '/admission', // 114下.115招生說明會
+  '/副本-教學理念': '/curriculum', // 2025冬令營（已結束的活動）
+  '/副本-特色課程': '/#life', // 生活影片
+  '/副本-仁武校介紹': '/?campus=renwu#campuses', // 快樂的孩子（仁武子站）
+  '/副本-仁武校介紹-1': '/curriculum', // 特色課程（仁武子站）
+  '/副本-仁武校介紹-3': '/?campus=renwu#campuses', // 寶貝生活（仁武子站）
+  '/副本-仁武校介紹-5': '/?campus=renwu#campuses' // 親子活動（仁武子站）
 }
 
 /**

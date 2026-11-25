@@ -28,6 +28,17 @@ describe('舊 Wix 網址對照', () => {
     expect(resolve(enc('/一日流程'))).toBe('/#life')
   })
 
+  it('切換後爬蟲仍在抓的 Wix 複製頁（2026-11-25）轉到對應的新頁', () => {
+    expect(resolve(enc('/作品照片分享'))).toBe('/curriculum#gallery')
+    expect(resolve(enc('/副本-2025冬令營'))).toBe('/admission')
+    expect(resolve(enc('/副本-教學理念'))).toBe('/curriculum')
+    expect(resolve(enc('/副本-特色課程'))).toBe('/#life')
+    expect(resolve(enc('/副本-仁武校介紹-1'))).toBe('/curriculum')
+    for (const path of ['/副本-仁武校介紹', '/副本-仁武校介紹-3', '/副本-仁武校介紹-5']) {
+      expect(resolve(enc(path)), path).toBe('/?campus=renwu#campuses')
+    }
+  })
+
   it('大小寫、結尾斜線、未編碼都認得', () => {
     expect(resolve(`${enc('/教學特色-COURSE')}/`)).toBe('/curriculum')
     expect(resolve('/常春藤環境-environment')).toBe('/environment')
@@ -39,7 +50,7 @@ describe('舊 Wix 網址對照', () => {
   })
 
   it('新站本來就有的路徑與沒列入對照的舊網址不轉（不會全部導回首頁）', () => {
-    for (const path of ['/', '/about', '/admission', '/news', '/visit/yihua', '/admin/', enc('/作品照片分享'), enc('/副本-2025冬令營'), '/blank-page']) {
+    for (const path of ['/', '/about', '/admission', '/news', '/visit/yihua', '/admin/', enc('/副本-仁武校介紹-4'), '/pk', '/blank-page']) {
       expect(resolve(path), path).toBeNull()
     }
   })

@@ -129,9 +129,9 @@ describe('入學資訊分頁開關：頁面', () => {
 })
 
 describe('入學資訊分頁開關：舊站入學網址', () => {
-  it('對照表裡去 /admission 的五條都認得，其他不算', () => {
+  it('對照表裡去 /admission 的六條都認得，其他不算', () => {
     const admission = Object.entries(LEGACY_REDIRECTS).filter(([, target]) => target.startsWith('/admission')).map(([key]) => key)
-    expect(admission).toHaveLength(5)
+    expect(admission).toHaveLength(6)
     for (const key of admission) expect(isLegacyAdmissionPath(`${enc(key)}?lang=en`), key).toBe(true)
     for (const path of ['/admission', '/about', enc('/幼兒餐點'), enc('/一日流程'), '/%E0%A4%A']) expect(isLegacyAdmissionPath(path), path).toBe(false)
   })
