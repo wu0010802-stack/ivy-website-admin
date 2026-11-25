@@ -14,6 +14,14 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-25 LINE 群組指令擴充上線（PR #136，已部署 main `dc04c116`，沒有 migration）
+
+- **提交**：[PR #136](https://github.com/wu0010802-stack/ivy-website-admin/pull/136)（`claude/keen-cray-rh7a1w`）以 merge commit 合併為 `dc04c116`（接在 PR #135 的 `922a6953` 之後）。PR CI（run 45537236888）web、admin、後端三組、E2E 全綠；main [run 45539191653](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/45539191653) 通過後 Deploy Railway production 於台灣時間 11-25 約 11:30 完成（E2E 不擋部署）。內容見 README 同日段落，規格 `docs/specs/2026-11-25-line-group-commands-design.md`。
+- **範圍**：只動 backend 的群組指令（解析、待追蹤、名額、休假日、待辦、統計、額度、選單與說明）；沒有 migration、沒有新環境變數、API 契約不變。同一次部署也帶上 PR #135（通知型訊息，預設關閉）之後 main 的內容，沒有其他程式變更。
+- **正式站唯讀驗證**（只發 GET、不登入）：`/release.json` base_commit `dc04c116`、snapshot `94d898db…`；`/api/website/v1/health`、首頁、`https://admin.ivykidschool.com/admin/login` 都回 200；`/line/webhook` 用 GET 回 405（路由在，只收 LINE 的 POST）。
+- **已生效**：綁了校區或設為總部的群組，手打的「@待標記」「@當日參觀」會回；新指令「待追蹤」「今天名額」「休假日」「待辦」「指令」可用，指令前可加校名。「本週統計」「額度」只有在後台「LINE 通知」設為總部群組的群組會回，其他群組回「這個指令只有總部群組可以用。」
+- **沒驗證**：真群組裡實際打指令（不代送真實 LINE 訊息）；長文字回覆與待追蹤卡片在手機上的樣子。
+
 ## 2026-11-25 LINE 通知型訊息：啟用步驟（PR #135 合併進 main；部署後**預設關閉**，等 LINE 核准才打開）
 
 沒留 Email、也沒綁 LINE 的家長，用預約時填的手機號碼在 LINE 收到預約完成、提醒、取消通知（範本型）。研究與規則：`docs/specs/2026-11-25-line-notification-messages-research.md`；申請、開通、真機驗收、回退與之後要繼續做的開發項目：`docs/website-admin/line-pnp-runbook.md`。
