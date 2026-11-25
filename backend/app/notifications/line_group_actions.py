@@ -345,15 +345,23 @@ def _choice_index(text: str | None, size: int) -> int | None:
     return index if str(index) == text and index < size else None
 
 
-async def _field_visit(db: AsyncSession, visit_id: uuid.UUID, served: list[str]) -> RecruitmentVisit | str:
+async def _field_visit(
+    db: AsyncSession, visit_id: uuid.UUID, served: list[str], *, require_booking: bool = True
+) -> RecruitmentVisit | str:
     """鎖住招生訪視列、讀最新值（populate_existing，重試時也拿得到別人剛寫的版本），檢查這個群組能不能填；
-    不能就放掉列鎖、回覆文字。先看授權：別校的訪視不透露它是否已匿名化或退出。"""
+    不能就放掉列鎖、回覆文字。先看授權：別校的訪視不透露它是否已匿名化或退出。
+    require_booking：結果卡的欄位只收由官網預約建立的訪視；「待追蹤」名單（2026-11-25）也列園方自己建的訪視，
+    所以下次聯絡（rff）不要求有對應預約，其餘檢查不變。"""
     visit = await records.get_visit_for_update(db, visit_id)
     if visit is None:
         refusal = CANNOT_FILL_REPLY
     elif visit.campus_key not in served:
         refusal = NO_PERMISSION_REPLY
-    elif visit.anonymized_at is not None or visit.withdrawn_at is not None or visit.visit_request_id is None:
+    elif (
+        visit.anonymized_at is not None
+        or visit.withdrawn_at is not None
+        or (require_booking and visit.visit_request_id is None)
+    ):
         refusal = CANNOT_FILL_REPLY
     else:
         return visit
@@ -434,7 +442,7 @@ async def _fill(
         return line_api.text_message(CANNOT_FILL_REPLY)
     arg = parts[1] if len(parts) > 1 else None
     for _attempt in range(2):  # VersionConflict 重讀一次再試
-        found = await _field_visit(db, visit_id, served)
+        found = await _field_visit(db, visit_id, served, require_booking=action != RF_FOLLOW)
         if isinstance(found, str):
             return line_api.text_message(found)
         visit = found

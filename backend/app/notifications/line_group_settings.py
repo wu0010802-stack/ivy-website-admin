@@ -104,6 +104,11 @@ async def campuses_served(db: AsyncSession, target_id: str, *, require_verified:
     return list(keys) or None
 
 
+async def is_hq_group(db: AsyncSession, target_id: str) -> bool:
+    """這個群組是不是總部群組（總管理者在後台指定）。統計、額度這類只給總部的指令用（2026-11-25）。"""
+    return bool(await db.scalar(select(LineGroupSetting.is_hq).where(LineGroupSetting.target_id == target_id)))
+
+
 async def digest_targets(db: AsyncSession) -> list[tuple[GroupTarget, list[str]]]:
     """每日摘要的收件群組（設計 §4.2）：校區群組或總部群組、未離開、`digest_enabled`，連同它服務的校區
     （總部＝所有營運中校區；校區群組＝指到它的校區）。沒有任何校區可服務的不回。"""

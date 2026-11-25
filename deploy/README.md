@@ -63,6 +63,15 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 5. 後台 LINE 通知頁「家長 LINE 通知」：先只替一校選「總部官方帳號」並打開「通知型訊息」，用園方自己的手機（不填 Email）預約一筆，看 LINE 收到的樣子；`line_pnp_messages` 那筆要有 `accepted_at`，送到後 `delivered_at` 也要有值（webhook）。沒有 `delivered_at` 超過 24 小時＝沒送到（封鎖、沒同意、號碼沒綁 LINE）。
 6. 看一週送達率再開其他校。
 
+## 2026-11-25 LINE 通知再加七項上線（PR #134，已部署 main `25e79bbd`，migration `f2b7c4e9a813` 只新增兩個欄位）
+
+- **提交**：[PR #134](https://github.com/wu0010802-stack/ivy-website-admin/pull/134)（`claude/keen-cray-rh7a1w`）以 merge commit 合併為 `25e79bbd`。PR CI（run 45526578818）web、admin、後端三組、E2E 全綠；main [run 45528607737](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/45528607737) web、admin、後端三組通過後，Deploy Railway production 於台灣時間 11-25 10:01 成功（E2E 不擋部署）。內容見 README 同日段落，規格 `docs/specs/2026-11-25-line-more-features-design.md`。
+- **migration**：`f2b7c4e9a813` 接在 `a6c3e9f2d417` 之後，只在 `visit_requests` 新增 `attendance_confirmed_at`、`attendance_confirmed_slot_id`（可為 NULL），不改既有資料，沒有備份。沒有新設任何環境變數。
+- **正式站唯讀驗證**（只發 GET、不登入）：`/release.json` base_commit `25e79bbd`、snapshot `a2f11cea…`；`/api/website/v1/health` 200；首頁、`https://admin.ivykidschool.com/admin/login` 200；五校 `/public/booking-config/<校>` 的 `line_notify_enabled` 仍全為 `false`。
+- **已生效（園方群組）**：有綁定的群組（部署時是義華；同日 10:20 起明華校也綁了群組）下一則卡片起多「參觀人數」、取消卡多「取消方」；「待標記」「11/28 參觀」「下週參觀」指令與 @ 選單新按鈕可用；到場結果卡多「下次聯絡」。
+- **還沒生效（家長一對一）**：五校家長 LINE 通知都還關著，導航、會準時到、「我的預約」取消要等某校在後台打開才會出現；打開前照 11-16 段落先發布隱私權政策 LINE 段落，建議順便寫「可以在 LINE 回覆是否會到、取消預約」。
+- **沒驗證**：真的群組裡打新指令、按下次聯絡；家長真機的會準時到、取消確認卡、手機 LINE 開導航（要本人操作）。
+
 ## 2026-11-20 園務同步端點：啟用步驟（`feature/ivy-management-sync-api-20261120`；合併部署後**預設關閉**）
 
 沒有 migration、不新增表。合併部署後這支端點仍是 404，直到在 api 服務設 `WEBSITE_IVY_SYNC_KEY_HASHES`。規格 `docs/specs/2026-11-20-ivy-management-sync-api.md`。
