@@ -147,3 +147,98 @@ class LineInsightsOut(BaseModel):
     end: date
     accounts: list[LineFollowerAccountOut]
     campuses: list[LineCampusClicksOut]
+
+
+# ---- Google 商家檔案（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md §4.4）----
+
+
+class GbpMonthOut(BaseModel):
+    month: str  # "2026-11"
+    # 這個月實際有幾天的資料、最後一天（本月還沒過完、Google 晚幾天才有數字時，畫面寫「到 11/22」）。
+    days: int
+    last_day: date
+    desktop_search: int
+    mobile_search: int
+    desktop_maps: int
+    mobile_maps: int
+    calls: int
+    directions: int
+    website: int
+    messages: int
+
+
+class GbpKeywordOut(BaseModel):
+    keyword: str
+    # 兩者恰好一個有值：impressions＝確切的曝光次數；below＝Google 只說「少於這個數」。
+    impressions: int | None
+    below: int | None
+
+
+class GbpLocationOut(BaseModel):
+    campus_key: str
+    campus_name: str
+    # 背景同步的狀態；error 只有「哪一步、HTTP 幾號」。failed＝最近一次同步失敗（error 是那次的原因）。
+    last_success_at: datetime | None
+    last_attempt_at: datetime | None
+    failed: bool
+    error: str | None
+    # 每日指標最後一天（還沒同步過是 null）；months 由新到舊，最多 13 個月（本月與前 12 個月）。
+    last_day: date | None
+    months: list[GbpMonthOut]
+    # 最近一個有抓過搜尋字詞的整月與它的前 25 個字詞（確切值依曝光由多到少，接著是「少於 N」的）；keyword_total＝那個月共幾個字詞。
+    keywords_month: str | None
+    keywords: list[GbpKeywordOut]
+    keyword_total: int
+
+
+class BusinessProfileOut(BaseModel):
+    configured: bool
+    locations: list[GbpLocationOut]
+
+
+# ---- 搜尋需求（Keyword Planner，2026-11-25 同規格 §5.4）----
+
+
+class SearchDemandGeoOut(BaseModel):
+    key: str
+    label: str
+
+
+class SearchVolumeCellOut(BaseModel):
+    month: str  # "2026-10"
+    # available＝Google 有回這個月；searches 是 null 而 available 是 true＝量太少；available 是 false＝還沒有這個月的數字。
+    available: bool
+    searches: int | None
+
+
+class SearchKeywordVolumesOut(BaseModel):
+    geo: str
+    cells: list[SearchVolumeCellOut]
+
+
+class SearchKeywordOut(BaseModel):
+    id: str
+    text: str
+    created_at: datetime
+    # null＝加進來之後還沒同步過。
+    synced_at: datetime | None
+    # 每個地區一份，順序同 SearchDemandOut.geos；每份的 cells 對齊 SearchDemandOut.months。
+    volumes: list[SearchKeywordVolumesOut]
+
+
+class SearchDemandOut(BaseModel):
+    configured: bool
+    geos: list[SearchDemandGeoOut]
+    # 最近 12 個整月，由舊到新。
+    months: list[str]
+    keywords: list[SearchKeywordOut]
+    keyword_limit: int
+    last_success_at: datetime | None
+    last_attempt_at: datetime | None
+    failed: bool
+    # 最近一次失敗的原因；成功但有區查不到時是那幾區的原因（failed 是 false）。
+    error: str | None
+
+
+class SearchKeywordIn(BaseModel):
+    text: str = Field(min_length=1, max_length=200)

@@ -25,6 +25,7 @@ from app.operations import models as operations_models  # noqa: F401
 from app.common import models as common_models  # noqa: F401
 from app.contact_phrases import models as contact_phrase_models  # noqa: F401
 from app.ad_conversions import models as ad_conversion_models  # noqa: F401
+from app.insights import models as insights_models  # noqa: F401
 
 config = context.config
 

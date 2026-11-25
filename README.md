@@ -1,3 +1,15 @@
+## 2026-11-25 Google 商家檔案與 Keyword Planner 搜尋量（`claude/sleepy-carson-d23zr2`，未合併、未部署；合併部署後預設關閉）
+
+使用者 11-25 要把廣告成效規格（`docs/specs/2026-11-16-ad-roi-design.md`）的階段二（商家檔案）、階段三（Keyword Planner）先做好，等 Google 核准後設變數即可開。規格 `docs/specs/2026-11-25-business-profile-keyword-planner-design.md`；啟用步驟見 `deploy/README.md` 頂部。migration `c4e7b2a91f63` 只新增六張表。
+
+- **查證後和原稿不同**（2026-11-25 讀 developers.google.com）：兩者都用 Google 帳號的 OAuth refresh token（商家檔案沒有服務帳戶的官方做法）；Google Ads 開發者權杖 2026-09-09 起不再生效，存取等級綁在 Cloud 專案、Keyword Planner 要 Basic；商家檔案的 `BUSINESS_CONVERSATIONS` 已移除，改要 `MESSAGING_CLICKS`；Keyword Planner 地區只有高雄市、三民區、左營區（鳥松、仁武在 Google 的清單裡只有郵遞區號）。
+- **商家檔案**（成效統計 →「怎麼來、怎麼逛」，Google 搜尋下面）：背景每天同步每日指標（第一次往回抓到 Google 給得出的最早一天、最多 18 個月；之後重抓最近 7 天）與每月搜尋字詞；按月顯示搜尋／地圖曝光、手機占、電話、路線、網站、訊息，最近一個整月的前 25 個字詞（「少於 N」照實寫）。不隨頁首期間。
+- **搜尋需求**（招生統計 → 廣告成效最下面）：總管理者維護最多 50 個關鍵字；背景每週同步最近 48 個整月的 Google 每月搜尋量（繁中、只算 Google 搜尋），新加的一小時內抓；表是關鍵字 × 最近 12 個整月、地區可切。量太少寫「量太少」，不補 0。
+- **同步**：`GoogleSyncLoop` 每小時醒來，商家檔案或 Keyword Planner 任一個設定好才啟動；失敗後 3 小時再試；錯誤只記「哪一步（HTTP n）」，後台補一句該怎麼做。`python -m app.cli google-sync` 立即同步一次，設好變數時用來確認。
+- **稽核**：`search_keyword.create`／`search_keyword.delete`（後台標籤已補）。
+- **驗證**：後端全套 5,966 passed（本機 PostgreSQL 16，26 分鐘）；新增 60 條（設定 15、商家檔案 22、搜尋需求 23）；migration 升、降、再升各一次。admin typecheck 過、`googleData.test.ts` 21 條＋`adsTab`、`labelCoverage` 通過，admin 全套 vitest 205 檔 3,841 條通過、1 條略過；`contract:check` 過；web typecheck 過（只有既有的 `MediaImage` 重複匯入提示）。假 API 在 1440／390 截圖兩塊：橫向溢出 0、頁面錯誤 0（途中修掉一個：搜尋需求表頭的 `.visually-hidden` 跑出捲動框，把手機頁面撐到 919px）。
+- **沒驗**：真的 Google（沒有核准的專案與 refresh token）、OAuth Playground 實際畫面、商家檔案資料保留多久與晚幾天、Keyword Planner 收不收區層級的地區（三民、左營失敗時只會在畫面註明，高雄市照常）、stack e2e、`backend/.test_durations` 沒重產。
+
 ## 2026-11-25 LINE 群組指令擴充：以總部群組為基準（`claude/keen-cray-rh7a1w`，未部署）
 
 使用者在群組打「@當日參觀」「@待標記」沒有回應（開頭手打的 @ 不算指令），看完可加的指令後說「以總部群的指令為準，我要擴張這個群組的指令」。規格 `docs/specs/2026-11-25-line-group-commands-design.md`。全部是回覆（reply），不計每月則數；校區群組用同一套、只看自己的校區。

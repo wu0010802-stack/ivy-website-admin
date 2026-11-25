@@ -10,6 +10,8 @@ import httpx
 SEARCH_CONSOLE_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-search-insights/1.0)"
 GA4_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-ad-cost/1.0)"
 CRUX_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-crux/1.0)"
+BUSINESS_PROFILE_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-business-profile/1.0)"
+GOOGLE_ADS_USER_AGENT = "Mozilla/5.0 (compatible; ivy-website-search-demand/1.0)"
 
 # 回應很小（25 列、或兩個裝置的時間序列）；超過就當異常。
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -41,6 +43,21 @@ def new_client(user_agent: str, transport: httpx.AsyncBaseTransport | None = Non
         event_hooks={"request": [_require_https]},
         transport=transport,
     )
+
+
+async def get_json(client: httpx.AsyncClient, step: str, url: str, **kwargs) -> tuple[int, object]:
+    """GET 版的 post_json：連線失敗只記例外型別、不帶 Google 回應內容。"""
+    try:
+        response = await client.get(url, **kwargs)
+    except httpx.HTTPError as exc:
+        raise GoogleApiError(step, reason=type(exc).__name__) from None
+    if len(response.content) > MAX_JSON_BYTES:
+        raise GoogleApiError(step, status=response.status_code, reason="回應過大")
+    try:
+        data = response.json()
+    except ValueError:
+        data = None
+    return response.status_code, data
 
 
 async def post_json(client: httpx.AsyncClient, step: str, url: str, **kwargs) -> tuple[int, object]:

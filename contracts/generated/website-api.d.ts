@@ -1434,6 +1434,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/business-profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Business Profile
+         * @description Google 商家檔案：各地點按月的曝光、電話、路線、網站點擊、訊息，與最近一個整月的前 25 個搜尋字詞。
+         *     不隨成效統計的期間變動；資料由背景每天同步一次。
+         */
+        get: operations["get_business_profile_api_website_v1_admin_business_profile_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/campuses": {
         parameters: {
             query?: never;
@@ -2804,6 +2825,67 @@ export interface paths {
          */
         post: operations["retention_run_api_website_v1_admin_retention_run_post"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/search-demand": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Search Demand
+         * @description 搜尋需求：後台維護的關鍵字在高雄市與五校所在區最近 12 個整月的 Google 搜尋量。沒設定 Keyword Planner 時照樣列出
+         *     關鍵字（可以先加好），數字都是空的。
+         */
+        get: operations["get_search_demand_api_website_v1_admin_search_demand_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/search-demand/keywords": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Search Keyword
+         * @description 新增一個關鍵字（最多 50 個、不分大小寫不能重複）。下一輪背景同步（一小時內）就會抓它的搜尋量。
+         */
+        post: operations["create_search_keyword_api_website_v1_admin_search_demand_keywords_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/search-demand/keywords/{keyword_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Search Keyword
+         * @description 刪掉關鍵字與它存過的搜尋量。
+         */
+        delete: operations["delete_search_keyword_api_website_v1_admin_search_demand_keywords__keyword_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -6870,6 +6952,13 @@ export interface components {
             /** Visits */
             visits: string;
         };
+        /** BusinessProfileOut */
+        BusinessProfileOut: {
+            /** Configured */
+            configured: boolean;
+            /** Locations */
+            locations: components["schemas"]["GbpLocationOut"][];
+        };
         /** CalendarSlotOut */
         CalendarSlotOut: {
             /** Booked Count */
@@ -8759,6 +8848,68 @@ export interface components {
                 [key: string]: number | null;
             };
             tier: components["schemas"]["TierOut"];
+        };
+        /** GbpKeywordOut */
+        GbpKeywordOut: {
+            /** Below */
+            below: number | null;
+            /** Impressions */
+            impressions: number | null;
+            /** Keyword */
+            keyword: string;
+        };
+        /** GbpLocationOut */
+        GbpLocationOut: {
+            /** Campus Key */
+            campus_key: string;
+            /** Campus Name */
+            campus_name: string;
+            /** Error */
+            error: string | null;
+            /** Failed */
+            failed: boolean;
+            /** Keyword Total */
+            keyword_total: number;
+            /** Keywords */
+            keywords: components["schemas"]["GbpKeywordOut"][];
+            /** Keywords Month */
+            keywords_month: string | null;
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Day */
+            last_day: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Months */
+            months: components["schemas"]["GbpMonthOut"][];
+        };
+        /** GbpMonthOut */
+        GbpMonthOut: {
+            /** Calls */
+            calls: number;
+            /** Days */
+            days: number;
+            /** Desktop Maps */
+            desktop_maps: number;
+            /** Desktop Search */
+            desktop_search: number;
+            /** Directions */
+            directions: number;
+            /**
+             * Last Day
+             * Format: date
+             */
+            last_day: string;
+            /** Messages */
+            messages: number;
+            /** Mobile Maps */
+            mobile_maps: number;
+            /** Mobile Search */
+            mobile_search: number;
+            /** Month */
+            month: string;
+            /** Website */
+            website: number;
         };
         /** GoogleLinkStart */
         GoogleLinkStart: {
@@ -11676,6 +11827,34 @@ export interface components {
              */
             revision_id: string;
         };
+        /** SearchDemandGeoOut */
+        SearchDemandGeoOut: {
+            /** Key */
+            key: string;
+            /** Label */
+            label: string;
+        };
+        /** SearchDemandOut */
+        SearchDemandOut: {
+            /** Configured */
+            configured: boolean;
+            /** Error */
+            error: string | null;
+            /** Failed */
+            failed: boolean;
+            /** Geos */
+            geos: components["schemas"]["SearchDemandGeoOut"][];
+            /** Keyword Limit */
+            keyword_limit: number;
+            /** Keywords */
+            keywords: components["schemas"]["SearchKeywordOut"][];
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+            /** Months */
+            months: string[];
+        };
         /** SearchDeviceRowOut */
         SearchDeviceRowOut: {
             /** Clicks */
@@ -11717,6 +11896,34 @@ export interface components {
             /** Start */
             start?: string | null;
             totals?: components["schemas"]["SearchMetricsOut"] | null;
+        };
+        /** SearchKeywordIn */
+        SearchKeywordIn: {
+            /** Text */
+            text: string;
+        };
+        /** SearchKeywordOut */
+        SearchKeywordOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Id */
+            id: string;
+            /** Synced At */
+            synced_at: string | null;
+            /** Text */
+            text: string;
+            /** Volumes */
+            volumes: components["schemas"]["SearchKeywordVolumesOut"][];
+        };
+        /** SearchKeywordVolumesOut */
+        SearchKeywordVolumesOut: {
+            /** Cells */
+            cells: components["schemas"]["SearchVolumeCellOut"][];
+            /** Geo */
+            geo: string;
         };
         /** SearchMetricsOut */
         SearchMetricsOut: {
@@ -11777,6 +11984,15 @@ export interface components {
             position: number;
             /** Query */
             query: string;
+        };
+        /** SearchVolumeCellOut */
+        SearchVolumeCellOut: {
+            /** Available */
+            available: boolean;
+            /** Month */
+            month: string;
+            /** Searches */
+            searches: number | null;
         };
         /**
          * SeatOut
@@ -16267,6 +16483,39 @@ export interface operations {
             };
         };
     };
+    get_business_profile_api_website_v1_admin_business_profile_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BusinessProfileOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     list_admin_campuses_api_website_v1_admin_campuses_get: {
         parameters: {
             query?: never;
@@ -19013,6 +19262,109 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["RetentionReportOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_search_demand_api_website_v1_admin_search_demand_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchDemandOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_search_keyword_api_website_v1_admin_search_demand_keywords_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchKeywordIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchKeywordOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_search_keyword_api_website_v1_admin_search_demand_keywords__keyword_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                keyword_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

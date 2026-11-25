@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import AdConversionStatus from './AdConversionStatus.vue'
 import AdSpendDialog from './AdSpendDialog.vue'
+import SearchDemandSection from './SearchDemandSection.vue'
 import { deleteAdSpend, getAdRoi, listAdSpend } from '../../../api/admissions'
 import { apiErrorMessage } from '../../../api/errors'
 import { campusLabel } from '../../../api/labels'
@@ -256,6 +257,9 @@ async function remove(entry: AdSpendEntry) {
         </ul>
       </section>
     </template>
+
+    <!-- 搜尋需求（Keyword Planner，2026-11-25）：不受上面的月份區間影響，自己讀、自己顯示錯誤。 -->
+    <SearchDemandSection :active="active" class="ads-block" />
 
     <AdSpendDialog v-model="dialogOpen" :entry="editing" :this-month="thisMonth" @saved="load()" />
   </section>

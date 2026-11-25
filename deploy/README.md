@@ -14,6 +14,37 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-25 Google 商家檔案與 Keyword Planner：啟用步驟（`claude/sleepy-carson-d23zr2`；**未合併、未部署**，合併部署後預設關閉）
+
+migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月搜尋字詞、抓過的月份；搜尋需求關鍵字、每月搜尋量；同步狀態），不改既有資料，不需要事先備份。沒設變數時背景迴圈不啟動、不向 Google 要任何東西；後台「成效統計 → 怎麼來、怎麼逛」多一塊「Google 商家檔案尚未設定」，「招生統計 → 廣告成效」最下面多「搜尋需求」（關鍵字可以先加）。規格 `docs/specs/2026-11-25-business-profile-keyword-planner-design.md`，變數說明在規格 §3。
+
+| 服務 | 變數 | 說明 |
+|---|---|---|
+| api | `WEBSITE_GOOGLE_API_CLIENT_ID`、`WEBSITE_GOOGLE_API_CLIENT_SECRET` | OAuth 用戶端（網頁應用程式），兩者任一啟用就要，成對 |
+| api | `WEBSITE_GBP_REFRESH_TOKEN`、`WEBSITE_GBP_LOCATIONS` | 商家檔案：管理員帳號的 refresh token（scope `business.manage`）＋`yihua=<地點ID>`，成對 |
+| api | `WEBSITE_GOOGLE_ADS_REFRESH_TOKEN`、`WEBSITE_GOOGLE_ADS_CUSTOMER_ID` | Keyword Planner：能讀廣告帳戶的帳號的 refresh token（scope `adwords`）＋`582-345-1021`，成對 |
+| api | `WEBSITE_GOOGLE_ADS_LOGIN_CUSTOMER_ID` | 選填：經管理員帳戶存取時才設（管理員帳戶編號） |
+| api | `WEBSITE_GOOGLE_ADS_DEVELOPER_TOKEN`、`WEBSITE_GOOGLE_ADS_API_VERSION` | 選填：Google 2026-09-09 起不看開發者權杖；版本預設 `v26`（2027-11 停用，之前改成新版即可） |
+
+格式不對或沒成對 api 拒絕啟動，錯誤訊息不帶值。
+
+**前置（業主，Google 核准要時間，可以先做）**
+
+1. 商家檔案：用管理義華商家檔案的帳號填「Application for Basic API Access」（要 Google Cloud 專案編號），最多約 14 天；核准前配額是 0（同步會回 429 或 403）。核准後在同一專案開啟 **Business Profile Performance API**。
+2. Keyword Planner：同一個 Cloud 專案開啟 **Google Ads API**，先完成專案的品牌驗證，再到 Cloud Console → Google Ads API → 申請 **Basic** 存取（Explorer 不能用 Keyword Planner；用免費試用帳單帳戶的專案會被拒）。
+
+**啟用**
+
+1. 同一個 Cloud 專案建 OAuth 用戶端（網頁應用程式），授權的重新導向 URI 加 `https://developers.google.com/oauthplayground`。OAuth 同意畫面發布成「正式版」（「測試」狀態的 refresh token 7 天就失效）。
+2. 用 OAuth Playground（右上齒輪勾 Use your own OAuth credentials、貼上用戶端 ID 與密鑰）分別授權，各換一把 refresh token：管理義華商家檔案的帳號授權 `https://www.googleapis.com/auth/business.manage`；能讀廣告帳戶 582-345-1021 的帳號授權 `https://www.googleapis.com/auth/adwords`（同一個帳號可以一次勾兩個 scope、兩個變數放同一把）。refresh token 只貼到 Railway，不貼對話或文件。
+3. 義華的地點 ID：商家檔案 → 設定 → 進階設定的「商家檔案 ID」。下面第 5 步回 404 時改在 OAuth Playground 呼叫 `GET https://mybusinessaccountmanagement.googleapis.com/v1/accounts` 與 `GET https://mybusinessbusinessinformation.googleapis.com/v1/<accounts/…>/locations?readMask=name,title` 取 `locations/<ID>`。
+4. Railway api 服務設上表的變數（改變數會重新部署，先確認沒有人在部署）。
+5. 立即同步一次確認（不看今天同步過沒）：`railway ssh --service api --environment production -- python -m app.cli google-sync`。成功印出「商家檔案 yihua：N 天的每日指標、M 個月的搜尋字詞」與「Keyword Planner：K 個關鍵字」（還沒加關鍵字時說要到後台加）；失敗印出步驟與 HTTP 狀態，後台同一塊也會寫原因與該怎麼做。之後背景每小時醒來，商家檔案一天同步一次、Keyword Planner 一週一次（新加的關鍵字下一輪就抓），失敗後隔 3 小時再試。
+
+**關閉**：刪掉 refresh token 那組變數並重新部署；已同步的資料留在表裡，後台改顯示「尚未設定」。
+
+**觀測**：同步失敗記 WARNING（`app.insights.business_profile`、`app.insights.search_demand`），只有步驟與 HTTP 狀態，不含權杖、地點 ID 或 Google 回應內容。
+
 ## 2026-11-25 LINE 通知型訊息：啟用步驟（PR #135 合併進 main；部署後**預設關閉**，等 LINE 核准才打開）
 
 沒留 Email、也沒綁 LINE 的家長，用預約時填的手機號碼在 LINE 收到預約完成、提醒、取消通知（範本型）。研究與規則：`docs/specs/2026-11-25-line-notification-messages-research.md`；申請、開通、真機驗收、回退與之後要繼續做的開發項目：`docs/website-admin/line-pnp-runbook.md`。
