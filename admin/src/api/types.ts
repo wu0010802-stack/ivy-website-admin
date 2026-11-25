@@ -731,3 +731,12 @@ export type AdRoiPending = components['schemas']['AdRoiPendingOut']
 export type AdSpendEntry = components['schemas']['AdSpendEntryOut']
 export type AdSpendList = components['schemas']['AdSpendListOut']
 export type AdSpendPlatform = 'openai' | 'meta' | 'line' | 'other' | 'offline'
+
+// Google 商家檔案與搜尋需求（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md）。
+export type BusinessProfile = components['schemas']['BusinessProfileOut']
+export type GbpLocation = components['schemas']['GbpLocationOut']
+export type GbpMonth = components['schemas']['GbpMonthOut']
+export type GbpKeyword = components['schemas']['GbpKeywordOut']
+export type SearchDemand = components['schemas']['SearchDemandOut']
+export type SearchKeyword = components['schemas']['SearchKeywordOut']
+export type SearchVolumeCell = components['schemas']['SearchVolumeCellOut']

@@ -421,6 +421,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   platform: (v) => `平台：${AD_SPEND_PLATFORM_LABELS[String(v)] ?? String(v)}`,
   amount: (v) => `金額：NT$${Number(v).toLocaleString('en-US')}`,
   before_amount: (v) => (v === null || v === undefined ? null : `原本：NT$${Number(v).toLocaleString('en-US')}`),
+  // 搜尋需求關鍵字（2026-11-25）：關鍵字本身不是個資，照原文寫。
+  text: (v, action) => (action.startsWith('search_keyword.') ? `關鍵字：${String(v)}` : String(v)),
   // 未預繳名單的原因、班別篩選收任意字串；不在選項內的後端只記 other，不把輸入原文寫進紀錄。
   grade: (v, action) => (action.startsWith('roster_') ? `年級：${String(v)}` : `篩選班別：${v === 'other' ? OTHER_FILTER_LABEL : String(v)}`),
   // 編班與缺額（2026-11-15）：不記姓名、生日與身分標記。

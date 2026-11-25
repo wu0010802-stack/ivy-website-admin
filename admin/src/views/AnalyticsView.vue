@@ -2,6 +2,7 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
+import BusinessProfilePanel from '../components/analytics/BusinessProfilePanel.vue'
 import ContactHoursPanel from '../components/analytics/ContactHoursPanel.vue'
 import CrawlerPanel from '../components/analytics/CrawlerPanel.vue'
 import MonthlyPanel from '../components/analytics/MonthlyPanel.vue'
@@ -123,6 +124,8 @@ const statusText = computed(() => {
     <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange" :period-label="bookingPeriod" />
     <ContactHoursPanel v-show="tab === 'convert'" :days="days" :active="tab === 'convert'" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
+    <!-- Google 商家檔案（2026-11-25）：按月、背景每天同步，不隨期間；同樣要 admissions.stats，接在 Google 搜尋後面。 -->
+    <BusinessProfilePanel v-if="showExternal" v-show="tab === 'journey'" :active="tab === 'journey'" />
     <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
     <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
     <MonthlyPanel v-show="onMonthly" :active="onMonthly" />

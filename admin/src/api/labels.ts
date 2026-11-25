@@ -575,6 +575,9 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'enrolled_roster.clear': '清除在籍資料',
   'ad_spend.upsert': '填寫廣告花費',
   'ad_spend.delete': '刪除廣告花費',
+  // 搜尋需求（Keyword Planner，2026-11-25）
+  'search_keyword.create': '新增搜尋需求關鍵字',
+  'search_keyword.delete': '刪除搜尋需求關鍵字',
   'enrollment_history.import': '匯入歷年註冊',
 }
 
@@ -754,6 +757,7 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   roster_snapshot: '結算紀錄',
   enrolled_roster: '在籍清冊',
   ad_spend: '廣告花費',
+  search_keyword: '搜尋需求關鍵字',
   enrollment_history: '歷年註冊',
   error_group: '錯誤回報',
 }
