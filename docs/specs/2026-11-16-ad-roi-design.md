@@ -159,6 +159,8 @@ Google 活動            花費    點擊   曝光   單次點擊   Google 回�
 
 ## 10. 階段二：Google 商家檔案（義華）
 
+> 2026-11-25：階段二、三已依 `2026-11-25-business-profile-keyword-planner-design.md` 實作，與下面原稿不同之處以那份為準（OAuth refresh token、開發者權杖 2026-09-09 起不再需要、`BUSINESS_CONVERSATIONS` 已移除、鳥松與仁武沒有區層級的地區代碼）。
+
 **前置（業主）**：用管理義華商家檔案的 Google 帳號申請 Business Profile API 存取（Google 表單，要填 Google Cloud 專案編號；沒核准前額度是 0）；核准後在同一專案開啟 Business Profile Performance API。
 
 - 授權：商家檔案的管理員只能是 Google 帳號，預期要用 OAuth 使用者授權（scope `business.manage`）一次取得 refresh token，存成 Railway 變數；服務帳戶能不能直接加成管理員，實作時先驗證，能的話改用服務帳戶。
