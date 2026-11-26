@@ -67,6 +67,9 @@ export const NAV_GROUPS: NavGroup[] = [
       // 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽出來，限總管理者（後端 admissions.stats）。
       // 招生開關關閉時同招生入學不列出。
       { name: 'admissions-stats', path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', roles: ['super_admin'], feature: 'admissions', keywords: ['統計分析', '轉換率', '預約統計', '到場率', '取消率', '五校比較', '班別', '來源分析', '區域分析', '未預繳', '預約全程', '招生潛力', '市佔率'] },
+      // Meta 名單型廣告送進來的名單收件匣，挑要跟進的轉成參觀案件（2026-11-26）。排在招生統計後面：
+      // 參觀案件→參觀場次→招生入學→招生統計 要一個接一個（receptionAndHistory、admissionsView、admissionsStatsView 測試）。
+      { name: 'meta-leads', path: '/meta-leads', title: '廣告名單', icon: 'ChatDotSquare', roles: VISITS, keywords: ['Meta', 'Facebook', 'Instagram', '名單型廣告', '即時表單', '潛在顧客'] },
       { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
       { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],

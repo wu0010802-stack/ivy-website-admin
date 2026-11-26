@@ -18,6 +18,7 @@
 - [編班的幼生](#roster_student)：4 個狀態
 - [廣告轉換回傳](#ad_conversion_job)：4 個狀態
 - [粉專貼文收件匣](#facebook_page_post)：3 個狀態
+- [廣告名單收件匣](#meta_lead)：3 個狀態
 
 由欄位推導的：
 
@@ -349,6 +350,35 @@ stateDiagram-v2
 | `dismissed` | `new` | `backend/app/facebook/routes.py` 的 `restore_facebook_post` | — | — |
 | `new` | `imported` | `backend/app/facebook/routes.py` 的 `import_facebook_post` | 貼文要有照片 | — |
 | `dismissed` | `imported` | `backend/app/facebook/routes.py` 的 `import_facebook_post` | 貼文要有照片 | — |
+
+<a id="meta_lead"></a>
+
+## 廣告名單收件匣（`meta_lead`）
+
+- 實體：`backend/app/meta_leads/models.py` 的 `MetaLead`，狀態欄位：`status`
+- 狀態：`new` 未處理、`converted` 已轉成案件、`dismissed` 已略過
+- 可以寫這個狀態的檔案：`backend/app/meta_leads/service.py`
+- 終態（進去就不再變）：`converted`
+
+```mermaid
+stateDiagram-v2
+    [*] --> new
+    new --> dismissed
+    dismissed --> new
+    new --> converted
+    dismissed --> converted
+    converted --> [*]
+```
+
+| 從 | 到 | 寫入的函式 | 條件 | 連帶做的事 |
+|---|---|---|---|---|
+| （建立） | `new` | `backend/app/meta_leads/sync.py` 的 `_write_leads` | 同步只新增名單，同一筆名單再讀到就略過 | — |
+| `new` | `dismissed` | `backend/app/meta_leads/service.py` 的 `dismiss` | — | — |
+| `dismissed` | `new` | `backend/app/meta_leads/service.py` 的 `restore` | — | — |
+| `new` | `converted` | `backend/app/meta_leads/service.py` 的 `mark_converted` | 後台補登成功（同一個交易，名單與案件同一校） | 記案件 id；清掉名單上的姓名、電話、作答 |
+| `dismissed` | `converted` | `backend/app/meta_leads/service.py` 的 `mark_converted` | 後台補登成功（同一個交易，名單與案件同一校） | 記案件 id；清掉名單上的姓名、電話、作答 |
+
+規格 6.2 不得自動建案：名單只在人員按「轉成參觀案件」、補登成功後才變成案件。沒轉成案件的名單收到 WEBSITE_META_LEADS_RETENTION_DAYS 天後由 maintenance 刪除（不是狀態轉移）。
 
 <a id="parent_access"></a>
 

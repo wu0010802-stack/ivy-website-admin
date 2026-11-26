@@ -2411,6 +2411,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/meta-leads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Meta Leads
+         * @description 這校的名單（新的：舊到新；處理過的：新到舊，最多 200 筆）與拉取狀態。
+         */
+        get: operations["list_meta_leads_api_website_v1_admin_meta_leads_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/meta-leads/pending": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pending Meta Leads
+         * @description 看得到的各校還有幾筆新名單（側欄提示用）。
+         */
+        get: operations["pending_meta_leads_api_website_v1_admin_meta_leads_pending_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/meta-leads/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Meta Leads
+         * @description 立即拉這一校（不等每分鐘的自動拉取）。失敗寫在回應的 sync.last_error，不回錯誤碼。
+         */
+        post: operations["sync_meta_leads_api_website_v1_admin_meta_leads_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/meta-leads/{lead_id}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Dismiss Meta Lead
+         * @description 不轉成案件（例如打不通、重複、只是問問），收到「略過」；隨時可以放回。
+         */
+        post: operations["dismiss_meta_lead_api_website_v1_admin_meta_leads__lead_id__dismiss_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/meta-leads/{lead_id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore Meta Lead */
+        post: operations["restore_meta_lead_api_website_v1_admin_meta_leads__lead_id__restore_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/my-notifications": {
         parameters: {
             query?: never;
@@ -10014,6 +10111,104 @@ export interface components {
             /** Width */
             width: number | null;
         };
+        /** MetaLeadAnswerOut */
+        MetaLeadAnswerOut: {
+            /** Answer */
+            answer: string;
+            /** Question */
+            question: string;
+        };
+        /** MetaLeadCounts */
+        MetaLeadCounts: {
+            /**
+             * Converted
+             * @default 0
+             */
+            converted: number;
+            /**
+             * Dismissed
+             * @default 0
+             */
+            dismissed: number;
+            /**
+             * New
+             * @default 0
+             */
+            new: number;
+        };
+        /** MetaLeadListOut */
+        MetaLeadListOut: {
+            /** Configured */
+            configured: boolean;
+            counts: components["schemas"]["MetaLeadCounts"];
+            /** Leads */
+            leads: components["schemas"]["MetaLeadOut"][];
+            sync: components["schemas"]["MetaLeadSyncStatusOut"] | null;
+            /** Sync Seconds */
+            sync_seconds: number;
+        };
+        /** MetaLeadOut */
+        MetaLeadOut: {
+            /** Answers */
+            answers: components["schemas"]["MetaLeadAnswerOut"][];
+            /** Campus Key */
+            campus_key: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Form Name */
+            form_name: string | null;
+            /** Handled At */
+            handled_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Organic */
+            is_organic: boolean | null;
+            /** Parent Name */
+            parent_name: string | null;
+            /** Phone */
+            phone: string | null;
+            /** Platform */
+            platform: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "converted" | "dismissed";
+            /** Visit Request Id */
+            visit_request_id: string | null;
+        };
+        /**
+         * MetaLeadPendingOut
+         * @description 看得到的各校還沒處理的新名單數（側欄提示用）；只列有新名單的校。
+         */
+        MetaLeadPendingOut: {
+            /** Campuses */
+            campuses: {
+                [key: string]: number;
+            };
+        };
+        /** MetaLeadSyncIn */
+        MetaLeadSyncIn: {
+            /** Campus Key */
+            campus_key: string;
+        };
+        /** MetaLeadSyncStatusOut */
+        MetaLeadSyncStatusOut: {
+            /** Last Attempt At */
+            last_attempt_at: string | null;
+            /** Last Count */
+            last_count: number | null;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Success At */
+            last_success_at: string | null;
+        };
         /** MonthlyOut */
         MonthlyOut: {
             /** Booked Sessions */
@@ -13149,6 +13344,8 @@ export interface components {
             email?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** Meta Lead Id */
+            meta_lead_id?: string | null;
             /** Note */
             note?: string | null;
             /** Parent Name */
@@ -18486,6 +18683,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_meta_leads_api_website_v1_admin_meta_leads_get: {
+        parameters: {
+            query: {
+                campus_key: string;
+                status?: "new" | "converted" | "dismissed";
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaLeadListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    pending_meta_leads_api_website_v1_admin_meta_leads_pending_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaLeadPendingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    sync_meta_leads_api_website_v1_admin_meta_leads_sync_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MetaLeadSyncIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaLeadListOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dismiss_meta_lead_api_website_v1_admin_meta_leads__lead_id__dismiss_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                lead_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaLeadOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    restore_meta_lead_api_website_v1_admin_meta_leads__lead_id__restore_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                lead_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetaLeadOut"];
                 };
             };
             /** @description Validation Error */

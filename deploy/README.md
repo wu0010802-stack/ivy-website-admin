@@ -14,6 +14,26 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，功能預設關**）
+
+migration `e84b4724bb8d`（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改既有資料，沒有事先備份（照 `deploy/CICD.md`，純新增不需要）。合併前在合併後的 main 上核對過只有一個 alembic head。PR 第一輪 CI 紅在後台側欄測試：「廣告名單」原本插在參觀場次後面，擠開了「參觀場次→招生入學」的相鄰規則。改排到招生統計後面（`ab9d2ef2`）後全綠。合併後 run 45828117644 含 Deploy 全綠，`/release.json` 的 base 是 `cb3053a7`。線上核對：
+- `/api/website/v1/health` 回 200（production）。
+- `admin.ivykidschool.com` 未登入打 `/api/website/v1/admin/meta-leads`、`/meta-leads/pending` 回 401，和 `/admin/visit-requests` 一致。www 上同樣路徑回 404，和既有後台 API 一致。
+
+沒設 `WEBSITE_META_LEADS_ENABLED`，所以目前不拉名單；後台「參觀預約 → 廣告名單」會顯示還沒接上。maintenance 多一步過期名單刪除，沒有資料時是空的 DELETE。
+
+Meta 端（同日，使用者同意後）：App「常春藤義華校」（1537872071714702，仍是開發模式）加了使用案例「使用行銷 API 吸引和管理廣告潛在顧客」。Graph API Explorer 這才選得到 `leads_retrieval`、`pages_manage_ads`。
+
+**待使用者**：
+1. 照下方「Meta 名單型廣告 → 廣告名單」重新產生、延長義華 Page token，換進 Railway `WEBSITE_FACEBOOK_ACCESS_TOKEN`。
+2. 同一次在 Railway 設 `WEBSITE_META_LEADS_ENABLED=true`。
+3. 用潛在顧客廣告測試工具實測。
+4. 新 token 的「資料存取到期」日要回填到「各校 Facebook 粉專貼文同步」A 第 5 步。
+
+## 2026-11-26 後台營運總覽 UI/UX 兩輪（PR #140、PR #142）
+
+只改 admin 前端（`admin/src/views/DashboardView.vue`；第二輪另動 `admin/src/layouts/AdminLayout.vue` 的手機頁首），沒有 migration，也沒改變數，不需要事前備份。PR #140 已部署：正式站的 `DashboardView-*.css` 裡有 `today__now`、`task-group`（2026-11-26 唯讀抓取確認）。PR #142 是使用者看過對照圖後要求合併 `main`，合併後由 CI 部署；上線後同樣抓 `https://admin.ivykidschool.com/admin/` 引用的 `DashboardView-*.css`，有 `task__more` 就是新版。
+
 ## 2026-11-25 補 8 條舊 Wix 網址 301（PR #139，main `c18740a9`）
 
 只改 web 的 `LEGACY_REDIRECTS`，沒有 migration，也沒改變數。PR 那次 CI 的 Backend 1/3 紅在 `test_lookup_writes_stop_at_the_site_wide_cap`（每分鐘限流跨到下一個時間窗的偶發失敗，跟這次改動無關），重跑後全綠。合併後 run 45556227968 含 Deploy 全綠，`/release.json` 的 base 是 `c18740a9`。線上逐條 curl 驗過：`/作品照片分享`、`/副本-2025冬令營`、`/副本-教學理念`、`/副本-特色課程`、`/副本-仁武校介紹`、`-1`、`-3`、`-5` 都回 301，轉到的位置與 README 同日段落一致；`/pk` 照舊回 404。
@@ -3009,6 +3029,25 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 **關閉**：把 `WEBSITE_INSTAGRAM_ENABLED` 刪掉或設 `false`（用 CLI 刪變數要另外重新部署）。已收進收件匣的 Instagram 貼文與已轉成的消息不受影響，頁面仍會標出它們的來源。
 
 **要注意**：Instagram 的影片若含版權音樂，Meta 會省略該則的 `media_url`，這種貼文只會有封面；Reels 配樂的授權問題和 Facebook Reels 一樣（見 `docs/specs/2026-10-28-facebook-news-sync-design.md` §8），搬到官網前請園方確認。**程式端沒用真實 Instagram 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造）；開通後第一次同步請照步驟 6 實測，並看 api log 沒有 token。
+
+### Meta 名單型廣告 → 廣告名單（2026-11-26 程式，PR #144 已部署；預設關，沒設 `WEBSITE_META_LEADS_ENABLED` 就和現在完全一樣）
+
+規格 `docs/specs/2026-11-26-meta-lead-inbox-design.md`。開了之後，各校粉專即時表單的名單每分鐘拉進後台「參觀預約 → 廣告名單」，新名單推一則（只有校名與筆數）到該校 LINE 群組；櫃檯確認後「轉成參觀案件」走原本的補登。規格 6.2 不得自動建案，名單不占場次名額。用同一把 Page token，不另設表單 ID（從 `GET /{粉專ID}/leadgen_forms` 讀全部表單）。
+
+- **migration `e84b4724bb8d`**（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改、不刪既有資料；舊版程式不讀不寫這兩張表，可直接回退。
+- **個資**：轉成案件時名單上的姓名、電話、作答立刻清掉；沒轉的名單收到 `WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90）天後由每分鐘的定期工作刪除（不看開關，功能關掉後照刪）。LINE 通知不含家長個資。
+
+**開通步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **重新授權加名單權限**：Graph API Explorer 選同一個 App（「常春藤義華校」），權限在原本的 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`（有開 Instagram 就再加 `instagram_basic`）之外再勾 `leads_retrieval`、`pages_manage_ads` →「Generate Access Token」→ 授權時勾義華粉專。
+2. **潛在顧客存取權**：粉專（Business Suite）→ 設定 →「潛在顧客存取權」（Leads Access Manager）若有限制，把產生 token 的帳號（或系統用戶）與這個 App 加進去。
+3. **延長並換 Page token**：照上方 A 的第 3、4 步換出新的 Page token，換進 Railway 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`。
+4. **Railway api 設 `WEBSITE_META_LEADS_ENABLED=true`**（可和上一步同一次設）。Facebook 兩個變數沒設就開這個，api 會拒絕啟動。選填 `WEBSITE_META_LEADS_SYNC_SECONDS`（預設 60，60–3600）、`WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90，30–365）。
+5. **驗收**：後台「廣告名單」選義華按「立即同步」，頁面沒有錯誤；用 Meta 的「潛在顧客廣告測試工具」送一筆測試名單，一分鐘內出現在新名單、義華 LINE 群組收到通知；按「轉成參觀案件」選場次送出，案件建立、名單移到「已轉案件」。失敗時頁面寫步驟與 Meta 錯誤代碼（190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count, cursor_at from meta_lead_sync;`。
+
+**關閉**：把 `WEBSITE_META_LEADS_ENABLED` 刪掉或設 `false`。已收進來的名單與已轉成的案件不受影響，沒轉的名單照保存天數到期刪除。
+
+**要注意**：**程式端沒用真實 Meta 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造），開發模式的 App 能不能讀名單、要不要另外申請存取等級，第一次開通請照步驟 5 實測，並看 api log 沒有 token。
 
 ## 公開地理資料同步（招生區域分析）
 

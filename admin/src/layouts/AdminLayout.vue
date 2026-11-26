@@ -134,7 +134,8 @@ async function handleLogout() {
       <AdminSidebar mobile @close="drawerOpen = false" @logout="handleLogout" />
     </el-drawer>
     <div class="main-col">
-      <header class="top">
+      <!-- is-crowded：有未讀通知鈕時手機頁首放不下，四個字的頁名會折成兩行（見下方 900px 的規則）。 -->
+      <header class="top" :class="{ 'is-crowded': unreadLinks.length > 0 }">
         <button v-if="isMobile" ref="menuButton" class="top__menu" type="button" aria-label="開啟選單"
           :aria-expanded="drawerOpen" aria-haspopup="dialog" @click="drawerOpen = true">
           <!-- 三條線的漢堡圖示；Element Plus 的 Menu 是四格方塊，看起來像「應用程式」。 -->
@@ -149,7 +150,7 @@ async function handleLogout() {
         <!-- 手機只留燈泡圖示，字給報讀器（.top__tips-label 在 900px 以下視覺隱藏）。 -->
         <router-link class="top__tips" :to="tipsLink"><el-icon aria-hidden="true"><Opportunity /></el-icon><span class="top__tips-label">使用小技巧</span></router-link>
         <a class="top__site" :href="websiteHome" target="_blank" rel="noopener" aria-describedby="top-site-note"
-          :title="websiteNote">查看官網 <el-icon><TopRight /></el-icon></a>
+          :title="websiteNote"><span><span class="top__site-verb">查看</span>官網</span> <el-icon><TopRight /></el-icon></a>
         <!-- title 在觸控裝置看不到，報讀器改讀這一句；兩處同一句，報讀器不會念出兩種說法。 -->
         <span id="top-site-note" class="visually-hidden">{{ websiteNote }}</span>
       </header>
@@ -196,6 +197,10 @@ async function handleLogout() {
   .top__alert-long { display: none; }
   .top__alert-short { display: inline; }
   .top__heading { flex: 1; margin-right: 0; }
+  /* 手機同時有通知鈕時（2026-11-26）：間距收到 8px、「查看官網」只留「官網」兩個字（「查看」給報讀器），
+     390 寬的頁名才有約 100px，「營運總覽」不再折成「營運總／覽」。沒有通知鈕時照舊。 */
+  .top.is-crowded { gap: 8px; }
+  .top.is-crowded .top__site-verb { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .top__alerts { margin-left: 0; flex-wrap: nowrap; }
   .main { padding: 20px 16px 32px; }
 }

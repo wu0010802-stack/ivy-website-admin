@@ -201,6 +201,76 @@ describe('總覽優化（2026-11-26）', () => {
   })
 })
 
+// 2026-11-26 第二輪：前一輪上線後再看截圖（假 API，1440／1280／1120／820／390／375／360）修的問題。
+describe('總覽優化第二輪（2026-11-26）', () => {
+  it('摘要句：兩校以上先寫「共 N 組：」，各校照五校順序排，不跟今天誰先來', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-26T08:00:00+08:00').getTime())
+    const list = [
+      visit({ id: 'a', campus_key: 'renwu', start_time: '09:00:00', end_time: '10:00:00' }),
+      visit({ id: 'b', campus_key: 'minghua', start_time: '10:00:00', end_time: '11:00:00' }),
+      visit({ id: 'c', campus_key: 'yihua', start_time: '14:00:00', end_time: '15:00:00' }),
+      visit({ id: 'd', campus_key: 'yihua', start_time: '16:00:00', end_time: '17:00:00' }),
+    ]
+    const wrapper = await mountDashboard({ ...base(), today_visits: 4, today_visit_list: list })
+    expect(wrapper.get('.dash__sum').text()).toBe('共 4 組：義華 2 組、明華 1 組、仁武 1 組')
+  })
+
+  it('摘要句：只有一校時不寫「共」', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-26T08:00:00+08:00').getTime())
+    const wrapper = await mountDashboard({ ...base(), today_visits: 2, today_visit_list: [visit({ id: 'a' }), visit({ id: 'b', start_time: '15:00:00', end_time: '16:00:00' })] })
+    expect(wrapper.get('.dash__sum').text()).toBe('義華 2 組')
+  })
+
+  const drafts = (count: number) => ['home_hero', 'home_about', 'curriculum_page', 'about_page', 'environment_page', 'site_footer', 'home_news', 'site_meta']
+    .slice(0, count)
+    .map(kind => ({ kind, campus_key: null, latest_version: 2, published_version: 1, updated_at: null }))
+
+  it('草稿尚未公開超過 4 項：先列最近 3 項，按「顯示全部 N 項」展開、再按收回；數字仍是全部', async () => {
+    const wrapper = await mountDashboard({ ...base(), pending_publish: 8, pending_publish_items: drafts(8) })
+    const task = wrapper.findAll('.task').find(t => t.text().includes('草稿尚未公開'))!
+    expect(task.get('.task__number').text()).toBe('8')
+    expect(task.findAll('.task__rows li')).toHaveLength(3)
+    expect(task.findAll('.task__rows a').map(a => a.attributes('href'))).toEqual(['/content/home-hero', '/content/home-about', '/content/curriculum-page'])
+    const more = task.get('button.task__more')
+    expect(more.text()).toBe('顯示全部 8 項')
+    expect(more.attributes('aria-expanded')).toBe('false')
+    expect(more.attributes('aria-controls')).toBe(task.get('.task__rows').attributes('id'))
+
+    await more.trigger('click')
+    expect(task.findAll('.task__rows li')).toHaveLength(8)
+    expect(more.text()).toBe('只列最近 3 項')
+    expect(more.attributes('aria-expanded')).toBe('true')
+
+    await more.trigger('click')
+    expect(task.findAll('.task__rows li')).toHaveLength(3)
+  })
+
+  it('草稿尚未公開 4 項以內直接全列，不為了藏一列多一顆鈕', async () => {
+    const wrapper = await mountDashboard({ ...base(), pending_publish: 4, pending_publish_items: drafts(4) })
+    expect(wrapper.findAll('.task__rows li')).toHaveLength(4)
+    expect(wrapper.find('.task__more').exists()).toBe(false)
+  })
+
+  it('素材問題的狀態字：「官網上」「草稿」和數字之間有空白', async () => {
+    const wrapper = await mountDashboard({
+      ...base(),
+      content_media_issues: [
+        { kind: 'campus_profile', campus_key: 'minghua', missing: 1, not_ready: 0, live: true },
+        { kind: 'home_hero', campus_key: null, missing: 0, not_ready: 2, live: false },
+      ],
+    })
+    const notes = wrapper.findAll('.task__rows li > span').map(span => span.text())
+    expect(notes).toEqual(['官網上 1 個已刪除', '草稿 2 個還沒處理好'])
+  })
+
+  it('「重新整理」是操作色的文字連結鈕，不是和內文同色的字', async () => {
+    const wrapper = await mountDashboard({ ...base(), pending_follow_up: 1 })
+    const refresh = wrapper.get('.dash__updated button')
+    expect(refresh.text()).toBe('重新整理')
+    expect(refresh.classes()).toEqual(expect.arrayContaining(['is-link', 'el-button--primary']))
+  })
+})
+
 // ---- 併自 shellDashboard20261002.test.ts（2026-10-20 依功能整併測試檔）----
 // 2026-10-02 後台 UX 稽核：外殼與總覽（dashboard-1、dashboard-3、dashboard-4、nav-1、nav-2、shell-1）。
 describe('2026-10-02 外殼與總覽稽核', () => {
@@ -273,6 +343,26 @@ describe('2026-10-02 外殼與總覽稽核', () => {
       const missing = await mountAt('/no-such-page', AdminLayout)
       expect(missing.find('.top__group').exists()).toBe(false)
       expect(missing.get('.top').text()).not.toContain('管理後台')
+    })
+  })
+
+  describe('頁首：有未讀通知鈕時讓出寬度給頁名（2026-11-26）', () => {
+    it('有通知鈕時頁首標成 is-crowded，「查看」另包一層（手機視覺隱藏、報讀照舊唸「查看官網」）', async () => {
+      vi.spyOn(api, 'get').mockImplementation(async path => (path === '/admin/dashboard' ? { my_unread_notifications: 2 } : {}) as never)
+      const wrapper = await mountAt('/account', AdminLayout)
+      expect(wrapper.find('.top__alert').exists()).toBe(true)
+      expect(wrapper.get('header.top').classes()).toContain('is-crowded')
+      const site = wrapper.get('a.top__site')
+      expect(site.get('.top__site-verb').text()).toBe('查看')
+      expect(site.text()).toBe('查看官網')
+    })
+
+    it('沒有通知鈕時不收窄', async () => {
+      vi.spyOn(api, 'get').mockResolvedValue({} as never)
+      const wrapper = await mountAt('/account', AdminLayout)
+      expect(wrapper.find('.top__alert').exists()).toBe(false)
+      expect(wrapper.get('header.top').classes()).not.toContain('is-crowded')
+      expect(wrapper.get('a.top__site').text()).toBe('查看官網')
     })
   })
 
