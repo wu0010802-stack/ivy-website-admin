@@ -62,6 +62,7 @@ from app.booking.schemas import (
 )
 from app.campuses.models import Campus
 from app.booking.slot_routes import _slot_audit
+from app.meta_leads import service as meta_lead_service
 from app.common.search_header import SEARCH_HEADER, SEARCH_HEADER_DESCRIPTION, search_fields
 
 
@@ -464,7 +465,25 @@ async def create_manual_visit_request(
             )
 
     body = payload.model_dump(mode="json", exclude={"campus_key"})
+    hash_key = service.payload_hash_key(request.app.state.settings.session_secret)
+    lead = None
+    tracking = None
     try:
+        if payload.meta_lead_id is not None:
+            # 從「廣告名單」轉成案件：先鎖名單（再由服務層鎖場次），同一筆名單不會被兩個人各轉一次。
+            lead = await meta_lead_service.lock_lead(db, current_user, payload.meta_lead_id, "booking.handle")
+            if lead.status == "converted":
+                # 同一張補登表單重送（網路逾時重按）就交給服務層回原案件；換了 key 是重複轉案件。
+                replay = await service.find_replay(
+                    db, campus_key=payload.campus_key,
+                    idempotency_key=f"{service.MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}",
+                    payload=body, hash_key=hash_key,
+                )
+                if replay is None or replay.id != lead.visit_request_id:
+                    raise meta_lead_service.LeadStatusConflict()
+            else:
+                meta_lead_service.check_convertible(lead, payload.campus_key)
+                tracking = meta_lead_service.conversion_tracking(lead)
         visit_request, is_new = await service.create_manual_visit_request(
             db,
             campus_key=payload.campus_key,
@@ -472,9 +491,22 @@ async def create_manual_visit_request(
             payload=body,
             source=VisitRequestSource(payload.source),
             created_by=current_user.id,
-            hash_key=service.payload_hash_key(request.app.state.settings.session_secret),
+            hash_key=hash_key,
             slot_id=payload.slot_id,
+            tracking=tracking,
         )
+    except meta_lead_service.LeadCampusMismatch as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "META_LEAD_CAMPUS", "message": "這筆廣告名單不是這一校的，請在名單所屬的校區補登"},
+        ) from exc
+    except meta_lead_service.LeadStatusConflict as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"code": "META_LEAD_STATUS", "message": "這筆廣告名單已經轉成案件了，請重新整理"},
+        ) from exc
     except service.IdempotencyConflict as exc:
         await db.rollback()
         raise HTTPException(
@@ -516,6 +548,8 @@ async def create_manual_visit_request(
                 follow_up_at=None,
                 created_by=current_user.id,
             )
+        if lead is not None:
+            meta_lead_service.mark_converted(lead, visit_request, current_user)
         await audit_service.log_action(
             db,
             actor_user_id=current_user.id,
@@ -527,6 +561,7 @@ async def create_manual_visit_request(
                 "source": payload.source,
                 "with_slot": payload.slot_id is not None,
                 "related_request_id": str(related.id) if related is not None else None,
+                "meta_lead_id": str(lead.id) if lead is not None else None,
             },
         )
     await db.commit()

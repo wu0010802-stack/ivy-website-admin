@@ -30,6 +30,9 @@ export type AdConversionJobState = 'pending' | 'sent' | 'failed' | 'skipped'
 /** 粉專貼文收件匣 */
 export type FacebookPagePostState = 'new' | 'imported' | 'dismissed'
 
+/** 廣告名單收件匣 */
+export type MetaLeadState = 'new' | 'converted' | 'dismissed'
+
 /** 家長管理連結與 session（由欄位推導，不是存的值） */
 export type ParentAccessState = 'active' | 'expired' | 'revoked'
 
