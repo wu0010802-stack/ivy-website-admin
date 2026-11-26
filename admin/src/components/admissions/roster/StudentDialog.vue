@@ -5,7 +5,8 @@ import { GRADE_ORDER } from '../../../admissions/roster'
 
 // 編輯幼生資料（2026-11-15，規格 §8.1）。欄位照幼生的狀態出現：在籍有入園日、預繳未入園有預定入園日與預繳日期、
 // 還沒編班的可以改班別與入學學期。自動認定的新生與有生日的不足齡不能手動改。只送有改的欄位。
-const props = defineProps<{ modelValue: boolean; student: RosterStudent; schoolYear: number }>()
+// busy：送出中，「儲存」停用（連點第二次會帶同一個版本號，只會撞版本衝突）。
+const props = defineProps<{ modelValue: boolean; student: RosterStudent; schoolYear: number; busy?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; save: [body: Omit<StudentUpdate, 'expected_version'>] }>()
 
 type Form = {
@@ -137,7 +138,7 @@ function submit() {
     </div>
     <template #footer>
       <button type="button" class="roster-form__cancel" @click="emit('update:modelValue', false)">取消</button>
-      <button type="button" class="roster-form__primary" @click="submit">儲存</button>
+      <button type="button" class="roster-form__primary" :disabled="busy" :aria-busy="busy" @click="submit">儲存</button>
     </template>
   </el-dialog>
 </template>
