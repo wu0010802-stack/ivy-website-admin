@@ -24,7 +24,7 @@ from app.auth import service
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_session, get_current_user, get_db_session
 from app.auth.models import Session as AuthSession
 from app.auth.models import User
-from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
+from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path, started_from_another_site
 from app.auth.reauth import require_recent_auth
 from app.auth.routes import _set_session_cookie, login_audit_metadata
 from app.auth.schemas import GoogleLinkStart, ReauthRequest
@@ -97,6 +97,8 @@ async def google_login(request: Request, redirect: str | None = None, remember: 
     client = request.app.state.google_oauth
     if client is None:
         return _failure("unavailable")
+    if started_from_another_site(request):
+        return _failure("failed")
     request.session.clear()
     try:
         await service.check_login_source_rate_limit(limiter(request), client_key(request))
@@ -141,19 +143,20 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
     state_data = request.session.get(f"_state_google_{state}") if state else None
     # 綁定的結果回「我的帳號」、不寫登入失敗稽核；只有握手對得上 state 才算綁定流程。
     linking = bool(state_data) and request.session.get("mode") == "link"
+    started = request.session.get("started_at", 0)
+    if not state_data or not 0 <= time.time() - started <= OAUTH_TTL_SECONDS:
+        # 沒有握手（或已過期）就到此為止：不打 Google、不寫稽核，也不計入來源限流。外站網頁可以用 <img>
+        # 一直打這支，計入的話會把同一個 IP 的登入額度用光（2026-11-26 資安檢查）；這種請求本來就什麼都不做。
+        request.session.clear()
+        return _link_result("failed") if linking else _failure("failed")
     try:
-        # callback 也算一次登入嘗試：握手 cookie 在有效期內可以重送，不計入
+        # 有握手的 callback 算一次登入嘗試：握手 cookie 在有效期內可以重送，不計入
         # 來源限流的話，一個握手就能無限次打 Google、寫失敗稽核。
         await service.check_login_source_rate_limit(limiter(request), client_key(request))
     except service.LoginRateLimited:
         request.session.clear()
         return _link_result("failed") if linking else _failure("rate_limited")
-    handshake_ok = False
     try:
-        started = request.session.get("started_at", 0)
-        if not state_data or not 0 <= time.time() - started <= OAUTH_TTL_SECONDS:
-            return _link_result("failed") if linking else _failure("failed")
-        handshake_ok = True
         if request.query_params.get("error"):
             cancelled = request.query_params["error"] == "access_denied"
             if linking:
@@ -215,8 +218,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db_se
         await db.rollback()
         if linking:
             return _link_result("failed")
-        if handshake_ok:
-            await _audit_login_failure(db, "failed")
+        await _audit_login_failure(db, "failed")
         return _failure("failed")
     finally:
         request.session.clear()

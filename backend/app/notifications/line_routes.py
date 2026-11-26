@@ -196,6 +196,38 @@ async def _handle_pnp_deliveries(db: AsyncSession, events: list[dict]) -> None:
         await db.commit()
 
 
+def _is_rejoin(event: dict, group: LineGroup) -> bool:
+    """這個事件代表官方帳號「被移出後又回到群組」。
+
+    - 記錄上已離開（left_at）又收到事件；
+    - 或是收到 join：join 本身就表示官方帳號上一刻不在群組裡。只看 left_at 的話，離開的 webhook 漏收
+      （部署重啟時回 5xx、同一批事件後面出錯整批回滾）時，拉回來就默默恢復一切（2026-11-26 資安檢查）。
+      LINE 重送（isRedelivery）的 join 是舊事件，記錄上又沒離開時不當作回來。"""
+    if group.left_at is not None:
+        return True
+    if event.get("type") != "join":
+        return False
+    context = event.get("deliveryContext")
+    return not (isinstance(context, dict) and context.get("isRedelivery") is True)
+
+
+async def _reset_rejoined_group(db: AsyncSession, group: LineGroup, now: datetime) -> None:
+    """官方帳號被移出後又回到這個群組：當成一個新群組，要總管理者重新驗證、重新設定。
+
+    - 解除原本綁的校區、取消總部群組（_unbind_rejoined_group；總部群組離開時通常已取消）。
+    - 清掉驗證紀錄（2026-11-26 資安檢查）：驗證碼證明的是「當時有管理者在這個群組裡」，官方帳號離開期間
+      成員可能已經換了；不清的話後台仍標「已驗證」，總管理者不用新驗證碼就能再選它當校區或總部群組。
+    - 清掉群組名稱，回來後重新向 LINE 取：後台才不會一直顯示離開前那個看起來可信的名稱。"""
+    await _unbind_rejoined_group(db, group.target_id)
+    setting = await db.get(LineGroupSetting, group.target_id)
+    if setting is not None and setting.is_hq:
+        setting.is_hq = False
+        setting.updated_at = now
+        setting.updated_by = None
+    group.verified_at = None
+    group.name = None
+
+
 async def _unbind_rejoined_group(db: AsyncSession, target_id: str) -> None:
     """官方帳號被移出後又回到這個群組：解除它原本綁的校區，要總管理者在後台重新選（2026-11-19 資安審查）。
 
@@ -252,8 +284,8 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
                 target_id=target_id, source_type=source_type, first_seen_at=now, last_seen_at=now
             )
             db.add(group)
-        elif group.left_at is not None:
-            await _unbind_rejoined_group(db, target_id)
+        elif _is_rejoin(event, group):
+            await _reset_rejoined_group(db, group, now)
         group.last_seen_at = now
         group.left_at = None
         if group.name is None and source_type == "group":

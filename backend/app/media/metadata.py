@@ -333,7 +333,10 @@ def strip_video_file(src: Path, dst: Path) -> None:
                 "-y",
                 str(dst),
             ],
-            capture_output=True,
+            # 輸出一律丟掉（只看結束碼與產出的檔案）：capture_output 會把整段錯誤輸出留在記憶體，特製影片
+            # 在 -loglevel error 下每秒也能印出數 MB，120 秒內累積到數百 MB（2026-11-26 資安檢查）。
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             timeout=VIDEO_STRIP_TIMEOUT_SECONDS,
         )

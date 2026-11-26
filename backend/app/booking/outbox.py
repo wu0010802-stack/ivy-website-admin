@@ -51,14 +51,18 @@ PARENT_KINDS = frozenset(
 )
 
 
-async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> None:
+async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str, *, by_parent: bool = False) -> None:
     """排一封家長信（沒有 Email、沒綁 LINE 通知、這校也沒開通知型訊息就不排；2026-11-16 起綁了 LINE 的同一則
     也推 LINE，2026-11-25 起沒 Email 也沒綁的家長改送通知型訊息；哪些管道真的送由 notifications.service
     在送出當下決定）。
 
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
-    已被認領（leased）的不算：worker 可能已經讀完案件、組好內容，這次的變更要另外寄。"""
+    已被認領（leased）的不算：worker 可能已經讀完案件、組好內容，這次的變更要另外寄。
+
+    by_parent：家長自己在官網送出、改資料、改期或取消觸發的通知。payload 記下來，送出當下
+    notifications.service 據此套「通知型訊息每案每日上限」（line_pnp.PARENT_DAILY_CAP，2026-11-26 資安檢查）；
+    園方或系統觸發的不受上限影響。變更信去重只併同一種來源，園方的變更不會被併進一封要套上限的信。"""
     if kind not in PARENT_KINDS or kind in (PARENT_VISIT_DAY_CLOSED, PARENT_VISIT_REMINDER, PARENT_EMAIL_CHANGED):
         raise ValueError(kind)
     if not visit_request.email:
@@ -69,20 +73,26 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str) -> No
         ):
             return
     if kind == PARENT_VISIT_CHANGED:
-        queued = await db.scalar(
-            select(OutboxMessage.id)
-            .where(
-                OutboxMessage.visit_request_id == visit_request.id,
-                OutboxMessage.kind == kind,
-                OutboxMessage.status == OutboxStatus.PENDING.value,
+        queued = (
+            await db.scalars(
+                select(OutboxMessage.payload).where(
+                    OutboxMessage.visit_request_id == visit_request.id,
+                    OutboxMessage.kind == kind,
+                    OutboxMessage.status == OutboxStatus.PENDING.value,
+                )
             )
-            .limit(1)
-        )
-        if queued is not None:
+        ).all()
+        if any(is_by_parent(payload) == by_parent for payload in queued):
             return
-    enqueue_outbox(
-        db, visit_request.id, kind, {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)}
-    )
+    payload = {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)}
+    if by_parent:
+        payload["by_parent"] = True
+    enqueue_outbox(db, visit_request.id, kind, payload)
+
+
+def is_by_parent(payload: object) -> bool:
+    """這則家長通知是不是家長自己的動作觸發的（見 enqueue_parent_email 的 by_parent）。"""
+    return isinstance(payload, dict) and payload.get("by_parent") is True
 
 
 def enqueue_email_changed_notice(db: AsyncSession, visit_request, old_email: str) -> None:

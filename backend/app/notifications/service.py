@@ -24,6 +24,7 @@ from app.booking.outbox import (
     PARENT_VISIT_DAY_CLOSED,
     PARENT_VISIT_REMINDER,
     day_closed_dedupe_key,
+    is_by_parent,
     without_old_email,
 )
 from app.booking.parent_policy import change_deadline_hours, day_closed, parent_change_deadline, parent_change_open
@@ -380,6 +381,14 @@ async def _dispatch_parent_email(
         pnp_phone_hash = line_api.pnp_phone_hash(visit_request.phone)
         if pnp_phone_hash is not None:
             pnp_account = await line_pnp.campus_account(db, line_clients.settings, visit_request.campus_key)
+        # 家長自己觸發的（送出、改資料、改期、取消）每案每日有上限，見 line_pnp.PARENT_DAILY_CAP。
+        if (
+            pnp_account is not None
+            and is_by_parent(payload)
+            and await line_pnp.parent_daily_cap_reached(db, visit_request.id, outbox_message_id)
+        ):
+            logger.info("家長 LINE 通知型訊息已達每案每日上限，這則不送：outbox=%s", outbox_message_id)
+            pnp_account = None
     if not email_ok and line_link is None and pnp_account is None:
         return False
     # 排隊中的「預約成功／已變更」還沒寄，案件就取消了：不能再寄一封說預約成立的信，
