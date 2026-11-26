@@ -198,8 +198,18 @@ function onFileChange(event: Event) {
   input.value = ''
 }
 
+// 上傳中不收新檔案（選檔框也停用）：這一輪要傳哪些在按下上傳時就定了，
+// 拖進來的要說清楚沒加進去，不能看起來排進清單卻沒傳。
+function onDragOver() {
+  dragOver.value = !queue.running.value
+}
+
 function onDrop(event: DragEvent) {
   dragOver.value = false
+  if (queue.running.value) {
+    notifyWarning('正在上傳，這一批傳完後再加入檔案')
+    return
+  }
   queue.add(event.dataTransfer?.files)
 }
 
@@ -225,6 +235,8 @@ async function submitUpload() {
   }
   const uploaded = await queue.start()
   const failed = queue.counts.value.failed
+  // 還有等待上傳的檔案就不算全部完成：關掉後再按「上傳素材」會清空清單，這些檔案就沒傳到。
+  const waiting = queue.counts.value.queued
   // 新上傳的排在最前面：回到「素材」分頁的第 1 頁。
   if (uploaded.length) {
     if (listState.value !== 'active') listState.value = 'active'
@@ -232,7 +244,9 @@ async function submitUpload() {
     else await load()
   }
   if (failed) {
-    notifyWarning(`${uploaded.length} 個上傳完成、${failed} 個失敗，失敗原因列在清單裡`)
+    notifyWarning(`${uploaded.length} 個上傳完成、${failed} 個失敗，失敗原因列在清單裡${waiting ? `；還有 ${waiting} 個等待上傳` : ''}`)
+  } else if (waiting) {
+    notifyWarning(`${uploaded.length} 個上傳完成，還有 ${waiting} 個檔案等待上傳，請再按一次上傳`)
   } else {
     ElMessage.success(`已上傳 ${uploaded.length} 個檔案`)
     uploadDialogVisible.value = false
@@ -591,15 +605,16 @@ onMounted(async () => {
     >
       <el-form label-position="top" @submit.prevent="submitUpload">
         <el-form-item label="檔案">
+          <!-- 上傳中拖放與選檔都不收，仍要 prevent，否則瀏覽器會直接打開拖進來的檔案。 -->
           <label
             class="drop"
-            :class="{ 'is-over': dragOver, 'has-file': queue.items.value.length }"
-            @dragover.prevent="dragOver = true"
+            :class="{ 'is-over': dragOver, 'has-file': queue.items.value.length, 'is-disabled': queue.running.value }"
+            @dragover.prevent="onDragOver"
             @dragleave="dragOver = false"
             @drop.prevent="onDrop"
           >
             <input type="file" multiple accept="image/jpeg,image/png,image/webp,video/mp4" class="drop__input" :disabled="queue.running.value" @change="onFileChange" />
-            <strong>{{ queue.items.value.length ? '再加入檔案' : '拖曳檔案到這裡，或點擊選擇' }}</strong>
+            <strong>{{ queue.running.value ? '上傳中，這一批傳完後才能再加入檔案' : queue.items.value.length ? '再加入檔案' : '拖曳檔案到這裡，或點擊選擇' }}</strong>
             <span class="hint">可一次選多個</span>
             <!-- 照片與影片各自成一段換行，手機上不會把「（15 MB 內）」拆到兩行。 -->
             <span class="hint drop__formats">
@@ -848,9 +863,15 @@ onMounted(async () => {
 }
 
 .drop.is-over,
-.drop:hover {
+.drop:not(.is-disabled):hover {
   border-color: var(--el-color-primary);
   background: var(--el-color-primary-light-9);
+}
+
+/* 上傳中不收新檔案：滑過去不亮起來，游標與字色也看得出現在不能加。 */
+.drop.is-disabled {
+  color: var(--ink-3);
+  cursor: not-allowed;
 }
 
 /* 選檔的 input 是透明的，鍵盤移到這裡時要看得出焦點。
