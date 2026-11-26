@@ -113,6 +113,11 @@ const scheduled = computed(() => (props.editor.schedules?.value ?? []).filter((j
 provide(campusSelectLabelKey, '校區')
 
 const scheduleOpen = ref(false)
+// 發布前的內容檢查沒過（例如校園探索有場景沒照片）：先講要補什麼，不讓人挑完時間才被擋。
+function openSchedule() {
+  if (props.editor.publishBlocked?.()) return
+  scheduleOpen.value = true
+}
 
 // 發布、核准、退回的確認框：見 composables/usePublishConfirm.ts。
 const { preparing, approve, rejectWithNote, publishWithConfirm } = usePublishConfirm(props.editor, {
@@ -542,7 +547,7 @@ defineExpose({ confirmLeave })
             <el-button type="success" :loading="publishing || preparing" :disabled="busy || conflict" @click="approve">核准並發布</el-button>
           </template>
           <template v-else>
-            <el-button v-if="editor.schedule" :disabled="busy || preparing || conflict || !canPublish" @click="scheduleOpen = true">排程發布</el-button>
+            <el-button v-if="editor.schedule" :disabled="busy || preparing || conflict || !canPublish" @click="openSchedule">排程發布</el-button>
             <el-button
               :type="primaryAction === 'publish' ? 'primary' : 'default'"
               :loading="publishing || preparing"
