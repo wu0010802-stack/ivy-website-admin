@@ -587,7 +587,7 @@ async def test_campus_group_pulled_back_after_leaving_loses_its_campus(app, fake
     await _press(app, _event("join"), _postback(_ok(app, actions.ATTEND_OK, receipt)))
     async with app.state.session_factory() as db:
         group = await db.get(LineGroup, YIHUA_GROUP)
-        assert group.left_at is None and group.verified_at is not None
+        assert group.left_at is None and group.verified_at is None
         assert await db.get(LineCampusTarget, "yihua") is None
         assert await line_group_settings.campuses_served(db, YIHUA_GROUP) is None
         # 義華的卡片只剩總部群組收。

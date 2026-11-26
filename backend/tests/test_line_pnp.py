@@ -456,3 +456,128 @@ async def test_hq_webhook_needs_configured_account_and_signature(app, fake_line)
     app.state.settings.line_hq_access_token = None
     app.state.settings.line_pnp_accounts = None
     assert (await _webhook(app, [_delivery("a" * 32)])).status_code == 404
+
+
+# --- 2026-11-26 資安檢查：電話更正作廢連結、家長觸發的通知型訊息每案每日上限 -------------------------
+# 打錯的電話收到通知型訊息時，按鈕裡的修改連結就在陌生人手上；原本只有改 Email 會作廢連結。另外家長能一直改
+# 預約上的電話，讓官方帳號對任意號碼發「預約完成通知」，規格說的「一個電話一天最多送幾則」沒有實作。
+
+MANAGE = f"{API}/public/visit-manage"
+OTHER_PHONES = ("0987000001", "0987000002", "0987000003", "0987000004")
+
+
+def _token_in(sent: dict) -> str:
+    return sent["body"]["body"]["buttons"][0]["url"].split("token=", 1)[1]
+
+
+async def _parent_edit(client, receipt: str, **changes) -> httpx.Response:
+    me = await client.get(f"{MANAGE}/me")
+    assert me.status_code == 200, me.text
+    return await client.patch(
+        f"{MANAGE}/me", json={"visit_request_id": receipt, "expected_version": me.json()["version"], **changes}
+    )
+
+
+async def test_parent_phone_fix_after_pnp_revokes_the_link_the_stranger_got(
+    app, fake_line, admin_client, public_client, second_public_client, db_session
+):
+    await _enable(admin_client)
+    booked = await book_slot(admin_client, public_client, email=None, phone=PHONE)
+    receipt = booked["receipt_id"]
+    await _run_outbox(app, db_session)
+    stranger_token = _token_in(fake_line.pnp[0])
+    # 打錯電話的那位陌生人點了「查看詳情」。
+    exchanged = await second_public_client.post(f"{MANAGE}/exchange", json={"token": stranger_token})
+    assert exchanged.status_code == 200, exchanged.text
+
+    await open_manage(public_client, booked["manage_path"])
+    fixed = await _parent_edit(public_client, receipt, phone=OTHER_PHONES[0])
+    assert fixed.status_code == 200, fixed.text
+
+    # 陌生人的 session 與舊連結都失效；家長自己正在用的 session 照常。
+    assert (await second_public_client.get(f"{MANAGE}/me")).status_code == 401
+    assert (await second_public_client.post(f"{MANAGE}/exchange", json={"token": stranger_token})).status_code != 200
+    assert (await public_client.get(f"{MANAGE}/me")).status_code == 200
+    # 變更通知送到新電話，帶的是新連結。
+    await _run_outbox(app, db_session)
+    assert len(fake_line.pnp) == 2
+    assert fake_line.pnp[1]["body"]["to"] == hashlib.sha256(b"+886987000001").hexdigest()
+    assert _token_in(fake_line.pnp[1]) != stranger_token
+
+
+async def test_staff_phone_fix_after_pnp_revokes_link_and_unlinks_strangers_line(
+    app, fake_line, admin_client, public_client, second_public_client, db_session
+):
+    from app.notifications import line_parent
+
+    await _enable(admin_client)
+    booked = await book_slot(admin_client, public_client, email=None, phone=PHONE)
+    receipt = booked["receipt_id"]
+    await _run_outbox(app, db_session)
+    stranger_token = _token_in(fake_line.pnp[0])
+    assert (await second_public_client.post(f"{MANAGE}/exchange", json={"token": stranger_token})).status_code == 200
+    # 陌生人用拿到的 session 把自己的 LINE 綁上來。
+    issued = await second_public_client.post(f"{MANAGE}/line-notify/code")
+    assert issued.status_code == 201, issued.text
+    said = {
+        "type": "message",
+        "source": {"type": "user", "userId": PARENT},
+        "replyToken": uuid.uuid4().hex,
+        "timestamp": 0,
+        "webhookEventId": uuid.uuid4().hex,
+        "message": {"type": "text", "id": "m", "text": issued.json()["text"]},
+    }
+    assert (await _webhook(app, [said])).status_code == 200
+    assert await line_parent.has_active_link(db_session, uuid.UUID(receipt))
+
+    detail = (await admin_client.get(f"{API}/admin/visit-requests/{receipt}")).json()
+    fixed = await admin_client.patch(
+        f"{API}/admin/visit-requests/{receipt}/details",
+        json={"expected_version": detail["details_version"], "phone": OTHER_PHONES[0]},
+    )
+    assert fixed.status_code == 200, fixed.text
+    assert fixed.json()["access_link_reset"] is True
+
+    db_session.expire_all()
+    assert not await line_parent.has_active_link(db_session, uuid.UUID(receipt))
+    assert (await second_public_client.get(f"{MANAGE}/me")).status_code == 401
+    assert (await second_public_client.post(f"{MANAGE}/exchange", json={"token": stranger_token})).status_code != 200
+
+
+async def test_phone_change_without_pnp_keeps_the_link(app, fake_line, admin_client, public_client, db_session):
+    """沒送過通知型訊息（正式站目前都是這樣）：電話不曾帶過連結，改電話不作廢家長手上的連結。"""
+    booked = await book_slot(admin_client, public_client, email=None, phone=PHONE)
+    receipt = booked["receipt_id"]
+    await open_manage(public_client, booked["manage_path"])
+    assert (await _parent_edit(public_client, receipt, phone=OTHER_PHONES[0])).status_code == 200
+    detail = (await admin_client.get(f"{API}/admin/visit-requests/{receipt}")).json()
+    fixed = await admin_client.patch(
+        f"{API}/admin/visit-requests/{receipt}/details",
+        json={"expected_version": detail["details_version"], "phone": OTHER_PHONES[1]},
+    )
+    assert fixed.status_code == 200 and fixed.json()["access_link_reset"] is False
+    token = booked["manage_path"].split("token=", 1)[1]
+    assert (await public_client.post(f"{MANAGE}/exchange", json={"token": token})).status_code == 200
+
+
+async def test_parent_triggered_pnp_is_capped_per_case_per_day(app, fake_line, admin_client, public_client, db_session):
+    await _enable(admin_client)
+    booked = await book_slot(admin_client, public_client, email=None, phone=PHONE)
+    receipt = booked["receipt_id"]
+    await _run_outbox(app, db_session)
+    await open_manage(public_client, booked["manage_path"])
+    for phone in OTHER_PHONES:
+        assert (await _parent_edit(public_client, receipt, phone=phone)).status_code == 200
+        await _run_outbox(app, db_session)
+    # 送出 1 則＋改電話 2 則就到上限 3；後面兩次改電話不再送。
+    assert len(fake_line.pnp) == line_pnp.PARENT_DAILY_CAP == 3
+    assert [sent["body"]["to"] for sent in fake_line.pnp] == [
+        PHONE_HASH, hashlib.sha256(b"+886987000001").hexdigest(), hashlib.sha256(b"+886987000002").hexdigest()
+    ]
+    # 園方的通知不受上限影響：後台取消照樣送到目前的電話。
+    cancelled = await admin_client.post(f"{API}/admin/visit-requests/{receipt}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+    await _run_outbox(app, db_session)
+    assert len(fake_line.pnp) == 4
+    assert fake_line.pnp[3]["body"]["templateKey"] == "reservation_cancellation_zh"
+    assert fake_line.pnp[3]["body"]["to"] == hashlib.sha256(b"+886987000004").hexdigest()

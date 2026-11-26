@@ -186,7 +186,10 @@ def probe_video(video_path: Path) -> VideoProbe:
                 "json",
                 str(video_path),
             ],
-            capture_output=True,
+            # stdout 只有一條影像軌的幾個欄位（-select_streams v:0），大小固定；錯誤輸出用不到，
+            # 直接丟掉，不讓特製影片的大量錯誤訊息堆在記憶體（2026-11-26 資安檢查）。
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             timeout=15,
         )
@@ -242,7 +245,7 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
         # -max_pixels 讓解碼器拒絕超過像素上限的影格，ffmpeg 自己也不會為巨大
         # 影格配置記憶體。
         try:
-            result = subprocess.run(
+            result = run_keeping_stderr_tail(
                 [
                     "ffmpeg",
                     "-nostdin",
@@ -262,8 +265,6 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
                     "1",
                     str(frame_path),
                 ],
-                capture_output=True,
-                stdin=subprocess.DEVNULL,
                 timeout=30,
             )
         except subprocess.TimeoutExpired as exc:
@@ -272,7 +273,7 @@ def extract_video_poster(video_path: Path, at_seconds: float = 0.5) -> Rendition
             raise ProcessingError(f"無法執行 ffmpeg：{exc}", retryable=True) from exc
 
         if result.returncode != 0 or not frame_path.exists():
-            raise ProcessingError(f"ffmpeg 抽幀失敗：{_error_tail(result.stderr)}")
+            raise ProcessingError(f"ffmpeg 抽幀失敗：{_error_tail(result.stderr_tail)}")
         try:
             # 先只讀 PNG header 比對像素上限，再交給 Pillow 解碼。
             with Image.open(frame_path, formats=("PNG",)) as frame:
@@ -420,7 +421,8 @@ def probe_video_stream(video_path: Path) -> VideoStream:
                 "stream=codec_name,pix_fmt,width,height,avg_frame_rate,r_frame_rate,color_transfer,color_primaries",
                 "-of", "json", str(video_path),
             ],
-            capture_output=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
             stdin=subprocess.DEVNULL,
             timeout=15,
         )
@@ -494,6 +496,43 @@ def _stderr_tail(stream) -> str:
     stream.seek(0, os.SEEK_END)
     stream.seek(max(0, stream.tell() - _STDERR_TAIL_BYTES))
     return stream.read().decode("utf-8", errors="replace")
+
+
+@dataclass(frozen=True)
+class TailedRun:
+    returncode: int
+    stderr_tail: bytes
+
+
+def run_keeping_stderr_tail(argv: list[str], *, timeout: float) -> TailedRun:
+    """跑一次短的 ffmpeg（抽 poster），stdout 丟掉、錯誤輸出只留最後 _STDERR_TAIL_BYTES。
+
+    不用 subprocess.run(capture_output=True)：它把整段錯誤輸出留在記憶體，特製影片（大量壞掉的小樣本）
+    在 -loglevel error 下每秒也能印出數 MB，逾時前累積到數百 MB，幾支一起上傳就能讓 API 程序被砍
+    （2026-11-26 資安檢查）。這裡邊讀邊丟，記憶體與磁碟都固定。逾時照 subprocess.run 的語意：
+    砍掉程序、丟 TimeoutExpired；ffmpeg 不存在丟 OSError。"""
+    proc = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    tail = bytearray()
+
+    def drain() -> None:
+        assert proc.stderr is not None
+        while chunk := proc.stderr.read1(65536):
+            tail.extend(chunk)
+            if len(tail) > _STDERR_TAIL_BYTES:
+                del tail[: len(tail) - _STDERR_TAIL_BYTES]
+
+    reader = threading.Thread(target=drain, name="ffmpeg-stderr", daemon=True)
+    reader.start()
+    try:
+        returncode = proc.wait(timeout=timeout)
+    finally:
+        if proc.poll() is None:
+            proc.kill()
+            proc.wait()
+        reader.join()
+        assert proc.stderr is not None
+        proc.stderr.close()
+    return TailedRun(returncode=returncode, stderr_tail=bytes(tail))
 
 
 def _run_ffmpeg(argv: list[str], timeout: int) -> tuple[int, str]:

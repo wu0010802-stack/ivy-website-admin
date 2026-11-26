@@ -405,16 +405,45 @@ async def test_google_cancel_is_audited_but_stray_callbacks_are_not(google_clien
     assert entry.metadata_json == {"reason": "cancelled"}
 
 
-async def test_google_callback_counts_toward_login_rate_limit(google_client, monkeypatch):
+async def test_google_callback_counts_toward_login_rate_limit(google_client, google_provider, monkeypatch):
+    """有握手的 callback 算一次登入嘗試：握手 cookie 在有效期內重送，照樣被來源限流擋下。"""
     from app.common import ratelimit
 
     monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_google_test", 300, 3))
-    locations = [
-        (await google_client.get(f"{ROOT}/google/callback", params={"state": "x", "code": "y"})).headers["location"]
-        for _ in range(4)
-    ]
-    assert all("oauth_error=failed" in loc for loc in locations[:3])
-    assert locations[3] == "/admin/login?oauth_error=rate_limited"
+    state = await start(google_client, google_provider)  # 第 1 次
+    cookie = google_client.cookies.get("ivy_google_oauth")
+    locations = []
+    for _ in range(3):
+        google_client.cookies.clear()
+        google_client.cookies.set("ivy_google_oauth", cookie)
+        locations.append((await finish(google_client, state, error="access_denied")).headers["location"])
+    assert all("oauth_error=cancelled" in loc for loc in locations[:2]), locations
+    assert locations[2] == "/admin/login?oauth_error=rate_limited"
+
+
+async def test_stray_and_cross_site_google_requests_do_not_use_up_the_login_limit(
+    google_client, google_provider, monkeypatch
+):
+    """外站網頁在員工的瀏覽器裡用 <img> 打登入起點或 callback，不能把同一個 IP 的登入額度用光
+    （2026-11-26 資安檢查）：沒有握手的 callback 與外站帶來的起點都不計數、不寫稽核、不打 Google。"""
+    from app.common import ratelimit
+
+    monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_google_test", 300, 2))
+    for site in ("cross-site", "same-site"):
+        for _ in range(3):
+            refused = await google_client.get(
+                f"{ROOT}/google/login", params={"remember": "true"}, headers={"Sec-Fetch-Site": site}
+            )
+            assert refused.headers["location"] == "/admin/login?oauth_error=failed"
+            assert "ivy_google_oauth" not in refused.headers.get("set-cookie", "")
+    for _ in range(3):
+        stray = await google_client.get(f"{ROOT}/google/callback", params={"state": "x", "code": "y"})
+        assert stray.headers["location"] == "/admin/login?oauth_error=failed"
+    assert google_provider["requests"] == []
+    # 額度都還在：同源的起點與正常的密碼登入照常。
+    same_origin = await google_client.get(f"{ROOT}/google/login", headers={"Sec-Fetch-Site": "same-origin"})
+    assert same_origin.status_code == 302 and same_origin.headers["location"].startswith("https://accounts.google.com/")
+    assert (await google_client.get(f"{ROOT}/google/login", headers={"Sec-Fetch-Site": "none"})).status_code == 302
 
 
 async def test_google_unlink_clears_binding_and_is_audited(google_client, google_provider, db_session):

@@ -568,16 +568,44 @@ async def _audit_rows(db_session, action: str) -> list[AuditLogEntry]:
     )).scalars())
 
 
-async def test_line_callback_counts_toward_login_rate_limit(line_client, monkeypatch):
+async def test_line_callback_counts_toward_login_rate_limit(line_client, line_provider, monkeypatch):
     """原本：LINE callback 不計來源限流，一個握手 cookie 可以無限次打 LINE token 端點。"""
     monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_line_test", 300, 3))
-    locations = [
-        (await line_client.get(f"{ROOT}/line/callback", params={"state": "x", "code": "y"})).headers["location"]
-        for _ in range(4)
-    ]
-    # 帶 state、沒有握手 cookie 的請求回 line_other_browser（2026-11-19）；第 4 次照樣被來源限流擋下。
-    assert locations[:3] == ["/admin/login?oauth_error=line_other_browser"] * 3
-    assert locations[3] == "/admin/login?oauth_error=rate_limited"
+    state = await start_login(line_client, line_provider)  # 第 1 次
+    cookie = line_client.cookies.get("ivy_line_oauth")
+    locations = []
+    for _ in range(3):
+        line_client.cookies.clear()
+        line_client.cookies.set("ivy_line_oauth", cookie)
+        locations.append((await finish(line_client, state, error="access_denied")).headers["location"])
+    # 第 2 次起 state 已用過（單次使用），第 4 次照樣被來源限流擋下。
+    assert locations[0] == "/admin/login?oauth_error=line_cancelled"
+    assert locations[1] == "/admin/login?oauth_error=line_failed"
+    assert locations[2] == "/admin/login?oauth_error=rate_limited"
+
+
+async def test_stray_and_cross_site_line_requests_do_not_use_up_the_login_limit(line_client, line_provider, monkeypatch):
+    """外站網頁在員工的瀏覽器裡用 <img> 打登入起點或 callback，不能把同一個 IP 的登入額度用光
+    （2026-11-26 資安檢查）：沒有握手的 callback 與外站帶來的起點都不計數、不寫稽核、不打 LINE。"""
+    monkeypatch.setattr(service, "LOGIN_SOURCE_LIMIT", ratelimit.Limit("login_source_line_test", 300, 2))
+    for site in ("cross-site", "same-site"):
+        for _ in range(3):
+            refused = await line_client.get(
+                f"{ROOT}/line/login", params={"remember": "true"}, headers={"Sec-Fetch-Site": site}
+            )
+            assert refused.headers["location"] == "/admin/login?oauth_error=line_failed"
+            assert "ivy_line_oauth" not in refused.headers.get("set-cookie", "")
+    for _ in range(3):
+        stray = await line_client.get(f"{ROOT}/line/callback", params={"state": "x", "code": "y"})
+        # 帶 state、沒有握手 cookie 的請求回 line_other_browser（2026-11-19）。
+        assert stray.headers["location"] == "/admin/login?oauth_error=line_other_browser"
+        bare = await line_client.get(f"{ROOT}/line/callback")
+        assert bare.headers["location"] == "/admin/login?oauth_error=line_failed"
+    assert token_requests(line_provider) == 0
+    # 額度都還在：同源的起點照常。
+    same_origin = await line_client.get(f"{ROOT}/line/login", headers={"Sec-Fetch-Site": "same-origin"})
+    assert same_origin.status_code == 302
+    assert (await line_client.get(f"{ROOT}/line/login", headers={"Sec-Fetch-Site": "none"})).status_code == 302
 
 
 async def test_line_state_is_single_use_even_if_the_cookie_is_kept(line_client, line_provider, db_session):

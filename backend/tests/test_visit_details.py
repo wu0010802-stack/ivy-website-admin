@@ -199,11 +199,14 @@ async def test_new_details_roundtrip_stays_private_and_within_campus(
 
     messages = (await db_session.execute(select(OutboxMessage))).scalars().all()
     # 送單（園方新預約通知、家長成立信）加上後台重發修改連結的家長信；不管哪一種，
-    # payload 都只有校區與案件 id，不帶任何個資。
+    # payload 都只有校區與案件 id，不帶任何個資。家長自己觸發的另帶 by_parent（2026-11-26，通知型訊息每日上限用）。
     assert sorted(message.kind for message in messages) == [
         "parent_visit_booked", "parent_visit_changed", "visit_request_created",
     ]
-    assert all(message.payload == {"campus_key": "yihua", "receipt_id": receipt_id} for message in messages)
+    by_kind = {message.kind: message.payload for message in messages}
+    assert by_kind["parent_visit_booked"] == {"campus_key": "yihua", "receipt_id": receipt_id, "by_parent": True}
+    assert by_kind["parent_visit_changed"] == {"campus_key": "yihua", "receipt_id": receipt_id}
+    assert by_kind["visit_request_created"] == {"campus_key": "yihua", "receipt_id": receipt_id}
 
 
 @pytest.mark.asyncio

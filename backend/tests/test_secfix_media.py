@@ -465,7 +465,12 @@ def test_ffmpeg_and_ffprobe_restrict_demuxer_and_protocol(monkeypatch, tmp_path)
         assert kwargs.get("stdin") == subprocess.DEVNULL
         return subprocess.CompletedProcess(argv, 1, b"", b"fake failure")
 
+    def _fake_tailed(argv, **kwargs):
+        calls.append(list(argv))
+        return processing.TailedRun(1, b"fake failure")
+
     monkeypatch.setattr(processing.subprocess, "run", _fake_run)
+    monkeypatch.setattr(processing, "run_keeping_stderr_tail", _fake_tailed)
     video = tmp_path / "in.mp4"
     video.write_bytes(b"\x00\x00\x00\x18ftypmp42")
     processing.probe_video(video)
@@ -486,10 +491,10 @@ def test_ffmpeg_and_ffprobe_restrict_demuxer_and_protocol(monkeypatch, tmp_path)
 def test_poster_frame_size_checked_before_decoding(monkeypatch, tmp_path):
     def _fake_run(argv, **kwargs):
         Image.new("RGB", (40, 30)).save(argv[-1], "PNG")
-        return subprocess.CompletedProcess(argv, 0, b"", b"")
+        return processing.TailedRun(0, b"")
 
     decoded: list[object] = []
-    monkeypatch.setattr(processing.subprocess, "run", _fake_run)
+    monkeypatch.setattr(processing, "run_keeping_stderr_tail", _fake_run)
     monkeypatch.setattr(processing, "make_webp", lambda *a, **k: decoded.append(a))
     monkeypatch.setattr(processing, "MAX_IMAGE_PIXELS", 100)
     with pytest.raises(processing.ProcessingError, match="像素"):
@@ -801,9 +806,9 @@ def _failed_poster_error(monkeypatch, tmp_path, stderr: str) -> tuple[processing
 
     def _fake_run(argv, **kwargs):
         calls.append(list(argv))
-        return subprocess.CompletedProcess(argv, 1, b"", stderr.encode())
+        return processing.TailedRun(1, stderr.encode())
 
-    monkeypatch.setattr(processing.subprocess, "run", _fake_run)
+    monkeypatch.setattr(processing, "run_keeping_stderr_tail", _fake_run)
     with pytest.raises(processing.ProcessingError) as caught:
         processing.extract_video_poster(tmp_path / "in.mp4")
     return caught.value, calls
