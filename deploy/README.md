@@ -14,6 +14,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-26 後台成效統計第五輪 UI/UX（PR #145，main `a994a361`；已部署）
+
+只改 admin 前端（`admin/src/views/AnalyticsView.vue`、新 `components/analytics/AnalyticsToc.vue` 與成效統計的五個面板），沒有 migration，也沒改變數，不需要事前備份。使用者看過對照圖後說「繼續幫我部署」。合併前 PR 與 `main` 的 README 頂部衝突一次（兩邊各加一段），把 `main` 合進分支後兩段都保留；PR 那次 CI（Frontend、Backend 三組、E2E）全綠，E2E 含這一頁四個網址的無障礙與鍵盤檢查。合併後 run 45838798818 的 Frontend、Backend、Deploy 全綠（E2E 同時在跑，照規定不擋部署）。
+
+線上核對（2026-11-26 22:36 台北，只用公開 GET）：
+
+- `/release.json` 的 `base_commit` 是 `a994a361…`（上一版 `cb3053a7`）。
+- `/api/website/v1/health` 回 200；`admin.ivykidschool.com/admin/login` 回 200。
+- 後台入口載入的 `AnalyticsView-B5NLlN4c.js`、`AnalyticsView-DcCSYqfU.css` 裡有這一輪的 `analytics-toc`、`analytics-bar`、`interest-conversion-toggle`、`gbp__cols`、`crux-missing`、`crawlers__group-text`；CSS 檔名和本機 `vite build` 的同一個雜湊。
+
+沒驗：登入後的實際畫面（這次沒有用正式站帳號），請使用者開 `/admin/analytics` 看一次目次、換分類與手機版；Safari／iOS 實機。
+
 ## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，義華已啟用**）
 
 migration `e84b4724bb8d`（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改既有資料，沒有事先備份（照 `deploy/CICD.md`，純新增不需要）。合併前在合併後的 main 上核對過只有一個 alembic head。PR 第一輪 CI 紅在後台側欄測試：「廣告名單」原本插在參觀場次後面，擠開了「參觀場次→招生入學」的相鄰規則。改排到招生統計後面（`ab9d2ef2`）後全綠。合併後 run 45828117644 含 Deploy 全綠，`/release.json` 的 base 是 `cb3053a7`。線上核對：
