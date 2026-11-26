@@ -63,6 +63,9 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
       { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
+      // Meta 名單型廣告送進來的名單收件匣，挑要跟進的轉成參觀案件（2026-11-26）。排在參觀場次後面：
+      // 參觀案件與接待月曆要相鄰（receptionAndHistory.test.ts）。
+      { name: 'meta-leads', path: '/meta-leads', title: '廣告名單', icon: 'ChatDotSquare', roles: VISITS, keywords: ['Meta', 'Facebook', 'Instagram', '名單型廣告', '即時表單', '潛在顧客'] },
       { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
       // 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽出來，限總管理者（後端 admissions.stats）。
       // 招生開關關閉時同招生入學不列出。

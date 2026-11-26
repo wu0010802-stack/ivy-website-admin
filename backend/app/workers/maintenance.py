@@ -80,6 +80,8 @@ class CycleResult:
     # 這一輪清掉來源 IP／User-Agent 的操作紀錄筆數；刪掉的失效 session、重設連結、家長 session 筆數。
     audit_client_info_cleared: int = 0
     stale_auth_rows_purged: int = 0
+    # 刪掉的過期 Meta 廣告名單（沒轉成案件、收到超過保存天數；2026-11-26）。
+    meta_leads_purged: int = 0
     # 個資保存政策：這一輪有沒有執行、匿名化幾筆。
     retention_ran: bool = False
     retention_anonymized: int = 0
@@ -104,6 +106,7 @@ class CycleResult:
                 self.media_purged,
                 self.audit_client_info_cleared,
                 self.stale_auth_rows_purged,
+                self.meta_leads_purged,
                 self.retention_ran,
                 self.failed_steps,
             )
@@ -341,6 +344,18 @@ async def _run_steps(
             logger.exception("定期工作：刪除失效的%s失敗", label)
             if "stale_auth" not in result.failed_steps:
                 result.failed_steps.append("stale_auth")
+
+    # Meta 廣告名單（2026-11-26，app/meta_leads/）：沒轉成案件、收到超過保存天數的名單刪掉。
+    # 不看 WEBSITE_META_LEADS_ENABLED：功能關掉後，已收進來的名單照樣到期刪除。
+    try:
+        from app.meta_leads.sync import purge_expired as purge_meta_leads
+
+        async with session_factory() as db:
+            result.meta_leads_purged = await purge_meta_leads(db, settings, now=now)
+            await db.commit()
+    except Exception:  # noqa: BLE001
+        logger.exception("定期工作：刪除過期的 Meta 廣告名單失敗")
+        result.failed_steps.append("meta_leads")
 
     # 個資保存政策（規格 L282）：政策開啟自動執行、而且部署設定允許真正清理
     # 時，每個台灣日期最多匿名化一次；任一個沒開就什麼都不做。

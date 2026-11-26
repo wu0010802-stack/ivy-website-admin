@@ -19,6 +19,7 @@ from app.common.state_machine import DerivedMachine, DerivedState, StateMachine,
 from app.content.models import REVIEW_STATUSES
 from app.facebook.models import POST_STATUSES
 from app.media.models import MediaJobStatus, MediaStatus
+from app.meta_leads.models import LEAD_STATUSES
 
 
 def _labelled(values, labels: dict[str, str]) -> dict[str, str]:
@@ -248,6 +249,28 @@ FACEBOOK_PAGE_POST = StateMachine(
     writers=("app/facebook/routes.py",),
 )
 
+META_LEAD = StateMachine(
+    key="meta_lead",
+    title="廣告名單收件匣",
+    model="app.meta_leads.models:MetaLead",
+    field="status",
+    states=_labelled(LEAD_STATUSES, {"new": "未處理", "converted": "已轉成案件", "dismissed": "已略過"}),
+    transitions=(
+        Transition(None, "new", "app.meta_leads.sync:_write_leads", guard="同步只新增名單，同一筆名單再讀到就略過"),
+        Transition("new", "dismissed", "app.meta_leads.service:dismiss"),
+        Transition("dismissed", "new", "app.meta_leads.service:restore"),
+        Transition("new", "converted", "app.meta_leads.service:mark_converted",
+                   guard="後台補登成功（同一個交易，名單與案件同一校）",
+                   effects="記案件 id；清掉名單上的姓名、電話、作答"),
+        Transition("dismissed", "converted", "app.meta_leads.service:mark_converted",
+                   guard="後台補登成功（同一個交易，名單與案件同一校）",
+                   effects="記案件 id；清掉名單上的姓名、電話、作答"),
+    ),
+    writers=("app/meta_leads/service.py",),
+    notes="規格 6.2 不得自動建案：名單只在人員按「轉成參觀案件」、補登成功後才變成案件。"
+          "沒轉成案件的名單收到 WEBSITE_META_LEADS_RETENTION_DAYS 天後由 maintenance 刪除（不是狀態轉移）。",
+)
+
 MACHINES: tuple[StateMachine, ...] = (
     VISIT_REQUEST,
     OUTBOX_MESSAGE,
@@ -259,6 +282,7 @@ MACHINES: tuple[StateMachine, ...] = (
     ROSTER_STUDENT,
     AD_CONVERSION_JOB,
     FACEBOOK_PAGE_POST,
+    META_LEAD,
 )
 
 

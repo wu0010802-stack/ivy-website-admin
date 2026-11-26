@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
-import type { VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
+import type { MetaLeadOut, VisitRequestDetailOut, VisitRequestManualCreate, VisitSlotOut } from '../api/types'
 import { MANUAL_VISIT_SOURCES, PARTY_SIZE_OPTIONS, VISIT_SOURCE_LABELS, expectedStartStaffOptions, formatSlotWhen, slotStarted } from '../api/labels'
 import { groupSlotsByDay, slotChoiceTime } from '../utils/sessions'
 import { staffSlotsRange, taipeiDay } from '../utils/visitSchedule'
@@ -17,6 +17,8 @@ const props = defineProps<{
   defaultCampus?: string
   /** 結案後重新預約：帶入舊案資料，新案會關聯舊案（跨校需總管理者） */
   relatedFrom?: VisitRequestDetailOut | null
+  /** 從「廣告名單」轉成案件：帶入名單資料，送出時一起帶 meta_lead_id，校區鎖在名單所屬那一校 */
+  metaLead?: MetaLeadOut | null
 }>()
 const open = defineModel<boolean>({ required: true })
 const emit = defineEmits<{ created: [request: VisitRequestDetailOut] }>()
@@ -65,6 +67,20 @@ function newKey(): string {
     : `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
+// 聯絡紀錄的上限（後端 VisitRequestManualCreate.note max_length）。
+const NOTE_MAX = 1000
+
+// 廣告名單帶進聯絡紀錄的預填：表單名稱加每一題「題目：回答」（Email 已填進 Email 欄，不重複）。
+// 作答很長時截到聯絡紀錄上限，不然送出會被後端擋下。
+function metaLeadNote(lead: MetaLeadOut): string {
+  const lines = [`Meta 廣告名單（表單：${lead.form_name ?? '未命名'}）`]
+  for (const a of lead.answers) if (a.question !== 'email') lines.push(`${a.question}：${a.answer}`)
+  return lines.join('\n').slice(0, NOTE_MAX)
+}
+
+// 校區下拉：從廣告名單補登時只能是名單所屬那一校（後端另擋 META_LEAD_CAMPUS）。
+const campusChoices = computed(() => (props.metaLead ? [props.metaLead.campus_key] : props.campusKeys))
+
 // immediate：呼叫端另切 chunk（案件列表、案件頁），載入完成前就打開時，掛上當下 open 已是 true 也要帶入。
 watch(open, (value) => {
   if (!value) return
@@ -79,6 +95,14 @@ watch(open, (value) => {
     form.email = from.email ?? ''
     form.party_size = from.party_size ?? null
     form.expected_start = from.expected_start ?? ''
+  }
+  const lead = props.metaLead
+  if (lead) {
+    form.campus_key = lead.campus_key
+    form.parent_name = lead.parent_name ?? ''
+    form.phone = lead.phone ?? ''
+    form.email = lead.answers.find((a) => a.question === 'email')?.answer ?? ''
+    form.note = metaLeadNote(lead)
   }
   initial.value = JSON.stringify(form)
   error.value = null
@@ -208,6 +232,9 @@ function messageOf(err: unknown): string {
       if (msgs.length) return msgs.join('；')
     }
     if (d && typeof d === 'object' && 'message' in d) return String((d as { message: unknown }).message)
+    const code = d && typeof d === 'object' && 'code' in d ? String((d as { code: unknown }).code) : ''
+    if (code === 'META_LEAD_STATUS') return '這筆廣告名單已經轉成案件了，請重新整理廣告名單'
+    if (code === 'META_LEAD_CAMPUS') return '這筆廣告名單不是這一校的，請在名單所屬的校區補登'
   }
   return '補登失敗，請稍後再試'
 }
@@ -238,6 +265,7 @@ async function submit() {
     // 2026-10-02 起補登不用勾選同意，明確送 false（案件明細寫「補登不需勾選同意」）。
     consent_given: false,
     related_request_id: props.relatedFrom?.id ?? null,
+    ...(props.metaLead ? { meta_lead_id: props.metaLead.id } : {}),
   }
   try {
     const created = await api.post<VisitRequestDetailOut>('/admin/visit-requests', body, {
@@ -260,7 +288,7 @@ async function submit() {
   <el-dialog
     v-model="open"
     class="manual-dialog"
-    :title="relatedFrom ? '重新預約（另建新案）' : '補登參觀案件'"
+    :title="relatedFrom ? '重新預約（另建新案）' : metaLead ? '廣告名單轉成參觀案件' : '補登參觀案件'"
     width="min(560px, calc(100vw - 32px))"
     top="5vh"
     append-to-body
@@ -269,13 +297,13 @@ async function submit() {
     :show-close="!submitting"
     :before-close="beforeClose"
   >
-    <p class="hint manual__lead">{{ relatedFrom ? '舊案保持結案，新案會記下是從哪一筆重新預約。換到別校需要總管理者。' : '家長打電話、傳 LINE 或直接到園詢問時，在這裡登錄，之後就跟官網送來的案件一起追蹤。' }}</p>
+    <p class="hint manual__lead">{{ relatedFrom ? '舊案保持結案，新案會記下是從哪一筆重新預約。換到別校需要總管理者。' : metaLead ? '已帶入家長在 Meta 表單填的資料，選好參觀場次就能建立案件。建立後這筆名單會移到「已轉案件」，個資改在案件裡看。' : '家長打電話、傳 LINE 或直接到園詢問時，在這裡登錄，之後就跟官網送來的案件一起追蹤。' }}</p>
 
     <el-alert v-if="error" type="error" :closable="false" show-icon :title="error" class="manual__alert" />
 
     <el-form label-position="top" :disabled="submitting" @submit.prevent="submit">
       <el-form-item label="校區" required>
-        <CampusSelect v-model="form.campus_key" :keys="campusKeys" />
+        <CampusSelect v-model="form.campus_key" :keys="campusChoices" />
       </el-form-item>
       <el-form-item label="家長從哪裡聯絡" required>
         <el-radio-group v-model="form.source" class="manual__sources">

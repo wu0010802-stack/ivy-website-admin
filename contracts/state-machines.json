@@ -372,6 +372,39 @@
           "imported"
         ]
       ]
+    },
+    "meta_lead": {
+      "title": "廣告名單收件匣",
+      "field": "status",
+      "states": {
+        "new": "未處理",
+        "converted": "已轉成案件",
+        "dismissed": "已略過"
+      },
+      "initial": [
+        "new"
+      ],
+      "terminal": [
+        "converted"
+      ],
+      "transitions": [
+        [
+          "dismissed",
+          "converted"
+        ],
+        [
+          "dismissed",
+          "new"
+        ],
+        [
+          "new",
+          "converted"
+        ],
+        [
+          "new",
+          "dismissed"
+        ]
+      ]
     }
   },
   "derived": {

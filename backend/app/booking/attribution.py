@@ -51,9 +51,10 @@ LINE_CLICK_MAX_AGE = timedelta(days=90)
 LINE_BROWSER_COOKIE = "__lt__cid"
 
 # 各平台在 ad_click_ids 裡用到的鍵；送出時也照這張表找識別碼（app/ad_conversions/）。
+# meta_lead_id 不是官網 cookie 來的：從後台「廣告名單」轉成的補登案件才有（app/meta_leads/service.py）。
 PLATFORM_KEYS: dict[str, tuple[str, ...]] = {
     "ga4": ("ga_client_id",),
-    "meta": ("fbc", "fbp"),
+    "meta": ("fbc", "fbp", "meta_lead_id"),
     "openai": ("oppref", "obref"),
     "line": ("line_click_id", "line_browser_id"),
 }

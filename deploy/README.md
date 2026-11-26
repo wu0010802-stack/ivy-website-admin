@@ -3010,6 +3010,25 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 
 **要注意**：Instagram 的影片若含版權音樂，Meta 會省略該則的 `media_url`，這種貼文只會有封面；Reels 配樂的授權問題和 Facebook Reels 一樣（見 `docs/specs/2026-10-28-facebook-news-sync-design.md` §8），搬到官網前請園方確認。**程式端沒用真實 Instagram 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造）；開通後第一次同步請照步驟 6 實測，並看 api log 沒有 token。
 
+### Meta 名單型廣告 → 廣告名單（2026-11-26 程式，`feature/meta-lead-inbox`；預設關，沒設 `WEBSITE_META_LEADS_ENABLED` 就和現在完全一樣）
+
+規格 `docs/specs/2026-11-26-meta-lead-inbox-design.md`。開了之後，各校粉專即時表單的名單每分鐘拉進後台「參觀預約 → 廣告名單」，新名單推一則（只有校名與筆數）到該校 LINE 群組；櫃檯確認後「轉成參觀案件」走原本的補登。規格 6.2 不得自動建案，名單不占場次名額。用同一把 Page token，不另設表單 ID（從 `GET /{粉專ID}/leadgen_forms` 讀全部表單）。
+
+- **migration `e84b4724bb8d`**（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改、不刪既有資料；舊版程式不讀不寫這兩張表，可直接回退。
+- **個資**：轉成案件時名單上的姓名、電話、作答立刻清掉；沒轉的名單收到 `WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90）天後由每分鐘的定期工作刪除（不看開關，功能關掉後照刪）。LINE 通知不含家長個資。
+
+**開通步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **重新授權加名單權限**：Graph API Explorer 選同一個 App（「常春藤義華校」），權限在原本的 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`（有開 Instagram 就再加 `instagram_basic`）之外再勾 `leads_retrieval`、`pages_manage_ads` →「Generate Access Token」→ 授權時勾義華粉專。
+2. **潛在顧客存取權**：粉專（Business Suite）→ 設定 →「潛在顧客存取權」（Leads Access Manager）若有限制，把產生 token 的帳號（或系統用戶）與這個 App 加進去。
+3. **延長並換 Page token**：照上方 A 的第 3、4 步換出新的 Page token，換進 Railway 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`。
+4. **Railway api 設 `WEBSITE_META_LEADS_ENABLED=true`**（可和上一步同一次設）。Facebook 兩個變數沒設就開這個，api 會拒絕啟動。選填 `WEBSITE_META_LEADS_SYNC_SECONDS`（預設 60，60–3600）、`WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90，30–365）。
+5. **驗收**：後台「廣告名單」選義華按「立即同步」，頁面沒有錯誤；用 Meta 的「潛在顧客廣告測試工具」送一筆測試名單，一分鐘內出現在新名單、義華 LINE 群組收到通知；按「轉成參觀案件」選場次送出，案件建立、名單移到「已轉案件」。失敗時頁面寫步驟與 Meta 錯誤代碼（190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count, cursor_at from meta_lead_sync;`。
+
+**關閉**：把 `WEBSITE_META_LEADS_ENABLED` 刪掉或設 `false`。已收進來的名單與已轉成的案件不受影響，沒轉的名單照保存天數到期刪除。
+
+**要注意**：**程式端沒用真實 Meta 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造），開發模式的 App 能不能讀名單、要不要另外申請存取等級，第一次開通請照步驟 5 實測，並看 api log 沒有 token。
+
 ## 公開地理資料同步（招生區域分析）
 
 招生區域分析（後台「招生入學 → 統計分析 → 區域分析」）需要多種公開資料（以下四種是起頭的，「里的變化」另有出生、遷入遷出、所得、新成屋，各段在下方）：高雄市門牌坐標（比對家長地址的里與距離）、全國教保資訊網的高雄市幼兒園（附近幼兒園清單）、內政部各里人口（招生機會，2026-10-13，見下方「各里人口」）與托嬰中心名單（2026-10-14，見下方「托嬰名單與園所異動」）。這一段說明怎麼開自動同步、以及自動抓不到時的手動退路。**這是操作說明，不是部署紀錄**；部署後會另在上方補一段帶日期的紀錄（日期、commit、實際開關狀態）。規格 `docs/specs/2026-10-08-admissions-area-design.md` §7、§13，程式在 `backend/app/admissions/geo/sync.py`、`backend/app/workers/geo_loop.py`。

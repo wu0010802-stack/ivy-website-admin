@@ -62,6 +62,8 @@ export const STEP_LABELS: Record<string, string> = {
   purge_media: '清除待刪素材',
   audit_client_info: '清除操作紀錄的舊 IP 與裝置',
   stale_auth: '清除失效的登入與重設連結',
+  // Meta 廣告名單（2026-11-26）：沒轉成案件、收到超過保存天數的名單。
+  meta_leads: '清除過期的 Meta 廣告名單',
   retention: '個資保存清理',
   digest: 'LINE 群組每日摘要',
 }

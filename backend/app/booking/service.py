@@ -492,11 +492,15 @@ async def create_manual_visit_request(
     created_by: uuid.UUID,
     hash_key: bytes,
     slot_id: uuid.UUID,
+    tracking: dict | None = None,
 ) -> tuple[VisitRequest, bool]:
     """人員補登一筆案件，當場排進場次、建立即是 confirmed。場次的檢查見
     slot_service.lock_for_staff_booking（不受公開的最短提前時間限制）；額滿、
     已關閉或已開始丟例外，案件不建立。不看預約模式、不寫「新的參觀預約」
     通知（登錄的人自己就知道這筆），只排「已確認」通知與家長確認信。
+
+    tracking：網站來源欄位與 ad_click_ids，只有從「廣告名單」轉成案件時才帶
+    （app/meta_leads/service.conversion_tracking）。同 submit_visit_request，不進 payload 雜湊。
 
     回傳 (visit_request, is_new)；同一個 key 重送回原案件，不重複建立。"""
     key = f"{MANUAL_IDEMPOTENCY_PREFIX}{idempotency_key}"
@@ -552,6 +556,7 @@ async def create_manual_visit_request(
         source=source.value,
         created_by=created_by,
         created_at=now,
+        **_tracking_columns(tracking),
     )
     db.add(visit_request)
     try:
