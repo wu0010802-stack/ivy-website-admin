@@ -26,7 +26,7 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 沒驗：登入後的實際畫面（這次沒有用正式站帳號），請使用者開 `/admin/analytics` 看一次目次、換分類與手機版；Safari／iOS 實機。
 
-## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，義華已啟用**）
+## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，義華已啟用，Meta 回傳已開**）
 
 migration `e84b4724bb8d`（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改既有資料，沒有事先備份（照 `deploy/CICD.md`，純新增不需要）。合併前在合併後的 main 上核對過只有一個 alembic head。PR 第一輪 CI 紅在後台側欄測試：「廣告名單」原本插在參觀場次後面，擠開了「參觀場次→招生入學」的相鄰規則。改排到招生統計後面（`ab9d2ef2`）後全綠。合併後 run 45828117644 含 Deploy 全綠，`/release.json` 的 base 是 `cb3053a7`。線上核對：
 - `/api/website/v1/health` 回 200（production）。
@@ -45,6 +45,22 @@ Meta 端（同日，使用者同意後）：App「常春藤義華校」（153787
 **待使用者**：
 - 用潛在顧客廣告測試工具送一筆測試名單，驗證拉取、LINE 群組通知、轉成案件（還沒有真實名單走過完整流程）。
 - 資料存取在 2027-02-24 到期，到期前照「各校 Facebook 粉專貼文同步」A 段重做；權限要包含 `leads_retrieval`、`pages_manage_ads`。
+
+**同日 22:43–22:46 開「到場、預繳回傳 Meta」**（照「網站來源…回傳廣告平台」開啟步驟）：
+1. 隱私權政策經使用者同意後在後台發布，最後更新日改為 2026-11-26，線上 `/api/public-site` 驗過。改了三處：
+   - 第 2 段加「名單型廣告表單留下的資料」。
+   - 第 5 段加「到場、預繳時告訴 Meta，只送點擊代碼、瀏覽器代碼或名單編號與校區」。
+   - 第 7 段加「點擊代碼與名單編號隨預約資料刪除或匿名化」。
+2. Meta 端：權杖由使用者在資料集「常春藤官網 ivykidschool.com」（`1324144629785264`，商家資產管理組合「常春藤義華校」）的 CRM 實作指南按「產生存取權杖」。
+   - 名單事件和官網點擊事件送同一個資料集。CRM 指南只要求送到資料集編號，沒有另外綁粉專。
+   - 12/19 兩個廣告在個人廣告帳號 `1613677133235486`，不在任何商家資產管理組合。
+3. Railway api：Claude 加 `WEBSITE_META_PIXEL_ID=1324144629785264`，使用者貼 `WEBSITE_META_CAPI_TOKEN`，兩個一起部署（deployment `19b3e209`，映像是 `a994a361`）。
+   - health 中斷約 10 秒後回 200。
+   - 第一輪 maintenance：`ad_conversions_sent=0`、`ad_conversions_failed=0`、`failed_steps=[]`。
+
+**還沒驗**：權杖是否有效、事件是否進得了 Meta，要等第一個「標記已到場／已預繳」的案件，案件得帶 fbc／fbp 或名單編號。之後查 `ad_conversion_jobs.status` 與事件管理工具。
+
+**待做**：收到第一筆事件後，在事件管理工具用 `VisitAttended`、`DepositPaid` 建自訂轉換（自訂事件要先收過才選得到）。
 
 ## 2026-11-26 後台營運總覽 UI/UX 兩輪（PR #140、PR #142）
 
