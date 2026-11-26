@@ -14,6 +14,10 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-26 後台營運總覽 UI/UX 兩輪（PR #140、PR #142）
+
+只改 admin 前端（`admin/src/views/DashboardView.vue`；第二輪另動 `admin/src/layouts/AdminLayout.vue` 的手機頁首），沒有 migration，也沒改變數，不需要事前備份。PR #140 已部署：正式站的 `DashboardView-*.css` 裡有 `today__now`、`task-group`（2026-11-26 唯讀抓取確認）。PR #142 是使用者看過對照圖後要求合併 `main`，合併後由 CI 部署；上線後同樣抓 `https://admin.ivykidschool.com/admin/` 引用的 `DashboardView-*.css`，有 `task__more` 就是新版。
+
 ## 2026-11-25 補 8 條舊 Wix 網址 301（PR #139，main `c18740a9`）
 
 只改 web 的 `LEGACY_REDIRECTS`，沒有 migration，也沒改變數。PR 那次 CI 的 Backend 1/3 紅在 `test_lookup_writes_stop_at_the_site_wide_cap`（每分鐘限流跨到下一個時間窗的偶發失敗，跟這次改動無關），重跑後全綠。合併後 run 45556227968 含 Deploy 全綠，`/release.json` 的 base 是 `c18740a9`。線上逐條 curl 驗過：`/作品照片分享`、`/副本-2025冬令營`、`/副本-教學理念`、`/副本-特色課程`、`/副本-仁武校介紹`、`-1`、`-3`、`-5` 都回 301，轉到的位置與 README 同日段落一致；`/pk` 照舊回 404。
