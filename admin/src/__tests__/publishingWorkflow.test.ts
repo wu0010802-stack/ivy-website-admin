@@ -569,7 +569,7 @@ describe('總覽的待發布、素材與排程失敗（第 54、58 條）', () =
     expect(text).not.toMatch(/第 \d+ 版/)
     expect(wrapper.find('a[href="/content/campus-news?campus=renwu"]').exists()).toBe(true)
     expect(text).toContain('內容缺少素材或素材還沒處理好')
-    expect(text).toContain('官網上1 個已刪除')
+    expect(text).toContain('官網上 1 個已刪除')
     expect(wrapper.find('a[href="/content/campus-tour?campus=yihua"]').exists()).toBe(true)
     expect(text).toContain('排程發布沒有執行')
     expect(text).toContain('排定 09/25 09:00 發布的草稿沒有執行：素材還沒處理好')

@@ -7,7 +7,7 @@ import { notifyError } from '../composables/notify'
 import { confirmAttendance, submitAttendance, type AttendanceKind } from '../composables/visitAttendance'
 import { ARRIVAL_FORM_CANCEL_TEXT, useArrivalAdmissionsForm } from '../composables/useArrivalAdmissionsForm'
 import { lazyComponent } from '../composables/lazyComponent'
-import { BOOKING_MODE_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatTime } from '../api/labels'
+import { BOOKING_MODE_LABELS, CAMPUS_LABELS, attentionListPath, campusLabel, campusLabels, contentEditorPath, contentItemLabel, formatTime } from '../api/labels'
 import { usePermissions } from '../composables/usePermissions'
 import { canOpenPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
@@ -256,11 +256,20 @@ const todayGroups = computed(() => {
 // 沒有參觀、或沒有案件讀取權只拿到總數時，下面的空狀態已經寫了同一句，不重複。
 // 「N 組結束了還沒標記」是要動手的那一段，另外加粗上色。
 const todayList = computed(() => summary.value?.today_visit_list ?? [])
-const todayByCampus = computed(() => {
+// 各校照固定的五校順序排（義華、明華、崇德、國際、仁武），不跟著今天誰先來變動；
+// 兩校以上先寫總數「共 8 組：」（2026-11-26 第二輪）。
+const CAMPUS_ORDER = Object.keys(CAMPUS_LABELS)
+const campusRank = (key: string) => {
+  const index = CAMPUS_ORDER.indexOf(key)
+  return index < 0 ? CAMPUS_ORDER.length : index
+}
+const todayCampusCounts = computed(() => {
   const byCampus = new Map<string, number>()
   for (const visit of todayList.value) byCampus.set(visit.campus_key, (byCampus.get(visit.campus_key) ?? 0) + 1)
-  return [...byCampus].map(([key, count]) => `${campusLabel(key)} ${count} 組`).join('、')
+  return [...byCampus].sort((a, b) => campusRank(a[0]) - campusRank(b[0]))
 })
+const todayByCampus = computed(() => todayCampusCounts.value.map(([key, count]) => `${campusLabel(key)} ${count} 組`).join('、'))
+const todayTotalLead = computed(() => (todayCampusCounts.value.length > 1 ? `共 ${todayList.value.length} 組：` : ''))
 const todayUnmarked = computed(() => todayList.value.filter((visit) => visitPhase(visit) === 'ended').length)
 // 「現在」線（2026-11-26）：畫在第一組還沒開始的參觀前面；前面要有已經開始的、後面要有還沒開始的，
 // 線才有意義（全部還沒開始或全部開始了就不畫）。場次時間與現在都是台北的「HH:MM」，比字串即可。
@@ -348,6 +357,15 @@ const pendingPublishCount = computed(() => {
   return s.pending_publish_kinds ? pendingPublishKinds.value.length : s.pending_publish
 })
 const mediaIssues = computed(() => openableContent(summary.value?.content_media_issues))
+// 草稿尚未公開是要處理裡最不急、也最容易變長的一項（每個內容項一列，後端依儲存時間新到舊排）。
+// 超過 4 項時先列最近存的 3 項，其餘按「顯示全部」才展開（2026-11-26 第二輪）：
+// 不然十幾列草稿會把系統提醒與本週五校推到兩三屏之外。只多 1 項時直接全列，不為了藏一列多一顆鈕。
+const DRAFTS_SHOWN = 3
+const draftsExpanded = ref(false)
+const draftsCollapsible = computed(() => pendingPublishItems.value.length > DRAFTS_SHOWN + 1)
+const shownPendingPublish = computed(() =>
+  draftsCollapsible.value && !draftsExpanded.value ? pendingPublishItems.value.slice(0, DRAFTS_SHOWN) : pendingPublishItems.value,
+)
 const failedJobs = computed(() => openableContent(summary.value?.failed_publish_jobs))
 const visibleReviews = computed(() => openableContent(reviews.value))
 
@@ -368,7 +386,7 @@ function mediaIssueText(issue: MediaIssue): string {
   const parts: string[] = []
   if (issue.missing) parts.push(`${issue.missing} 個已刪除`)
   if (issue.not_ready) parts.push(`${issue.not_ready} 個還沒處理好`)
-  return `${issue.live ? '官網上' : '草稿'}${parts.join('、')}`
+  return `${issue.live ? '官網上' : '草稿'} ${parts.join('、')}`
 }
 
 // 不寫版本號（第四輪文案）：園方只要知道有沒有發布過、什麼時候存的。
@@ -428,10 +446,10 @@ const hasTodo = computed(() => visitTodo.value || contentTodo.value || systemTod
           <!-- 更新時間與重新整理管的是整頁（今天的名單也會重讀），2026-11-26 從「要處理」標題列搬到日期旁。 -->
           <span v-if="summary && loadedAt !== null" class="dash__updated">
             <span class="hint" :class="{ 'is-failed': refreshFailed }">{{ refreshFailed ? `沒有更新成功，仍是 ${updatedLabel} 的資料` : `更新於 ${updatedLabel}` }}</span>
-            <el-button text size="small" :loading="refreshing" @click="load({ quiet: true })">重新整理</el-button>
+            <el-button link type="primary" size="small" :loading="refreshing" @click="load({ quiet: true })">重新整理</el-button>
           </span>
         </div>
-        <p v-if="todayList.length" class="dash__sum">{{ todayByCampus }}<template v-if="todayUnmarked">，<strong class="dash__sum-alert">{{ todayUnmarked }} 組結束了還沒標記</strong></template></p>
+        <p v-if="todayList.length" class="dash__sum">{{ todayTotalLead }}{{ todayByCampus }}<template v-if="todayUnmarked">，<strong class="dash__sum-alert">{{ todayUnmarked }} 組結束了還沒標記</strong></template></p>
       </div>
       <router-link class="dash__primary" :to="primary.to">{{ primary.label }}<span v-if="primary.count" class="dash__primary-count num">{{ primary.count }}<span class="visually-hidden"> 件</span></span> <span aria-hidden="true">→</span></router-link>
     </div>
@@ -563,12 +581,15 @@ const hasTodo = computed(() => visitTodo.value || contentTodo.value || systemTod
                 <span class="task__number">{{ pendingPublishCount }}</span>
                 <div>
                   <h3>草稿尚未公開</h3>
-                  <ul v-if="pendingPublishItems.length" class="task__rows">
-                    <li v-for="item in pendingPublishItems" :key="`${item.kind}-${item.campus_key ?? ''}`">
+                  <ul v-if="pendingPublishItems.length" id="task-drafts-rows" class="task__rows">
+                    <li v-for="item in shownPendingPublish" :key="`${item.kind}-${item.campus_key ?? ''}`">
                       <router-link :to="contentEditorPath(item.kind, item.campus_key)">{{ contentItemLabel(item.kind, item.campus_key) }} <span aria-hidden="true">→</span></router-link>
                       <span>{{ pendingPublishText(item) }}</span>
                     </li>
                   </ul>
+                  <el-button v-if="draftsCollapsible" class="task__more" link type="primary" size="small" :aria-expanded="draftsExpanded" aria-controls="task-drafts-rows" @click="draftsExpanded = !draftsExpanded">
+                    {{ draftsExpanded ? `只列最近 ${DRAFTS_SHOWN} 項` : `顯示全部 ${pendingPublishItems.length} 項` }}
+                  </el-button>
                   <span v-else class="task__kinds">
                     <router-link v-for="kind in pendingPublishKinds" :key="kind" :to="contentEditorPath(kind)">
                       {{ contentItemLabel(kind) }} <span aria-hidden="true">→</span>
@@ -640,18 +661,21 @@ const hasTodo = computed(() => visitTodo.value || contentTodo.value || systemTod
 .dash__title { font-size: var(--text-3xl); outline: none; scroll-margin-top: calc(var(--top-h) + 16px); }
 .dash__date { color: var(--ink-3); font-size: var(--text-base); }
 .dash__sum { margin-top: 6px; color: var(--ink-2); }
-.dash__sum-alert { color: var(--brand-gold-ink); font-weight: 600; }
+/* inline-block：放不下時整段一起換行，不從「還／沒標記」中間折。 */
+.dash__sum-alert { display: inline-block; color: var(--brand-gold-ink); font-weight: 600; }
 .dash__primary { display: inline-flex; align-items: center; justify-content: center; gap: 20px; flex-shrink: 0; min-height: 44px; padding: 0 18px; border-radius: var(--radius); background: var(--el-color-primary); color: var(--surface); font-weight: 500; }
 .dash__primary-count { min-width: 24px; margin-left: -12px; padding: 0 7px; border-radius: 999px; background: var(--surface); color: var(--el-color-primary); font-size: var(--text-sm); font-weight: 600; line-height: 22px; text-align: center; }
 .dash__primary:hover { background: var(--el-color-primary-dark-2); text-decoration: none; }
 /* 更新時間跟在日期後面，用細分隔點和日期分開。 */
-.dash__updated { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 2px; }
+.dash__updated { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
 .dash__updated::before { content: '・'; content: '・' / ''; color: var(--line-strong); margin-right: 2px; }
 .dash__updated .hint.is-failed { color: var(--el-color-warning-dark-2); }
 
 /* 桌機兩欄：左欄今天的名單＋常用，右欄要處理與本週五校跨兩列。
-   第二列用 1fr：右欄比左欄長時，多出來的高度給第二列的空白，常用仍緊接在名單下面。 */
-.dash__board { display: grid; grid-template-columns: minmax(0, 1fr) 340px; grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
+   第二列用 1fr：右欄比左欄長時，多出來的高度給第二列的空白，常用仍緊接在名單下面。
+   右欄隨頁寬在 340–400px 之間（2026-11-26 第二輪）：固定 340 時名單那欄留一大片白，
+   要處理的標題卻常折成兩行、把動作擠到角落。 */
+.dash__board { display: grid; grid-template-columns: minmax(0, 1fr) clamp(340px, 34%, 400px); grid-template-rows: auto 1fr; gap: 24px; align-items: start; }
 .dash__main { grid-column: 1; grid-row: 1; display: grid; gap: 28px; min-width: 0; }
 .dash__rail { grid-column: 2; grid-row: 1 / span 2; display: grid; gap: 24px; min-width: 0; }
 .panel__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
@@ -676,6 +700,9 @@ const hasTodo = computed(() => visitTodo.value || contentTodo.value || systemTod
 .today .is-ended { background: var(--el-color-warning-light-9); }
 .today .is-ended .today__time time, .today .is-ended .today__phase { color: var(--brand-gold-ink); }
 .today .is-ended .today__phase { font-weight: 500; }
+/* 淡綠、淡暖底上的電話連結用深一階的操作色：預設的 --el-color-primary 壓在進行中的淡綠底只有 4.41:1
+   （axe 實測，13px 的字要 4.5:1）。 */
+.today .is-ongoing .today__meta a, .today .is-ended .today__meta a { color: var(--admin-accent-hover); }
 .today .is-done .today__phase { color: var(--status-live-ink); }
 .today .is-done .today__time time, .today .is-no_show .today__time time, .today .is-done .today__name, .today .is-no_show .today__name { color: var(--ink-3); }
 /* 現在線：高度 0、不推動列，只在兩列之間畫一條操作色的線，左邊一顆「現在 14:20」。 */
@@ -714,9 +741,13 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
 .task__action { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-sm); }
 .task__kinds { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 2px; }
 .task__kinds a, .task__rows a { color: var(--el-color-primary); font-weight: 500; font-size: var(--text-sm); }
-.task__rows { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 4px; }
-.task__rows li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; }
+/* 子清單一項兩行：連結在上、狀態在下（2026-11-26 第二輪）。原本排同一行、放不下才折，
+   同一張清單裡有的一行、有的兩行，看不出哪句狀態屬於哪一項。 */
+.task__rows { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 6px; }
+.task__rows li { display: grid; justify-items: start; }
 .task__rows li > span { color: var(--ink-3); font-size: var(--text-sm); overflow-wrap: anywhere; min-width: 0; }
+/* 「顯示全部 N 項」和上面的連結同一個字級與粗細，貼左、不留按鈕預設的高度。 */
+.task__more.el-button { justify-self: start; height: auto; min-height: 24px; margin-top: 2px; padding: 0; font-size: var(--text-sm); font-weight: 500; }
 .task__rows li > span.is-live { color: var(--el-color-danger); }
 .task__retry { justify-self: start; margin-top: 4px; }
 /* 背景重讀時保留舊資料，只淡一點表示正在更新。 */
@@ -739,19 +770,30 @@ a.task:hover { text-decoration: none; background: var(--surface-2); }
   .dash__intro { flex-direction: column; gap: 14px; }
   .dash__primary { width: 100%; }
   .dash__title { font-size: var(--text-2xl); }
-  .today__row { grid-template-columns: 72px minmax(0, 1fr); gap: 8px 12px; padding: 14px 16px; }
+  .today__row { grid-template-columns: 72px minmax(0, 1fr); gap: 4px 12px; padding: 14px 16px; }
+  /* 電話是 44px 高的點擊範圍，校區要和它置中對齊：原本校區貼上緣、電話在中間，看起來像錯開的兩行。 */
+  .today__meta { align-items: center; margin-top: 0; }
   .today__meta a { display: inline-flex; align-items: center; min-height: 44px; }
+  /* 有電話的列：44px 點擊範圍裡上下各有約 12px 空白，列自己的下留白收掉，才不會下面比上面空一截。 */
+  .today__row:has(.today__meta a) { padding-bottom: 4px; }
   /* 手機：按鈕換到名字下面一整列，各占一半、44px 高。 */
   .today__attendance { grid-column: 1 / -1; }
   .today__attendance .el-button { flex: 1 1 0; min-height: 44px; }
+  .today__row:has(.today__meta a) .today__attendance { margin-bottom: 10px; }
   .task { padding: 12px 14px; }
   .task-group__label { padding-inline: 14px; }
-  .task__kinds a, .task__rows a, a.task__action { display: inline-flex; align-items: center; min-height: 44px; }
+  /* inline-flex 會吃掉文字和箭頭之間的空白，用 gap 補回來（桌機是行內文字，空白還在）。 */
+  .task__kinds a, .task__rows a, a.task__action { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; }
+  /* 連結 44px 高、字在中間：狀態往上收，緊跟自己的連結，不會像下一項的開頭。 */
+  .task__rows { gap: 2px; }
+  .task__rows li > span { margin-top: -10px; }
+  .task__more.el-button { min-height: 44px; margin-top: 0; }
   .dash__links a { display: inline-flex; align-items: center; min-height: 44px; }
   /* 手機：更新時間自成一行，不要行首的分隔點。 */
   .dash__updated { flex-basis: 100%; }
   .dash__updated::before { display: none; }
-  .dash__updated .el-button { min-height: 44px; }
+  /* 44px 點擊範圍用負邊距收回去，這一行才不會比標題還高（上下都是不能點的文字，不會疊到別的按鈕）。 */
+  .dash__updated .el-button { min-height: 44px; margin-block: -12px; }
   /* 標題列上的連結維持 44px 點擊範圍，但不撐高標題列，標題才和數字對齊。 */
   .task > div > a.task__action { margin-block: -12px; }
 }
