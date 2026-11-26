@@ -7,6 +7,7 @@ import {
 import type { BusinessProfile, GbpLocation } from '../../api/types'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import AnalyticsExplainer from './AnalyticsExplainer.vue'
+import RowsToggle from './RowsToggle.vue'
 import { formatCount } from './format'
 
 // Google 商家檔案（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md §4.4）：地圖與搜尋結果上的
@@ -50,6 +51,12 @@ const location = computed<GbpLocation | null>(
 const hint = computed(() => (location.value?.failed ? syncErrorHint(location.value.error, 'gbp') : null))
 const synced = computed(() => syncTime(location.value?.last_success_at))
 const share = (value: number | null) => (value === null ? '—' : `${value}%`)
+// 2026-11-26：搜尋字詞最多 25 個，先列前 10 項（同 Google 搜尋的字詞表）；換校區時收回前 10 項。
+const KEYWORD_LIMIT = 10
+const keywordsExpanded = ref(false)
+const keywords = computed(() => location.value?.keywords ?? [])
+const visibleKeywords = computed(() => (keywordsExpanded.value ? keywords.value : keywords.value.slice(0, KEYWORD_LIMIT)))
+watch(selectedKey, () => { keywordsExpanded.value = false })
 </script>
 
 <template>
@@ -83,6 +90,8 @@ const share = (value: number | null) => (value === null ? '—' : `${value}%`)
             {{ location.last_attempt_at ? '還沒有資料。' : '還沒同步過；設定後一小時內會開始第一次同步。' }}
           </p>
 
+          <!-- 每月的表與搜尋字詞在寬螢幕並排（2026-11-26）：原本上下疊、字詞表只佔半寬，右邊空著，整塊約 1,700px。 -->
+          <div class="gbp__cols" :class="{ 'is-single': !location.months.length || !location.keywords_month }">
           <div v-if="location.months.length" class="gbp__scroll" role="region" tabindex="0" aria-label="每月曝光與點擊（可左右捲動）">
             <table class="gbp__table" data-test="gbp-months">
               <thead>
@@ -122,14 +131,16 @@ const share = (value: number | null) => (value === null ? '—' : `${value}%`)
               <table class="gbp__table gbp__table--words" data-test="gbp-keywords">
                 <thead><tr><th scope="col">搜尋字詞</th><th scope="col" class="num">曝光</th></tr></thead>
                 <tbody>
-                  <tr v-for="row in location.keywords" :key="row.keyword">
+                  <tr v-for="row in visibleKeywords" :key="row.keyword">
                     <th scope="row">{{ row.keyword }}</th>
                     <td class="num" :class="{ 'gbp__below': row.impressions === null }">{{ gbpKeywordValue(row) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
+            <RowsToggle v-model="keywordsExpanded" :total="keywords.length" :limit="KEYWORD_LIMIT" data-test="gbp-keywords-toggle" />
           </section>
+          </div>
 
           <AnalyticsExplainer>
             <p>曝光是商家資訊在 Google 搜尋結果或 Google 地圖上被看到的次數，同一個人同一天看到幾次都只算一次。電話、路線、網站、訊息是在商家資訊上按了那個按鈕，不代表真的打通、到校或傳出訊息。</p>
@@ -179,7 +190,26 @@ const share = (value: number | null) => (value === null ? '—' : `${value}%`)
   margin: 4px 0 0;
 }
 
+/* 左邊每月的表、右邊搜尋字詞（3：2）；1100px 以下、或只有其中一張時一欄。 */
+.gbp__cols {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 16px 28px;
+  align-items: start;
+}
+
+.gbp__cols.is-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@media (max-width: 1100px) {
+  .gbp__cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .gbp__scroll {
+  min-width: 0;
   overflow-x: auto;
 }
 

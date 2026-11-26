@@ -7,7 +7,7 @@ import { createPinia } from 'pinia'
 import type { Role } from '../api/types'
 import { useAuthStore } from '../stores/auth'
 import AnalyticsView from '../views/AnalyticsView.vue'
-import { STATS_START } from '../components/analytics/filters'
+import { ANALYTICS_SECTIONS, STATS_START } from '../components/analytics/filters'
 import { testUser } from './fixtures'
 
 // 成效統計（2026-11-12）：18 張表分成四類、整頁共用一組期間與裝置，三個選擇都寫在網址。
@@ -253,5 +253,54 @@ describe('成效統計的分類與條件', () => {
     other.wrapper.findComponent(SearchStub).vm.$emit('updating', true)
     await flushPromises()
     expect(other.wrapper.find('.analytics__bar [role="status"]').text()).toBe('')
+  })
+})
+
+describe('2026-11-26 第五輪：類內目次、換分類回到開頭', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    Object.defineProperty(window, 'scrollY', { value: 0, configurable: true })
+  })
+
+  it('條件列第二行是這一類的目次，換分類跟著換', async () => {
+    const { wrapper, tabs } = await mountView()
+    const toc = () => wrapper.findComponent({ name: 'AnalyticsToc' })
+    expect(wrapper.find('.analytics__bar [data-test="analytics-toc"]').exists()).toBe(true)
+    expect(toc().props('sections')).toEqual(ANALYTICS_SECTIONS.traffic)
+    await tabs()[2]!.trigger('click')
+    await flushPromises()
+    expect(toc().props('sections')).toEqual(ANALYTICS_SECTIONS.journey)
+    await tabs()[4]!.trigger('click')
+    await flushPromises()
+    expect(toc().props('sections')).toEqual(ANALYTICS_SECTIONS.monthly)
+  })
+
+  it('頁首說明只留一句；「每月比較」與招生統計的指引收在「說明」裡', async () => {
+    const { wrapper } = await mountView()
+    const lead = wrapper.get('.page-header__lead').text()
+    expect(lead).toContain('官網有多少人看、看了什麼、從哪裡來、有沒有走到預約；全站五校合計。')
+    expect(lead).not.toContain('每月比較')
+    expect(wrapper.get('.page-header__more').text()).toContain('「每月比較」可以和去年同月比')
+    expect(wrapper.get('.page-header__more').text()).toContain('招生統計 → 參觀預約')
+  })
+
+  it('在頁面中段換分類：捲回這一類的開頭（停在頁首下面、留平常的間距）', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const { wrapper, tabs } = await mountView({ tab: 'journey' })
+    // 已經捲了 3,000px：這一類的開頭在視窗上方 2,500px。
+    Object.defineProperty(window, 'scrollY', { value: 3000, configurable: true })
+    vi.spyOn(wrapper.get('.analytics__start').element, 'getBoundingClientRect').mockReturnValue({ top: -2500 } as DOMRect)
+    await tabs()[3]!.trigger('click')
+    await flushPromises()
+    // 測試環境沒有樣式（條件列不黏）：線在頁首 64px 底下，再留 20px。3000 − 2500 − 20 − 64。
+    expect(scrollTo).toHaveBeenCalledWith({ top: 416 })
+  })
+
+  it('還在頁面最上面時換分類不捲動', async () => {
+    const scrollTo = vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
+    const { tabs } = await mountView()
+    await tabs()[1]!.trigger('click')
+    await flushPromises()
+    expect(scrollTo).not.toHaveBeenCalled()
   })
 })

@@ -84,8 +84,10 @@ function exportCsv() {
             <tbody v-for="group in groups" :key="group.group">
               <tr class="crawlers__group">
                 <th scope="colgroup" colspan="5">
-                  {{ CRAWLER_GROUP_LABELS[group.group].label }}<span class="num crawlers__group-hits">{{ formatCount(group.hits) }} 次</span>
-                  <span class="hint crawlers__sub">{{ CRAWLER_GROUP_LABELS[group.group].hint }}</span>
+                  <span class="crawlers__group-text">
+                    {{ CRAWLER_GROUP_LABELS[group.group].label }}<span class="num crawlers__group-hits">{{ formatCount(group.hits) }} 次</span>
+                    <span class="hint crawlers__sub">{{ CRAWLER_GROUP_LABELS[group.group].hint }}</span>
+                  </span>
                 </th>
               </tr>
               <tr v-for="bot in group.bots" :key="bot.bot" :data-test="`crawler-${bot.bot}`">
@@ -129,6 +131,16 @@ function exportCsv() {
 
 .crawlers__scroll {
   overflow-x: auto;
+  container-type: inline-size;
+}
+
+/* 類別那一列的名稱與說明只佔看得到的寬度、左右捲時留在原位（2026-11-26）：手機上表格比畫面寬，
+   原本說明照表格的寬度排，後半句在畫面外（「有人在 ChatGPT、Claude、Perplexity 問問題，它當下來…」）。 */
+.crawlers__group-text {
+  position: sticky;
+  left: 10px;
+  display: block;
+  max-width: calc(100cqw - 20px);
 }
 
 .crawlers__table {

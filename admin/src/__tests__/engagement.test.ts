@@ -229,6 +229,41 @@ describe('內容興趣面板', () => {
     expect((await mountPanel()).wrapper.find('[data-test="interest-context"]').exists()).toBe(false)
   })
 
+  it('2026-11-26：內容與預約先列比例最高的前 10 項，要看全部再展開；換單位收回前 10 項', async () => {
+    // 12 個認得的區塊，造訪都夠 20 次，預約比例一個比一個低。
+    const keys = Object.keys(SECTION_LABELS).slice(0, 12)
+    const conversion = keys.map((id, index) => {
+      const [page, key] = id.split('/') as [string, string]
+      return { kind: 'section' as const, page, key, sessions: 100, booked_sessions: 24 - index * 2, booked_rate: (24 - index * 2) / 100 }
+    })
+    const { wrapper } = await mountPanel({ ...summary(), conversion } as EngagementSummary, 'convert')
+    const rows = () => wrapper.findAll('[data-test="interest-conversion"] tbody tr')
+    expect(rows()).toHaveLength(10)
+    expect(rows()[0]!.text()).toContain('24%')
+    expect(rows()[9]!.text()).toContain('6%')
+    const toggle = wrapper.get('[data-test="interest-conversion-toggle"]')
+    expect(toggle.text()).toBe('顯示全部 12 項')
+    await toggle.trigger('click')
+    expect(rows()).toHaveLength(12)
+    expect(toggle.text()).toBe('只看前 10 項')
+    // 匯出不受影響：一律是全部。
+    const save = vi.spyOn(csvExport, 'saveAnalyticsCsv').mockImplementation(() => {})
+    await wrapper.get('[data-test="interest-csv-conversion"]').trigger('click')
+    expect(save.mock.calls[0]![2]).toHaveLength(12)
+    // 換成「同一瀏覽器」再換回來：回到前 10 項。
+    const unit = wrapper.get('[data-test="interest-conversion-unit"]').findComponent({ name: 'ElRadioGroup' })
+    unit.vm.$emit('update:modelValue', 'browser')
+    await flushPromises()
+    unit.vm.$emit('update:modelValue', 'session')
+    await flushPromises()
+    expect(rows()).toHaveLength(10)
+  })
+
+  it('內容與預約：10 項以內不出現展開鈕', async () => {
+    const { wrapper } = await mountPanel(summary(), 'convert')
+    expect(wrapper.find('[data-test="interest-conversion-toggle"]').exists()).toBe(false)
+  })
+
   it('內容與預約：樣本夠的照比例排，不夠的收在下面、不排成一整排「樣本太少」', async () => {
     const { wrapper } = await mountPanel(summary(), 'convert')
     const rows = wrapper.findAll('[data-test="interest-conversion"] tbody tr').map((row) => row.text())
