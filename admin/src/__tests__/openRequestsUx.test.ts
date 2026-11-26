@@ -72,7 +72,9 @@ describe('總覽的主按鈕與待辦（2026-10-05 拿掉待處理狀態後）',
     vi.spyOn(api, 'get').mockResolvedValue(summary({ new_requests: 3, awaiting_confirmation: 2 }) as never)
     const { wrapper } = await mountAt('/')
     expect(wrapper.find('.dash__summary').exists()).toBe(false)
-    expect(wrapper.get('.dash__sum').text()).toBe('今天沒有參觀。')
+    // 沒有參觀時摘要句不寫，只在名單位置寫一次（2026-11-26，原本上下各一句「今天沒有參觀。」）。
+    expect(wrapper.find('.dash__sum').exists()).toBe(false)
+    expect(wrapper.get('.today__empty').text()).toContain('今天沒有參觀。')
     expect(wrapper.find('.is-attention').exists()).toBe(false)
   })
 

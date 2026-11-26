@@ -120,6 +120,87 @@ describe('總覽＝今天的行程板', () => {
   })
 })
 
+// 2026-11-26 總覽 UI/UX 優化：結構照 10-06 行程板，修現況截圖看到的問題。
+describe('總覽優化（2026-11-26）', () => {
+  it('「現在」線畫在第一組還沒開始的參觀前面，報讀器不唸；「N 組結束了還沒標記」加粗', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-26T14:20:00+08:00').getTime())
+    const list = [
+      visit({ id: 'ended', start_time: '11:00:00', end_time: '12:00:00' }),
+      visit({ id: 'now', parent_name: '黃媽媽', start_time: '14:00:00', end_time: '15:00:00' }),
+      visit({ id: 'later', parent_name: '張爸爸', start_time: '15:30:00', end_time: '16:30:00' }),
+    ]
+    const wrapper = await mountDashboard({ ...base(), today_visits: 3, today_visit_list: list, week_campuses: week() })
+    const items = wrapper.findAll('.today > li')
+    const line = items.findIndex(li => li.classes('today__now'))
+    expect(line).toBeGreaterThan(-1)
+    expect(items[line]!.attributes('aria-hidden')).toBe('true')
+    expect(items[line]!.text()).toBe('現在 14:20')
+    expect(items[line + 1]!.text()).toContain('張爸爸')
+    expect(items[line - 1]!.text()).toContain('黃媽媽')
+    // 名單列數不受影響。
+    expect(wrapper.findAll('.today li.today__row')).toHaveLength(3)
+    expect(wrapper.get('.dash__sum-alert').text()).toBe('1 組結束了還沒標記')
+    expect(wrapper.get('.dash__sum').text()).toBe('義華 3 組，1 組結束了還沒標記')
+  })
+
+  it('全部還沒開始、或全部已經開始時不畫「現在」線', async () => {
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-26T08:00:00+08:00').getTime())
+    const list = [visit({ id: 'a', start_time: '10:00:00' }), visit({ id: 'b', start_time: '15:00:00', end_time: '16:00:00' })]
+    const early = await mountDashboard({ ...base(), today_visits: 2, today_visit_list: list })
+    expect(early.find('.today__now').exists()).toBe(false)
+    vi.spyOn(Date, 'now').mockReturnValue(new Date('2026-11-26T18:00:00+08:00').getTime())
+    const late = await mountDashboard({ ...base(), today_visits: 2, today_visit_list: list })
+    expect(late.find('.today__now').exists()).toBe(false)
+  })
+
+  it('更新時間與重新整理在日期旁（管整頁），不在要處理的標題列', async () => {
+    const wrapper = await mountDashboard({ ...base(), pending_follow_up: 1, week_campuses: week() })
+    const updated = wrapper.get('.dash__head .dash__updated')
+    expect(updated.text()).toContain('更新於')
+    expect(updated.text()).toContain('重新整理')
+    expect(wrapper.get('.dash__tasks').text()).not.toContain('更新於')
+  })
+
+  it('要處理在本週五校前面；常用在整張板子最後（鍵盤順序）', async () => {
+    const wrapper = await mountDashboard({ ...base(), pending_follow_up: 1, week_campuses: week() })
+    const rail = wrapper.get('.dash__rail').element
+    expect(rail.firstElementChild?.classList.contains('dash__tasks')).toBe(true)
+    expect(rail.lastElementChild?.classList.contains('dash__week')).toBe(true)
+    expect(wrapper.get('.dash__board').element.lastElementChild?.classList.contains('dash__links')).toBe(true)
+  })
+
+  it('要處理只有一類時不寫組名；兩類以上分組寫「參觀預約」「官網內容」「系統」', async () => {
+    const single = await mountDashboard({ ...base(), pending_follow_up: 2, awaiting_attendance: 1 })
+    expect(single.find('.task-group__label').exists()).toBe(false)
+    expect(single.find('.task-group[role="group"]').exists()).toBe(false)
+
+    const mixed = await mountDashboard({
+      ...base(), pending_follow_up: 2, failed_notifications: 1, system_attention: 1,
+      pending_publish_items: [{ kind: 'home_hero', campus_key: null, latest_version: 2, published_version: 1, updated_at: null }],
+    })
+    const groups = mixed.findAll('.task-group')
+    expect(groups.map(g => g.get('.task-group__label').text())).toEqual(['參觀預約', '官網內容', '系統'])
+    for (const group of groups) {
+      expect(group.attributes('role')).toBe('group')
+      expect(group.attributes('aria-labelledby')).toBe(group.get('.task-group__label').attributes('id'))
+    }
+    // 系統組：要注意的狀態在寄送失敗前面。
+    expect(groups[2]!.findAll('.task h3').map(h => h.text())).toEqual(['系統狀態有 1 項要注意', '通知寄送失敗'])
+    expect(groups[1]!.text()).toContain('草稿尚未公開')
+  })
+
+  it('本週五校：自選場次但還可約 0 用警示色；電話這類已開放的方式寫「設定」不寫「開放」', async () => {
+    const rows = week().map(row => (row.campus_key === 'minghua' ? { ...row, open: 0 } : row))
+    const wrapper = await mountDashboard({ ...base(), week_campuses: rows })
+    const tr = wrapper.findAll('.dash__week tbody tr')
+    expect(tr[1]!.findAll('td')[1]!.classes()).toContain('is-short')
+    expect(tr[0]!.findAll('td')[1]!.classes()).not.toContain('is-short')
+    expect(tr[2]!.get('a').text()).toBe('開放')
+    expect(tr[3]!.get('a').text()).toBe('設定')
+    expect(tr[3]!.get('a').attributes('href')).toBe('/booking')
+  })
+})
+
 // ---- 併自 shellDashboard20261002.test.ts（2026-10-20 依功能整併測試檔）----
 // 2026-10-02 後台 UX 稽核：外殼與總覽（dashboard-1、dashboard-3、dashboard-4、nav-1、nav-2、shell-1）。
 describe('2026-10-02 外殼與總覽稽核', () => {
@@ -322,9 +403,11 @@ describe('2026-09-28 總覽跟著時間走（F）', () => {
       vi.setSystemTime(new Date('2026-09-29T15:59:10Z')) // 台北 23:59
       const get = vi.spyOn(api, 'get').mockResolvedValue(summary({ today_visits: 3 }) as never)
       const wrapper = await mountDashboard()
-      const todayVisits = () => wrapper.get('.dash__sum').text()
+      // 沒有名單（只有總數）時摘要句不寫，件數在名單位置的空狀態（2026-11-26）。
+      const todayVisits = () => wrapper.get('.today__empty').text()
       expect(wrapper.find('.dash__date').text()).toBe('9月29日星期二')
-      expect(todayVisits()).toBe('3 組')
+      expect(wrapper.find('.dash__sum').exists()).toBe(false)
+      expect(todayVisits()).toContain('今天有 3 組參觀')
 
       // 30 秒後還是同一天：只有時鐘走，不重讀。
       vi.advanceTimersByTime(30_000)
@@ -337,7 +420,7 @@ describe('2026-09-28 總覽跟著時間走（F）', () => {
       await flushPromises()
       expect(dashboardCalls(get)).toBe(2)
       expect(wrapper.find('.dash__date').text()).toBe('9月30日星期三')
-      expect(todayVisits()).toBe('1 組')
+      expect(todayVisits()).toContain('今天有 1 組參觀')
       expect(wrapper.text()).toContain('更新於 00:00')
 
       // 同一天之內不再自動重讀（不是輪詢）。
@@ -406,8 +489,8 @@ describe('2026-09-28 總覽跟著時間走（F）', () => {
         return Promise.resolve([]) as never
       })
       const wrapper = await mountDashboard()
-      // 彙總已經回來（參觀數字先出現），待審清單還在路上。
-      expect(wrapper.find('.dash__sum').exists()).toBe(true)
+      // 彙總已經回來（今天的參觀先出現），待審清單還在路上。
+      expect(wrapper.find('.today__empty').exists()).toBe(true)
       expect(wrapper.text()).not.toContain('目前沒有待處理事項')
       expect(wrapper.text()).toContain('正在讀取送審清單')
       resolveReviews([{ kind: 'home_hero', campus_key: null, revision_id: 'rv1', submitted_by_email: null }])
