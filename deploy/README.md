@@ -14,21 +14,25 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，功能預設關**）
+## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，義華已啟用**）
 
 migration `e84b4724bb8d`（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改既有資料，沒有事先備份（照 `deploy/CICD.md`，純新增不需要）。合併前在合併後的 main 上核對過只有一個 alembic head。PR 第一輪 CI 紅在後台側欄測試：「廣告名單」原本插在參觀場次後面，擠開了「參觀場次→招生入學」的相鄰規則。改排到招生統計後面（`ab9d2ef2`）後全綠。合併後 run 45828117644 含 Deploy 全綠，`/release.json` 的 base 是 `cb3053a7`。線上核對：
 - `/api/website/v1/health` 回 200（production）。
 - `admin.ivykidschool.com` 未登入打 `/api/website/v1/admin/meta-leads`、`/meta-leads/pending` 回 401，和 `/admin/visit-requests` 一致。www 上同樣路徑回 404，和既有後台 API 一致。
 
-沒設 `WEBSITE_META_LEADS_ENABLED`，所以目前不拉名單；後台「參觀預約 → 廣告名單」會顯示還沒接上。maintenance 多一步過期名單刪除，沒有資料時是空的 DELETE。
+合併部署當下還沒設 `WEBSITE_META_LEADS_ENABLED`，不拉名單；後台「參觀預約 → 廣告名單」顯示還沒接上（同日稍晚啟用，見下）。maintenance 多一步過期名單刪除，沒有資料時是空的 DELETE。
 
 Meta 端（同日，使用者同意後）：App「常春藤義華校」（1537872071714702，仍是開發模式）加了使用案例「使用行銷 API 吸引和管理廣告潛在顧客」。Graph API Explorer 這才選得到 `leads_retrieval`、`pages_manage_ads`。
 
+**同日 22:16 啟用**：
+- 使用者在 Graph API Explorer 重新授權（`me/permissions` 七項皆 granted，含 `leads_retrieval`、`pages_manage_ads`）。
+- 偵錯工具延長成「永不到期」的用戶權杖，資料存取到期 **2027-02-24**；再以 `GET /146366255237690?fields=access_token` 取 Page token。
+- 使用者本人把 Page token 換進 Railway api 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`，同一次套用 `WEBSITE_META_LEADS_ENABLED=true`。Railway 只重新部署 api 一次（deployment `926d326a`，映像仍是 `cb3053a7`）。
+- 核對：deploy log 沒有「Meta 名單 … 失敗」警告，maintenance `meta_leads_purged=0`、`failed_steps=[]`。後台「廣告名單」義華顯示「上次同步 22:19，讀到 0 筆名單」，沒有錯誤（即時表單廣告尚未發布）。
+
 **待使用者**：
-1. 照下方「Meta 名單型廣告 → 廣告名單」重新產生、延長義華 Page token，換進 Railway `WEBSITE_FACEBOOK_ACCESS_TOKEN`。
-2. 同一次在 Railway 設 `WEBSITE_META_LEADS_ENABLED=true`。
-3. 用潛在顧客廣告測試工具實測。
-4. 新 token 的「資料存取到期」日要回填到「各校 Facebook 粉專貼文同步」A 第 5 步。
+- 用潛在顧客廣告測試工具送一筆測試名單，驗證拉取、LINE 群組通知、轉成案件（還沒有真實名單走過完整流程）。
+- 資料存取在 2027-02-24 到期，到期前照「各校 Facebook 粉專貼文同步」A 段重做；權限要包含 `leads_retrieval`、`pages_manage_ads`。
 
 ## 2026-11-26 後台營運總覽 UI/UX 兩輪（PR #140、PR #142）
 
@@ -1360,7 +1364,7 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 ## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿，先接義華（main CI 部署，migration `a7d3f8c21e60`）
 
 - **內容**：`a621cd7d`（README「2026-11-10 各校 Facebook 粉專貼文 → 消息草稿」），分支 `feature/fb-news-sync-20261028`（10-28 寫好、11-10 rebase 到 main `6305ef14` 後改寫成單一提交）。migration `a7d3f8c21e60`（parent `b5e8f1c3a7d2`）只新增 `facebook_page_posts`、`facebook_page_sync` 兩張表，不改既有資料，照備份閘門不需先備份。推前本機：後端全套 4991 過 1 略過、admin vitest 173 檔 3345 過、`npm run test:website` 1706 過、web／admin typecheck、`contract:check`、stack 170 過 30 略過（6.2 分鐘），測試庫獨立。
-- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-08**，到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
+- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-24**（2026-11-26 為了名單權限重新授權後更新；原本 2027-02-08），到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
 - **變數**：api 服務 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`--stdin`、`--skip-deploys`，值從 worktree `.env` 帶、不經對話）＋ `WEBSITE_FACEBOOK_PAGES=yihua=146366255237690` 一次設好；使用者在 CI 跑完前先設，觸發的重部署 `f771022d` 用的是舊映像（設定 `extra="ignore"`，略過不認得的變數），SUCCESS、health 正常，功能等新程式部署才開。
 - **CI**：run 42747476046 全綠（含 E2E），Deploy Railway production success（03:15→03:21Z）；`/release.json` 的 `base_commit` 是 `a621cd7d`。
 - **正式站驗證**：api log `Running upgrade b5e8f1c3a7d2 -> a7d3f8c21e60`、`Database schema ready: a7d3f8c21e60`；背景同步第一輪 03:18:39Z 兩次 Graph v27.0 請求都 200，log 裡的網址不含 token（`access_token=`、`EAA…` 都是 0 筆）；`GET /api/website/v1/admin/facebook-posts` 未登入回 401（路由已掛）。
@@ -2987,7 +2991,7 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 2. Graph API Explorer 選這個 App、勾上面三個權限 →「Generate Access Token」→ 授權時勾要接的粉專。
 3. 存取權杖偵錯工具貼上這個（短效、約 1 小時）權杖 →「偵錯」→ 最下方「延長存取權杖」→ 拿到約 60 天的用戶權杖。
 4. 用長效用戶權杖查 `GET /{粉專ID}?fields=access_token`，回來的 Page token「到期：永不」，這個才放進 Railway。粉專 ID：Business Suite 網址的 `asset_id`，義華是 `146366255237690`。
-5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-08**；到期前重做 2–4 步換新 token。到期後同步會失敗、後台寫錯誤代碼。
+5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-24**（2026-11-26 加名單權限重新授權後）；到期前重做 2–4 步換新 token，權限要包含 `leads_retrieval`、`pages_manage_ads`（「Meta 名單型廣告 → 廣告名單」在用）。到期後同步會失敗、後台寫錯誤代碼。
 
 **B. Business Manager 系統用戶 token（五校都接時建議）**：
 
