@@ -82,6 +82,7 @@ export const routes: RouteRecordRaw[] = [
       page('booking', 'booking', () => import('../views/BookingSettingsView.vue')),
       { path: 'slots', redirect: to => ({ path: '/visit-calendar', query: to.query }) },
       page('visit-requests', 'visit-requests', () => import('../views/VisitRequestsView.vue')),
+      page('meta-leads', 'meta-leads', () => import('../views/MetaLeadsView.vue')),
       page('visit-calendar', 'visit-calendar', () => import('../views/VisitCalendarView.vue')),
       { ...page('admissions', 'admissions', () => import('../views/AdmissionsView.vue')), beforeEnter: legacyStatsTab },
       page('admissions-stats', 'admissions-stats', () => import('../views/AdmissionsStatsView.vue')),

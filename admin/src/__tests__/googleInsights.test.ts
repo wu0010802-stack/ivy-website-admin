@@ -325,12 +325,21 @@ describe('Chrome 真實使用者面板', () => {
     expect(trend.findAll('[role="region"]').every((region) => region.attributes('tabindex') === '0')).toBe(true)
   })
 
-  it('一個裝置資料量不足：那一欄寫「Chrome 使用者數量還不夠」，另一欄照常', async () => {
+  it('2026-11-26：一個裝置資料量不足時不留那一欄，表格下面寫一句；另一個裝置照常', async () => {
     const { wrapper } = await mountPanel(crux([okDevice('phone', 2200), insufficient('desktop')]))
+    // 原本電腦那一欄三列各寫一次「Chrome 使用者數量還不夠」，手機上把有數據的那一欄擠成三行。
+    expect(wrapper.findAll('[data-test="crux-table"] thead th').map((th) => th.text())).toEqual(['項目', '手機'])
     const lcp = wrapper.findAll('[data-test="crux-table"] tbody tr')[0]!.findAll('td')
+    expect(lcp).toHaveLength(1)
     expect(lcp[0]!.text()).toContain('2.2 秒')
-    expect(lcp[1]!.text()).toBe('Chrome 使用者數量還不夠')
+    expect(wrapper.find('[data-test="crux-missing-desktop"]').text()).toBe('電腦：Chrome 使用者數量還不夠，Google 沒有提供數據。')
+    expect(wrapper.text().match(/Chrome 使用者數量還不夠/g)).toHaveLength(1)
     expect(wrapper.findAll('[data-test="crux-trend"] table')).toHaveLength(1)
+  })
+
+  it('兩個裝置都有數據時不寫缺數據的那一句', async () => {
+    const { wrapper } = await mountPanel(crux([okDevice('phone', 2200), okDevice('desktop', 3100)]))
+    expect(wrapper.find('[data-test^="crux-missing-"]').exists()).toBe(false)
   })
 
   it('兩個裝置都資料量不足：整區只寫一句話', async () => {

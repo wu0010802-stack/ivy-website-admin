@@ -14,6 +14,26 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-26 Meta 名單型廣告的「廣告名單」（PR #144，main `cb3053a7`；**已部署，義華已啟用**）
+
+migration `e84b4724bb8d`（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改既有資料，沒有事先備份（照 `deploy/CICD.md`，純新增不需要）。合併前在合併後的 main 上核對過只有一個 alembic head。PR 第一輪 CI 紅在後台側欄測試：「廣告名單」原本插在參觀場次後面，擠開了「參觀場次→招生入學」的相鄰規則。改排到招生統計後面（`ab9d2ef2`）後全綠。合併後 run 45828117644 含 Deploy 全綠，`/release.json` 的 base 是 `cb3053a7`。線上核對：
+- `/api/website/v1/health` 回 200（production）。
+- `admin.ivykidschool.com` 未登入打 `/api/website/v1/admin/meta-leads`、`/meta-leads/pending` 回 401，和 `/admin/visit-requests` 一致。www 上同樣路徑回 404，和既有後台 API 一致。
+
+合併部署當下還沒設 `WEBSITE_META_LEADS_ENABLED`，不拉名單；後台「參觀預約 → 廣告名單」顯示還沒接上（同日稍晚啟用，見下）。maintenance 多一步過期名單刪除，沒有資料時是空的 DELETE。
+
+Meta 端（同日，使用者同意後）：App「常春藤義華校」（1537872071714702，仍是開發模式）加了使用案例「使用行銷 API 吸引和管理廣告潛在顧客」。Graph API Explorer 這才選得到 `leads_retrieval`、`pages_manage_ads`。
+
+**同日 22:16 啟用**：
+- 使用者在 Graph API Explorer 重新授權（`me/permissions` 七項皆 granted，含 `leads_retrieval`、`pages_manage_ads`）。
+- 偵錯工具延長成「永不到期」的用戶權杖，資料存取到期 **2027-02-24**；再以 `GET /146366255237690?fields=access_token` 取 Page token。
+- 使用者本人把 Page token 換進 Railway api 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`，同一次套用 `WEBSITE_META_LEADS_ENABLED=true`。Railway 只重新部署 api 一次（deployment `926d326a`，映像仍是 `cb3053a7`）。
+- 核對：deploy log 沒有「Meta 名單 … 失敗」警告，maintenance `meta_leads_purged=0`、`failed_steps=[]`。後台「廣告名單」義華顯示「上次同步 22:19，讀到 0 筆名單」，沒有錯誤（即時表單廣告尚未發布）。
+
+**待使用者**：
+- 用潛在顧客廣告測試工具送一筆測試名單，驗證拉取、LINE 群組通知、轉成案件（還沒有真實名單走過完整流程）。
+- 資料存取在 2027-02-24 到期，到期前照「各校 Facebook 粉專貼文同步」A 段重做；權限要包含 `leads_retrieval`、`pages_manage_ads`。
+
 ## 2026-11-26 後台營運總覽 UI/UX 兩輪（PR #140、PR #142）
 
 只改 admin 前端（`admin/src/views/DashboardView.vue`；第二輪另動 `admin/src/layouts/AdminLayout.vue` 的手機頁首），沒有 migration，也沒改變數，不需要事前備份。PR #140 已部署：正式站的 `DashboardView-*.css` 裡有 `today__now`、`task-group`（2026-11-26 唯讀抓取確認）。PR #142 是使用者看過對照圖後要求合併 `main`，合併後由 CI 部署；上線後同樣抓 `https://admin.ivykidschool.com/admin/` 引用的 `DashboardView-*.css`，有 `task__more` 就是新版。
@@ -1344,7 +1364,7 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 ## 2026-11-10 各校 Facebook 粉專貼文 → 消息草稿，先接義華（main CI 部署，migration `a7d3f8c21e60`）
 
 - **內容**：`a621cd7d`（README「2026-11-10 各校 Facebook 粉專貼文 → 消息草稿」），分支 `feature/fb-news-sync-20261028`（10-28 寫好、11-10 rebase 到 main `6305ef14` 後改寫成單一提交）。migration `a7d3f8c21e60`（parent `b5e8f1c3a7d2`）只新增 `facebook_page_posts`、`facebook_page_sync` 兩張表，不改既有資料，照備份閘門不需先備份。推前本機：後端全套 4991 過 1 略過、admin vitest 173 檔 3345 過、`npm run test:website` 1706 過、web／admin typecheck、`contract:check`、stack 170 過 30 略過（6.2 分鐘），測試庫獨立。
-- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-08**，到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
+- **Meta 端**：義華粉專 `ivy.kids.fb`（ID `146366255237690`）不在任何 Business Manager，改用 App「常春藤義華校」（1537872071714702，開發模式）產生的長效 Page token（到期「永不」，**資料存取到期 2027-02-24**（2026-11-26 為了名單權限重新授權後更新；原本 2027-02-08），到期前照「各校 Facebook 粉專貼文同步」A 段重做）。
 - **變數**：api 服務 `WEBSITE_FACEBOOK_ACCESS_TOKEN`（`--stdin`、`--skip-deploys`，值從 worktree `.env` 帶、不經對話）＋ `WEBSITE_FACEBOOK_PAGES=yihua=146366255237690` 一次設好；使用者在 CI 跑完前先設，觸發的重部署 `f771022d` 用的是舊映像（設定 `extra="ignore"`，略過不認得的變數），SUCCESS、health 正常，功能等新程式部署才開。
 - **CI**：run 42747476046 全綠（含 E2E），Deploy Railway production success（03:15→03:21Z）；`/release.json` 的 `base_commit` 是 `a621cd7d`。
 - **正式站驗證**：api log `Running upgrade b5e8f1c3a7d2 -> a7d3f8c21e60`、`Database schema ready: a7d3f8c21e60`；背景同步第一輪 03:18:39Z 兩次 Graph v27.0 請求都 200，log 裡的網址不含 token（`access_token=`、`EAA…` 都是 0 筆）；`GET /api/website/v1/admin/facebook-posts` 未登入回 401（路由已掛）。
@@ -2971,7 +2991,7 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 2. Graph API Explorer 選這個 App、勾上面三個權限 →「Generate Access Token」→ 授權時勾要接的粉專。
 3. 存取權杖偵錯工具貼上這個（短效、約 1 小時）權杖 →「偵錯」→ 最下方「延長存取權杖」→ 拿到約 60 天的用戶權杖。
 4. 用長效用戶權杖查 `GET /{粉專ID}?fields=access_token`，回來的 Page token「到期：永不」，這個才放進 Railway。粉專 ID：Business Suite 網址的 `asset_id`，義華是 `146366255237690`。
-5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-08**；到期前重做 2–4 步換新 token。到期後同步會失敗、後台寫錯誤代碼。
+5. **資料存取期限**：Page token 不會到期，但偵錯工具會標「資料存取到期」（產生它的帳號 90 天沒用這個 App 就要重新授權）。義華這組是 **2027-02-24**（2026-11-26 加名單權限重新授權後）；到期前重做 2–4 步換新 token，權限要包含 `leads_retrieval`、`pages_manage_ads`（「Meta 名單型廣告 → 廣告名單」在用）。到期後同步會失敗、後台寫錯誤代碼。
 
 **B. Business Manager 系統用戶 token（五校都接時建議）**：
 
@@ -3013,6 +3033,25 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 **關閉**：把 `WEBSITE_INSTAGRAM_ENABLED` 刪掉或設 `false`（用 CLI 刪變數要另外重新部署）。已收進收件匣的 Instagram 貼文與已轉成的消息不受影響，頁面仍會標出它們的來源。
 
 **要注意**：Instagram 的影片若含版權音樂，Meta 會省略該則的 `media_url`，這種貼文只會有封面；Reels 配樂的授權問題和 Facebook Reels 一樣（見 `docs/specs/2026-10-28-facebook-news-sync-design.md` §8），搬到官網前請園方確認。**程式端沒用真實 Instagram 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造）；開通後第一次同步請照步驟 6 實測，並看 api log 沒有 token。
+
+### Meta 名單型廣告 → 廣告名單（2026-11-26 程式，PR #144 已部署；預設關，沒設 `WEBSITE_META_LEADS_ENABLED` 就和現在完全一樣）
+
+規格 `docs/specs/2026-11-26-meta-lead-inbox-design.md`。開了之後，各校粉專即時表單的名單每分鐘拉進後台「參觀預約 → 廣告名單」，新名單推一則（只有校名與筆數）到該校 LINE 群組；櫃檯確認後「轉成參觀案件」走原本的補登。規格 6.2 不得自動建案，名單不占場次名額。用同一把 Page token，不另設表單 ID（從 `GET /{粉專ID}/leadgen_forms` 讀全部表單）。
+
+- **migration `e84b4724bb8d`**（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改、不刪既有資料；舊版程式不讀不寫這兩張表，可直接回退。
+- **個資**：轉成案件時名單上的姓名、電話、作答立刻清掉；沒轉的名單收到 `WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90）天後由每分鐘的定期工作刪除（不看開關，功能關掉後照刪）。LINE 通知不含家長個資。
+
+**開通步驟（每一步都要本人登入，程式不會自己做）**
+
+1. **重新授權加名單權限**：Graph API Explorer 選同一個 App（「常春藤義華校」），權限在原本的 `pages_show_list`、`pages_read_engagement`、`pages_read_user_content`（有開 Instagram 就再加 `instagram_basic`）之外再勾 `leads_retrieval`、`pages_manage_ads` →「Generate Access Token」→ 授權時勾義華粉專。
+2. **潛在顧客存取權**：粉專（Business Suite）→ 設定 →「潛在顧客存取權」（Leads Access Manager）若有限制，把產生 token 的帳號（或系統用戶）與這個 App 加進去。
+3. **延長並換 Page token**：照上方 A 的第 3、4 步換出新的 Page token，換進 Railway 的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`。
+4. **Railway api 設 `WEBSITE_META_LEADS_ENABLED=true`**（可和上一步同一次設）。Facebook 兩個變數沒設就開這個，api 會拒絕啟動。選填 `WEBSITE_META_LEADS_SYNC_SECONDS`（預設 60，60–3600）、`WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90，30–365）。
+5. **驗收**：後台「廣告名單」選義華按「立即同步」，頁面沒有錯誤；用 Meta 的「潛在顧客廣告測試工具」送一筆測試名單，一分鐘內出現在新名單、義華 LINE 群組收到通知；按「轉成參觀案件」選場次送出，案件建立、名單移到「已轉案件」。失敗時頁面寫步驟與 Meta 錯誤代碼（190＝權杖失效、10／200＝權限不足）。看狀態的 SQL：`select campus_key, last_success_at, last_error, last_count, cursor_at from meta_lead_sync;`。
+
+**關閉**：把 `WEBSITE_META_LEADS_ENABLED` 刪掉或設 `false`。已收進來的名單與已轉成的案件不受影響，沒轉的名單照保存天數到期刪除。
+
+**要注意**：**程式端沒用真實 Meta 帳號驗過**（測試用 `httpx.MockTransport` 照 Graph 文件的回應形狀假造），開發模式的 App 能不能讀名單、要不要另外申請存取等級，第一次開通請照步驟 5 實測，並看 api log 沒有 token。
 
 ## 公開地理資料同步（招生區域分析）
 

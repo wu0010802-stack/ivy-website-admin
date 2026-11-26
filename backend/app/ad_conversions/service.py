@@ -1,10 +1,12 @@
 """到場、預繳回傳廣告平台：排入與送出（2026-11-16，docs/specs/2026-11-16-cookie-features-design.md §2）。
 
 - 排入（enqueue）：「標記已到場」與招生訪視「已參觀 → 已預繳」在同一個交易呼叫。案件的 ad_click_ids 有哪個平台
-  的識別碼就排哪個平台——送單時只有設定了伺服器端金鑰的平台才會記識別碼，所以這裡不必讀設定。
+  的識別碼就排哪個平台——送單時只有設定了伺服器端金鑰的平台才會記識別碼，所以這裡不必讀設定。例外是從
+  「廣告名單」轉成的案件的 meta_lead_id（2026-11-26）：不看設定就記，沒設 Meta 金鑰時送出端記 not_configured 略過。
 - 送出（process_due）：API 內建定期工作每輪呼叫。一列一個交易：鎖住、送、記結果。送出當下才讀識別碼；
   案件已匿名化、被標記排除、平台已拿掉設定、超過平台時限的，記 skipped 不送。
-- 只送平台規定的識別碼與校區代碼，不送姓名、電話、Email 或它們的雜湊。
+- 只送平台規定的識別碼與校區代碼，不送姓名、電話、Email 或它們的雜湊。Meta 名單轉成的案件只送 Meta 發的
+  名單編號（CRM 名單事件格式，docs/specs/2026-11-26-meta-lead-inbox-design.md §5）。
 """
 from __future__ import annotations
 
@@ -62,6 +64,8 @@ RETRY_DELAYS = (timedelta(minutes=1), timedelta(minutes=5), timedelta(minutes=30
 BATCH_LIMIT = 50
 REQUEST_TIMEOUT_SECONDS = 10.0
 OPENAI_INTEGRATION_SOURCE = "ivy-website"
+# Meta CRM 名單事件的 custom_data.lead_event_source：送事件的系統名稱。
+META_LEAD_EVENT_SOURCE = "ivy-website"
 
 
 def _now() -> datetime:
@@ -126,10 +130,28 @@ def build_request(
         }
         return url, {}, body
     if job.platform == "meta":
+        url = f"https://graph.facebook.com/{settings.meta_graph_version}/{settings.meta_pixel_id}/events"
+        lead_id = ids.get("meta_lead_id")
+        if isinstance(lead_id, str) and lead_id.isdigit():
+            # 從「廣告名單」轉成的案件：CRM 名單事件（Meta 轉換名單最佳化讀的格式），只送 Meta 發的名單編號。
+            return url, {}, {
+                "data": [{
+                    "event_name": name,
+                    "event_time": int(job.occurred_at.timestamp()),
+                    "event_id": _event_id(job),
+                    "action_source": "system_generated",
+                    "user_data": {"lead_id": int(lead_id)},
+                    "custom_data": {
+                        "campus_key": campus_key,
+                        "event_source": "crm",
+                        "lead_event_source": META_LEAD_EVENT_SOURCE,
+                    },
+                }],
+                "access_token": settings.meta_capi_token,
+            }
         user_data = {key: ids[key] for key in ("fbc", "fbp") if ids.get(key)}
         if not user_data:
             return None
-        url = f"https://graph.facebook.com/{settings.meta_graph_version}/{settings.meta_pixel_id}/events"
         body = {
             "data": [{
                 "event_name": name,

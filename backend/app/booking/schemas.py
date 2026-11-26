@@ -385,6 +385,9 @@ class VisitRequestManualCreate(_VisitRequestFields):
     note: str | None = Field(default=None, max_length=1000)
     # 結案後重新預約時指回舊案；跨校關聯只有總管理者可以做。
     related_request_id: uuid.UUID | None = None
+    # 從後台「廣告名單」轉成案件（2026-11-26，docs/specs/2026-11-26-meta-lead-inbox-design.md）：
+    # 同一個交易把名單標成已轉案件，案件的網站來源寫廣告／Meta、ad_click_ids 寫 Meta 名單編號。
+    meta_lead_id: uuid.UUID | None = None
 
     @field_validator("note")
     @classmethod

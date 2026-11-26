@@ -17401,6 +17401,305 @@
         "title": "MediaVariantOut",
         "type": "object"
       },
+      "MetaLeadAnswerOut": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "question": {
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question",
+          "answer"
+        ],
+        "title": "MetaLeadAnswerOut",
+        "type": "object"
+      },
+      "MetaLeadCounts": {
+        "properties": {
+          "converted": {
+            "default": 0,
+            "title": "Converted",
+            "type": "integer"
+          },
+          "dismissed": {
+            "default": 0,
+            "title": "Dismissed",
+            "type": "integer"
+          },
+          "new": {
+            "default": 0,
+            "title": "New",
+            "type": "integer"
+          }
+        },
+        "title": "MetaLeadCounts",
+        "type": "object"
+      },
+      "MetaLeadListOut": {
+        "properties": {
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/MetaLeadCounts"
+          },
+          "leads": {
+            "items": {
+              "$ref": "#/components/schemas/MetaLeadOut"
+            },
+            "title": "Leads",
+            "type": "array"
+          },
+          "sync": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MetaLeadSyncStatusOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sync_seconds": {
+            "title": "Sync Seconds",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "configured",
+          "sync_seconds",
+          "sync",
+          "counts",
+          "leads"
+        ],
+        "title": "MetaLeadListOut",
+        "type": "object"
+      },
+      "MetaLeadOut": {
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/MetaLeadAnswerOut"
+            },
+            "title": "Answers",
+            "type": "array"
+          },
+          "campus_key": {
+            "title": "Campus Key",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "form_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Form Name"
+          },
+          "handled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Handled At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_organic": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Organic"
+          },
+          "parent_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "platform": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Platform"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "converted",
+              "dismissed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "visit_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit Request Id"
+          }
+        },
+        "required": [
+          "id",
+          "campus_key",
+          "form_name",
+          "platform",
+          "is_organic",
+          "created_at",
+          "parent_name",
+          "phone",
+          "answers",
+          "status",
+          "visit_request_id",
+          "handled_at"
+        ],
+        "title": "MetaLeadOut",
+        "type": "object"
+      },
+      "MetaLeadPendingOut": {
+        "description": "看得到的各校還沒處理的新名單數（側欄提示用）；只列有新名單的校。",
+        "properties": {
+          "campuses": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Campuses",
+            "type": "object"
+          }
+        },
+        "required": [
+          "campuses"
+        ],
+        "title": "MetaLeadPendingOut",
+        "type": "object"
+      },
+      "MetaLeadSyncIn": {
+        "properties": {
+          "campus_key": {
+            "maxLength": 32,
+            "minLength": 1,
+            "title": "Campus Key",
+            "type": "string"
+          }
+        },
+        "required": [
+          "campus_key"
+        ],
+        "title": "MetaLeadSyncIn",
+        "type": "object"
+      },
+      "MetaLeadSyncStatusOut": {
+        "properties": {
+          "last_attempt_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Attempt At"
+          },
+          "last_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Count"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_success_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Success At"
+          }
+        },
+        "required": [
+          "last_attempt_at",
+          "last_success_at",
+          "last_error",
+          "last_count"
+        ],
+        "title": "MetaLeadSyncStatusOut",
+        "type": "object"
+      },
       "MonthlyOut": {
         "properties": {
           "booked_sessions": {
@@ -27473,6 +27772,18 @@
               }
             ],
             "title": "Expected Start"
+          },
+          "meta_lead_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Meta Lead Id"
           },
           "note": {
             "anyOf": [
@@ -40932,6 +41243,391 @@
         "summary": "Get Media Variant",
         "tags": [
           "media"
+        ]
+      }
+    },
+    "/api/website/v1/admin/meta-leads": {
+      "get": {
+        "description": "這校的名單（新的：舊到新；處理過的：新到舊，最多 200 筆）與拉取狀態。",
+        "operationId": "list_meta_leads_api_website_v1_admin_meta_leads_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campus_key",
+            "required": true,
+            "schema": {
+              "maxLength": 32,
+              "minLength": 1,
+              "title": "Campus Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "new",
+              "enum": [
+                "new",
+                "converted",
+                "dismissed"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaLeadListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Meta Leads",
+        "tags": [
+          "meta-leads"
+        ]
+      }
+    },
+    "/api/website/v1/admin/meta-leads/pending": {
+      "get": {
+        "description": "看得到的各校還有幾筆新名單（側欄提示用）。",
+        "operationId": "pending_meta_leads_api_website_v1_admin_meta_leads_pending_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaLeadPendingOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Pending Meta Leads",
+        "tags": [
+          "meta-leads"
+        ]
+      }
+    },
+    "/api/website/v1/admin/meta-leads/sync": {
+      "post": {
+        "description": "立即拉這一校（不等每分鐘的自動拉取）。失敗寫在回應的 sync.last_error，不回錯誤碼。",
+        "operationId": "sync_meta_leads_api_website_v1_admin_meta_leads_sync_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MetaLeadSyncIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaLeadListOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Meta Leads",
+        "tags": [
+          "meta-leads"
+        ]
+      }
+    },
+    "/api/website/v1/admin/meta-leads/{lead_id}/dismiss": {
+      "post": {
+        "description": "不轉成案件（例如打不通、重複、只是問問），收到「略過」；隨時可以放回。",
+        "operationId": "dismiss_meta_lead_api_website_v1_admin_meta_leads__lead_id__dismiss_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaLeadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Meta Lead",
+        "tags": [
+          "meta-leads"
+        ]
+      }
+    },
+    "/api/website/v1/admin/meta-leads/{lead_id}/restore": {
+      "post": {
+        "operationId": "restore_meta_lead_api_website_v1_admin_meta_leads__lead_id__restore_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "lead_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Lead Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetaLeadOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Restore Meta Lead",
+        "tags": [
+          "meta-leads"
         ]
       }
     },

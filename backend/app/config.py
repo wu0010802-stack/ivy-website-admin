@@ -201,6 +201,12 @@ class Settings(BaseSettings):
     # （docs/specs/2026-11-12-external-integrations-design.md §2）。預設關；要先有 Facebook 同步，
     # 而且 Page token 要有 instagram_basic（見 deploy/README.md）。
     instagram_enabled: bool = False
+    # Meta 名單型廣告（即時表單）→ 後台「廣告名單」收件匣（docs/specs/2026-11-26-meta-lead-inbox-design.md）。
+    # 沿用上面的 token 與粉專清單；token 要再有 leads_retrieval、pages_manage_ads。預設關，開了要先有 Facebook 同步。
+    meta_leads_enabled: bool = False
+    meta_leads_sync_seconds: int = Field(default=60, ge=60, le=3600)
+    # 沒轉成案件的名單（新的、略過的）收到幾天後刪除。
+    meta_leads_retention_days: int = Field(default=90, ge=30, le=365)
     # Google Search Console（2026-11-12，docs/specs/2026-11-12-external-integrations-design.md §3）：
     # 服務帳戶金鑰整份 JSON ＋ 資源（sc-domain:網域 或 https://網址前置）。兩個都設才啟用、只設一個拒絕啟動。
     # JSON 在啟動時驗證；任何錯誤訊息都不帶內容。
@@ -709,6 +715,11 @@ class Settings(BaseSettings):
         return self.instagram_enabled and self.facebook_enabled
 
     @property
+    def meta_leads_sync_enabled(self) -> bool:
+        """開關開著而且 Facebook 同步也啟用（model_validator 保證兩者同時成立）。"""
+        return self.meta_leads_enabled and self.facebook_enabled
+
+    @property
     def facebook_page_ids(self) -> dict[str, str]:
         """校區 → 粉專 ID（格式已在 _parse_facebook_pages 驗過）。"""
         if not self.facebook_pages:
@@ -844,6 +855,11 @@ class Settings(BaseSettings):
         if self.instagram_enabled and not self.facebook_enabled:
             raise ValueError(
                 "WEBSITE_INSTAGRAM_ENABLED 要搭配 Facebook 粉專同步："
+                "請同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES"
+            )
+        if self.meta_leads_enabled and not self.facebook_enabled:
+            raise ValueError(
+                "WEBSITE_META_LEADS_ENABLED 要搭配 Facebook 粉專同步："
                 "請同時設定 WEBSITE_FACEBOOK_ACCESS_TOKEN 與 WEBSITE_FACEBOOK_PAGES"
             )
         if bool(self.turnstile_site_key) != bool(self.turnstile_secret_key):

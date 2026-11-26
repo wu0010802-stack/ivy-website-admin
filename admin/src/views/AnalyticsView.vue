@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AnalyticsToc from '../components/analytics/AnalyticsToc.vue'
 import BookingAttributionPanel from '../components/analytics/BookingAttributionPanel.vue'
 import BusinessProfilePanel from '../components/analytics/BusinessProfilePanel.vue'
 import ContactHoursPanel from '../components/analytics/ContactHoursPanel.vue'
@@ -17,7 +18,7 @@ import SearchInsightsPanel from '../components/SearchInsightsPanel.vue'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import { usePermissions } from '../composables/usePermissions'
 import {
-  ANALYTICS_DAY_OPTIONS, ANALYTICS_DEVICE_OPTIONS, ANALYTICS_TABS, DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, DEFAULT_ANALYTICS_TAB,
+  ANALYTICS_DAY_OPTIONS, ANALYTICS_DEVICE_OPTIONS, ANALYTICS_SECTIONS, ANALYTICS_TABS, DEFAULT_ANALYTICS_DAYS, DEFAULT_ANALYTICS_DEVICE, DEFAULT_ANALYTICS_TAB,
   type AnalyticsDays, type AnalyticsDevice, type AnalyticsTab, type InterestView,
 } from '../components/analytics/filters'
 
@@ -82,38 +83,80 @@ const statusText = computed(() => {
     : updating.interest
   return busy ? '更新中…' : ''
 })
+
+// ---- 2026-11-26 第五輪：類內目次、換分類回到那一類的開頭 ----
+// 黏住的頁首＋條件列底下那條線離視窗頂端多遠：目次捲到某一張表、換分類回到開頭，都讓內容停在這條線下面。
+// 900px 以下條件列不黏，只算頁首。條件列的高度會變（視窗窄時條件換到第二行），所以每次現量。
+const page = ref<HTMLElement | null>(null)
+const bar = ref<HTMLElement | null>(null)
+const contentStart = ref<HTMLElement | null>(null)
+const DEFAULT_TOP_H = 64
+const START_GAP = 20
+function stickyLine(): number {
+  const el = bar.value
+  if (!el) return DEFAULT_TOP_H
+  const topH = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--top-h')) || DEFAULT_TOP_H
+  return getComputedStyle(el).position === 'sticky' ? topH + el.offsetHeight : topH
+}
+// 換分類時人常在頁面中段（條件列黏著）：新的那一類要從它開頭那一句答案看起，不是停在同樣的捲動位置
+// （原本從「怎麼來、怎麼逛」3,000px 處換到「走到預約」，會落在最後面的「帶著記住的校區回來」）。
+// 還在頁面最上面時不動。
+watch(tab, async () => {
+  await nextTick()
+  const start = contentStart.value
+  if (!start || window.scrollY <= 0) return
+  // 開頭那一句和條件列之間留和平常一樣的間距（條件列的 margin-bottom）。
+  const top = start.getBoundingClientRect().top - START_GAP
+  const line = stickyLine()
+  if (top < line) window.scrollTo({ top: Math.max(0, window.scrollY + top - line) })
+})
+// 用 Tab 走到被條件列蓋住的位置時，瀏覽器捲動要多留條件列的高度：高度寫成樣式變數，條件換行或目次出現時跟著變。
+let barObserver: ResizeObserver | null = null
+onMounted(() => {
+  if (typeof ResizeObserver === 'undefined' || !bar.value) return
+  barObserver = new ResizeObserver(() => page.value?.style.setProperty('--analytics-bar-h', `${bar.value?.offsetHeight ?? 0}px`))
+  barObserver.observe(bar.value)
+})
+onBeforeUnmount(() => barObserver?.disconnect())
 </script>
 
 <template>
-  <div class="page analytics">
+  <div ref="page" class="page analytics">
     <PageHeader
-      lead="官網有多少人看、看了什麼、從哪裡來、有沒有走到預約，全站五校合計；「每月比較」可以和去年同月比。"
-      more="各校參觀預約的結果（五校比較、到場與取消、每日變化、來源與預約鈕點擊）與預約孩子的班別，在「招生統計 → 參觀預約」（限總管理者）。"
+      lead="官網有多少人看、看了什麼、從哪裡來、有沒有走到預約；全站五校合計。"
+      more="「每月比較」可以和去年同月比。各校參觀預約的結果（五校比較、到場與取消、每日變化、來源與預約鈕點擊）與預約孩子的班別，在「招生統計 → 參觀預約」（限總管理者）。"
     />
 
     <StatsHealthBanner />
-    <div class="analytics__bar">
-      <div class="status-tabs analytics__tabs" role="group" aria-label="要看哪一類統計">
-        <button
-          v-for="item in ANALYTICS_TABS"
-          :key="item.key"
-          type="button"
-          class="status-tab"
-          :class="{ 'is-active': tab === item.key }"
-          :aria-pressed="tab === item.key"
-          @click="tab = item.key"
-        >{{ item.label }}</button>
-      </div>
-      <div v-if="!onMonthly" class="analytics__filters">
-        <span class="hint analytics__status" role="status">{{ statusText }}</span>
-        <el-select v-if="onInterest" v-model="device" class="analytics__device" aria-label="要看哪一種裝置的造訪" data-test="analytics-device">
-          <el-option v-for="option in ANALYTICS_DEVICE_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
-        </el-select>
-        <el-radio-group v-model="days" class="analytics__days" aria-label="統計的期間">
-          <el-radio-button v-for="option in ANALYTICS_DAY_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button>
-        </el-radio-group>
+    <div ref="bar" class="analytics__bar">
+      <div class="analytics__inner">
+        <div class="analytics__row">
+          <div class="status-tabs analytics__tabs" role="group" aria-label="要看哪一類統計">
+            <button
+              v-for="item in ANALYTICS_TABS"
+              :key="item.key"
+              type="button"
+              class="status-tab"
+              :class="{ 'is-active': tab === item.key }"
+              :aria-pressed="tab === item.key"
+              @click="tab = item.key"
+            >{{ item.label }}</button>
+          </div>
+          <div v-if="!onMonthly" class="analytics__filters">
+            <span class="hint analytics__status" role="status">{{ statusText }}</span>
+            <el-select v-if="onInterest" v-model="device" class="analytics__device" aria-label="要看哪一種裝置的造訪" data-test="analytics-device">
+              <el-option v-for="option in ANALYTICS_DEVICE_OPTIONS" :key="option.value" :value="option.value" :label="option.label" />
+            </el-select>
+            <el-radio-group v-model="days" class="analytics__days" aria-label="統計的期間">
+              <el-radio-button v-for="option in ANALYTICS_DAY_OPTIONS" :key="option.value" :value="option.value">{{ option.label }}</el-radio-button>
+            </el-radio-group>
+          </div>
+        </div>
+        <!-- 這一類有哪幾張表（2026-11-26）：點了捲到那一張，捲動時標出現在看到哪一張。 -->
+        <AnalyticsToc class="analytics__toc" :sections="ANALYTICS_SECTIONS[tab]" :line="stickyLine" />
       </div>
     </div>
+    <div ref="contentStart" class="analytics__start" aria-hidden="true" />
 
     <SiteTrafficPanel v-show="tab === 'traffic'" :days="days" @updating="updating.traffic = $event" />
     <CruxPanel v-if="showExternal" v-show="tab === 'traffic'" :active="tab === 'traffic'" />
@@ -133,39 +176,93 @@ const statusText = computed(() => {
 </template>
 
 <style scoped>
-/* 分類在左、條件在右；放不下時條件整組換到下一行靠右。
-   整列黏在頁首下面（2026-11-20）：一類有 1,400～4,500px，捲到中段也換得了分類與期間、看得到現在是哪一段。
+/* 條件列：第一行分類在左、條件在右，第二行是這一類的目次（放不下一行時怎麼排，見下面的 @container 與 720px 以下）。
+   整塊黏在頁首下面（2026-11-20）：一類有 1,400～8,000px，捲到中段也換得了分類與期間、看得到現在是哪一段。
    做法同招生統計的導覽列：底色用 box-shadow 往右鋪滿、clip-path 裁成一條（不用負邊距，不會多出橫向捲軸、不蓋到側欄）。 */
 .analytics__bar {
   position: sticky;
   top: var(--top-h);
   z-index: 5;
+  margin-bottom: 20px;
+  padding-top: 10px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 100vmax var(--surface-2);
+  clip-path: inset(0 -100vmax 0 -28px);
+  /* 條件列自己的寬度決定裡面怎麼排（見下面的 @container）：側欄收合與否內容區寬度差 196px，不能只看視窗寬度。 */
+  container: analytics-bar / inline-size;
+}
+
+.analytics__inner {
+  display: grid;
+  gap: 4px;
+}
+
+.analytics__row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px 16px;
-  margin-bottom: 20px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--line);
-  background: var(--surface-2);
-  box-shadow: 0 0 0 100vmax var(--surface-2);
-  clip-path: inset(0 -100vmax 0 -28px);
+  min-width: 0;
 }
 
-/* 用 Tab 走到被黏住那一列蓋住的位置時，瀏覽器捲動要多留一列的高度，焦點才不會藏在條件列底下。 */
+/* 目次那一排的底線疊在條件列的底線上（同招生統計的分頁列）。 */
+.analytics__toc {
+  margin-bottom: -1px;
+}
+
+/* 換分類時用來量「這一類從哪裡開始」的記號，不佔高度。 */
+.analytics__start {
+  height: 0;
+}
+
+/* 用 Tab 走到被黏住那一列蓋住的位置時，瀏覽器捲動要多留條件列的高度，焦點才不會藏在條件列底下。
+   高度由頁面量好寫在 --analytics-bar-h（條件換行、目次出現時會變）。 */
 @media (min-width: 901px) {
   .analytics :deep(:focus-visible) {
-    scroll-margin-top: calc(var(--top-h) + 76px);
+    scroll-margin-top: calc(var(--top-h) + var(--analytics-bar-h, 96px) + 12px);
   }
 }
 
-/* 900px 以下不黏：分類排成兩列、條件再一列，加起來約 170px，會吃掉手機三分之一的畫面。 */
+/* 桌機但內容區放不下「分類＋條件」一行（視窗約 1,150px 以下而且側欄展開）：條件不自己佔一行，
+   改和目次同一行（目次在左、可左右捲，條件在右），黏住的高度維持兩行約 100px，不變成三行 144px。 */
+@media (min-width: 901px) {
+  @container analytics-bar (max-width: 899px) {
+    .analytics__inner {
+      grid-template-columns: minmax(0, 1fr) auto;
+      column-gap: 16px;
+    }
+
+    .analytics__row {
+      display: contents;
+    }
+
+    .analytics__tabs {
+      grid-column: 1 / -1;
+      justify-self: start;
+    }
+
+    .analytics__toc {
+      grid-row: 2;
+      grid-column: 1;
+      align-self: end;
+    }
+
+    .analytics__filters {
+      grid-row: 2;
+      grid-column: 2;
+      margin-left: 0;
+      padding-bottom: 6px;
+    }
+  }
+}
+
+/* 900px 以下不黏：分類排成兩列、條件再一列、目次一列，加起來約 200px，會吃掉手機四分之一的畫面。 */
 @media (max-width: 900px) {
   .analytics__bar {
     position: static;
-    padding: 0;
-    border-bottom: 0;
+    padding-top: 0;
     box-shadow: none;
     clip-path: none;
   }
@@ -196,19 +293,32 @@ const statusText = computed(() => {
 }
 
 @media (max-width: 720px) {
+  .analytics__row {
+    gap: 8px;
+  }
+
+  /* 五類排成兩列：上面三顆、下面兩顆，每一顆 44px 高（2026-11-26；原本 2＋2＋1 三列，「每月比較」自己一列）。 */
   .analytics__tabs {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     width: 100%;
   }
 
-  /* 四類排成兩列兩欄，每一顆 44px 高。 */
   .analytics__tabs .status-tab {
-    flex: 1 1 40%;
+    grid-column: span 2;
     justify-content: center;
     min-height: 44px;
+    padding: 0 4px;
   }
 
+  .analytics__tabs .status-tab:nth-child(n + 4) {
+    grid-column: span 3;
+  }
+
+  /* 裝置與期間排同一列（原本各佔一列）：選單 1、期間 2 的比例，期間三顆平分。 */
   .analytics__filters {
     flex-wrap: wrap;
+    gap: 8px;
     width: 100%;
     margin-left: 0;
   }
@@ -222,16 +332,19 @@ const statusText = computed(() => {
   }
 
   .analytics__device {
-    flex: 1 1 120px;
+    flex: 1 1 100px;
     width: auto;
+    min-width: 0;
   }
 
   .analytics__days {
-    flex: 2 1 220px;
+    flex: 2 1 190px;
+    min-width: 0;
   }
 
   .analytics__days :deep(.el-radio-button) {
     flex: 1;
+    min-width: 0;
   }
 
   .analytics__days :deep(.el-radio-button__inner) {
@@ -240,10 +353,20 @@ const statusText = computed(() => {
     justify-content: center;
     width: 100%;
     min-height: 44px;
+    padding-inline: 4px;
   }
 
   .analytics__device :deep(.el-select__wrapper) {
     min-height: 44px;
+    padding-inline: 10px;
+  }
+}
+
+/* 很窄的手機（360px 以下）：「怎麼來、怎麼逛」七個字要放進三分之一寬，字小一階。 */
+@media (max-width: 380px) {
+  .analytics__tabs .status-tab {
+    padding: 0 2px;
+    font-size: var(--text-sm);
   }
 }
 </style>

@@ -46,11 +46,20 @@ const allInsufficient = computed(() => (data.value ? cruxAllInsufficient(data.va
 
 // 速度表：一個指標一列、手機與電腦各一欄（同旁邊「網頁速度」的版面）。
 const latest = computed(() => devices.value.map((device) => ({ device, week: latestCruxWeek(device) })))
+// 2026-11-26：整個裝置都沒有數據（正式站的電腦一直是「Chrome 使用者數量還不夠」）時不留一整欄、
+// 三列各寫一次同一句話；表格只排有數據的裝置，沒有的在表格下面寫一句。手機上有數據的那一欄也才有位置。
+const withData = computed(() => latest.value.filter(({ week }) => week !== null))
+const withoutData = computed(() =>
+  latest.value.filter(({ week }) => week === null).map(({ device }) => ({
+    form: device.form_factor,
+    text: `${CRUX_DEVICE_LABELS[device.form_factor]}：${device.status === 'insufficient' ? 'Chrome 使用者數量還不夠，Google 沒有提供數據' : '沒有資料'}。`,
+  })),
+)
 const rows = computed(() =>
   CRUX_METRICS.map(({ key, vital }) => ({
     key,
     ...VITAL_LABELS[vital],
-    cells: latest.value.map(({ device, week }) => {
+    cells: withData.value.map(({ device, week }) => {
       const value = week?.[key] ?? null
       return {
         form: device.form_factor,
@@ -99,9 +108,9 @@ const slash = (day: string) => day.replaceAll('-', '/')
       <div class="panel__body crux__body">
         <p v-if="allInsufficient" class="hint" data-test="crux-insufficient">Chrome 使用者數量還不夠，Google 尚未提供這個網站的數據。</p>
         <template v-else>
-          <table class="crux__table" data-test="crux-table">
+          <table v-if="withData.length" class="crux__table" :class="{ 'crux__table--single': withData.length === 1 }" data-test="crux-table">
             <thead>
-              <tr><th scope="col">項目</th><th v-for="device in devices" :key="device.form_factor" scope="col">{{ CRUX_DEVICE_LABELS[device.form_factor] }}</th></tr>
+              <tr><th scope="col">項目</th><th v-for="{ device } in withData" :key="device.form_factor" scope="col">{{ CRUX_DEVICE_LABELS[device.form_factor] }}</th></tr>
             </thead>
             <tbody>
               <tr v-for="row in rows" :key="row.key">
@@ -112,12 +121,12 @@ const slash = (day: string) => day.replaceAll('-', '/')
                     <el-tag v-if="cell.rating" size="small" :type="RATING_TAG[cell.rating]">{{ RATING_LABELS[cell.rating] }}</el-tag>
                     <span class="hint num crux__dist"><span>良好 {{ formatRatio(cell.value.good) }}・</span><span>需要改善 {{ formatRatio(cell.value.needs_improvement) }}・</span><span>不佳 {{ formatRatio(cell.value.poor) }}</span></span>
                   </div>
-                  <span v-else-if="cell.status === 'insufficient'" class="hint">Chrome 使用者數量還不夠</span>
                   <span v-else class="hint">沒有資料</span>
                 </td>
               </tr>
             </tbody>
           </table>
+          <p v-for="item in withoutData" :key="item.form" class="hint" :data-test="`crux-missing-${item.form}`">{{ item.text }}</p>
 
           <AnalyticsMeta :period="newestEnd ? `到 ${slash(newestEnd)} 為止的 28 天` : '最近 28 天'" unit="Chrome 使用者的體驗（不是人數）" :as-of="data.as_of" :coverage="data.origin ?? ''" />
           <p class="hint">網域 2026/11/11 才從舊網站換過來，前幾週的數字混有舊網站的資料。</p>
@@ -180,6 +189,18 @@ const slash = (day: string) => day.replaceAll('-', '/')
   border-collapse: collapse;
   table-layout: fixed;
   font-size: var(--text-base);
+}
+
+/* 只有一個裝置有數據：兩欄的表不拉滿整張卡（1,100px 寬時名稱和數字隔了半個畫面）。 */
+.crux__table--single {
+  max-width: 720px;
+}
+
+/* 手機：名稱那一欄窄一點，讓數值與三段分布多一點位置（原本各半，分布要排成三行）。 */
+@media (max-width: 720px) {
+  .crux__table--single th:first-child {
+    width: 38%;
+  }
 }
 
 .crux__table th,
