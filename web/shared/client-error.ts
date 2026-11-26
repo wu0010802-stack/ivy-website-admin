@@ -40,15 +40,97 @@ export function validateClientError(input: unknown): ClientErrorReport | null {
 
 // ----------------------------------------------------------------------------- 遮蔽
 
-// 網址後面的 ?query 與 #hash 整段拿掉，保留堆疊 frame 的「:行:列」。完整網址（含 // 開頭）直接比對；
-// 站內路徑（/ 開頭）前面不能是字元、斜線、點、冒號、減號（取代 lookbehind，免得把 https://host/x 的後半段誤當路徑）。
-const ABSOLUTE_URL_QUERY = /((?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^\s'"<>()?#]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
-const RELATIVE_URL_QUERY = /(^|[^\w/.:-])(\/[^\s'"<>()?#:]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
+// 網址後面的 ?query 與 #hash 整段拿掉，保留堆疊 frame 的「:行:列」。先處理完整網址（含 // 開頭），再處理站內路徑
+// （/ 開頭，前面不能是字元、斜線、點、冒號、減號，免得把 https://host/x 的後半段誤當路徑）。
+//
+// 結果等同依序套這兩條正規式（2026-11-26 以前就是用它們），換成「網址＋尾巴的 :行:列」：
+//   完整網址 /((?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^\s'"<>()?#]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
+//   站內路徑 /(^|[^\w/.:-])(\/[^\s'"<>()?#:]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
+// 但它們每個起點都先吃到結尾再回溯，一長串 / 或 //a? 就是 O(n²)。改成逐段往前掃一次（作法同 error_reports.py）：
+// 比對只會落在「不含空白、引號、<>、()」的同一個連續串裡，串裡以每個 ? 或 # 為界，它前面那段有網址，就把 ? 起
+// 到收尾處拿掉、只留尾巴的「:行:列」。收尾處是下一個 ]，或串的結尾（串後面接的是 ( 就不算）。
+// 從哪個字開始比對只影響「網址」那段，而那段原樣保留，所以只要知道有沒有。web/tests/redactregex-bugfix-20261126.spec.ts
+// 拿舊正規式逐一比對。
+const URL_RUN = /[^\s'"<>()]+/g
+const PATH_PREFIX = /[\w/.:-]/
+const FRAME_POSITION = /(?::\d+){0,2}$/
 const USERINFO = /(\/\/)[^\s/@]+@/g
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g
+// Email 等同 /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g，理由同上（一長串英數字沒有 @ 也是 O(n²)）：
+// 先切出由這些字元與 @ 組成的連續串，串裡每個 @ 前面到上一次比對結束（或串頭）整段都是本地部分，接得上網域就整段換掉。
+const EMAIL_RUN = /[A-Za-z0-9._%+@-]+/g
+const EMAIL_DOMAIN = /[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/y
 const TW_ID = /(^|[^A-Za-z0-9])[A-Za-z][12]\d{8}(?!\d)/g
 const LONG_DIGITS = /[0-9](?:[ -]?[0-9]){6,}/g
 const TOKEN = /[A-Za-z0-9_-]{20,}/g
+
+type UrlBefore = (run: string, start: number, mark: number) => boolean
+
+/** 完整網址：// 後面在 ? 之前至少還有一個字；前面有沒有 scheme 都一樣。 */
+const hasAbsoluteUrl: UrlBefore = (run, start, mark) => {
+  const slashes = run.slice(start, mark).indexOf('//')
+  return slashes >= 0 && start + slashes + 2 < mark
+}
+
+/** 站內路徑：/ 到 ? 之間不能有冒號，/ 前一個字不能是字元、斜線、點、冒號、減號（串頭前面一定是分隔字元）。 */
+const hasRelativeUrl: UrlBefore = (run, start, mark) => {
+  const segment = run.slice(start, mark)
+  for (let slash = segment.indexOf('/', segment.lastIndexOf(':') + 1); slash >= 0 && slash < segment.length - 1; slash = segment.indexOf('/', slash + 1)) {
+    if (start + slash === 0 || !PATH_PREFIX.test(run[start + slash - 1]!)) return true
+  }
+  return false
+}
+
+/** 一個連續串裡的 query／hash；closed：串後面不是「(」。下一個 ?、#、] 的位置各自記著往前推，整串只掃一次。 */
+function stripRunQueries(run: string, closed: boolean, hasUrl: UrlBefore): string {
+  let result = ''
+  let cursor = 0
+  let question = run.indexOf('?')
+  let hash = run.indexOf('#')
+  let bracket = run.indexOf(']')
+  for (;;) {
+    if (question >= 0 && question < cursor) question = run.indexOf('?', cursor)
+    if (hash >= 0 && hash < cursor) hash = run.indexOf('#', cursor)
+    if (question < 0 && hash < 0) break
+    const mark = hash < 0 || (question >= 0 && question < hash) ? question : hash
+    if (bracket >= 0 && bracket <= mark) bracket = run.indexOf(']', mark + 1)
+    const end = bracket >= 0 ? bracket : closed ? run.length : -1
+    if (end < 0) break // 後面沒有能收尾的地方，之後的 ? 也一樣
+    if (hasUrl(run, cursor, mark)) {
+      result += run.slice(cursor, mark) + FRAME_POSITION.exec(run.slice(mark + 1, end))![0]
+      cursor = end
+    } else {
+      result += run.slice(cursor, mark + 1)
+      cursor = mark + 1
+    }
+  }
+  return result + run.slice(cursor)
+}
+
+function stripUrlQueries(text: string, hasUrl: UrlBefore): string {
+  if (!text.includes('?') && !text.includes('#')) return text
+  return text.replace(URL_RUN, (run: string, offset: number) =>
+    run.includes('?') || run.includes('#') ? stripRunQueries(run, text[offset + run.length] !== '(', hasUrl) : run)
+}
+
+function redactRunEmails(run: string): string {
+  let at = run.indexOf('@')
+  if (at < 0) return run
+  let result = ''
+  let done = 0
+  let cursor = 0
+  while (at >= 0) {
+    EMAIL_DOMAIN.lastIndex = at + 1
+    const domain = at > cursor ? EMAIL_DOMAIN.exec(run) : null
+    if (domain) {
+      result += run.slice(done, cursor) + '[email]'
+      done = cursor = EMAIL_DOMAIN.lastIndex
+    } else {
+      cursor = at + 1 // 本地部分是空的或網域不成立：這個 @ 之前都不會是 Email
+    }
+    at = run.indexOf('@', cursor)
+  }
+  return result + run.slice(done)
+}
 
 /**
  * 把可能識別個人的片段換成佔位符，順序與 backend/app/operations/error_reports.py 的 redact_text 相同：
@@ -56,11 +138,9 @@ const TOKEN = /[A-Za-z0-9_-]{20,}/g
  * tokens: false 用在 kind（錯誤名稱不是資料）。
  */
 export function redactClientText(text: string, options: { tokens?: boolean } = {}): string {
-  let result = text
-    .replace(ABSOLUTE_URL_QUERY, (_match, url: string, pos: string) => url + pos)
-    .replace(RELATIVE_URL_QUERY, (_match, before: string, url: string, pos: string) => before + url + pos)
+  let result = stripUrlQueries(stripUrlQueries(text, hasAbsoluteUrl), hasRelativeUrl)
     .replace(USERINFO, '$1[credentials]@')
-    .replace(EMAIL, '[email]')
+    .replace(EMAIL_RUN, redactRunEmails)
     .replace(TW_ID, (_match, before: string) => `${before}[id]`)
   // token 在長數字之前：UUID 與 20 位以上的長串整段換掉，不會被數字規則切成兩半。
   if (options.tokens !== false) result = result.replace(TOKEN, (value) => (/[A-Za-z0-9]/.test(value) ? '[token]' : value))
