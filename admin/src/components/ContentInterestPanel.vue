@@ -104,6 +104,7 @@ const leadSources = computed(() =>
 // 2026-11-19：可切「同一瀏覽器（跨次）」：以瀏覽器為單位，預約過的只算第一次預約前看的內容
 // （docs/specs/2026-11-19-cookie-stats-design.md §6）。兩種單位整理成同一個形狀，表格與匯出共用。
 const conversionUnit = ref<'session' | 'browser'>('session')
+watch(conversionUnit, () => { conversionExpanded.value = false })
 const unitNoun = computed(() => (conversionUnit.value === 'browser' ? '瀏覽器' : '造訪'))
 const unitMeasure = computed(() => (conversionUnit.value === 'browser' ? '個' : '次'))
 const conversion = computed(() => {
@@ -119,6 +120,10 @@ const conversion = computed(() => {
 })
 // 樣本不夠的不排成一整排「樣本太少」：收在表格下面，要看再展開（匯出仍是全部）。
 const conversionEnough = computed(() => conversion.value.filter((row) => !few(row.count)))
+// 2026-11-26：這張是整頁最長的表（正式站 33 列、1,500px），而且預約少的時候後面二十幾列都是 1%～3%；
+// 照預約比例由高到低先列前 10 項，要看全部再展開。換單位時收回前 10 項。匯出一律是全部。
+const conversionExpanded = ref(false)
+const visibleConversion = computed(() => (conversionExpanded.value ? conversionEnough.value : conversionEnough.value.slice(0, LIST_LIMIT)))
 const conversionFew = computed(() => conversion.value.filter((row) => few(row.count)))
 const overallRate = computed(() => (conversionUnit.value === 'browser' ? summary.value?.browser?.booked_rate ?? null : totals.value?.booked_rate ?? null))
 const overallText = computed(() => {
@@ -451,7 +456,7 @@ function exportCampusPrefs() {
               </div>
               <div class="panel__body interest__body">
                 <p v-if="!news.length" class="hint">這段期間還沒有人打開消息內文頁。</p>
-                <div v-else class="interest__scroll">
+                <div v-else class="interest__scroll" role="region" tabindex="0" aria-label="單篇消息（可左右捲動）">
                   <table class="interest__table interest__table--rows" data-test="interest-news">
                     <thead><tr><th scope="col">消息</th><th scope="col" class="num">瀏覽</th><th v-if="hasPrevious" scope="col" class="num">和上一期比</th><th scope="col" class="num">停留</th><th scope="col" class="num">讀到文末</th></tr></thead>
                     <tbody>
@@ -562,7 +567,7 @@ function exportCampusPrefs() {
               </div>
               <div class="panel__body interest__body">
                 <p v-if="!campaigns.length" class="hint">這段期間沒有帶活動代碼的造訪。貼連結時在網址後面加上代碼，這裡才分得出是哪一則（做法見下方說明）。</p>
-                <div v-else class="interest__scroll">
+                <div v-else class="interest__scroll" role="region" tabindex="0" aria-label="哪一則貼文或廣告帶來的（可左右捲動）">
                   <table class="interest__table interest__table--rows" data-test="interest-campaigns">
                     <thead><tr><th scope="col">活動代碼</th><th scope="col">來源</th><th scope="col" class="num">造訪</th><th scope="col" class="num">送出預約</th></tr></thead>
                     <tbody>
@@ -865,7 +870,7 @@ function exportCampusPrefs() {
                 <table class="interest__table interest__table--rows" data-test="interest-conversion">
                   <thead><tr><th scope="col">看過的內容</th><th scope="col" class="num">{{ unitNoun }}</th><th scope="col" class="num">其中<wbr>送出預約</th><th scope="col" class="num">比例</th></tr></thead>
                   <tbody>
-                    <tr v-for="row in conversionEnough" :key="`${row.kind}-${row.page}-${row.key}`">
+                    <tr v-for="row in visibleConversion" :key="`${row.kind}-${row.page}-${row.key}`">
                       <th scope="row"><span v-if="splitPrefix(row.label).prefix" class="interest__label-part interest__label-prefix">{{ splitPrefix(row.label).prefix }}</span><span class="interest__label-part">{{ splitPrefix(row.label).name }}</span></th>
                       <td class="num">{{ formatCount(row.count) }}</td>
                       <td class="num">{{ formatCount(row.booked) }}</td>
@@ -874,6 +879,7 @@ function exportCampusPrefs() {
                   </tbody>
                 </table>
               </div>
+              <RowsToggle v-model="conversionExpanded" :total="conversionEnough.length" :limit="LIST_LIMIT" data-test="interest-conversion-toggle" />
               <details v-if="conversionFew.length" class="interest__more" data-test="interest-conversion-few">
                 <summary>另外 {{ conversionFew.length }} 項的{{ unitNoun }}不到 {{ MIN_ENGAGEMENT_SAMPLES }} {{ unitMeasure }}，先不算比例</summary>
                 <div class="interest__scroll">

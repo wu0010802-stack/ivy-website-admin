@@ -320,9 +320,25 @@ function exportVitals() {
   }
 }
 
+/* 手機：三格數字排同一列（2026-11-26；原本兩欄，第三格自己掉到下一列、旁邊空著）。格子內距收小，數字小一階。 */
 @media (max-width: 720px) {
   .traffic__stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .traffic__stats .stat {
+    padding: 12px 10px;
+  }
+
+  .traffic__stats .stat__value {
+    font-size: var(--text-3xl);
+  }
+
+  /* 「平均每天 103 次」在窄格子裡要換行時排成「平均每天」／「103 次」：只在空格斷（keep-all，不拆成「平均每」「天 103 次」），
+     兩行差不多長（balance，不留一個「次」在第二行）。 */
+  .traffic__stats .stat__hint {
+    word-break: keep-all;
+    text-wrap-style: balance;
   }
 }
 

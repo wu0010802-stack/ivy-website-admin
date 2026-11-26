@@ -104,6 +104,30 @@ describe('商家檔案面板', () => {
     expect(wrapper.text()).toContain('每天同步一次・最近一次 11/25 10:00')
   })
 
+  it('2026-11-26：搜尋字詞先列前 10 項，要看全部再展開；每月的表與字詞並排', async () => {
+    const keywords = Array.from({ length: 25 }, (_, index) => ({ keyword: `字詞 ${index + 1}`, impressions: 500 - index * 10, below: null }))
+    const { wrapper } = await mountPanel({ configured: true, locations: [location({ keywords, keyword_total: 143 })] } satisfies BusinessProfile)
+    const words = () => wrapper.findAll('[data-test="gbp-keywords"] tbody tr')
+    expect(words()).toHaveLength(10)
+    expect(wrapper.text()).toContain('前 25 個，共 143 個字詞')
+    const toggle = wrapper.get('[data-test="gbp-keywords-toggle"]')
+    expect(toggle.text()).toBe('顯示全部 25 項')
+    await toggle.trigger('click')
+    expect(words()).toHaveLength(25)
+    // 兩張表包在同一個並排的格線裡。
+    const cols = wrapper.get('.gbp__cols')
+    expect(cols.find('[data-test="gbp-months"]').exists()).toBe(true)
+    expect(cols.find('[data-test="gbp-keywords"]').exists()).toBe(true)
+    expect(cols.classes()).not.toContain('is-single')
+  })
+
+  it('只有每月的表、還沒有搜尋字詞時不分兩欄；10 個字詞以內不出現展開鈕', async () => {
+    const none = await mountPanel({ configured: true, locations: [location({ keywords_month: null, keywords: [], keyword_total: 0 })] } satisfies BusinessProfile)
+    expect(none.wrapper.get('.gbp__cols').classes()).toContain('is-single')
+    const few = await mountPanel({ configured: true, locations: [location()] } satisfies BusinessProfile)
+    expect(few.wrapper.find('[data-test="gbp-keywords-toggle"]').exists()).toBe(false)
+  })
+
   it('同步失敗：寫原因與該怎麼做，舊資料照樣顯示', async () => {
     const { wrapper } = await mountPanel({
       configured: true,
