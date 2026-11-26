@@ -300,7 +300,27 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     if (emailEnabled.value === false) return '尚未設定寄信，請電話通知家長。'
     return `有 Email（${maskEmail(email)}），但無法確認系統是否會寄信，請確認是否需要另外通知家長。`
   })
+
+  // 會改狀態的動作（取消、未到場、標記已到場、改期）按下去時就記下是哪一筆：中間要等確認框或招生查詢，
+  // 這段時間可能已換到別筆（下一筆、預覽換列；確認框開著時按瀏覽器返回也會換 :id，確認框不會跟著關），
+  // 醒來再讀 id 或 detail 就是另一筆，會把 A 的動作寫到 B（2026-11-26 稽核）。同 addNote 的 current／gen：
+  // 送出一律打畫面上那一筆（current.id），等待之後 generation 變了就不送。案件還沒讀到、或另一個動作處理中時不開始。
+  function actionTarget(): { gen: number; current: VisitRequestFullOut } | null {
+    const current = detail.value
+    if (!current || busy.value) return null
+    return { gen: generation, current }
+  }
+  // 等待期間換了案件：不送出，說一聲，免得以為按了確認就處理好了。
+  function switchedAway(gen: number): boolean {
+    if (gen === generation) return false
+    notifyWarning('已換到另一筆案件，剛才的操作沒有送出，請回到原本那筆再處理。')
+    return true
+  }
+
   async function cancel() {
+    const target = actionTarget()
+    if (!target) return
+    const { gen, current } = target
     // 參觀時間已過：家長沒來要按「沒來」（標記未到場），取消會被算成園方取消、名額也會釋出。
     const noShowNote = attendanceDue.value ? '家長沒來請改用上方的「沒來」。' : ''
     let reason: string | null = null
@@ -323,9 +343,10 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     } catch {
       return
     }
+    if (switchedAway(gen)) return
     pendingAction.value = 'cancel'
     try {
-      await api.post(`/admin/visit-requests/${id.value}/cancel`, { reason })
+      await api.post(`/admin/visit-requests/${current.id}/cancel`, { reason })
       ElMessage.success('已取消')
       openRequests.refresh(true)
       await load({ quiet: true })
@@ -338,6 +359,9 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   }
 
   async function markNoShow() {
+    const target = actionTarget()
+    if (!target) return
+    const { gen, current } = target
     try {
       await ElMessageBox.confirm('標記後這筆案件會結案。這一場的名額仍算已使用，不會再開放給別人。', '標記為未到場？', {
         confirmButtonText: '標記未到場',
@@ -347,9 +371,10 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     } catch {
       return
     }
+    if (switchedAway(gen)) return
     pendingAction.value = 'no_show'
     try {
-      await api.post(`/admin/visit-requests/${id.value}/no-show`)
+      await api.post(`/admin/visit-requests/${current.id}/no-show`)
       ElMessage.success('已標記未到場')
       openRequests.refresh(true)
       await load({ quiet: true })
@@ -391,9 +416,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   })
 
   async function reschedule() {
-    const current = detail.value
+    const caseTarget = actionTarget()
+    if (!caseTarget) return
+    const { gen, current } = caseTarget
     const target = rescheduleSlots.value.find((s) => s.id === rescheduleSlotId.value)
-    if (!current || !target) {
+    if (!target) {
       notifyWarning('請先選擇新的參觀場次')
       return
     }
@@ -406,9 +433,11 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
     } catch {
       return
     }
+    // 換到別筆時 watch(id) 已清掉改期欄位，target 是原案件選的場次，不能套到新案件。
+    if (switchedAway(gen)) return
     pendingAction.value = 'reschedule'
     try {
-      await api.post(`/admin/visit-requests/${id.value}/reschedule`, {
+      await api.post(`/admin/visit-requests/${current.id}/reschedule`, {
         new_slot_id: target.id,
         reason: rescheduleReason.value.trim() || null,
       })
@@ -456,13 +485,26 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
   // 家長提早到了（early，2026-10-12）：場次還沒開始就標記已到場（/complete-early）。約之後的日子會釋出
   // 那一場的名額，所以招生開不開都先確認，寫出原本約的時間；之後的流程與一般標記已到場相同。
   async function complete(early: boolean) {
+    const target = actionTarget()
+    if (!target) return
+    const { gen, current } = target
     // 招生查詢還在跑不是錯誤：等查完再決定要不要確認框，免得開關打開時沒確認就建了招生訪視。
+    // 等的這段算處理中：按鈕轉圈、不能連點，下一筆與預覽換列也會先請使用者稍候（離頁守衛看 busy）。
     const lookupInFlight = family.canRead.value ? family.settled() : null
-    if (lookupInFlight) await lookupInFlight
+    if (lookupInFlight) {
+      pendingAction.value = 'complete'
+      try {
+        await lookupInFlight
+      } finally {
+        pendingAction.value = null
+      }
+      // 沒經過離頁守衛就換了案件：招生查詢的結果已經是另一筆的，不能拿來決定確認框。
+      if (switchedAway(gen)) return
+    }
     const withAdmissions = family.available.value === 'yes'
     // 標記後招生會重查，opensForm 可能跟著變，所以這一刻的結果先存起來，確認框與標記之後都用同一個答案。
     const opensFormNow = opensForm.value
-    const slot = detail.value?.slot
+    const slot = current.slot
     const message = early && slot
       ? earlyArrivalNote(slot, taipeiDay(Date.now()), withAdmissions, opensFormNow)
       : withAdmissions ? arrivalAdmissionsNote(opensFormNow) : ''
@@ -476,15 +518,19 @@ export function useVisitCase(id: Readonly<Ref<string>>, hooks: VisitCaseHooks = 
       } catch {
         return
       }
+      if (switchedAway(gen)) return
     }
     pendingAction.value = 'complete'
     try {
-      await api.post(`/admin/visit-requests/${id.value}/${early ? 'complete-early' : 'complete'}`)
+      await api.post(`/admin/visit-requests/${current.id}/${early ? 'complete-early' : 'complete'}`)
       if (!opensFormNow) ElMessage.success(withAdmissions ? '已標記已到場，招生訪視已建立' : '已標記已到場')
       openRequests.refresh(true)
       await load({ quiet: true })
       hooks.onChanged?.()
-      if (opensFormNow) await openArrivalForm()
+      if (!opensFormNow) return
+      // 送出期間沒經過離頁守衛就換了別筆：招生資料表單是原案件的，不在另一筆上打開。
+      if (gen === generation) await openArrivalForm()
+      else ElMessage.success('已標記已到場，招生訪視已建立')
     } catch (err) {
       reportError(err, '操作失敗')
     } finally {
