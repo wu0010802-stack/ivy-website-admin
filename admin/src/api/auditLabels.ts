@@ -208,6 +208,9 @@ const LINE_GROUP_KIND_LABELS: Record<string, string> = {
   visit_request_cancelled: '參觀預約已取消',
   // 2026-11-20：總部群組的官網統計異常提醒（backend/app/operations/stats_health.py）。
   stats_health: '官網統計異常',
+  // 2026-11-26：總部群組的週報、月報（backend/app/notifications/line_reports.py）。
+  weekly_report: '每週一週報',
+  monthly_report: '每月 1 日月報',
 }
 
 // 在 LINE 群組填招生結果欄位（line.group.recruitment_field，2026-11-17）：一次一個欄位。

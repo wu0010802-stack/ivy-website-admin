@@ -136,17 +136,21 @@ def _graph_url(settings: Settings, path: str) -> str:
     return f"https://{GRAPH_HOST}/{settings.facebook_graph_version}/{path}"
 
 
-async def page_token(client: httpx.AsyncClient, settings: Settings, page_id: str) -> str:
+async def page_token(
+    client: httpx.AsyncClient, settings: Settings, page_id: str, campus_key: str | None = None
+) -> str:
     """系統使用者 token 換成這個粉專的 Page token。設定的本來就是 Page token 時，
-    Graph 會回同一個粉專的 token（2026-11-10 v27.0 實測）；沒回就沿用原本的。"""
-    assert settings.facebook_access_token
+    Graph 會回同一個粉專的 token（2026-11-10 v27.0 實測）；沒回就沿用原本的。
+    campus_key：這校有自己的 token（WEBSITE_FACEBOOK_<校>_ACCESS_TOKEN，2026-11-26）就用它，沒有用共用的。"""
+    base = settings.facebook_token_for(campus_key)
+    assert base
     data = await _get_json(
         client, "取得粉專權杖", _graph_url(settings, page_id),
-        {"fields": "access_token", **_proof_params(settings, settings.facebook_access_token)},
-        settings.facebook_access_token,
+        {"fields": "access_token", **_proof_params(settings, base)},
+        base,
     )
     token = data.get("access_token")
-    return token if isinstance(token, str) and token else settings.facebook_access_token
+    return token if isinstance(token, str) and token else base
 
 
 def _parse_time(value: object) -> datetime | None:

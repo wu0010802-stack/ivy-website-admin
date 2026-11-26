@@ -3066,6 +3066,12 @@ migration `c4e7b2a91f63` 只新增六張表（商家檔案每日指標、每月�
 
 規格 `docs/specs/2026-11-26-meta-lead-inbox-design.md`。開了之後，各校粉專即時表單的名單每分鐘拉進後台「參觀預約 → 廣告名單」，新名單推一則（只有校名與筆數）到該校 LINE 群組；櫃檯確認後「轉成參觀案件」走原本的補登。規格 6.2 不得自動建案，名單不占場次名額。用同一把 Page token，不另設表單 ID（從 `GET /{粉專ID}/leadgen_forms` 讀全部表單）。
 
+- **其他四校要接時（2026-11-26 程式，規格 `docs/specs/2026-11-26-line-group-reports-design.md` §5；五校粉專由不同的 FB 帳號管理）**：
+  1. 各校粉專的管理員先被加進 App「常春藤義華校」（1537872071714702）的角色，再照上方「A. 單一粉專的長效 Page token」第 2–4 步產生**自己那個粉專**的 Page token，權限要含 `pages_show_list`、`pages_read_engagement`、`leads_retrieval`、`pages_manage_ads`。token 一定要出自這個 App（`WEBSITE_FACEBOOK_APP_SECRET` 只有一份）。
+  2. Railway api **同一次**套用：`WEBSITE_FACEBOOK_MINGHUA_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_CHONGDE_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_INTERNATIONAL_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_RENWU_ACCESS_TOKEN`（有哪校放哪校；`WEBSITE_FACEBOOK_YIHUA_ACCESS_TOKEN` 不用設，義華沿用共用的 `WEBSITE_FACEBOOK_ACCESS_TOKEN`）＋ `WEBSITE_META_LEADS_PAGES=yihua=…,minghua=…,…`（**義華也要列**；有設這個變數就只拉裡面的校區）。`WEBSITE_FACEBOOK_PAGES` 不要動：它管的是「粉專貼文→消息草稿」，加了校區那校的貼文也會開始同步。
+  3. 該校要有綁好的 LINE 群組才收得到「新的 Meta 廣告名單」通知。
+  4. 驗收：後台「廣告名單」選那一校，看到「上次同步 …，讀到 N 筆名單」而不是錯誤代碼（190＝權杖失效、10／200＝權限不足）。各校 token 的資料存取到期日各自計算，記在這裡。
+  5. **還沒驗證**：App 是開發模式，可能讀不到沒有 App 角色的一般家長送出的名單。先用義華一筆真的名單確認，再擴到四校。
 - **migration `e84b4724bb8d`**（parent `c4e7b2a91f63`）只新增 `meta_leads`、`meta_lead_sync` 兩張表，不改、不刪既有資料；舊版程式不讀不寫這兩張表，可直接回退。
 - **個資**：轉成案件時名單上的姓名、電話、作答立刻清掉；沒轉的名單收到 `WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90）天後由每分鐘的定期工作刪除（不看開關，功能關掉後照刪）。LINE 通知不含家長個資。
 

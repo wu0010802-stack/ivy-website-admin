@@ -180,3 +180,49 @@ async def test_digest_targets_lists_served_campuses(line_app, fake_line):
         await db.execute(update(LineGroup).where(LineGroup.target_id == OTHER_GROUP).values(left_at=datetime.now(timezone.utc)))
         await db.commit()
         assert OTHER_GROUP not in {t.target_id for t, _ in await digest_targets(db)}
+
+
+# --- 第一張卡片多一列昨天的電話／LINE 點擊（2026-11-26，docs/specs/2026-11-26-line-group-reports-design.md §4） ---
+
+
+def _summary_rows(push: dict) -> dict[str, str]:
+    rows = _carousel(push)[0]["body"]["contents"]
+    return {row["contents"][0]["text"]: row["contents"][1]["text"] for row in rows if row.get("type") == "box"}
+
+
+async def _clicks(line_app, day: date, rows: list) -> None:
+    from app.operations.models import AnalyticsEvent
+
+    async with line_app.state.session_factory() as db:
+        db.add_all([
+            AnalyticsEvent(event_type=kind, campus_key=campus, created_at=datetime.combine(day, time(0, 5 + i), tzinfo=OPERATING_TZ))
+            for i, (kind, campus) in enumerate(rows)
+        ])
+        await db.commit()
+
+
+async def test_digest_summary_carries_yesterdays_clicks(line_app, fake_line):
+    from datetime import timedelta
+
+    from app.notifications import line_flex
+    from app.notifications import line_group_reports as reports
+    from app.operations.models import AnalyticsEventType as T
+
+    await _world(line_app, yihua=1, minghua=1)
+    yesterday = today_local() - timedelta(days=1)
+    await _clicks(line_app, yesterday, [(T.CTA_CLICK_PHONE, "yihua"), (T.CTA_CLICK_LINE, "minghua"), (T.CTA_CLICK_LINE, None)])
+    await _clicks(line_app, today_local(), [(T.CTA_CLICK_PHONE, "yihua")])  # 今天的不算
+    assert await _digest(line_app, fake_line, _at(8, 30)) == 2
+    by_group = {push["body"]["to"]: _summary_rows(push) for push in fake_line.pushes}
+    assert by_group[GROUP][line_flex.CONTACT_ROW_LABEL] == "按電話 1 次｜按 LINE 0 次"
+    assert by_group[OTHER_GROUP][line_flex.CONTACT_ROW_LABEL] == (
+        f"義華校　按電話 1 次｜按 LINE 0 次\n明華校　按電話 0 次｜按 LINE 1 次\n{reports.NO_CAMPUS_LABEL}　按電話 0 次｜按 LINE 1 次"
+    )
+
+
+async def test_digest_summary_has_no_click_row_without_clicks(line_app, fake_line):
+    from app.notifications import line_flex
+
+    await _world(line_app, yihua=1, hq=False)
+    assert await _digest(line_app, fake_line, _at(8, 30)) == 1
+    assert line_flex.CONTACT_ROW_LABEL not in _summary_rows(fake_line.pushes[0])

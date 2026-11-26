@@ -204,6 +204,17 @@ class Settings(BaseSettings):
     # Meta 名單型廣告（即時表單）→ 後台「廣告名單」收件匣（docs/specs/2026-11-26-meta-lead-inbox-design.md）。
     # 沿用上面的 token 與粉專清單；token 要再有 leads_retrieval、pages_manage_ads。預設關，開了要先有 Facebook 同步。
     meta_leads_enabled: bool = False
+    # 2026-11-26（docs/specs/2026-11-26-line-group-reports-design.md §5）：五校粉專由不同的 FB 帳號管理，
+    # 一把 token 換不到別校的 Page token。各校可以另外放自己粉專的 Page token（要出自同一個 App，
+    # appsecret_proof 才對得上）；沒放的校區沿用 facebook_access_token。粉專貼文與名單都吃這個設定。
+    facebook_yihua_access_token: str | None = Field(default=None, repr=False)
+    facebook_minghua_access_token: str | None = Field(default=None, repr=False)
+    facebook_chongde_access_token: str | None = Field(default=None, repr=False)
+    facebook_international_access_token: str | None = Field(default=None, repr=False)
+    facebook_renwu_access_token: str | None = Field(default=None, repr=False)
+    # 只拉名單的粉專清單（格式同 facebook_pages）。有設就以這份為準，沒設沿用 facebook_pages；
+    # 這樣加校區拉名單時，不會連帶把那校的粉專貼文也同步進消息草稿。
+    meta_leads_pages: str | None = None
     meta_leads_sync_seconds: int = Field(default=60, ge=60, le=3600)
     # 沒轉成案件的名單（新的、略過的）收到幾天後刪除。
     meta_leads_retention_days: int = Field(default=90, ge=30, le=365)
@@ -418,6 +429,8 @@ class Settings(BaseSettings):
         "turnstile_site_key", "turnstile_secret_key", "migration_database_url",
         "vapid_public_key", "vapid_private_key", "vapid_subject",
         "facebook_access_token", "facebook_app_secret",
+        "facebook_yihua_access_token", "facebook_minghua_access_token", "facebook_chongde_access_token",
+        "facebook_international_access_token", "facebook_renwu_access_token",
         "google_sc_service_account_json", "google_sc_property", "crux_api_key", "ga4_property_id",
         "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
         "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
@@ -520,12 +533,13 @@ class Settings(BaseSettings):
             normalized[campus] = digest.lower()
         return json.dumps(normalized, sort_keys=True, separators=(",", ":"))
 
-    @field_validator("facebook_pages")
+    @field_validator("facebook_pages", "meta_leads_pages")
     @classmethod
-    def _parse_facebook_pages(cls, value: str | None) -> str | None:
+    def _parse_facebook_pages(cls, value: str | None, info) -> str | None:
         """正規化成「key=id,key=id」；校區代號小寫英文、粉專 ID 全數字，同一校不能出現兩次。"""
         if value is None or not value.strip():
             return None
+        name = f"WEBSITE_{info.field_name.upper()}"
         pairs: dict[str, str] = {}
         for raw in value.split(","):
             raw = raw.strip()
@@ -533,10 +547,10 @@ class Settings(BaseSettings):
                 continue
             match = re.fullmatch(r"([a-z][a-z0-9_-]{0,31})\s*=\s*(\d{5,32})", raw)
             if match is None:
-                raise ValueError("WEBSITE_FACEBOOK_PAGES 格式是「校區=粉專ID」逗號分隔，例 yihua=1234567890")
+                raise ValueError(f"{name} 格式是「校區=粉專ID」逗號分隔，例 yihua=1234567890")
             key, page_id = match.groups()
             if key in pairs:
-                raise ValueError(f"WEBSITE_FACEBOOK_PAGES 的 {key} 出現兩次")
+                raise ValueError(f"{name} 的 {key} 出現兩次")
             pairs[key] = page_id
         return ",".join(f"{k}={v}" for k, v in pairs.items()) or None
 
@@ -725,6 +739,18 @@ class Settings(BaseSettings):
         if not self.facebook_pages:
             return {}
         return dict(pair.split("=", 1) for pair in self.facebook_pages.split(","))
+
+    @property
+    def meta_leads_page_ids(self) -> dict[str, str]:
+        """拉名單的校區 → 粉專 ID：有設 meta_leads_pages 用它，沒設沿用 facebook_pages。"""
+        if not self.meta_leads_pages:
+            return self.facebook_page_ids
+        return dict(pair.split("=", 1) for pair in self.meta_leads_pages.split(","))
+
+    def facebook_token_for(self, campus_key: str | None) -> str | None:
+        """這校粉專要用的 token：有放這校自己的就用，沒有沿用共用的那把。"""
+        own = getattr(self, f"facebook_{campus_key}_access_token", None) if campus_key else None
+        return own or self.facebook_access_token
 
     @property
     def ivy_sync_hashes(self) -> dict[str, str]:

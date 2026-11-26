@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 
 import httpx
 from sqlalchemy import select
@@ -24,6 +24,7 @@ from app.campuses.models import Campus
 from app.common.timezones import OPERATING_TZ, now_utc
 from app.config import Settings
 from app.notifications import line_flex
+from app.notifications import line_group_reports as reports
 from app.notifications.line import LineMessagingClient, LinePushError
 from app.notifications.line_flex import VisitRow
 from app.notifications.line_group_settings import digest_targets
@@ -123,14 +124,21 @@ async def send_due_digests(
         (await db.execute(select(LineDigestRun.target_id).where(LineDigestRun.digest_date == day))).scalars()
     )
     sent = 0
+    names: dict[str, str] | None = None
     for target, campus_keys in await digest_targets(db):
         if target.target_id in done:
             continue
         rows = await rows_for_day(db, campus_keys, day)
         if not rows:
             continue
+        if names is None:
+            names = await reports.campus_names(db)
+        # 2026-11-26：第一張卡片多一列昨天官網上按電話、LINE 鈕的次數（沒有就不放）。
+        contact = await reports.contact_summary(
+            db, reports.ordered(campus_keys), names, day - timedelta(days=1), with_unassigned=target.is_hq
+        )
         message = line_flex.visit_list_message(
-            f"今日參觀（{day.month}/{day.day} 週{_WEEKDAYS[day.weekday()]}）", rows, empty_text=""
+            f"今日參觀（{day.month}/{day.day} 週{_WEEKDAYS[day.weekday()]}）", rows, empty_text="", contact=contact
         )
         key = uuid.uuid5(uuid.NAMESPACE_URL, f"digest:{target.target_id}:{day.isoformat()}")
         try:

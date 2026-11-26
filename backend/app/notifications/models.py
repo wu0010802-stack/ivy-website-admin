@@ -183,6 +183,20 @@ class LineDigestRun(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class LineReportRun(Base):
+    """總部群組的週報／月報已經推過（2026-11-26）：同一期每個群組只推一次。
+    kind＝weekly_report／monthly_report；period_start＝那一期的第一天（週一或 1 日）。"""
+
+    __tablename__ = "line_report_runs"
+
+    target_id: Mapped[str] = mapped_column(
+        ForeignKey("line_groups.target_id", ondelete="CASCADE"), primary_key=True
+    )
+    kind: Mapped[str] = mapped_column(String(32), primary_key=True)
+    period_start: Mapped[date] = mapped_column(Date, primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class PushSubscription(Base):
     """後台手機推播（Web Push）的訂閱：一台裝置的瀏覽器一列（2026-11-05）。
 
