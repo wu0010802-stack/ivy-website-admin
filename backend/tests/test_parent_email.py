@@ -184,7 +184,9 @@ async def test_outbox_payloads_only_carry_ids(admin_client, public_client, db_se
         await db_session.execute(select(OutboxMessage.payload).where(OutboxMessage.kind.like("parent_%")))
     ).scalars().all()
 
-    assert payloads and all(set(p) == {"campus_key", "receipt_id"} for p in payloads)
+    # 家長自己送出的另帶 by_parent（布林，不是個資；2026-11-26 通知型訊息每案每日上限用）。
+    assert payloads and all(set(p) - {"by_parent"} == {"campus_key", "receipt_id"} for p in payloads)
+    assert all(p.get("by_parent", True) is True for p in payloads)
 
 
 def _enable_smtp(app) -> None:
