@@ -89,6 +89,19 @@ def _transport(request: Request):
     return getattr(request.app.state, "facebook_transport", None)
 
 
+async def _release_db(db: AsyncSession) -> None:
+    """向 Meta 要資料之前先結束請求的交易、把連線還給連線池。
+
+    登入驗證（get_current_user）用這個 session 查使用者，交易從那時就開著。照片最大 15 MB、
+    影片 150 MB，Meta 慢的時候一等就是幾十秒：後台貼文頁一次載入很多張照片就能把主池占滿，
+    公開送單、後台登入跟著拿不到連線；影片下載超過 idle_in_transaction_session_timeout
+    連線還會被 DB 收掉，接下來的寫入直接失敗（media/routes.py 的 _release_db 同理）。
+    用 close() 不用 rollback()：rollback 會讓 current_user 的屬性全部失效，之後讀 id、
+    campus_scopes 會在 async 裡觸發 lazy load；close 只是脫離 session，已載入的值照樣讀得到。
+    session 之後還能再用（自動開新交易），dependency 收尾再 close 一次沒有影響。"""
+    await db.close()
+
+
 async def _list_out(
     db: AsyncSession, request: Request, campus_key: str, status_filter: PostStatus, source: PostSource | None = None
 ) -> FacebookPostListOut:
@@ -158,6 +171,8 @@ async def sync_facebook_posts(
     settings = request.app.state.settings
     if not (settings.facebook_enabled and payload.campus_key in settings.facebook_page_ids):
         raise _error(status.HTTP_409_CONFLICT, "FACEBOOK_NOT_CONFIGURED", "這校還沒接上 Facebook 粉專")
+    # sync_pages 寫入時向同一個連線池另借連線：手上這條不先放掉就是「握一條、等一條」。
+    await _release_db(db)
     results = await sync_pages(
         request.app.state.session_factory, settings, campus_keys=[payload.campus_key], transport=_transport(request)
     )
@@ -196,6 +211,7 @@ async def facebook_post_picture(
     if not post.picture_url:
         raise _error(status.HTTP_404_NOT_FOUND, "FACEBOOK_POST_NO_PICTURE", "這則貼文沒有照片")
     url = post.picture_url
+    await _release_db(db)
     async with graph.new_client(_transport(request)) as client:
         try:
             content, content_type = await graph.download_picture(
@@ -385,7 +401,9 @@ async def import_facebook_post(
     settings = request.app.state.settings
     video_path: Path | None = None
     video_skipped: str | None = None
-    # 先下載（這時還沒鎖任何列）再鎖貼文、寫入：Meta 慢的時候不卡住別人。
+    # 先下載再鎖貼文、寫入：Meta 慢的時候不卡住別人。下載前連交易與連線也先放掉，
+    # 不只是還沒鎖列；貼文在下面用 lock=True 重讀。
+    await _release_db(db)
     async with graph.new_client(_transport(request)) as client:
         try:
             content, content_type = await graph.download_picture(client, picture_url, settings.media_max_bytes("image"))
