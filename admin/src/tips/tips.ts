@@ -7,6 +7,9 @@
 // 功能的畫面或文字改了，連同這裡的說明與截圖一起更新。
 //
 // steps 裡用反引號標按鍵：`mod+K` 在 Mac 顯示 ⌘K、其他系統顯示 Ctrl＋K。
+//
+// keywords（2026-11-26）：同事會打、但標題與步驟沒寫到的說法（「圖片」「颱風假」「改時間」），只給這一頁的搜尋用。
+// 標題或步驟已經有的字不用再列（tips.test.ts 會擋）；有寫按鍵的條目自動多收「快捷鍵」「鍵盤」。
 
 import type { Role } from '../api/types'
 
@@ -42,6 +45,8 @@ export interface Tip {
   /** assets/tips/ 底下的截圖檔名（不含副檔名） */
   image?: string
   imageAlt?: string
+  /** 只給搜尋用、畫面上不顯示的說法：同事會打、但標題與步驟沒寫到的字（「圖片」「颱風假」「改時間」） */
+  keywords?: string[]
 }
 
 export const TIP_SECTIONS: TipSection[] = [
@@ -75,6 +80,7 @@ export const TIPS: Tip[] = [
     ],
     image: 'search',
     imageAlt: '側邊欄搜尋框輸入「名額」，列出參觀場次等結果，第一筆旁邊標著 Enter 符號',
+    keywords: ['找功能', '找頁面'],
   },
   {
     id: 'sidebar',
@@ -86,6 +92,7 @@ export const TIPS: Tip[] = [
     ],
     image: 'sidebar-rail',
     imageAlt: '收窄成一排圖示的側邊欄，滑鼠停在「參觀案件」圖示上顯示名稱',
+    keywords: ['選單', '左邊', '摺疊'],
   },
   {
     id: 'share-link',
@@ -96,6 +103,7 @@ export const TIPS: Tip[] = [
       '把網址傳給同事，對方打開就是同一份清單；重新整理或按上一頁，也會回到原本的篩選。',
       '搜尋框打的姓名、電話不會寫進網址，傳出去不會帶到家長資料。',
     ],
+    keywords: ['分享', '連結', '書籤', '複製'],
   },
 
   // ── 帳號 ──
@@ -112,6 +120,7 @@ export const TIPS: Tip[] = [
     to: { path: '/account', label: '我的帳號' },
     image: 'account-entry',
     imageAlt: '側邊欄最下面的使用者區塊，顯示名字與角色',
+    keywords: ['推播', '個人資料', '改名字'],
   },
   {
     id: 'users-more',
@@ -125,6 +134,7 @@ export const TIPS: Tip[] = [
     to: { path: '/users', label: '使用者' },
     image: 'users-more',
     imageAlt: '使用者列表一列的「更多」選單展開，列出解除綁定並登出、停用帳號',
+    keywords: ['忘記密碼', '離職', '刪除帳號', '鎖定'],
   },
 
   // ── 參觀案件 ──
@@ -141,6 +151,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-requests', label: '參觀案件' },
     image: 'visit-preview',
     imageAlt: '參觀案件列表點選一列後，右側出現該案件的預覽面板',
+    keywords: ['快速查看', '新視窗'],
   },
   {
     id: 'filters',
@@ -154,6 +165,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-requests', label: '參觀案件' },
     image: 'visit-filters',
     imageAlt: '參觀案件搜尋框下方的條件標籤列，每個標籤都有移除按鈕',
+    keywords: ['過濾', '找不到案件'],
   },
   {
     id: 'batch-attend',
@@ -168,6 +180,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-requests', query: { group: 'past', status: 'confirmed' }, label: '時間已過、還沒標記的案件' },
     image: 'visit-batch',
     imageAlt: '參觀案件列表勾選兩筆，上方出現「2 位標記已到場」與「標記沒來」按鈕',
+    keywords: ['批次', '多選', '全選', '報到', '出席'],
   },
   {
     id: 'attend-inline',
@@ -181,6 +194,7 @@ export const TIPS: Tip[] = [
     to: { path: '/', label: '營運總覽' },
     image: 'dashboard-today',
     imageAlt: '營運總覽「今天的參觀」名單，進行中的一列旁邊有「到了」「沒來」按鈕',
+    keywords: ['報到', '出席', '簽到', '未到'],
   },
   {
     id: 'early',
@@ -193,6 +207,7 @@ export const TIPS: Tip[] = [
     roles: HANDLE,
     image: 'visit-early',
     imageAlt: '案件頁上方的「家長提早到了」按鈕',
+    keywords: ['提前'],
   },
   {
     id: 'notes',
@@ -207,6 +222,7 @@ export const TIPS: Tip[] = [
     roles: HANDLE,
     image: 'visit-notes',
     imageAlt: '聯絡紀錄輸入框，上方一排片語按鈕，下方提示可按 Command 加 Enter 送出',
+    keywords: ['備註', '追蹤', '草稿', '提醒'],
   },
   {
     id: 'next',
@@ -219,6 +235,7 @@ export const TIPS: Tip[] = [
     roles: HANDLE,
     image: 'visit-next',
     imageAlt: '案件頁右上角的「下一筆」按鈕與剩餘件數',
+    keywords: ['下一個', '連續處理'],
   },
   {
     id: 'slot-card',
@@ -233,6 +250,7 @@ export const TIPS: Tip[] = [
     roles: HANDLE,
     image: 'visit-slot-card',
     imageAlt: '案件頁右側的場次卡，有改到其他場次、家長管理連結與取消預約',
+    keywords: ['改時間', '換時間', '改約', '重約'],
   },
   {
     id: 'exclude',
@@ -246,6 +264,7 @@ export const TIPS: Tip[] = [
     roles: MANAGE,
     image: 'visit-exclude',
     imageAlt: '案件頁右側最下方的「標記為排除（測試或重複）…」連結',
+    keywords: ['刪除案件', '不計入', '假資料'],
   },
   {
     id: 'notifications',
@@ -259,6 +278,7 @@ export const TIPS: Tip[] = [
     to: { path: '/notifications', label: '站內通知' },
     image: 'notifications',
     imageAlt: '站內通知清單，未讀的通知前面有圓點，每列右邊有標記已讀',
+    keywords: ['鈴鐺', '未讀', '提醒'],
   },
   {
     id: 'export',
@@ -274,6 +294,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-requests', label: '參觀案件' },
     image: 'visit-export',
     imageAlt: '參觀案件頁首的「匯出 CSV」按鈕與匯出範圍說明',
+    keywords: ['下載', '報表', '名單', '試算表'],
   },
 
   // ── 參觀場次 ──
@@ -291,6 +312,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-calendar', label: '參觀場次' },
     image: 'calendar-day',
     imageAlt: '接待月曆點選某一天後，下方出現當天每一場的名額、停止申請與加開一場',
+    keywords: ['請假', '放假', '人數', '額滿', '關閉場次'],
   },
   {
     id: 'closure',
@@ -305,6 +327,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-calendar', label: '參觀場次' },
     image: 'calendar-tools',
     imageAlt: '接待月曆上方的「停班停課」與「匯入國定假日」按鈕',
+    keywords: ['颱風假', '放假', '連假', '天災'],
   },
   {
     id: 'slot-usage',
@@ -318,6 +341,7 @@ export const TIPS: Tip[] = [
     to: { path: '/visit-calendar', query: { tab: 'usage' }, label: '場次使用情況' },
     image: 'slot-usage',
     imageAlt: '參觀場次頁上方的「接待月曆」「場次使用情況」兩個分頁',
+    keywords: ['統計', '熱門'],
   },
 
   // ── 招生入學 ──
@@ -335,6 +359,7 @@ export const TIPS: Tip[] = [
     to: { path: '/admissions', label: '招生入學' },
     image: 'funnel-move',
     imageAlt: '漏斗看板的一張卡片，滑鼠移上去後右上角出現「移到…」',
+    keywords: ['階段', '拖曳', '拖拉'],
   },
   {
     id: 'journey',
@@ -349,6 +374,7 @@ export const TIPS: Tip[] = [
     to: { path: '/admissions', label: '招生入學' },
     image: 'journey',
     imageAlt: '右側打開的「參觀到入學」歷程，上方有記錄聯絡與排下次聯絡',
+    keywords: ['追蹤'],
   },
   {
     id: 'records-more',
@@ -363,6 +389,7 @@ export const TIPS: Tip[] = [
     to: { path: '/admissions', query: { tab: 'records' }, label: '訪視明細' },
     image: 'records-more',
     imageAlt: '訪視明細一列的「更多」選單展開，列出編輯、保留座位、退預繳',
+    keywords: ['退款', '修改', '保留名額'],
   },
   {
     id: 'stats-drill',
@@ -375,6 +402,7 @@ export const TIPS: Tip[] = [
     roles: [SA],
     feature: 'admissions',
     to: { path: '/admissions-stats', label: '招生統計' },
+    keywords: ['報表', '下載'],
   },
 
   // ── 官網內容 ──
@@ -392,6 +420,7 @@ export const TIPS: Tip[] = [
     to: { path: '/content/campus-news', label: '各校消息與活動' },
     image: 'live-preview',
     imageAlt: '內容編輯頁三欄：左邊段落目錄、中間表單、右邊官網手機版預覽',
+    keywords: ['手機版', '電腦版'],
   },
   {
     id: 'history',
@@ -405,6 +434,7 @@ export const TIPS: Tip[] = [
     roleNote: '還原並發布只有總管理者與校區管理者能做',
     image: 'history',
     imageAlt: '版本紀錄抽屜，選一版後列出還原後會改變的欄位，下方有還原成草稿與還原並發布',
+    keywords: ['復原', '回復', '救回', '舊版', '上一版'],
   },
   {
     id: 'schedule',
@@ -417,6 +447,7 @@ export const TIPS: Tip[] = [
     roles: MANAGE,
     image: 'schedule',
     imageAlt: '編輯頁上方的排程提示「已排定自動發布」與「取消排程」',
+    keywords: ['預約發布'],
   },
   {
     id: 'review',
@@ -430,6 +461,7 @@ export const TIPS: Tip[] = [
     roles: EDIT,
     image: 'review',
     imageAlt: '校區管理者打開待審內容，動作列有「退回」與「核准並發布」',
+    keywords: ['審稿', '駁回', '通過'],
   },
   {
     id: 'news-dates',
@@ -444,6 +476,7 @@ export const TIPS: Tip[] = [
     to: { path: '/content/campus-news', label: '各校消息與活動' },
     image: 'news-dates',
     imageAlt: '一則消息展開後最下方的上架日期與下架日期欄位',
+    keywords: ['公告', '置頂', '過期', '定時'],
   },
   {
     id: 'custom',
@@ -457,6 +490,7 @@ export const TIPS: Tip[] = [
     to: { path: '/content/campus-profile', label: '五校介紹' },
     image: 'custom',
     imageAlt: '五校介紹的家長影片區塊，寫著目前用官網內建影片，旁邊有「改成自訂」按鈕',
+    keywords: ['FB', 'IG', '臉書', 'YouTube'],
   },
   {
     id: 'focus',
@@ -470,6 +504,7 @@ export const TIPS: Tip[] = [
     to: { path: '/media', label: '素材庫' },
     image: 'focus',
     imageAlt: '素材編輯視窗裡的裁切焦點方塊，照片上有一個十字焦點',
+    keywords: ['圖片', '相片', '裁剪', '構圖'],
   },
   {
     id: 'picker-upload',
@@ -482,6 +517,7 @@ export const TIPS: Tip[] = [
     roles: EDIT,
     image: 'picker-upload',
     imageAlt: '選照片視窗右上角的「上傳新照片」按鈕',
+    keywords: ['圖片', '相片', '新增照片'],
   },
   {
     id: 'media-more',
@@ -496,6 +532,7 @@ export const TIPS: Tip[] = [
     to: { path: '/media', label: '素材庫' },
     image: 'media-more',
     imageAlt: '素材卡片的「更多」選單展開，列出替換、封存、刪除',
+    keywords: ['圖片', '相片', '換圖', '垃圾桶'],
   },
   {
     id: 'title-break',
@@ -510,6 +547,7 @@ export const TIPS: Tip[] = [
     to: { path: '/content/curriculum-page', label: '特色教學頁' },
     image: 'title-break',
     imageAlt: '特色教學頁的標題欄位，文字分成兩行',
+    keywords: ['斷行', '分行', '折行'],
   },
   {
     id: 'release-restore',
@@ -522,12 +560,13 @@ export const TIPS: Tip[] = [
     to: { path: '/releases', label: '發布紀錄' },
     image: 'release-restore',
     imageAlt: '發布紀錄一筆紀錄右下角的「整站還原到這次」',
+    keywords: ['復原', '回復', '救回', '版本'],
   },
 ]
 
-/** `mod+K` → ⌘K（Mac）或 Ctrl＋K。只換 mod，其他按鍵照寫。 */
+/** `mod+K` → ⌘K（Mac）或 Ctrl＋K；單獨的 `mod`（按住再點）→ ⌘ 或 Ctrl。只換 mod，其他按鍵照寫。 */
 export function formatKey(key: string, apple: boolean): string {
-  return key.replace(/mod\+?/g, apple ? '⌘' : 'Ctrl＋')
+  return key.replace(/mod(\+?)/g, (_match, plus: string) => (apple ? '⌘' : plus ? 'Ctrl＋' : 'Ctrl'))
 }
 
 export type TextPart = { kind: 'text' | 'key'; value: string }
@@ -541,6 +580,70 @@ export function splitKeys(text: string, apple: boolean): TextPart[] {
 
 export function stepText(step: string | TipStep): string {
   return typeof step === 'string' ? step : step.text
+}
+
+/** 有寫按鍵（反引號）的條目，搜「快捷鍵」「鍵盤」也要找得到：側欄搜尋就是用「快捷鍵」把人帶來這一頁的。 */
+export const KEY_TIP_KEYWORDS = ['快捷鍵', '鍵盤', '按鍵', '熱鍵']
+
+/** 一條小技巧裡搜得到的字（還沒正規化）：標題、步驟、keywords；按鍵 ⌘K 與 Ctrl＋K 兩種寫法都收。 */
+export function tipSearchParts(tip: Tip): string[] {
+  const texts = [tip.title, ...tip.steps.map(stepText)]
+  const plain = (text: string) => [true, false].map(apple => splitKeys(text, apple).map(part => part.value).join('')).join(' ')
+  return [...texts.map(plain), ...(tip.keywords ?? []), ...(texts.some(text => text.includes('`')) ? KEY_TIP_KEYWORDS : [])]
+}
+
+export type MatchPart = { value: string; hit: boolean }
+
+/**
+ * 把一段字裡符合搜尋字的地方拆出來（畫成 <mark>）。terms 是正規化過的搜尋字（NFKC、小寫）；
+ * 原文逐字正規化後比對，所以全形的「＋」「／」、大小寫不同也標得到，標的仍是原文的字。
+ */
+export function splitMatches(text: string, terms: readonly string[]): MatchPart[] {
+  if (!text) return []
+  const chars = Array.from(text)
+  const hit = new Array<boolean>(chars.length).fill(false)
+  if (terms.length) {
+    let normalized = ''
+    const owner: number[] = []
+    chars.forEach((char, index) => {
+      const folded = char.normalize('NFKC').toLowerCase()
+      normalized += folded
+      for (let i = 0; i < folded.length; i += 1) owner.push(index)
+    })
+    for (const term of terms) {
+      if (!term) continue
+      for (let at = normalized.indexOf(term); at >= 0; at = normalized.indexOf(term, at + term.length)) {
+        for (let i = at; i < at + term.length; i += 1) hit[owner[i]!] = true
+      }
+    }
+  }
+  const parts: MatchPart[] = []
+  chars.forEach((char, index) => {
+    const last = parts[parts.length - 1]
+    if (last && last.hit === hit[index]) last.value += char
+    else parts.push({ value: char, hit: hit[index]! })
+  })
+  return parts
+}
+
+/**
+ * 搜尋字只出現在步驟裡時，列在標題下面的那一句（以「。」分句，取第一句有搜尋字的）。
+ * 標題已經有全部搜尋字、或只對到 keywords／誰能用的，回 null。
+ */
+export function matchSnippet(title: string, steps: readonly string[], terms: readonly string[], apple: boolean): string | null {
+  if (!terms.length) return null
+  const fold = (text: string) => splitKeys(text, apple).map(part => part.value).join('').normalize('NFKC').toLowerCase()
+  const foldedTitle = fold(title)
+  const missing = terms.filter(term => !foldedTitle.includes(term))
+  if (!missing.length) return null
+  for (const step of steps) {
+    // 不用 lookbehind 分句：舊版 Safari 看到 (?<=) 整個檔會解析失敗。
+    for (const sentence of step.match(/[^。]+。?/g) ?? []) {
+      const folded = fold(sentence)
+      if (missing.some(term => folded.includes(term))) return sentence.trim()
+    }
+  }
+  return null
 }
 
 export const IS_APPLE = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)

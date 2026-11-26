@@ -1,15 +1,18 @@
-"""Meta Graph API 的最小用法：換 Page token、讀粉專貼文與粉專連結的 Instagram 貼文、下載貼文照片與影片。
+"""Meta Graph API 的最小用法：換 Page token、讀粉專貼文與粉專連結的 Instagram 貼文、下載貼文照片與影片、
+讀粉專即時表單的名單。
 
 token 只放在 Authorization header 送給 graph.facebook.com，不放網址（httpx 的 INFO 紀錄會印完整
 網址，2026-11-10 本機實測曾因此把 token 寫進 log），也不寫進任何例外訊息：
 GraphError 只帶 HTTP 狀態與 Meta 的錯誤代碼（docs/specs/2026-10-28-facebook-news-sync-design.md §4）。
-Instagram 用同一把 Page token（docs/specs/2026-11-12-external-integrations-design.md §2）。"""
+Instagram 與即時表單名單都用同一把 Page token（docs/specs/2026-11-12-external-integrations-design.md §2、
+docs/specs/2026-11-26-meta-lead-inbox-design.md）。"""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
 import hmac
+import json
 import re
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -272,6 +275,133 @@ async def instagram_media(
             source="instagram",
         ))
     return posts
+
+
+# ── 即時表單名單（docs/specs/2026-11-26-meta-lead-inbox-design.md）──────────────────────────
+# token 要有 leads_retrieval（讀名單）與 pages_manage_ads（讀表單清單）。
+
+LEADGEN_FORM_FIELDS = "id,name"
+LEAD_FIELDS = "id,created_time,field_data,form_id,ad_id,campaign_id,platform,is_organic"
+_PAGE_LIMIT = 100
+# 表單、名單、廣告、行銷活動的 ID 都是純數字；ID 會放進網址路徑，格式不對就當沒有。
+_GRAPH_ID = re.compile(r"[0-9]{1,32}")
+_MAX_LEAD_FIELDS = 30
+_MAX_FIELD_NAME = 200
+_MAX_FIELD_ANSWER = 500
+
+
+@dataclass(frozen=True)
+class GraphLeadForm:
+    form_id: str
+    name: str | None
+
+
+@dataclass(frozen=True)
+class GraphLead:
+    lead_id: str
+    form_id: str
+    created_at: datetime
+    # field_data 照原順序：(欄位名稱, 回答)；多選的回答用「、」接起來。
+    fields: tuple[tuple[str, str], ...]
+    ad_id: str | None = None
+    campaign_id: str | None = None
+    platform: str | None = None
+    is_organic: bool | None = None
+
+
+def _graph_id(value: object) -> str | None:
+    return value if isinstance(value, str) and _GRAPH_ID.fullmatch(value) else None
+
+
+async def _paged_rows(
+    client: httpx.AsyncClient, settings: Settings, step: str, path: str, params: dict[str, str], token: str,
+    max_rows: int,
+) -> list[dict]:
+    """跟著 paging.cursors.after 往下讀，到沒有下一頁或讀滿 max_rows 為止。不用回應裡 paging.next
+    的完整網址：那個網址可能帶 token，而且會把請求送去回應指定的地方。"""
+    rows: list[dict] = []
+    after: str | None = None
+    while len(rows) < max_rows:
+        page = {
+            **params,
+            "limit": str(min(_PAGE_LIMIT, max_rows - len(rows))),
+            **({"after": after} if after else {}),
+            **_proof_params(settings, token),
+        }
+        data = await _get_json(client, step, _graph_url(settings, path), page, token)
+        batch = data.get("data")
+        if not isinstance(batch, list):
+            raise GraphError(step, status=200, reason="格式不對")
+        rows += [row for row in batch if isinstance(row, dict)]
+        paging = data.get("paging")
+        cursors = paging.get("cursors") if isinstance(paging, dict) else None
+        next_after = cursors.get("after") if isinstance(cursors, dict) else None
+        has_next = isinstance(paging, dict) and bool(paging.get("next"))
+        if not (has_next and isinstance(next_after, str) and next_after and next_after != after):
+            break
+        after = next_after
+    return rows[:max_rows]
+
+
+async def leadgen_forms(client: httpx.AsyncClient, settings: Settings, page_id: str, token: str) -> list[GraphLeadForm]:
+    """粉專的即時表單清單（Graph 預設回的那些；名單逐張表單讀）。"""
+    rows = await _paged_rows(
+        client, settings, "讀取即時表單", f"{page_id}/leadgen_forms", {"fields": LEADGEN_FORM_FIELDS}, token, 500
+    )
+    forms: list[GraphLeadForm] = []
+    for row in rows:
+        form_id = _graph_id(row.get("id"))
+        if form_id is None:
+            continue
+        name = row.get("name")
+        forms.append(GraphLeadForm(form_id, name[:200] if isinstance(name, str) and name.strip() else None))
+    return forms
+
+
+def _field_data(raw: object) -> tuple[tuple[str, str], ...]:
+    """[{"name": ..., "values": [...]}] → ((名稱, 回答), ...)；格式不對的欄位略過，長度截斷。"""
+    fields: list[tuple[str, str]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if len(fields) >= _MAX_LEAD_FIELDS:
+            break
+        if not isinstance(item, dict) or not isinstance(item.get("name"), str):
+            continue
+        values = item.get("values")
+        answers = [value.strip() for value in values if isinstance(value, str) and value.strip()] if isinstance(values, list) else []
+        name = item["name"].strip()[:_MAX_FIELD_NAME]
+        if name:
+            fields.append((name, "、".join(answers)[:_MAX_FIELD_ANSWER]))
+    return tuple(fields)
+
+
+async def form_leads(
+    client: httpx.AsyncClient, settings: Settings, form_id: str, token: str, *, since: datetime | None, max_rows: int
+) -> list[GraphLead]:
+    """這張表單在 since 之後收到的名單（since 是 None 就是全部，Meta 只留 90 天）。"""
+    params = {"fields": LEAD_FIELDS}
+    if since is not None:
+        params["filtering"] = json.dumps(
+            [{"field": "time_created", "operator": "GREATER_THAN", "value": int(since.timestamp())}]
+        )
+    rows = await _paged_rows(client, settings, "讀取名單", f"{form_id}/leads", params, token, max_rows)
+    leads: list[GraphLead] = []
+    for row in rows:
+        lead_id, created_at = _graph_id(row.get("id")), _parse_time(row.get("created_time"))
+        if lead_id is None or created_at is None:
+            continue
+        platform = row.get("platform")
+        is_organic = row.get("is_organic")
+        leads.append(GraphLead(
+            lead_id=lead_id,
+            form_id=form_id,
+            created_at=created_at,
+            fields=_field_data(row.get("field_data")),
+            ad_id=_graph_id(row.get("ad_id")),
+            campaign_id=_graph_id(row.get("campaign_id")),
+            platform=platform[:16] if isinstance(platform, str) and platform else None,
+            is_organic=is_organic if isinstance(is_organic, bool) else None,
+        ))
+    return leads
 
 
 # 貼文照片與影片的下載白名單：Facebook 的 fbcdn.net，Instagram 的 cdninstagram.com（有些 Instagram

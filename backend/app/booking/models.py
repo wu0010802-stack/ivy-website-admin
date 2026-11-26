@@ -240,7 +240,8 @@ class VisitRequest(Base):
     # 2026-11-16 網站來源（docs/specs/2026-11-16-cookie-features-design.md §1，app/booking/attribution.py）：
     # 官網送單時從第一方 cookie ivy_src 讀出「第一次進站」與「預約前最後一次不是直接進站」的來源代碼、
     # 活動代碼（utm_campaign）與日期。只有代碼，不存網址；訪客開了 DNT／GPC、人工補登、
-    # 2026-11-16 以前的案件都是 NULL。不是個資，匿名化不清。
+    # 2026-11-16 以前的案件都是 NULL。例外：從後台「廣告名單」轉成的補登案件（2026-11-26，
+    # app/meta_leads/）寫來源 ads、平台 meta、日期是家長送出 Meta 表單那天，活動代碼留空。不是個資，匿名化不清。
     first_touch_source: Mapped[str | None] = mapped_column(String(16), nullable=True)
     first_touch_campaign: Mapped[str | None] = mapped_column(String(32), nullable=True)
     first_touch_on: Mapped[date_ | None] = mapped_column(Date, nullable=True)
@@ -252,6 +253,7 @@ class VisitRequest(Base):
     last_touch_ad_platform: Mapped[str | None] = mapped_column(String(8), nullable=True)
     # 到場、預繳回傳廣告平台用的點擊識別碼（同規格 §2，app/ad_conversions/）：GA4 client_id、
     # Meta fbc／fbp、OpenAI oppref／obref。只有該平台設了伺服器端金鑰才記；匿名化時清掉。
+    # 從「廣告名單」轉成的案件另有 meta_lead_id（Meta 名單編號，回傳時送 user_data.lead_id）。
     ad_click_ids: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 2026-11-25 家長在 LINE 參觀提醒按「會準時到」（docs/specs/2026-11-25-line-more-features-design.md §7）：
     # 按的時間與當時的場次。改期後場次對不上就不算（parent_attendance_confirmed_at），不必改每條改期路徑。

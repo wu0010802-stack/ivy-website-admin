@@ -39,6 +39,7 @@ from app.booking.schedule_routes import router as booking_schedule_router
 from app.campuses.routes import router as campuses_router
 from app.contact_phrases.routes import router as contact_phrases_router
 from app.facebook.routes import router as facebook_router
+from app.meta_leads.routes import router as meta_leads_router
 from app.insights.crux import CruxHistory
 from app.insights.ga4_ads import Ga4Ads
 from app.insights.google_data_routes import router as google_data_router
@@ -63,6 +64,7 @@ from app.workers.geo_loop import GeoSyncLoop
 from app.workers.google_loop import GoogleSyncLoop
 from app.workers.maintenance import MaintenanceLoop
 from app.workers.media_loop import MediaJobLoop
+from app.workers.meta_leads_loop import MetaLeadSyncLoop
 
 logger = logging.getLogger("app")
 
@@ -210,6 +212,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 app.state.session_factory, settings, interval_seconds=settings.facebook_sync_seconds
             )
             app.state.facebook_sync.start()
+        # Meta 名單型廣告的名單（app/workers/meta_leads_loop.py）；WEBSITE_META_LEADS_ENABLED 開著才跑。
+        if settings.meta_leads_sync_enabled:
+            app.state.meta_leads_sync = MetaLeadSyncLoop(
+                app.state.session_factory, settings, interval_seconds=settings.meta_leads_sync_seconds
+            )
+            app.state.meta_leads_sync.start()
         # Google 商家檔案與 Keyword Planner（app/workers/google_loop.py）；任一個設定好才跑。
         if settings.gbp_enabled or settings.google_ads_enabled:
             app.state.google_sync = GoogleSyncLoop(
@@ -223,7 +231,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # 的影片放回佇列，下一個程序馬上接手（不算一次嘗試）；兩者都停了才停 maintenance。
             stops = [
                 loop.stop()
-                for loop in (app.state.geo_sync, app.state.facebook_sync, app.state.google_sync, app.state.media_jobs)
+                for loop in (
+                    app.state.geo_sync, app.state.facebook_sync, app.state.meta_leads_sync,
+                    app.state.google_sync, app.state.media_jobs,
+                )
                 if loop is not None
             ]
             for outcome in await asyncio.gather(*stops, return_exceptions=True):
@@ -250,6 +261,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.media_jobs = None
     app.state.geo_sync = None
     app.state.facebook_sync = None
+    app.state.meta_leads_sync = None
     app.state.google_sync = None
     app.state.facebook_transport = None
     # Search Console 與 CrUX（app/insights）：權杖與結果快取各自在這兩個物件裡，測試注入 google_transport。
@@ -320,6 +332,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(analytics_more_router)
     app.include_router(contact_phrases_router)
     app.include_router(facebook_router)
+    app.include_router(meta_leads_router)
     app.include_router(insights_router)
     app.include_router(google_data_router)
     if settings.admissions_enabled:

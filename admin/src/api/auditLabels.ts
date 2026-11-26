@@ -117,6 +117,8 @@ export const AUDIT_HIDDEN_METADATA_KEYS = new Set([
   'requested_slot_id',
   'related_request_id',
   'visit_request_id',
+  // 從廣告名單補登（visit_request.manual_create）：來源 Meta 名單的編號。
+  'meta_lead_id',
   'restored_from_release_id',
   'content_type',
   'verification_code_id',
@@ -283,6 +285,8 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 立即同步 Facebook 貼文（facebook_posts.sync）。
   synced_posts: (v) => `讀到 ${countOf(v)} 則貼文`,
   sync_failed: (v) => (v ? '同步失敗' : null),
+  // 立即同步廣告名單（meta_leads.sync）：這次新讀到幾筆名單（sync_failed 與上面同一個）。
+  new_leads: (v) => `新增 ${countOf(v)} 筆廣告名單`,
   // 同一次同步裡 Instagram 那一段（WEBSITE_INSTAGRAM_ENABLED 開著才有這兩個鍵）。
   instagram_posts: (v) => `讀到 ${countOf(v)} 則 Instagram 貼文`,
   instagram_failed: (v) => (v ? 'Instagram 同步失敗' : null),
