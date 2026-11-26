@@ -1,3 +1,20 @@
+## 2026-11-26 資安檢查與六項修正（`claude/confident-faraday-wc9bn2`，未合併、未部署）
+
+使用者要「全方面的資安檢查」。對 `main` `a24df7f`（11-19 審查 `14900354` 之後 97 個提交）分六路唯讀檢查：登入與 session、公開預約、後台資料權限、素材與內容、web 伺服器與兩個前端、外部串接與 webhook。另外看了依賴套件、機密外洩與 CI。**沒有嚴重、高或中風險**；`npm audit`（web、admin、根目錄，含開發依賴）與 `pip-audit` 都是 0；檔案與 git 歷史裡沒有真的金鑰或真實家長個資（repo 是公開的）。使用者看過報告說「好」，修了建議先修的六項（都是低風險，每條在原版程式上先確認測試會失敗）：
+
+- **網站來源 cookie 結尾換行造成 500**（`backend/app/booking/attribution.py`）：驗證用 `re.match`＋`$`，會放過結尾的 `\n`。32 字的活動代碼加換行寫進 `String(32)` 欄位時資料庫回「value too long」，匿名訪客就能讓送單 500、建錯誤群組並推播總管理者，還佔住 11-19 才分出來的 API 錯誤推播節流。全部改 `fullmatch`。
+- **LINE 通知型訊息：電話更正作廢連結**（`booking/workflow_service.py` `_phone_carried_link`、`notifications/line_pnp.py`）：打錯的電話收到通知型訊息時，按鈕裡的修改連結就在陌生人手上，陌生人還能用它把自己的 LINE 綁上來、從此收走所有通知；原本只有改 Email 會作廢連結。現在沒留 Email、送過通知型訊息（LINE 沒回「收不到」）的預約改了電話，舊連結與家長 session 一律作廢、家長 LINE 綁定解除。家長自己改的保留正在用的 session、換發新連結隨變更通知送到新電話；園方改的只作廢（後台照既有文字提示「原本的連結已失效，請重新產生」）。沒送過通知型訊息的預約（正式站目前全是）改電話照舊不動連結。
+- **LINE 通知型訊息：家長觸發的每案每日上限**（`line_pnp.PARENT_DAILY_CAP`＝3、`booking/outbox.py` 的 `by_parent`）：家長在修改頁一直改電話，一筆預約一天能讓官方帳號對十幾支任意號碼發「預約完成通知」；規格 3.4 寫「一個電話一天最多送幾則」但沒做。現在家長自己觸發的（送出、改資料、改期、取消）每案 24 小時最多 3 則；園方與系統的通知不受影響，變更信去重只併同一種來源。outbox payload 多一個 `by_parent: true`（不是個資）。通知型訊息目前還沒在正式站開，這兩項要在開之前就位。規格 `docs/specs/2026-11-25-line-notification-messages-research.md` 3.4 已改寫。
+- **LINE 群組被移出後又回來**（`notifications/line_routes.py` `_is_rejoin`、`_reset_rejoined_group`）：11-19 只解除校區綁定，驗證紀錄與群組名都留著，後台照樣顯示「已驗證」與離開前的名稱，總管理者不用新驗證碼就能再綁校區或設總部群組。現在回來時一併清掉驗證紀錄與名稱（重新向 LINE 取）、取消總部群組。另外離開的 webhook 漏收（部署重啟時回 5xx、同批事件出錯整批回滾）時，拉回來的 `join` 原本什麼都不解除；現在收到 `join` 就當作回來，只有 LINE 標 `isRedelivery` 的舊 `join` 不算。
+- **ffmpeg 錯誤輸出不再整段留在記憶體**（`media/metadata.py` 去除拍攝資訊、`media/processing.py` 抽 poster 與兩支 ffprobe）：原本 `capture_output=True`，特製影片（大量壞掉的小樣本）在 `-loglevel error` 下實測 1.3 MB 的檔 2 秒印 13.7 MB，150 MB 的檔推估在逾時前累積數百 MB，可能讓單一 API 程序被砍、預約一起停（要內容編輯以上的帳號才能上傳）。去除拍攝資訊的輸出直接丟掉；抽 poster 改用 `run_keeping_stderr_tail`（邊讀邊丟，只留最後 4 KB 給錯誤訊息）；ffprobe 的錯誤輸出丟掉、stdout 只有一條影像軌的幾個欄位。
+- **外站網頁不能把同一個 IP 的登入額度用光**（`auth/oauth_common.py` `started_from_another_site`、`auth/google.py`、`auth/line.py`）：Google／LINE 的登入起點與 callback 和密碼登入共用「每個來源 5 分鐘 100 次」，外站網頁在員工的瀏覽器裡用 `<img>` 打一百次，同一個 IP 的人密碼、Google、LINE 都登不進來。現在 `Sec-Fetch-Site: cross-site`／`same-site` 的起點直接回失敗、不計數（也順帶擋掉從外站連結預先勾好「記住這台裝置」）；沒有握手的 callback 本來就不打外部、不寫稽核，改成也不計數。有握手的 callback 照舊計數。
+
+沒有 migration，API 契約不變（`npm run contract:check` 通過）；web、admin 沒有改動。
+
+檢查報告列了、這次沒修的（都是低風險或資訊級）：內容編輯能在排程發布前改素材替代文字與焦點（`media/routes.py:661` 只看目前上線版本）；「找不到的網址」每日 300 個名額可被匿名回報或假冒爬蟲灌滿；園務同步偽造游標帶極端時間回 500（要有金鑰）；公開頁 CSP 會替文案欄位 attribute 裡的 `<script>` 算雜湊；`/preview` 在後台主機上卻放行第三方分析腳本網域；登出後推播仍送到這台瀏覽器；後台主機轉址遇到非 ASCII 路徑 500；另有約 15 條強化建議（幾個機密設定沒標 `repr=False`、Google OAuth state 不是一次性等）。**要在正式站實測一次**：直接連線自帶 `CF-Connecting-IP` 時 Railway 給的 `X-Real-IP` 會不會被換成那個值（會的話訪客能自選限流與操作紀錄的 IP；11-12 的實測沒涵蓋這個情況）。平台面仍待處理：資料庫沒有自動備份（Railway PITR 沒開）、後台沒有兩步驟驗證。
+
+驗證（本機 PostgreSQL 16、Python 3.11）：直接相關的 10 個測試檔 299 項通過；後端全套結果見下一個提交；新測試在 `backend/tests/test_security_review_20261126.py` 與 `test_line_pnp.py`、`test_google_oauth.py`、`test_line_oauth.py`、`test_secfix_media.py`；`npm run contract:check` 通過。
+
 ## 2026-11-26 後台營運總覽 UI/UX 優化（`claude/laughing-shannon-ucwh7s`，未合併、未部署）
 
 使用者：「可以優化後台營運總覽的 uiux 嗎」。結構照 10-06「今天的行程板」（A 方向）不動，只修現況截圖（假 API，總管理者與櫃台，1440／1280／390）看到的問題。規則補在 DESIGN.md「官網後台總覽：今天的行程板」的「2026-11-26 調整」。只改 `admin/src/views/DashboardView.vue`，沒有後端、契約、migration 變動。

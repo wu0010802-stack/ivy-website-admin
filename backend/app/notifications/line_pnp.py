@@ -18,9 +18,9 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.outbox import (
@@ -128,6 +128,42 @@ def reachable(visit_request, campuses: set[str]) -> bool:
         and visit_request.campus_key in campuses
         and line_api.tw_mobile_e164(visit_request.phone) is not None
     )
+
+
+# 家長自己觸發的通知型訊息（送出、改資料、改期、取消），每案 24 小時內最多送幾則（2026-11-26 資安檢查）。
+# 家長可以改預約上的電話：沒有上限時，一筆沒留 Email 的預約每天改十次電話、改期五次，就能讓官方帳號對十幾支
+# 任意號碼發「預約完成通知」（規格 3.4 說靠「一個電話一天最多送幾則」擋，但當時沒做）。正常家長一天內送出、
+# 改期一兩次就到頂了；園方與系統的通知（改期、取消、提醒、停課）不算在內，也不受這個上限影響。
+PARENT_DAILY_CAP = 3
+PARENT_CAP_WINDOW = timedelta(hours=24)
+
+
+async def parent_daily_cap_reached(
+    db: AsyncSession, visit_request_id: uuid.UUID, outbox_message_id: uuid.UUID, *, now: datetime | None = None
+) -> bool:
+    """這筆預約 24 小時內已經送過 PARENT_DAILY_CAP 則通知型訊息（不論是誰觸發、結果如何；這則自己不算）。"""
+    since = (now or datetime.now(timezone.utc)) - PARENT_CAP_WINDOW
+    sent = await db.scalar(
+        select(func.count())
+        .select_from(LinePnpMessage)
+        .where(
+            LinePnpMessage.visit_request_id == visit_request_id,
+            LinePnpMessage.outbox_message_id != outbox_message_id,
+            LinePnpMessage.attempted_at > since,
+        )
+    )
+    return (sent or 0) >= PARENT_DAILY_CAP
+
+
+async def link_may_have_reached_phone(db: AsyncSession, visit_request_id: uuid.UUID) -> bool:
+    """這筆預約送過可能送達的通知型訊息（LINE 沒有回「這支電話收不到」）：修改連結可能在那支電話的 LINE 裡。
+    電話更正時要據此作廢舊連結（workflow_service；2026-11-26 資安檢查）。"""
+    found = await db.scalar(
+        select(LinePnpMessage.id)
+        .where(LinePnpMessage.visit_request_id == visit_request_id, LinePnpMessage.rejected_at.is_(None))
+        .limit(1)
+    )
+    return found is not None
 
 
 async def already_attempted(db: AsyncSession, outbox_message_id: uuid.UUID) -> bool:

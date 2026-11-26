@@ -27,7 +27,7 @@ from app.auth import service
 from app.auth.deps import SESSION_COOKIE_NAME, get_current_session, get_current_user, get_db_session
 from app.auth.models import Session as AuthSession
 from app.auth.models import User
-from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path
+from app.auth.oauth_common import OAUTH_TTL_SECONDS, private, safe_admin_path, started_from_another_site
 from app.auth.reauth import require_recent_auth
 from app.auth.routes import _set_session_cookie, login_audit_metadata
 from app.auth.schemas import LineLinkStart, ReauthRequest
@@ -185,6 +185,8 @@ async def line_login(request: Request, redirect: str | None = None, remember: bo
     """remember＝登入頁勾了「記住這台裝置」，放進簽章過的握手，callback 照著建 30 天的 session。"""
     if request.app.state.line_oauth is None:
         return _login_failure("line_unavailable")
+    if started_from_another_site(request):
+        return _login_failure("line_failed")
     try:
         await service.check_login_source_rate_limit(limiter(request), client_key(request))
     except service.LoginRateLimited:
@@ -249,14 +251,20 @@ async def line_unlink(
 @router.get("/line/callback", response_class=RedirectResponse, status_code=303)
 async def line_callback(request: Request, db: AsyncSession = Depends(get_db_session)) -> Response:
     handshake = _load_handshake(request)
-    try:
-        # 比照 Google：callback 也算一次登入嘗試，計入來源限流。
-        await service.check_login_source_rate_limit(limiter(request), client_key(request))
-    except service.LoginRateLimited:
-        linking = handshake is not None and handshake["mode"] == "link"
-        response = _link_result("failed") if linking else _login_failure("rate_limited")
+    if handshake is None:
+        # 沒有握手（另一個瀏覽器發起、已過期或根本沒走 /line/login）：_complete 不打 LINE、不寫稽核就回失敗。
+        # 這種請求不計入來源限流：外站網頁可以用 <img> 一直打這支，計入的話會把同一個 IP 的登入額度用光
+        # （2026-11-26 資安檢查）。
+        response = await _complete(request, db, None)
     else:
-        response = await _complete(request, db, handshake)
+        try:
+            # 比照 Google：有握手的 callback 算一次登入嘗試，計入來源限流。
+            await service.check_login_source_rate_limit(limiter(request), client_key(request))
+        except service.LoginRateLimited:
+            linking = handshake["mode"] == "link"
+            response = _link_result("failed") if linking else _login_failure("rate_limited")
+        else:
+            response = await _complete(request, db, handshake)
     response.delete_cookie(HANDSHAKE_COOKIE, **_cookie_options(request.app.state.settings))
     return private(response)
 

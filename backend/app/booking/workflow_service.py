@@ -85,6 +85,11 @@ async def _close(
     )
 
 
+def _by_parent(actor: Actor | None) -> bool:
+    """家長自己的動作（官網修改頁、LINE 一對一）：家長通知的通知型訊息要套每案每日上限（outbox.enqueue_parent_email）。"""
+    return actor is not None and actor.source in (PARENT.source, Actor.line_parent().source)
+
+
 async def cancel(
     db: AsyncSession, visit_request: VisitRequest, *, actor: Actor | None = None, reason: str | None = None
 ) -> VisitRequest:
@@ -110,7 +115,7 @@ async def cancel(
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
     if visit_request.slot_id is not None:
-        await enqueue_parent_email(db, visit_request, PARENT_VISIT_CANCELLED)
+        await enqueue_parent_email(db, visit_request, PARENT_VISIT_CANCELLED, by_parent=_by_parent(actor))
     await analytics_service.record_cancelled(db, visit_request, reason=reason_code)
     await db.flush()
     return visit_request
@@ -269,7 +274,7 @@ async def reschedule(
         "visit_request_rescheduled",
         {"campus_key": visit_request.campus_key, "receipt_id": str(visit_request.id)},
     )
-    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED, by_parent=_by_parent(actor))
     await db.flush()
     return visit_request
 
@@ -358,7 +363,19 @@ async def details_version(db: AsyncSession, visit_request_id: uuid.UUID) -> int:
     return 1 + int(count or 0)
 
 
-async def _reset_access_after_email_change(
+async def _phone_carried_link(db: AsyncSession, visit_request: VisitRequest, changed: list[str], old_email) -> bool:
+    """沒留 Email 的預約改了電話，而舊電話收過通知型訊息（line_pnp）：修改連結可能在舊電話的 LINE 裡，
+    要比照 Email 更正作廢（2026-11-26 資安檢查）。電話打錯時，通知型訊息會送到陌生人的 LINE，按鈕就是
+    修改連結；原本只有改 Email 會作廢連結，改正電話之後陌生人照樣看得到資料、能改期取消，還能把自己的 LINE
+    綁上來、從此收走所有通知。有留 Email 的預約不送通知型訊息，改電話不影響連結。"""
+    if "phone" not in changed or old_email:
+        return False
+    from app.notifications import line_pnp
+
+    return await line_pnp.link_may_have_reached_phone(db, visit_request.id)
+
+
+async def _reset_access_after_contact_change(
     db: AsyncSession,
     visit_request: VisitRequest,
     *,
@@ -367,19 +384,26 @@ async def _reset_access_after_email_change(
     slot: VisitSlot | None,
     reissue: bool,
     keep_session_id: str | None = None,
+    unlink_line: bool | None = None,
 ) -> bool:
-    """原本有值的 Email 被改掉（改成別的或清空）：舊收件人手上的家長連結與 session 一律作廢
+    """收過修改連結的聯絡方式被改掉：原本有值的 Email 改成別的或清空，或沒留 Email 的預約改了收過通知型訊息的
+    電話（_phone_carried_link）。舊收件人手上的家長連結與 session 一律作廢
     （2026-10-13 審查）。連結寄到打錯的信箱時，改正之後那條連結不能還看得到電話、孩子資料，也不能拿來
     取消或改期。
+
+    unlink_line：要不要一起解除家長 LINE 綁定；沒指定時園方更正（keep_session_id 為 None）才解除。
 
     只要 Email 改掉就無條件撤銷案件所有的連結與 session，不看「目前有沒有有效連結」：連結已到期、
     但兩小時的 session 還活著時，誤寄的收件人仍讀得到更正後的資料。有連結而且 reissue 時，換發一條新的
     （信在寄件當下重算，寄到新信箱的就是新連結），其餘只撤銷。keep_session_id 是家長自己更正時正在用的
     session，不撤銷。呼叫端已持有案件列鎖。回傳作廢前是否有有效連結。"""
     had_link = await access_service.active_access_token(db, visit_request.id) is not None
-    if keep_session_id is None:
+    if unlink_line is None:
+        unlink_line = keep_session_id is None
+    if unlink_line:
         # 園方更正 Email（連結寄錯信箱）：拿到那條連結的人可能已經綁了 LINE，一起解除（2026-11-16 審查）。
-        # 家長自己改 Email（keep_session_id）時，他的 LINE 是他自己綁的，不動。
+        # 家長自己改 Email（keep_session_id）時，他的 LINE 是他自己綁的，不動。電話更正一律解除：送通知型訊息
+        # 的當下這筆預約沒有綁 LINE，之後才綁的可能是收到誤送連結的陌生人。
         from app.notifications import line_parent
 
         await line_parent.unlink(db, visit_request.id)
@@ -441,11 +465,12 @@ async def update_details_by_parent(
     if (edits_today or 0) >= access_service.PARENT_EDITS_PER_DAY:
         raise ParentEditLimitReached()
     old_email = visit_request.email
+    phone_carried_link = await _phone_carried_link(db, visit_request, changed, old_email)
     for field in changed:
         setattr(visit_request, field, changes[field])
     history.record_event(db, visit_request.id, "details_updated", actor=PARENT, after={"fields": changed})
-    if "email" in changed and old_email:
-        await _reset_access_after_email_change(
+    if ("email" in changed and old_email) or phone_carried_link:
+        await _reset_access_after_contact_change(
             db,
             visit_request,
             actor=PARENT,
@@ -453,13 +478,14 @@ async def update_details_by_parent(
             slot=await history.load_slot(db, visit_request.slot_id),
             reissue=True,
             keep_session_id=keep_session_id,
+            unlink_line=True if phone_carried_link else None,
         )
         # 舊信箱也要知道（2026-10-22 資安稽核）：外流的修改連結能把 Email 改成別人的，之後的信
         # 和新連結都只寄到新信箱，原家長毫無線索。只改大小寫不算換人。後台改 Email 不通知舊信箱
         # （見 update_details_by_staff），那是在更正打錯的信箱。
-        if old_email.casefold() != (visit_request.email or "").casefold():
+        if "email" in changed and old_email and old_email.casefold() != (visit_request.email or "").casefold():
             enqueue_email_changed_notice(db, visit_request, old_email)
-    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED)
+    await enqueue_parent_email(db, visit_request, PARENT_VISIT_CHANGED, by_parent=True)
     await db.flush()
     return changed
 
@@ -508,7 +534,8 @@ async def update_details_by_staff(
     （2026-10-13）：補登打錯信箱時，連結已經寄到陌生人手上，改正之後那條連結不能還看得到
     電話、孩子資料，也不能拿來取消或改期。會寄變更信時換發一條新的（信在寄件當下重算，
     寄到新信箱的就是新連結；access_secret 由路由傳入），其他情況只撤銷，園方需要時再
-    「重新產生」。原本沒有 Email（連結是園方直接交給家長的）不動。
+    「重新產生」。原本沒有 Email（連結是園方直接交給家長的）時改 Email 不動；但改了收過通知型訊息的
+    電話時一樣作廢、並解除家長 LINE 綁定（_phone_carried_link，2026-11-26 資安檢查）。
     admissions_enabled 時，同一個交易把招生訪視上仍是當初帶過去的值一起改
     （booking_link.sync_from_visit_request）。"""
     # 函式內匯入：admissions 模組在載入時會匯入 booking，避免循環匯入。
@@ -530,6 +557,7 @@ async def update_details_by_staff(
         return StaffDetailsResult()
     old = {f: getattr(visit_request, f) for f in _ADMISSIONS_SOURCE_FIELDS}
     old_email = visit_request.email
+    phone_carried_link = await _phone_carried_link(db, visit_request, changed, old_email)
     for name in changed:
         setattr(visit_request, name, changes[name])
     history.record_event(db, visit_request.id, "details_updated", actor=actor, after={"fields": changed})
@@ -539,8 +567,11 @@ async def update_details_by_staff(
     if "email" in changed and visit_request.email and visit_request.status == VisitRequestStatus.CONFIRMED.value:
         slot = await history.load_slot(db, visit_request.slot_id)
         notify = slot is None or not slot_service.has_started(slot)
-    if "email" in changed and old_email:
-        result.access_link_reset = await _reset_access_after_email_change(
+    # 更正收過通知型訊息的電話（phone_carried_link，2026-11-26 資安檢查）也作廢連結、解除 LINE 綁定。只改電話時
+    # 不自動送到新電話（notify 只在同時補上 Email 時成立，新連結跟著變更信寄到新信箱）；後台照「原本的連結已失效」
+    # 提示園方，要給家長連結時到「家長管理連結」重新產生。
+    if ("email" in changed and old_email) or phone_carried_link:
+        result.access_link_reset = await _reset_access_after_contact_change(
             db, visit_request, actor=actor, secret=access_secret, slot=slot, reissue=notify
         )
     if notify:

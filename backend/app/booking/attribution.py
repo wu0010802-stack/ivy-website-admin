@@ -92,13 +92,13 @@ def _touch(raw: object) -> Touch | None:
     if not isinstance(raw, dict):
         return None
     source, campaign, day = raw.get("s"), raw.get("c"), raw.get("d")
-    if source not in ENGAGEMENT_SOURCES or not isinstance(day, str) or not _DAY.match(day):
+    if source not in ENGAGEMENT_SOURCES or not isinstance(day, str) or not _DAY.fullmatch(day):
         return None
     try:
         on = date.fromisoformat(day)
     except ValueError:
         return None
-    if campaign is not None and not (isinstance(campaign, str) and _CAMPAIGN.match(campaign)):
+    if campaign is not None and not (isinstance(campaign, str) and _CAMPAIGN.fullmatch(campaign)):
         campaign = None
     platform = raw.get("p")
     if source != "ads" or not isinstance(platform, str) or platform not in AD_PLATFORMS:
@@ -110,7 +110,7 @@ def _click(raw: object, pattern: re.Pattern[str]) -> ClickToken | None:
     if not isinstance(raw, dict):
         return None
     value, at = raw.get("v"), raw.get("t")
-    if not isinstance(value, str) or not pattern.match(value):
+    if not isinstance(value, str) or not pattern.fullmatch(value):
         return None
     if isinstance(at, bool) or not isinstance(at, int) or not 1_000_000_000_000 <= at <= 99_999_999_999_999:
         return None
@@ -151,28 +151,28 @@ def click_ids(
 ) -> dict | None:
     """只記已設定伺服器端金鑰的平台要用的識別碼；一個都沒有回 None。"""
     ids: dict[str, str] = {}
-    if "ga4" in platforms and (match := _GA_COOKIE.match(cookies.get("_ga", ""))):
+    if "ga4" in platforms and (match := _GA_COOKIE.fullmatch(cookies.get("_ga", ""))):
         ids["ga_client_id"] = match.group(1)
     if "meta" in platforms:
         fbc = cookies.get("_fbc", "")
-        if _FBC.match(fbc):
+        if _FBC.fullmatch(fbc):
             ids["fbc"] = fbc
         elif site and site.fbclid and now - site.fbclid.at <= FBCLID_MAX_AGE:
             # Meta Pixel 沒載入（例如進站後很快就換頁）時沒有 _fbc；照 Meta 的格式用落地時的 fbclid 自己組。
             ids["fbc"] = f"fb.1.{int(site.fbclid.at.timestamp() * 1000)}.{site.fbclid.value}"
         fbp = cookies.get("_fbp", "")
-        if _FBP.match(fbp):
+        if _FBP.fullmatch(fbp):
             ids["fbp"] = fbp
     if "openai" in platforms:
         if site and site.oppref and now - site.oppref.at <= OPPREF_MAX_AGE:
             ids["oppref"] = site.oppref.value
         obref = cookies.get("__obref", "")
-        if _CLICK_TOKEN.match(obref):
+        if _CLICK_TOKEN.fullmatch(obref):
             ids["obref"] = obref
     if "line" in platforms:
         if site and site.line_click and now - site.line_click.at <= LINE_CLICK_MAX_AGE:
             ids["line_click_id"] = site.line_click.value
         browser = cookies.get(LINE_BROWSER_COOKIE, "")
-        if len(browser) <= 200 and _CLICK_TOKEN.match(browser):
+        if len(browser) <= 200 and _CLICK_TOKEN.fullmatch(browser):
             ids["line_browser_id"] = browser
     return ids or None
