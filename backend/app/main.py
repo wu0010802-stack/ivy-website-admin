@@ -102,6 +102,12 @@ def _json_safe(value):
     return value
 
 
+# Content-Type 不是 JSON（例如 text/plain）時，FastAPI 直接拿原始 bytes 驗證收 JSON 模型的端點，422 的 input
+# 就是那串 bytes；jsonable_encoder 對 bytes 用嚴格的 decode()，不是 UTF-8 就在 _json_safe 之前丟
+# UnicodeDecodeError，同樣讓 422 變 500（2026-11-26）。解不開的位元組換成 U+FFFD，和 _json_safe 一致。
+_LENIENT_BYTES_ENCODER = {bytes: lambda raw: raw.decode("utf-8", "replace")}
+
+
 def _error_response(request: Request, status_code: int, detail, headers: dict | None = None) -> JSONResponse:
     request_id = request_id_of(request)
     merged = dict(headers or {})
@@ -143,7 +149,9 @@ def _register_exception_handlers(app: FastAPI) -> None:
             "HTTP %s %s → 422 validation request_id=%s", request.method, request.url.path, request_id_of(request)
         )
         return _error_response(
-            request, status.HTTP_422_UNPROCESSABLE_ENTITY, _json_safe(jsonable_encoder(exc.errors()))
+            request,
+            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            _json_safe(jsonable_encoder(exc.errors(), custom_encoder=_LENIENT_BYTES_ENCODER)),
         )
 
     @app.exception_handler(SQLAlchemyError)
