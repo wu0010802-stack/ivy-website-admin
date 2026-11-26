@@ -13,7 +13,7 @@
 
 檢查報告列了、這次沒修的（都是低風險或資訊級）：內容編輯能在排程發布前改素材替代文字與焦點（`media/routes.py:661` 只看目前上線版本）；「找不到的網址」每日 300 個名額可被匿名回報或假冒爬蟲灌滿；園務同步偽造游標帶極端時間回 500（要有金鑰）；公開頁 CSP 會替文案欄位 attribute 裡的 `<script>` 算雜湊；`/preview` 在後台主機上卻放行第三方分析腳本網域；登出後推播仍送到這台瀏覽器；後台主機轉址遇到非 ASCII 路徑 500；另有約 15 條強化建議（幾個機密設定沒標 `repr=False`、Google OAuth state 不是一次性等）。**要在正式站實測一次**：直接連線自帶 `CF-Connecting-IP` 時 Railway 給的 `X-Real-IP` 會不會被換成那個值（會的話訪客能自選限流與操作紀錄的 IP；11-12 的實測沒涵蓋這個情況）。平台面仍待處理：資料庫沒有自動備份（Railway PITR 沒開）、後台沒有兩步驟驗證。
 
-驗證（本機 PostgreSQL 16、Python 3.11）：直接相關的 10 個測試檔 299 項通過；後端全套結果見下一個提交；新測試在 `backend/tests/test_security_review_20261126.py` 與 `test_line_pnp.py`、`test_google_oauth.py`、`test_line_oauth.py`、`test_secfix_media.py`；`npm run contract:check` 通過。
+驗證（本機 PostgreSQL 16、Python 3.11）：後端全套分三組平行跑 6,049 項，1 項失敗是 `test_parent_email.py::test_outbox_payloads_only_carry_ids`（payload 多了 `by_parent`，測試改成允許這個布林旗標、仍擋其他欄位；修正後該檔 16 項全過）；新測試在 `backend/tests/test_security_review_20261126.py` 與 `test_line_pnp.py`、`test_google_oauth.py`、`test_line_oauth.py`、`test_secfix_media.py`；`npm run contract:check` 通過。
 
 ## 2026-11-26 後台營運總覽 UI/UX 優化（`claude/laughing-shannon-ucwh7s`，未合併、未部署）
 
