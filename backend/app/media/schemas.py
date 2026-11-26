@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from typing import Literal
@@ -8,6 +9,14 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.booking.schemas import has_control_chars
 from app.media.models import MediaKind, MediaStatus, VariantKind
+
+# 孤立的代理字元（U+D800–U+DFFF）：json.loads 會把 "\ud83d" 解成一個這種字元；合法的
+# emoji 在 JSON 裡是成對的兩個跳脫，會合成一個字，不會留下代理字元。
+_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
+
+
+def has_lone_surrogates(value: str) -> bool:
+    return _SURROGATE_RE.search(value) is not None
 
 
 class MediaVariantOut(BaseModel):
@@ -102,13 +111,20 @@ class MediaUpdateRequest(BaseModel):
         """去頭尾空白、去空字串、去重（保留第一次出現的順序），每個最多 30 字。
 
         不收控制字元：tags 是 JSON 欄，NUL 存得進去（\\u0000），但列表把它轉成 jsonb 時
-        PostgreSQL 拒收，整個素材庫與所有素材挑選器會一起 500（2026-11-12 QA M2）。"""
+        PostgreSQL 拒收，整個素材庫與所有素材挑選器會一起 500（2026-11-12 QA M2）。
+
+        孤立的代理字元同一類：json 欄照收 "\\ud83d"，jsonb 要求代理字元成對而拒收，回應也
+        編不成 UTF-8，PATCH 本身、素材詳情與列表全部 500（2026-11-26）。說明、圖說等欄位
+        有 max_length，pydantic 驗長度時就會退回孤立代理字元；標籤的每一項沒有長度限制，
+        要在這裡擋。"""
         if value is None:
             return None
         out: list[str] = []
         for tag in value:
             if has_control_chars(tag):
                 raise ValueError("標籤含有不允許的控制字元")
+            if has_lone_surrogates(tag):
+                raise ValueError("標籤含有不允許的字元")
             cleaned = tag.strip()
             if not cleaned:
                 continue
