@@ -1,9 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter, type RouteLocationRaw } from 'vue-router'
-import { ArrowRight, Search } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { ArrowRight, Link as LinkIcon, Search, ZoomIn } from '@element-plus/icons-vue'
 import { roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
+import TipText from '../components/TipText.vue'
+import { notifyWarning } from '../composables/notify'
 import { canEditSharedContent, canOpenPath, normalizeSearch } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
@@ -12,8 +15,10 @@ import {
   TIPS,
   TIP_ROLE_ORDER,
   TIP_SECTIONS,
+  matchSnippet,
   splitKeys,
   stepText,
+  tipSearchParts,
   type Tip,
   type TipSectionKey,
 } from '../tips/tips'
@@ -25,6 +30,10 @@ import {
 // 想找一條只能一直捲。現在每類一個面板、每條一列，平常只看標題與誰能用，點標題才展開步驟與截圖；
 // 另外加上搜尋。收起來的內容用 hidden="until-found"：瀏覽器的頁內尋找（⌘F）找得到，
 // 找到時自己展開（beforematch 同步狀態）；不支援的瀏覽器當一般 hidden。
+//
+// 2026-11-26：搜尋多收同義詞（tips.ts 的 keywords）、標出符合的字、選了分類時說其他分類還有幾條；
+// 展開的那一條寫進網址（#tip-<id>），按「前往」再回上一頁還在同一條，另外可以複製連結給同事；
+// 截圖被縮小時可以點開看原本的大小。
 
 const route = useRoute()
 const router = useRouter()
@@ -35,12 +44,17 @@ const sizes = manifest as Record<string, { width: number; height: number } | und
 
 // 窄的截圖（側欄、抽屜、單張卡片）放在文字右邊；寬的放在文字下面、用原本的大小，字才看得清楚。
 const SIDE_MAX_WIDTH = 560
+// 截圖顯示不到原本的七成五才給「放大」：手機上寬截圖只剩三成、字看不清楚；
+// 筆電縮到八成還讀得了，不必多一顆按鈕。
+const ZOOM_BELOW = 0.75
 
-function shotOf(tip: Tip): { src: string; width: number; height: number } | null {
+interface Shot { src: string; width: number; height: number; alt: string }
+
+function shotOf(tip: Tip): Shot | null {
   if (!tip.image) return null
   const src = shotUrls[`../assets/tips/${tip.image}.webp`]
   const size = sizes[tip.image]
-  return src && size ? { src, ...size } : null
+  return src && size ? { src, ...size, alt: tip.imageAlt ?? '' } : null
 }
 
 // 部署開關沒開的功能，誰都用不到，整條不列。
@@ -79,18 +93,17 @@ function visibleSteps(tip: Tip): string[] {
     .map(stepText)
 }
 
-// 搜尋比對標題、步驟、誰能用與分類名。按鍵兩種寫法都收（⌘K 與 Ctrl＋K），
+// 搜尋比對標題、步驟、keywords（畫面上沒寫的同義詞）、誰能用與分類名。按鍵兩種寫法都收（⌘K 與 Ctrl＋K），
 // Windows 的人搜「ctrl」、Mac 的人搜「⌘」都找得到。空白分開的每個字都要對到。
-// 不寫進網址：只是找東西用，要傳給同事時傳分類就夠了。
+// 不寫進網址：只是找東西用，要傳給同事時傳分類或那一條的連結就夠了。
 const query = ref('')
 const terms = computed(() => normalizeSearch(query.value).split(/\s+/).filter(Boolean))
 const searchText = new Map<string, string>()
 function textOf(tip: Tip): string {
   let text = searchText.get(tip.id)
   if (text == null) {
-    const plain = (value: string) => [true, false].map(apple => splitKeys(value, apple).map(part => part.value).join('')).join(' ')
     const section = TIP_SECTIONS.find(item => item.key === tip.section)?.title ?? ''
-    text = normalizeSearch([plain(tip.title), ...tip.steps.map(step => plain(stepText(step))), whoCanUse(tip), tip.roleNote ?? '', section].join(' '))
+    text = normalizeSearch([...tipSearchParts(tip), whoCanUse(tip), tip.roleNote ?? '', section].join(' '))
     searchText.set(tip.id, text)
   }
   return text
@@ -111,27 +124,46 @@ const tabs = computed(() => [
   })).filter(tab => tab.count > 0 || tab.key === sectionParam.value),
 ])
 
-const sections = computed(() =>
-  TIP_SECTIONS
-    .filter(section => sectionParam.value === 'all' || section.key === sectionParam.value)
-    .map(section => ({ ...section, tips: listedTips.value.filter(tip => tip.section === section.key) }))
-    .filter(section => section.tips.length > 0),
+const shownTips = computed(() =>
+  listedTips.value.filter(tip => sectionParam.value === 'all' || tip.section === sectionParam.value),
 )
-const shownTips = computed(() => sections.value.flatMap(section => section.tips))
+
+// 頁首從參觀案件、官網內容這些頁點進來時已經選好一類；這時搜尋只找那一類，
+// 別類有符合的要講出來，不能只寫「沒有符合」（搜「密碼」在參觀案件類是 0 條、帳號類有）。
+const sectionTitle = computed(() => TIP_SECTIONS.find(section => section.key === sectionParam.value)?.title ?? '')
+const elsewhere = computed(() => (terms.value.length ? listedTips.value.length - shownTips.value.length : 0))
 
 // 搜尋結果的數量給報讀器念（畫面上看得到清單變短，報讀器聽不到）。
-const resultNote = computed(() => terms.value.length ? `找到 ${shownTips.value.length} 條小技巧` : '')
+const resultNote = computed(() => {
+  if (!terms.value.length) return ''
+  return `找到 ${shownTips.value.length} 條小技巧${elsewhere.value ? `，其他分類還有 ${elsewhere.value} 條` : ''}`
+})
 
 // ── 展開 ──
 const openIds = ref(new Set<string>())
-const isOpen = (tip: Tip) => openIds.value.has(tip.id)
 function setOpen(id: string, open: boolean) {
   const next = new Set(openIds.value)
   if (open) next.add(id)
   else next.delete(id)
   openIds.value = next
 }
-const allOpen = computed(() => shownTips.value.length > 0 && shownTips.value.every(isOpen))
+const allOpen = computed(() => shownTips.value.length > 0 && shownTips.value.every(tip => openIds.value.has(tip.id)))
+
+// 展開的那一條寫進網址（#tip-<id>，replace 不多一筆上一頁）：按「前往」去試、再按上一頁，
+// 回來還是展開在同一條；網址貼給同事，對方打開也是這一條。收起它或換分類就拿掉。
+const hashOf = (id: string) => `#tip-${id}`
+function writeHash(hash: string) {
+  if (route.hash === hash) return
+  void router.replace({ query: route.query, hash }).catch(() => {})
+}
+
+function toggle(tip: Tip) {
+  const open = !openIds.value.has(tip.id)
+  setOpen(tip.id, open)
+  if (open) writeHash(hashOf(tip.id))
+  else if (route.hash === hashOf(tip.id)) writeHash('')
+}
+
 function toggleAll() {
   const open = !allOpen.value
   const next = new Set(openIds.value)
@@ -140,6 +172,7 @@ function toggleAll() {
     else next.delete(tip.id)
   }
   openIds.value = next
+  if (!open && route.hash.startsWith('#tip-')) writeHash('')
 }
 
 // 「前往」只給進得去的人：看不到那一頁的帳號點了會被導回起始頁，看起來像壞掉。
@@ -148,22 +181,109 @@ function linkOf(tip: Tip): { to: RouteLocationRaw; label: string } | null {
   return { to: { path: tip.to.path, query: tip.to.query }, label: tip.to.label }
 }
 
-// 從別處連 #tip-<id> 進來時展開那一條、捲過去（第一次進頁面時路由的 scrollBehavior 還沒有這頁的內容）。
-async function revealHash(hash: string) {
+// 連結不帶分類與「只列我能用的」：對方打開看到的是完整清單裡的這一條。
+async function copyLink(tip: Tip) {
+  const href = router.resolve({ path: '/tips', hash: hashOf(tip.id) }).href
+  try {
+    await navigator.clipboard.writeText(new URL(href, window.location.origin).href)
+    ElMessage.success('已複製這一條的連結，可以貼給同事')
+  } catch {
+    notifyWarning('無法自動複製，請直接複製網址列的網址')
+  }
+}
+
+// 從 #tip-<id> 連進來（同事貼的連結、按上一頁回來）時展開那一條、捲過去。
+// 自己點開時寫進網址的不用再捲：那一條已經是展開的。
+async function revealHash(hash: string, entering = false) {
   const id = hash.slice(1)
   if (!id.startsWith('tip-')) return
-  const tipId = id.slice(4)
-  if (!TIPS.some(tip => tip.id === tipId)) return
-  setOpen(tipId, true)
+  const tip = enabledTips.value.find(item => item.id === id.slice(4))
+  if (!tip || (!entering && openIds.value.has(tip.id))) return
+  // 連結指的那一條被分類或「只列我能用的」濾掉時，先拿掉條件：連結就是要看這一條。
+  if (!shownTips.value.includes(tip)) {
+    query.value = ''
+    await router.replace({ query: { ...route.query, section: undefined, mine: undefined }, hash }).catch(() => {})
+  }
+  setOpen(tip.id, true)
   await nextTick()
   document.getElementById(id)?.scrollIntoView({ block: 'start' })
 }
-onMounted(() => { void revealHash(route.hash) })
 watch(() => route.hash, hash => { void revealHash(hash) })
+
+// ── 截圖放大 ──
+// 展開內容能用的寬度（頁面寬度扣掉左右留白），用來判斷截圖有沒有被縮小；側欄收合、轉橫都會變。
+const root = ref<HTMLElement | null>(null)
+const bodyWidth = ref(Number.POSITIVE_INFINITY)
+const sideLayout = ref(true)
+let observer: ResizeObserver | null = null
+
+function measure() {
+  const el = root.value
+  if (!el) return
+  const style = getComputedStyle(el)
+  const px = (name: string) => Number.parseFloat(style.getPropertyValue(name)) || 0
+  // 2＝面板左右的邊框
+  bodyWidth.value = el.clientWidth - px('--tip-pad-x') - px('--tip-indent') - 2
+  sideLayout.value = window.innerWidth >= 1100
+}
+
+function isShrunk(shot: Shot): boolean {
+  if (sideLayout.value && shot.width <= SIDE_MAX_WIDTH) return false
+  return bodyWidth.value < shot.width * ZOOM_BELOW
+}
+
+// 42＝對話框左右內距與外框。放不下整張時（手機）只看得到左上角，要說可以拖。
+const ZOOM_CHROME = 42
+const zoomed = ref<{ title: string; shot: Shot; pans: boolean } | null>(null)
+const zoomOpen = ref(false)
+function zoom(tip: Tip, shot: Shot) {
+  zoomed.value = {
+    title: splitKeys(tip.title, IS_APPLE).map(part => part.value).join(''),
+    shot,
+    pans: shot.width + ZOOM_CHROME > window.innerWidth - 16,
+  }
+  zoomOpen.value = true
+}
+
+onMounted(() => {
+  if (root.value && typeof ResizeObserver !== 'undefined') {
+    observer = new ResizeObserver(measure)
+    observer.observe(root.value)
+  }
+  void revealHash(route.hash, true)
+})
+onBeforeUnmount(() => observer?.disconnect())
+
+// ── 畫面上的每一列 ──
+const sections = computed(() =>
+  TIP_SECTIONS
+    .filter(section => sectionParam.value === 'all' || section.key === sectionParam.value)
+    .map(section => ({
+      ...section,
+      rows: shownTips.value.filter(tip => tip.section === section.key).map((tip) => {
+        const steps = visibleSteps(tip)
+        const shot = shotOf(tip)
+        const open = openIds.value.has(tip.id)
+        return {
+          tip,
+          steps,
+          shot,
+          open,
+          who: whoCanUse(tip),
+          link: linkOf(tip),
+          side: Boolean(shot && shot.width <= SIDE_MAX_WIDTH),
+          zoomable: Boolean(shot && isShrunk(shot)),
+          // 搜尋字只在步驟裡時，收起的列下面多列出那一句，看得出為什麼找到這一條。
+          snippet: open ? null : matchSnippet(tip.title, steps, terms.value, IS_APPLE),
+        }
+      }),
+    }))
+    .filter(section => section.rows.length > 0),
+)
 </script>
 
 <template>
-  <div class="page tips">
+  <div ref="root" class="page tips">
     <PageHeader lead="後台有些功能要按特定的鍵、收在選單裡，或只在某些情況才出現。這裡一次列出來，每一條都寫了哪些角色能用。" />
 
     <div class="status-tabs tips__tabs" role="group" aria-label="小技巧分類">
@@ -194,7 +314,10 @@ watch(() => route.hash, hash => { void revealHash(hash) })
     <p class="visually-hidden" aria-live="polite">{{ resultNote }}</p>
 
     <div v-if="!sections.length" class="empty-note">
-      <template v-if="terms.length">
+      <template v-if="elsewhere">
+        「{{ sectionTitle }}」這一類沒有符合「{{ query.trim() }}」的小技巧，其他分類有 <span class="num">{{ elsewhere }}</span> 條。<el-button link type="primary" @click="setQuery({ section: 'all' })">看全部分類</el-button>
+      </template>
+      <template v-else-if="terms.length">
         沒有符合「{{ query.trim() }}」的小技巧。<el-button link type="primary" @click="query = ''">清除搜尋</el-button>
       </template>
       <template v-else>這個分類沒有你能用的小技巧。</template>
@@ -212,57 +335,69 @@ watch(() => route.hash, hash => { void revealHash(hash) })
       </div>
       <ul class="tips__list" role="list">
         <li
-          v-for="tip in section.tips"
-          :id="`tip-${tip.id}`"
-          :key="tip.id"
+          v-for="row in section.rows"
+          :id="`tip-${row.tip.id}`"
+          :key="row.tip.id"
           class="tip"
-          :class="{ 'is-open': isOpen(tip) }"
+          :class="{ 'is-open': row.open }"
         >
           <div class="tip__row">
             <h3 class="tip__heading">
               <button
-                :id="`tip-${tip.id}-title`"
+                :id="`tip-${row.tip.id}-title`"
                 type="button"
                 class="tip__toggle"
-                :aria-expanded="isOpen(tip)"
-                :aria-controls="`tip-${tip.id}-body`"
-                @click="setOpen(tip.id, !isOpen(tip))"
+                :aria-expanded="row.open"
+                :aria-controls="`tip-${row.tip.id}-body`"
+                @click="toggle(row.tip)"
               >
                 <el-icon class="tip__chevron" aria-hidden="true"><ArrowRight /></el-icon>
-                <span class="tip__title">
-                  <template v-for="(part, index) in splitKeys(tip.title, IS_APPLE)" :key="index">
-                    <kbd v-if="part.kind === 'key'">{{ part.value }}</kbd><template v-else>{{ part.value }}</template>
-                  </template>
-                </span>
+                <span class="tip__title"><TipText :text="row.tip.title" :terms="terms" /></span>
               </button>
             </h3>
+            <p v-if="row.snippet" class="tip__snippet"><TipText :text="row.snippet" :terms="terms" /></p>
             <p class="tip__who">
-              <span class="tip__who-label">誰能用<span class="visually-hidden">：</span></span>{{ whoCanUse(tip) }}<template v-if="tip.roleNote">（{{ tip.roleNote }}）</template>
+              <span class="tip__who-label">誰能用<span class="visually-hidden">：</span></span>{{ row.who }}<template v-if="row.tip.roleNote">（{{ row.tip.roleNote }}）</template>
             </p>
           </div>
           <div
-            :id="`tip-${tip.id}-body`"
+            :id="`tip-${row.tip.id}-body`"
             class="tip__body"
-            :hidden.attr="isOpen(tip) ? undefined : 'until-found'"
-            @beforematch="setOpen(tip.id, true)"
+            :hidden.attr="row.open ? undefined : 'until-found'"
+            @beforematch="setOpen(row.tip.id, true)"
           >
-            <div class="tip__content" :class="{ 'is-side': (shotOf(tip)?.width ?? Infinity) <= SIDE_MAX_WIDTH }">
+            <div class="tip__content" :class="{ 'is-side': row.side }">
               <div class="tip__text">
-                <component :is="visibleSteps(tip).length > 1 ? 'ol' : 'div'" class="tip__steps">
-                  <component :is="visibleSteps(tip).length > 1 ? 'li' : 'p'" v-for="(step, index) in visibleSteps(tip)" :key="index">
-                    <template v-for="(part, partIndex) in splitKeys(step, IS_APPLE)" :key="partIndex">
-                      <kbd v-if="part.kind === 'key'">{{ part.value }}</kbd><template v-else>{{ part.value }}</template>
-                    </template>
+                <component :is="row.steps.length > 1 ? 'ol' : 'div'" class="tip__steps">
+                  <component :is="row.steps.length > 1 ? 'li' : 'p'" v-for="(step, index) in row.steps" :key="index">
+                    <TipText :text="step" :terms="terms" />
                   </component>
                 </component>
-                <router-link v-if="linkOf(tip)" :to="linkOf(tip)!.to" class="tip__link">前往{{ linkOf(tip)!.label }}</router-link>
+                <p class="tip__actions">
+                  <router-link v-if="row.link" :to="row.link.to" class="tip__link">前往{{ row.link.label }}</router-link>
+                  <button type="button" class="tip__copy" @click="copyLink(row.tip)">
+                    <el-icon aria-hidden="true"><LinkIcon /></el-icon>複製這一條的連結
+                  </button>
+                </p>
               </div>
-              <figure v-if="shotOf(tip)" class="tip__shot">
+              <figure v-if="row.shot" class="tip__shot">
+                <button v-if="row.zoomable" type="button" class="tip__zoom" @click="zoom(row.tip, row.shot)">
+                  <img
+                    :src="row.shot.src"
+                    :width="row.shot.width"
+                    :height="row.shot.height"
+                    :alt="row.shot.alt"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <span class="tip__zoom-hint"><el-icon aria-hidden="true"><ZoomIn /></el-icon>放大</span>
+                </button>
                 <img
-                  :src="shotOf(tip)!.src"
-                  :width="shotOf(tip)!.width"
-                  :height="shotOf(tip)!.height"
-                  :alt="tip.imageAlt ?? ''"
+                  v-else
+                  :src="row.shot.src"
+                  :width="row.shot.width"
+                  :height="row.shot.height"
+                  :alt="row.shot.alt"
                   loading="lazy"
                   decoding="async"
                 />
@@ -272,6 +407,25 @@ watch(() => route.hash, hash => { void revealHash(hash) })
         </li>
       </ul>
     </section>
+
+    <p v-if="sections.length && elsewhere" class="tips__elsewhere">
+      其他分類還有 <span class="num">{{ elsewhere }}</span> 條符合「{{ query.trim() }}」。<el-button link type="primary" @click="setQuery({ section: 'all' })">看全部分類</el-button>
+    </p>
+
+    <!-- 截圖原本的大小，放在可以上下左右捲的框裡（手機用手指拖）。 -->
+    <el-dialog
+      v-model="zoomOpen"
+      class="tips__zoom-dialog"
+      :title="zoomed?.title"
+      :width="zoomed ? `min(${zoomed.shot.width + ZOOM_CHROME}px, calc(100vw - 16px))` : undefined"
+      align-center
+      @closed="zoomed = null"
+    >
+      <p v-if="zoomed?.pans" class="hint tips__zoom-note">這是原本的大小，左右拖動可以看截圖的其他地方。</p>
+      <div v-if="zoomed" class="tips__zoom-scroll" tabindex="0" role="group" aria-label="截圖原本的大小，可以捲動">
+        <img :src="zoomed.shot.src" :width="zoomed.shot.width" :height="zoomed.shot.height" :alt="zoomed.shot.alt" />
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -394,10 +548,26 @@ watch(() => route.hash, hash => { void revealHash(hash) })
 }
 
 .tip__who {
+  grid-area: 1 / 2;
   margin: 0;
   color: var(--ink-2);
   font-size: var(--text-sm);
   line-height: 1.6;
+}
+
+/* 搜尋字只在步驟裡時列出那一句，對齊標題字（箭頭 16＋間距 12）。DOM 排在誰能用前面：窄螢幕一欄時順序是標題、這一句、誰能用。 */
+.tip__snippet {
+  grid-area: 2 / 1;
+  margin: 0;
+  padding-left: 28px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* 誰能用折成兩行時不要把那一句往下推：有那一句的列，誰能用跨兩列。 */
+.tip__snippet + .tip__who {
+  grid-row: 1 / span 2;
 }
 
 /* 桌機的「誰能用」寫在面板標題列，每列只放角色；窄螢幕排到標題下面，前面要有字。 */
@@ -444,14 +614,41 @@ ol.tip__steps li + li {
   margin-top: 6px;
 }
 
-.tip__link {
-  display: inline-block;
-  margin-top: 12px;
+.tip__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 24px;
+  margin-top: 8px;
   font-size: var(--text-sm);
+}
+
+.tip__link,
+.tip__copy {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
 }
 
 .tip__link::after {
   content: ' →' / '';
+  white-space: pre;
+}
+
+/* 次要動作：字用說明色，不跟「前往」搶。 */
+.tip__copy {
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tip__copy:hover {
+  color: var(--ink);
+  text-decoration: underline;
 }
 
 /* 截圖的 width／height 是 CSS 像素（拍的時候 2 倍），不放大超過原寸。 */
@@ -469,22 +666,59 @@ ol.tip__steps li + li {
   background: var(--surface-2);
 }
 
-kbd {
-  display: inline-block;
-  min-width: 1.6em;
-  margin: 0 2px;
-  padding: 0 6px;
-  border: 1px solid var(--line-strong);
-  border-bottom-width: 2px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--ink);
+/* 截圖被縮小時整張可以點（JS 量寬度決定，見 isShrunk）；右下角的「放大」讓人知道能點。 */
+.tip__zoom {
+  position: relative;
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
   font: inherit;
-  font-size: 0.9em;
-  font-weight: 500;
-  line-height: 1.5;
+  cursor: zoom-in;
+}
+
+.tip__zoom-hint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.tips__elsewhere {
+  margin-top: 16px;
+  color: var(--ink-2);
   text-align: center;
-  white-space: nowrap;
+}
+
+/* 放大：截圖用原本的大小，放不下就在框裡捲。 */
+.tips__zoom-note {
+  margin-bottom: 8px;
+}
+
+.tips__zoom-scroll {
+  max-height: calc(100svh - 200px);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.tips__zoom-scroll img {
+  display: block;
+  max-width: none;
 }
 
 @media (max-width: 720px) {
@@ -506,8 +740,16 @@ kbd {
     display: none;
   }
 
-  .tip__who {
+  .tip__who,
+  .tip__snippet,
+  .tip__snippet + .tip__who {
+    grid-area: auto;
     padding-left: calc(var(--tip-indent) - var(--tip-pad-x));
+  }
+
+  .tip__link,
+  .tip__copy {
+    min-height: 44px;
   }
 
   .tip__who-label {

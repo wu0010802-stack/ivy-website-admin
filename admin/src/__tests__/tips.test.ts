@@ -1,6 +1,7 @@
 // 使用小技巧頁（2026-11-10）：內容資料的完整性（連結、角色、截圖）與頁面的篩選、角色顯示。
 // 2026-11-20：入口從側欄搬到頁首；頁面改成可展開的清單＋搜尋。
-import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+// 2026-11-26：搜尋同義詞與標示、別的分類還有幾條、展開的那條寫進網址與複製連結、截圖放大。
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import { createPinia } from 'pinia'
@@ -10,7 +11,7 @@ import { routes } from '../router'
 import { NAV_GROUPS, SEARCH_ONLY_GROUPS, canListNavItem } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
-import { TIPS, TIP_SECTIONS, formatKey, splitKeys, stepText } from '../tips/tips'
+import { KEY_TIP_KEYWORDS, TIPS, TIP_SECTIONS, formatKey, matchSnippet, splitKeys, splitMatches, stepText, tipSearchParts } from '../tips/tips'
 import { tipSectionForPath } from '../tips/pageSections'
 import TipsView from '../views/TipsView.vue'
 import { testUser } from './fixtures'
@@ -61,6 +62,9 @@ describe('小技巧資料', () => {
     expect(formatKey('mod+K', true)).toBe('⌘K')
     expect(formatKey('mod+K', false)).toBe('Ctrl＋K')
     expect(formatKey('Shift', true)).toBe('Shift')
+    // 單獨的 mod（按住再點）後面不帶「＋」
+    expect(formatKey('mod', false)).toBe('Ctrl')
+    expect(formatKey('mod', true)).toBe('⌘')
     expect(splitKeys('按 `mod+Enter` 送出', false)).toEqual([
       { kind: 'text', value: '按 ' },
       { kind: 'key', value: 'Ctrl＋Enter' },
@@ -72,6 +76,55 @@ describe('小技巧資料', () => {
         expect(text.split('`').length % 2, `${tip.id}：${text}`).toBe(1)
       }
     }
+  })
+})
+
+describe('搜尋用的字', () => {
+  const tip = (id: string) => TIPS.find(item => item.id === id)!
+
+  it('有寫按鍵的條目多收「快捷鍵」這些字；keywords 是畫面上沒寫到的說法', () => {
+    expect(tipSearchParts(tip('search'))).toEqual(expect.arrayContaining(KEY_TIP_KEYWORDS))
+    expect(tipSearchParts(tip('closure'))).not.toContain('快捷鍵')
+    expect(tipSearchParts(tip('closure'))).toContain('颱風假')
+    // 兩種按鍵寫法都在
+    expect(tipSearchParts(tip('search')).join(' ')).toContain('⌘K')
+    expect(tipSearchParts(tip('search')).join(' ')).toContain('Ctrl＋K')
+    // 已經寫在標題或步驟裡的字不用再列一次
+    for (const item of TIPS) {
+      const visible = [item.title, ...item.steps.map(stepText)].join(' ')
+      for (const word of item.keywords ?? []) expect(visible, `${item.id}：${word}`).not.toContain(word)
+    }
+  })
+
+  it('splitMatches：標出每個符合的地方，全形與大小寫不同也算，標的是原文', () => {
+    expect(splitMatches('「匯出 CSV」匯出的是', ['匯出'])).toEqual([
+      { value: '「', hit: false },
+      { value: '匯出', hit: true },
+      { value: ' CSV」', hit: false },
+      { value: '匯出', hit: true },
+      { value: '的是', hit: false },
+    ])
+    expect(splitMatches('Ctrl＋K', ['ctrl+k'])).toEqual([{ value: 'Ctrl＋K', hit: true }])
+    expect(splitMatches('匯出 CSV', ['csv', '匯'])).toEqual([
+      { value: '匯', hit: true },
+      { value: '出 ', hit: false },
+      { value: 'CSV', hit: true },
+    ])
+    expect(splitMatches('沒在搜尋', [])).toEqual([{ value: '沒在搜尋', hit: false }])
+    expect(splitMatches('', ['匯出'])).toEqual([])
+  })
+
+  it('matchSnippet：搜尋字只在步驟裡時回那一句；標題就有、或只對到 keywords 時不回', () => {
+    const steps = ['第一句沒有。第二句有游標，按 `mod+K`。', '另一步也有游標。']
+    expect(matchSnippet('標題', steps, ['游標'], false)).toBe('第二句有游標，按 `mod+K`。')
+    expect(matchSnippet('標題有游標', steps, ['游標'], false)).toBeNull()
+    // 標題只對到一部分：列出補上另一個字的那一句
+    expect(matchSnippet('標題有游標', steps, ['游標', '第一句'], false)).toBe('第一句沒有。')
+    expect(matchSnippet('標題', steps, ['快捷鍵'], false)).toBeNull()
+    expect(matchSnippet('標題', steps, [], false)).toBeNull()
+    // 按鍵照這台電腦顯示的寫法比對
+    expect(matchSnippet('標題', steps, ['ctrl+k'], false)).toBe('第二句有游標，按 `mod+K`。')
+    expect(matchSnippet('標題', steps, ['ctrl+k'], true)).toBeNull()
   })
 })
 
@@ -117,13 +170,13 @@ afterEach(() => {
   while (wrappers.length) wrappers.pop()!.unmount()
 })
 
-async function mountTips(role: Role, options: { admissions?: boolean; query?: Record<string, string> } = {}) {
+async function mountTips(role: Role, options: { admissions?: boolean; query?: Record<string, string>; hash?: string } = {}) {
   const pinia = createPinia()
   const auth = useAuthStore(pinia)
   auth.user = testUser(role, { campus_keys: role === 'super_admin' ? [] : ['yihua'] })
   auth.features = { admissions: options.admissions ?? true, password_reset_email: false }
   const router = createRouter({ history: createMemoryHistory(), routes })
-  await router.push({ path: '/tips', query: options.query })
+  await router.push({ path: '/tips', query: options.query, hash: options.hash })
   await router.isReady()
   const wrapper = mount(TipsView, { attachTo: document.body, global: { plugins: [pinia, router, ElementPlus] } })
   wrappers.push(wrapper)
@@ -265,6 +318,178 @@ describe('小技巧頁', () => {
     await wrapper.get('.tips__search input').setValue('匯出 CSV')
     const pressed = wrapper.findAll('.status-tab').filter(tab => tab.attributes('aria-pressed') === 'true')
     expect(pressed.map(tab => tab.text())).toEqual(['參觀場次0 條'])
+  })
+
+  it('搜尋：畫面上沒寫的說法也找得到（快捷鍵、颱風假、圖片）', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    const input = wrapper.get('.tips__search input')
+    await input.setValue('快捷鍵')
+    const withKeys = TIPS.filter(tip => [tip.title, ...tip.steps.map(stepText)].some(text => text.includes('`')))
+    expect(wrapper.findAll('li.tip').map(li => li.attributes('id'))).toEqual(withKeys.map(tip => `tip-${tip.id}`))
+    expect(wrapper.find('#tip-search').exists()).toBe(true)
+    await input.setValue('颱風假')
+    expect(wrapper.findAll('li.tip').map(li => li.attributes('id'))).toEqual(['tip-closure'])
+    await input.setValue('圖片')
+    expect(wrapper.find('#tip-media-more').exists()).toBe(true)
+    await input.setValue('改期')
+    expect(wrapper.find('#tip-slot-card').exists()).toBe(true)
+  })
+
+  it('搜尋：標出符合的字；只在步驟裡的，收起的列下面列出那一句，展開後不重複', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    const input = wrapper.get('.tips__search input')
+    expect(wrapper.find('mark').exists()).toBe(false)
+    await input.setValue('匯出')
+    expect(wrapper.findAll('#tip-export .tip__title mark').map(mark => mark.text())).toEqual(['匯出', '匯出'])
+    // 標題就有搜尋字：不用再列一句
+    expect(wrapper.find('#tip-export .tip__snippet').exists()).toBe(false)
+    await input.setValue('游標')
+    const snippet = wrapper.get('#tip-search .tip__snippet')
+    expect(snippet.text()).toContain('游標會跳到左上角')
+    expect(snippet.get('mark').text()).toBe('游標')
+    expect(snippet.find('kbd').exists()).toBe(true)
+    await wrapper.get('#tip-search .tip__toggle').trigger('click')
+    expect(wrapper.find('#tip-search .tip__snippet').exists()).toBe(false)
+    expect(wrapper.get('#tip-search-body mark').text()).toBe('游標')
+  })
+
+  it('選了某一類時搜尋：別的分類有符合的要講，按一下看全部分類（搜尋字留著）', async () => {
+    const { wrapper, router } = await mountTips('super_admin', { query: { section: 'visits' } })
+    const input = wrapper.get('.tips__search input')
+    const elsewhere = (word: string) => TIPS.filter(tip => tip.section !== 'visits'
+      && [tip.title, ...tip.steps.map(stepText), ...(tip.keywords ?? [])].join(' ').includes(word)).length
+    // 這一類 0 條、別類有
+    await input.setValue('密碼')
+    expect(wrapper.findAll('li.tip')).toHaveLength(0)
+    expect(wrapper.get('.empty-note').text()).toContain(`「參觀案件」這一類沒有符合「密碼」的小技巧，其他分類有 ${elsewhere('密碼')} 條。`)
+    expect(wrapper.get('[aria-live]').text()).toBe(`找到 0 條小技巧，其他分類還有 ${elsewhere('密碼')} 條`)
+    // 這一類有、別類也有
+    await input.setValue('匯出')
+    expect(wrapper.findAll('li.tip').length).toBeGreaterThan(0)
+    expect(wrapper.get('.tips__elsewhere').text()).toContain(`其他分類還有 ${elsewhere('匯出')} 條符合「匯出」`)
+    await wrapper.get('.tips__elsewhere button').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.query.section).toBeUndefined()
+    expect(wrapper.find('.tips__elsewhere').exists()).toBe(false)
+    expect((input.element as HTMLInputElement).value).toBe('匯出')
+    expect(wrapper.find('#tip-stats-drill').exists()).toBe(true)
+    // 沒在搜尋時不寫這一句（別類本來就有別的小技巧）
+    await router.replace({ path: '/tips', query: { section: 'visits' } })
+    await input.setValue('')
+    expect(wrapper.find('.tips__elsewhere').exists()).toBe(false)
+    // 哪裡都沒有：照舊是清除搜尋
+    await input.setValue('沒有這個字')
+    expect(wrapper.get('.empty-note').text()).toContain('沒有符合「沒有這個字」的小技巧。')
+    expect(wrapper.get('.empty-note button').text()).toBe('清除搜尋')
+  })
+
+  it('展開的那一條寫進網址（分類照留），收起或全部收起就拿掉', async () => {
+    const { wrapper, router } = await mountTips('super_admin', { query: { section: 'visits' } })
+    const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView')
+    await wrapper.get('#tip-notes .tip__toggle').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.hash).toBe('#tip-notes')
+    expect(router.currentRoute.value.query.section).toBe('visits')
+    // 自己點開的不捲動
+    expect(scrolled).not.toHaveBeenCalled()
+    // 再開一條：網址換成後開的那條，前一條仍展開
+    await wrapper.get('#tip-next .tip__toggle').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.hash).toBe('#tip-next')
+    expect(wrapper.get('#tip-notes .tip__toggle').attributes('aria-expanded')).toBe('true')
+    // 收起不是網址上的那條：網址不動
+    await wrapper.get('#tip-notes .tip__toggle').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.hash).toBe('#tip-next')
+    await wrapper.get('#tip-next .tip__toggle').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.hash).toBe('')
+    // 全部展開不寫（不是某一條），全部收起會拿掉
+    await wrapper.get('#tip-notes .tip__toggle').trigger('click')
+    await flushPromises()
+    await wrapper.get('.tips__expand-all').trigger('click')
+    await wrapper.get('.tips__expand-all').trigger('click')
+    await flushPromises()
+    expect(router.currentRoute.value.hash).toBe('')
+    expect(scrolled).not.toHaveBeenCalled()
+    scrolled.mockRestore()
+  })
+
+  it('連結指的那一條被分類或「只列我能用的」濾掉時，拿掉條件讓它出現', async () => {
+    const { wrapper, router } = await mountTips('reception', { query: { section: 'content', mine: '1' }, hash: '#tip-account' })
+    expect(router.currentRoute.value.query.section).toBeUndefined()
+    expect(router.currentRoute.value.query.mine).toBeUndefined()
+    expect(router.currentRoute.value.hash).toBe('#tip-account')
+    expect(wrapper.get('#tip-account .tip__toggle').attributes('aria-expanded')).toBe('true')
+    // 同一類裡的連結不動分類
+    const same = await mountTips('reception', { query: { section: 'visits' }, hash: '#tip-notes' })
+    expect(same.router.currentRoute.value.query.section).toBe('visits')
+    expect(same.wrapper.get('#tip-notes .tip__toggle').attributes('aria-expanded')).toBe('true')
+  })
+
+  it('複製這一條的連結：不帶分類與只列我能用的；複製不了時請對方複製網址列', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    try {
+      const { wrapper } = await mountTips('reception', { query: { section: 'visits', mine: '1' } })
+      const copy = wrapper.get('#tip-notes .tip__copy')
+      expect(copy.text()).toBe('複製這一條的連結')
+      await copy.trigger('click')
+      await flushPromises()
+      expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/tips#tip-notes`)
+      expect(document.body.textContent).toContain('已複製這一條的連結')
+      writeText.mockRejectedValueOnce(new Error('denied'))
+      await copy.trigger('click')
+      await flushPromises()
+      expect(document.body.textContent).toContain('無法自動複製')
+    } finally {
+      Reflect.deleteProperty(navigator, 'clipboard')
+      document.querySelectorAll('.el-message').forEach(el => el.remove())
+    }
+  })
+
+  it('截圖被縮小時（手機）整張可以點開看原本的大小；放得下時就是一般的圖', async () => {
+    // 預設（jsdom 沒有 ResizeObserver）量不到寬度：不給放大
+    const plain = await mountTips('super_admin')
+    expect(plain.wrapper.find('.tip__zoom').exists()).toBe(false)
+
+    const width = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
+    const innerWidth = window.innerWidth
+    vi.stubGlobal('ResizeObserver', class {
+      private readonly callback: () => void
+      constructor(callback: () => void) { this.callback = callback }
+      observe() { this.callback() }
+      disconnect() {}
+    })
+    try {
+      // 手機：頁面 358px 寬
+      Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => 358 })
+      window.innerWidth = 390
+      const phone = await mountTips('super_admin')
+      const wide = phone.wrapper.get('#tip-preview .tip__zoom')
+      expect(wide.get('img').attributes('alt')).toBe(TIPS.find(tip => tip.id === 'preview')!.imageAlt)
+      expect(wide.text()).toBe('放大')
+      expect(phone.wrapper.find('.tips__zoom-scroll').exists()).toBe(false)
+      await wide.trigger('click')
+      await flushPromises()
+      const dialog = phone.wrapper.get('.tips__zoom-dialog')
+      expect(dialog.text()).toContain('寬螢幕點案件，右邊直接預覽')
+      expect(dialog.text()).toContain('左右拖動可以看截圖的其他地方')
+      const big = dialog.get('.tips__zoom-scroll img')
+      expect(Number(big.attributes('width'))).toBe(sizes['visit-preview']!.width)
+      expect(dialog.get('.tips__zoom-scroll').attributes('tabindex')).toBe('0')
+
+      // 桌機 1440：寬截圖幾乎是原本的大小，窄截圖放在右欄，都不給放大
+      Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => 1124 })
+      window.innerWidth = 1440
+      const desktop = await mountTips('super_admin')
+      expect(desktop.wrapper.find('.tip__zoom').exists()).toBe(false)
+      expect(desktop.wrapper.get('#tip-preview img').attributes('loading')).toBe('lazy')
+    } finally {
+      if (width) Object.defineProperty(Element.prototype, 'clientWidth', width)
+      window.innerWidth = innerWidth
+      vi.unstubAllGlobals()
+    }
   })
 
   it('有截圖的條目附上圖片與說明文字，延遲載入', async () => {
