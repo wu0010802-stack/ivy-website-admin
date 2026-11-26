@@ -3,11 +3,12 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import exists, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking.models import OutboxMessage, OutboxStatus
+from app.notifications.models import LinePnpMessage, NotificationDelivery
 
 
 def enqueue_outbox(db: AsyncSession, visit_request_id: uuid.UUID, kind: str, payload: dict) -> None:
@@ -59,6 +60,9 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str, *, by
     變更信不重複排：同案已有一封還沒被認領（pending）的變更信時就不再新增——內容在
     寄件當下才依案件最新狀態組成，連續改好幾次也只需要寄一封，家長端灌不爆寄信管線。
     已被認領（leased）的不算：worker 可能已經讀完案件、組好內容，這次的變更要另外寄。
+    已有管道送出、其他管道失敗而回到 pending 等重試的也不算（2026-11-26）：重試只補沒送成的管道
+    （notification_deliveries／line_pnp_messages），併進去的話已送出的 Email 或 LINE 永遠收不到這次的變更，
+    園方重新產生或更正 Email 換的新連結也寄不出去。
 
     by_parent：家長自己在官網送出、改資料、改期或取消觸發的通知。payload 記下來，送出當下
     notifications.service 據此套「通知型訊息每案每日上限」（line_pnp.PARENT_DAILY_CAP，2026-11-26 資安檢查）；
@@ -79,6 +83,8 @@ async def enqueue_parent_email(db: AsyncSession, visit_request, kind: str, *, by
                     OutboxMessage.visit_request_id == visit_request.id,
                     OutboxMessage.kind == kind,
                     OutboxMessage.status == OutboxStatus.PENDING.value,
+                    ~exists().where(NotificationDelivery.outbox_message_id == OutboxMessage.id),
+                    ~exists().where(LinePnpMessage.outbox_message_id == OutboxMessage.id),
                 )
             )
         ).all()
