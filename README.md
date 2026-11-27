@@ -48,7 +48,7 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
-## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151 `feature/permissions-20261127`）
+## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151，已部署 main `1a6f1d47`，紀錄見 `deploy/README.md`）
 
 使用者：「https://admin.ivykidschool.com/admin/users 可以幫我優化權限設計嗎」→ 盤點後選「整理＋擴充逐人授權」，只開**招生統計（限負責校區）**。規則與裁定在 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。沒有 migration；有 API 與契約變動（已重產）。
 
