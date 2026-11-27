@@ -222,6 +222,9 @@ class NotFoundSummaryOut(BaseModel):
     until: date
     paths_total: int
     totals: list[NotFoundRefOut]
+    # 掃描程式試探 /.env 之類網址的次數與網址數：不在 paths、paths_total、totals 裡（2026-11-27）。
+    probe_hits: int
+    probe_paths: int
     paths: list[NotFoundPathOut]
     as_of: datetime
 

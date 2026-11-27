@@ -48,6 +48,30 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
+## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（`feature/line-card-buttons-20261127`，未 commit、未部署）
+
+使用者問「卡片按鈕還有什麼功能可以做」，看完 12 項後挑 10、11、12（「都幫我做」）。建在 PR #148（週報、月報）之上，#148 併 main 後再併。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`。
+
+- **報表各校明細（總部群組）**：月報卡片下面多五校按鈕；週報是純文字掛不了按鈕，後面同一次推播多一張「看各校明細」小卡（LINE 照收件人數算，不多算一則）。按校名回那一校**那一期**的明細：預約筆數、進件管道、官網預約的第一次進站來源、各種結果與到場率、取消方、預繳，以及未到場、待標記的家長稱呼與參觀日（各最多 8 位）。原本提案的「按義華＝幫你打『義華 上週統計』」施工時發現週報裡已經有那一行，改成上面這份真正的明細。唯讀，沒貼過驗證碼的舊總部群組也能按。
+- **查詢切換鈕（所有群組）**：查詢結果下面掛 LINE 快速回覆，例如看完「今天參觀」直接有「明天參觀／本週參觀／待標記／今天名額」；指令前加了校名，切換鈕也帶同一個校名。只在手機 LINE 顯示，群組有人再傳訊息就收起來。選單、說明、權限不足、額度、各種推播不掛。
+- **統計異常「知道了」（總部群組）**：提醒從純文字改成卡片，兩顆按鈕：「知道了，先不提醒」（**同樣的問題 3 天內早上不再推**，第 4 天起問題還在就再推；群組看得到是誰按的）與「開成效統計」。原本提案寫「今天不再提醒」，但提醒本來就一天一次，所以改成 3 天。後台成效統計頁頂端照常顯示。只有驗證過的總部群組能按，太舊的卡片（檢查日早於 2 天前）不寫入；按了寫操作紀錄 `line.group.stats_health_mute`。
+- **範圍**：`backend/`（新 `notifications/line_group_report_actions.py`；`line.py`、`line_flex.py`、`line_group_commands.py`、`line_group_actions.py`、`line_group_reports.py`、`line_reports.py`、`operations/stats_health.py`、`audit_service.py`、`operations/models.py`）、migration `d8b3f1a6c240`（只新增一張空表 `stats_health_mutes`，不必先備份）、`admin/`（操作紀錄的動作與欄位標籤、LINE 通知頁說明）。API 契約不變，`web/` 沒動。
+- **沒驗**：快速回覆、明細卡、統計異常卡片在手機 LINE 上的樣子；快速回覆在真群組的顯示（LINE 文件寫群組支援、iOS／Android 才顯示）；postback 的 displayText 會不會另外觸發訊息事件（照前幾輪的做法，這幾句都確認不是指令）。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_cardbtn1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 後端全套 `pytest -q` | 6103 passed、1 skipped、**1 failed**（18 分鐘）：`test_operations.py` 的守門測試要求每種 LINE 群組按鈕稽核都驗過「分校帳號看不到群組 ID」，新動作沒列進去；補進測試後重跑 `test_operations.py` 26 passed，沒有再跑全套 |
+| 新測試 `test_line_card_buttons_20261127.py` | 15 passed（切換鈕每句都能被解析、日期前後一天、校名前綴、拒絕的回覆不掛；明細內容與授權、不認得的資料不回應；「知道了」暫停 3 天後恢復、不縮短、非總部／未驗證／太舊的卡片） |
+| migration `d8b3f1a6c240` 降版 → 升版、`alembic heads` | 表拿掉又建回來；只有一個 head |
+| `deploy/check_schema.py`（升版後的測試庫） | `Database schema ready: d8b3f1a6c240` |
+| `export_openapi.py --check`、`export_state_machines.py --check` | 契約與 API 一致、狀態機匯出檔一致 |
+| `npm --prefix admin run typecheck` | exit 0 |
+| admin 全套 `npx vitest run --maxWorkers=2` | 210 檔、3909 passed、1 skipped（含新的 `lineCardButtons20261127.test.ts` 2 條） |
+
+沒跑：`web/` 的測試（沒動）、stack e2e、真 LINE 群組。
+
 ## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151，已部署 main `1a6f1d47`，紀錄見 `deploy/README.md`）
 
 使用者：「https://admin.ivykidschool.com/admin/users 可以幫我優化權限設計嗎」→ 盤點後選「整理＋擴充逐人授權」，只開**招生統計（限負責校區）**。規則與裁定在 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。沒有 migration；有 API 與契約變動（已重產）。
@@ -73,6 +97,33 @@
 
 - **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；`npm run test:website` 與 stack e2e 沒跑（沒動 `web/`；e2e 由 CI 跑）；真後端登入後的畫面與正式站沒看；使用小技巧（`tips.ts`）裡各條「適用角色」仍是寫死的角色清單，另一個 session 正在改那一頁，這次沒動；`docs/website-admin/acceptance.md` E02 的敘述沒更新。
 - **部署時注意**：沒有 migration、不改既有資料；上線後現有帳號的權限只有一處變窄（櫃台打不到操作紀錄 API），其餘不變。要讓某位園長看統計，需總管理者到使用者頁勾選。
+
+## 2026-11-27 後台 QA／TA 修正五項（`feature/admin-qa-fixes-20261127`，未提交、未部署）
+
+同日先對正式站後台做只讀的 QA＋TA 測試（37 頁桌機＋390px，0 個 API 失敗、0 個主控台錯誤），使用者從清單挑這五項說「先幫我處理這些問題」。規則寫在 DESIGN.md 頂部「後台 QA／TA 修正五項」。
+
+- **漏斗看板比率和招生統計同一套**（使用者在選項中選定）：看板上方改成「參觀→預繳率」「預繳→註冊率」，由後端 `GET /admin/admissions/board` 新的 `rates` 算（母體同招生統計：同校、同入學學年學期的全部訪視），拿掉「和招生統計算法不同」那行與招生統計沒有的退費率。取代規格 B20「照園務、各欄目前張數相除」，和園務系統的看板因此不同。
+- **側欄搜尋收園方說法**：停課、颱風、放假、國定假日、寒暑假→參觀場次；取消預約、未到場、補登、重寄確認信→參觀案件；手機通知→我的帳號。「上傳照片」這類關鍵字在搜尋字裡的也找得到，但只在沒有直接命中時才列。使用小技巧頁搜不到時列的頁面同一套。
+- **找不到的網址排除掃描程式**：`/.env`、`/.git/config` 這類有一段以「.」開頭的路徑（`/.well-known/` 除外）不列、不算次數，表下一句話說明不用處理。後端讀取時排除，舊資料一樣適用。
+- **手機上還沒開始的案件，撥號是整排主鈕**，排在「家長提早到了」上面；桌機、預覽面板、場次進行中照舊。（QA 報告裡「手機上還顯示 ⌘／Ctrl＋Enter」是我用桌機滑鼠模擬的假象，觸控裝置本來就藏，沒改。）
+- **素材庫**：`unnamed.webp`、`facebook.jpg`、臉書數字檔名的卡片，標題改用圖片說明或「用在哪裡」，檔名放第二行；搜尋也比對用在哪裡（打「校園探索」找得到用在校園探索的照片）。
+- **範圍**：`backend/`（`operations/crawler_service.py`、`analytics_more_routes.py`、`admissions/funnel.py`、`admissions/schemas/records.py`、`media/routes.py`）、`admin/`（側欄、使用小技巧、漏斗看板、404 面板、案件頁首、素材庫）、`contracts/`（兩個回應欄位、一個查詢參數，都是新增）。沒有 migration，`web/` 沒動。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_qafix1127_test`、stack 用 `ivy_website_qaview1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 新增與改寫的測試先看到失敗再轉綠 | 後端 4 條（404 掃描 2〔含純函式 1〕、看板比率 1、素材用途搜尋 1）；admin `navSearch.test.ts` 15 條（含自查時抓到的回歸：搜分組名「參觀預約」只剩兩項，已修）、404 面板 1、撥號 1、素材 2、看板 2 條改寫 |
+| `npm --prefix admin run typecheck` | exit 0 |
+| admin 全套 `VITEST_MAX_FORKS=2 npx vitest run` | 217 檔、3976 passed、1 skipped |
+| `npm --prefix web run typecheck` | exit 0（2 條 `Duplicated imports "MediaImage"` 警告是既有的，`web/` 沒動） |
+| `npm run test:website` | 171 檔、2591 passed |
+| `npm run contract:check` | 契約、狀態機、型別都一致 |
+| stack e2e `visit-schedule`、`media.spec`、`admissions-flow`、`visual` | 15 passed（含 macOS 視覺基準） |
+| 暫時的 stack 檢查腳本（跑完已刪）：真後端造資料後截圖 1440 與 390 | 看板 50.0%（2/4）＝招生統計 KPI；404 表只剩舊網址、多一句掃描說明；側欄五個詞都命中對的頁；手機撥號鈕 44px 高、在「家長提早到了」上方，觸控下快捷鍵提示不顯示；素材卡片標題與「校園探索」搜尋正確。截圖在 `output/qa-fixes-20261127/` |
+| 後端全套 `pytest -q` | 6144 passed、1 skipped（13 分 43 秒） |
+
+沒驗：iPhone 實機、正式站資料下的畫面；其他角色（校區管理者看漏斗看板、櫃台）的實際登入畫面只靠單元測試。
 
 ## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 

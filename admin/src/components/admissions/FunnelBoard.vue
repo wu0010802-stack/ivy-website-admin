@@ -89,16 +89,21 @@ const searchStatus = computed(() =>
   filtering.value && board.value ? `符合「${keyword.value}」的卡片共 ${STAGES.reduce((sum, stage) => sum + visibleCards(stage).length, 0)} 張` : '',
 )
 
-// 三個比率：園務用「各欄目前張數」相除（不是累積漏斗）；名稱在前、附分子分母，分母 0 寫「—」不寫 0（本檔調整第 20 條）。
-function rate(label: string, numerator: number, denominator: number, title: string) {
-  if (!denominator) return { label, value: '—', fraction: '', title }
-  return { label, value: `${((numerator / denominator) * 100).toFixed(1)}%`, fraction: `（${numerator}/${denominator}）`, title }
+// 比率和招生統計同一套（2026-11-27 使用者裁定，取代本檔調整第 20 條的「各欄目前張數相除」）：數字由後端
+// rates 算（母體是這一學年學期的全部訪視，和招生統計同一支計數規則），名稱照招生統計；名稱在前、附分子分母，
+// 分母 0 寫「—」不寫 0。招生統計沒有的退費率拿掉，退出的人數看「退預繳／退註冊」欄。前端找姓名不影響比率。
+function rate(label: string, value: number | null, numerator: number, denominator: number, title: string) {
+  if (value === null || !denominator) return { label, value: '—', fraction: '', title }
+  return { label, value: `${value.toFixed(1)}%`, fraction: `（${numerator}/${denominator}）`, title }
 }
-const summaryRates = computed(() => [
-  rate('預繳率', count('deposited'), count('visited'), '已預繳 ÷ 已訪視（各欄目前張數）'),
-  rate('註冊率', count('enrolled'), count('deposited'), '已註冊 ÷ 已預繳（各欄目前張數）'),
-  rate('退費率', count('withdrawn'), count('enrolled'), '退預繳／退註冊 ÷ 已註冊（各欄目前張數，同園務）'),
-])
+const summaryRates = computed(() => {
+  const r = board.value?.rates
+  if (!r) return []
+  return [
+    rate('參觀→預繳率', r.visit_to_deposit_rate, r.deposit, r.visit, '預繳 ÷ 參觀，這一學年學期的全部訪視（同招生統計）'),
+    rate('預繳→註冊率', r.deposit_to_enrolled_rate, r.enrolled, r.deposit, '註冊 ÷ 預繳（同招生統計）'),
+  ]
+})
 
 // 看板全空、還有場次已過卻沒標記到場的預約：多半是還沒標記，不是沒有人來參觀。標記已到場建立的訪視
 // 入學學期是當天的學期（booking_link.fields_from_visit_request），只在看板涵蓋目前學期時提示。
@@ -224,7 +229,6 @@ function openEvents(card: BoardCard) {
               {{ item.label }} <strong class="num">{{ item.value }}</strong><span v-if="item.fraction" class="num">{{ item.fraction }}</span>
             </span>
           </p>
-          <p class="hint funnel__note">依各欄目前張數相除，和「招生統計」的轉換率算法不同。</p>
         </template>
         <p v-if="schoolYear === null" class="hint funnel__note">看板一次看一個學年：頁首選了「不限學年」，這裡先顯示 {{ defaultYear }} 學年。</p>
       </div>

@@ -19,6 +19,7 @@ from datetime import date, datetime, time, timedelta
 
 import httpx
 from sqlalchemy import func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.booking import exclusion
@@ -29,7 +30,7 @@ from app.insights.ga4_ads import Ga4Ads
 from app.insights.http import GoogleApiError
 from app.notifications.line import LineMessagingClient, LinePushError
 from app.notifications.models import LineGroup, LineGroupSetting
-from app.operations.models import EngagementVisit, PageViewDaily, StatsHealthRun
+from app.operations.models import EngagementVisit, PageViewDaily, StatsHealthMute, StatsHealthRun
 
 logger = logging.getLogger("app.stats_health")
 
@@ -139,11 +140,59 @@ async def check(
     return yesterday, issues
 
 
-def alert_text(day: date, issues: list[HealthIssue], admin_origin: str | None) -> str:
-    lines = [f"官網統計可能有狀況（{_md(day)} 週{_WEEKDAYS[day.weekday()]}）", *(f"・{issue.message}" for issue in issues)]
-    if admin_origin:
-        lines.append(f"後台「成效統計」：{admin_origin.rstrip('/')}/admin/analytics")
-    return "\n".join(lines)
+def alert_title(day: date) -> str:
+    return f"官網統計可能有狀況（{_md(day)} 週{_WEEKDAYS[day.weekday()]}）"
+
+
+def analytics_url(admin_origin: str | None) -> str | None:
+    """後台「成效統計」：LINE 內建瀏覽器擋 Google 登入，帶 openExternalBrowser=1 改用手機預設瀏覽器。"""
+    return f"{admin_origin.rstrip('/')}/admin/analytics?openExternalBrowser=1" if admin_origin else None
+
+
+def alert_message(day: date, issues: list[HealthIssue], admin_origin: str | None) -> dict:
+    """提醒卡片（2026-11-27 起；原本是純文字）：每項一行，「知道了」與「開成效統計」兩顆按鈕。"""
+    from app.notifications import line_flex
+    from app.notifications.line_group_actions import STATS_MUTE, encode
+
+    mute_data = encode(STATS_MUTE, day.strftime("%Y%m%d"), ",".join(issue.key for issue in issues))
+    return line_flex.stats_health_message(
+        alert_title(day), [issue.message for issue in issues], mute_data=mute_data, analytics_url=analytics_url(admin_origin)
+    )
+
+
+# ---- 「知道了」（2026-11-27，docs/specs/2026-11-27-line-card-buttons-design.md §4）----
+
+ISSUE_LABELS = {
+    "traffic_zero": "瀏覽是 0",
+    "engagement_low": "內容興趣偏少",
+    "attribution_missing": "預約沒記到來源",
+    "ga4_silent": "GA4 沒收到事件",
+}
+MUTE_DAYS = 3
+# 卡片上「檢查的那天」最多早今天幾天還能按（推播是檢查日的隔天早上，留一天緩衝）。
+MUTE_CARD_MAX_AGE_DAYS = 2
+
+
+async def muted_keys(db: AsyncSession, today: date) -> set[str]:
+    return set((await db.execute(select(StatsHealthMute.issue_key).where(StatsHealthMute.muted_until >= today))).scalars())
+
+
+async def mute(db: AsyncSession, keys: list[str], today: date) -> date:
+    """這幾種問題暫停推到 today＋MUTE_DAYS（含）；已經暫停到更晚的不縮短。呼叫端 commit。回傳暫停到哪天。"""
+    until = today + timedelta(days=MUTE_DAYS)
+    now = now_utc()
+    # 兩個人同時按（列還不存在）也不會撞主鍵：衝突時取兩者較晚的日期。
+    stmt = pg_insert(StatsHealthMute).values([
+        {"issue_key": key, "muted_until": until, "updated_at": now} for key in keys
+    ])
+    await db.execute(stmt.on_conflict_do_update(
+        index_elements=[StatsHealthMute.issue_key],
+        set_={
+            "muted_until": func.greatest(StatsHealthMute.muted_until, stmt.excluded.muted_until),
+            "updated_at": stmt.excluded.updated_at,
+        },
+    ))
+    return until
 
 
 async def _alert_targets(db: AsyncSession) -> list[str]:
@@ -176,15 +225,18 @@ async def send_due_alerts(
     if not pending:
         return 0
     day, issues = await check(db, settings, today=today, ga4=ga4, transport=transport)
+    # 總部按過「知道了」的問題在暫停期間不推（2026-11-27）；全部都在暫停中就跟沒有異常一樣。
+    muted = await muted_keys(db, today) if issues else set()
+    issues = [issue for issue in issues if issue.key not in muted]
     if not issues:
         _clean_day = today
         return 0
-    text = alert_text(day, issues, settings.admin_origin)
+    message = alert_message(day, issues, settings.admin_origin)
     sent = 0
     for target in pending:
         key = uuid.uuid5(uuid.NAMESPACE_URL, f"stats-health:{target}:{day.isoformat()}")
         try:
-            await line_client.push_text(target, text, key=key)
+            await line_client.push(target, [message], key=key)
         except (LinePushError, httpx.HTTPError):
             logger.warning("統計健康檢查推播失敗，下一輪再試：%s", target, exc_info=True)
             continue

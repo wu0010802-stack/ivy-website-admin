@@ -462,6 +462,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.group.visit_attend': '在 LINE 群組標記已到場',
   'line.group.visit_no_show': '在 LINE 群組標記未到場',
   'line.group.recruitment_field': '填寫招生欄位（LINE 群組）',
+  // 2026-11-27：總部群組在統計異常卡片按「知道了」（docs/specs/2026-11-27-line-card-buttons-design.md §4）。
+  'line.group.stats_health_mute': '統計異常先不提醒（LINE 群組）',
   'line.parent_account.update': '更新家長 LINE 通知帳號',
   'line.parent.link': '家長開啟 LINE 通知',
   'line.parent.unlink': '家長關閉 LINE 通知',
@@ -771,6 +773,8 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   search_keyword: '搜尋需求關鍵字',
   enrollment_history: '歷年註冊',
   error_group: '錯誤回報',
+  // 2026-11-27：統計異常「知道了」（line.group.stats_health_mute）。
+  stats_health: '官網統計異常提醒',
 }
 
 // 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。

@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from sqlalchemy import text
 
-from app.media.models import MediaAsset, MediaKind, MediaStatus
+from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaUsage
 
 API = "/api/website/v1"
 MEDIA = f"{API}/admin/media"
@@ -203,6 +203,25 @@ async def test_search_matches_filename_alt_and_caption_case_insensitive(admin_cl
     assert _names(await _list(admin_client, q="大合照")) == ["y.jpg"]
     # 前後空白不算。
     assert _names(await _list(admin_client, q="  沙坑 ")) == ["x.jpg"]
+
+
+@pytest.mark.asyncio
+async def test_search_also_matches_where_the_asset_is_used(admin_client, db_session):
+    """2026-11-27 後台 QA：從網頁另存的照片檔名多半是 unnamed.webp、facebook.jpg，又沒填說明，搜不到。
+    後台把名稱含搜尋字的內容種類換算好放在 q_used_in（「校園探索」→ campus_tour），用在那些內容的素材也算符合。"""
+    tour = await _asset(db_session, "unnamed (2).webp", campus_key="chongde", minutes=3)
+    await _asset(db_session, "facebook.jpg", minutes=2)
+    await _asset(db_session, "校園探索草稿.jpg", minutes=1)
+    db_session.add(MediaUsage(
+        id=uuid.uuid4(), media_id=uuid.UUID(tour), campus_key="chongde", content_item_id="tour-chongde",
+        content_kind="campus_tour", revision_id=None, field_name="scenes[0].image", created_at=BASE_TIME,
+    ))
+    await db_session.commit()
+
+    assert _names(await _list(admin_client, q="校園探索", q_used_in="campus_tour")) == ["unnamed (2).webp", "校園探索草稿.jpg"]
+    # 只有 q_used_in、沒有 q 不算篩選；種類對不上就只看檔名等欄位。
+    assert len((await _list(admin_client, q_used_in="campus_tour"))["items"]) == 3
+    assert _names(await _list(admin_client, q="校園探索", q_used_in="home_news")) == ["校園探索草稿.jpg"]
 
 
 @pytest.mark.asyncio
