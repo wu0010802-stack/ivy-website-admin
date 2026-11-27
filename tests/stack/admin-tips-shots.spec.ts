@@ -347,7 +347,8 @@ test('找功能：側欄搜尋', async ({ browser }) => {
   await shoot(browser, 'super_admin', async (page) => {
     await goto(page, '/')
     await page.keyboard.press('Meta+K')
-    await page.keyboard.type('預約')
+    // 跟步驟與截圖說明用同一個例字（2026-11-27 前拍的是「預約」，說明寫「名額」）
+    await page.keyboard.type('名額')
     await expect(page.locator('.sidebar__link.is-first')).toBeVisible()
     await shot(page, 'search', [page.locator('.sidebar__search'), page.locator('.sidebar__nav .sidebar__group').first()], {
       marks: [page.locator('.sidebar__search .el-input__wrapper')], pad: 0,
@@ -674,6 +675,34 @@ test('官網內容：排程發布', async ({ browser }) => {
     await expect(cancel).toBeVisible()
     const banner = page.locator('.editor__schedules')
     await shot(page, 'schedule', [banner], { marks: [cancel] })
+  })
+})
+
+test('官網內容：網站開關發布後才生效', async ({ browser }) => {
+  await shoot(browser, 'super_admin', async (page) => {
+    await goto(page, '/content/site-meta')
+    const names = ['在官網顯示 30 週年內容', '在官網顯示最新消息', '在官網顯示入學資訊分頁']
+    const switches = names.map(name => page.locator('.el-switch', { has: page.getByRole('switch', { name }) }))
+    for (const item of switches) await expect(item).toBeVisible()
+    // 頁面底部的狀態列是黏住的：用高視窗、把這三段捲到上半部，才不會被它蓋住。
+    await page.locator('#section-meta-anniversary').evaluate(el => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 120))
+    await shot(page, 'site-switches', [page.locator('#section-meta-anniversary'), page.locator('#section-meta-admission').locator('xpath=following-sibling::*[1]')], {
+      marks: switches,
+    })
+  }, TALL)
+})
+
+test('統計與系統：操作紀錄', async ({ browser }) => {
+  await shoot(browser, 'super_admin', async (page) => {
+    await goto(page, '/audit')
+    // 跟案件有關的一列：框出名字（停上去看 Email）與「查看案件」。
+    const caseLink = page.getByRole('link', { name: '查看案件' }).first()
+    await expect(caseLink).toBeVisible()
+    const caseRow = page.locator('tr', { has: caseLink }).first()
+    await caseRow.scrollIntoViewIfNeeded()
+    await shot(page, 'audit-more', [caseRow], {
+      marks: [caseRow.locator('[data-test="audit-actor"]'), caseLink], pad: 24,
+    })
   })
 })
 
