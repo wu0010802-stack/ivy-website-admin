@@ -307,8 +307,20 @@ class FunnelColumnsOut(BaseModel):
     withdrawn: list[FunnelCardOut]
 
 
+class FunnelRatesOut(BaseModel):
+    """看板上方的比率，和招生統計同一套（2026-11-27）：母體是看板這一學年學期的全部訪視，
+    預繳＝has_deposit（退出會清掉）、註冊＝enrolled；比率到小數一位，分母 0 為 null。"""
+
+    visit: int
+    deposit: int
+    enrolled: int
+    visit_to_deposit_rate: float | None
+    deposit_to_enrolled_rate: float | None
+
+
 class FunnelBoardOut(BaseModel):
     columns: FunnelColumnsOut
+    rates: FunnelRatesOut
     # 這一校沒填入學學年的訪視數（不受學年篩選影響）。
     unscoped_count: int
     # 實際套用的篩選：校區、入學學年（沒帶時是目前學年）、學期（None＝整學年）。

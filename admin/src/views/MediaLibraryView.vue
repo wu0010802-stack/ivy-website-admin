@@ -6,7 +6,7 @@ import { ArrowDown, Upload } from '@element-plus/icons-vue'
 import { api, ApiError, mediaFocusUrl, mediaPreviewUrl } from '../api/client'
 import type { MediaAssetOut, MediaAssetPageOut, MediaUploadLimitsOut } from '../api/types'
 import { apiErrorMessage, isVersionConflict } from '../api/errors'
-import { campusLabel, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus, staffEmail, staffLabel, staffOf } from '../api/labels'
+import { campusLabel, CONTENT_KIND_LABELS, contentItemLabel, formatDate, formatDateTime, formatDuration, formatFileSize, mediaStatus, staffEmail, staffLabel, staffOf } from '../api/labels'
 import { useAuthStore } from '../stores/auth'
 import { canEditSharedContent } from '../router/nav'
 import { usePermissions } from '../composables/usePermissions'
@@ -84,13 +84,32 @@ const listSummary = computed(() => {
 // 先發出、較晚回來的舊清單不能蓋掉目前的清單。
 const requests = useRequestSequence()
 
+// 搜尋也找用在哪裡（2026-11-27 後台 QA）：名稱含搜尋字的內容種類（搜「校園探索」→ campus_tour）
+// 交給後端，用在那些內容的素材也算符合。中文名稱只有後台有，所以在這裡換算。
+function kindsNamed(text: string): string[] {
+  const needle = text.toLowerCase()
+  return Object.entries(CONTENT_KIND_LABELS).filter(([, label]) => label.toLowerCase().includes(needle)).map(([kind]) => kind)
+}
+
+// 從網頁另存的照片常見的檔名：unnamed.webp、unnamed (2).webp、facebook.jpg、臉書的「數字_數字_數字_n.jpg」。
+// 看不出是哪張，卡片標題改用圖片說明，沒有說明就用「用在哪裡」；檔名放第二行（2026-11-27 後台 QA）。
+const MEANINGLESS_FILENAME = /^(?:unnamed|facebook)(?: ?\(\d+\))?\.\w+$|^\d+_\d+_\d+_[a-z]\.\w+$/i
+function cardTitle(asset: MediaAssetOut): string {
+  if (!MEANINGLESS_FILENAME.test(asset.original_filename)) return asset.original_filename
+  return asset.alt_text?.trim() || usedInText(asset) || asset.original_filename
+}
+
 function listPath(): string {
   const params = new URLSearchParams()
   if (listState.value !== 'active') params.set('state', listState.value)
   if (campusFilter.value) params.set('campus', campusFilter.value)
   if (kindFilter.value) params.set('kind', kindFilter.value)
   if (tagFilter.value) params.set('tag', tagFilter.value)
-  if (keyword.value) params.set('q', keyword.value)
+  if (keyword.value) {
+    params.set('q', keyword.value)
+    const usedIn = kindsNamed(keyword.value)
+    if (usedIn.length) params.set('q_used_in', usedIn.join(','))
+  }
   params.set('page', String(page.value))
   params.set('page_size', String(PAGE_SIZE))
   return `/admin/media?${params}`
@@ -491,7 +510,7 @@ onMounted(async () => {
     <p v-else-if="listState === 'archived'" class="hint state-hint">封存的素材不會出現在選圖器，檔案與舊版本的引用都保留，隨時可以取消封存。</p>
 
     <div class="filter-bar">
-      <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、圖片說明、內部備註或標籤" clearable /></label>
+      <label class="filter-field filter-search"><span>搜尋素材</span><el-input v-model="query" placeholder="檔名、說明、內部備註、標籤或用在哪裡" clearable /></label>
       <!-- 可清除的下拉選單不能包在 label 裡：按 × 清除後，label 會再點一次選單，清單又自己打開。 -->
       <div class="filter-field"><span>校區</span>
         <el-select v-model="campusFilter" placeholder="全部校區" clearable aria-label="校區">
@@ -538,7 +557,8 @@ onMounted(async () => {
           <span v-if="asset.usage_count > 0" class="media__usage" :title="usedInText(asset)">使用中 {{ asset.usage_count }}</span>
         </div>
         <div class="media__meta">
-          <strong class="media__name" :title="asset.original_filename">{{ asset.original_filename }}</strong>
+          <strong class="media__name" :title="cardTitle(asset)">{{ cardTitle(asset) }}</strong>
+          <span v-if="cardTitle(asset) !== asset.original_filename" class="media__sub media__file" :title="asset.original_filename">檔名：{{ asset.original_filename }}</span>
           <span class="media__sub">
             {{ asset.campus_key ? campusLabel(asset.campus_key) : '跨校共用' }}・{{ formatFileSize(asset.size_bytes) }}<template v-if="asset.width && asset.height">・{{ asset.width }}×{{ asset.height }}</template>
           </span>
@@ -797,6 +817,13 @@ onMounted(async () => {
 .media__sub {
   font-size: var(--text-xs);
   color: var(--ink-3);
+}
+
+/* 臉書另存的檔名是一長串數字，跟標題一樣一行截斷，滑鼠移上去看全名。 */
+.media__file {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .media__warn {

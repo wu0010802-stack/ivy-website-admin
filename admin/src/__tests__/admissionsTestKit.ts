@@ -154,6 +154,7 @@ export const card = (changes: Record<string, unknown> = {}) => ({
 type StageKey = 'visited' | 'deposited' | 'enrolled' | 'withdrawn'
 export const board = (columns: Partial<Record<StageKey, unknown[]>> = {}, extra: Record<string, unknown> = {}) => ({
   columns: { visited: [], deposited: [], enrolled: [], withdrawn: [], ...columns },
+  rates: { visit: 0, deposit: 0, enrolled: 0, visit_to_deposit_rate: null, deposit_to_enrolled_rate: null },
   unscoped_count: 0, school_year: 115, semester: null, campus_key: 'yihua', as_of: '2026-10-01T02:00:00Z', ...extra,
 })
 

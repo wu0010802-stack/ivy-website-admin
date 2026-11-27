@@ -84,6 +84,13 @@ def clean_path(raw: str) -> str | None:
     return path.lower()[:NOT_FOUND_PATH_MAX]
 
 
+def is_probe_path(path: str) -> bool:
+    """掃描程式試探設定檔的網址（/.env、/.git/config、/.aws/credentials）：有一段以「.」開頭。
+    官網沒有這種網址，不是該補的轉址；/.well-known/ 是公開慣例的位置，不算。"""
+    segments = [segment for segment in path.split("/") if segment]
+    return any(segment.startswith(".") and segment != ".well-known" for segment in segments)
+
+
 async def record_not_found(db: AsyncSession, rows: list[tuple[str, str, int]], today: date | None = None) -> None:
     """rows：(路徑, 從哪裡來, 次數)。一天最多 NOT_FOUND_DAILY_PATHS 個不同的網址，滿了只累加已經記過的。"""
     today = today or today_local()
@@ -128,7 +135,8 @@ async def purge_once_a_day(db: AsyncSession, today: date | None = None) -> None:
 
 
 async def get_not_found(db: AsyncSession, days: int, stats_start: date | None) -> dict:
-    """近 N 天找不到的網址：每個網址的總次數、各來源次數、最後一天，依次數排序，最多 NOT_FOUND_LIMIT 個。"""
+    """近 N 天找不到的網址：每個網址的總次數、各來源次數、最後一天，依次數排序，最多 NOT_FOUND_LIMIT 個。
+    掃描程式的試探網址（is_probe_path）不列、不算進總數，只回傳次數與網址數。"""
     today = today_local()
     since = stats_since(today, days, stats_start)
     rows = (await db.execute(
@@ -138,7 +146,13 @@ async def get_not_found(db: AsyncSession, days: int, stats_start: date | None) -
     )).all()
     paths: dict[str, dict] = {}
     totals = {ref: 0 for ref in NOT_FOUND_REFS}
+    probe_hits = 0
+    probe_paths: set[str] = set()
     for path, ref, hits, last in rows:
+        if is_probe_path(path):
+            probe_hits += int(hits)
+            probe_paths.add(path)
+            continue
         entry = paths.setdefault(path, {"path": path, "hits": 0, "visitor_hits": 0, "refs": {}, "last_day": last})
         entry["hits"] += int(hits)
         if ref != "crawler":
@@ -151,6 +165,8 @@ async def get_not_found(db: AsyncSession, days: int, stats_start: date | None) -
         "days": days, "since": since.isoformat(), "until": today.isoformat(),
         "paths_total": len(ordered),
         "totals": [{"ref": ref, "hits": totals[ref]} for ref in NOT_FOUND_REFS],
+        "probe_hits": probe_hits,
+        "probe_paths": len(probe_paths),
         "paths": [
             {**row, "refs": [{"ref": ref, "hits": row["refs"].get(ref, 0)} for ref in NOT_FOUND_REFS if row["refs"].get(ref)]}
             for row in ordered[:NOT_FOUND_LIMIT]

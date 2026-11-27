@@ -225,6 +225,49 @@ describe('多檔上傳佇列', () => {
 })
 
 describe('素材庫頁', () => {
+  // 2026-11-27 後台 QA／TA：從網頁另存的照片檔名多半是 unnamed.webp、facebook.jpg 或臉書的一串數字，
+  // 卡片標題全是這些字，看不出是哪張、也搜不到。
+  it('檔名看不出內容時，卡片標題改用圖片說明，沒有說明就用「用在哪裡」，檔名放第二行', async () => {
+    mockGet([
+      asset({ id: 'a', original_filename: 'unnamed (2).webp', alt_text: null, usage_count: 1, used_in: [{ kind: 'campus_tour', campus_key: 'chongde' }] }),
+      asset({ id: 'b', original_filename: 'facebook.jpg', alt_text: '萬聖節變裝派對' }),
+      asset({ id: 'c', original_filename: '486374943_122203087652172612_6990655435493975112_n.jpg', alt_text: null }),
+      asset({ id: 'd', original_filename: 'day-english-snowman-1600.jpg', alt_text: '雪人' }),
+    ])
+    const wrapper = await mountAs(MediaLibraryView, admin())
+    const card = (id: string) => wrapper.get(`[data-media-id="${id}"]`)
+    expect(card('a').get('.media__name').text()).toBe('校園探索（崇德）')
+    expect(card('a').get('.media__file').text()).toBe('檔名：unnamed (2).webp')
+    expect(card('b').get('.media__name').text()).toBe('萬聖節變裝派對')
+    expect(card('b').get('.media__file').text()).toBe('檔名：facebook.jpg')
+    // 沒說明也沒用在哪裡：只能照舊寫檔名
+    expect(card('c').get('.media__name').text()).toBe('486374943_122203087652172612_6990655435493975112_n.jpg')
+    expect(card('c').find('.media__file').exists()).toBe(false)
+    // 檔名本身看得懂的不換
+    expect(card('d').get('.media__name').text()).toBe('day-english-snowman-1600.jpg')
+    expect(card('d').find('.media__file').exists()).toBe(false)
+  })
+
+  it('搜尋字對得上內容名稱時一起帶 q_used_in，用在那些內容的素材也找得到', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const get = mockGet([asset()])
+      const wrapper = await mountAs(MediaLibraryView, admin())
+      const search = wrapper.find('input[placeholder="檔名、說明、內部備註、標籤或用在哪裡"]')
+      const searchFor = async (text: string) => {
+        await search.setValue(text)
+        await vi.advanceTimersByTimeAsync(300)
+        await flushPromises()
+        return listCalls(get).at(-1)
+      }
+      expect(await searchFor('校園探索')).toEqual({ q: '校園探索', q_used_in: 'campus_tour', page: '1', page_size: '60' })
+      expect(await searchFor('消息')).toEqual({ q: '消息', q_used_in: 'home_news,campus_news', page: '1', page_size: '60' })
+      expect(await searchFor('菜園')).toEqual({ q: '菜園', page: '1', page_size: '60' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('卡片顯示上傳者與用在哪些內容，「用在哪裡」列出版本、位置與狀態', async () => {
     const get = mockGet([asset({ usage_count: 2, used_in: [{ kind: 'campus_tour', campus_key: 'yihua' }] })])
     const wrapper = await mountAs(MediaLibraryView, admin())
@@ -364,7 +407,7 @@ describe('素材庫頁', () => {
 
       // 關鍵字停下 300ms 才送，前後空白不送。
       const sent = listCalls(get).length
-      const search = wrapper.find('input[placeholder="檔名、圖片說明、內部備註或標籤"]')
+      const search = wrapper.find('input[placeholder="檔名、說明、內部備註、標籤或用在哪裡"]')
       await search.setValue('菜')
       await search.setValue(' 菜園 ')
       await vi.advanceTimersByTimeAsync(299)
@@ -512,7 +555,7 @@ describe('素材庫頁', () => {
   it('素材的 caption 叫「內部備註」並講明不顯示在官網，舊值照原樣存回', async () => {
     mockGet([asset({ caption: '2025 畢業典禮大合照' })])
     const wrapper = await mountAs(MediaLibraryView, admin())
-    expect(wrapper.find('input[placeholder="檔名、圖片說明、內部備註或標籤"]').exists()).toBe(true)
+    expect(wrapper.find('input[placeholder="檔名、說明、內部備註、標籤或用在哪裡"]').exists()).toBe(true)
     await wrapper.findAll('button').find((b) => b.text() === '編輯')!.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('內部備註（不會顯示在官網）')

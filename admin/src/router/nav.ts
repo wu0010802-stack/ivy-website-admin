@@ -194,13 +194,33 @@ export function normalizeSearch(text: string): string {
   return text.normalize('NFKC').toLowerCase().trim()
 }
 
-/** 這個功能的名稱或關鍵字跟搜尋字（q 已經正規化過）有多接近：2＝完全相同、
- * 1＝包含、0＝對不上。完全相同的排前面：搜「密碼」時第一筆（按 Enter 開的那筆）
- * 要是自己的「我的帳號」，不是關鍵字「重設密碼」的「使用者」。 */
+/** 園方的口語說法（2026-11-27 後台 QA／TA）：功能藏在某一頁裡、名稱和關鍵字都沒有的講法，
+ * 例如颱風停課在「參觀場次」、取消預約在「參觀案件」。和 keywords 一樣參與比對；另外放一份，
+ * 是為了不動每個選單項目那一行。 */
+const SEARCH_ALIASES: Readonly<Record<string, readonly string[]>> = {
+  'visit-calendar': ['停班停課', '颱風', '放假', '國定假日', '寒假', '暑假'],
+  'visit-requests': ['取消預約', '未到場', '已到場', '補登', '改場次', '重寄確認信', '家長管理連結', '排除'],
+  account: ['手機通知', '手機推播'],
+}
+
+/** 這個功能的名稱、關鍵字或口語說法跟搜尋字（q 已經正規化過）有多接近：2＝完全相同、
+ * 1＝包含搜尋字、0.5＝反過來，兩個字以上的關鍵字出現在搜尋字裡（「上傳照片」裡有「照片」）、
+ * 0＝對不上。完全相同的排前面：搜「密碼」時第一筆（按 Enter 開的那筆）要是自己的「我的帳號」，
+ * 不是關鍵字「重設密碼」的「使用者」。 */
 export function navItemMatchScore(item: NavItem, q: string): number {
-  const texts = [item.title, ...(item.keywords ?? [])].map(normalizeSearch)
+  const texts = [item.title, ...(item.keywords ?? []), ...(SEARCH_ALIASES[item.name] ?? [])].map(normalizeSearch)
   if (texts.includes(q)) return 2
-  return texts.some(text => text.includes(q)) ? 1 : 0
+  if (texts.some(text => text.includes(q))) return 1
+  return texts.some(text => text.length >= 2 && q.includes(text)) ? 0.5 : 0
+}
+
+/** 這些功能裡跟搜尋字對得上的，分數高的在前（同分維持原本順序）。反過來命中（0.5）只在沒有
+ * 任何功能直接命中時才列：搜「全站設定」只給個資與搜尋設定，不會因為關鍵字「設定」多出系統狀態。
+ * 側欄要分組顯示，可以先用整份清單算一次，再拿 floor 過濾各組。 */
+export function navSearchHits(items: readonly NavItem[], q: string): { item: NavItem; score: number }[] {
+  const scored = items.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
+  const floor = scored.some(hit => hit.score >= 1) ? 1 : 0.5
+  return scored.filter(hit => hit.score >= floor).sort((a, b) => b.score - a.score)
 }
 
 const byName = new Map<string, NavItem>()

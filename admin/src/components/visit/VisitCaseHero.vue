@@ -5,14 +5,22 @@ import { campusLabel, formatDateTime, formatSlotWhen, staffEmailById, staffLabel
 import { stageMeta } from '../../admissions/constants'
 import { arrivedLabel } from '../../admissions/family'
 import { injectVisitCase } from '../../composables/useVisitCase'
+import { useNarrowScreen } from '../../composables/useNarrowScreen'
+import { caseStageOf } from '../../composables/visitCaseStage'
 import { relativeVisitTime } from '../../utils/visitSchedule'
 import StatusTag from '../StatusTag.vue'
 import VisitPrimaryAction from './VisitPrimaryAction.vue'
 
 // 案件頁首（2026-10-06 方向 C）：家長・孩子、來源與最後處理、參觀時間與「結束了多久」、預定聯絡、
 // 狀態；右邊（窄螢幕在下面）是撥號與這個階段的主動作。預覽面板用 compact：標題小一級、按鈕整排在下面。
-withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
+const props = withDefaults(defineProps<{ compact?: boolean }>(), { compact: false })
 const vc = injectVisitCase()
+
+const showCall = computed(() => Boolean(vc.callPhone) && !vc.familyPending)
+// 手機上還沒開始的案件（2026-11-27 後台 QA／TA）：這時沒有實心主鈕（「家長提早到了」是淡色的），
+// 園長最常做的是打給家長，所以撥號改成整排的主鈕、排在最前面。桌機、預覽面板與其他階段照舊是文字連結。
+const narrow = useNarrowScreen('(max-width: 900px)')
+const callLeads = computed(() => narrow.value && !props.compact && caseStageOf(vc) === 'upcoming')
 
 // 只對預約正常的案件寫相對時間；結束後暖黃（還沒標記到場）。
 const relative = computed(() => {
@@ -58,9 +66,18 @@ const source = computed(() => {
         <StatusTag :meta="vc.statusDisplay" size="large" />
         <span v-if="vc.statusDisplay.sub" class="detail__status-sub" :data-tone="vc.statusDisplay.tone">{{ vc.statusDisplay.sub }}</span>
       </div>
+      <el-button
+        v-if="showCall && callLeads"
+        tag="a"
+        :href="`tel:${vc.callPhone}`"
+        type="primary"
+        :icon="Phone"
+        class="detail__call"
+        :aria-label="`撥號給家長 ${vc.callPhone}`"
+      >撥號給家長</el-button>
       <VisitPrimaryAction :plain="compact" />
       <el-button
-        v-if="vc.callPhone && !vc.familyPending"
+        v-if="showCall && !callLeads"
         tag="a"
         :href="`tel:${vc.callPhone}`"
         link

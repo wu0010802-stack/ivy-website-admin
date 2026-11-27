@@ -98,6 +98,10 @@ function exportCsv() {
         </div>
         <RowsToggle v-model="expanded" :total="paths.length" :limit="LIMIT" />
       </template>
+      <!-- 掃描程式試探設定檔網址（2026-11-27）：後端已從名單與次數排除，這裡一句話帶過、講明不用處理。 -->
+      <p v-if="!failed && data && data.probe_hits > 0" class="hint" data-test="not-found-probes">
+        另外有 <span class="num">{{ formatCount(data.probe_hits) }}</span> 次是網路上的自動掃描程式在試探 /.env 這類設定檔網址（{{ formatCount(data.probe_paths) }} 個），官網沒有這些檔案，不用處理，不列在這裡。
+      </p>
       <AnalyticsExplainer>
         <p>訪客看到「找不到網頁」時，官網記下網址（不含 ? 後面的參數）與從哪裡點來的；搜尋引擎與 AI 爬蟲抓到不存在的網址，官網伺服器另外記。</p>
         <p>次數多、而且是舊網站（Wix）網址的，可以請協助維護官網的人加轉址，把人帶到對應的新頁面。「官網自己的連結」代表站內有壞掉的連結，要修。紀錄留 90 天。</p>

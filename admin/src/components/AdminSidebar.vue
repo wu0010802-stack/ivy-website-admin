@@ -7,7 +7,7 @@ import {
   Notebook, Notification as NotificationIcon, Opportunity, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
-import { canListNavItem, landingPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUPS } from '../router/nav'
+import { canListNavItem, landingPath, NAV_GROUPS, navSearchHits, normalizeSearch, SEARCH_ONLY_GROUPS, type NavItem } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
@@ -87,8 +87,12 @@ const normalizedQuery = computed(() => normalizeSearch(query.value))
 const groups = computed(() => {
   const q = normalizedQuery.value
   // 「我的帳號」「使用小技巧」不在側欄選單裡（入口是底部的使用者區塊與頁首），只在搜尋時出現。
-  const results = (q ? [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS] : NAV_GROUPS).map(group => {
-    const allowed = group.items.filter(item => canListNavItem(item, auth.user, auth.features))
+  const source = q ? [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS] : NAV_GROUPS
+  const canList = (item: NavItem) => canListNavItem(item, auth.user, auth.features)
+  // 先用看得到的全部功能算一次（反過來命中只在整份都沒有直接命中時才列，見 navSearchHits），再分回各組。
+  const scores = new Map(q ? navSearchHits(source.flatMap(group => group.items).filter(canList), q).map(hit => [hit.item, hit.score]) : [])
+  const results = source.map(group => {
+    const allowed = group.items.filter(canList)
     // 本來就只有一項、又不屬於區段的分組（總覽）不畫可收合的標題，直接顯示那一項；
     // nav.ts 標了 flat 的分組（官網內容最下面的素材庫、發布紀錄）也一樣。
     // 看 nav.ts 原本的項目數，不看過濾後的：角色剛好只剩一項的分組仍保留標題；搜尋時也照常顯示分組名。
@@ -96,14 +100,14 @@ const groups = computed(() => {
     if (!q) return { ...group, items: allowed, score: 0, flat }
     // 功能名與關鍵字先比：搜「素材」要直接給素材庫，不是把「素材與發布」整組攤開；
     // 搜「預約」要帶出參觀案件、參觀場次，不只名稱裡有「預約」的兩項。
-    const hits = allowed.map(item => ({ item, score: navItemMatchScore(item, q) })).filter(hit => hit.score > 0)
-    if (hits.length) {
-      hits.sort((a, b) => b.score - a.score)
-      return { ...group, items: hits.map(hit => hit.item), score: hits[0]!.score, flat }
-    }
-    // 這組沒有功能中才看分組或區段名，讓搜「參觀預約」能看到整組。
+    const hits = allowed.filter(item => scores.has(item)).map(item => ({ item, score: scores.get(item)! }))
+    hits.sort((a, b) => b.score - a.score)
+    if (hits[0] && hits[0].score >= 1) return { ...group, items: hits.map(hit => hit.item), score: hits[0].score, flat }
+    // 這組沒有功能直接中才看分組或區段名，讓搜「參觀預約」能看到整組（分組名比「關鍵字『預約』出現在
+    // 搜尋字裡」的反過來命中更接近，2026-11-27）。
     const byGroup = [group.label, group.section ?? ''].some(label => label && normalizeSearch(label).includes(q))
-    return { ...group, items: byGroup ? allowed : [], score: 0, flat }
+    if (byGroup) return { ...group, items: allowed, score: 0, flat }
+    return { ...group, items: hits.map(hit => hit.item), score: hits[0]?.score ?? 0, flat }
   }).filter(group => group.items.length)
   // 最接近的一組排前面（sort 是穩定排序，同分維持側欄原本的順序）。
   return q ? results.sort((a, b) => b.score - a.score) : results
