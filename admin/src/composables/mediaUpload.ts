@@ -128,21 +128,33 @@ export function useMediaUploadQueue(options: {
   const items = ref<UploadItem[]>([])
   const running = ref(false)
   let nextId = 1
+  // 已經收下、還在等上限做格式與大小檢查的檔案（還沒排進清單）。
+  const adding = new Set<Promise<void>>()
 
+  /** 加入檔案。上傳中不收（跟移除、清空一樣）：start 只傳開始時排好的檔案，
+   * 上傳中才排進來的不會被傳到，傳完卻會被當成全部完成。 */
   async function add(files: FileList | File[] | null | undefined) {
+    if (running.value) return
     const list = Array.from(files ?? [])
     if (!list.length) return
-    const limits = await loadUploadLimits()
-    for (const file of list) {
-      const error = precheckFile(file, limits, options.allowed)
-      items.value.push({
-        id: nextId++,
-        file,
-        kind: uploadKindOf(file, options.allowed),
-        status: error ? 'failed' : 'queued',
-        error,
-        asset: null,
-      })
+    const task = loadUploadLimits().then((limits) => {
+      for (const file of list) {
+        const error = precheckFile(file, limits, options.allowed)
+        items.value.push({
+          id: nextId++,
+          file,
+          kind: uploadKindOf(file, options.allowed),
+          status: error ? 'failed' : 'queued',
+          error,
+          asset: null,
+        })
+      }
+    })
+    adding.add(task)
+    try {
+      await task
+    } finally {
+      adding.delete(task)
     }
   }
 
@@ -178,11 +190,14 @@ export function useMediaUploadQueue(options: {
   /** 上傳所有等待中的檔案，回傳這一輪成功的素材。 */
   async function start(): Promise<MediaAssetOut[]> {
     if (running.value) return []
-    const pending = items.value.filter((item) => item.status === 'queued')
-    if (!pending.length) return []
-    const alt = pending.length === 1 ? (options.altText?.() ?? '').trim() : ''
+    // 先標成上傳中，再等已經收下、還在檢查的檔案排進清單：開始前收下的一定在這一輪，
+    // 之後才加的由 add 擋下，不會排進清單卻沒人傳。
     running.value = true
     try {
+      if (adding.size) await Promise.all(adding)
+      const pending = items.value.filter((item) => item.status === 'queued')
+      if (!pending.length) return []
+      const alt = pending.length === 1 ? (options.altText?.() ?? '').trim() : ''
       let cursor = 0
       const worker = async () => {
         while (cursor < pending.length) {
@@ -193,12 +208,12 @@ export function useMediaUploadQueue(options: {
         }
       }
       await Promise.all(Array.from({ length: Math.min(UPLOAD_CONCURRENCY, pending.length) }, worker))
+      return pending
+        .map((item) => items.value.find((candidate) => candidate.id === item.id)?.asset)
+        .filter((asset): asset is MediaAssetOut => Boolean(asset && asset.status !== 'failed'))
     } finally {
       running.value = false
     }
-    return pending
-      .map((item) => items.value.find((candidate) => candidate.id === item.id)?.asset)
-      .filter((asset): asset is MediaAssetOut => Boolean(asset && asset.status !== 'failed'))
   }
 
   const counts = computed(() => {

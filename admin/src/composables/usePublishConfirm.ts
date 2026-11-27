@@ -108,6 +108,8 @@ export function usePublishConfirm(editor: ContentEditorState, options: PublishCo
   // 核准者要看得到編輯改了什麼：列出送審的版本和官網的差異，另附草稿預覽。
   async function approve() {
     if (!editor.review || preparing.value) return
+    // 發布前的內容檢查沒過（例如校園探索有場景沒照片）：先講要補什麼，不開確認框。
+    if (editor.publishBlocked?.()) return
     const summary = await prepareSummary('核准')
     const preview = previewUrl.value ? h('a', { href: previewUrl.value, target: '_blank', rel: 'noopener' }, '預覽送審的內容 ↗') : null
     try {
@@ -135,7 +137,7 @@ export function usePublishConfirm(editor: ContentEditorState, options: PublishCo
   }
 
   async function publishWithConfirm() {
-    if (preparing.value) return
+    if (preparing.value || editor.publishBlocked?.()) return
     const summary = quickSummary('發布') ?? (await prepareSummary('發布'))
     const message = confirmBody(summary, [scheduleSkipNote(), '發布後若要改回，可以從「版本紀錄」還原上一版。'])
     try {

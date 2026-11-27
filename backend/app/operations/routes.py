@@ -290,6 +290,7 @@ class ClientErrorIn(BaseModel):
     source: Literal["web", "admin"]
     kind: str = Field(max_length=2_000)
     message: str = Field(max_length=20_000)
+    # 本文比欄位上限長也不會拖慢事件迴圈：client_entry 先截到欄位上限再遮蔽（2026-11-26）。
     stack: str | None = Field(default=None, max_length=50_000)
     path: str = Field(max_length=2_000)
     release: str | None = Field(default=None, max_length=1_000)

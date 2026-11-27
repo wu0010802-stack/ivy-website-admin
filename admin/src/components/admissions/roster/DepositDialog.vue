@@ -5,7 +5,8 @@ import { GRADE_ORDER } from '../../../admissions/roster'
 
 // 補登預繳（2026-11-15，規格 §7 補登、§8.2）：一次貼上多個姓名（一行一位），共用同一組入學學期、班別與預繳日期；
 // 生日只有一位時才能填，其餘之後逐位補。不建看板紀錄、不影響招生統計。
-const props = defineProps<{ modelValue: boolean; schoolYear: number; today: string }>()
+// busy：送出中，「補登」停用（後端同名照建、沒有冪等鍵，連點兩下會整批建兩次）。
+const props = defineProps<{ modelValue: boolean; schoolYear: number; today: string; busy?: boolean }>()
 const emit = defineEmits<{ 'update:modelValue': [value: boolean]; save: [body: StudentsCreate] }>()
 
 const form = reactive({ names: '', term: '', grade: '', deposit_date: '', planned_entry_date: '', birthday: '' })
@@ -75,7 +76,7 @@ function submit() {
     </div>
     <template #footer>
       <button type="button" class="roster-form__cancel" @click="emit('update:modelValue', false)">取消</button>
-      <button type="button" class="roster-form__primary" @click="submit">補登</button>
+      <button type="button" class="roster-form__primary" :disabled="busy" :aria-busy="busy" @click="submit">補登</button>
     </template>
   </el-dialog>
 </template>

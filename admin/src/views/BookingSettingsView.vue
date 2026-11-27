@@ -46,6 +46,9 @@ const sessionsPath = computed(() => `/visit-calendar?campus=${encodeURIComponent
 const campusActive = ref<boolean | null | undefined>(undefined)
 // 剛停用或重新啟用：卡片會換到另一個位置，讀到狀態後把焦點放回卡片的按鈕。
 const statusJustChanged = ref(false)
+// 分校狀態卡正在停用或重新啟用（讀件數、確認框、送出）：這段期間不換校，否則
+// 確認框問的是原本那一校，送出時卡片的校區卻已經換成另一校。
+const campusStatusBusy = ref(false)
 watch(selectedCampus, () => {
   campusActive.value = undefined
   statusJustChanged.value = false
@@ -89,8 +92,8 @@ const { confirmLeave } = useUnsavedChanges(isDirty, saving)
 
 async function switchCampus(next: string) {
   if (next === selectedCampus.value || confirmingSwitch.value) return
-  if (saving.value) {
-    // 儲存中不換校；網址已經換成別校時寫回目前這一校。
+  if (saving.value || campusStatusBusy.value) {
+    // 儲存中、停用或重新啟用分校進行中都不換校；網址已經換成別校時寫回目前這一校。
     syncCampusQuery()
     return
   }
@@ -277,11 +280,11 @@ async function save() {
     <PageHeader lead="每一校在官網上「預約參觀」按下去會發生什麼事。這裡的設定不經過草稿，儲存後官網立即生效。" />
 
     <div class="toolbar filter-bar">
-      <label class="filter-field"><span>編輯校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="saving || confirmingSwitch" @update:model-value="switchCampus" /></label>
+      <label class="filter-field"><span>編輯校區</span><CampusSelect :model-value="selectedCampus" :keys="visibleCampusKeys" :disabled="saving || confirmingSwitch || campusStatusBusy" @update:model-value="switchCampus" /></label>
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 
-    <CampusStatusCard v-if="canActivateCampus && selectedCampus && campusActive === false" :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" />
+    <CampusStatusCard v-if="canActivateCampus && selectedCampus && campusActive === false" :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" @busy="campusStatusBusy = $event" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
     <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>
@@ -356,7 +359,7 @@ async function save() {
     <!-- 狀態還在讀時不先擺一個沒有內容的標題與分隔線。 -->
     <section v-if="canActivateCampus && selectedCampus && campusActive !== false" class="campus-zone" :class="{ 'is-loading': campusActive === undefined }" aria-labelledby="campus-zone-title">
       <h2 v-if="campusActive !== undefined" id="campus-zone-title" class="campus-zone__title">分校狀態</h2>
-      <CampusStatusCard :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" />
+      <CampusStatusCard :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" @busy="campusStatusBusy = $event" />
     </section>
   </div>
 </template>
