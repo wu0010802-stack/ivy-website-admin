@@ -21,6 +21,7 @@ dependencies = [
     "boto3>=1.35,<2",
     "http-ece>=1.2.1,<2",
     "py-vapid>=1.9.6,<2",
+    "webauthn>=2.5,<3",
 ]
 
 [dependency-groups]

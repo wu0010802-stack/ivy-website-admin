@@ -2,7 +2,9 @@
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { Key } from '@element-plus/icons-vue'
 import { api, ApiError, BASE_URL } from '../api/client'
+import { authenticator, PasskeyError } from '../api/passkey'
 import { SESSION_CHANGED_MESSAGE, loginLimitedMessage } from '../api/errors'
 import type { AuthProviders } from '../api/types'
 import { safeRedirectPath } from '../router/nav'
@@ -86,6 +88,9 @@ const forgotOpen = ref(false)
 const remember = ref(false)
 const googleEnabled = ref(false)
 const lineEnabled = ref(false)
+// 指紋／臉部辨識登入（Passkey，2026-11-27）：後端有開、瀏覽器也支援才給按鈕。LINE 內建瀏覽器不支援。
+const passkeyEnabled = ref(false)
+const passkeyBusy = ref(false)
 const providersLoaded = ref(false)
 
 // 回訪者（composables/lastSignIn.ts）：這台瀏覽器上次登入的人。密碼重設後導回來時不帶
@@ -192,6 +197,7 @@ onMounted(async () => {
     const providers = await api.get<AuthProviders>('/auth/providers')
     googleEnabled.value = providers.google === true
     lineEnabled.value = providers.line === true
+    passkeyEnabled.value = providers.passkey === true && authenticator.supported() && !inLineApp
   } catch {
     // Provider availability must never block the existing password login.
     googleEnabled.value = false
@@ -235,6 +241,36 @@ async function enterAdmin() {
   const transition = doc.startViewTransition(go)
   void transition.finished.finally(() => root.classList.remove('is-entering-admin'))
   await transition.updateCallbackDone
+}
+
+// 指紋／臉部辨識登入：不用先打 Email，瀏覽器會列出這台裝置上登記過的帳號。吃同一個「記住這台裝置」。
+async function handlePasskey() {
+  if (submitting.value || passkeyBusy.value) return
+  errorMessage.value = null
+  passkeyBusy.value = true
+  try {
+    await authStore.loginWithPasskey(remember.value)
+  } catch (err) {
+    passkeyBusy.value = false
+    if (err instanceof PasskeyError) {
+      // 自己按取消或逾時不提示；裝置或網址用不了才說明。
+      if (err.reason !== 'cancelled') errorMessage.value = '這台裝置現在不能用指紋或臉部辨識登入，請改用密碼登入'
+    } else if (err instanceof ApiError && err.status === 401) {
+      errorMessage.value = '這組指紋或臉部辨識沒有登記在後台（可能已被刪除），請改用密碼登入，再到「我的帳號」重新登記'
+    } else if (err instanceof ApiError && err.status === 429) {
+      errorMessage.value = limitedMessage(err)
+    } else if (err instanceof ApiError) {
+      errorMessage.value = otherLoginError(err)
+    } else {
+      errorMessage.value = '無法連線到伺服器，請稍後再試'
+    }
+    return
+  }
+  try {
+    await enterAdmin()
+  } finally {
+    passkeyBusy.value = false
+  }
 }
 
 async function handleSubmit() {
@@ -422,6 +458,13 @@ async function handleSubmit() {
             </a>
             <p class="login__center"><button type="button" class="login__link" data-test="login-use-password" @click="usePasswordInstead">改用密碼登入</button></p>
           </template>
+
+          <div v-if="passkeyEnabled" class="login__passkey">
+            <button type="button" class="login__google-link login__passkey-button" data-test="login-passkey" :disabled="submitting || passkeyBusy" :aria-busy="passkeyBusy" @click="handlePasskey">
+              <el-icon aria-hidden="true"><Key /></el-icon>
+              <span>用指紋或臉部辨識登入</span>
+            </button>
+          </div>
 
           <template v-if="!lastUser && (googleEnabled || lineEnabled)">
             <div class="login__divider">或</div>
@@ -922,6 +965,20 @@ async function handleSubmit() {
 .login__center {
   margin: 0;
   text-align: center;
+}
+
+/* 指紋／臉部辨識登入：樣子同 Google 那顆白底按鈕，佔整列。 */
+.login__passkey-button {
+  width: 100%;
+  font-family: inherit;
+  cursor: pointer;
+}
+.login__passkey-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+.login__passkey-button .el-icon {
+  font-size: var(--text-xl);
 }
 
 .login__divider {

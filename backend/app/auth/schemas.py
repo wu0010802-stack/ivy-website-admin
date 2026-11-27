@@ -3,7 +3,7 @@ from __future__ import annotations
 import unicodedata
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Any
 
 from pydantic import AfterValidator, BaseModel, EmailStr, Field, field_validator
 from pydantic_core import PydanticCustomError
@@ -113,6 +113,8 @@ class UserOut(BaseModel):
     # 檢查仍在各端點。
     effective_capabilities: list[str]
     google_linked: bool
+    # 登記了幾組 Passkey（指紋／Face ID 登入）。
+    passkey_count: int = 0
     line_linked: bool
     # 最後一次成功登入的時間；只有使用者清單（GET /admin/users）會帶，其他回應為 null。
     # null 也可能是從沒登入過。後台用來找出久未使用的帳號。
@@ -134,6 +136,38 @@ class PermissionRowOut(BaseModel):
 class AuthProviders(BaseModel):
     google: bool
     line: bool
+    # 指紋／Face ID（Passkey）登入能不能用：有設後台網址就能用，不需要另外的金鑰。
+    passkey: bool = False
+
+
+class PasskeyOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    # 有沒有同步到雲端（iCloud 鑰匙圈、Google 密碼管理工具）。
+    backed_up: bool
+    created_at: datetime
+    last_used_at: datetime | None = None
+
+
+class PasskeyOptions(BaseModel):
+    """WebAuthn 的建立／取得參數（PublicKeyCredentialCreationOptions／RequestOptions 的 JSON 形式），
+    前端轉成二進位後交給 navigator.credentials。"""
+
+    public_key: dict[str, Any]
+
+
+class PasskeyRegisterVerify(BaseModel):
+    # navigator.credentials.create() 的結果（JSON 形式）；內容由 WebAuthn 驗證，不在這裡逐欄檢查。
+    credential: dict[str, Any]
+    name: str | None = Field(default=None, max_length=60)
+
+
+class PasskeyLoginOptionsRequest(BaseModel):
+    remember: bool = False
+
+
+class PasskeyLoginVerify(BaseModel):
+    credential: dict[str, Any]
 
 
 class LineLinkStart(BaseModel):

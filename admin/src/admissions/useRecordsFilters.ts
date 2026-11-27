@@ -125,6 +125,40 @@ export function useRecordsFilters(
     updates.clearTerm()
   }
 
+  // ---- 常用篩選（2026-11-27）----
+  // 存得起來的條件：分頁內的篩選加月份、區域、退出原因。不含搜尋字與「家長介紹」（都是人名或電話，
+  // 不留在瀏覽器儲存空間）、不含 vr（某一筆預約）與頁首的學年學期（換學期後舊的條件才不會查不到東西）。
+  const snapshot = computed<Record<string, string>>(() => {
+    const out: Record<string, string> = {}
+    const put = (key: string, value: string | undefined) => { if (value) out[key] = value }
+    put('month', props.month)
+    put('grade', grade.value)
+    put('source', source.value)
+    put('deposit', hasDeposit.value)
+    put('reason', noDepositReason.value)
+    put('followUp', followUp.value)
+    put('owner', owner.value)
+    put('area', areaFilter.value ? areaQuery(areaFilter.value) : '')
+    put('withdraw', props.withdrawCategory)
+    return out
+  })
+  function applySnapshot(view: Record<string, string>) {
+    applySearch.cancel()
+    search.value = ''
+    keyword.value = ''
+    referrer.value = ''
+    grade.value = view.grade ?? ''
+    source.value = view.source ?? ''
+    hasDeposit.value = view.deposit === 'yes' || view.deposit === 'no' ? view.deposit : ''
+    noDepositReason.value = view.reason ?? ''
+    followUp.value = view.followUp && view.followUp in FOLLOW_UP_SCOPE_LABELS ? view.followUp as FollowUpScope : ''
+    owner.value = view.owner ?? ''
+    updates.visitRequestId('')
+    updates.month(view.month ?? '')
+    updates.area(view.area ?? '')
+    updates.withdrawCategory(view.withdraw ?? '')
+  }
+
   // ---- 篩選收合（2026-10-05，比照第九輪案件列表）----
   // 九個篩選攤開會把表格推到很下面：桌機常駐搜尋、月份、預繳、追蹤，其餘收進「更多篩選」；
   // 手機只常駐搜尋。收起時把收進去、已套用的條件列成可以逐一拿掉的標籤，展開時不重複列。
@@ -152,6 +186,6 @@ export function useRecordsFilters(
   return {
     grade, source, referrer, hasDeposit, noDepositReason, followUp, owner, search, keyword, areaFilter,
     filtered, hasFilters, currentFilters, filterKey, setMonth, setWithdrawCategory, clearFilters,
-    moreFiltersOpen, hiddenFilters, showChips,
+    moreFiltersOpen, hiddenFilters, showChips, snapshot, applySnapshot,
   }
 }

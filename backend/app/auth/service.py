@@ -12,7 +12,7 @@ from sqlalchemy import delete, func, or_, select, text, update
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.orm.attributes import set_committed_value
 
-from app.auth.models import Role, Session, User, UserCampusScope
+from app.auth.models import Passkey, Role, Session, User, UserCampusScope
 from app.common import ratelimit
 from app.common.concurrency import SlotsBusy, ThreadSlots, run_in_thread
 from app.operations import audit_service
@@ -506,11 +506,17 @@ async def count_active_super_admins(db: AsyncSession, exclude_user_id=None) -> i
     return result.scalar_one()
 
 
-def clear_external_logins(user: User) -> dict[str, bool]:
-    """解除 LINE／Google 綁定；回傳原本有沒有綁（稽核只記這兩個旗標，不記 sub）。"""
+async def clear_external_logins(db: AsyncSession, user: User) -> dict[str, bool]:
+    """解除 LINE／Google 綁定並刪掉登記的 Passkey；回傳原本有沒有（稽核只記旗標，不記 sub 或憑證）。
+    密碼以外的登入管道都在這裡清：之後再加新的管道也加在這裡，停權、重設密碼、「解除綁定並登出」才不會漏。"""
+    removed = await db.execute(delete(Passkey).where(Passkey.user_id == user.id))
     flags = {"line_unlinked": user.line_sub is not None, "google_unlinked": user.google_sub is not None}
+    # 有刪到才記（沒登記過 Passkey 的帳號，稽核內容和原本一樣）。
+    if removed.rowcount or user.passkey_count:
+        flags["passkeys_removed"] = True
     user.line_sub = None
     user.google_sub = None
+    user.passkey_count = 0
     return flags
 
 
@@ -527,7 +533,7 @@ async def set_user_active(db: AsyncSession, user: User, active: bool) -> dict[st
         if remaining == 0:
             raise LastSuperAdminProtected()
     user.is_active = active
-    unlinked = {} if active else clear_external_logins(user)
+    unlinked = {} if active else await clear_external_logins(db, user)
     await db.flush()
     if not active:
         # 停權立即失效：撤銷該使用者所有現行 session。
