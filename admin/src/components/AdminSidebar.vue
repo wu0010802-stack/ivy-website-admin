@@ -187,7 +187,7 @@ watch(activePath, () => {
   query.value = ''
 }, { immediate: true })
 // 點 logo 回到這個角色的起始頁（總管理者是營運總覽，其他角色是第一個看得到的功能）。
-const homePath = computed(() => landingPath(auth.user?.role))
+const homePath = computed(() => landingPath(auth.user))
 // 帳號區寫同事看到的名字（沒設定顯示名稱時是 Email @ 前面那段），完整 Email 在 title。
 // 頭像取名字第一個字；表情符號這類兩個 UTF-16 單位的字不能切半，用 Array.from。
 const userName = computed(() => staffLabel(auth.user, ''))

@@ -1,26 +1,28 @@
+import { hasCapability } from '../composables/usePermissions'
+
 // 側欄導覽結構。路由的 meta.title 也從這裡取，兩邊不會漂移。
 // 圖示名稱對應 @element-plus/icons-vue 的匯出名，只用線條圖示（不要 *Filled、Grid、List、
 // TrendCharts 這類實心的）。Film 取它九宮格外框的樣子，不是影片的意思。
 
-// 角色可見範圍（規格 7 權限表）。後端才是真正的權限檢查，這裡只是不讓人
-// 點進一定會被拒絕的頁面。
-const MANAGE = ['super_admin', 'campus_admin']
-const VISITS = ['super_admin', 'campus_admin', 'reception']
-const CONTENT = ['super_admin', 'campus_admin', 'editor', 'readonly']
+// 誰看得到哪一項：一律看後端算好的 effective_capabilities（backend/app/auth/permissions.py 的
+// 同一張表加逐人授權），這裡不再另抄角色清單——後端放寬或授權某一項，入口就跟著出現。
+// 後端才是真正的權限檢查，這裡只是不讓人點進一定會被拒絕的頁面。
+type NavUser = { effective_capabilities?: readonly string[] } | null | undefined
 
-/** 共用內容（首頁、頁尾、網站設定…）：總管理者，或被授予「全站共用內容」
- * 的分校管理者與內容編輯（規格 7 明確授權）。後端 can_edit_shared_content 同一條規則。 */
-export function canEditSharedContent(user: { role: string; capabilities?: string[] } | null | undefined): boolean {
-  if (!user) return false
-  if (user.role === 'super_admin') return true
-  return (user.capabilities ?? []).includes('content.shared') && ['campus_admin', 'editor'].includes(user.role)
+const VISITS = 'booking.read'
+// 官網內容各頁、素材庫、發布紀錄：接待有 content.read 但不進內容頁，所以看 content.browse。
+const CONTENT = 'content.browse'
+// 共用內容（首頁、頁尾、網站設定…）：總管理者，或被授予「全站共用內容」的分校管理者與內容編輯。
+const SHARED = 'content.shared'
+
+/** 共用內容（首頁、頁尾、網站設定…）能不能編：後端 can_edit_shared_content 算好放在 effective_capabilities。 */
+export function canEditSharedContent(user: NavUser): boolean {
+  return hasCapability(user, SHARED)
 }
 
-/** 發布共用內容：總管理者，或有授權的分校管理者（內容編輯只能送審）。 */
-export function canPublishSharedContent(user: { role: string; capabilities?: string[] } | null | undefined): boolean {
-  if (!user) return false
-  if (user.role === 'super_admin') return true
-  return (user.capabilities ?? []).includes('content.shared') && user.role === 'campus_admin'
+/** 發布共用內容：總管理者，或有授權的分校管理者（內容編輯只能送審）。後端 can_publish_shared_content。 */
+export function canPublishSharedContent(user: NavUser): boolean {
+  return hasCapability(user, 'content.shared_publish')
 }
 
 export interface NavItem {
@@ -28,9 +30,9 @@ export interface NavItem {
   path: string
   title: string
   icon?: string
-  /** 只有這些角色看得到；未設定代表所有登入者 */
-  roles?: string[]
-  /** 共用內容頁：除了 roles，有「全站共用內容」授權的人也看得到 */
+  /** 要有這項權限才看得到（effective_capabilities）；未設定代表所有登入者 */
+  capability?: string
+  /** 共用內容頁（capability 是 content.shared）：使用小技巧等地方用來標示「全站共用」 */
   shared?: boolean
   /** 部署開關：後端 /auth/me 的 features 為關閉時，側欄與側欄搜尋不列出這項。
    * 只管「列不列出」，路由守衛不擋——直接開網址仍到該頁（招生頁顯示「尚未啟用」）。 */
@@ -55,28 +57,29 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     key: 'overview',
     label: '總覽',
-    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'House', roles: VISITS, keywords: ['總覽', '待辦', '今日參觀', '摘要'] }],
+    items: [{ name: 'dashboard', path: '/', title: '營運總覽', icon: 'House', capability: VISITS, keywords: ['總覽', '待辦', '今日參觀', '摘要'] }],
   },
   {
     key: 'visits',
     label: '參觀預約',
     items: [
-      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', roles: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
-      { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', roles: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
-      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', roles: VISITS, feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
-      // 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽出來，限總管理者（後端 admissions.stats）。
+      { name: 'visit-requests', path: '/visit-requests', title: '參觀案件', icon: 'Tickets', capability: VISITS, keywords: ['預約', '家長', '報名', '電話', '聯絡紀錄', '匯出'] },
+      { name: 'visit-calendar', path: '/visit-calendar', title: '參觀場次', icon: 'Calendar', capability: VISITS, keywords: ['預約', '行事曆', '日曆', '接待月曆', '當天參觀', '場次', '時段', '名額', '參觀時間', '每週規則', '固定場次', '休假', '停止申請', '加開'] },
+      { name: 'admissions', path: '/admissions', title: '招生入學', icon: 'PieChart', capability: 'admissions.read', feature: 'admissions', keywords: ['招生', '漏斗', '預繳', '註冊', '退預繳', '訪視明細', '轉換率'] },
+      // 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽出來，限總管理者（後端 admissions.stats）；
+      // 2026-11-27 起總管理者也可以逐人授權給分校管理者，只看負責的校區。
       // 招生開關關閉時同招生入學不列出。
-      { name: 'admissions-stats', path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', roles: ['super_admin'], feature: 'admissions', keywords: ['統計分析', '轉換率', '預約統計', '到場率', '取消率', '五校比較', '班別', '來源分析', '區域分析', '未預繳', '預約全程', '招生潛力', '市佔率'] },
+      { name: 'admissions-stats', path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', capability: 'admissions.stats', feature: 'admissions', keywords: ['統計分析', '轉換率', '預約統計', '到場率', '取消率', '五校比較', '班別', '來源分析', '區域分析', '未預繳', '預約全程', '招生潛力', '市佔率'] },
       // Meta 名單型廣告送進來的名單收件匣，挑要跟進的轉成參觀案件（2026-11-26）。排在招生統計後面：
       // 參觀案件→參觀場次→招生入學→招生統計 要一個接一個（receptionAndHistory、admissionsView、admissionsStatsView 測試）。
-      { name: 'meta-leads', path: '/meta-leads', title: '廣告名單', icon: 'ChatDotSquare', roles: VISITS, keywords: ['Meta', 'Facebook', 'Instagram', '名單型廣告', '即時表單', '潛在顧客'] },
-      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', roles: MANAGE, keywords: ['暫停預約', '開放預約', '外部表單'] },
-      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', roles: VISITS, keywords: ['改期', '提醒', '核准'] },
+      { name: 'meta-leads', path: '/meta-leads', title: '廣告名單', icon: 'ChatDotSquare', capability: VISITS, keywords: ['Meta', 'Facebook', 'Instagram', '名單型廣告', '即時表單', '潛在顧客'] },
+      { name: 'booking', path: '/booking', title: '各校預約方式', icon: 'Switch', capability: 'booking.manage', keywords: ['暫停預約', '開放預約', '外部表單'] },
+      { name: 'notifications', path: '/notifications', title: '站內通知', icon: 'Bell', capability: VISITS, keywords: ['改期', '提醒', '核准'] },
     ],
   },
-  // 共用內容（campus_key 為 NULL）後端只允許 super_admin 編輯
+  // 共用內容（campus_key 為 NULL）後端只允許總管理者與有「全站共用內容」授權的人編輯
   // （app/content/routes.py 的 _require_shared_or_scope），所以這些項目
-  // 一律標 roles: ['super_admin']——否則分校管理者看得到、改得動，
+  // 一律要 content.shared——否則分校管理者看得到、改得動，
   // 但按儲存永遠是 403。校園探索雖然各校各一份，2026-10-05 起也由總部管理
   // （後端 registry 的 hq_managed），同樣標 shared。分校自有內容（五校介紹／
   // 各校消息）不限制。
@@ -90,11 +93,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '首頁',
     section: '官網內容',
     items: [
-      { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', roles: ['super_admin'], shared: true, keywords: ['橫幅', '主視覺', '大標'] },
-      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', roles: ['super_admin'], shared: true, keywords: ['理念', '介紹'] },
-      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Film', roles: ['super_admin'], shared: true, keywords: ['五校', '校區卡片'] },
-      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', roles: ['super_admin'], shared: true, keywords: ['作息', '拍立得'] },
-      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', roles: ['super_admin'], shared: true, keywords: ['消息', '活動', '公告'] },
+      { name: 'home-hero', path: '/content/home-hero', title: '首頁大圖標語', icon: 'Picture', capability: SHARED, shared: true, keywords: ['橫幅', '主視覺', '大標'] },
+      { name: 'home-about', path: '/content/home-about', title: '關於常春藤', icon: 'Document', capability: SHARED, shared: true, keywords: ['理念', '介紹'] },
+      { name: 'home-campus-board', path: '/content/home-campus-board', title: '首頁五校區塊', icon: 'Film', capability: SHARED, shared: true, keywords: ['五校', '校區卡片'] },
+      { name: 'day-experience', path: '/content/day-experience', title: '孩子的一天', icon: 'Sunny', capability: SHARED, shared: true, keywords: ['作息', '拍立得'] },
+      { name: 'home-news', path: '/content/home-news', title: '最新消息與活動', icon: 'Notification', capability: SHARED, shared: true, keywords: ['消息', '活動', '公告'] },
     ],
   },
   {
@@ -102,13 +105,13 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '各分頁',
     section: '官網內容',
     items: [
-      { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', roles: ['super_admin'], shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
-      { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', roles: ['super_admin'], shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
-      { name: 'environment-page', path: '/content/environment-page', title: '常春藤環境頁', icon: 'School', roles: ['super_admin'], shared: true, keywords: ['環境', '餐點', '保育', '校園', '空間', '遊樂區', '五顆心'] },
+      { name: 'about-page', path: '/content/about-page', title: '關於常春藤頁', icon: 'Notebook', capability: SHARED, shared: true, keywords: ['沿革', '創校', '全人教育', '期許', '立體書'] },
+      { name: 'curriculum-page', path: '/content/curriculum-page', title: '特色教學頁', icon: 'Brush', capability: SHARED, shared: true, keywords: ['課程', '教學特色', '美術館', '五件事', '教學理念'] },
+      { name: 'environment-page', path: '/content/environment-page', title: '常春藤環境頁', icon: 'School', capability: SHARED, shared: true, keywords: ['環境', '餐點', '保育', '校園', '空間', '遊樂區', '五顆心'] },
       // 常春藤環境頁「五所校園」：五校各一份，由總部統一管理，所以跟著環境頁放在這裡、不在「各校」。
-      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', roles: ['super_admin'], shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
-      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', roles: ['super_admin'], shared: true, keywords: ['招生', '入學', '學費'] },
-      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', roles: ['super_admin'], shared: true, keywords: ['預約頁', '表單說明', '同意'] },
+      { name: 'campus-tour', path: '/content/campus-tour', title: '校園探索', icon: 'Location', capability: SHARED, shared: true, keywords: ['環境照片', '環境頁', '五所校園', '導覽'] },
+      { name: 'admission-content', path: '/content/admission', title: '入學資訊頁', icon: 'Reading', capability: SHARED, shared: true, keywords: ['招生', '入學', '學費'] },
+      { name: 'booking-content', path: '/content/booking-content', title: '預約文案', icon: 'EditPen', capability: SHARED, shared: true, keywords: ['預約頁', '表單說明', '同意'] },
     ],
   },
   {
@@ -116,11 +119,11 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '各校',
     section: '官網內容',
     items: [
-      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', roles: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
+      { name: 'campus-profile', path: '/content/campus-profile', title: '五校介紹', icon: 'School', capability: CONTENT, keywords: ['分校介紹', '地址', '電話', '臉書', 'Facebook', '社群'] },
       // 各校自己的消息與活動：分校人員只編本校（全站消息在「首頁 → 最新消息與活動」）。
-      { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', roles: CONTENT, keywords: ['消息', '活動', '公告'] },
+      { name: 'campus-news', path: '/content/campus-news', title: '各校消息與活動', icon: 'Postcard', capability: CONTENT, keywords: ['消息', '活動', '公告'] },
       // 粉專貼文同步進來的收件匣，挑幾則轉成各校消息草稿（2026-10-28）。
-      { name: 'facebook-posts', path: '/content/facebook-posts', title: 'Facebook 貼文', icon: 'ChatLineSquare', roles: CONTENT, keywords: ['臉書', 'FB', '粉專', '貼文', '消息'] },
+      { name: 'facebook-posts', path: '/content/facebook-posts', title: 'Facebook 貼文', icon: 'ChatLineSquare', capability: CONTENT, keywords: ['臉書', 'FB', '粉專', '貼文', '消息'] },
     ],
   },
   // 每一頁都看得到的東西：頁首的網站名稱與電話、頁尾，以及頁尾連過去的隱私權政策。
@@ -129,9 +132,9 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '全站共用',
     section: '官網內容',
     items: [
-      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', roles: ['super_admin'], shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享', '30 週年', '週年', '布幕', '隱藏最新消息', '關閉最新消息', '消息開關', '隱藏入學資訊', '隱藏分頁'] },
-      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', roles: ['super_admin'], shared: true, keywords: ['版權', '底部'] },
-      { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', roles: ['super_admin'], shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
+      { name: 'site-meta', path: '/content/site-meta', title: '網站標題與電話', icon: 'Phone', capability: SHARED, shared: true, keywords: ['SEO', '搜尋引擎', '網站名稱', '分享', '30 週年', '週年', '布幕', '隱藏最新消息', '關閉最新消息', '消息開關', '隱藏入學資訊', '隱藏分頁'] },
+      { name: 'site-footer', path: '/content/site-footer', title: '頁尾文字', icon: 'Bottom', capability: SHARED, shared: true, keywords: ['版權', '底部'] },
+      { name: 'privacy-policy', path: '/content/privacy-policy', title: '隱私權政策', icon: 'Lock', capability: SHARED, shared: true, keywords: ['個資', '隱私', 'Cookie', '政策'] },
     ],
   },
   // 素材庫與發布紀錄：編哪一頁都會用到，看得到內容的角色都能進。不畫可收合的標題，
@@ -142,10 +145,10 @@ export const NAV_GROUPS: NavGroup[] = [
     section: '官網內容',
     flat: true,
     items: [
-      { name: 'media', path: '/media', title: '素材庫', icon: 'Files', roles: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
+      { name: 'media', path: '/media', title: '素材庫', icon: 'Files', capability: CONTENT, keywords: ['照片', '圖片', '影片', '相片', '上傳', '檔案'] },
       // 全站發布紀錄、排程發布與給自己的內容通知（送審、核准或退回、排程沒執行）。
       // 看得到內容的人都能進（分校帳號只看自己校與共用內容）；整站還原限總管理者。
-      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', roles: CONTENT, keywords: ['發布', '排程', '送審', '審核', '還原', '內容通知'] },
+      { name: 'releases', path: '/releases', title: '發布紀錄', icon: 'Clock', capability: CONTENT, keywords: ['發布', '排程', '送審', '審核', '還原', '內容通知'] },
     ],
   },
   {
@@ -153,16 +156,16 @@ export const NAV_GROUPS: NavGroup[] = [
     label: '系統',
     items: [
       { name: 'analytics', path: '/analytics', title: '成效統計', icon: 'DataLine', keywords: ['統計', '流量', '報表', '數據', '瀏覽', '速度', '停留', '來源', '興趣'] },
-      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'Memo', roles: MANAGE, keywords: ['紀錄', '誰改的', '稽核'] },
-      { name: 'users', path: '/users', title: '使用者', icon: 'User', roles: ['super_admin'], keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
+      { name: 'audit', path: '/audit', title: '操作紀錄', icon: 'Memo', capability: 'audit.read', keywords: ['紀錄', '誰改的', '稽核'] },
+      { name: 'users', path: '/users', title: '使用者', icon: 'User', capability: 'users.manage', keywords: ['帳號', '權限', '角色', '重設密碼', '停用', '新增人員'] },
       // 系統狀態（2026-10-15）：寄信、推播、背景排程、公開資料的設定現況與測試信，限總管理者（system.status）。
-      { name: 'system-status', path: '/system-status', title: '系統狀態', icon: 'Monitor', roles: ['super_admin'], keywords: ['寄信', 'SMTP', 'Resend', '排程', '同步', '設定', '健康', '測試信'] },
+      { name: 'system-status', path: '/system-status', title: '系統狀態', icon: 'Monitor', capability: 'system.status', keywords: ['寄信', 'SMTP', 'Resend', '排程', '同步', '設定', '健康', '測試信'] },
       // 2026-09-29 由「全站設定」改名（內容主要是個資保存，另列官網搜尋與分享的設定）；
       // 舊名留在關鍵字，習慣搜「全站設定」的人還找得到。
-      { name: 'policies', path: '/policies', title: '個資與搜尋設定', icon: 'Setting', roles: ['super_admin'], keywords: ['全站設定', '個資', '保存期限', '清理'] },
-      { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', roles: ['super_admin'], keywords: ['群組', '推播'] },
+      { name: 'policies', path: '/policies', title: '個資與搜尋設定', icon: 'Setting', capability: 'retention.manage', keywords: ['全站設定', '個資', '保存期限', '清理'] },
+      { name: 'line-notifications', path: '/line-notifications', title: 'LINE 通知', icon: 'ChatDotRound', capability: 'notifications.manage', keywords: ['群組', '推播'] },
       // 全站一份、總管理者維護（contact_phrases.manage）；接待與招生只在聯絡紀錄輸入框上方用，不開頁面。
-      { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', roles: ['super_admin'], keywords: ['範本', '片語', '聯絡', '常用語'] },
+      { name: 'contact-phrases', path: '/contact-phrases', title: '聯絡片語', icon: 'ChatLineSquare', capability: 'contact_phrases.manage', keywords: ['範本', '片語', '聯絡', '常用語'] },
     ],
   },
 ]
@@ -232,16 +235,14 @@ for (const group of NAV_GROUPS) {
   }
 }
 
-export function canSeeNavItem(item: NavItem, user: { role: string; capabilities?: string[] } | null | undefined): boolean {
-  if (!item.roles) return true
-  if (user && item.roles.includes(user.role)) return true
-  return Boolean(item.shared && canEditSharedContent(user))
+export function canSeeNavItem(item: Pick<NavItem, 'capability'>, user: NavUser): boolean {
+  return !item.capability || hasCapability(user, item.capability)
 }
 
 /** 側欄與搜尋用：角色看得到，而且（有掛 feature 的話）該功能開關是開的。 */
 export function canListNavItem(
   item: NavItem,
-  user: { role: string; capabilities?: string[] } | null | undefined,
+  user: NavUser,
   features: Partial<Record<NonNullable<NavItem['feature']>, boolean>> | null | undefined,
 ): boolean {
   if (item.feature && !features?.[item.feature]) return false
@@ -255,7 +256,7 @@ export function navItem(name: string): NavItem | undefined {
 /** 連結點下去進得了嗎（可以帶 query）。跟 router.beforeEach 同一條規則：
  * 進不去的頁面會被導回登入後第一頁，看起來像按了沒反應，所以總覽這類
  * 連到別頁的入口先用它過濾。不在側欄的頁面（案件明細、我的帳號）不限制。 */
-export function canOpenPath(path: string, user: { role: string; capabilities?: string[] } | null | undefined): boolean {
+export function canOpenPath(path: string, user: NavUser): boolean {
   const item = byPath.get(path.split(/[?#]/)[0] || '/')
   return item ? canSeeNavItem(item, user) : true
 }
@@ -273,11 +274,11 @@ export function safeRedirectPath(value: unknown): string | null {
   return value
 }
 
-/** 登入後的第一頁：該角色看得到的第一個側欄項目（編輯與唯讀沒有營運總覽）。 */
-export function landingPath(role: string | undefined): string {
+/** 登入後的第一頁：這個人看得到的第一個側欄項目（編輯與唯讀沒有營運總覽）。 */
+export function landingPath(user: NavUser): string {
   for (const group of NAV_GROUPS) {
     for (const item of group.items) {
-      if (!item.roles || (role && item.roles.includes(role))) return item.path
+      if (canSeeNavItem(item, user)) return item.path
     }
   }
   return '/'

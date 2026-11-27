@@ -19631,6 +19631,39 @@
         "title": "PendingReviewOut",
         "type": "object"
       },
+      "PermissionRowOut": {
+        "description": "權限表的一項（app/auth/permissions.py 的 permission_table）。",
+        "properties": {
+          "grant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Grant"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "title": "Roles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key",
+          "roles"
+        ],
+        "title": "PermissionRowOut",
+        "type": "object"
+      },
       "PotentialAssumptionOut": {
         "description": "「怎麼算」的一列：用到的參數與出處，值一律是字串（單位與出處寫在裡面）。不放任何占有率的原值。",
         "properties": {
@@ -25780,6 +25813,18 @@
           "is_active": {
             "title": "Is Active",
             "type": "boolean"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
           },
           "line_linked": {
             "title": "Line Linked",
@@ -42543,6 +42588,76 @@
         "summary": "Mark Notification Read",
         "tags": [
           "notifications"
+        ]
+      }
+    },
+    "/api/website/v1/admin/permission-table": {
+      "get": {
+        "description": "各角色有哪些權限、哪幾項要逐人授權。使用者頁的對照表與調整角色時的預覽用；只讀，不寫稽核。",
+        "operationId": "get_permission_table_api_website_v1_admin_permission_table_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PermissionRowOut"
+                  },
+                  "title": "Response Get Permission Table Api Website V1 Admin Permission Table Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Permission Table",
+        "tags": [
+          "auth"
         ]
       }
     },

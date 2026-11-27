@@ -1,6 +1,6 @@
 // Google 商家檔案與搜尋需求（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md）。
 // 後端：backend/app/insights/google_data_routes.py（只讀資料庫；資料由背景每天／每週向 Google 同步）。
-// 權限：admissions.stats（總管理者）。
+// 權限：admissions.stats_site（總管理者）。
 import { api } from './client'
 import type { BusinessProfile, GbpKeyword, GbpLocation, GbpMonth, SearchDemand, SearchKeyword, SearchVolumeCell } from './types'
 

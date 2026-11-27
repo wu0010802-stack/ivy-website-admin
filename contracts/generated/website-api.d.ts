@@ -2708,6 +2708,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/permission-table": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Permission Table
+         * @description 各角色有哪些權限、哪幾項要逐人授權。使用者頁的對照表與調整角色時的預覽用；只讀，不寫稽核。
+         */
+        get: operations["get_permission_table_api_website_v1_admin_permission_table_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/publish-jobs": {
         parameters: {
             query?: never;
@@ -10923,6 +10943,18 @@ export interface components {
             version: number;
         };
         /**
+         * PermissionRowOut
+         * @description 權限表的一項（app/auth/permissions.py 的 permission_table）。
+         */
+        PermissionRowOut: {
+            /** Grant */
+            grant?: string | null;
+            /** Key */
+            key: string;
+            /** Roles */
+            roles: components["schemas"]["Role"][];
+        };
+        /**
          * PotentialAssumptionOut
          * @description 「怎麼算」的一列：用到的參數與出處，值一律是字串（單位與出處寫在裡面）。不放任何占有率的原值。
          */
@@ -12785,6 +12817,8 @@ export interface components {
             id: string;
             /** Is Active */
             is_active: boolean;
+            /** Last Login At */
+            last_login_at?: string | null;
             /** Line Linked */
             line_linked: boolean;
             role: components["schemas"]["Role"];
@@ -19241,6 +19275,39 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_permission_table_api_website_v1_admin_permission_table_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PermissionRowOut"][];
                 };
             };
             /** @description Validation Error */

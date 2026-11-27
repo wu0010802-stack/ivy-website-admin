@@ -7,9 +7,12 @@ import { useAuthStore } from '../stores/auth'
 import { api, ApiError } from '../api/client'
 import { apiErrorCode, apiErrorMessage, apiFieldError } from '../api/errors'
 import { CAMPUS_KEYS, type PasswordResetLinkOut, type Role, type UserOut } from '../api/types'
-import { campusLabel, campusLabels, displayNameError, formatShortDateTime, outboxErrorLabel, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
+import { campusLabel, campusLabels, displayNameError, formatDate, formatShortDateTime, outboxErrorLabel, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLE_ORDER, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import UserActions from '../components/UserActions.vue'
+import PermissionMatrix from '../components/PermissionMatrix.vue'
+import { allowedPermissions, indexPermissionRows, type PermissionRow } from '../api/permissionLabels'
+import { usePermissions } from '../composables/usePermissions'
 import DisplayNameField from '../components/DisplayNameField.vue'
 import { passwordHint, passwordLength, passwordOk, PASSWORD_MIN_LENGTH } from '../composables/passwordRules'
 import { useRequestSequence } from '../composables/useRequestSequence'
@@ -17,7 +20,9 @@ import { renameVisitStaff } from '../composables/useVisitStaff'
 import { ReauthCancelled, useRememberedReauth } from '../composables/useRememberedReauth'
 
 const authStore = useAuthStore()
-const isSuperAdmin = computed(() => authStore.user?.role === 'super_admin')
+// 進得了這一頁＝後端 users.manage（目前只有總管理者）；看權限，不看角色。
+const { can } = usePermissions()
+const isSuperAdmin = computed(() => can('users.manage'))
 
 // 建帳號、改角色與授權、替人設密碼、恢復停用的帳號：後端要求近期驗證過（require_recent_auth），
 // 登入超過 10 分鐘就請本人輸入目前的密碼。驗證過的密碼在這一頁記住 10 分鐘（卸載即清）。
@@ -46,6 +51,7 @@ const scopeSelection = ref<string[]>([])
 const scopeRole = ref<Role>('campus_admin')
 const scopeShared = ref(false)
 const scopeExport = ref(false)
+const scopeStats = ref(false)
 const resetTarget = ref<UserOut | null>(null)
 const resetPassword = ref('')
 const resetVisible = ref(false)
@@ -87,24 +93,73 @@ const form = reactive({
   campus_keys: [] as string[],
   shared_content: false,
   export_data: false,
+  stats: false,
 })
 
 // 總管理者逐人給的授權與可以接受的角色（後端 GRANTABLE_CAPABILITIES）：
 // 「全站共用內容」只對會編內容的角色有意義；「匯出家長個資」只給看得到
 // 案件的角色，2026-09-25 起不再依角色自動取得。
+// 「招生統計」2026-11-27 業主裁定：原本只有總管理者，改成可以逐人開給校區管理者，只看負責的校區。
 const SHARED_ROLES: Role[] = ['campus_admin', 'editor']
 const EXPORT_ROLES: Role[] = ['campus_admin', 'reception']
+const STATS_ROLES: Role[] = ['campus_admin']
 function hasSharedGrant(u: UserOut): boolean {
   return (u.capabilities ?? []).includes('content.shared')
 }
 function hasExportGrant(u: UserOut): boolean {
   return (u.capabilities ?? []).includes('booking.export')
 }
-function grantsFor(role: Role, shared: boolean, exportData: boolean): string[] {
+function hasStatsGrant(u: UserOut): boolean {
+  return (u.capabilities ?? []).includes('admissions.stats')
+}
+function grantsFor(role: Role, shared: boolean, exportData: boolean, stats: boolean): string[] {
   const grants: string[] = []
+  if (STATS_ROLES.includes(role) && stats) grants.push('admissions.stats')
   if (EXPORT_ROLES.includes(role) && exportData) grants.push('booking.export')
   if (SHARED_ROLES.includes(role) && shared) grants.push('content.shared')
   return grants
+}
+const STATS_HELP = '包含招生轉換、參觀預約成效、預約全程、區域分析與未預繳名單，只看得到負責的校區。廣告成效與資料匯入仍只有總管理者。'
+
+// 各角色的權限對照表與「這樣設定可以做的事」：規則由後端給（GET /admin/permission-table），
+// 第一次用到才讀；讀不到時對照表顯示重試，預覽不出現，不影響建帳號與改角色。
+const permissionRows = ref<Map<string, PermissionRow>>(new Map())
+const permissionsLoading = ref(false)
+const permissionsError = ref(false)
+const matrixVisible = ref(false)
+async function loadPermissions() {
+  if (permissionRows.value.size || permissionsLoading.value) return
+  permissionsLoading.value = true
+  permissionsError.value = false
+  try {
+    permissionRows.value = indexPermissionRows(await api.get<PermissionRow[]>('/admin/permission-table'))
+    permissionsError.value = permissionRows.value.size === 0
+  } catch {
+    permissionsError.value = true
+  } finally {
+    permissionsLoading.value = false
+  }
+}
+function openMatrix() {
+  matrixVisible.value = true
+  void loadPermissions()
+}
+function previewOf(role: Role, grants: readonly string[]) {
+  const groups = allowedPermissions(permissionRows.value, role, grants)
+  return { groups, count: groups.reduce((sum, group) => sum + group.items.length, 0) }
+}
+const createPreview = computed(() => previewOf(form.role, grantsFor(form.role, form.shared_content, form.export_data, form.stats)))
+const scopePreview = computed(() => previewOf(scopeRole.value, grantsFor(scopeRole.value, scopeShared.value, scopeExport.value, scopeStats.value)))
+
+// 久未登入：啟用中的帳號超過這麼多天沒有登入紀錄就標出來，方便總管理者確認人還在不在。
+// 只提醒、不自動停用。從沒登入過的帳號（剛建好、還沒交給本人）寫「還沒登入過」，不算久未登入。
+const STALE_LOGIN_DAYS = 90
+function staleLogin(u: UserOut): boolean {
+  if (!u.is_active || !u.last_login_at) return false
+  return Date.now() - new Date(u.last_login_at).getTime() > STALE_LOGIN_DAYS * 86_400_000
+}
+function lastLoginText(u: UserOut): string {
+  return u.last_login_at ? formatDate(u.last_login_at) : '還沒登入過'
 }
 function sameGrants(a: readonly string[], b: readonly string[]): boolean {
   return [...a].sort().join() === [...b].sort().join()
@@ -250,6 +305,7 @@ function openCreateDialog() {
   form.campus_keys = []
   form.shared_content = false
   form.export_data = false
+  form.stats = false
   passwordVisible.value = false
   createErrors.email = ''
   createErrors.display_name = ''
@@ -257,6 +313,7 @@ function openCreateDialog() {
   createErrors.campus = ''
   clearCreated()
   dialogVisible.value = true
+  void loadPermissions()
 }
 
 async function submitCreate() {
@@ -276,7 +333,7 @@ async function submitCreate() {
       password: form.password,
       role: form.role,
       campus_keys: form.role === 'super_admin' ? [] : form.campus_keys,
-      capabilities: grantsFor(form.role, form.shared_content, form.export_data),
+      capabilities: grantsFor(form.role, form.shared_content, form.export_data, form.stats),
     }
     const created = await withReauth((fields) => api.post<UserOut>('/admin/users', { ...body, ...fields }))
     users.value.push(created)
@@ -332,8 +389,10 @@ function openScopeDialog(target: UserOut) {
   scopeRole.value = target.role
   scopeShared.value = hasSharedGrant(target)
   scopeExport.value = hasExportGrant(target)
+  scopeStats.value = hasStatsGrant(target)
   scopeSelection.value = [...target.campus_keys]
   scopeDialogVisible.value = true
+  void loadPermissions()
 }
 
 // 「角色與校區」對話框也可以替同事填或改顯示名稱（本人則在「我的帳號」自己改）。
@@ -372,7 +431,7 @@ async function submitScope() {
   const target = scopeTarget.value
   const nameChanged = scopeNameChanged.value
   const campusKeys = scopeRole.value === 'super_admin' ? [] : scopeSelection.value
-  const wanted = grantsFor(scopeRole.value, scopeShared.value, scopeExport.value)
+  const wanted = grantsFor(scopeRole.value, scopeShared.value, scopeExport.value, scopeStats.value)
   // 只改名稱時不送角色：後端每收到一次角色就記一筆「變更角色與校區」，沒改也會記。
   const onlyRenamed = nameChanged && scopeRole.value === target.role && sameGrants(campusKeys, target.campus_keys) && sameGrants(wanted, target.capabilities ?? [])
   savingScope.value = true
@@ -522,8 +581,9 @@ onMounted(loadUsers)
     <el-alert v-if="!isSuperAdmin" title="只有總管理者可以管理使用者" type="warning" :closable="false" show-icon />
 
     <template v-else>
-      <PageHeader lead="同事的帳號、角色與負責校區。" more="總管理者管理全部五校；其他角色只看得到被指定的校區。每個角色能做什麼，在新增使用者或調整角色時會一起列出。">
+      <PageHeader lead="同事的帳號、角色與負責校區。" more="總管理者管理全部五校；其他角色只看得到被指定的校區。每個角色能做什麼，按「各角色的權限」看對照表；新增使用者或調整角色時，也會列出那樣設定可以做的事。">
         <template #actions>
+          <el-button data-test="open-permission-matrix" @click="openMatrix">各角色的權限</el-button>
           <el-button type="primary" :icon="Plus" :disabled="operationBusy || loading" @click="openCreateDialog">新增使用者</el-button>
         </template>
       </PageHeader>
@@ -557,7 +617,7 @@ onMounted(loadUsers)
           </el-table-column>
           <el-table-column label="角色" min-width="140">
             <template #default="{ row }: { row: UserOut }">
-              {{ roleLabel(row.role) }}<el-tag v-if="hasSharedGrant(row)" size="small" type="warning" round class="self-tag" title="可以編輯全站共用內容">全站內容</el-tag><el-tag v-if="hasExportGrant(row)" size="small" type="danger" round class="self-tag" title="可以匯出家長個資">可匯出個資</el-tag>
+              {{ roleLabel(row.role) }}<el-tag v-if="hasSharedGrant(row)" size="small" type="warning" round class="self-tag" title="可以編輯全站共用內容">全站內容</el-tag><el-tag v-if="hasExportGrant(row)" size="small" type="danger" round class="self-tag" title="可以匯出家長個資">可匯出個資</el-tag><el-tag v-if="hasStatsGrant(row)" size="small" type="warning" round class="self-tag" title="可以看負責校區的招生統計">招生統計</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="校區範圍" min-width="180">
@@ -565,6 +625,12 @@ onMounted(loadUsers)
               <span v-if="row.role === 'super_admin'" class="muted">全部校區</span>
               <span v-else-if="row.campus_keys.length === 0" class="muted">尚未指定</span>
               <span v-else>{{ campusLabels(row.campus_keys) }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="最後登入" width="150">
+            <template #default="{ row }: { row: UserOut }">
+              <span :class="{ muted: !row.last_login_at }" data-test="last-login">{{ lastLoginText(row) }}</span>
+              <el-tag v-if="staleLogin(row)" size="small" type="warning" round class="stale-tag" data-test="stale-login" :title="`啟用中的帳號超過 ${STALE_LOGIN_DAYS} 天沒有登入；人不在了可以停用`">超過 {{ STALE_LOGIN_DAYS }} 天沒登入</el-tag>
             </template>
           </el-table-column>
           <el-table-column label="狀態" width="100">
@@ -586,7 +652,7 @@ onMounted(loadUsers)
               <strong><span v-if="user.display_name">{{ user.display_name }}</span><span v-else class="muted" title="還沒設定顯示名稱，先用 Email @ 前面那段">{{ staffLabel(user) }}</span><el-tag v-if="isSelf(user)" size="small" type="info" class="self-tag">你</el-tag></strong>
               <el-tag :type="user.is_active ? 'success' : 'info'">{{ user.is_active ? '啟用中' : '已停用' }}</el-tag>
             </div>
-            <dl class="record-meta"><dt>Email</dt><dd>{{ user.email }}</dd><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd></dl>
+            <dl class="record-meta"><dt>Email</dt><dd>{{ user.email }}</dd><dt>角色</dt><dd>{{ roleLabel(user.role) }}{{ hasSharedGrant(user) ? '・可編全站內容' : '' }}{{ hasExportGrant(user) ? '・可匯出個資' : '' }}{{ hasStatsGrant(user) ? '・招生統計' : '' }}</dd><dt>校區範圍</dt><dd>{{ user.role === 'super_admin' ? '全部校區' : campusLabels(user.campus_keys) || '尚未指定' }}</dd><dt>快速登入</dt><dd>{{ loginLinks(user) || '未綁定' }}</dd><dt>最後登入</dt><dd>{{ lastLoginText(user) }}{{ staleLogin(user) ? `（超過 ${STALE_LOGIN_DAYS} 天沒登入）` : '' }}</dd></dl>
             <div class="record-actions"><UserActions :user="user" :self="isSelf(user)" :busy="operationBusy" :pending="togglingId === user.id" @scope="openScopeDialog" @toggle="toggleActive" @reset="openReset" @clear-logins="clearExternalLogins" /></div>
           </li>
         </ul>
@@ -664,6 +730,19 @@ onMounted(loadUsers)
             <el-checkbox v-model="form.export_data">可以匯出負責校區的參觀案件與招生名單（CSV）</el-checkbox>
             <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
+          <el-form-item v-if="STATS_ROLES.includes(form.role)">
+            <el-checkbox v-model="form.stats" data-test="create-stats-grant">可以看負責校區的招生統計</el-checkbox>
+            <span class="field-help">{{ STATS_HELP }}</span>
+          </el-form-item>
+          <details v-if="createPreview.count" class="perm-preview" data-test="create-preview">
+            <summary>這樣設定可以做的事（{{ createPreview.count }} 項）</summary>
+            <dl>
+              <template v-for="group in createPreview.groups" :key="group.label">
+                <dt>{{ group.label }}</dt>
+                <dd>{{ group.items.map(item => item.label).join('、') }}</dd>
+              </template>
+            </dl>
+          </details>
         </el-form>
         <template #footer>
           <el-button v-if="createdPassword" type="primary" @click="dialogVisible = false">完成</el-button>
@@ -711,6 +790,19 @@ onMounted(loadUsers)
             <el-checkbox v-model="scopeExport">可以匯出負責校區的參觀案件與招生名單（CSV）</el-checkbox>
             <span class="field-help">{{ EXPORT_HELP }}</span>
           </el-form-item>
+          <el-form-item v-if="STATS_ROLES.includes(scopeRole)">
+            <el-checkbox v-model="scopeStats" data-test="scope-stats-grant">可以看負責校區的招生統計</el-checkbox>
+            <span class="field-help">{{ STATS_HELP }}</span>
+          </el-form-item>
+          <details v-if="scopePreview.count" class="perm-preview" data-test="scope-preview">
+            <summary>這樣設定可以做的事（{{ scopePreview.count }} 項）</summary>
+            <dl>
+              <template v-for="group in scopePreview.groups" :key="group.label">
+                <dt>{{ group.label }}</dt>
+                <dd>{{ group.items.map(item => item.label).join('、') }}</dd>
+              </template>
+            </dl>
+          </details>
         </el-form>
         <template #footer>
           <el-button :disabled="savingScope" @click="scopeDialogVisible = false">取消</el-button>
@@ -758,6 +850,13 @@ onMounted(loadUsers)
         </template>
       </el-dialog>
 
+      <el-dialog v-model="matrixVisible" title="各角色的權限" width="min(860px, 100%)" data-test="permission-matrix-dialog">
+        <p class="hint perm-matrix-lead">除了總管理者，每個角色都只看得到、改得到被指定的校區。「要授權」的項目，要在該帳號的「角色與校區」另外勾選才有。</p>
+        <el-skeleton v-if="permissionsLoading" animated :rows="6" />
+        <el-alert v-else-if="permissionsError" type="error" :closable="false" show-icon title="讀不到權限對照表"><el-button @click="loadPermissions">重新載入</el-button></el-alert>
+        <PermissionMatrix v-else :rows="permissionRows" />
+        <template #footer><el-button type="primary" @click="matrixVisible = false">關閉</el-button></template>
+      </el-dialog>
       <!-- 帳號管理的敏感操作要確認是本人（同「我的帳號」的重新驗證）；疊在角色與校區、新增使用者對話框上面。 -->
       <el-dialog
         v-model="reauth.open"
@@ -877,6 +976,14 @@ onMounted(loadUsers)
   overflow-wrap: anywhere;
 }
 .users__unnamed { margin: 0 0 12px; }
+.stale-tag { display: block; width: fit-content; margin-top: 4px; }
+.perm-matrix-lead { margin: 0 0 12px; }
+/* 這樣設定可以做的事：預設收著，不把對話框拉長；展開後一組一行。 */
+.perm-preview { width: 100%; padding: 8px 12px; border-radius: var(--radius); background: var(--surface-2); font-size: var(--text-sm); }
+.perm-preview summary { cursor: pointer; color: var(--ink-2); min-height: 28px; line-height: 28px; }
+.perm-preview dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 12px; margin: 8px 0 4px; line-height: 1.55; }
+.perm-preview dt { color: var(--ink-3); white-space: nowrap; }
+.perm-preview dd { margin: 0; }
 
 .field-help.is-ok {
   color: var(--el-color-success);
