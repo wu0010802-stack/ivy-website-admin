@@ -49,6 +49,24 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
+## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，分支 `feature/client-error-fb-iab-20261127`）
+
+系統狀態收到一筆官網首頁的 `Error: Error invoking postMessage: Java object is gone`（UA 是 Android 的 `FB_IAB/FB4A`，堆疊三格全是 `iabjs://`）。這是 FB 內建瀏覽器**自己注入的腳本**透過 Android WebView 的 Java 橋接（`@JavascriptInterface`）呼叫 App，使用者關掉內建瀏覽器或切到背景、原生物件已回收時就丟；官網沒有註冊任何橋接，不是我們的程式出錯，也沒有可以修的東西。
+
+- **忽略規則**多一條：訊息含 `Java object is gone` 或 `Java exception was raised during method invocation`（Chromium Java 橋接的兩種錯誤）不送。`web/shared/client-error.ts` 與後台副本 `admin/src/utils/errorReport.ts` 同步改，對照測試補兩個樣本。
+- **刻意看訊息、不看 `iabjs://`**：FB 的注入腳本也會包住頁面的事件，我們自己的錯誤堆疊下層可能有 iabjs frame；用 `iabjs://` 當標記會連 FB 廣告進站訪客遇到的真錯誤一起吞掉（測試有這個反例）。
+- **範圍**：只有前端回報端過濾，`backend/` 與 API 契約不變；已經進來的那一筆照常在「系統狀態」標記已處理即可。
+
+驗證（本機，Node 22.23.2）：
+
+| 指令 | 結果 |
+|---|---|
+| 新測試先紅後綠：`web` `tests/client-error.spec.ts`、`admin` `src/__tests__/errorReport.test.ts` | 改實作前各 1 failed；改後 29／22 passed |
+| `npm --prefix web run typecheck` | exit 0（只有既有的 `MediaImage` 重複匯入 WARN） |
+| `npm --prefix web run test:unit` | 171 檔、2592 passed |
+| `npm --prefix admin run typecheck` | 通過 |
+| `npm --prefix admin run test:unit` | 全套跑時 7 檔 15 個逾時（負載平均 37、另有兩個 session 在跑 pytest，每個 5–94 秒）；這 7 檔都沒有匯入改動的檔案，`--testTimeout=120000` 單獨重跑 7 檔 189 passed。全套沒有在低負載下重跑 |
+
 ## 2026-11-27 後台三項：側欄搜尋找人、常用篩選＋顯示欄位、指紋／臉部辨識登入（PR #156，已部署 main `15b14380`，紀錄見 `deploy/README.md`）
 
 使用者問「後台還有沒有新時代網頁 SaaS 可以做的功能」，看完清單後指定全域搜尋、儲存常用篩選＋自訂欄位、用指紋登入（「幫我做這些」）。規則與我施工時定的判斷在 DESIGN.md「後台：側欄搜尋找人、常用篩選、顯示欄位、指紋登入」。
