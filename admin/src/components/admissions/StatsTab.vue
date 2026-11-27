@@ -21,6 +21,7 @@ import { DEFAULT_AREA_VIEW, type AreaView } from '../../admissions/areaView'
 import { DEFAULT_JOURNEY_FILTER, type JourneyFilter } from '../../admissions/journeyFormat'
 import { NO_VALUE, formatRate, gradeColumns, priorityLabel, ratio, type StatsColumn, type StatsTarget } from '../../admissions/statsFormat'
 import { STATS_GROUPS, STATS_SUB_LABELS, groupOfSub, type StatsGroup, type StatsGroupKey } from '../../admissions/statsNav'
+import { usePermissions } from '../../composables/usePermissions'
 import { type StatsSub } from '../../admissions/useAdmissionsFilters'
 import { useRequestSequence } from '../../composables/useRequestSequence'
 import { csvFilename } from '../../utils/csv'
@@ -66,7 +67,12 @@ const ownDataSub = computed(() => sub.value === 'booking' || sub.value === 'jour
 // （指到不存在的 id 會被 axe 判成無效的 ARIA 值）。
 const group = computed(() => groupOfSub(sub.value))
 // 五校比較、廣告成效要看得到兩校以上才有；整類沒有分頁就不列。
-const visibleSubs = (item: StatsGroup) => item.subs.filter((key) => showCompare.value || (key !== 'compare' && key !== 'ads'))
+// 2026-11-27 起招生統計可以授權給分校管理者（只看負責的校區）：廣告成效是全站數字（admissions.stats_site）、
+// 資料匯入會整批改資料（admissions.imports），兩項仍只有總管理者有，沒有就不列入口。
+const { can } = usePermissions()
+const canSeeAds = computed(() => showCompare.value && can('admissions.stats_site'))
+const canImport = computed(() => can('admissions.imports'))
+const visibleSubs = (item: StatsGroup) => item.subs.filter((key) => (key === 'ads' ? canSeeAds.value : key !== 'compare' || showCompare.value))
 const groups = computed(() => STATS_GROUPS.filter((item) => visibleSubs(item).length > 0))
 const tabs = computed(() => (group.value ? visibleSubs(group.value) : []))
 // 換分類時回到那一類上次看的分頁（第一次是那一類的第一頁）。
@@ -256,6 +262,10 @@ function setCompareRadius(value: string | number | boolean | undefined) {
 watch(showCompare, (visible) => {
   if (!visible && (sub.value === 'compare' || sub.value === 'ads')) sub.value = 'overview'
 }, { immediate: true })
+// 網址帶 sub=ads／imports 但沒有那項權限（被授權的分校管理者開了總管理者貼的連結）：同樣退回總覽。
+watch([canSeeAds, canImport], ([ads, imports]) => {
+  if ((!ads && sub.value === 'ads') || (!imports && sub.value === 'imports')) sub.value = 'overview'
+}, { immediate: true })
 
 // 後端把沒填班別、來源、帶參觀老師的歸在這個標籤：排序時固定排最後、字色淡一階，不混在有名字的列中間。
 const UNFILLED_LABEL = '未填寫'
@@ -421,7 +431,7 @@ function openWithdrawRecords(row: { code: string }) {
               {{ item.label }}
             </button>
           </div>
-          <button type="button" class="stats-nav__imports" :class="{ 'is-active': sub === 'imports' }" :aria-pressed="sub === 'imports'" @click="setSub('imports')">
+          <button v-if="canImport" type="button" class="stats-nav__imports" :class="{ 'is-active': sub === 'imports' }" :aria-pressed="sub === 'imports'" @click="setSub('imports')">
             資料匯入
           </button>
         </div>
@@ -681,11 +691,11 @@ function openWithdrawRecords(row: { code: string }) {
       </div>
 
       <!-- 資料匯入不在分頁列（沒有對應的 tab），所以是一般的區塊、標題寫在裡面。 -->
-      <section v-if="visited.has('imports')" v-show="sub === 'imports'" id="stats-pane-imports" aria-label="資料匯入">
+      <section v-if="canImport && visited.has('imports')" v-show="sub === 'imports'" id="stats-pane-imports" aria-label="資料匯入">
         <ImportsTab :campus-key="campusKey" :active="sub === 'imports'" />
       </section>
 
-      <div v-if="showCompare && visited.has('ads')" v-show="sub === 'ads'" id="stats-pane-ads" role="tabpanel" aria-labelledby="stats-tab-ads" tabindex="0">
+      <div v-if="canSeeAds && visited.has('ads')" v-show="sub === 'ads'" id="stats-pane-ads" role="tabpanel" aria-labelledby="stats-tab-ads" tabindex="0">
         <AdsTab :active="sub === 'ads'" />
       </div>
     </div>

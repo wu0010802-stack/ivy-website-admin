@@ -1,6 +1,6 @@
 """廣告花費（手填）與成效 API（2026-11-16 docs/specs/2026-11-16-ad-roi-design.md §6.2）。
 
-權限同招生統計：admissions.stats（總管理者）。稽核的 action、target_type 與 metadata 鍵寫字面值（labelCoverage 會掃）。"""
+全站數字，沒有校區可以限：admissions.stats_site（總管理者；不跟著招生統計授權出去）。稽核的 action、target_type 與 metadata 鍵寫字面值（labelCoverage 會掃）。"""
 
 from __future__ import annotations
 
@@ -111,7 +111,7 @@ async def list_ad_spend(
     db: AsyncSession = Depends(get_db_session),
 ) -> AdSpendListOut:
     """列出區間內手填的花費（含頭尾月份），依月份、平台排序。只讀，不寫稽核。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     query = select(AdSpendEntry).order_by(AdSpendEntry.month, AdSpendEntry.platform)
     this_month = today_local().replace(day=1)
     # 區間可以晚於本月（截到本月）；格式不對才 422。
@@ -132,7 +132,7 @@ async def put_ad_spend(
 ) -> AdSpendEntryOut:
     """新增或覆寫該月該平台的花費（upsert）。先鎖住既有列（沒有就靠唯一鍵的 ON CONFLICT 擋並發），
     稽核帶更新前的金額。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     month_day = _month_or_422(month)
     platform = _platform_or_422(platform)
     # 列還不存在時鎖不到東西：用 (月份, 平台) 的 advisory lock 讓並發的 PUT 排隊，
@@ -180,7 +180,7 @@ async def delete_ad_spend(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     month_day = _month_or_422(month)
     platform = _platform_or_422(platform)
     removed = (
@@ -216,7 +216,7 @@ async def get_ad_roi(
 ) -> AdRoiOut:
     """各廣告平台的花費對照預約、到場、預繳（docs/specs/2026-11-16-ad-roi-design.md §7）。
     只讀，不寫稽核；先查完資料庫再放掉交易，才向 GA4 要花費（可能等數十秒）。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     today = today_local()
     try:
         months = ad_roi.parse_month_range(from_, to, today)
@@ -262,7 +262,7 @@ async def get_ad_conversion_status(
 ) -> AdConversionStatusOut:
     """回傳廣告平台的狀態（2026-11-19 docs/specs/2026-11-19-cookie-stats-design.md §8）：近 N 天排入的工作依平台 ×
     事件 × 狀態計數、最近一次送出與最近的問題，以及同期官網預約帶到各平台識別碼的件數。只讀、校區範圍內的案件。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     now = now_utc()
     since = now - timedelta(days=days)
     campus_keys = [key for key in CAMPUS_KEYS if covers_campus(current_user, key)]

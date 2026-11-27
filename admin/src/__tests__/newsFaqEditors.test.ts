@@ -11,7 +11,7 @@ import CampusNewsView from '../views/CampusNewsView.vue'
 import { api } from '../api/client'
 import type { UserOut } from '../api/types'
 import { CONTENT_KIND_LABELS, contentEditorPath, contentPreviewPath, contentPublicPath } from '../api/labels'
-import { NAV_GROUPS } from '../router/nav'
+import { canSeeNavItem, NAV_GROUPS } from '../router/nav'
 import {
   eventTimeError,
   legacyScope,
@@ -108,8 +108,9 @@ describe('消息欄位的預設值與檢查', () => {
     expect(campus.items.map((item) => item.name)).not.toEqual(expect.arrayContaining(['campus-faq']))
     expect(campus.items.some((item) => item.name === 'shared-faq')).toBe(false)
     expect(news.path).toBe('/content/campus-news')
-    expect(news.roles).toContain('campus_admin')
-    expect(news.roles).toContain('editor')
+    expect(news.capability).toBe('content.browse')
+    expect(canSeeNavItem(news, testUser('campus_admin'))).toBe(true)
+    expect(canSeeNavItem(news, testUser('editor'))).toBe(true)
     // 常見問題功能已刪除，舊操作紀錄與舊發布紀錄裡的 kind 仍顯示中文名稱。
     expect(CONTENT_KIND_LABELS.shared_faq).toBe('共用常見問題')
     expect(CONTENT_KIND_LABELS.campus_faq).toBe('各校常見問題')

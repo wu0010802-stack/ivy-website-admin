@@ -104,10 +104,11 @@ def _uuid_or_none(value: str) -> uuid.UUID | None:
 
 # 例行的登入登出：每人每天都有，操作紀錄頁可以勾選隱藏。登入失敗與帳號
 # 鎖定不算在內，那是要留意的事。
-ROUTINE_LOGIN_ACTIONS = ("user.login_password", "user.login_google", "user.login_line", "user.logout")
+SUCCESSFUL_LOGIN_ACTIONS = ("user.login_password", "user.login_google", "user.login_line")
+ROUTINE_LOGIN_ACTIONS = (*SUCCESSFUL_LOGIN_ACTIONS, "user.logout")
 
-# 只有 admissions.stats（總管理者）做得到的動作。這些紀錄帶校區，metadata 有在籍人數、
-# 歷年註冊學期、未預繳名單筆數；分校帳號用 booking.read 看自己校的操作紀錄時要排除，
+# 只有 admissions.stats（總管理者，或被授權的分校管理者）看得到的動作。這些紀錄帶校區，metadata 有在籍人數、
+# 歷年註冊學期、未預繳名單筆數；分校帳號用 audit.read 看自己校的操作紀錄時要排除，
 # 否則繞過 2026-10-16「招生統計只給總管理者」的裁定。
 STATS_ONLY_ACTIONS = (
     "enrolled_roster.import",

@@ -22,7 +22,33 @@
 
 沒跑：`web/` 的測試（沒動）、stack e2e、真 LINE 群組。
 
-## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
+## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151，已部署 main `1a6f1d47`，紀錄見 `deploy/README.md`）
+
+使用者：「https://admin.ivykidschool.com/admin/users 可以幫我優化權限設計嗎」→ 盤點後選「整理＋擴充逐人授權」，只開**招生統計（限負責校區）**。規則與裁定在 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。沒有 migration；有 API 與契約變動（已重產）。
+
+- **招生統計可以逐人開給校區管理者**（預設仍只有總管理者）：使用者頁「角色與校區」多一個勾選「可以看負責校區的招生統計」。被授權的人側欄出現「招生統計」，只看得到負責的校區（別校回 404）；五校比較、預約成效只列自己的校。
+- **仍只有總管理者**：廣告成效、廣告花費、Google 商家檔案、搜尋需求與搜尋成效、CrUX、LINE 成效改查 `admissions.stats_site`；匯入／清除在籍清冊與歷年註冊改查 `admissions.imports`。被授權的校區管理者在招生統計看不到「廣告成效」分頁與「資料匯入」按鈕，直接開網址會退回總覽。
+- **畫面不再另抄角色表**：側欄、路由守衛、側欄搜尋、起始頁改讀後端回傳的 `effective_capabilities`（`NavItem.roles` → `NavItem.capability`）。預約設定頁的分校狀態、操作紀錄的全站範圍與 IP、使用者頁入口原本寫「是不是總管理者」，改查對應的權限。後端新增 `content.browse`（列出官網內容各頁）、`content.shared_publish`（可直接發布共用內容）給畫面用。
+- **操作紀錄收緊**：看自己校的操作紀錄原本借用 `booking.read`，櫃台因此打得到 API（後台沒有入口）；改成 `audit.read`，只有總管理者與校區管理者。
+- **使用者頁**：
+  - 新按鈕「各角色的權限」：五個角色 × 24 件事的對照表（可以／要授權／不行），資料來自新的 `GET /admin/permission-table`。
+  - 新增使用者、調整角色時多一塊「這樣設定可以做的事（N 項）」，跟著角色與勾選即時變。
+  - 清單多「最後登入」欄（從操作紀錄算）；啟用中的帳號超過 90 天沒登入會標出來，只提醒、不自動停用。
+- **驗證**（Node 22.23.2，本機 PostgreSQL 測試庫 `ivy_website_perm1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 後端 `uv run --frozen pytest`（全套，在加 `permission-table` 端點之前） | 6083 通過、1 略過（1018 秒） |
+| 之後重跑 `test_stats_grant.py`、`test_permission_table.py`、`test_roles_and_passwords.py`、`test_display_names.py` | 53 通過 |
+| `npm run contract:check` | 通過（契約型別與 openapi.json 一致） |
+| `npm --prefix admin run typecheck` | 通過 |
+| admin vitest 全套 | 210 檔、3916 通過、1 略過（118 秒） |
+| admin vite dev＋Playwright 攔 API 的假資料（權限表用後端程式實際算出的 JSON），1440 與 390 | 橫向溢出 0、console 錯誤 0；對照表 24 列；被授權的校區管理者側欄有招生統計、沒有廣告成效分頁與資料匯入；未授權者與櫃台開 `/admissions-stats` 被導回起始頁 |
+
+- **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；`npm run test:website` 與 stack e2e 沒跑（沒動 `web/`；e2e 由 CI 跑）；真後端登入後的畫面與正式站沒看；使用小技巧（`tips.ts`）裡各條「適用角色」仍是寫死的角色清單，另一個 session 正在改那一頁，這次沒動；`docs/website-admin/acceptance.md` E02 的敘述沒更新。
+- **部署時注意**：沒有 migration、不改既有資料；上線後現有帳號的權限只有一處變窄（櫃台打不到操作紀錄 API），其餘不變。要讓某位園長看統計，需總管理者到使用者頁勾選。
+
+## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。
 
@@ -103,7 +129,7 @@
 - **截圖可以放大**：手機上 1100px 寬的截圖被縮到 296px（字約 3px），看不出要按哪裡。顯示不到原本七成五的截圖整張可以點（右下角「放大」），對話框裡是原本的大小、在框裡上下左右拖。1280 以上的桌機縮得不多，不出現這顆。
 - **按鍵寫法**：「按住 `mod` 再點」在 Windows 顯示成「按住 Ctrl＋ 再點」，改成「Ctrl」（`mod+K` 仍是 Ctrl＋K）。
 - **驗證**（Node 22.23.5）：admin `vue-tsc -b --noEmit` 通過、`vite build` 通過（小技巧內容仍只在 `TipsView` chunk，41.7 kB／gzip 19.4 kB）；vitest 全套 206 檔 3,864 項通過、1 項略過（跑完之後只再動了 CSS 與測試替身的寫法，`tips.test.ts` 單獨重跑全過）。`tips.test.ts` 19 → 29 項：`splitMatches`／`matchSnippet`／搜尋用字、同義詞、標示與那一句、別的分類還有幾條、網址 hash（點開不捲動、收起與全部收起拿掉）、被濾掉的連結、複製連結（成功與失敗）、截圖放大（手機有、桌機沒有）。vite dev＋Playwright 假登入看 1440／1280／820／390／360：0 橫向溢出、無 console 錯誤；axe-core（WCAG 2.2 AA）在 1440 搜尋＋展開、390 展開、390 放大對話框都是 0 項。實際操作：「快捷鍵、鍵盤、颱風假、圖片、忘記密碼、請假、報到」都有結果；點開時那一列位置不動；「前往」後按上一頁，網址是 `#tip-batch-attend`、那一條展開並捲到頁首下方；剪貼簿拿到的是 `/admin/tips#tip-batch-attend`；櫃台開 `?section=content&mine=1#tip-account` 會拿掉條件並展開。
-- **沒做／沒驗證**：stack e2e 沒跑（`a11y.spec.ts` 有 `/tips`，CI 會跑）；真後端與正式站沒看（假登入攔 API）；iOS 實機沒試。沒做的功能：各頁連到單一條、新功能上線提示、互動式導覽、搜尋字寫進網址（11-20 刻意不寫）、側欄搜尋直接搜小技巧內容。
+- **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；stack e2e 沒跑（`a11y.spec.ts` 有 `/tips`，CI 會跑）；真後端與正式站沒看（假登入攔 API）；iOS 實機沒試。沒做的功能：各頁連到單一條、新功能上線提示、互動式導覽、搜尋字寫進網址（11-20 刻意不寫）、側欄搜尋直接搜小技巧內容。
 
 ## 2026-11-26 後台成效統計第五輪 UI/UX：類內目次、換分類回到開頭、手機第一屏（PR #145，已部署 main `a994a361`，紀錄見 `deploy/README.md`）
 
@@ -148,7 +174,7 @@ stack e2e 本機沒跑，PR 的 CI 跑過全綠（`tests/stack` 的 a11y／keybo
 - **「重新整理」**：原本是和內文同色的 12px 字，看不出能按；改成操作色的文字連結鈕。手機上 44px 點擊範圍用負邊距收回去，「更新於…」那一行 44px → 22px。
 - **對比**：進行中（淡綠底）列的電話連結只有 4.41:1（13px 要 4.5:1，既有問題，這次 axe 掃到）；淡綠、淡暖底列的電話連結改用 `--admin-accent-hover`。
 - **驗證**（Node 22.23.5）：admin `vue-tsc -b --noEmit` 通過；vitest 全套 206 檔 3,862 項通過、1 項略過；`vite build` 通過。`dashboard.test.ts` 新增 8 項，其中 5 項在改版前的檔案上是紅的（另 3 項是「單校不寫共」「4 項以內不收合」「沒有通知鈕不收窄」的對照）；`publishingWorkflow.test.ts` 一項跟著改成「官網上 1 個已刪除」。截圖 6 種情境 × 1440／1280／390（重度、草稿很多、一般另拍 1120／820／375／360）：都沒有水平溢出、沒有 console 錯誤。axe-core 4.14.1（WCAG 2.1 A／AA）掃 6 種情境 × 1440／1280／390：`color-contrast` 0 項。
-- **沒做／沒驗證**：stack e2e 沒跑；真後端資料沒看（正式站要登入）。axe 4.14.1 另報 `label-content-name-mismatch`（側欄帳號鈕、頁首通知鈕、「到了／沒來」、帶說明段的待辦連結：看得到的字不在 `aria-label` 裡），都是這次沒動的既有寫法；repo 鎖的 axe-core 4.13.0 這條規則還是 experimental（預設不跑），升到 4.14 之後 `tests/stack/a11y.spec.ts` 會開始紅。1280 寬的重度畫面因為子清單改成兩行，整頁高了約 44px。
+- **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；stack e2e 沒跑；真後端資料沒看（正式站要登入）。axe 4.14.1 另報 `label-content-name-mismatch`（側欄帳號鈕、頁首通知鈕、「到了／沒來」、帶說明段的待辦連結：看得到的字不在 `aria-label` 裡），都是這次沒動的既有寫法；repo 鎖的 axe-core 4.13.0 這條規則還是 experimental（預設不跑），升到 4.14 之後 `tests/stack/a11y.spec.ts` 會開始紅。1280 寬的重度畫面因為子清單改成兩行，整頁高了約 44px。
 
 ## 2026-11-26 資安檢查與六項修正（`claude/confident-faraday-wc9bn2`，未合併、未部署）
 
@@ -177,7 +203,7 @@ stack e2e 本機沒跑，PR 的 CI 跑過全綠（`tests/stack` 的 a11y／keybo
 - **常用**：桌機排在今天名單下面（原本在整張板子下面，要處理一長就出了第一屏）；DOM 仍在最後，鍵盤順序與單欄版面不變。
 - **本週五校**：自選場次但還可約 0 的格子用警示色；電話、LINE 這類已開放的方式，入口字從「開放」改成「設定」（暫停的校仍是「開放」）。
 - **驗證**（Node 22.23.5）：admin `vue-tsc -b --noEmit` 通過；vitest 全套 206 檔 3,854 項通過、1 項略過。`dashboard.test.ts` 新增 6 項（現在線位置與不畫的情況、摘要加粗、更新時間位置、右欄與常用的順序、分組與組名、本週表警示與入口字），其中 5 項在改版前的檔案上是紅的；`dashboard.test.ts` 兩項、`openRequestsUx.test.ts` 一項原本斷言「沒有名單也寫摘要句」，改成斷言空狀態。vite dev＋Playwright 攔 API 灌假資料，拍 1440／1280／390（重度、一般、全空、櫃台）：都沒有水平溢出、沒有 console 錯誤。
-- **沒做／沒驗證**：stack e2e、axe 沒跑（新顏色都用既有 token：現在線白字壓 `--el-color-primary`、0 用 `--el-color-warning-dark-2`，對比沿用既有說明）；真後端資料沒看。手機頁首標題「營運總覽」在有通知鈕時會折成兩行，是外殼（`AdminLayout.vue`）共用的問題，沒動。
+- **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；stack e2e、axe 沒跑（新顏色都用既有 token：現在線白字壓 `--el-color-primary`、0 用 `--el-color-warning-dark-2`，對比沿用既有說明）；真後端資料沒看。手機頁首標題「營運總覽」在有通知鈕時會折成兩行，是外殼（`AdminLayout.vue`）共用的問題，沒動。
 
 ## 2026-11-25 補 8 條舊 Wix 網址 301（`fix/legacy-redirects-20261125`）
 

@@ -21,7 +21,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     title?: string
     /** 限定角色；未設定代表所有登入者 */
-    roles?: string[]
+    capability?: string
     /** 共用內容頁，有「全站共用內容」授權也可進入 */
     shared?: boolean
     /** 不用登入就能開（重設密碼連結）；不恢復 session、不導去登入頁 */
@@ -33,7 +33,7 @@ declare module 'vue-router' {
 // 高亮三處共用同一份資料。
 function page(path: string, name: string, component: RouteRecordSingleView['component']): RouteRecordRaw {
   const item = navItem(name)
-  return { path, name, component, meta: { title: item?.title, roles: item?.roles, shared: item?.shared } }
+  return { path, name, component, meta: { title: item?.title, capability: item?.capability, shared: item?.shared } }
 }
 
 /** 統計分析 2026-10-16 從招生入學抽成獨立的招生統計頁：舊連結（書籤、文件）的 /admissions?tab=stats
@@ -90,7 +90,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'visit-requests/:id',
         name: 'visit-detail',
         component: () => import('../views/VisitDetailView.vue'),
-        meta: { title: '案件明細', roles: navItem('visit-requests')?.roles },
+        meta: { title: '案件明細', capability: navItem('visit-requests')?.capability },
       },
       page('notifications', 'notifications', () => import('../views/NotificationsView.vue')),
       page('analytics', 'analytics', () => import('../views/AnalyticsView.vue')),
@@ -160,7 +160,7 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
         reachable = false
       }
     }
-    if (authStore.user) return safeRedirectPath(to.query.redirect) ?? landingPath(authStore.user.role)
+    if (authStore.user) return safeRedirectPath(to.query.redirect) ?? landingPath(authStore.user)
     // 斷線時被導來、之後伺服器恢復了但 session 已經失效（按了「重新整理」）：網址還帶
     // reason=offline，登入頁會一直說連不上伺服器。改成一般的「請先登入」。
     if (reachable && to.query.reason === 'offline') {
@@ -188,9 +188,8 @@ export async function authGuard(to: RouteLocationNormalized): Promise<boolean | 
     return { name: 'login', query: to.fullPath !== '/' ? { ...redirect, reason: 'signin' } : undefined }
   }
 
-  const roles = to.meta.roles
-  if (roles && !canSeeNavItem({ name: '', path: to.path, title: '', roles, shared: to.meta.shared }, authStore.user)) {
-    const landing = landingPath(authStore.user.role)
+  if (!canSeeNavItem({ capability: to.meta.capability }, authStore.user)) {
+    const landing = landingPath(authStore.user)
     if (to.path === landing) return true
     // 只有明確連進來的頁面被擋才說明（通知信、同事貼的網址、書籤），AdminLayout
     // 讀 denied 顯示一次提示。'/' 是預設入口：編輯與唯讀登入後本來就會經過這裡

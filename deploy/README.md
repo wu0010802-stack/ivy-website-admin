@@ -14,6 +14,34 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 後台權限整理、招生統計可逐人授權給校區管理者（PR #151，main `1a6f1d47`；已部署）
+
+使用者 11-27 選「整理＋擴充逐人授權」、只開招生統計（限負責校區），做完後說「併入 main」。沒有 migration、不改既有資料，沒有事先備份。內容見根目錄 README 同日段落與 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。
+
+上線後行為的差別：櫃台不再讀得到自己校的操作紀錄 API（`audit.read`）；其餘現有帳號的權限不變。招生統計要總管理者到使用者頁逐人勾選才會開給校區管理者。
+
+線上核對（2026-11-27 約 12:00 台北，只用公開 GET）：
+
+- main run 45935743741 全綠（含 E2E 與 Deploy Railway production）。
+- `/release.json` 的 `base_commit` 是 `1a6f1d47…`（上一版 `32b55462`，#148）。
+- `/api/website/v1/health` 回 200；`admin.ivykidschool.com/admin/` 回 200；新端點 `/api/website/v1/admin/permission-table` 未登入回 401（已存在）。
+- 後台 `UsersView-DavQOySz.js` 裡有「各角色的權限」「可以看負責校區的招生統計」。
+- **沒驗證**：登入後的畫面（對照表、授權勾選、最後登入欄、被授權的校區管理者實際看到的招生統計）沒有在正式站操作過。
+
+## 2026-11-27 LINE 總部群組週報與月報、每日摘要加電話與 LINE 點擊、廣告名單每校一把權杖（PR #148，main `32b55462`；已部署）
+
+使用者 11-26 挑了四項、11-27 說「部署」。migration `c7a2d9e4b615`（parent `e84b4724bb8d`）新增 `line_report_runs`，並替現有總部群組的 `kinds` 加上 `weekly_report`、`monthly_report`；只加不刪，沒有事先備份。合併前在併入 main 的分支上核對過只有一個 alembic head、後端全套 6089 passed。等 CI 期間 main 先後進了 #147、#149 與一筆部署紀錄，README 頂部衝突四次，各併一次 main 後重跑。合併後 run 45930125438 含 Deploy 全綠。
+
+線上核對（2026-11-27 約 11:00 台北，只用公開 GET）：
+
+- `/release.json` 的 `base_commit` 是 `32b55462…`（上一版 `5a6a44b4`，#149）。
+- `/api/website/v1/health` 回 200；`admin.ivykidschool.com/admin/login` 回 200。
+- 後台 `LineNotificationsView-BftquR07.js` 裡有「每週一週報」。
+
+沒驗證：migration 有沒有真的替總部群組打開兩份報表（沒查正式庫；API 啟動時自動升級，health 正常）；週報（下週一 11-30）、月報（12-01）與每日摘要新的那一列在真群組的樣子；登入後的「LINE 通知」頁。
+
+還沒生效、要本人做的：四校的廣告名單。沒設 `WEBSITE_META_LEADS_PAGES` 與各校權杖之前，名單同步的行為和部署前一樣（只有義華）。步驟見下方「Meta 名單型廣告」段。
+
 ## 2026-11-27 後台「使用小技巧」補 11 條、修正過期說明、重拍截圖、分類列黏住（PR #149，main `5a6a44b4`；已部署）
 
 只改 admin 前端（`admin/src/views/TipsView.vue`、`admin/src/tips/tips.ts`、`pageSections.ts`、`admin/src/assets/tips/` 34 張截圖）與截圖腳本，沒有 migration，也沒改變數，不需要事前備份。使用者看過建議清單說「都幫我做」，做完後說「合併進 main」。合併前把 `main`（#147）合進分支，README 頂部衝突一次、兩段都保留，型別檢查與相關測試重跑通過。PR 那組 CI（Frontend 兩組、Backend 三組、E2E）全綠；同分支的推送組被 concurrency 取消、讓 PR 顯示 BLOCKED，`gh run rerun 45921021822` 綠了之後合併。合併後 run 45924552416 全綠，Deploy Railway production 成功（01:47–02:02 UTC）。

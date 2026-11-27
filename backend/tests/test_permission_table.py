@@ -48,7 +48,10 @@ def test_super_admin_only_capabilities():
         "content.release_restore",
         "contact_phrases.manage",
         "system.status",
-        "admissions.stats",
+        # admissions.stats 2026-11-27 起可逐人授權給分校管理者（tests/test_stats_grant.py）；
+        # 全站數字與資料匯入拆出來，仍只有總管理者。
+        "admissions.stats_site",
+        "admissions.imports",
     ):
         assert roles_with(capability) == {Role.SUPER_ADMIN}, capability
 

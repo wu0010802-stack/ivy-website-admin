@@ -8,7 +8,7 @@ describe('最新消息與活動（home_news）', () => {
     const home = NAV_GROUPS.find(group => group.key === 'home')!
     const item = home.items.find(i => i.name === 'home-news')!
     expect(item.path).toBe('/content/home-news')
-    expect(item.roles).toEqual(['super_admin'])
+    expect(item.capability).toBe('content.shared')
     expect(CONTENT_KIND_LABELS.home_news).toBe('最新消息與活動')
     expect(contentPublicPath('home_news')).toBe('/')
   })
