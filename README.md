@@ -48,7 +48,7 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
-## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
+## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。
 
