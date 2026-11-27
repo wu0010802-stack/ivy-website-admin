@@ -1,4 +1,4 @@
-## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151 `feature/permissions-20261127`）
+## 2026-11-27 後台權限整理＋招生統計可逐人授權（PR #151，已部署 main `1a6f1d47`，紀錄見 `deploy/README.md`）
 
 使用者：「https://admin.ivykidschool.com/admin/users 可以幫我優化權限設計嗎」→ 盤點後選「整理＋擴充逐人授權」，只開**招生統計（限負責校區）**。規則與裁定在 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。沒有 migration；有 API 與契約變動（已重產）。
 
