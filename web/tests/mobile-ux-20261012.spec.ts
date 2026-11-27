@@ -46,7 +46,8 @@ describe('預約：橫拿手機', () => {
 describe('預約第二步', () => {
   it('讀場次時先留月曆的高度，月曆插進來不把孩子資料欄推走', () => {
     expect(visitForm).toContain('<p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">')
-    expect(visitCss).toContain('.visit-slots-loading {min-height:400px}')
+    // 2026-11-27 起照載入後的版面分開留（一欄 497／360 以下 467／兩欄 408，見 visit-slots-skeleton-20261127.spec.ts）
+    expect(visitCss).toContain('.visit-slots-loading {min-height:497px}')
   })
   it('送出列的「・」接在前一段後面：320 寬可以在分隔號後換行，不撐出欄外', () => {
     expect(visitForm).toContain("{{ part }}{{ index < bookingSummary.length - 1 ? '・' : '' }}</span>")

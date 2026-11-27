@@ -16,6 +16,7 @@
 5. **環境頁第一次進站不等版面**（`router.options.ts`）。
 6. **孩子的一天 AV1**（`scripts/optimize-site-videos.py`、`video-manifest.json`、`media-policy.ts` 的 `dayAv1`／`av1Verdict`、`DayExperience.vue`）：桌機 7,046,444 → 3,722,368 bytes（53%，CRF 34），手機 4,052,102 → 2,392,101 bytes（59%，CRF 38）；對母帶 PSNR 45.1／44.1 dB、SSIM 0.987／0.984。從交付的 H.264 成片壓（中間檔不在 repo）。選用條件同首屏，失敗換回 H.264。
 7. **後台「網頁速度」分頁看**（`traffic_service.py` 回 `page_vitals`；`admin/src/api/traffic.ts` 的 `pageVitalTable`、`SiteTrafficPanel.vue` 多一張「各頁」表、可切三個指標，CSV 一起匯出）。預約頁五校合併算。
+8. **預約頁讀場次時不再把表單往下推**（`visit-booking.css`，同日補）：骨架原本一律留 400px，手機一欄（月曆在上、場次在下）載入後是 497px＋上緣 12px，「寶貝資料」整塊被推下 109px（正式站 CLS 390 寬 0.015、430 寬 0.024）。改成照載入後的版面留：一欄 497px、360 以下 467px、場次區兩欄時 408px，上緣間距跟載入後同一條規則。本機這個分支的 build（內容與場次讀正式站公開 API，只讀）：`/visit/yihua` 九種視窗（320–1440、橫拿手機）CLS 全部 0（正式站 0–0.024），「寶貝資料」標題載入前後同一個位置；其他四校目前沒開線上場次，CLS 也是 0。月曆遇到四週或六週的月份仍會差一列（約 58px）。
 
 **效果**（本機同機 A/B，改前是 HEAD `b392877` 的 worktree build；手機 1.6 Mbps／150 ms／CPU 4×，HTTP/2，各 5 次中位數）
 
