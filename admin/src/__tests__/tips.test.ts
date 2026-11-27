@@ -149,12 +149,16 @@ describe('入口', () => {
     expect(tipSectionForPath('/content/home-hero')).toBe('content')
     expect(tipSectionForPath('/media')).toBe('content')
     expect(tipSectionForPath('/users')).toBe('account')
+    expect(tipSectionForPath('/meta-leads')).toBe('visits')
+    expect(tipSectionForPath('/notifications')).toBe('visits')
+    expect(tipSectionForPath('/analytics')).toBe('system')
+    expect(tipSectionForPath('/line-notifications')).toBe('system')
     expect(tipSectionForPath('/')).toBeNull()
-    expect(tipSectionForPath('/analytics')).toBeNull()
+    expect(tipSectionForPath('/policies')).toBeNull()
     expect(tipSectionForPath('/tips')).toBeNull()
     expect(tipSectionForPath('/visit-requests-old')).toBeNull()
     // 對到的分類都真的有小技巧
-    for (const path of ['/visit-requests', '/visit-calendar', '/admissions', '/content/x', '/users']) {
+    for (const path of ['/visit-requests', '/visit-calendar', '/admissions', '/content/x', '/users', '/meta-leads', '/analytics', '/audit', '/system-status', '/line-notifications']) {
       expect(TIPS.some(tip => tip.section === tipSectionForPath(path)), path).toBe(true)
     }
   })
@@ -244,7 +248,7 @@ describe('小技巧頁', () => {
     expect(['⌘K', 'Ctrl＋K']).toContain(kbd)
   })
 
-  it('預設只列標題；點標題展開步驟，再點收起；全部展開／全部收起', async () => {
+  it('預設只列標題；點標題展開步驟，再點收起；沒有「全部展開」（會把截圖全部攤開）', async () => {
     const { wrapper } = await mountTips('super_admin')
     const toggle = wrapper.get('#tip-search .tip__toggle')
     const body = wrapper.get('#tip-search-body')
@@ -259,13 +263,18 @@ describe('小技巧頁', () => {
     await toggle.trigger('click')
     expect(body.attributes('hidden')).toBe('until-found')
 
-    const expandAll = wrapper.get('.tips__expand-all')
-    expect(expandAll.text()).toBe('全部展開')
-    await expandAll.trigger('click')
-    expect(wrapper.findAll('.tip__body[hidden]')).toHaveLength(0)
-    expect(expandAll.text()).toBe('全部收起')
-    await expandAll.trigger('click')
+    expect(wrapper.findAll('button').map(button => button.text())).not.toContain('全部展開')
     expect(wrapper.findAll('.tip__body[hidden]')).toHaveLength(TIPS.length)
+  })
+
+  it('分類與搜尋包在同一塊（桌機黏在頁首下面），清單從它後面開始', async () => {
+    const { wrapper } = await mountTips('super_admin')
+    const bar = wrapper.get('.tips__bar')
+    expect(bar.find('.tips__tabs').exists()).toBe(true)
+    expect(bar.find('.tips__search').exists()).toBe(true)
+    expect(bar.find('.tips__section').exists()).toBe(false)
+    // jsdom 沒有版面：量不到黏住的高度就是 0，捲動停的位置只扣頁首
+    expect((wrapper.element as HTMLElement).style.getPropertyValue('--tips-bar-h')).toBe('0px')
   })
 
   it('頁內尋找找到收起的內容時（beforematch）跟著標成展開', async () => {
@@ -311,6 +320,23 @@ describe('小技巧頁', () => {
     await wrapper.get('.empty-note button').trigger('click')
     await flushPromises()
     expect(wrapper.findAll('li.tip')).toHaveLength(TIPS.length)
+  })
+
+  it('搜不到小技巧時，列出名稱或關鍵字對得到、這個帳號進得去的後台頁面', async () => {
+    const admin = await mountTips('super_admin')
+    await admin.wrapper.get('.tips__search input').setValue('SMTP')
+    expect(admin.wrapper.findAll('li.tip')).toHaveLength(0)
+    const pages = admin.wrapper.get('.tips__pages')
+    expect(pages.text()).toContain('要找的是這一頁嗎？')
+    expect(pages.findAll('a').map(a => [a.text(), a.attributes('href')])).toEqual([['系統狀態', '/system-status']])
+    // 櫃台進不去系統狀態：不列，只剩清除搜尋
+    const reception = await mountTips('reception')
+    await reception.wrapper.get('.tips__search input').setValue('SMTP')
+    expect(reception.wrapper.get('.empty-note').text()).toContain('沒有符合「SMTP」的小技巧')
+    expect(reception.wrapper.find('.tips__pages').exists()).toBe(false)
+    // 小技巧頁自己不列（搜「技巧」側欄會給這一頁）
+    await admin.wrapper.get('.tips__search input').setValue('新手')
+    expect(admin.wrapper.find('.tips__pages').exists()).toBe(false)
   })
 
   it('選了某一類又搜到 0 條時，那一類的按鈕仍在、標成選取', async () => {
@@ -383,7 +409,7 @@ describe('小技巧頁', () => {
     expect(wrapper.get('.empty-note button').text()).toBe('清除搜尋')
   })
 
-  it('展開的那一條寫進網址（分類照留），收起或全部收起就拿掉', async () => {
+  it('展開的那一條寫進網址（分類照留），收起就拿掉', async () => {
     const { wrapper, router } = await mountTips('super_admin', { query: { section: 'visits' } })
     const scrolled = vi.spyOn(Element.prototype, 'scrollIntoView')
     await wrapper.get('#tip-notes .tip__toggle').trigger('click')
@@ -402,13 +428,6 @@ describe('小技巧頁', () => {
     await flushPromises()
     expect(router.currentRoute.value.hash).toBe('#tip-next')
     await wrapper.get('#tip-next .tip__toggle').trigger('click')
-    await flushPromises()
-    expect(router.currentRoute.value.hash).toBe('')
-    // 全部展開不寫（不是某一條），全部收起會拿掉
-    await wrapper.get('#tip-notes .tip__toggle').trigger('click')
-    await flushPromises()
-    await wrapper.get('.tips__expand-all').trigger('click')
-    await wrapper.get('.tips__expand-all').trigger('click')
     await flushPromises()
     expect(router.currentRoute.value.hash).toBe('')
     expect(scrolled).not.toHaveBeenCalled()
@@ -448,10 +467,25 @@ describe('小技巧頁', () => {
     }
   })
 
-  it('截圖被縮小時（手機）整張可以點開看原本的大小；放得下時就是一般的圖', async () => {
-    // 預設（jsdom 沒有 ResizeObserver）量不到寬度：不給放大
+  it('截圖被縮小時（手機、限高）整張可以點開看原本的大小；放得下時就是一般的圖', async () => {
+    // 放在文字下面、比 440px 高的截圖照比例縮小（外框 max-width），縮到七成五以下就給放大。
+    // 量不到寬度時（jsdom 沒有 ResizeObserver）也一樣：限高跟頁面寬度無關。
+    const tall = TIPS.filter(tip => tip.image && sizes[tip.image] && sizes[tip.image]!.width > 560 && sizes[tip.image]!.height > 440)
     const plain = await mountTips('super_admin')
-    expect(plain.wrapper.find('.tip__zoom').exists()).toBe(false)
+    for (const tip of tall) {
+      const size = sizes[tip.image!]!
+      const capped = Math.round((size.width * 440) / size.height)
+      expect(plain.wrapper.get(`#tip-${tip.id} .tip__shot`).attributes('style'), tip.id).toContain(`max-width: ${capped}px`)
+      expect(plain.wrapper.find(`#tip-${tip.id} .tip__zoom`).exists(), tip.id).toBe(capped < size.width * 0.75)
+    }
+    const short = TIPS.filter(tip => tip.image && sizes[tip.image] && !tall.includes(tip))
+    for (const tip of short) {
+      expect(plain.wrapper.get(`#tip-${tip.id} .tip__shot`).attributes('style'), tip.id).toBeUndefined()
+    }
+    expect(plain.wrapper.findAll('.tip__zoom').length).toBe(tall.filter(tip => {
+      const size = sizes[tip.image!]!
+      return Math.round((size.width * 440) / size.height) < size.width * 0.75
+    }).length)
 
     const width = Object.getOwnPropertyDescriptor(Element.prototype, 'clientWidth')
     const innerWidth = window.innerWidth
@@ -479,11 +513,13 @@ describe('小技巧頁', () => {
       expect(Number(big.attributes('width'))).toBe(sizes['visit-preview']!.width)
       expect(dialog.get('.tips__zoom-scroll').attributes('tabindex')).toBe('0')
 
-      // 桌機 1440：寬截圖幾乎是原本的大小，窄截圖放在右欄，都不給放大
+      // 桌機 1440：不高的寬截圖幾乎是原本的大小、窄截圖放在右欄，都不給放大；只有限高縮小的給
       Object.defineProperty(Element.prototype, 'clientWidth', { configurable: true, get: () => 1124 })
       window.innerWidth = 1440
       const desktop = await mountTips('super_admin')
-      expect(desktop.wrapper.find('.tip__zoom').exists()).toBe(false)
+      expect(desktop.wrapper.find('#tip-export .tip__zoom').exists()).toBe(false)
+      expect(desktop.wrapper.find('#tip-search .tip__zoom').exists()).toBe(false)
+      expect(desktop.wrapper.find('#tip-live-preview .tip__zoom').exists()).toBe(true)
       expect(desktop.wrapper.get('#tip-preview img').attributes('loading')).toBe('lazy')
     } finally {
       if (width) Object.defineProperty(Element.prototype, 'clientWidth', width)
