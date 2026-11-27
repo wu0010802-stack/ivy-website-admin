@@ -14,6 +14,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 錯誤回報不收 FB 內建瀏覽器的 Java 橋接錯誤（PR #155，main `69b81e2d`；已部署）
+
+系統狀態收到官網首頁一筆 `Error invoking postMessage: Java object is gone`（Android `FB_IAB/FB4A`，堆疊全是 `iabjs://`），判定是 FB 內建瀏覽器注入腳本的錯誤、不是官網程式。使用者說「直接幫我部署」。只改前端錯誤回報的忽略規則（官網與後台各一份），沒有 migration、API 契約不變，沒有事先備份。內容見根目錄 README 同日段落。
+
+上線後行為的差別：訊息含 `Java object is gone`／`Java exception was raised during method invocation` 的前端錯誤不再送到系統狀態；FB 內建瀏覽器訪客遇到的其他錯誤照常回報。已經記進去的那一筆不會自動消失，要在系統狀態標記已處理。
+
+線上核對（2026-11-27 約 16:00 台北）：
+
+- 第一次 PR 組 run 45952018448、推送組重跑 45951994940 全綠，合併時 main 剛被 #156 推進（README 頂部衝突）；併回 main 後推送組又被取消，重跑途中 main 再進 `b4ad0248`、`d851ea5b`（都只動 `design/**` 與 `*.md`），再併一次只觸發 PR 組 45958693492，全綠後合併。main run 45960518274 全綠（含 E2E 與 Deploy Railway production）。
+- `https://www.ivykidschool.com/release.json` 與 `https://admin.ivykidschool.com/release.json` 的 base_commit 都是 `69b81e2d`。
+- 程式檔（公開 GET）：官網入口 `/_nuxt/BgZwaGPL.js` 與後台 `/admin/assets/index-E79tWdkx.js` 都含 `Java object is gone`。
+- 沒驗：Android FB 內建瀏覽器實機（關掉內建瀏覽器時不再產生回報）。
+
 ## 2026-11-27 後台側欄搜尋找人、常用篩選與顯示欄位、指紋／臉部辨識登入（PR #156，main `15b14380`；已部署）
 
 使用者看過「後台還能做什麼」的清單後指定這三項，做完後說「直接上線」。內容見根目錄 README 同日段落與 DESIGN.md「後台：側欄搜尋找人、常用篩選、顯示欄位、指紋登入」。migration `e2c5a8f1d937`（parent `d8b3f1a6c240`）只新增空表 `passkeys` 與有預設值的欄位 `users.passkey_count`，不改既有資料，沒有事先備份。api 映像多一個 Python 套件 `webauthn`；不需要設任何變數（Passkey 的網域取自 `WEBSITE_ADMIN_ORIGIN`）。

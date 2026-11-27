@@ -1,4 +1,4 @@
-## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，分支 `feature/client-error-fb-iab-20261127`）
+## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，已部署 main `69b81e2d`，紀錄見 `deploy/README.md`）
 
 系統狀態收到一筆官網首頁的 `Error: Error invoking postMessage: Java object is gone`（UA 是 Android 的 `FB_IAB/FB4A`，堆疊三格全是 `iabjs://`）。這是 FB 內建瀏覽器**自己注入的腳本**透過 Android WebView 的 Java 橋接（`@JavascriptInterface`）呼叫 App，使用者關掉內建瀏覽器或切到背景、原生物件已回收時就丟；官網沒有註冊任何橋接，不是我們的程式出錯，也沒有可以修的東西。
 
