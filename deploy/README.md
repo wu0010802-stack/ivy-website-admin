@@ -54,6 +54,34 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 
 沒驗：登入後的實際畫面（沒有用正式站帳號），請使用者開 `/admin/tips` 看一次黏住的分類列、新的「統計與系統」與限高截圖；Safari／iOS 實機。
 
+## 2026-11-27 全專案 bug 審查的 high／medium 修正（PR #147，main `3c25ba79`；已部署）
+
+修了 11-26 全專案 bug 審查的 high 1 條、medium 15 條，內容見 `README.md` 頂部同名段落。沒有 migration，也沒改變數或 API 契約，不需要事前備份。使用者說「幫我併入main」。
+
+合併前的狀況：
+- PR 與 `main` 的 README 頂部衝突一次（兩邊各加一段）。把 `main` 合進分支後兩段都保留。
+- 合併後在分支上核對：alembic 只有一個 head；`main` 新的 Meta 名單測試與這次的回歸測試共 140 項通過。
+- PR 那次 CI（Backend 三組、Frontend web／admin、E2E）全綠。
+
+合併後 run 45920624633 的 Backend 三組、Frontend、E2E、Deploy 全綠，Deploy 在 2026-11-27 01:13–01:17 UTC。
+
+線上核對（2026-11-27 09:28 台北，只用公開 GET）：
+- `/release.json` 的 `base_commit` 是 `3c25ba79…`（上一版 `b392877f`）。
+- `/api/website/v1/health`、首頁、`/environment`、`admin.ivykidschool.com/admin/login` 都回 200。
+- 後台 bundle 已帶這次的修正：
+  - `CampusTourView` 有「缺照片」。
+  - `MediaLibraryView` 有上傳中不收新檔的提示。
+  - `LineNotificationsView` 兩顆複製鈕都明確傳 `webhook_url`。
+  - `VisitCaseTimeline` 有「已換到另一筆案件，剛才的操作沒有送出」。
+  - `BookingSettingsView` 有 `onBusy`。
+- 官網 bundle 的錯誤回報改用新的 Email 遮蔽寫法（舊的 O(n²) 正規式已不在）。
+
+沒驗：
+- 登入後的實際畫面（沒有用正式站帳號）。
+- 後端修正在正式站的行為：422、素材標籤、每月彙總、變更信去重、改電話作廢連結、缺額回算、Facebook 連線。這些都只在 CI 與本機測試驗過；照規定不對正式站送寫入請求。
+- 每月彙總的 bug 依正式站起算日（11-13）推算 2027-02 才會發作，修正前沒有資料受損。
+- 正式站 `/anniversary` 目前回 404（週年頁還沒開），吹蠟燭麥克風的修正等那頁開放後才會用到。
+
 ## 2026-11-26 後台成效統計第五輪 UI/UX（PR #145，main `a994a361`；已部署）
 
 只改 admin 前端（`admin/src/views/AnalyticsView.vue`、新 `components/analytics/AnalyticsToc.vue` 與成效統計的五個面板），沒有 migration，也沒改變數，不需要事前備份。使用者看過對照圖後說「繼續幫我部署」。合併前 PR 與 `main` 的 README 頂部衝突一次（兩邊各加一段），把 `main` 合進分支後兩段都保留；PR 那次 CI（Frontend、Backend 三組、E2E）全綠，E2E 含這一頁四個網址的無障礙與鍵盤檢查。合併後 run 45838798818 的 Frontend、Backend、Deploy 全綠（E2E 同時在跑，照規定不擋部署）。
