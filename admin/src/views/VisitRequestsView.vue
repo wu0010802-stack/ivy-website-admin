@@ -26,6 +26,7 @@ import { csvFilename } from '../utils/csv'
 import { groupVisitsByDay, nextInList, taipeiDay, type DayBucket, type DayGroup } from '../utils/visitSchedule'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
+import SavedViews from '../components/SavedViews.vue'
 import VisitListRow from '../components/visit/VisitListRow.vue'
 import VisitPreviewPanel from '../components/visit/VisitPreviewPanel.vue'
 import { lazyComponent } from '../composables/lazyComponent'
@@ -168,6 +169,19 @@ function clearFilters() {
   createdRange.value = null
   attentionOnly.value = false
   hideExcluded.value = false
+}
+
+// 常用篩選（2026-11-27）：存的就是網址上那一包條件（含頁籤與排序），不含搜尋字與頁數。
+const viewSnapshot = computed<Record<string, string>>(() => {
+  const { search: _search, page: _page, ...rest } = listStateQuery({ ...listState.value, q: '', page: 1 })
+  return rest
+})
+function applyView(snapshot: Record<string, string>) {
+  searchLater.cancel()
+  applyQuery(snapshot)
+  // applyQuery 會把這筆瀏覽歷程記著的搜尋字帶回來；套用常用篩選是換一批，搜尋字清掉。
+  search.value = ''
+  page.value = 1
 }
 
 // 頁籤上的數字（GET view-counts，套用頁籤以外的條件）：接下來寫全部件數；時間已過只寫還沒標記到場的，
@@ -605,6 +619,7 @@ onMounted(() => {
       <button type="button" class="more-filters" :aria-expanded="moreFiltersOpen" aria-controls="requests-more-filters" @click="moreFiltersOpen = !moreFiltersOpen">
         <el-icon aria-hidden="true"><Filter /></el-icon>更多篩選<span v-if="moreFilterCount" class="filter-count num">{{ moreFilterCount }}</span>
       </button>
+      <SavedViews scope="visit-requests" :current="viewSnapshot" @apply="applyView" />
       <el-button v-if="hasFilters" text class="clear-filters" @click="clearFilters">清除篩選</el-button>
       <div id="requests-more-filters" class="requests-filters__more">
         <div v-if="!multiCampus" class="filter-field">

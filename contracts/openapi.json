@@ -7657,6 +7657,11 @@
           "line": {
             "title": "Line",
             "type": "boolean"
+          },
+          "passkey": {
+            "default": false,
+            "title": "Passkey",
+            "type": "boolean"
           }
         },
         "required": [
@@ -19281,6 +19286,114 @@
         "title": "ParentVisitRequestOut",
         "type": "object"
       },
+      "PasskeyLoginOptionsRequest": {
+        "properties": {
+          "remember": {
+            "default": false,
+            "title": "Remember",
+            "type": "boolean"
+          }
+        },
+        "title": "PasskeyLoginOptionsRequest",
+        "type": "object"
+      },
+      "PasskeyLoginVerify": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyLoginVerify",
+        "type": "object"
+      },
+      "PasskeyOptions": {
+        "description": "WebAuthn 的建立／取得參數（PublicKeyCredentialCreationOptions／RequestOptions 的 JSON 形式），\n前端轉成二進位後交給 navigator.credentials。",
+        "properties": {
+          "public_key": {
+            "additionalProperties": true,
+            "title": "Public Key",
+            "type": "object"
+          }
+        },
+        "required": [
+          "public_key"
+        ],
+        "title": "PasskeyOptions",
+        "type": "object"
+      },
+      "PasskeyOut": {
+        "properties": {
+          "backed_up": {
+            "title": "Backed Up",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "backed_up",
+          "created_at"
+        ],
+        "title": "PasskeyOut",
+        "type": "object"
+      },
+      "PasskeyRegisterVerify": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 60,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyRegisterVerify",
+        "type": "object"
+      },
       "PasswordChangeRequest": {
         "description": "本人改密碼，要先輸入目前的密碼。",
         "properties": {
@@ -25767,6 +25880,11 @@
           "line_linked": {
             "title": "Line Linked",
             "type": "boolean"
+          },
+          "passkey_count": {
+            "default": 0,
+            "title": "Passkey Count",
+            "type": "integer"
           },
           "role": {
             "$ref": "#/components/schemas/Role"
@@ -48623,6 +48741,409 @@
           }
         },
         "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys": {
+      "get": {
+        "operationId": "list_passkeys_api_website_v1_auth_passkeys_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PasskeyOut"
+                  },
+                  "title": "Response List Passkeys Api Website V1 Auth Passkeys Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Passkeys",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys/login/options": {
+      "post": {
+        "description": "開始登入：不指定帳號（allowCredentials 留空），由瀏覽器列出這台裝置上本站的 Passkey。",
+        "operationId": "login_options_api_website_v1_auth_passkeys_login_options_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/PasskeyLoginOptionsRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys/login/verify": {
+      "post": {
+        "operationId": "login_verify_api_website_v1_auth_passkeys_login_verify_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyLoginVerify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Login Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys/register/options": {
+      "post": {
+        "description": "開始登記：回 WebAuthn 的建立參數。新增一條登入管道，要重新驗證（見 app/auth/reauth.py）。",
+        "operationId": "register_options_api_website_v1_auth_passkeys_register_options_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys/register/verify": {
+      "post": {
+        "operationId": "register_verify_api_website_v1_auth_passkeys_register_verify_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegisterVerify"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/website/v1/auth/passkeys/{passkey_id}": {
+      "delete": {
+        "description": "刪掉自己的一組。要重新驗證；用那組登入的其他裝置一併登出（同解除 LINE），目前這個分頁保留。",
+        "operationId": "delete_passkey_api_website_v1_auth_passkeys__passkey_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "passkey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Passkey Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReauthRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Payload"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Passkey",
         "tags": [
           "auth"
         ]

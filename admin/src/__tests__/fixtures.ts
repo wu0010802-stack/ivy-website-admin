@@ -42,6 +42,7 @@ export function testUser(role: Role, overrides: Partial<UserOut> = {}): UserOut 
     capabilities: [],
     effective_capabilities: [...new Set([...ROLE_CAPABILITIES[role], ...grantedCapabilities(role, grants)])],
     google_linked: false,
+    passkey_count: 0,
     line_linked: false,
     ...overrides,
   }

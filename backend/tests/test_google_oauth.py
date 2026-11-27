@@ -40,7 +40,7 @@ async def _linked(db_session, email="staff@gmail.com", role=Role.SUPER_ADMIN, ca
 async def test_google_disabled_by_default(public_client):
     response = await public_client.get(f"{ROOT}/providers")
     assert response.status_code == 200
-    assert response.json() == {"google": False, "line": False}
+    assert response.json() == {"google": False, "line": False, "passkey": True}
     response = await public_client.get(f"{ROOT}/google/login")
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/login?oauth_error=unavailable"
@@ -601,7 +601,7 @@ async def _recover_while_callback_waits(app, user_id, mode: str, request):
             await service.set_user_active(other, user, False)
         else:
             if mode == "clear":
-                service.clear_external_logins(user)
+                await service.clear_external_logins(other, user)
                 await other.flush()
             await service.revoke_user_sessions(other, user_id)
         task = asyncio.create_task(request)

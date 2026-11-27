@@ -114,6 +114,7 @@ def _user_out(user: User, *, last_login_at: datetime | None = None) -> UserOut:
         capabilities=list(user.capabilities or []),
         effective_capabilities=effective_capabilities(user),
         google_linked=user.google_sub is not None,
+        passkey_count=user.passkey_count or 0,
         line_linked=user.line_sub is not None,
     )
 
@@ -150,7 +151,8 @@ def _features(settings: Settings) -> FeatureFlags:
 async def providers(request: Request, response: Response) -> AuthProviders:
     private(response)
     settings: Settings = request.app.state.settings
-    return AuthProviders(google=settings.google_oauth_enabled, line=settings.line_oauth_enabled)
+    passkey = bool(settings.admin_origin) or settings.environment != "production"
+    return AuthProviders(google=settings.google_oauth_enabled, line=settings.line_oauth_enabled, passkey=passkey)
 
 
 @router.post("/auth/login", response_model=LoginResponse)
@@ -567,7 +569,7 @@ async def reset_user_password(
     await password_reset.revoke_outstanding(db, user.id)
     # 總管理者直接設密碼多半是帳號出事（忘記密碼或疑似被盜）：只換密碼的話，攻擊者先前綁上的
     # LINE／Google 還能登入。跟重設連結一樣一併解除，本人要用再到「我的帳號」重新綁定（2026-11-12）。
-    unlinked = service.clear_external_logins(user)
+    unlinked = await service.clear_external_logins(db, user)
     await audit_service.log_action(
         db,
         actor_user_id=current_user.id,
@@ -645,7 +647,7 @@ async def clear_user_external_logins(
             detail={"code": "USE_ACCOUNT_PAGE", "message": "要解除自己的綁定，請到「我的帳號」操作"},
         )
     user = await _load_user(db, user_id, lock=True)
-    unlinked = service.clear_external_logins(user)
+    unlinked = await service.clear_external_logins(db, user)
     await db.flush()
     revoked = await service.revoke_user_sessions(db, user.id)
     await audit_service.log_action(

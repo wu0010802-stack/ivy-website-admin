@@ -35,7 +35,7 @@ ACCOUNT = "/admin/account?line_link="
 async def test_line_disabled_by_default(public_client, admin_client):
     response = await public_client.get(f"{ROOT}/providers")
     assert response.status_code == 200
-    assert response.json() == {"google": False, "line": False}
+    assert response.json() == {"google": False, "line": False, "passkey": True}
     response = await public_client.get(f"{ROOT}/line/login")
     assert response.status_code == 303
     assert response.headers["location"] == "/admin/login?oauth_error=line_unavailable"

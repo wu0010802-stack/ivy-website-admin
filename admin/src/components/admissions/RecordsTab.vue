@@ -2,7 +2,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import zhTw from 'element-plus/es/locale/lang/zh-tw'
-import { ArrowRight, Download, Filter, Plus, Search } from '@element-plus/icons-vue'
+import { ArrowRight, Download, Filter, Operation, Plus, Search } from '@element-plus/icons-vue'
 import { deleteRecord, getOptions, getRecord, listAdmissionsStaff, listRecords, recordsExport } from '../../api/admissions'
 import { ApiError } from '../../api/client'
 import { apiErrorCode, apiErrorMessage, isVersionConflict } from '../../api/errors'
@@ -20,6 +20,9 @@ import { sourceCategoryLabel } from '../../admissions/sourceCategories'
 import { areaNotice } from '../../admissions/areaFilter'
 import { notifyError, notifyWarning } from '../../composables/notify'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
+import { useColumnPrefs, type ColumnOption } from '../../composables/useColumnPrefs'
+import { useAuthStore } from '../../stores/auth'
+import SavedViews from '../SavedViews.vue'
 import { usePermissions } from '../../composables/usePermissions'
 import { useRouter } from 'vue-router'
 import { visitRequestPath } from '../../admissions/family'
@@ -72,6 +75,7 @@ const canWrite = computed(() => can('admissions.write'))
 const canExport = computed(() => can('booking.export'))
 // 手機（2026-10-05）改成卡片清單，不再整張表橫捲；篩選只常駐搜尋。
 const narrow = useNarrowScreen()
+const auth = useAuthStore()
 
 const staff = ref<AdmissionsStaff[]>([])
 const page = ref(1)
@@ -79,7 +83,7 @@ const page = ref(1)
 const {
   grade, source, referrer, hasDeposit, noDepositReason, followUp, owner, search, areaFilter,
   filtered, hasFilters, currentFilters, filterKey, setMonth, setWithdrawCategory, clearFilters,
-  moreFiltersOpen, hiddenFilters, showChips,
+  moreFiltersOpen, hiddenFilters, showChips, snapshot, applySnapshot,
 } = useRecordsFilters(props, {
   month: (value) => emit('update:month', value),
   visitRequestId: (value) => emit('update:visitRequestId', value),
@@ -87,6 +91,13 @@ const {
   withdrawCategory: (value) => emit('update:withdrawCategory', value),
   clearTerm: () => emit('clear-term'),
 }, { narrow, staff })
+
+// 顯示哪些欄（2026-11-27）：姓名與操作固定，其餘可以勾掉；記在這台裝置。手機是卡片，不適用。
+const COLUMN_OPTIONS: ColumnOption[] = [
+  { key: 'visitDate', label: '參觀日期' }, { key: 'stage', label: '階段' }, { key: 'grade', label: '班別' }, { key: 'term', label: '入學學期' },
+  { key: 'followUp', label: '下次聯絡' }, { key: 'owner', label: '負責人' }, { key: 'source', label: '來源' },
+]
+const columns = useColumnPrefs('admissions-records', computed(() => auth.user?.id), COLUMN_OPTIONS)
 
 const rows = ref<RecruitmentVisit[]>([])
 const loading = ref(false)
@@ -367,6 +378,7 @@ async function remove(row: RecruitmentVisit) {
       <button type="button" class="more-filters" :aria-expanded="moreFiltersOpen" aria-controls="records-more-filters" @click="moreFiltersOpen = !moreFiltersOpen">
         <el-icon aria-hidden="true"><Filter /></el-icon>{{ narrow ? '篩選' : '更多篩選' }}<span v-if="hiddenFilters.length" class="filter-count num">{{ hiddenFilters.length }}<span class="visually-hidden"> 個條件</span></span>
       </button>
+      <SavedViews scope="admissions-records" :current="snapshot" @apply="applySnapshot" />
       <el-button v-if="hasFilters && !showChips && !narrow" text class="records__clear" @click="clearFilters">清除篩選</el-button>
       <div id="records-more-filters" class="records-filters__more">
         <!-- 手機寬度只夠搜尋＋按鈕：月份、預繳、追蹤也收進來。 -->
@@ -458,6 +470,16 @@ async function remove(row: RecruitmentVisit) {
         <div class="records__head-actions">
           <!-- 沒資料時不寫「本頁 0 筆」：空狀態已經說明原因，不顯示假的 0。 -->
           <span v-if="loading || rows.length" class="hint num">{{ loading ? '載入中…' : `本頁 ${rows.length} 筆` }}</span>
+          <el-popover v-if="!narrow" trigger="click" placement="bottom-end" :width="200">
+            <template #reference>
+              <el-button :icon="Operation" :class="{ 'records__columns-on': columns.customized.value }">顯示欄位</el-button>
+            </template>
+            <el-checkbox-group v-model="columns.visible.value" class="records__columns" aria-label="要顯示的欄位">
+              <el-checkbox v-for="option in COLUMN_OPTIONS" :key="option.key" :value="option.key">{{ option.label }}</el-checkbox>
+            </el-checkbox-group>
+            <p class="hint records__columns-note">姓名與操作固定顯示。只記在這台裝置。</p>
+            <el-button v-if="columns.customized.value" text size="small" @click="columns.reset()">全部顯示</el-button>
+          </el-popover>
           <template v-if="canExport">
             <el-button :icon="Download" :loading="exporting" aria-describedby="records-export-scope" @click="exportCsv">匯出 CSV</el-button>
             <span id="records-export-scope" class="hint records__export-scope">匯出範圍：目前篩選的全部結果（不只本頁）</span>
@@ -533,7 +555,7 @@ async function remove(row: RecruitmentVisit) {
               </dl>
             </template>
           </el-table-column>
-          <el-table-column label="參觀日期" width="96">
+          <el-table-column v-if="columns.shows('visitDate')" label="參觀日期" width="96">
             <template #default="{ row }: { row: RecruitmentVisit }"><span class="num">{{ rocDate(row.visit_date) || row.month || '—' }}</span></template>
           </el-table-column>
           <el-table-column label="姓名" min-width="112">
@@ -545,27 +567,27 @@ async function remove(row: RecruitmentVisit) {
               <el-tag v-if="row.has_visit_request" size="small" type="primary" effect="plain" round>官網預約</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="階段" width="88">
+          <el-table-column v-if="columns.shows('stage')" label="階段" width="88">
             <template #default="{ row }: { row: RecruitmentVisit }">
               <el-tag :type="stageMeta(row).tone" size="small" effect="light" round>{{ stageMeta(row).label }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="班別" width="68">
+          <el-table-column v-if="columns.shows('grade')" label="班別" width="68">
             <template #default="{ row }: { row: RecruitmentVisit }">{{ row.grade || '—' }}</template>
           </el-table-column>
-          <el-table-column label="入學學期" width="96">
+          <el-table-column v-if="columns.shows('term')" label="入學學期" width="96">
             <template #default="{ row }: { row: RecruitmentVisit }"><span class="num">{{ termLabel(row.target_school_year, row.target_semester) }}</span></template>
           </el-table-column>
-          <el-table-column label="下次聯絡" width="120">
+          <el-table-column v-if="columns.shows('followUp')" label="下次聯絡" width="120">
             <template #default="{ row }: { row: RecruitmentVisit }">
               <span v-if="row.follow_up_at" class="num" :class="{ 'records__due': isDue(row.follow_up_at) }">{{ followUpText(row.follow_up_at) }}</span>
               <span v-else>—</span>
             </template>
           </el-table-column>
-          <el-table-column label="負責人" width="88" show-overflow-tooltip>
+          <el-table-column v-if="columns.shows('owner')" label="負責人" width="88" show-overflow-tooltip>
             <template #default="{ row }: { row: RecruitmentVisit }">{{ ownerLabel(row.follow_up_owner_id, staff) }}</template>
           </el-table-column>
-          <el-table-column label="來源" min-width="92" show-overflow-tooltip>
+          <el-table-column v-if="columns.shows('source')" label="來源" min-width="92" show-overflow-tooltip>
             <template #default="{ row }: { row: RecruitmentVisit }">{{ row.source || '—' }}</template>
           </el-table-column>
           <el-table-column label="操作" width="164" fixed="right">
@@ -666,6 +688,9 @@ async function remove(row: RecruitmentVisit) {
 }
 
 /* 和輸入框底線對齊：篩選欄位上方有標籤，置中會比輸入框高半格。 */
+.records__columns { display: flex; flex-direction: column; }
+.records__columns-note { margin: 8px 0 4px; }
+.records__columns-on { border-color: var(--el-color-primary); color: var(--admin-accent-strong); }
 .records__clear {
   align-self: flex-end;
   height: var(--control-h);
