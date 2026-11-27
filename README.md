@@ -24,7 +24,7 @@
 - **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；`npm run test:website` 與 stack e2e 沒跑（沒動 `web/`；e2e 由 CI 跑）；真後端登入後的畫面與正式站沒看；使用小技巧（`tips.ts`）裡各條「適用角色」仍是寫死的角色清單，另一個 session 正在改那一頁，這次沒動；`docs/website-admin/acceptance.md` E02 的敘述沒更新。
 - **部署時注意**：沒有 migration、不改既有資料；上線後現有帳號的權限只有一處變窄（櫃台打不到操作紀錄 API），其餘不變。要讓某位園長看統計，需總管理者到使用者頁勾選。
 
-## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
+## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。
 
