@@ -1441,6 +1441,8 @@ class TourScenePayload(_ContentPayload):
     @field_validator("image")
     @classmethod
     def _image_ref_safe(cls, value: str) -> str:
+        # 跟消息封面不同，草稿可以先留空（後台「新增場景」先取名再選照片）；沒照片的
+        # 場景在官網會破圖，發布時由 registry 的 publish_blocker 擋下。
         return _require_safe_media_ref(value)
 
     @field_validator("spots")

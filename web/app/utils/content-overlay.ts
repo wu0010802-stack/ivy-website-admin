@@ -1011,7 +1011,12 @@ export function applyContentOverlay(content: SiteContent, overlay: ContentOverla
       next.campuses = next.campuses.map((c) => {
         const tour = tours[c.key]
         if (!tour) return c
-        return { ...c, tourScenes: tour.scenes.map((scene) => tourScene(scene, media)) }
+        // 沒選照片的場景（後台「新增場景」帶空字串）不上官網：'' 會被接成 /assets/.webp 破圖。
+        // 後端已擋發布，這裡防規則上線前已發布的舊內容與後台即時預覽的草稿；整組都沒照片時
+        // 沿用內建場景（同首頁影片，至少要有一個才換掉），這一校不會從第四章消失。
+        const scenes = tour.scenes.filter((scene) => typeof scene.image === 'string' && scene.image.trim() !== '')
+        if (!scenes.length) return c
+        return { ...c, tourScenes: scenes.map((scene) => tourScene(scene, media)) }
       })
     }
   })

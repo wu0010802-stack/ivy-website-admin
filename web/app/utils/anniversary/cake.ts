@@ -13,9 +13,13 @@ export interface CakeOptions {
   onAllOut: () => void
 }
 
+/** 'off'：還在等權限時就被關掉（全部吹熄、離開頁面），拿到的串流已經還回去 */
+export type MicResult = 'on' | 'off' | 'denied' | 'unsupported'
+
 export interface CakeController {
   setHold(on: boolean): void
-  startMic(): Promise<'on' | 'denied' | 'unsupported'>
+  /** 請求中再呼叫回傳同一個 Promise，不會開第二條串流 */
+  startMic(): Promise<MicResult>
   stopMic(): void
   relightAll(): void
   destroy(): void
@@ -207,11 +211,37 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
   stage.addEventListener('pointercancel', onLeave)
 
   let mic: { stream: MediaStream; actx: AudioContext; an: AnalyserNode; buf: Float32Array<ArrayBuffer>; floor: number } | null = null
+  // 2026-11-26：mic 要等權限框和開裝置都回來才有值，等待中只看 mic 擋不住。
+  // micReq：請求中再按一次共用同一個請求（原本會開第二條串流，先回來那條的 track 永遠關不掉）。
+  // micGen：每次關麥克風（按關掉、全部吹熄、離開頁面）都換一號；等待中的請求回來時號碼不對，拿到的串流就立刻還回去，
+  // 否則權限框開著時離開頁面或吹熄，之後按允許麥克風會一直開著（DESIGN.md：全部吹熄或離開就關）。
+  let micReq: Promise<MicResult> | null = null
+  let micGen = 0
+  let destroyed = false
+  const release = (stream: MediaStream, actx: AudioContext) => {
+    stream.getTracks().forEach((tr) => tr.stop())
+    actx.close().catch(() => {})
+  }
   const stopMic = () => {
+    micGen++
+    micReq = null
     if (!mic) return
-    mic.stream.getTracks().forEach((tr) => tr.stop())
-    mic.actx.close().catch(() => {})
+    release(mic.stream, mic.actx)
     mic = null; micLevel = 0
+  }
+  const requestMic = async (actx: AudioContext, gen: number): Promise<MicResult> => {
+    let stream: MediaStream
+    try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }) } catch { actx.close().catch(() => {}); return 'denied' }
+    if (gen !== micGen) { release(stream, actx); return 'off' }
+    await actx.resume().catch(() => {})
+    if (gen !== micGen) { release(stream, actx); return 'off' }
+    const an = actx.createAnalyser()
+    an.fftSize = 1024
+    an.smoothingTimeConstant = 0.2
+    actx.createMediaStreamSource(stream).connect(an)
+    mic = { stream, actx, an, buf: new Float32Array(an.frequencyBinCount), floor: Number.NaN }
+    kick()
+    return 'on'
   }
 
   // ── 主迴圈 ──
@@ -312,26 +342,26 @@ export async function mountCake(stage: HTMLElement, opts: CakeOptions): Promise<
 
   return {
     setHold(on) { hold = on; kick() },
-    async startMic() {
-      if (mic) return 'on'
-      if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') return 'unsupported'
+    // 不寫成 async：請求中要回傳「同一個」Promise
+    startMic() {
+      if (mic) return Promise.resolve('on')
+      if (micReq) return micReq
+      if (destroyed) return Promise.resolve('off')
+      if (!navigator.mediaDevices?.getUserMedia || typeof AudioContext === 'undefined') return Promise.resolve('unsupported')
       // AudioContext 要在按鈕的使用者手勢裡建立；等權限視窗回來再建，手勢已經過期，會一直停在 suspended
-      const actx = new AudioContext()
-      let stream: MediaStream
-      try { stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } }) } catch { actx.close().catch(() => {}); return 'denied' }
-      await actx.resume().catch(() => {})
-      const an = actx.createAnalyser()
-      an.fftSize = 1024
-      an.smoothingTimeConstant = 0.2
-      actx.createMediaStreamSource(stream).connect(an)
-      mic = { stream, actx, an, buf: new Float32Array(an.frequencyBinCount), floor: Number.NaN }
-      kick()
-      return 'on'
+      const req = requestMic(new AudioContext(), micGen)
+      micReq = req
+      // 回來之後（不論結果）才放掉；中途 stopMic 已經換成別的請求就不動它
+      const done = () => { if (micReq === req) micReq = null }
+      req.then(done, done)
+      return req
     },
     stopMic,
     relightAll() { wasAll = false; bits.length = 0; lightSequence(sequence()) },
     destroy() {
-      io.disconnect(); ro.disconnect(); clearInterval(lightTimer); cancelAnimationFrame(raf); stopMic()
+      // visible、raf 一起歸零：之後就算有晚到的 kick()（按住、劃過、麥克風）也不會在離開的頁面上重新開始畫
+      destroyed = true; visible = false
+      io.disconnect(); ro.disconnect(); clearInterval(lightTimer); cancelAnimationFrame(raf); raf = 0; stopMic()
       stage.removeEventListener('pointermove', onMove)
       stage.removeEventListener('pointerleave', onLeave)
       stage.removeEventListener('pointercancel', onLeave)

@@ -2,10 +2,12 @@
 import { computed, ref } from 'vue'
 import type { Roster, RosterClassWithStudents, RosterStudent } from '../../../api/roster'
 import { GRADE_ORDER, gapText, markOf, planText, sideParts } from '../../../admissions/roster'
+import { useNumberDrafts } from './numberDrafts'
 
 // 編班表（2026-11-15，規格 §8.1）：照各校原本的 Excel 編班表，一班一欄（姓名＋備註欄），年級分底色。
 // 這個元件只畫畫面並把動作用事件交出去，資料與 API 由 RosterTab 管。數字全由後端算好。
-const props = defineProps<{ roster: Roster; canWrite: boolean }>()
+// discard：動作被後端擋下時由 RosterTab 遞增，班級目標輸入框丟掉還沒存進去的字。
+const props = defineProps<{ roster: Roster; canWrite: boolean; discard?: number }>()
 const emit = defineEmits<{
   'open-student': [id: string, anchor: HTMLElement]
   'edit-student': [id: string]
@@ -134,9 +136,10 @@ function dropOn(classId: string | null, position: number) {
 function openStudent(event: MouseEvent, student: RosterStudent) {
   emit('open-student', student.id, event.currentTarget as HTMLElement)
 }
+// 班級目標：連續改好幾班時，重讀回來不能把下一班正在打的數字清掉（見 numberDrafts）。
+const targets = useNumberDrafts((id) => props.roster.classes.find((room) => room.id === id)?.target_seats, () => props.roster, () => props.discard)
 function changeTarget(room: RosterClassWithStudents, event: Event) {
-  const raw = (event.target as HTMLInputElement).value.trim()
-  emit('set-class-target', room.id, raw === '' ? null : Math.max(0, Math.trunc(Number(raw))))
+  emit('set-class-target', room.id, targets.take(room.id, event))
 }
 </script>
 
@@ -318,7 +321,8 @@ function changeTarget(room: RosterClassWithStudents, event: Event) {
                 inputmode="numeric"
                 class="roster-target"
                 :aria-label="`${classLabel(room)}目標人數`"
-                :value="room.target_seats ?? ''"
+                :value="targets.text(room.id)"
+                @input="targets.take(room.id, $event)"
                 @change="changeTarget(room, $event)"
               />
               <template v-else>{{ room.target_seats ?? '—' }}</template>

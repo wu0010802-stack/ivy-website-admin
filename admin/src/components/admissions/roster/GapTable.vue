@@ -2,10 +2,12 @@
 import { computed } from 'vue'
 import type { GapBlock, Roster } from '../../../api/roster'
 import { GRADE_ORDER, gapText, monthDayText, tierText } from '../../../admissions/roster'
+import { useNumberDrafts } from './numberDrafts'
 
 // 缺額統計（2026-11-15，規格 §6.3、§8.3）：兩個區塊由上往下加總，數字全由後端算好，前端只負責寫出來。
 // Y(下) 的年級目標是各班目標加總（唯讀）；(Y+1)(上) 的年級目標與兩區塊的三段目標是可以直接改的格子，失焦時才送出。
-const props = defineProps<{ roster: Roster; canWrite: boolean }>()
+// discard：動作被後端擋下時由 RosterTab 遞增，輸入框丟掉還沒存進去的字。
+const props = defineProps<{ roster: Roster; canWrite: boolean; discard?: number }>()
 const emit = defineEmits<{
   'change-as-of': [date: string]
   'save-next-target': [grade: string, value: number | null]
@@ -47,13 +49,24 @@ const cellOf = (block: GapBlock, key: string, grade: string) => block.rows[key]?
 const numText = (value: number, negative = false) => (value ? `${negative ? '−' : ''}${value}` : String(value))
 const percent = (value: number | null | undefined) => (value === null || value === undefined ? '—' : `${value}%`)
 
-const parse = (event: Event): number | null => {
-  const raw = (event.target as HTMLInputElement).value.trim()
-  return raw === '' ? null : Math.max(0, Math.trunc(Number(raw)))
+type TierBlock = 'current' | 'next'
+type TierKey = 'base' | 'boost' | 'top'
+// 輸入框的欄位代號：「current.base」是 Y(下) 基礎目標，「target.小班」是 (Y+1)(上) 小班目標人數。
+const tierField = (block: TierBlock, key: TierKey) => `${block}.${key}`
+const targetField = (grade: string) => `target.${grade}`
+const drafts = useNumberDrafts((field) => {
+  const [group, name] = field.split('.') as [string, string]
+  return group === 'target' ? props.roster.next.targets[name] : props.roster[group as TierBlock].tier[name as TierKey]
+}, () => props.roster, () => props.discard)
+
+// 後端整列取代三段目標：三個值都取這一列輸入框現在的數字，上一格剛打、還沒存好的值才不會被舊值蓋回去。
+function changeTier(block: TierBlock, key: TierKey, event: Event) {
+  drafts.take(tierField(block, key), event)
+  const value = (name: TierKey) => drafts.value(tierField(block, name))
+  emit('save-tier', block, { base: value('base'), boost: value('boost'), top: value('top') })
 }
-function changeTier(block: 'current' | 'next', key: 'base' | 'boost' | 'top', event: Event) {
-  const tier = block === 'current' ? props.roster.current.tier : props.roster.next.tier
-  emit('save-tier', block, { base: tier.base, boost: tier.boost, top: tier.top, [key]: parse(event) })
+function changeTarget(grade: string, event: Event) {
+  emit('save-next-target', grade, drafts.take(targetField(grade), event))
 }
 function changeDate(event: Event) {
   const value = (event.target as HTMLInputElement).value
@@ -120,7 +133,7 @@ const TIERS = [['base', '基礎'], ['boost', '激勵'], ['top', '超越']] as co
             <th scope="row">全校三段目標</th>
             <td colspan="4">
               <label v-for="[key, name] in TIERS" :key="key">{{ name }}
-                <input v-if="canWrite" type="number" min="0" inputmode="numeric" :aria-label="`${year}下 ${name}目標`" :value="roster.current.tier[key] ?? ''" @change="changeTier('current', key, $event)" />
+                <input v-if="canWrite" type="number" min="0" inputmode="numeric" :aria-label="`${year}下 ${name}目標`" :value="drafts.text(tierField('current', key))" @input="drafts.take(tierField('current', key), $event)" @change="changeTier('current', key, $event)" />
                 <b v-else>{{ roster.current.tier[key] ?? '—' }}</b>
               </label>
               <span class="roster-tier__text">{{ tierText(roster.current.tier) }}</span>
@@ -145,7 +158,7 @@ const TIERS = [['base', '基礎'], ['boost', '激勵'], ['top', '超越']] as co
             <td class="roster-sg"></td>
             <th scope="row">目標人數</th>
             <td v-for="grade in GRADE_ORDER" :key="grade">
-              <input v-if="canWrite" type="number" min="0" inputmode="numeric" placeholder="未設定" :aria-label="`${year + 1}上 ${grade}目標人數`" :value="roster.next.targets[grade] ?? ''" @change="emit('save-next-target', grade, parse($event))" />
+              <input v-if="canWrite" type="number" min="0" inputmode="numeric" placeholder="未設定" :aria-label="`${year + 1}上 ${grade}目標人數`" :value="drafts.text(targetField(grade))" @input="drafts.take(targetField(grade), $event)" @change="changeTarget(grade, $event)" />
               <template v-else>{{ roster.next.targets[grade] ?? '—' }}</template>
             </td>
             <td class="is-total">{{ roster.next.targets.total ?? '—' }}</td>
@@ -167,7 +180,7 @@ const TIERS = [['base', '基礎'], ['boost', '激勵'], ['top', '超越']] as co
             <th scope="row">全校三段目標</th>
             <td colspan="4">
               <label v-for="[key, name] in TIERS" :key="key">{{ name }}
-                <input v-if="canWrite" type="number" min="0" inputmode="numeric" :aria-label="`${year + 1}上 ${name}目標`" :value="roster.next.tier[key] ?? ''" @change="changeTier('next', key, $event)" />
+                <input v-if="canWrite" type="number" min="0" inputmode="numeric" :aria-label="`${year + 1}上 ${name}目標`" :value="drafts.text(tierField('next', key))" @input="drafts.take(tierField('next', key), $event)" @change="changeTier('next', key, $event)" />
                 <b v-else>{{ roster.next.tier[key] ?? '—' }}</b>
               </label>
               <span class="roster-tier__text">{{ tierText(roster.next.tier) }}</span>
