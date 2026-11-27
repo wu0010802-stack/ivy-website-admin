@@ -67,7 +67,7 @@ describe('關於常春藤頁（about_page）', () => {
   it('側欄、標籤與網址', () => {
     const item = NAV_GROUPS.find((g) => g.key === 'pages')!.items.find((i) => i.name === 'about-page')!
     expect(item.path).toBe('/content/about-page')
-    expect(item.roles).toEqual(['super_admin'])
+    expect(item.capability).toBe('content.shared')
     expect(item.shared).toBe(true)
     expect(CONTENT_KIND_LABELS.about_page).toBe('關於常春藤頁')
     expect(contentPublicPath('about_page')).toBe('/about')

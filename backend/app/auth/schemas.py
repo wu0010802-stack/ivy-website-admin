@@ -107,15 +107,28 @@ class UserOut(BaseModel):
     is_active: bool
     campus_keys: list[str]
     # 總管理者逐人給的明確授權："content.shared"（編輯全站共用內容）、
-    # "booking.export"（個資匯出）。
+    # "booking.export"（個資匯出）、"admissions.stats"（負責校區的招生統計）。
     capabilities: list[str] = Field(default_factory=list)
     # 角色＋授權算出來的實際 capability，後台據此隱藏做不到的操作；真正的
     # 檢查仍在各端點。
     effective_capabilities: list[str]
     google_linked: bool
     line_linked: bool
+    # 最後一次成功登入的時間；只有使用者清單（GET /admin/users）會帶，其他回應為 null。
+    # null 也可能是從沒登入過。後台用來找出久未使用的帳號。
+    last_login_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class PermissionRowOut(BaseModel):
+    """權限表的一項（app/auth/permissions.py 的 permission_table）。"""
+
+    key: str
+    # 擁有這一項的角色。
+    roles: list[Role]
+    # 不是 null 時：總管理者以外的角色還要被逐人授予這一項（UserOut.capabilities）才算有。
+    grant: str | None = None
 
 
 class AuthProviders(BaseModel):

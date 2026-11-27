@@ -67,7 +67,7 @@ describe('特色教學頁（curriculum_page）', () => {
   it('側欄在「各分頁」、只給 super_admin，標籤與網址對得上', () => {
     const item = NAV_GROUPS.find((g) => g.key === 'pages')!.items.find((i) => i.name === 'curriculum-page')!
     expect(item.path).toBe('/content/curriculum-page')
-    expect(item.roles).toEqual(['super_admin'])
+    expect(item.capability).toBe('content.shared')
     expect(item.shared).toBe(true)
     expect(CONTENT_KIND_LABELS.curriculum_page).toBe('特色教學頁')
     expect(contentPublicPath('curriculum_page')).toBe('/curriculum')

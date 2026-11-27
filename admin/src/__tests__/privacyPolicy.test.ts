@@ -16,7 +16,7 @@ describe('隱私權政策（privacy_policy）', () => {
     const group = NAV_GROUPS.find((g) => g.key === 'site')!
     const item = group.items.find((i) => i.name === 'privacy-policy')!
     expect(item.path).toBe('/content/privacy-policy')
-    expect(item.roles).toEqual(['super_admin'])
+    expect(item.capability).toBe('content.shared')
     expect(item.shared).toBe(true)
     expect(CONTENT_KIND_LABELS.privacy_policy).toBe('隱私權政策')
     expect(contentPublicPath('privacy_policy')).toBe('/privacy')

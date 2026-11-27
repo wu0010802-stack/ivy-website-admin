@@ -90,10 +90,10 @@ import { ageLabel, contactTimeLabel } from '../api/labels'
 import { testUser } from './fixtures'
 
 describe('全站共用內容授權', () => {
-  const editor = { role: 'editor', capabilities: [] as string[] }
-  const grantedEditor = { role: 'editor', capabilities: ['content.shared'] }
-  const grantedAdmin = { role: 'campus_admin', capabilities: ['content.shared'] }
-  const grantedReception = { role: 'reception', capabilities: ['content.shared'] }
+  const editor = testUser('editor')
+  const grantedEditor = testUser('editor', { capabilities: ['content.shared'] })
+  const grantedAdmin = testUser('campus_admin', { capabilities: ['content.shared'] })
+  const grantedReception = testUser('reception', { capabilities: ['content.shared'] })
 
   it('有授權才看得到首頁、頁尾、網站設定', () => {
     for (const name of ['home-hero', 'site-footer', 'site-meta', 'admission-content']) {
@@ -110,7 +110,7 @@ describe('全站共用內容授權', () => {
   it('內容編輯有授權也只能送審，分校管理者有授權才能發布', () => {
     expect(canPublishSharedContent(grantedEditor)).toBe(false)
     expect(canPublishSharedContent(grantedAdmin)).toBe(true)
-    expect(canPublishSharedContent({ role: 'campus_admin', capabilities: [] })).toBe(false)
+    expect(canPublishSharedContent(testUser('campus_admin'))).toBe(false)
   })
 })
 

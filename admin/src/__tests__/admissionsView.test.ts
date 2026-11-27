@@ -29,8 +29,8 @@ describe('側欄與路由', () => {
     expect(visits.indexOf('admissions')).toBe(visits.indexOf('visit-calendar') + 1)
     const item = navItem('admissions')!
     expect(item).toMatchObject({ path: '/admissions', title: '招生入學', icon: 'PieChart' })
-    for (const role of ['super_admin', 'campus_admin', 'reception']) expect(canSeeNavItem(item, { role })).toBe(true)
-    for (const role of ['editor', 'readonly']) expect(canSeeNavItem(item, { role })).toBe(false)
+    for (const role of ['super_admin', 'campus_admin', 'reception'] as const) expect(canSeeNavItem(item, testUser(role))).toBe(true)
+    for (const role of ['editor', 'readonly'] as const) expect(canSeeNavItem(item, testUser(role))).toBe(false)
     const children = routes.find((route) => route.path === '/')!.children!
     expect(children.find((route) => route.name === 'admissions')).toMatchObject({ path: 'admissions', meta: { title: '招生入學' } })
   })

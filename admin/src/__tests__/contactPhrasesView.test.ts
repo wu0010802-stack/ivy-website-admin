@@ -268,7 +268,7 @@ describe('權限與側欄', () => {
     const router = createRouter({ history: createMemoryHistory(), routes })
     const target = router.resolve('/contact-phrases')
     expect(target.meta.title).toBe('聯絡片語')
-    expect(target.meta.roles).toEqual(['super_admin'])
+    expect(target.meta.capability).toBe('contact_phrases.manage')
 
     setActivePinia(createPinia())
     useAuthStore().user = campusAdmin()

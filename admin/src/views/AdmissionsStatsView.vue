@@ -8,7 +8,7 @@ import { useAdmissionsFilters } from '../admissions/useAdmissionsFilters'
 import { conditionsOf } from '../admissions/statsNav'
 
 // 招生統計（2026-10-16 業主裁定）：原本是招生入學的「統計分析」分頁，抽成獨立的側欄頁，只有總管理者
-// 看得到（側欄與路由 roles；後端 admissions.stats 才是真正的檢查）。內容不變，頁首的校區與入學學年學期
+// 與被授權的分校管理者看得到（側欄與路由看 effective_capabilities；後端 admissions.stats 才是真正的檢查）。內容不變，頁首的校區與入學學年學期
 // 同招生入學，網址參數也同名（campus／sy／sem），兩頁之間帶得過去；子分頁與預約全程的篩選也寫在網址。
 // 區域分析的地圖模式、選取的里與表格分頁（areaView）同樣寫在網址。
 // 招生開關關閉時同招生入學，顯示「尚未啟用」。
