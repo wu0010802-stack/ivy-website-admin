@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ApiError, CSRF_INVALID_DETAIL, api, setCsrfToken } from '../api/client'
+import { signInWithPasskey } from '../api/passkey'
 import type { FeatureFlags, LoginResponse, MeResponse, UserOut } from '../api/types'
 import { announceSignedIn } from '../composables/sessionChannel'
 import { resetVisitStaff } from '../composables/useVisitStaff'
@@ -37,19 +38,33 @@ export const useAuthStore = defineStore('auth', () => {
   async function login(email: string, password: string, remember = false): Promise<void> {
     isLoading.value = true
     try {
-      const result = await api.post<LoginResponse>('/auth/login', {
+      adoptLogin(await api.post<LoginResponse>('/auth/login', {
         email,
         password,
         remember,
-      })
-      user.value = result.user
-      features.value = result.features ?? { admissions: false, password_reset_email: false }
-      csrfToken.value = result.csrf_token
-      setCsrfToken(result.csrf_token)
-      forgetPreviousUser(result.user.id)
-      rememberSignedIn(result.user, 'password')
-      announceSignedIn()
-      markStaffBrowser()
+      }))
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  function adoptLogin(result: LoginResponse) {
+    user.value = result.user
+    features.value = result.features ?? { admissions: false, password_reset_email: false }
+    csrfToken.value = result.csrf_token
+    setCsrfToken(result.csrf_token)
+    forgetPreviousUser(result.user.id)
+    // 指紋／臉部辨識登入也記成「密碼」：回訪時畫密碼欄，下面一樣有指紋登入的按鈕。
+    rememberSignedIn(result.user, 'password')
+    announceSignedIn()
+    markStaffBrowser()
+  }
+
+  /** 指紋／臉部辨識登入（Passkey，2026-11-27）：不用打 Email，瀏覽器列出這台裝置上的 Passkey。 */
+  async function loginWithPasskey(remember = false): Promise<void> {
+    isLoading.value = true
+    try {
+      adoptLogin(await signInWithPasskey(remember))
     } finally {
       isLoading.value = false
     }
@@ -182,5 +197,5 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  return { user, features, csrfToken, isLoading, sessionMaxExpiresAt, logoutPending, previousUserId, login, logout, restoreSession, refreshSession, clearSession, expireSession }
+  return { user, features, csrfToken, isLoading, sessionMaxExpiresAt, logoutPending, previousUserId, login, loginWithPasskey, logout, restoreSession, refreshSession, clearSession, expireSession }
 })

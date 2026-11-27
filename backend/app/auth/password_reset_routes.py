@@ -228,7 +228,7 @@ async def complete_password_reset(
     revoked = await service.revoke_user_sessions(db, user.id)
     # 重設密碼常是帳號被盜後的補救：只換密碼的話，攻擊者先前綁上的 LINE／Google 還能登入。
     # 比照停權一併解除，本人要用再重新綁定（綁定前會重新驗證身分）。
-    unlinked = service.clear_external_logins(user)
+    unlinked = await service.clear_external_logins(db, user)
     await audit_service.log_action(
         db,
         actor_user_id=user.id,

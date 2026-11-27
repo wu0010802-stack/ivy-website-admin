@@ -28,6 +28,7 @@ from app.common.request_id import REQUEST_ID_HEADER, RequestIdMiddleware, reques
 from app.common.ratelimit import RateLimiter
 from app.auth.google import configure_google_oauth, router as google_auth_router
 from app.auth.line import configure_line_oauth, router as line_auth_router
+from app.auth.passkey import router as passkey_auth_router
 from app.booking.access_routes import router as booking_access_router
 from app.admissions.geo import boundaries as geo_boundaries
 from app.admissions.ad_roi_routes import router as admissions_ad_roi_router
@@ -317,6 +318,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(password_reset_router)
     app.include_router(google_auth_router)
     app.include_router(line_auth_router)
+    app.include_router(passkey_auth_router)
     app.include_router(campuses_router)
     app.include_router(media_router)
     app.include_router(media_public_router)

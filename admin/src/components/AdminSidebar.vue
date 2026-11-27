@@ -7,7 +7,10 @@ import {
   Notebook, Notification as NotificationIcon, Opportunity, Phone, Picture, PieChart, Postcard, Reading, School, Search, Setting, Sunny, Switch,
   SwitchButton, Tickets, Timer, User,
 } from '@element-plus/icons-vue'
-import { canListNavItem, landingPath, NAV_GROUPS, navSearchHits, normalizeSearch, SEARCH_ONLY_GROUPS, type NavItem } from '../router/nav'
+import { canListNavItem, landingPath, NAV_GROUPS, navItem, navSearchHits, normalizeSearch, SEARCH_ONLY_GROUPS, type NavItem } from '../router/nav'
+import { useCampusScope } from '../composables/useCampusScope'
+import { usePeopleSearch, type PersonHit } from '../composables/usePeopleSearch'
+import { usePermissions } from '../composables/usePermissions'
 import { useAuthStore } from '../stores/auth'
 import { campusLabels, roleLabel, staffLabel, staffWithEmail } from '../api/labels'
 import ChangePasswordDialog from './ChangePasswordDialog.vue'
@@ -113,6 +116,26 @@ const groups = computed(() => {
   return q ? results.sort((a, b) => b.score - a.score) : results
 })
 const hasQuery = computed(() => Boolean(normalizedQuery.value))
+// 順便找人（2026-11-27）：搜尋字像姓名或電話時，另外列出符合的參觀案件與招生紀錄，點了直接到那一筆。
+// 看不到這兩個功能的角色（內容編輯）不查；招生開關關著時不查招生紀錄。
+const { can } = usePermissions()
+const { visibleCampusKeys } = useCampusScope({ autoSelect: false })
+const admissionsNav = navItem('admissions')
+const people = usePeopleSearch(query, {
+  canVisits: computed(() => can('booking.read')),
+  canRecords: computed(() => Boolean(admissionsNav && canListNavItem(admissionsNav, auth.user, auth.features))),
+  campusKeys: visibleCampusKeys,
+})
+const peopleGroups = computed(() => [
+  { key: 'visits', label: '參觀案件', hits: people.visits.value },
+  { key: 'records', label: '招生紀錄', hits: people.records.value },
+].filter(group => group.hits.length))
+// 同一頁換到另一筆時路徑不變（案件頁之間、招生頁換一筆），側欄不會自己清搜尋字，這裡清。
+function openPerson(hit: PersonHit) {
+  query.value = ''
+  emit('close')
+  void router.push(hit.to)
+}
 // 搜尋時按 Enter 會開的那一筆，畫面上先標出來，按之前就知道會去哪。
 const firstResult = computed(() => hasQuery.value ? groups.value[0]?.items[0] : undefined)
 // 搜尋框按 Enter 直接前往第一筆結果。中文輸入法選字時按的 Enter 不算
@@ -121,7 +144,12 @@ const firstResult = computed(() => hasQuery.value ? groups.value[0]?.items[0] : 
 function openFirstResult(event: KeyboardEvent) {
   if (!hasQuery.value || event.isComposing || event.keyCode === 229) return
   const first = firstResult.value
-  if (!first) return
+  // 沒有符合的功能、但找到人：Enter 開第一筆。
+  if (!first) {
+    const person = people.hits.value[0]
+    if (person) openPerson(person)
+    return
+  }
   if (first.path === activePath.value) {
     query.value = ''
     emit('close')
@@ -228,7 +256,7 @@ const userLine = computed(() => {
           <el-icon aria-hidden="true"><Search /></el-icon>
         </button>
       </el-tooltip>
-      <el-input v-else ref="searchInput" v-model="query" aria-label="搜尋後台功能" placeholder="搜尋功能" :prefix-icon="Search" clearable
+      <el-input v-else ref="searchInput" v-model="query" aria-label="搜尋後台功能" :placeholder="people.enabled.value ? '搜尋功能、姓名、電話' : '搜尋功能'" :prefix-icon="Search" clearable
         :aria-keyshortcuts="mobile ? undefined : 'Meta+K Control+K'"
         @keydown.enter="openFirstResult" @keydown.esc="clearSearch" @keydown.down.prevent="focusFirstTarget">
         <template v-if="!mobile && !query" #suffix><kbd class="sidebar__kbd" aria-hidden="true">{{ shortcutHint }}</kbd></template>
@@ -262,10 +290,21 @@ const userLine = computed(() => {
         </ul>
       </section>
       </template>
-      <div v-if="!groups.length" class="sidebar__empty" role="status">
-        <p>找不到符合的功能</p>
+      <section v-for="group in peopleGroups" :key="group.key" class="sidebar__group sidebar__people" :aria-label="`符合的${group.label}`">
+        <h2 class="sidebar__people-title">{{ group.label }}</h2>
+        <ul>
+          <li v-for="hit in group.hits" :key="hit.key">
+            <router-link :to="hit.to" class="sidebar__link sidebar__person" @click.prevent="openPerson(hit)">
+              <span class="sidebar__person-text"><strong>{{ hit.title }}</strong><span>{{ hit.detail }}</span></span>
+            </router-link>
+          </li>
+        </ul>
+      </section>
+      <div v-if="!groups.length && !peopleGroups.length" class="sidebar__empty" role="status">
+        <p>{{ people.term.value && !people.loading.value ? '找不到符合的功能、案件或招生紀錄' : '找不到符合的功能' }}</p>
         <el-button text @click="query = ''">清除搜尋</el-button>
       </div>
+      <p v-if="people.loading.value && !peopleGroups.length" class="sidebar__people-status" role="status">正在找符合的家長與孩子…</p>
     </nav>
     <div v-if="auth.user" class="sidebar__user">
       <el-tooltip :disabled="!rail" :content="`${userName}（${userLine}）`" placement="right" :trigger="tipTrigger" :hide-after="0">
@@ -392,6 +431,14 @@ const userLine = computed(() => {
   .sidebar__link.is-first::after { content: '↵' / ''; flex-shrink: 0; color: var(--sidebar-muted); font-size: var(--text-sm); }
 }
 .sidebar__empty { padding: 20px 8px; color: var(--sidebar-muted); }
+/* 搜尋找到的人：兩行（姓名／校區與日期），行高比功能項目高一點。 */
+.sidebar__people-title { margin: 0; padding: 6px var(--nav-pad); color: var(--sidebar-muted); font-size: var(--text-sm); font-weight: 600; }
+.sidebar__person { align-items: flex-start; padding-block: 7px; }
+.sidebar__person-text { display: flex; flex: 1; flex-direction: column; min-width: 0; }
+.sidebar__person-text strong, .sidebar__person-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar__person-text strong { font-weight: 600; }
+.sidebar__person-text span { color: var(--sidebar-muted); font-size: var(--text-sm); }
+.sidebar__people-status { margin: 0; padding: 12px var(--nav-pad); color: var(--sidebar-muted); font-size: var(--text-sm); }
 .sidebar__user { display: flex; flex-shrink: 0; align-items: center; gap: 10px; padding: 12px 12px max(12px, env(safe-area-inset-bottom)); border-top: 1px solid var(--sidebar-line); }
 .sidebar__account { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; margin: -6px; padding: 6px; border-radius: var(--radius); color: var(--sidebar-ink); }
 .sidebar__account.is-active { background: var(--sidebar-active-bg); color: var(--sidebar-active-ink); }

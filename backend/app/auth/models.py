@@ -4,7 +4,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Index, String, text
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, Enum, ForeignKey, Index, Integer, LargeBinary, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -25,6 +25,9 @@ CREATABLE_ROLES = tuple(Role)
 
 # users.display_name 的長度上限（字數，不是位元組；PostgreSQL 的 VARCHAR(n) 也是算字數）。
 DISPLAY_NAME_MAX_LENGTH = 12
+
+# passkeys.name 的長度上限（字數）。
+PASSKEY_NAME_MAX_LENGTH = 30
 
 # 規格 7：「全站內容編輯」與「個資匯出」是明確授權，不因擁有某校範圍就自動
 # 取得，只有總管理者可以逐人授予。總管理者本身不需要（已涵蓋全部）。
@@ -66,6 +69,9 @@ class User(Base):
     role: Mapped[Role] = mapped_column(Enum(Role, name="user_role"), nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     capabilities: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    # 這個帳號登記了幾組 Passkey（指紋／Face ID 登入，2026-11-27）。明細在 passkeys 表；這裡留個數是為了
+    # 帳號列表與 /auth/me 不必每次多查一張表。新增、刪除、清除登入方式時一起改（app/auth/passkey.py）。
+    passkey_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
     campus_scopes: Mapped[list["UserCampusScope"]] = relationship(
@@ -110,6 +116,32 @@ class Session(Base):
     remember: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
 
     user: Mapped[User] = relationship(back_populates="sessions")
+
+
+class Passkey(Base):
+    """後台管理員的 Passkey（WebAuthn 憑證；指紋、Face ID、裝置 PIN 登入，2026-11-27）。
+
+    只能由已登入的本人在「我的帳號」登記（同 LINE／Google 的綁定規則），登記前要重新驗證。
+    這裡只存公鑰與憑證代號：私鑰留在使用者的裝置或密碼管理工具裡，資料庫外洩也拿不去登入。"""
+
+    __tablename__ = "passkeys"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # 憑證代號由驗證器產生，規格上限 1023 bytes；全站唯一（同一把不能登記到兩個帳號）。
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, unique=True)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    # 驗證器回報的使用次數；有在數的驗證器倒退代表憑證可能被複製（同步型 Passkey 一律回 0）。
+    sign_count: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0)
+    transports: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    # 使用者看得懂的名字（「iPhone」「辦公室電腦」），登記時依瀏覽器帶預設值、可以自己改。
+    name: Mapped[str] = mapped_column(String(PASSKEY_NAME_MAX_LENGTH), nullable=False)
+    # 這把有沒有同步到雲端（iCloud 鑰匙圈、Google 密碼管理工具）：畫面上提示換手機後還在不在。
+    backed_up: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class PasswordResetToken(Base):
