@@ -14,6 +14,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（PR #152，main `7eea0be8`；已部署）
+
+使用者 11-27 挑了卡片按鈕第 10、11、12 項，做完後說「部署」。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`，內容見根目錄 README 同日段落。migration `d8b3f1a6c240`（parent `c7a2d9e4b615`＝#148）只新增空表 `stats_health_mutes`，不改既有資料，沒有事先備份。#152 原本疊在 #148 上；#148 先由別的流程於 10:44 合併部署，之後等 #151 先併，再把 main 併進 #152 重跑 CI。push 那組 CI 被同一個並行群組取消、擋住合併，`gh run rerun 45940666789` 重跑全綠後才合併。
+
+上線後行為的差別：總部群組的統計異常提醒從純文字變成卡片（多「知道了，先不提醒」與「開成效統計」兩顆按鈕）；週報後面多一張「看各校明細」小卡、月報卡片多五校按鈕；所有群組的查詢結果在手機上多切換鈕。不需要設任何變數。
+
+線上核對（2026-11-27 約 13:20 台北，只用公開 GET）：
+
+- main run 45944033305 全綠（含 E2E 與 Deploy Railway production）；之後 #154（`92bbca18`）接著部署，包含這次的提交。
+- `/release.json` 的 `base_commit` 是 `7eea0be8…`（上一版 `1a6f1d47`，#151）。
+- `/api/website/v1/health` 回 200；`admin.ivykidschool.com/admin/` 回 200。
+- 後台 `LineNotificationsView-CwyVMuOm.js` 裡有「同樣的問題 3 天內先不提醒」；`labels-BGHLBtbW.js` 裡有「統計異常先不提醒」。
+- **沒驗證**：真 LINE 群組裡的快速回覆、明細卡、統計異常卡片（要等下一次查詢、週一週報、12/1 月報或下一次統計異常）；手機上的樣子。
+
 ## 2026-11-27 後台權限整理、招生統計可逐人授權給校區管理者（PR #151，main `1a6f1d47`；已部署）
 
 使用者 11-27 選「整理＋擴充逐人授權」、只開招生統計（限負責校區），做完後說「併入 main」。沒有 migration、不改既有資料，沒有事先備份。內容見根目錄 README 同日段落與 DESIGN.md「後台權限：畫面只讀後端算好的權限、招生統計可逐人授權」。
