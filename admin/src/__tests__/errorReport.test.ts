@@ -66,10 +66,12 @@ describe('遮蔽與忽略：和官網（web/shared/client-error.ts）同一組',
       { kind: 'TypeError', message: 'Load failed' },
       { kind: 'TypeError', message: 'NetworkError when attempting to fetch resource.' },
       { kind: 'TypeError', message: "Cannot read properties of undefined (reading 'Failed to fetch')" },
+      { kind: 'Error', message: 'Error invoking postMessage: Java object is gone', stack: 'Error: Error invoking postMessage: Java object is gone\n    at sendDataToNative (iabjs://abc:1:2)' },
+      { kind: 'Error', message: 'Java exception was raised during method invocation' },
     ]
     for (const raw of cases) expect(shouldIgnoreError(raw), JSON.stringify(raw)).toBe(shouldIgnoreClientError(raw))
-    // 14 個樣本裡只有一般錯誤、「有堆疊的 Script error」與剛好提到 fetch 的程式錯誤要送
-    expect(cases.filter((raw) => shouldIgnoreError(raw))).toHaveLength(11)
+    // 16 個樣本裡只有一般錯誤、「有堆疊的 Script error」與剛好提到 fetch 的程式錯誤要送
+    expect(cases.filter((raw) => shouldIgnoreError(raw))).toHaveLength(13)
   })
 })
 

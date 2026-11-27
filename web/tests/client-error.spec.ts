@@ -105,6 +105,15 @@ describe('忽略規則', () => {
       expect(ignored({ message }), message).toBe(true)
     }
   })
+  it('App 內建瀏覽器注入腳本的 Android Java 橋接錯誤（FB 內建瀏覽器關掉後原生物件已回收）', () => {
+    // 2026-11-27 正式站收到的那筆：UA 是 FB_IAB/FB4A，堆疊全是 FB 注入的 iabjs://
+    const iab = 'Error: Error invoking postMessage: Java object is gone\n    at sendDataToNative (iabjs://abc:1:11722)\n    at h (iabjs://abc:1:16303)\n    at iabjs://abc:1:20760'
+    expect(ignored({ message: 'Error invoking postMessage: Java object is gone', stack: iab })).toBe(true)
+    expect(ignored({ message: 'Error invoking postMessage: Java object is gone', stack: undefined, filename: 'iabjs://abc' })).toBe(true)
+    expect(ignored({ message: 'Java exception was raised during method invocation' })).toBe(true)
+    // FB 內建瀏覽器的訪客遇到我們自己的錯誤照記：堆疊下層剛好有 iabjs frame 也一樣
+    expect(ignored({ kind: 'TypeError', message: "Cannot read properties of null (reading 'focus')", stack: "TypeError: Cannot read properties of null (reading 'focus')\n    at open (/_nuxt/a.js:1:2)\n    at iabjs://abc:1:300" })).toBe(false)
+  })
 })
 
 describe('自動化瀏覽器與爬蟲的 User-Agent（server/api/client-errors.post.ts 用，不轉送）', () => {

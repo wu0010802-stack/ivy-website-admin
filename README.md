@@ -1,3 +1,21 @@
+## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（分支 `feature/client-error-fb-iab-20261127`，未部署）
+
+系統狀態收到一筆官網首頁的 `Error: Error invoking postMessage: Java object is gone`（UA 是 Android 的 `FB_IAB/FB4A`，堆疊三格全是 `iabjs://`）。這是 FB 內建瀏覽器**自己注入的腳本**透過 Android WebView 的 Java 橋接（`@JavascriptInterface`）呼叫 App，使用者關掉內建瀏覽器或切到背景、原生物件已回收時就丟；官網沒有註冊任何橋接，不是我們的程式出錯，也沒有可以修的東西。
+
+- **忽略規則**多一條：訊息含 `Java object is gone` 或 `Java exception was raised during method invocation`（Chromium Java 橋接的兩種錯誤）不送。`web/shared/client-error.ts` 與後台副本 `admin/src/utils/errorReport.ts` 同步改，對照測試補兩個樣本。
+- **刻意看訊息、不看 `iabjs://`**：FB 的注入腳本也會包住頁面的事件，我們自己的錯誤堆疊下層可能有 iabjs frame；用 `iabjs://` 當標記會連 FB 廣告進站訪客遇到的真錯誤一起吞掉（測試有這個反例）。
+- **範圍**：只有前端回報端過濾，`backend/` 與 API 契約不變；已經進來的那一筆照常在「系統狀態」標記已處理即可。
+
+驗證（本機，Node 22.23.2）：
+
+| 指令 | 結果 |
+|---|---|
+| 新測試先紅後綠：`web` `tests/client-error.spec.ts`、`admin` `src/__tests__/errorReport.test.ts` | 改實作前各 1 failed；改後 29／22 passed |
+| `npm --prefix web run typecheck` | exit 0（只有既有的 `MediaImage` 重複匯入 WARN） |
+| `npm --prefix web run test:unit` | 171 檔、2592 passed |
+| `npm --prefix admin run typecheck` | 通過 |
+| `npm --prefix admin run test:unit` | 全套跑時 7 檔 15 個逾時（負載平均 37、另有兩個 session 在跑 pytest，每個 5–94 秒）；這 7 檔都沒有匯入改動的檔案，`--testTimeout=120000` 單獨重跑 7 檔 189 passed。全套沒有在低負載下重跑 |
+
 ## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（PR #152，已部署 main `7eea0be8`，紀錄見 `deploy/README.md`）
 
 使用者問「卡片按鈕還有什麼功能可以做」，看完 12 項後挑 10、11、12（「都幫我做」）。建在 PR #148（週報、月報）之上，#148 併 main 後再併。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`。
