@@ -559,6 +559,10 @@ async def test_campus_audit_log_strips_line_group_ids_for_campus_staff(admin_cli
         "line.group.recruitment_field": {
             "field": "rides_bus", "value": True, "group_id": group_id, "line_user_id": line_user_id,
         },
+        # 2026-11-27：統計異常「知道了」（實際寫入時不帶校區，這裡帶校區只為了驗證分校帳號同樣拿不到群組 ID）。
+        "line.group.stats_health_mute": {
+            "issues": ["ga4_silent"], "muted_until": "2026-11-30", "group_id": group_id, "line_user_id": line_user_id,
+        },
     }
     assert set(metadata) == set(LINE_GROUP_ACTIONS)
     now = datetime.now(timezone.utc)
@@ -586,6 +590,8 @@ async def test_campus_audit_log_strips_line_group_ids_for_campus_staff(admin_cli
     assert [e["action"] for e in searched] == ["line.group.recruitment_field"]
     searched = (await minghua_client.get(url, params={"campus_key": "minghua", "q": "completed"})).json()
     assert [e["action"] for e in searched] == ["line.group.visit_attend"]
+    searched = (await minghua_client.get(url, params={"campus_key": "minghua", "q": "ga4_silent"})).json()
+    assert [e["action"] for e in searched] == ["line.group.stats_health_mute"]
 
     # 總管理者照樣看得到、搜得到。
     hq = (await admin_client.get(f"{url}?campus_key=minghua")).json()
@@ -593,4 +599,6 @@ async def test_campus_audit_log_strips_line_group_ids_for_campus_staff(admin_cli
     hq_searched = (await admin_client.get(url, params={"campus_key": "minghua", "q": group_id[:12]})).json()
     assert [e["action"] for e in hq_searched] == list(metadata)
     by_user = (await admin_client.get(url, params={"q": line_user_id})).json()
-    assert [e["action"] for e in by_user] == ["line.group.visit_attend", "line.group.recruitment_field"]
+    assert [e["action"] for e in by_user] == [
+        "line.group.visit_attend", "line.group.recruitment_field", "line.group.stats_health_mute",
+    ]

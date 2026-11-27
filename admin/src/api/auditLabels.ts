@@ -213,6 +213,14 @@ const LINE_GROUP_KIND_LABELS: Record<string, string> = {
   monthly_report: '每月 1 日月報',
 }
 
+// 統計異常的問題代碼（backend/app/operations/stats_health.py 的 ISSUE_LABELS，同一組字）。
+const STATS_HEALTH_ISSUE_LABELS: Record<string, string> = {
+  traffic_zero: '瀏覽是 0',
+  engagement_low: '內容興趣偏少',
+  attribution_missing: '預約沒記到來源',
+  ga4_silent: 'GA4 沒收到事件',
+}
+
 // 在 LINE 群組填招生結果欄位（line.group.recruitment_field，2026-11-17）：一次一個欄位。
 const LINE_RECRUITMENT_FIELD_LABELS: Record<string, string> = {
   has_deposit: '預繳結果',
@@ -393,6 +401,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   digest_enabled: (v) => `每日摘要：${v ? '開' : '關'}`,
   mention_all_same_day: (v) => `當天異動 @所有人：${v ? '開' : '關'}`,
   is_hq: (v) => `總部群組：${v ? '是' : '否'}`,
+  // 統計異常「知道了」（line.group.stats_health_mute，2026-11-27）：哪幾種問題、暫停到哪天（含）。
+  issues: (v) => `問題：${Array.isArray(v) ? v.map(key => STATS_HEALTH_ISSUE_LABELS[String(key)] ?? String(key)).join('、') : String(v)}`,
+  muted_until: (v) => `暫停提醒到：${String(v)}`,
   // 在 LINE 群組填招生結果欄位（line.group.recruitment_field）：欄位與值寫成一句，value 不另列。
   // 只在這個動作套用招生欄位的翻法；其他動作日後用到 field／value 時照原值寫，不會被翻成招生欄位。
   field: (v, action, m) => (action === 'line.group.recruitment_field'
@@ -611,6 +622,8 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   LINE_GROUP_KIND_LABELS,
   LINE_RECRUITMENT_FIELD_LABELS,
   SOURCE_CATEGORY_AUDIT_LABELS,
+  // 統計異常「知道了」的問題代碼（2026-11-27）。
+  STATS_HEALTH_ISSUE_LABELS,
   // 帳密登入失敗發生的地方、帳號被改的欄位、通知重寄的來源與種類、素材與發布排程的狀態。
   AUDIT_CONTEXT_LABELS,
   USER_FIELD_LABELS,

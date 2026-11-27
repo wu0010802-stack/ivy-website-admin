@@ -15,8 +15,8 @@ from dataclasses import dataclass
 from app.admissions import constants as admissions_constants
 from app.notifications.line import flex_message, text_message
 from app.notifications.line_group_actions import (
-    ATTEND_ASK, ATTEND_OK, CANCEL, NOSHOW_ASK, NOSHOW_OK, RF_BUS, RF_DEPOSIT, RF_DEPOSIT_OK, RF_FOLLOW, RF_NODEP,
-    RF_NODEP_ASK, RF_SOURCE, RF_SOURCE_ASK, encode,
+    ATTEND_ASK, ATTEND_OK, CANCEL, NOSHOW_ASK, NOSHOW_OK, REPORT_DETAIL, RF_BUS, RF_DEPOSIT, RF_DEPOSIT_OK, RF_FOLLOW,
+    RF_NODEP, RF_NODEP_ASK, RF_SOURCE, RF_SOURCE_ASK, encode,
 )
 from app.notifications.parent_email import ParentNotice
 
@@ -320,6 +320,7 @@ def help_message(*, is_hq: bool = False) -> dict:
         lines.append("【總部專用】本週統計、上週統計、本月統計、上月統計、週報、月報、額度")
     lines += [
         "指令前面可以加校名只看一校，例如「義華 今天參觀」。",
+        "用手機查詢時，結果下方會出現切換鈕（例如看完今天參觀，直接按「明天參觀」）。",
         "標記官方帳號（@）會跳出選單；輸入「指令」可以再看一次這份說明。",
     ]
     return text_message("\n".join(lines))
@@ -496,8 +497,9 @@ def _bar(cases: int, top: int) -> dict:
     return track
 
 
-def monthly_report_message(report) -> dict:
-    """report：line_group_reports.MonthlyReport。只有數字與校名；altText 只放月份與合計筆數。"""
+def monthly_report_message(report, *, detail_buttons: list[dict] | None = None) -> dict:
+    """report：line_group_reports.MonthlyReport。只有數字與校名；altText 只放月份與合計筆數。
+    detail_buttons：各校明細鈕（report_detail_buttons，2026-11-27），放在 footer。"""
     title = f"{report.month} 月月報"
     top = max((campus.cases for campus in report.campuses), default=0)
     body: list[dict] = [
@@ -518,4 +520,105 @@ def monthly_report_message(report) -> dict:
         })
         body.append(_text(f"到場率 {campus.attendance}｜預繳 {campus.deposits}", size="xs", color=MUTED))
     body.append(_text("依預約送出日；到場率＝到場 ÷ 已標記。", size="xs", color=MUTED, margin="md"))
-    return flex_message(f"{title}：預約 {report.cases} 筆", _bubble(REPORT_EYEBROW, title, body, []))
+    if detail_buttons:
+        body.append(_text(DETAIL_HINT, size="xs", color=MUTED, margin="md"))
+    return flex_message(f"{title}：預約 {report.cases} 筆", _bubble(REPORT_EYEBROW, title, body, detail_buttons or []))
+
+
+# ---- 週報、月報的各校明細（2026-11-27，docs/specs/2026-11-27-line-card-buttons-design.md §2）----
+
+WEEKLY_EYEBROW = "常春藤官網｜週報"
+DETAIL_PICKER_TITLE = "看各校明細"
+DETAIL_HINT = "按校名看那一校的進件管道、官網來源、取消與未到場名單。"
+DETAIL_BUTTONS_PER_ROW = 3
+_DETAIL_EYEBROWS = {"w": "常春藤官網｜週報明細", "m": "常春藤官網｜月報明細"}
+_DETAIL_NOTE = "依預約送出日；官網來源是家長第一次進站的管道；名單只放家長稱呼。"
+
+
+def short_campus_name(name: str) -> str:
+    """按鈕上的校名：去掉「校」（義華校 → 義華）。"""
+    return name.removesuffix("校") or name
+
+
+def detail_display_text(name: str) -> str:
+    """明細鈕按了以後群組看到的字（看得出是誰按的）。不能是群組指令（tests 會檢查）。"""
+    return f"{short_campus_name(name)}明細"
+
+
+def report_detail_buttons(code: str, start, campuses: list[tuple[str, str]]) -> list[dict]:
+    """各校明細鈕，三顆一列。code：w（週報）／m（月報）；start：那一期第一天；campuses：(key, 名稱)。"""
+    day = start.strftime("%Y%m%d")
+    buttons = [
+        {**_postback_button(short_campus_name(name), encode(REPORT_DETAIL, code, key, day), display_text=detail_display_text(name)), "flex": 1}
+        for key, name in campuses
+    ]
+    return [_hbox(buttons[i:i + DETAIL_BUTTONS_PER_ROW]) for i in range(0, len(buttons), DETAIL_BUTTONS_PER_ROW)]
+
+
+def report_picker_message(code: str, start, campuses: list[tuple[str, str]]) -> dict:
+    """週報（純文字掛不了按鈕）後面跟的小卡：只有各校明細鈕。"""
+    # 這張跟在週報後面：聊天列表與通知看到的是它的 altText，寫明是週報的。
+    return flex_message(
+        f"週報：{DETAIL_PICKER_TITLE}",
+        _bubble(WEEKLY_EYEBROW, DETAIL_PICKER_TITLE, [_text(DETAIL_HINT, size="sm", color=MUTED)],
+                report_detail_buttons(code, start, campuses)),
+    )
+
+
+def _counts(pairs: list[tuple[str, int]]) -> str:
+    return "｜".join(f"{label} {count}" for label, count in pairs)
+
+
+def _names(names: list[str], total: int) -> str:
+    more = total - len(names)
+    return "、".join(names) + (f" 等 {total} 位" if more > 0 else "")
+
+
+def report_detail_message(code: str, detail, *, analytics_url: str | None = None) -> dict:
+    """detail：line_group_reports.CampusDetail。只有數字、校名、日期與家長稱呼；altText 不放稱呼。"""
+    span = f"{detail.start.month}/{detail.start.day}–{detail.end.month}/{detail.end.day}"
+    title = f"{detail.name} {span}"
+    body: list[dict] = [_row("預約", f"{detail.cases} 筆")]
+    if detail.channels:
+        body.append(_row("進件管道", _counts(detail.channels)))
+    if detail.web_sources:
+        body.append(_row("官網來源", _counts(detail.web_sources)))
+    if detail.cases:
+        body.append(_row(
+            "結果",
+            f"到場 {detail.completed}｜未到場 {detail.no_show}｜待標記 {detail.awaiting}"
+            f"｜尚未參觀 {detail.upcoming}｜取消 {detail.cancelled}",
+        ))
+        body.append(_row("到場率", detail.attendance))
+    if detail.cancel_sides:
+        body.append(_row("取消", _counts(detail.cancel_sides)))
+    body.append(_row("預繳", f"{detail.deposits} 筆"))
+    if detail.no_show_names or detail.awaiting_names:
+        body.append({"type": "separator", "margin": "md"})
+    if detail.no_show_names:
+        body.append(_row("未到場", _names(detail.no_show_names, detail.no_show)))
+    if detail.awaiting_names:
+        body.append(_row("待標記", _names(detail.awaiting_names, detail.awaiting)))
+    body.append(_text(_DETAIL_NOTE, size="xs", color=MUTED, margin="md"))
+    link = _usable_uri(analytics_url)
+    buttons = [_button("開成效統計", link, primary=False)] if link else []
+    return flex_message(f"{title} 明細", _bubble(_DETAIL_EYEBROWS.get(code, REPORT_EYEBROW), title, body, buttons))
+
+
+# ---- 統計異常提醒（2026-11-27 §4；原本是純文字，app/operations/stats_health.py）----
+
+STATS_HEALTH_EYEBROW = "常春藤官網｜統計健康檢查"
+STATS_MUTE_BUTTON = "知道了，先不提醒"
+STATS_MUTE_DISPLAY = "知道了，我來看"
+
+
+def stats_health_message(title: str, messages: list[str], *, mute_data: str, analytics_url: str | None) -> dict:
+    """每項問題一行；「知道了」帶 postback（3 天內同樣的問題不再提醒），「開成效統計」有網址才放。"""
+    body = [_text(f"・{message}", size="sm") for message in messages]
+    body.append(_text("按「知道了」：這幾項 3 天內早上先不提醒（問題還在之後會再提醒）；後台成效統計頁照常顯示。",
+                      size="xs", color=MUTED, margin="md"))
+    buttons = [_postback_button(STATS_MUTE_BUTTON, mute_data, display_text=STATS_MUTE_DISPLAY, primary=True)]
+    link = _usable_uri(analytics_url)
+    if link:
+        buttons.append(_button("開成效統計", link, primary=False))
+    return flex_message(title, _bubble(STATS_HEALTH_EYEBROW, title, body, buttons))

@@ -549,6 +549,111 @@ async def contact_text(
     return _capped(lines)
 
 
+# ---- 週報、月報的各校明細（2026-11-27，docs/specs/2026-11-27-line-card-buttons-design.md §2）----
+
+WEEKLY_CODE = "w"
+MONTHLY_CODE = "m"
+DETAIL_NAMES_MAX = 8
+NO_TOUCH_LABEL = "沒記到"
+NAMELESS_LABEL = "未留稱呼"
+_OTHER_CANCEL_LABEL = "其他"
+
+
+def report_period(code: str, start: date) -> tuple[date, date] | None:
+    """明細按鈕帶的那一期：週報是週一起 7 天，月報是 1 號起整個月；第一天不對回 None。"""
+    if code == WEEKLY_CODE and start.weekday() == 0:
+        return start, start + timedelta(days=6)
+    if code == MONTHLY_CODE and start.day == 1:
+        return start, (start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    return None
+
+
+@dataclass(frozen=True)
+class CampusDetail:
+    """一校一期的明細（依預約送出日、排除測試／重複）。各欄位的 (字面, 筆數) 只列非 0 的。
+    名單是「家長稱呼（參觀日）」，各最多 DETAIL_NAMES_MAX 位；總數看 no_show、awaiting。"""
+
+    name: str
+    start: date
+    end: date
+    cases: int
+    channels: list[tuple[str, int]]
+    web_sources: list[tuple[str, int]]
+    completed: int
+    no_show: int
+    awaiting: int
+    upcoming: int
+    cancelled: int
+    cancel_sides: list[tuple[str, int]]
+    attendance: str
+    deposits: int
+    no_show_names: list[str]
+    awaiting_names: list[str]
+
+
+async def _detail_names(db: AsyncSession, scope: list, condition) -> list[str]:
+    rows = await db.execute(
+        select(VisitRequest.parent_name, VisitSlot.slot_date)
+        .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        .where(*scope, condition)
+        .order_by(VisitSlot.slot_date, VisitSlot.start_time, VisitRequest.created_at)
+        .limit(DETAIL_NAMES_MAX)
+    )
+    return [f"{_clean(name, 20) or NAMELESS_LABEL}（{_md(day)}）" for name, day in rows.all()]
+
+
+async def campus_detail(
+    db: AsyncSession, campus_key: str, names: dict[str, str], start: date, end: date, now: datetime | None = None
+) -> CampusDetail:
+    from app.booking.export_labels import SOURCE_LABELS, TOUCH_SOURCE_LABELS
+    from app.booking.models import VisitRequestSource
+    from app.notifications.line_flex import CANCEL_SIDE_LABELS
+
+    current = now or now_utc()
+    window = FunnelRange(start, end)
+    scope = [VisitRequest.campus_key == campus_key, *window.on(VisitRequest.created_at), exclusion.not_excluded()]
+    outcomes = await booking_outcomes_service.booking_outcomes(db, [campus_key], window, current)
+    row = outcomes["campuses"][0]
+    deposits = (await booking_outcomes_service.deposited_cases(db, [campus_key], window)).get(campus_key, 0)
+
+    by_channel = await _grouped(db, select(VisitRequest.source, func.count()).where(*scope).group_by(VisitRequest.source))
+    channels = [(label, by_channel[code]) for code, label in SOURCE_LABELS.items() if by_channel.get(code)]
+    touch = func.coalesce(VisitRequest.first_touch_source, "")
+    by_touch = await _grouped(
+        db,
+        select(touch, func.count())
+        .where(*scope, VisitRequest.source == VisitRequestSource.WEB.value)
+        .group_by(touch),
+    )
+    web_sources = [(label, by_touch[code]) for code, label in TOUCH_SOURCE_LABELS.items() if by_touch.get(code)]
+    if by_touch.get(""):
+        web_sources.append((NO_TOUCH_LABEL, by_touch[""]))
+
+    cancel_sides = [
+        (CANCEL_SIDE_LABELS.get(reason, _OTHER_CANCEL_LABEL), count)
+        for reason, count in row["cancelled_by_reason"].items()
+        if count
+    ]
+    return CampusDetail(
+        name=names.get(campus_key, campus_key),
+        start=start,
+        end=end,
+        cases=row["cases"],
+        channels=channels,
+        web_sources=web_sources,
+        completed=row["completed"],
+        no_show=row["no_show"],
+        awaiting=row["awaiting_attendance"],
+        upcoming=row["upcoming"],
+        cancelled=row["cancelled"],
+        cancel_sides=cancel_sides,
+        attendance=_rate_text(row["completed"], row["no_show"]),
+        deposits=deposits,
+        no_show_names=await _detail_names(db, scope, VisitRequest.status == VisitRequestStatus.NO_SHOW.value),
+        awaiting_names=await _detail_names(db, scope, pending_kinds.condition("awaiting_attendance", current)),
+    )
+
+
 # ---- 額度（§7，只有總部群組）----
 
 

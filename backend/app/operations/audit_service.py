@@ -126,10 +126,14 @@ NOTIFICATION_SETTINGS_ACTIONS = ("line.campus_target.update",)
 # 照樣列出（看得到「LINE 群組標記了到場」），但 metadata 的群組 ID 與按的人的 LINE userId 同上只給
 # notifications.manage：回傳時拿掉（visible_metadata），搜尋時這幾種紀錄也只比對 LINE_GROUP_SEARCH_KEYS，
 # 分校帳號不能用搜尋猜群組 ID。
-LINE_GROUP_ACTIONS = ("line.group.visit_attend", "line.group.visit_no_show", "line.group.recruitment_field")
+LINE_GROUP_ACTIONS = (
+    "line.group.visit_attend", "line.group.visit_no_show", "line.group.recruitment_field",
+    # 2026-11-27：統計異常「知道了」（notifications/line_group_report_actions.py）。
+    "line.group.stats_health_mute",
+)
 LINE_GROUP_PRIVATE_KEYS = frozenset({"group_id", "line_user_id"})
-# 上面那幾種紀錄 metadata 其餘的鍵（line_group_actions 只寫這些）；新增鍵要一起加，否則分校帳號搜不到。
-LINE_GROUP_SEARCH_KEYS = ("from_status", "to_status", "field", "value")
+# 上面那幾種紀錄 metadata 其餘的鍵（line_group_actions、line_group_report_actions 只寫這些）；新增鍵要一起加，否則分校帳號搜不到。
+LINE_GROUP_SEARCH_KEYS = ("from_status", "to_status", "field", "value", "issues", "muted_until")
 
 
 def visible_metadata(action: str, metadata: dict | None, *, show_line_ids: bool) -> dict:

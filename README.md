@@ -1,3 +1,27 @@
+## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（`feature/line-card-buttons-20261127`，未 commit、未部署）
+
+使用者問「卡片按鈕還有什麼功能可以做」，看完 12 項後挑 10、11、12（「都幫我做」）。建在 PR #148（週報、月報）之上，#148 併 main 後再併。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`。
+
+- **報表各校明細（總部群組）**：月報卡片下面多五校按鈕；週報是純文字掛不了按鈕，後面同一次推播多一張「看各校明細」小卡（LINE 照收件人數算，不多算一則）。按校名回那一校**那一期**的明細：預約筆數、進件管道、官網預約的第一次進站來源、各種結果與到場率、取消方、預繳，以及未到場、待標記的家長稱呼與參觀日（各最多 8 位）。原本提案的「按義華＝幫你打『義華 上週統計』」施工時發現週報裡已經有那一行，改成上面這份真正的明細。唯讀，沒貼過驗證碼的舊總部群組也能按。
+- **查詢切換鈕（所有群組）**：查詢結果下面掛 LINE 快速回覆，例如看完「今天參觀」直接有「明天參觀／本週參觀／待標記／今天名額」；指令前加了校名，切換鈕也帶同一個校名。只在手機 LINE 顯示，群組有人再傳訊息就收起來。選單、說明、權限不足、額度、各種推播不掛。
+- **統計異常「知道了」（總部群組）**：提醒從純文字改成卡片，兩顆按鈕：「知道了，先不提醒」（**同樣的問題 3 天內早上不再推**，第 4 天起問題還在就再推；群組看得到是誰按的）與「開成效統計」。原本提案寫「今天不再提醒」，但提醒本來就一天一次，所以改成 3 天。後台成效統計頁頂端照常顯示。只有驗證過的總部群組能按，太舊的卡片（檢查日早於 2 天前）不寫入；按了寫操作紀錄 `line.group.stats_health_mute`。
+- **範圍**：`backend/`（新 `notifications/line_group_report_actions.py`；`line.py`、`line_flex.py`、`line_group_commands.py`、`line_group_actions.py`、`line_group_reports.py`、`line_reports.py`、`operations/stats_health.py`、`audit_service.py`、`operations/models.py`）、migration `d8b3f1a6c240`（只新增一張空表 `stats_health_mutes`，不必先備份）、`admin/`（操作紀錄的動作與欄位標籤、LINE 通知頁說明）。API 契約不變，`web/` 沒動。
+- **沒驗**：快速回覆、明細卡、統計異常卡片在手機 LINE 上的樣子；快速回覆在真群組的顯示（LINE 文件寫群組支援、iOS／Android 才顯示）；postback 的 displayText 會不會另外觸發訊息事件（照前幾輪的做法，這幾句都確認不是指令）。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_cardbtn1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 後端全套 `pytest -q` | 6103 passed、1 skipped、**1 failed**（18 分鐘）：`test_operations.py` 的守門測試要求每種 LINE 群組按鈕稽核都驗過「分校帳號看不到群組 ID」，新動作沒列進去；補進測試後重跑 `test_operations.py` 26 passed，沒有再跑全套 |
+| 新測試 `test_line_card_buttons_20261127.py` | 15 passed（切換鈕每句都能被解析、日期前後一天、校名前綴、拒絕的回覆不掛；明細內容與授權、不認得的資料不回應；「知道了」暫停 3 天後恢復、不縮短、非總部／未驗證／太舊的卡片） |
+| migration `d8b3f1a6c240` 降版 → 升版、`alembic heads` | 表拿掉又建回來；只有一個 head |
+| `deploy/check_schema.py`（升版後的測試庫） | `Database schema ready: d8b3f1a6c240` |
+| `export_openapi.py --check`、`export_state_machines.py --check` | 契約與 API 一致、狀態機匯出檔一致 |
+| `npm --prefix admin run typecheck` | exit 0 |
+| admin 全套 `npx vitest run --maxWorkers=2` | 210 檔、3909 passed、1 skipped（含新的 `lineCardButtons20261127.test.ts` 2 條） |
+
+沒跑：`web/` 的測試（沒動）、stack e2e、真 LINE 群組。
+
 ## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。

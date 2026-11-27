@@ -348,9 +348,11 @@ async def test_health_alert_goes_to_hq_groups_that_opted_in_once_a_day(line_app,
     assert len(fake_line.pushes) == 1
     push = fake_line.pushes[0]["body"]
     assert push["to"] == OTHER_GROUP
-    text = push["messages"][0]["text"]
-    assert text.startswith(f"官網統計可能有狀況（{yesterday.month}/{yesterday.day}")
-    assert "內容興趣只記到 0 次" in text
+    # 2026-11-27 起是卡片（「知道了」與「開成效統計」兩顆按鈕，tests/test_line_card_buttons_20261127.py）。
+    message = push["messages"][0]
+    assert message["type"] == "flex"
+    assert message["altText"].startswith(f"官網統計可能有狀況（{yesterday.month}/{yesterday.day}")
+    assert "內容興趣只記到 0 次" in json.dumps(message["contents"], ensure_ascii=False)
     async with line_app.state.session_factory() as db:
         assert (await db.execute(select(StatsHealthRun.target_id))).scalars().all() == [OTHER_GROUP]
 

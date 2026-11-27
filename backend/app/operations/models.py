@@ -448,3 +448,14 @@ class StatsHealthRun(Base):
     )
     day: Mapped[date] = mapped_column(Date, primary_key=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StatsHealthMute(Base):
+    """總部群組在統計異常卡片按了「知道了」（2026-11-27，docs/specs/2026-11-27-line-card-buttons-design.md §4）：
+    這種問題到 muted_until（含）為止不推 LINE。暫停的是問題，不是群組；後台成效統計頁照常顯示。"""
+
+    __tablename__ = "stats_health_mutes"
+
+    issue_key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    muted_until: Mapped[date] = mapped_column(Date, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

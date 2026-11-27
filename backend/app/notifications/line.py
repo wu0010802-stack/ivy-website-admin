@@ -148,6 +148,20 @@ def flex_message(alt_text: str, contents: dict) -> dict:
     return {"type": "flex", "altText": alt_text[:MAX_ALT_TEXT], "contents": contents}
 
 
+QUICK_REPLY_MAX = 13
+QUICK_REPLY_LABEL_MAX = 20
+
+
+def with_quick_reply(message: dict, texts: list[str]) -> dict:
+    """在訊息上掛快速回覆（2026-11-27）：每顆按了以按的人的名義送出那句字。文字、卡片都能掛；
+    LINE 只在 iOS／Android 顯示，群組有人再傳訊息就收起來。上限 13 顆、字面 20 字；沒有字就原樣回傳。"""
+    items = [
+        {"type": "action", "action": {"type": "message", "label": text[:QUICK_REPLY_LABEL_MAX], "text": text}}
+        for text in dict.fromkeys(texts)
+    ][:QUICK_REPLY_MAX]
+    return {**message, "quickReply": {"items": items}} if items else message
+
+
 @dataclass(frozen=True)
 class Quota:
     """這個月的訊息額度。limit 為 None＝沒有上限（LINE 回 type none）。used 是 LINE 給的近似值。"""
