@@ -48,24 +48,24 @@ async function moveTo(wrapper: VueWrapper, id: string, label: string) {
 }
 
 describe('看板：四欄、摘要列、卡片（規格第 10 節）', () => {
-  it('四欄標題與張數；比率名稱在前、附分子分母，用各欄目前張數相除，分母 0 寫「預繳率 —」', async () => {
+  // 2026-11-27 使用者裁定：比率改成和招生統計同一套（後端 rates：預繳 ÷ 參觀、註冊 ÷ 預繳，母體是這一學年學期
+  // 的全部訪視），名稱也照招生統計；不再用各欄目前張數相除、不再寫「算法不同」，退費率招生統計沒有、拿掉。
+  it('四欄標題與張數；比率和招生統計同一套、名稱在前附分子分母，分母 0 寫「—」', async () => {
     mockGet({
       '/admin/admissions/board': board({
         visited: [card(), card({ id: 'v-2', child_name: '李小樂', has_visit_request: true })],
         deposited: [card({ id: 'v-3', child_name: '張小晴', provisional_grade: '中班' })],
-      }),
+      }, { rates: { visit: 3, deposit: 1, enrolled: 0, visit_to_deposit_rate: 33.3, deposit_to_enrolled_rate: 0 } }),
     })
     const { wrapper } = await mountWith(FunnelBoard, { props: boardProps() })
     expect(wrapper.findAll('.funnel__column h3').map((title) => title.text())).toEqual(['已訪視', '已預繳', '已註冊', '退預繳／退註冊'])
     expect(column(wrapper, 'visited').get('.funnel__count').text()).toBe('2')
     const rates = wrapper.get('.funnel__rates').text()
-    expect(rates).toContain('預繳率 50.0%（1/2）')
-    expect(rates).toContain('註冊率 0.0%（0/1）')
-    expect(rates).toContain('退費率 —')
-    expect(rates).not.toContain('退費率 —（')
-    // 算法寫在畫面上（觸控看不到 title），公式照舊留在 title。
-    expect(wrapper.get('.funnel__toolbar').text()).toContain('依各欄目前張數相除，和「招生統計」的轉換率算法不同。')
-    expect(wrapper.get('.funnel__rate').attributes('title')).toBe('已預繳 ÷ 已訪視（各欄目前張數）')
+    expect(rates).toContain('參觀→預繳率 33.3%（1/3）')
+    expect(rates).toContain('預繳→註冊率 0.0%（0/1）')
+    expect(rates).not.toContain('退費率')
+    expect(wrapper.get('.funnel__toolbar').text()).not.toContain('算法不同')
+    expect(wrapper.get('.funnel__rate').attributes('title')).toBe('預繳 ÷ 參觀，這一學年學期的全部訪視（同招生統計）')
     // 空欄寫園務原文，不是空白。
     expect(column(wrapper, 'enrolled').text()).toContain('家長完成註冊後，把「已預繳」的卡片拖到這一欄。')
     const second = wrapper.get('.funnel-card[data-id="v-2"]').text()
@@ -369,7 +369,7 @@ describe('看板找幼生姓名（2026-10-05 招生入學評析）', () => {
     board({
       visited: [card(), card({ id: 'v-2', child_name: 'Amy 李' }), card({ id: 'v-3', child_name: '王小樂' })],
       deposited: [card({ id: 'v-4', child_name: '張小晴' })],
-    })
+    }, { rates: { visit: 4, deposit: 1, enrolled: 0, visit_to_deposit_rate: 25, deposit_to_enrolled_rate: 0 } })
   const ids = (wrapper: VueWrapper) => wrapper.findAll('.funnel-card').map((el) => el.attributes('data-id'))
 
   it('前端過濾（trim、不分大小寫）；欄標題寫符合數/總數，沒有符合的欄不寫園務空狀態；比率用全部張數', async () => {
@@ -385,7 +385,7 @@ describe('看板找幼生姓名（2026-10-05 招生入學評析）', () => {
     expect(column(wrapper, 'deposited').text()).toContain('沒有符合「amy」的卡片')
     expect(column(wrapper, 'enrolled').text()).toContain('沒有符合「amy」的卡片')
     expect(column(wrapper, 'enrolled').text()).not.toContain('家長完成註冊後')
-    expect(wrapper.get('.funnel__rates').text()).toContain('預繳率 33.3%（1/3）')
+    expect(wrapper.get('.funnel__rates').text()).toContain('參觀→預繳率 25.0%（1/4）')
     expect(wrapper.text()).toContain('符合「amy」的卡片共 1 張')
     // 過濾只在前端，不重讀看板。
     expect(pathsTo(get, '/admin/admissions/board')).toHaveLength(1)

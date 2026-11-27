@@ -13590,6 +13590,9 @@
           "columns": {
             "$ref": "#/components/schemas/FunnelColumnsOut"
           },
+          "rates": {
+            "$ref": "#/components/schemas/FunnelRatesOut"
+          },
           "school_year": {
             "title": "School Year",
             "type": "integer"
@@ -13612,6 +13615,7 @@
         },
         "required": [
           "columns",
+          "rates",
           "unscoped_count",
           "campus_key",
           "school_year",
@@ -13817,6 +13821,54 @@
           "counts"
         ],
         "title": "FunnelEntryOut",
+        "type": "object"
+      },
+      "FunnelRatesOut": {
+        "description": "看板上方的比率，和招生統計同一套（2026-11-27）：母體是看板這一學年學期的全部訪視，\n預繳＝has_deposit（退出會清掉）、註冊＝enrolled；比率到小數一位，分母 0 為 null。",
+        "properties": {
+          "deposit": {
+            "title": "Deposit",
+            "type": "integer"
+          },
+          "deposit_to_enrolled_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deposit To Enrolled Rate"
+          },
+          "enrolled": {
+            "title": "Enrolled",
+            "type": "integer"
+          },
+          "visit": {
+            "title": "Visit",
+            "type": "integer"
+          },
+          "visit_to_deposit_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Visit To Deposit Rate"
+          }
+        },
+        "required": [
+          "visit",
+          "deposit",
+          "enrolled",
+          "visit_to_deposit_rate",
+          "deposit_to_enrolled_rate"
+        ],
+        "title": "FunnelRatesOut",
         "type": "object"
       },
       "FunnelReferralOut": {
@@ -18291,6 +18343,14 @@
             "title": "Paths Total",
             "type": "integer"
           },
+          "probe_hits": {
+            "title": "Probe Hits",
+            "type": "integer"
+          },
+          "probe_paths": {
+            "title": "Probe Paths",
+            "type": "integer"
+          },
           "since": {
             "format": "date",
             "title": "Since",
@@ -18315,6 +18375,8 @@
           "until",
           "paths_total",
           "totals",
+          "probe_hits",
+          "probe_paths",
           "paths",
           "as_of"
         ],
@@ -40046,6 +40108,25 @@
               ],
               "description": "檔名、圖片說明、內部備註或標籤片段",
               "title": "Q"
+            }
+          },
+          {
+            "description": "和 q 一起用：名稱含搜尋字的內容種類代號（逗號分隔，後台依中文名稱換算），用在這些內容最新一版的素材也算符合；沒有 q 時不作用",
+            "in": "query",
+            "name": "q_used_in",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "和 q 一起用：名稱含搜尋字的內容種類代號（逗號分隔，後台依中文名稱換算），用在這些內容最新一版的素材也算符合；沒有 q 時不作用",
+              "title": "Q Used In"
             }
           },
           {

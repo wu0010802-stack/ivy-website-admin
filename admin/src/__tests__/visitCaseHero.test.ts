@@ -52,6 +52,42 @@ describe('案件頁首（2026-10-06 方向 C）', () => {
     expect(wrapper.get('h2.detail__title').text()).toBe('林小姐')
   })
 
+  // 2026-11-27 後台 QA／TA：園長多半在手機上看案件，參觀前最常做的是打給家長；原本最大顆的是淡色的
+  // 「家長提早到了」，撥號只是一行小字。手機上還沒開始的案件，撥號改成整排的主鈕、放在它前面。
+  it('手機上還沒開始的案件：撥號是整排主鈕、排在「家長提早到了」前面；桌機與場次進行中照舊', async () => {
+    const order = (wrapper: Awaited<ReturnType<typeof mountDetail>>) =>
+      [...wrapper.get('.case-hero__side').element.querySelectorAll('a.detail__call, .case-hero__actions')]
+        .map(el => (el.classList.contains('detail__call') ? 'call' : 'actions'))
+    const narrow = (matches: boolean) => vi.stubGlobal('matchMedia', (query: string) => ({ matches, media: query, addEventListener: () => {}, removeEventListener: () => {} }))
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-10-03T02:00:00Z')) // 台北 10/3，參觀在 10/6
+
+    narrow(true)
+    const phone = await mountDetail(visitCase({ slot: today, slot_id: today.id }))
+    const lead = phone.get('a.detail__call')
+    expect(lead.text()).toBe('撥號給家長')
+    expect(lead.classes()).toContain('el-button--primary')
+    expect(lead.classes()).not.toContain('is-link')
+    expect(lead.attributes('href')).toBe('tel:0912000001')
+    expect(order(phone)).toEqual(['call', 'actions'])
+    expect(phone.get('.case-hero__actions').text()).toContain('家長提早到了')
+    cleanup()
+
+    narrow(false)
+    const desktop = await mountDetail(visitCase({ slot: today, slot_id: today.id }))
+    expect(desktop.get('a.detail__call').text()).toBe('撥號')
+    expect(desktop.get('a.detail__call').classes()).toContain('is-link')
+    expect(order(desktop)).toEqual(['actions', 'call'])
+    cleanup()
+
+    narrow(true)
+    vi.setSystemTime(new Date('2026-10-06T02:30:00Z')) // 台北 10:30，場次進行中：主鈕是「家長到了」
+    const live = await mountDetail(visitCase({ slot: today, slot_id: today.id }))
+    expect(live.get('a.detail__call').classes()).toContain('is-link')
+    expect(order(live)).toEqual(['actions', 'call'])
+    vi.unstubAllGlobals()
+  })
+
   // 2026-11-12 QA L15：家長稱呼、孩子姓名是園方或家長自己填的，可能是一長串沒有空格的字，390px 寬會把頁面撐出橫向捲軸。
   // jsdom 不排版，沒辦法量 scrollWidth；這裡確認字整串照樣顯示（不用省略號吃掉姓名），並且標題、
   // 送出資訊、最後處理這些會放使用者輸入的行都有 min-width: 0 與 overflow-wrap: anywhere（真正的 scrollWidth 用瀏覽器量過）。

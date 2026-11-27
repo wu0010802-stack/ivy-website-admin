@@ -8863,6 +8863,7 @@ export interface components {
             /** Campus Key */
             campus_key: string;
             columns: components["schemas"]["FunnelColumnsOut"];
+            rates: components["schemas"]["FunnelRatesOut"];
             /** School Year */
             school_year: number;
             /** Semester */
@@ -8925,6 +8926,23 @@ export interface components {
             };
             /** Entry */
             entry: string;
+        };
+        /**
+         * FunnelRatesOut
+         * @description 看板上方的比率，和招生統計同一套（2026-11-27）：母體是看板這一學年學期的全部訪視，
+         *     預繳＝has_deposit（退出會清掉）、註冊＝enrolled；比率到小數一位，分母 0 為 null。
+         */
+        FunnelRatesOut: {
+            /** Deposit */
+            deposit: number;
+            /** Deposit To Enrolled Rate */
+            deposit_to_enrolled_rate: number | null;
+            /** Enrolled */
+            enrolled: number;
+            /** Visit */
+            visit: number;
+            /** Visit To Deposit Rate */
+            visit_to_deposit_rate: number | null;
         };
         /** FunnelReferralOut */
         FunnelReferralOut: {
@@ -10415,6 +10433,10 @@ export interface components {
             paths: components["schemas"]["NotFoundPathOut"][];
             /** Paths Total */
             paths_total: number;
+            /** Probe Hits */
+            probe_hits: number;
+            /** Probe Paths */
+            probe_paths: number;
             /**
              * Since
              * Format: date
@@ -18186,6 +18208,8 @@ export interface operations {
                 tag?: string | null;
                 /** @description 檔名、圖片說明、內部備註或標籤片段 */
                 q?: string | null;
+                /** @description 和 q 一起用：名稱含搜尋字的內容種類代號（逗號分隔，後台依中文名稱換算），用在這些內容最新一版的素材也算符合；沒有 q 時不作用 */
+                q_used_in?: string | null;
                 /** @description active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理 */
                 state?: "active" | "archived" | "deleted";
                 /** @description __shared＝只列跨校共用；校區代號＝只列那一校（看不到的校區沒有結果）；不帶＝看得到的全部 */

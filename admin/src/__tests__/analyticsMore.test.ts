@@ -133,7 +133,7 @@ describe('統計健康檢查', () => {
 describe('找不到的網址與爬蟲', () => {
   it('找不到的網址：訪客與爬蟲分開數，訪客從哪裡來寫白話', async () => {
     const data: NotFoundSummary = {
-      days: 28, since: '2026-11-13', until: '2026-11-20', paths_total: 2, as_of: '',
+      days: 28, since: '2026-11-13', until: '2026-11-20', paths_total: 2, as_of: '', probe_hits: 0, probe_paths: 0,
       totals: [{ ref: 'none', hits: 1 }, { ref: 'internal', hits: 0 }, { ref: 'search', hits: 2 }, { ref: 'external', hits: 0 }, { ref: 'crawler', hits: 4 }],
       paths: [{ path: '/blank-1', hits: 7, visitor_hits: 3, last_day: '2026-11-19', refs: [{ ref: 'search', hits: 2 }, { ref: 'none', hits: 1 }, { ref: 'crawler', hits: 4 }] }],
     }
@@ -144,6 +144,28 @@ describe('找不到的網址與爬蟲', () => {
     expect(row).toContain('/blank-1')
     expect(row).toContain('搜尋引擎 2')
     expect(row).toContain('11/19')
+    expect(wrapper.find('[data-test="not-found-probes"]').exists()).toBe(false)
+  })
+
+  // 2026-11-27 後台 QA：掃描程式試探 /.env 之類網址，後端已從名單排除；畫面一句話說明、不叫人處理。
+  it('掃描程式的試探另寫一句，說明已排除、不用處理；只有試探時也講', async () => {
+    const data: NotFoundSummary = {
+      days: 28, since: '2026-11-13', until: '2026-11-27', paths_total: 1, as_of: '', probe_hits: 5, probe_paths: 4,
+      totals: [{ ref: 'none', hits: 2 }, { ref: 'crawler', hits: 4 }],
+      paths: [{ path: '/副本-2025冬令營', hits: 6, visitor_hits: 2, last_day: '2026-11-25', refs: [{ ref: 'none', hits: 2 }, { ref: 'crawler', hits: 4 }] }],
+    }
+    const { wrapper } = await mountWith(NotFoundPanel, data, { days: 28 })
+    const probes = wrapper.get('[data-test="not-found-probes"]').text()
+    expect(probes).toContain('5 次')
+    expect(probes).toContain('/.env')
+    expect(probes).toContain('不用處理')
+    expect(wrapper.get('[data-test="not-found-paths"]').text()).not.toContain('/.env')
+    vi.restoreAllMocks()
+
+    const onlyProbes: NotFoundSummary = { ...data, paths_total: 0, totals: [], paths: [], probe_hits: 2, probe_paths: 2 }
+    const empty = (await mountWith(NotFoundPanel, onlyProbes, { days: 28 })).wrapper
+    expect(empty.find('[data-test="not-found-empty"]').exists()).toBe(true)
+    expect(empty.get('[data-test="not-found-probes"]').text()).toContain('2 次')
   })
 
   it('爬蟲依類別分組，AI 即時來讀的另外寫出來', async () => {
@@ -164,7 +186,7 @@ describe('找不到的網址與爬蟲', () => {
 
   it('2026-11-20 可讀性：兩張表的次數加千分位', async () => {
     const missing: NotFoundSummary = {
-      days: 28, since: '2026-11-13', until: '2026-11-20', paths_total: 1, as_of: '',
+      days: 28, since: '2026-11-13', until: '2026-11-20', paths_total: 1, as_of: '', probe_hits: 0, probe_paths: 0,
       totals: [{ ref: 'search', hits: 1021 }, { ref: 'crawler', hits: 13400 }],
       paths: [{ path: '/blank-1', hits: 14421, visitor_hits: 1021, last_day: '2026-11-19', refs: [{ ref: 'search', hits: 1021 }, { ref: 'crawler', hits: 13400 }] }],
     }

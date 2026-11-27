@@ -48,6 +48,33 @@
 - **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；`npm run test:website` 與 stack e2e 沒跑（沒動 `web/`；e2e 由 CI 跑）；真後端登入後的畫面與正式站沒看；使用小技巧（`tips.ts`）裡各條「適用角色」仍是寫死的角色清單，另一個 session 正在改那一頁，這次沒動；`docs/website-admin/acceptance.md` E02 的敘述沒更新。
 - **部署時注意**：沒有 migration、不改既有資料；上線後現有帳號的權限只有一處變窄（櫃台打不到操作紀錄 API），其餘不變。要讓某位園長看統計，需總管理者到使用者頁勾選。
 
+## 2026-11-27 後台 QA／TA 修正五項（`feature/admin-qa-fixes-20261127`，未提交、未部署）
+
+同日先對正式站後台做只讀的 QA＋TA 測試（37 頁桌機＋390px，0 個 API 失敗、0 個主控台錯誤），使用者從清單挑這五項說「先幫我處理這些問題」。規則寫在 DESIGN.md 頂部「後台 QA／TA 修正五項」。
+
+- **漏斗看板比率和招生統計同一套**（使用者在選項中選定）：看板上方改成「參觀→預繳率」「預繳→註冊率」，由後端 `GET /admin/admissions/board` 新的 `rates` 算（母體同招生統計：同校、同入學學年學期的全部訪視），拿掉「和招生統計算法不同」那行與招生統計沒有的退費率。取代規格 B20「照園務、各欄目前張數相除」，和園務系統的看板因此不同。
+- **側欄搜尋收園方說法**：停課、颱風、放假、國定假日、寒暑假→參觀場次；取消預約、未到場、補登、重寄確認信→參觀案件；手機通知→我的帳號。「上傳照片」這類關鍵字在搜尋字裡的也找得到，但只在沒有直接命中時才列。使用小技巧頁搜不到時列的頁面同一套。
+- **找不到的網址排除掃描程式**：`/.env`、`/.git/config` 這類有一段以「.」開頭的路徑（`/.well-known/` 除外）不列、不算次數，表下一句話說明不用處理。後端讀取時排除，舊資料一樣適用。
+- **手機上還沒開始的案件，撥號是整排主鈕**，排在「家長提早到了」上面；桌機、預覽面板、場次進行中照舊。（QA 報告裡「手機上還顯示 ⌘／Ctrl＋Enter」是我用桌機滑鼠模擬的假象，觸控裝置本來就藏，沒改。）
+- **素材庫**：`unnamed.webp`、`facebook.jpg`、臉書數字檔名的卡片，標題改用圖片說明或「用在哪裡」，檔名放第二行；搜尋也比對用在哪裡（打「校園探索」找得到用在校園探索的照片）。
+- **範圍**：`backend/`（`operations/crawler_service.py`、`analytics_more_routes.py`、`admissions/funnel.py`、`admissions/schemas/records.py`、`media/routes.py`）、`admin/`（側欄、使用小技巧、漏斗看板、404 面板、案件頁首、素材庫）、`contracts/`（兩個回應欄位、一個查詢參數，都是新增）。沒有 migration，`web/` 沒動。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_qafix1127_test`、stack 用 `ivy_website_qaview1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 新增與改寫的測試先看到失敗再轉綠 | 後端 4 條（404 掃描 2〔含純函式 1〕、看板比率 1、素材用途搜尋 1）；admin `navSearch.test.ts` 15 條（含自查時抓到的回歸：搜分組名「參觀預約」只剩兩項，已修）、404 面板 1、撥號 1、素材 2、看板 2 條改寫 |
+| `npm --prefix admin run typecheck` | exit 0 |
+| admin 全套 `VITEST_MAX_FORKS=2 npx vitest run` | 217 檔、3976 passed、1 skipped |
+| `npm --prefix web run typecheck` | exit 0（2 條 `Duplicated imports "MediaImage"` 警告是既有的，`web/` 沒動） |
+| `npm run test:website` | 171 檔、2591 passed |
+| `npm run contract:check` | 契約、狀態機、型別都一致 |
+| stack e2e `visit-schedule`、`media.spec`、`admissions-flow`、`visual` | 15 passed（含 macOS 視覺基準） |
+| 暫時的 stack 檢查腳本（跑完已刪）：真後端造資料後截圖 1440 與 390 | 看板 50.0%（2/4）＝招生統計 KPI；404 表只剩舊網址、多一句掃描說明；側欄五個詞都命中對的頁；手機撥號鈕 44px 高、在「家長提早到了」上方，觸控下快捷鍵提示不顯示；素材卡片標題與「校園探索」搜尋正確。截圖在 `output/qa-fixes-20261127/` |
+| 後端全套 `pytest -q` | 6144 passed、1 skipped（13 分 43 秒） |
+
+沒驗：iPhone 實機、正式站資料下的畫面；其他角色（校區管理者看漏斗看板、櫃台）的實際登入畫面只靠單元測試。
+
 ## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。

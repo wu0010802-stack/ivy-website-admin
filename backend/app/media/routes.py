@@ -35,7 +35,7 @@ from app.content.registry import managed_as_shared
 from app.media import jobs as media_jobs
 from app.media import references as media_references
 from app.media import service
-from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaVariant, VariantKind
+from app.media.models import MediaAsset, MediaKind, MediaStatus, MediaUsage, MediaVariant, VariantKind
 from app.media.schemas import (
     MediaAssetOut,
     MediaAssetPageOut,
@@ -428,6 +428,12 @@ async def list_media(
     request: Request,
     tag: str | None = Query(default=None, max_length=30, description="只列有這個標籤的素材"),
     q: str | None = Query(default=None, max_length=100, description="檔名、圖片說明、內部備註或標籤片段"),
+    q_used_in: str | None = Query(
+        default=None,
+        max_length=500,
+        description="和 q 一起用：名稱含搜尋字的內容種類代號（逗號分隔，後台依中文名稱換算），"
+        "用在這些內容最新一版的素材也算符合；沒有 q 時不作用",
+    ),
     state: Literal["active", "archived", "deleted"] = Query(
         default="active", description="active＝一般素材（選圖器用這個）；archived＝已封存；deleted＝待清理"
     ),
@@ -449,7 +455,7 @@ async def list_media(
     只對這一頁的素材讀衍生檔、引用與上傳者。"""
     require_scope(current_user, "media.read")
     # 網址上的 %00 之類一路送到 PostgreSQL 會被拒收成 500；在這裡就回 422（同參觀案件列表）。
-    if any(value and has_control_chars(value) for value in (tag, q, campus)):
+    if any(value and has_control_chars(value) for value in (tag, q, q_used_in, campus)):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="篩選條件含有不允許的控制字元")
 
     # 分頁狀態＋看得到的範圍（非 super_admin 只看共用＋自己校）：state_total 與標籤選單只看這些。
@@ -483,14 +489,17 @@ async def list_media(
     if q and q.strip():
         pattern = _like_pattern(q.strip())
         tag_text = func.jsonb_array_elements_text(tags).column_valued("tag_text")
-        filters.append(
-            or_(
-                MediaAsset.original_filename.ilike(pattern, escape="\\"),
-                MediaAsset.alt_text.ilike(pattern, escape="\\"),
-                MediaAsset.caption.ilike(pattern, escape="\\"),
-                select(tag_text).where(tag_text.ilike(pattern, escape="\\")).exists(),
-            )
-        )
+        matches = [
+            MediaAsset.original_filename.ilike(pattern, escape="\\"),
+            MediaAsset.alt_text.ilike(pattern, escape="\\"),
+            MediaAsset.caption.ilike(pattern, escape="\\"),
+            select(tag_text).where(tag_text.ilike(pattern, escape="\\")).exists(),
+        ]
+        used_kinds = [kind.strip() for kind in (q_used_in or "").split(",") if kind.strip()]
+        if used_kinds:
+            # 用在哪裡（2026-11-27）：MediaUsage 是各內容最新一版的引用，和卡片上的「用在：」同一份。
+            matches.append(MediaAsset.usages.any(MediaUsage.content_kind.in_(used_kinds)))
+        filters.append(or_(*matches))
 
     total = await db.scalar(select(func.count()).select_from(MediaAsset).where(*filters)) or 0
     state_total = (

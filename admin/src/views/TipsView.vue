@@ -7,7 +7,7 @@ import { roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import TipText from '../components/TipText.vue'
 import { notifyWarning } from '../composables/notify'
-import { canEditSharedContent, canListNavItem, canOpenPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUPS } from '../router/nav'
+import { canEditSharedContent, canListNavItem, canOpenPath, NAV_GROUPS, navSearchHits, normalizeSearch, SEARCH_ONLY_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
 import {
@@ -142,19 +142,15 @@ const sectionTitle = computed(() => TIP_SECTIONS.find(section => section.key ===
 const elsewhere = computed(() => (terms.value.length ? listedTips.value.length - shownTips.value.length : 0))
 
 // 搜不到小技巧時，多半是在找某一頁（搜「廣告」「成效」）：列出側欄搜尋會給的那幾頁，直接點過去。
-// 比對規則同側欄（nav.ts 的 navItemMatchScore，整串搜尋字），只列這個帳號進得去、功能有開的；這一頁自己不列。
+// 比對規則同側欄（nav.ts 的 navSearchHits），只列這個帳號進得去、功能有開的；這一頁自己不列。
 const PAGE_HIT_LIMIT = 5
 const pageHits = computed(() => {
   const q = normalizeSearch(query.value)
   if (!q) return []
-  return [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS]
+  const items = [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS]
     .flatMap(group => group.items)
     .filter(item => item.path !== '/tips' && canListNavItem(item, auth.user, auth.features))
-    .map(item => ({ item, score: navItemMatchScore(item, q) }))
-    .filter(hit => hit.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, PAGE_HIT_LIMIT)
-    .map(hit => hit.item)
+  return navSearchHits(items, q).slice(0, PAGE_HIT_LIMIT).map(hit => hit.item)
 })
 
 // 搜尋結果的數量給報讀器念（畫面上看得到清單變短，報讀器聽不到）。

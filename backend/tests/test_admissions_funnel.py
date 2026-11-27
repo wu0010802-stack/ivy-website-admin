@@ -291,6 +291,31 @@ async def test_transition_audit_has_no_free_text(admin_client, db_session):
 
 
 @pytest.mark.asyncio
+async def test_board_rates_match_admissions_stats(admin_client):
+    """2026-11-27 使用者裁定：看板的比率改成和招生統計同一套（預繳 ÷ 參觀、註冊 ÷ 預繳，母體是這一學年學期
+    的全部訪視），不再用各欄目前張數相除（規格 B20 的園務算法）。退出會清掉 has_deposit，所以不算預繳。"""
+    for name in ("訪1", "訪2", "訪3"):
+        await create_record(admin_client, child_name=name)
+    await record_at_stage(admin_client, "deposited", child_name="預")
+    await record_at_stage(admin_client, "enrolled", child_name="註")
+    await record_at_stage(admin_client, "withdrawn", child_name="退")
+
+    board = (await admin_client.get(f"{ADMISSIONS}/board?campus_key=yihua&school_year=115&semester=1")).json()
+    stats = await admin_client.get(f"{ADMISSIONS}/stats?campus_key=yihua&school_year=115&semester=1")
+    assert stats.status_code == 200, stats.text
+    kpi = stats.json()["kpi"]
+    assert board["rates"] == {
+        "visit": kpi["visit"], "deposit": kpi["deposit"], "enrolled": kpi["enrolled"],
+        "visit_to_deposit_rate": kpi["visit_to_deposit_rate"], "deposit_to_enrolled_rate": kpi["deposit_to_enrolled_rate"],
+    }
+    assert board["rates"] == {
+        "visit": 6, "deposit": 2, "enrolled": 1, "visit_to_deposit_rate": 33.3, "deposit_to_enrolled_rate": 50.0,
+    }
+    empty = (await admin_client.get(f"{ADMISSIONS}/board?campus_key=minghua&school_year=115")).json()
+    assert empty["rates"] == {"visit": 0, "deposit": 0, "enrolled": 0, "visit_to_deposit_rate": None, "deposit_to_enrolled_rate": None}
+
+
+@pytest.mark.asyncio
 async def test_board_reports_applied_filters_and_as_of(admin_client):
     """F4：看板帶實際套用的校區、學年學期與資料時間（UTC）。"""
     before = datetime.now(timezone.utc)
