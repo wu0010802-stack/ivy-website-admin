@@ -73,6 +73,8 @@ class CycleResult:
     # 成效統計（2026-11-20）：每月彙總重算了幾個月、統計異常推了幾則。
     months_rolled_up: int = 0
     stats_alerts_sent: int = 0
+    # 總部 LINE 群組的週報／月報推了幾則（2026-11-26）。
+    reports_sent: int = 0
     rate_limit_rows_purged: int = 0
     ad_conversions_sent: int = 0
     ad_conversions_failed: int = 0
@@ -102,6 +104,7 @@ class CycleResult:
                 self.notifications_skipped,
                 self.months_rolled_up,
                 self.stats_alerts_sent,
+                self.reports_sent,
                 self.rate_limit_rows_purged,
                 self.media_purged,
                 self.audit_client_info_cleared,
@@ -270,6 +273,15 @@ async def _run_steps(
         except Exception:  # noqa: BLE001
             logger.exception("定期工作：統計健康檢查推播失敗")
             result.failed_steps.append("stats_health")
+        # 總部群組的週報（週一）、月報（1 日）（2026-11-26，app/notifications/line_reports.py）：09:00–12:00 推一次。
+        try:
+            from app.notifications import line_reports
+
+            async with session_factory() as db:
+                result.reports_sent = await line_reports.send_due_reports(db, line_client=digest_line)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：週報／月報推播失敗")
+            result.failed_steps.append("line_reports")
         finally:
             await digest_line.aclose()
 

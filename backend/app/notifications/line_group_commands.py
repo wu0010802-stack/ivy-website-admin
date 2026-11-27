@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.common import ratelimit
 from app.common.timezones import today_local
 from app.notifications import line as line_api
-from app.notifications import line_digest, line_flex
+from app.notifications import line_digest, line_flex, line_reports
 from app.notifications import line_group_reports as reports
 from app.notifications.line_group_settings import campuses_served, is_hq_group
 
@@ -67,6 +67,10 @@ _FULL = _spread({
     ("本月統計", "這個月統計"): Command("stats", "month"),
     ("上月統計", "上個月統計"): Command("stats", "last_month"),
     ("額度",): Command("quota"),
+    # 2026-11-26：週報、月報（總部群組）、官網電話與 LINE 按鈕的點擊。
+    ("週報", "周報"): Command("weekly_report"),
+    ("月報",): Command("monthly_report"),
+    ("今天聯絡", "今日聯絡", "昨天聯絡", "昨日聯絡"): Command("contact"),
     ("指令", "指令說明"): Command("help"),
 })
 # 短字：只有標記官方帳號（或手打 @）時才認，避免日常閒聊誤觸。
@@ -78,14 +82,15 @@ _SHORT = _spread({
     ("名額",): Command("seats", "next7"),
     ("休假", "停課"): Command("closures"),
     ("統計",): Command("stats", "week"),
+    ("聯絡",): Command("contact"),
     ("說明", "幫助", "help"): Command("help"),
 })
 # 可以在前面加校名的指令；額度、說明、選單與校區無關。
-_CAMPUS_KINDS = frozenset({"visits", "awaiting", "follow_up", "seats", "closures", "todo", "stats"})
+_CAMPUS_KINDS = frozenset({"visits", "awaiting", "follow_up", "seats", "closures", "todo", "stats", "contact"})
 # 訊息裡有這些字才值得查校名再試「校名＋指令」（一般閒聊不必多一次查詢）。
-_CAMPUS_HINTS = ("參觀", "名額", "統計", "待標記", "未標記", "待追蹤", "休假日", "停課日", "待辦")
+_CAMPUS_HINTS = ("參觀", "名額", "統計", "待標記", "未標記", "待追蹤", "休假日", "停課日", "待辦", "聯絡")
 # 只給總部群組（後台這兩組數字限總管理者）。
-HQ_ONLY_KINDS = frozenset({"stats", "quota"})
+HQ_ONLY_KINDS = frozenset({"stats", "quota", "weekly_report", "monthly_report"})
 # 「11/28 參觀」「11/28 名額」；@官方帳號 時「11/28」也算（查參觀）。先 NFKC，所以只比對半形。
 _DAY_COMMAND = re.compile(r"([0-9]{1,2})/([0-9]{1,2})\s*(參觀|名額)")
 _DAY_SHORT = re.compile(r"([0-9]{1,2})/([0-9]{1,2})")
@@ -320,6 +325,8 @@ async def _respond(request: Request, db: AsyncSession, target_id: str, served: l
             return line_api.text_message(HQ_ONLY_TEXT)
     if kind == "quota":
         return line_api.text_message(await reports.quota_text(settings, getattr(request.app.state, "line_transport", None)))
+    if kind in ("weekly_report", "monthly_report"):
+        return await line_reports.build(db, kind)
     names = await reports.campus_names(db)
     campuses = reports.ordered(served)
     if command.campus is not None:
@@ -336,6 +343,10 @@ async def _respond(request: Request, db: AsyncSession, target_id: str, served: l
         return await _seats_reply(db, campuses, names, command.arg)
     if kind == "closures":
         return line_api.text_message(await reports.closures_text(db, campuses, names))
+    if kind == "contact":
+        # 沒帶校區的點擊只有總部群組、而且沒指定校名時才列。
+        unassigned = command.campus is None and await is_hq_group(db, target_id)
+        return line_api.text_message(await reports.contact_text(db, campuses, names, with_unassigned=unassigned))
     if kind == "todo":
         return line_api.text_message(
             await reports.todo_text(db, campuses, names, admissions_enabled=settings.admissions_enabled)

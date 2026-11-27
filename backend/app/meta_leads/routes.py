@@ -71,7 +71,7 @@ def _transport(request: Request):
 
 def _configured(request: Request, campus_key: str) -> bool:
     settings = request.app.state.settings
-    return settings.meta_leads_sync_enabled and campus_key in settings.facebook_page_ids
+    return settings.meta_leads_sync_enabled and campus_key in settings.meta_leads_page_ids
 
 
 async def _list_out(db: AsyncSession, request: Request, campus_key: str, status_filter: LeadStatus) -> MetaLeadListOut:

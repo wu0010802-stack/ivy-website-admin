@@ -149,7 +149,7 @@ async def sync_pages(
             result = PageSyncResult(campus_key)
             token: str | None = None
             try:
-                token = await graph.page_token(client, settings, page_id)
+                token = await graph.page_token(client, settings, page_id, campus_key)
                 posts = await graph.page_posts(client, settings, page_id, token)
             except graph.GraphError as exc:
                 result.error = str(exc)[:200]

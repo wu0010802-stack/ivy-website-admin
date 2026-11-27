@@ -103,9 +103,9 @@ async def purge_expired(db: AsyncSession, settings: Settings, *, now: datetime |
 
 
 async def _fetch(
-    client: httpx.AsyncClient, settings: Settings, page_id: str, since: datetime
+    client: httpx.AsyncClient, settings: Settings, page_id: str, since: datetime, campus_key: str | None = None
 ) -> tuple[list[graph.GraphLead], dict[str, str | None]]:
-    token = await graph.page_token(client, settings, page_id)
+    token = await graph.page_token(client, settings, page_id, campus_key)
     forms = await graph.leadgen_forms(client, settings, page_id, token)
     leads: list[graph.GraphLead] = []
     names: dict[str, str | None] = {}
@@ -129,7 +129,7 @@ async def sync_leads(
     一校失敗不影響其他校；設定裡不存在的校區代號略過並記警告。"""
     if not settings.meta_leads_sync_enabled:
         return []
-    pages = settings.facebook_page_ids
+    pages = settings.meta_leads_page_ids
     async with session_factory() as db:
         known = set(await db.scalars(select(Campus.key)))
         cursors = dict((await db.execute(select(MetaLeadSync.campus_key, MetaLeadSync.cursor_at))).all())
@@ -138,7 +138,7 @@ async def sync_leads(
     async with graph.new_client(transport) as client:
         for campus_key in targets:
             if campus_key not in known:
-                logger.warning("Meta 名單：WEBSITE_FACEBOOK_PAGES 裡的 %s 不是已知校區，略過", campus_key)
+                logger.warning("Meta 名單：粉專清單裡的 %s 不是已知校區，略過", campus_key)
                 continue
             page_id = pages[campus_key]
             result = LeadSyncResult(campus_key)
@@ -147,7 +147,7 @@ async def sync_leads(
             leads: list[graph.GraphLead] = []
             names: dict[str, str | None] = {}
             try:
-                leads, names = await _fetch(client, settings, page_id, since)
+                leads, names = await _fetch(client, settings, page_id, since, campus_key)
             except graph.GraphError as exc:
                 result.error = str(exc)[:200]
             now = now_utc()
