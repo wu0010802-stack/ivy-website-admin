@@ -66,7 +66,7 @@ def test_visit_list_empty_returns_text():
 def test_menu_buttons_are_message_actions_with_exact_text():
     # 2026-11-25 擴充（docs/specs/2026-11-25-line-group-commands-design.md §8）：兩顆一列，總部群組多統計與額度。
     campus = ["今天參觀", "明天參觀", "本週參觀", "下週參觀", "待標記", "待追蹤", "今天名額", "休假日", "待辦", "指令"]
-    for is_hq, expected in ((False, campus), (True, [*campus, "本週統計", "額度"])):
+    for is_hq, expected in ((False, campus), (True, [*campus, "本週統計", "額度", "週報", "月報"])):
         msg = lf.menu_message(is_hq=is_hq)
         actions = [b["action"] for b in _buttons(msg["contents"])]
         assert [(a["type"], a["text"]) for a in actions] == [("message", text) for text in expected]

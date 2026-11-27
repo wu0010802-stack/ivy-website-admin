@@ -20,12 +20,13 @@ from app.booking import exclusion, pending_kinds, slot_service
 from app.booking.attention import needs_attention_condition
 from app.booking.models import BookingConfig, VisitException, VisitRequest, VisitRequestStatus, VisitSlot
 from app.campuses.models import CAMPUS_KEYS, Campus
-from app.common.timezones import OPERATING_TZ, now_utc, today_local
+from app.common.timezones import OPERATING_TZ, local_day_bounds_utc, now_utc, today_local
 from app.config import Settings
 from app.notifications import line_accounts
 from app.notifications.line_flex import FollowUpRow
 from app.operations import booking_outcomes_service
 from app.operations.analytics_service import FunnelRange
+from app.operations.models import AnalyticsEvent, AnalyticsEventType
 
 _WEEKDAYS = "一二三四五六日"
 # LINE 文字訊息上限 5000 字；留一點空間給結尾的提示。
@@ -323,6 +324,228 @@ async def stats_text(
         lines.append("到場率 —（還沒有標記到場或未到場的）")
     else:
         lines.append(f"到場率 {rate['value']:g}%（到場 {rate['numerator']} ÷ 已標記 {rate['denominator']}）")
+    return _capped(lines)
+
+
+# ---- 週報、月報（2026-11-26，docs/specs/2026-11-26-line-group-reports-design.md §2、§3；只有總部群組）----
+
+
+def _delta(current: int, previous: int, word: str) -> str:
+    """「（前一週 9，+3）」；相同寫持平。"""
+    change = "持平" if current == previous else f"{current - previous:+d}"
+    return f"（{word} {previous}，{change}）"
+
+
+def _rate_text(completed: int, no_show: int) -> str:
+    marked = completed + no_show
+    return "—" if marked == 0 else f"{round(completed * 100 / marked)}%"
+
+
+async def visited_counts(db: AsyncSession, campuses: list[str], start: date, end: date) -> dict[str, dict[str, int]]:
+    """場次日期在 [start, end] 的參觀裡，已到場／未到場各幾筆（依參觀日；排除測試／重複案件）。"""
+    counts = {key: {"completed": 0, "no_show": 0} for key in campuses}
+    if not campuses:
+        return counts
+    rows = await db.execute(
+        select(VisitRequest.campus_key, VisitRequest.status, func.count())
+        .join(VisitSlot, VisitRequest.slot_id == VisitSlot.id)
+        .where(
+            VisitRequest.campus_key.in_(campuses),
+            VisitRequest.status.in_((VisitRequestStatus.COMPLETED.value, VisitRequestStatus.NO_SHOW.value)),
+            VisitSlot.slot_date >= start,
+            VisitSlot.slot_date <= end,
+            exclusion.not_excluded(),
+        )
+        .group_by(VisitRequest.campus_key, VisitRequest.status)
+    )
+    for key, status, count in rows.all():
+        counts[key][status] = int(count)
+    return counts
+
+
+def weekly_range(today: date) -> tuple[date, date]:
+    """上週一到上週日。"""
+    return stats_range("last_week", today)
+
+
+async def weekly_report_text(
+    db: AsyncSession, campuses: list[str], names: dict[str, str], now: datetime | None = None
+) -> str:
+    """上週統計（同 stats_text 的口徑），預約與預繳加上與前一週的差，再加一段依參觀日的到場。"""
+    current = now or now_utc()
+    start, end = weekly_range(today_local(current))
+    before = FunnelRange(start - timedelta(days=7), end - timedelta(days=7))
+    window = FunnelRange(start, end)
+    outcomes = await booking_outcomes_service.booking_outcomes(db, campuses, window, current)
+    previous = await booking_outcomes_service.booking_outcomes(db, campuses, before, current)
+    deposited = await booking_outcomes_service.deposited_cases(db, campuses, window)
+    deposited_before = await booking_outcomes_service.deposited_cases(db, campuses, before)
+    cases_before = {row["campus_key"]: row["cases"] for row in previous["campuses"]}
+
+    def line(label: str, row: dict, was: int, deposits: int, deposits_was: int) -> str:
+        return (
+            f"{label}　預約 {row['cases']}{_delta(row['cases'], was, '前一週')}｜到場 {row['completed']}"
+            f"｜未到場 {row['no_show']}｜取消 {row['cancelled']}｜待標記 {row['awaiting_attendance']}"
+            f"｜尚未參觀 {row['upcoming']}｜預繳 {deposits}{_delta(deposits, deposits_was, '前一週')}"
+        )
+
+    lines = [f"週報（{_md(start)}–{_md(end)}）", "【上週送出的預約】"]
+    for row in outcomes["campuses"]:
+        key = row["campus_key"]
+        lines.append(
+            line(names.get(key, key), row, cases_before.get(key, 0), deposited.get(key, 0), deposited_before.get(key, 0))
+        )
+    if len(campuses) > 1:
+        lines.append(
+            line(
+                "合計", outcomes["totals"], previous["totals"]["cases"],
+                sum(deposited.values()), sum(deposited_before.values()),
+            )
+        )
+    visited = await visited_counts(db, campuses, start, end)
+    lines.append("【上週實際來參觀的（依參觀日）】")
+    for key in campuses:
+        row = visited[key]
+        lines.append(
+            f"{names.get(key, key)}　到場 {row['completed']}｜未到場 {row['no_show']}"
+            f"｜到場率 {_rate_text(row['completed'], row['no_show'])}"
+        )
+    if len(campuses) > 1:
+        completed = sum(row["completed"] for row in visited.values())
+        no_show = sum(row["no_show"] for row in visited.values())
+        lines.append(f"合計　到場 {completed}｜未到場 {no_show}｜到場率 {_rate_text(completed, no_show)}")
+    return _capped(lines)
+
+
+@dataclass(frozen=True)
+class MonthlyCampus:
+    name: str
+    cases: int
+    attendance: str
+    deposits: int
+
+
+@dataclass(frozen=True)
+class MonthlyReport:
+    """月報卡片的資料（上個月，依預約送出日；到場率＝到場 ÷ 已標記，同後台）。"""
+
+    month: int
+    cases: int
+    cases_delta: str
+    attendance: str
+    attendance_before: str
+    deposits: int
+    deposits_delta: str
+    campuses: list[MonthlyCampus]
+
+
+def monthly_range(today: date) -> tuple[date, date]:
+    """整個上個月。"""
+    return stats_range("last_month", today)
+
+
+async def monthly_report(
+    db: AsyncSession, campuses: list[str], names: dict[str, str], now: datetime | None = None
+) -> MonthlyReport:
+    current = now or now_utc()
+    start, end = monthly_range(today_local(current))
+    before_start, before_end = monthly_range(start)
+    window, before = FunnelRange(start, end), FunnelRange(before_start, before_end)
+    outcomes = await booking_outcomes_service.booking_outcomes(db, campuses, window, current)
+    previous = await booking_outcomes_service.booking_outcomes(db, campuses, before, current)
+    deposited = await booking_outcomes_service.deposited_cases(db, campuses, window)
+    deposited_before = await booking_outcomes_service.deposited_cases(db, campuses, before)
+    totals, totals_before = outcomes["totals"], previous["totals"]
+    deposits = sum(deposited.values())
+    return MonthlyReport(
+        month=start.month,
+        cases=totals["cases"],
+        cases_delta=_delta(totals["cases"], totals_before["cases"], "前一個月"),
+        attendance=_rate_text(totals["completed"], totals["no_show"]),
+        attendance_before=_rate_text(totals_before["completed"], totals_before["no_show"]),
+        deposits=deposits,
+        deposits_delta=_delta(deposits, sum(deposited_before.values()), "前一個月"),
+        campuses=[
+            MonthlyCampus(
+                name=names.get(row["campus_key"], row["campus_key"]),
+                cases=row["cases"],
+                attendance=_rate_text(row["completed"], row["no_show"]),
+                deposits=deposited.get(row["campus_key"], 0),
+            )
+            for row in outcomes["campuses"]
+        ],
+    )
+
+
+# ---- 電話／LINE 點擊（2026-11-26 §4）----
+
+_CLICK_TYPES = {AnalyticsEventType.CTA_CLICK_PHONE.value: "phone", AnalyticsEventType.CTA_CLICK_LINE.value: "line"}
+NO_CAMPUS_LABEL = "不分校區"
+CONTACT_NOTE = "按了不等於真的打來或傳訊。"
+
+
+async def contact_clicks(
+    db: AsyncSession, campuses: list[str], day: date, *, with_unassigned: bool = False
+) -> dict[str | None, dict[str, int]]:
+    """那一天（台北日界線）官網上按電話鈕、LINE 鈕的次數，每校一格；同後台「電話與 LINE 的時段」的事件。
+    with_unassigned（總部群組）才算沒帶校區的事件（鍵是 None）。全是 0 的校區不回。"""
+    start, end = local_day_bounds_utc(day)
+    scope = AnalyticsEvent.campus_key.in_(campuses)
+    if with_unassigned:
+        scope = scope | AnalyticsEvent.campus_key.is_(None)
+    rows = await db.execute(
+        select(AnalyticsEvent.campus_key, AnalyticsEvent.event_type, func.count())
+        .where(
+            AnalyticsEvent.event_type.in_(tuple(AnalyticsEventType(value) for value in _CLICK_TYPES)),
+            AnalyticsEvent.created_at >= start,
+            AnalyticsEvent.created_at < end,
+            scope,
+        )
+        .group_by(AnalyticsEvent.campus_key, AnalyticsEvent.event_type)
+    )
+    clicks: dict[str | None, dict[str, int]] = {}
+    for key, event_type, count in rows.all():
+        name = _CLICK_TYPES[AnalyticsEventType(event_type).value]
+        clicks.setdefault(key, {"phone": 0, "line": 0})[name] += int(count)
+    return clicks
+
+
+def _clicks_phrase(row: dict[str, int]) -> str:
+    return f"按電話 {row['phone']} 次｜按 LINE {row['line']} 次"
+
+
+def contact_lines(clicks: dict[str | None, dict[str, int]], campuses: list[str], names: dict[str, str]) -> list[str]:
+    """每校一行（只服務一校就不寫校名）；沒有任何點擊回空的。"""
+    keys: list[str | None] = [key for key in campuses if key in clicks]
+    if None in clicks:
+        keys.append(None)
+    if not keys:
+        return []
+    if len(campuses) == 1 and keys == [campuses[0]]:
+        return [_clicks_phrase(clicks[campuses[0]])]
+    return [f"{NO_CAMPUS_LABEL if key is None else names.get(key, key)}　{_clicks_phrase(clicks[key])}" for key in keys]
+
+
+async def contact_summary(
+    db: AsyncSession, campuses: list[str], names: dict[str, str], day: date, *, with_unassigned: bool = False
+) -> str | None:
+    """每日摘要第一張卡片的那一列（昨天的點擊）；沒有點擊回 None。"""
+    lines = contact_lines(await contact_clicks(db, campuses, day, with_unassigned=with_unassigned), campuses, names)
+    return "\n".join(lines) if lines else None
+
+
+async def contact_text(
+    db: AsyncSession, campuses: list[str], names: dict[str, str], *, with_unassigned: bool = False,
+    now: datetime | None = None,
+) -> str:
+    """「聯絡」指令：今天到目前為止與昨天的點擊。"""
+    today = today_local(now or now_utc())
+    lines = ["官網的電話與 LINE 按鈕"]
+    for label, day in (("今天到目前", today), ("昨天", today - timedelta(days=1))):
+        found = contact_lines(await contact_clicks(db, campuses, day, with_unassigned=with_unassigned), campuses, names)
+        lines.append(f"【{label}（{_md(day)}）】")
+        lines += found or ["沒有人按"]
+    lines.append(CONTACT_NOTE)
     return _capped(lines)
 
 
