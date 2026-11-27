@@ -1,4 +1,4 @@
-## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（`feature/line-card-buttons-20261127`，未 commit、未部署）
+## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（PR #152，已部署 main `7eea0be8`，紀錄見 `deploy/README.md`）
 
 使用者問「卡片按鈕還有什麼功能可以做」，看完 12 項後挑 10、11、12（「都幫我做」）。建在 PR #148（週報、月報）之上，#148 併 main 後再併。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`。
 
