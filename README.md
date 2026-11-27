@@ -1,4 +1,4 @@
-## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
+## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（PR #148，已部署 main `32b55462`，紀錄見 `deploy/README.md`）
 
 使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。
 
