@@ -2,7 +2,7 @@ import { createClientErrorReporter, postClientError } from '#shared/client-error
 
 // 官網的前端錯誤回報（2026-11-05，規則與流程見 shared/client-error.ts）：window 的 error 與 unhandledrejection、
 // Vue 的 vue:error 與 Nuxt 的 app:error。每次頁面載入最多送 5 筆、同一個錯誤只送一次；瀏覽器擴充套件、
-// ResizeObserver、AbortError、部署換檔名造成的 chunk 載入失敗不送。
+// ResizeObserver、AbortError、部署換檔名造成的 chunk 載入失敗、App 內建瀏覽器（FB）注入腳本的 Java 橋接錯誤不送。
 // 不因 DNT／GPC 停用：回報裡沒有任何識別資訊（路徑只留 pathname、訊息與堆疊先遮蔽過），屬營運必要。
 export default defineNuxtPlugin((nuxtApp) => {
   const config = useRuntimeConfig()

@@ -132,8 +132,10 @@ const EXTENSION_MARKERS = ['chrome-extension://', 'moz-extension://', 'safari-ex
 const CHUNK_LOAD_MESSAGE = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i
 // 連不上伺服器（離線、換網路、部署重啟）時 fetch 的訊息，三家瀏覽器各一種；API 的 5xx 由後端記。
 const NETWORK_FAILURE_MESSAGE = /^(?:TypeError:\s*)?(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?|The network connection was lost\.?|The Internet connection appears to be offline\.?)$/i
+// App 內建瀏覽器（FB 的 iabjs://）注入腳本的 Android Java 橋接錯誤；理由與「看訊息不看 iabjs://」見 web/shared/client-error.ts。
+const JAVA_BRIDGE_MESSAGE = /Java object is gone|Java exception was raised during method invocation/i
 
-/** 官網那組忽略規則（擴充套件、ResizeObserver、無堆疊的 Script error、AbortError、chunk 載入失敗、連不上伺服器）。 */
+/** 官網那組忽略規則（擴充套件、ResizeObserver、無堆疊的 Script error、AbortError、chunk 載入失敗、連不上伺服器、Java 橋接）。 */
 export function shouldIgnoreError(error: RawError): boolean {
   const haystack = `${error.stack ?? ''}\n${error.filename ?? ''}`
   if (EXTENSION_MARKERS.some((marker) => haystack.includes(marker))) return true
@@ -142,6 +144,7 @@ export function shouldIgnoreError(error: RawError): boolean {
   if (!error.stack && /^Script error\.?$/i.test(message.trim())) return true
   if (error.kind === 'AbortError' || /\bAbortError\b/.test(message)) return true
   if (CHUNK_LOAD_MESSAGE.test(message)) return true
+  if (JAVA_BRIDGE_MESSAGE.test(message)) return true
   return NETWORK_FAILURE_MESSAGE.test(message.trim())
 }
 

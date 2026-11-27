@@ -161,6 +161,10 @@ const CHUNK_LOAD_MESSAGE = /Failed to fetch dynamically imported module|Importin
 // 連不上伺服器（離線、換網路、部署重啟那幾秒）時 fetch 丟的訊息：Chrome／Firefox／Safari 各一種寫法，
 // 不是程式錯誤、也沒有可行動資訊；API 本身的 5xx 由後端記。
 const NETWORK_FAILURE_MESSAGE = /^(?:TypeError:\s*)?(?:Failed to fetch|Load failed|NetworkError when attempting to fetch resource\.?|The network connection was lost\.?|The Internet connection appears to be offline\.?)$/i
+// Android WebView 的 Java 橋接（@JavascriptInterface）錯誤，2026-11-27：官網不註冊任何橋接，這只會來自 App 內建瀏覽器
+// 自己注入的腳本——FB 內建瀏覽器（UA 含 FB_IAB）的 iabjs:// 在使用者關掉它或切到背景、原生物件已回收時呼叫
+// postMessage 就會丟。看訊息不看 iabjs://：注入腳本也會包住頁面的事件，我們自己的錯誤堆疊下層可能有 iabjs frame。
+const JAVA_BRIDGE_MESSAGE = /Java object is gone|Java exception was raised during method invocation/i
 
 export interface RawClientError {
   kind: string
@@ -170,7 +174,7 @@ export interface RawClientError {
   filename?: string
 }
 
-/** 不是我們的程式出錯、或沒有可行動資訊的錯誤：瀏覽器擴充套件、無堆疊的跨來源 Script error、AbortError、部署換檔名造成的 chunk 載入失敗。 */
+/** 不是我們的程式出錯、或沒有可行動資訊的錯誤：瀏覽器擴充套件、無堆疊的跨來源 Script error、AbortError、部署換檔名造成的 chunk 載入失敗、App 內建瀏覽器的 Java 橋接錯誤。 */
 export function shouldIgnoreClientError(error: RawClientError): boolean {
   const haystack = `${error.stack ?? ''}\n${error.filename ?? ''}`
   if (EXTENSION_MARKERS.some((marker) => haystack.includes(marker))) return true
@@ -180,6 +184,7 @@ export function shouldIgnoreClientError(error: RawClientError): boolean {
   if (error.kind === 'AbortError' || /\bAbortError\b/.test(message)) return true
   if (CHUNK_LOAD_MESSAGE.test(message)) return true
   if (NETWORK_FAILURE_MESSAGE.test(message.trim())) return true
+  if (JAVA_BRIDGE_MESSAGE.test(message)) return true
   return false
 }
 
