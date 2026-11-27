@@ -1,6 +1,6 @@
 // 頁首「使用小技巧」從哪一頁點，就先打開那一頁相關的分類（2026-11-20）。
 // 單獨一個小檔：頁首每一頁都會載入，不能為了這張對照表把 tips.ts 的全部內容拉進主程式。
-// 對不到的頁面（總覽、系統類）回 null，打開全部。
+// 對不到的頁面（總覽、各校預約方式、個資設定、聯絡片語）回 null，打開全部。
 
 import type { TipSectionKey } from './tips'
 
@@ -14,6 +14,13 @@ const PREFIXES: [string, TipSectionKey][] = [
   ['/releases', 'content'],
   ['/users', 'account'],
   ['/account', 'account'],
+  // 2026-11-27 補：廣告名單、編班（同招生入學）以外，系統類各頁對到「統計與系統」。
+  ['/meta-leads', 'visits'],
+  ['/notifications', 'visits'],
+  ['/analytics', 'system'],
+  ['/audit', 'system'],
+  ['/system-status', 'system'],
+  ['/line-notifications', 'system'],
 ]
 
 export function tipSectionForPath(path: string): TipSectionKey | null {

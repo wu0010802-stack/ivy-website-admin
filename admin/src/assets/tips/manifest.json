@@ -3,6 +3,10 @@
     "height": 65,
     "width": 260
   },
+  "audit-more": {
+    "height": 112,
+    "width": 1100
+  },
   "calendar-day": {
     "height": 231,
     "width": 1100
@@ -16,8 +20,8 @@
     "width": 550
   },
   "dashboard-today": {
-    "height": 294,
-    "width": 792
+    "height": 303,
+    "width": 749
   },
   "focus": {
     "height": 428,
@@ -72,12 +76,16 @@
     "width": 672
   },
   "search": {
-    "height": 246,
+    "height": 135,
     "width": 260
   },
   "sidebar-rail": {
     "height": 229,
     "width": 148
+  },
+  "site-switches": {
+    "height": 444,
+    "width": 542
   },
   "slot-usage": {
     "height": 342,
@@ -124,7 +132,7 @@
     "width": 1100
   },
   "visit-slot-card": {
-    "height": 465,
+    "height": 445,
     "width": 387
   }
 }
