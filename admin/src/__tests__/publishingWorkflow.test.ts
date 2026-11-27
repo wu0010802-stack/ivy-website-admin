@@ -19,7 +19,7 @@ import { lengthHintText, LENGTH_HINTS, textLength } from '../composables/content
 import { useCampusContent } from '../composables/useCampusContent'
 import { useAuthStore } from '../stores/auth'
 import { useOpenRequestsStore } from '../stores/openRequests'
-import { navItem } from '../router/nav'
+import { canSeeNavItem, navItem } from '../router/nav'
 import type { UserOut } from '../api/types'
 import { testUser } from './fixtures'
 import CampusSelect from '../components/CampusSelect.vue'
@@ -403,7 +403,9 @@ describe('發布紀錄頁（第 56 條）', () => {
   it('側欄在官網內容區有「發布紀錄」，看得到內容的角色都能進', () => {
     const item = navItem('releases')!
     expect(item.path).toBe('/releases')
-    expect(item.roles).toEqual(['super_admin', 'campus_admin', 'editor', 'readonly'])
+    expect(item.capability).toBe('content.browse')
+    for (const role of ['super_admin', 'campus_admin', 'editor', 'readonly'] as const) expect(canSeeNavItem(item, testUser(role))).toBe(true)
+    expect(canSeeNavItem(item, testUser('reception'))).toBe(false)
   })
 
   it('列出每次發布換掉的內容與版本；總管理者可以整站還原，帶上目前版本', async () => {

@@ -1172,7 +1172,7 @@ async def get_audit_log_actors(
 ) -> list[AuditActorOut]:
     """這個範圍內出現過的操作者（最近操作的在前，最多 200 個）。權限同操作紀錄列表：只列紀錄裡本來就看得到的人。"""
     if campus_key:
-        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        require_scope(current_user, "audit.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
     rows = await audit_service.list_actors(db, campus_key, hide_actions=_hidden_audit_actions(current_user))
@@ -1205,7 +1205,7 @@ async def get_audit_log(
 ) -> list[AuditLogEntryOut]:
     """新的在前，一次最多 limit 筆；要更早的就帶上一頁最後一筆的 before／before_id。"""
     if campus_key:
-        require_scope(current_user, "booking.read", campus_keys=[campus_key])
+        require_scope(current_user, "audit.read", campus_keys=[campus_key])
     else:
         require_scope(current_user, "audit.read_all")
     actor_filter = _actor_filter(actor)

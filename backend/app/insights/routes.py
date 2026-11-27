@@ -1,7 +1,7 @@
 """後台成效統計的兩個外部數據（docs/specs/2026-11-12-external-integrations-design.md §3、§4）：
 Google Search Console 搜尋成效與 CrUX 真實使用者速度。
 
-權限同成效統計其他全站數據：admissions.stats（總管理者）。沒設定回 {configured: false}；
+權限同成效統計其他全站數據：admissions.stats_site（總管理者；不跟著招生統計授權出去）。沒設定回 {configured: false}；
 Google 失敗回 {configured: true, error: "<步驟>（HTTP n）"}，只帶步驟與狀態碼，不帶 Google 的回應內容。"""
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ async def get_search_insights(
     db: AsyncSession = Depends(get_db_session),
 ) -> SearchInsightsOut:
     """Google 搜尋成效：總計、前 25 個搜尋字詞、前 25 個頁面、裝置別。資料有 2–3 天延遲。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     first, last = resolve_range(start, end, today_local())
     settings = request.app.state.settings
     if not settings.search_console_enabled:
@@ -94,7 +94,7 @@ async def get_crux(
     db: AsyncSession = Depends(get_db_session),
 ) -> CruxOut:
     """Chrome 真實使用者的 LCP、INP、CLS（官網 origin，手機與電腦各一份，最近 25 週）。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     settings = request.app.state.settings
     if not settings.crux_enabled:
         return CruxOut(configured=False)
@@ -116,7 +116,7 @@ async def get_line_insights(
     db: AsyncSession = Depends(get_db_session),
 ) -> LineInsightsOut:
     """LINE 官方帳號的好友變化（2026-11-16），加上同期間官網 LINE 按鈕點擊數與綁定 LINE 通知的預約數。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     today = today_local()
     first, last = resolve_range(start, end, today)
     campuses = await line_insights.campus_rows(db, first, last)

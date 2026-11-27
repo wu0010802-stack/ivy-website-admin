@@ -8,7 +8,7 @@ import { createPinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import type { Role } from '../api/types'
 import { routes } from '../router'
-import { NAV_GROUPS, SEARCH_ONLY_GROUPS, canListNavItem } from '../router/nav'
+import { NAV_GROUPS, SEARCH_ONLY_GROUPS, canListNavItem, canSeeNavItem } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
 import { KEY_TIP_KEYWORDS, TIPS, TIP_SECTIONS, formatKey, matchSnippet, splitKeys, splitMatches, stepText, tipSearchParts } from '../tips/tips'
@@ -42,8 +42,8 @@ describe('小技巧資料', () => {
     const byPath = new Map(NAV_GROUPS.flatMap(group => group.items).map(item => [item.path, item]))
     for (const tip of TIPS.filter(tip => tip.to && tip.roles)) {
       const item = byPath.get(tip.to!.path)
-      if (!item?.roles) continue
-      for (const role of tip.roles!) expect(item.roles, `${tip.id}：${role}`).toContain(role)
+      if (!item?.capability) continue
+      for (const role of tip.roles!) expect(canSeeNavItem(item, testUser(role)), `${tip.id}：${role}`).toBe(true)
     }
   })
 

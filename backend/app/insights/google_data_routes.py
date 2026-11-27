@@ -2,7 +2,7 @@
 （2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md §4.4、§5.4）。
 
 資料由背景同步（app/workers/google_loop.py）寫進資料庫，這裡只讀資料庫、不向 Google 要。權限同招生統計與成效統計的
-外部數據：admissions.stats（總管理者）。稽核的 action、target_type 與 metadata 鍵寫字面值（labelCoverage 會掃）。"""
+外部數據：admissions.stats_site（總管理者；不跟著招生統計授權出去）。稽核的 action、target_type 與 metadata 鍵寫字面值（labelCoverage 會掃）。"""
 
 from __future__ import annotations
 
@@ -139,7 +139,7 @@ async def get_business_profile(
 ) -> BusinessProfileOut:
     """Google 商家檔案：各地點按月的曝光、電話、路線、網站點擊、訊息，與最近一個整月的前 25 個搜尋字詞。
     不隨成效統計的期間變動；資料由背景每天同步一次。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     settings = request.app.state.settings
     if not settings.gbp_enabled:
         return BusinessProfileOut(configured=False, locations=[])
@@ -184,7 +184,7 @@ async def get_search_demand(
 ) -> SearchDemandOut:
     """搜尋需求：後台維護的關鍵字在高雄市與五校所在區最近 12 個整月的 Google 搜尋量。沒設定 Keyword Planner 時照樣列出
     關鍵字（可以先加好），數字都是空的。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     settings = request.app.state.settings
     months = _demand_months(today_local())
     keywords = list((await db.execute(select(SearchKeyword).order_by(SearchKeyword.created_at, SearchKeyword.text))).scalars())
@@ -230,7 +230,7 @@ async def create_search_keyword(
     db: AsyncSession = Depends(get_db_session),
 ) -> SearchKeywordOut:
     """新增一個關鍵字（最多 50 個、不分大小寫不能重複）。下一輪背景同步（一小時內）就會抓它的搜尋量。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     value = clean_keyword(payload.text)
     # 數量上限與重複要在同一個交易裡排隊檢查，兩個人同時新增時才不會超過 50 個或各加一個大小寫不同的同一個字。
     await db.execute(text("SELECT pg_advisory_xact_lock(hashtext(:key))"), {"key": SEARCH_KEYWORD_LOCK})
@@ -262,7 +262,7 @@ async def delete_search_keyword(
     db: AsyncSession = Depends(get_db_session),
 ) -> Response:
     """刪掉關鍵字與它存過的搜尋量。"""
-    require_scope(current_user, "admissions.stats")
+    require_scope(current_user, "admissions.stats_site")
     keyword = await db.get(SearchKeyword, keyword_id)
     if keyword is None:
         raise HTTPException(status_code=404, detail={"code": "SEARCH_KEYWORD_NOT_FOUND", "message": "找不到這個關鍵字"})

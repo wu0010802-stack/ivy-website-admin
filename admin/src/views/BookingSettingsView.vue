@@ -9,13 +9,17 @@ import { BOOKING_MODE_LABELS, campusLabel, configChangeLines, parentDeadlineLabe
 import { asReadiness, impactLines, modeLabel, modeReasons, reasonAction, type ModeReason } from '../composables/bookingReadiness'
 import { useCampusScope } from '../composables/useCampusScope'
 import { useAuthStore } from '../stores/auth'
+import { usePermissions } from '../composables/usePermissions'
 import PageHeader from '../components/PageHeader.vue'
 import CampusSelect from '../components/CampusSelect.vue'
 import { useUnsavedChanges } from '../composables/useUnsavedChanges'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import CampusStatusCard from '../components/CampusStatusCard.vue'
 
-const { visibleCampusKeys, selected: selectedCampus, isSuperAdmin } = useCampusScope()
+const { visibleCampusKeys, selected: selectedCampus } = useCampusScope()
+// 停用／重新啟用分校（後端 campuses.activate）：看權限，不看角色。
+const { can } = usePermissions()
+const canActivateCampus = computed(() => can('campuses.activate'))
 const authStore = useAuthStore()
 const route = useRoute()
 const router = useRouter()
@@ -280,7 +284,7 @@ async function save() {
       <span v-if="isDirty" class="dirty-note" role="status">有未儲存的修改</span>
     </div>
 
-    <CampusStatusCard v-if="isSuperAdmin && selectedCampus && campusActive === false" :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" @busy="campusStatusBusy = $event" />
+    <CampusStatusCard v-if="canActivateCampus && selectedCampus && campusActive === false" :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" @busy="campusStatusBusy = $event" />
 
     <el-empty v-if="visibleCampusKeys.length === 0" description="你的帳號沒有可管理的校區" />
     <el-alert v-else-if="loadError" type="error" :closable="false" show-icon :title="loadError"><el-button @click="load(selectedCampus)">重新載入</el-button></el-alert>
@@ -353,7 +357,7 @@ async function save() {
 
     <!-- 影響整校的動作放在日常設定之後、用分隔線隔開（第四輪：破壞性動作不與主要動作相鄰）。 -->
     <!-- 狀態還在讀時不先擺一個沒有內容的標題與分隔線。 -->
-    <section v-if="isSuperAdmin && selectedCampus && campusActive !== false" class="campus-zone" :class="{ 'is-loading': campusActive === undefined }" aria-labelledby="campus-zone-title">
+    <section v-if="canActivateCampus && selectedCampus && campusActive !== false" class="campus-zone" :class="{ 'is-loading': campusActive === undefined }" aria-labelledby="campus-zone-title">
       <h2 v-if="campusActive !== undefined" id="campus-zone-title" class="campus-zone__title">分校狀態</h2>
       <CampusStatusCard :campus-key="selectedCampus" :focus-on-load="statusJustChanged" @status="campusActive = $event" @changed="statusJustChanged = true" @busy="campusStatusBusy = $event" />
     </section>

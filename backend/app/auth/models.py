@@ -33,9 +33,13 @@ SHARED_CONTENT = "content.shared"
 BOOKING_EXPORT = "booking.export"
 # 授權 -> 可以接受這項授權的角色。共用內容只給本來就能編內容的角色（櫃台、
 # 唯讀不能編內容）；個資匯出只給看得到案件的角色，看不到案件授權了也沒東西可匯。
+# 2026-11-27 業主裁定：招生統計原本只有總管理者（10-16），改成也可以逐人授權給分校管理者，
+# 只看自己負責的校區。全站性的數字（廣告、搜尋）與資料匯入不在這項授權裡，見 permissions.py。
+ADMISSIONS_STATS = "admissions.stats"
 GRANTABLE_CAPABILITIES: dict[str, tuple[Role, ...]] = {
     SHARED_CONTENT: (Role.CAMPUS_ADMIN, Role.EDITOR),
     BOOKING_EXPORT: (Role.CAMPUS_ADMIN, Role.RECEPTION),
+    ADMISSIONS_STATS: (Role.CAMPUS_ADMIN,),
 }
 
 

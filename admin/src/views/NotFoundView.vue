@@ -6,7 +6,7 @@ import { landingPath } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 
 const auth = useAuthStore()
-const homePath = computed(() => landingPath(auth.user?.role))
+const homePath = computed(() => landingPath(auth.user))
 </script>
 
 <template>

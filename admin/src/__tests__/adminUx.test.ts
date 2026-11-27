@@ -75,8 +75,8 @@ describe('後台導覽與編輯操作', () => {
     const editor = await setup('/media', 'editor')
     const editorBar = mount(AdminSidebar, { global: editor.global, attachTo: document.body })
     wrappers.push(editorBar)
-    expect(editorBar.get('.sidebar__home').attributes('href')).toBe(landingPath('editor'))
-    expect(landingPath('editor')).not.toBe('/')
+    expect(editorBar.get('.sidebar__home').attributes('href')).toBe(landingPath(testUser('editor')))
+    expect(landingPath(testUser('editor'))).not.toBe('/')
   })
 
   it('搜尋展開相符功能，但不會讓校區管理者看到帳號管理入口', async () => {
