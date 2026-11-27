@@ -488,6 +488,25 @@ describe('成效統計匯出：官網瀏覽與速度', () => {
     ])
   })
 
+  it('網頁速度：有各頁資料時接在全站三列後面，三個指標都匯出，項目寫「頁名・指標」（2026-11-27）', async () => {
+    const page_vitals = [
+      { page: 'home' as const, ...vital('LCP', 'mobile', 2100, 30) },
+      { page: 'visit' as const, ...vital('LCP', 'mobile', 4300, 40, 'poor') },
+      { page: 'about' as const, ...vital('CLS', 'desktop', 0.01, 25) },
+    ]
+    const wrapper = await mountTraffic(traffic({ page_vitals }))
+    await click(wrapper, 'analytics-csv-vitals')
+    expect(lastDownload().lines).toEqual([
+      `${CSV_BOM}項目,手機,電腦`,
+      '主畫面出現,3.2 秒 需要改善 量測 50 次,5.1 秒 樣本太少 量測 3 次',
+      '版面跳動,0.02 良好 量測 50 次,',
+      '預約參觀（五校合計）・主畫面出現,4.3 秒 不佳 量測 40 次,',
+      '首頁・主畫面出現,2.1 秒 良好 量測 30 次,',
+      '關於常春藤・版面跳動,,0.01 良好 量測 25 次',
+      '',
+    ])
+  })
+
   it('沒有各頁、速度與每日資料時不顯示匯出鈕', async () => {
     const wrapper = await mountTraffic(traffic({ daily: [], vitals: [], pages: [] }))
     expect(wrapper.find('[data-test="daily-bars-csv"]').exists()).toBe(false)

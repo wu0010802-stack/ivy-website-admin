@@ -25,6 +25,11 @@ export interface TrafficVital {
   rating: 'good' | 'needs_improvement' | 'poor'
 }
 
+/** 各頁分開的 p75（2026-11-27）；預約頁五校合併算，所以沒有 campus_key。 */
+export interface TrafficPageVital extends TrafficVital {
+  page: TrafficPage['page']
+}
+
 export interface TrafficSummary {
   days: number
   since: string
@@ -34,6 +39,8 @@ export interface TrafficSummary {
   pages: TrafficPage[]
   devices: Record<string, number>
   vitals: TrafficVital[]
+  /** 2026-11-27 起才有；舊的 API 回應沒有這個欄位 */
+  page_vitals?: TrafficPageVital[]
   as_of: string
 }
 
@@ -81,6 +88,28 @@ export function vitalTable(vitals: readonly TrafficVital[]) {
       mobile: vitals.find((vital) => vital.metric === metric && vital.device === 'mobile') ?? null,
       desktop: vitals.find((vital) => vital.metric === metric && vital.device === 'desktop') ?? null,
     }))
+}
+
+// 各頁速度表的頁名：預約頁五校合計（API 已合併），其他頁同各頁瀏覽。
+export function pageVitalLabel(page: TrafficPage['page']): string {
+  if (page === 'visit') return '預約參觀（五校合計）'
+  if (page === 'campus') return '分校介紹頁'
+  return trafficPageLabel({ page, campus_key: null })
+}
+
+// 各頁速度表（2026-11-27）：選一個指標，一頁一列、手機與電腦各一欄；量測次數多的頁面排前面。
+export function pageVitalTable(rows: readonly TrafficPageVital[], metric: TrafficVital['metric']) {
+  const byPage = new Map<TrafficPage['page'], { mobile: TrafficPageVital | null; desktop: TrafficPageVital | null }>()
+  for (const row of rows) {
+    if (row.metric !== metric) continue
+    const entry = byPage.get(row.page) ?? { mobile: null, desktop: null }
+    entry[row.device] = row
+    byPage.set(row.page, entry)
+  }
+  const samples = (entry: { mobile: TrafficPageVital | null; desktop: TrafficPageVital | null }) => (entry.mobile?.samples ?? 0) + (entry.desktop?.samples ?? 0)
+  return [...byPage.entries()]
+    .map(([page, entry]) => ({ page, label: pageVitalLabel(page), ...entry }))
+    .sort((a, b) => samples(b) - samples(a) || a.label.localeCompare(b.label, 'zh-Hant'))
 }
 
 export function formatVital(metric: TrafficVital['metric'], value: number): string {

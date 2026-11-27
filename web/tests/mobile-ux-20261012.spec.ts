@@ -34,7 +34,9 @@ describe('預約：橫拿手機', () => {
   it('選校卡改細條、一列兩張，圖片 sizes 跟著改半個視窗', () => {
     expect(landscape).toContain('.visit-campus-choice {flex:0 1 calc((100% - 16px) / 2)}')
     expect(landscape).toContain('.visit-campus-card {display:grid;aspect-ratio:auto;min-height:96px;height:auto;border-radius:18px}')
-    expect(visitForm).toContain('(max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px)')
+    // 2026-11-27 起選校卡 sizes 在 utils/visit-images.ts（VisitForm 與頁面預載共用）
+    expect(read('../app/utils/visit-images.ts')).toContain('(max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px)')
+    expect(visitForm).toContain('v-bind="visitCardImage(campus)"')
   })
   it('拿掉場次區的容器查詢：月曆與場次上下排，點下排日期後場次就在月曆下面', () => {
     expect(landscape).toContain('.visit-schedule-section {container-type:normal}')
@@ -44,7 +46,8 @@ describe('預約：橫拿手機', () => {
 describe('預約第二步', () => {
   it('讀場次時先留月曆的高度，月曆插進來不把孩子資料欄推走', () => {
     expect(visitForm).toContain('<p v-if="slotsPending" class="visit-status visit-slots-loading" role="status">')
-    expect(visitCss).toContain('.visit-slots-loading {min-height:400px}')
+    // 2026-11-27 起照載入後的版面分開留（一欄 497／360 以下 467／兩欄 408，見 visit-slots-skeleton-20261127.spec.ts）
+    expect(visitCss).toContain('.visit-slots-loading {min-height:497px}')
   })
   it('送出列的「・」接在前一段後面：320 寬可以在分隔號後換行，不撐出欄外', () => {
     expect(visitForm).toContain("{{ part }}{{ index < bookingSummary.length - 1 ? '・' : '' }}</span>")

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { crawlerIndexable, normalizeSiteOrigin, serializeJsonLd, visitSeo } from '~/utils/seo'
+import { visitImagePreloads } from '~/utils/visit-images'
 
 // 預約頁：/visit 選校、/visit/<校> 參觀方式與表單（2026-10-29 合成一個頁面元件，原本是 index.vue＋[key].vue）。
 // 換步驟只換網址、VisitForm 不重掛：上一頁回到選校、重新整理留在同一步，已選的校與填到一半的資料都還在。
@@ -42,8 +43,13 @@ useSeoMeta({
   // 2026-11-11 開放收錄（取代 10-12 的 noindex）：照全站收錄開關，同 usePageSeo。
   robots: () => (indexable.value ? 'index, follow, max-image-preview:large' : 'noindex, nofollow')
 })
+// 首屏照片預載（2026-11-27，utils/visit-images.ts）：第一步是第一張選校卡（手機）與迎賓照（桌機），第二步是左欄照片（桌機）。
+const imagePreloads = computed(() => data.value ? visitImagePreloads(data.value.content.campuses, campus.value) : [])
 useHead(() => ({
-  link: seo.value?.canonical ? [{ rel: 'canonical', href: seo.value.canonical }] : [],
+  link: [
+    ...(seo.value?.canonical ? [{ rel: 'canonical' as const, href: seo.value.canonical }] : []),
+    ...imagePreloads.value
+  ],
   script: seo.value?.graph.length ? [{ key: 'public-structured-data', type: 'application/ld+json', innerHTML: serializeJsonLd({ '@context': 'https://schema.org', '@graph': seo.value.graph }) }] : []
 }))
 </script>

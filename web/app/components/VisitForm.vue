@@ -3,8 +3,8 @@ import type { BookingContent, Campus } from '~/types/site-content'
 import { campusVisitCta, resolveBookingAction, type BookingAction } from '~/utils/booking-action'
 import { campusMapUrl } from '~/utils/site-links'
 import { loadCampusBooking } from '~/composables/useCampusBooking'
-import { responsiveImage } from '~/utils/responsive-image'
-import { lineArtBlends, lineArtInkImage, pickImage } from '~/utils/media-image'
+import { lineArtBlends, lineArtInkImage } from '~/utils/media-image'
+import { visitAsideImage, visitCardImage, visitWelcomeImage } from '~/utils/visit-images'
 import { apiFieldErrors, earliestChildBirthdate, focusFirstInvalidField, focusNextFieldOnEnter, normalizeVisitPhone, validateVisitContact, REFERRAL_OPTIONS, expectedStartOptions, taipeiDate, newBookingSlotsQuery, visitDateLabel, slotUnavailableMessage, type VisitErrors, type VisitField } from '~/utils/visit-form'
 import { slotRange } from '~/utils/visit-session'
 import { VISIT_REMEMBERED_HINT } from '~/utils/visit-remembered'
@@ -20,7 +20,8 @@ import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnsti
 
 // 預約頁首圖已經自己包了 <picture>（橫拿手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
 // AVIF 的 <source> 排在橫拿手機那個 media source 之後、<img> 之前，橫拿手機仍先命中透明圖。avifSrcset 不是 <img> 的屬性，要先拆出來。
-const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = responsiveImage('about-curious', '(max-width: 760px) 50vw, (max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')
+// sizes 與頁面的預載共用（utils/visit-images.ts），兩邊不一致會多下載一張。
+const { avifSrcset: welcomeAvifSrcset, ...welcomePhoto } = visitWelcomeImage()
 
 // 停用 JS 時（2026-11-12 QA L32）：場次要等瀏覽器載入後才查，SSR 出來的「正在讀取可預約場次」會永遠停在載入中。
 // 這時改藏起它、顯示平常 hidden 的備援說明（請家長來電）——規則在 visit-booking.css 的 @media (scripting: none)。
@@ -696,7 +697,7 @@ async function onSubmit() {
       <div class="visit-shell">
         <aside v-if="!isPicking && selectedCampus" ref="asideRef" class="visit-campus-aside" aria-label="所選校園">
           <div class="visit-aside-card">
-            <span class="visit-aside-photo"><ResponsivePicture :key="selectedCampus.key" v-bind="pickImage(selectedCampus.image, selectedCampus.imageMedia, '(max-width: 960px) 96px, 420px')" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }" /></span>
+            <span class="visit-aside-photo"><ResponsivePicture :key="selectedCampus.key" v-bind="visitAsideImage(selectedCampus)" alt="" decoding="async" :style="{ objectPosition: selectedCampus.panoramaPos || 'center 55%' }" /></span>
             <span class="visit-aside-caption">
               <span class="visit-aside-district">高雄 · {{ selectedCampus.district }}</span>
               <strong class="visit-aside-name">{{ selectedCampus.name }}</strong>
@@ -737,7 +738,7 @@ async function onSubmit() {
                      網址帶校區時直接進第二步、卡片不在首屏，就不搶。 -->
                 <li v-for="(campus, i) in campuses" :key="campus.key" class="visit-campus-choice">
                   <span class="visit-campus-card">
-                    <span class="visit-campus-photo"><ResponsivePicture v-bind="pickImage(campus.image, campus.imageMedia, '(max-width: 760px) and (min-resolution: 2.5dppx) calc((100vw - 40px) * .7), (max-width: 760px) calc(100vw - 40px), (max-width: 960px) and (max-height: 500px) and (orientation: landscape) calc(50vw - 28px), (max-width: 960px) 77vw, 620px')" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" /></span>
+                    <span class="visit-campus-photo"><ResponsivePicture v-bind="visitCardImage(campus)" alt="" decoding="async" :fetchpriority="i === 0 && !routeCampus ? 'high' : undefined" :style="{ objectPosition: campus.panoramaPos || 'center 55%' }" /></span>
                     <span class="visit-campus-copy"><NuxtLink class="visit-campus-link" :to="`/visit/${campus.key}`" :data-key="campus.key" data-visit-step :aria-label="campusChoiceLabel(campus)" @click="rememberCampus(campus.key)"><strong>{{ campus.name }}</strong></NuxtLink><small>{{ shortAddress(campus) }}</small><span class="visit-campus-modes"><a v-if="campusCall(campus)" class="visit-campus-mode is-call" :href="campusCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name}預約參觀 ${campusCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ campusCall(campus)!.number }}</a><template v-else><span class="visit-campus-mode" :class="{ 'is-online': campusActions[campus.key]?.kind === 'form' }" aria-hidden="true">{{ campusModeLabel(campus) }}</span><a v-if="onlineCall(campus)" class="visit-campus-mode is-call" :href="onlineCall(campus)!.href" :data-campus-key="campus.key" :aria-label="`致電${campus.name} ${onlineCall(campus)!.number}`"><svg class="icon" aria-hidden="true"><use href="#i-phone" /></svg>{{ onlineCall(campus)!.number }}</a></template></span></span>
                     <span class="visit-campus-go" aria-hidden="true"><svg class="icon"><use href="#i-arrow-right" /></svg></span>
                   </span>

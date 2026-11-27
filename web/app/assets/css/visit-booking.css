@@ -182,7 +182,7 @@
 .visit-form-section {margin-top:40px}
 .visit-form-section h3 {display:flex;align-items:center;gap:14px;font:600 var(--fs-sm)/1.6 var(--font-information,var(--font));letter-spacing:.14em;color:var(--visit-ink)}
 .visit-form-section h3::before {content:'';width:28px;height:1px;background:currentColor;opacity:.45}
-.visit-form-section .visit-field-grid,.visit-schedule-fields {margin-top:18px}
+.visit-form-section .visit-field-grid,.visit-schedule-fields,.visit-slots-loading {margin-top:18px}
 .visit-slots-empty {padding-top:16px;font-size:var(--fs-sm);line-height:1.85;color:var(--visit-muted);text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
 /* 說明用參觀方式步驟同一種淡色底塊（.visit-contact-step .visit-status，2026-10-13）。 */
 .visit-slots-empty>p {max-width:none;padding:14px 18px;border-radius:12px;background:var(--visit-soft);color:var(--text)}
@@ -250,9 +250,14 @@
    一段比一行長時 overflow-wrap:anywhere 才在字中間斷；pretty 避免一兩字的末行。 */
 .visit-status {font-size:var(--fs-md);color:var(--visit-muted);line-height:1.9;text-wrap:pretty;word-break:keep-all;overflow-wrap:anywhere}
 .visit-loading {padding-block:40px;min-height:180px}
-/* 讀場次時先留月曆的高度（月曆約 380–410px）：只有一行字時，月曆一插進來就把孩子資料欄推下去
-   約 470px，手機上看得到、點得到的欄位突然跑掉，也會算進版面位移（2026-10-12）。 */
-.visit-slots-loading {min-height:400px}
+/* 讀場次時先留載入後的高度：只有一行字時，月曆一插進來就把孩子資料欄推下去
+   約 470px，手機上看得到、點得到的欄位突然跑掉，也會算進版面位移（2026-10-12）。
+   2026-11-27 照載入後的版面分開留（原本一律 400px，手機一欄時差 97px＋間距 12px，正式站手機 CLS 0.015）：
+   - 一欄（月曆在上、場次在下）：月曆 408＋間距 22＋場次欄 67＝497px；360px 以下日期格 50px，月曆 378 → 467px。
+   - 兩欄（場次區 ≥600px，月曆左、場次右）：月曆 408px。
+   月曆以五週計（多數月份）；四週或六週的月份仍會差一列（約 58px）。上緣間距同 .visit-schedule-fields。 */
+.visit-slots-loading {min-height:497px}
+@container (min-width:600px) {.visit-slots-loading {min-height:408px}}
 /* 2026-10-13：留白處放一塊淡色月曆底當骨架，原本只有一行灰字加 400px 空白，像壞掉。減少動態時不閃。 */
 .visit-slots-loading {max-width:none}
 .visit-slots-loading::after {content:'';display:block;height:340px;margin-top:12px;border-radius:14px;background:var(--visit-soft);animation:visit-skeleton 1.4s ease-in-out infinite alternate}
@@ -400,6 +405,8 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
    360 以下按鈕只留「致電○○校」，號碼改成只給讀屏（仍在可及名稱裡）。 */
 @media(max-width:360px) {.visit-call-number {position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}}
 @media(max-width:360px) {.visit-steps {gap:10px}.visit-steps li+li::before {width:17px;margin-right:0}}
+/* 讀場次的骨架：360 以下日期格 50px，月曆 378 → 一欄 467px（見上方 .visit-slots-loading 的說明）。 */
+@media(max-width:360px) {.visit-slots-loading {min-height:467px}}
 /* 橫拿手機（單欄版面 960 以下、高度 500 以下）拿掉迎賓照片（直拿手機 2026-11-13 起有照片）：單欄時照片 780×520，選校卡被推到三屏以下。桌機矮視窗是左文右圖，照片保留。VisitForm 的 <picture> 同條件換成透明圖、不下載。 */
 @media(max-width:960px) and (max-height:500px) and (orientation:landscape) {.visit-welcome-photo {display:none}}
 /* 橫拿的窄手機（760 以下）沒有照片，色帶照 11-11 收成一行標題：兩行大標加淡字要 130px 以上，可視高度只有 300 多。 */
@@ -444,7 +451,7 @@ button.visit-inline-link {padding:0;border:0;background:none;font-family:inherit
   .visit-change {grid-area:1/2;justify-self:end}
   .visit-page:not([data-step='1']) .visit-steps {margin-bottom:12px}
   .visit-schedule-section {margin-top:6px}
-  .visit-schedule-fields {margin-top:12px}
+  .visit-schedule-fields,.visit-slots-loading {margin-top:12px}
 }
 /* 橫拿手機（2026-10-12）：3:4 選校卡一列三張比可視高度還高（約 332／309px），下一步在三屏多以外；
    月曆右邊的場次欄跟月曆頂端對齊，點下排日期後新出現的場次在畫面外、看起來像沒反應。

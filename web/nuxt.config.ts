@@ -1,4 +1,5 @@
 import { MOTION_LAYOUT_SCRIPT } from './app/utils/inline-scripts'
+import { EARLY_PRELOAD_PRIORITY } from './app/utils/head-priority'
 import { normalizeSiteOrigin } from './app/utils/seo'
 import fontManifest from './app/generated/font-manifest.json'
 
@@ -114,10 +115,11 @@ export default defineNuxtConfig({
         { rel: 'icon', type: 'image/x-icon', sizes: '16x16 32x32 48x48', href: '/favicon.ico?v=ivy-20260922' },
         { rel: 'icon', type: 'image/png', sizes: '48x48', href: '/favicon-48.png?v=ivy-20260922' },
         { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png?v=ivy-20260922' },
-        ...fontManifest.preload.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: 'anonymous' }) as const),
+        // tagPriority：排在 inline 樣式前面（2026-11-27，app/utils/head-priority.ts）。
+        ...fontManifest.preload.map((href) => ({ rel: 'preload', as: 'font', type: 'font/woff2', href, crossorigin: 'anonymous', tagPriority: EARLY_PRELOAD_PRIORITY }) as const),
         // ?v= 必須與 styles.css 的 @font-face URL 完全相同（重切子集時兩邊一起改，值是 sha256 前 8 碼）。
-        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/noto-sans-tc-600-brand.woff2?v=cf444611', crossorigin: 'anonymous' },
-        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/source-sans-3-400-brand.woff2?v=1675fc92', crossorigin: 'anonymous' }
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/noto-sans-tc-600-brand.woff2?v=cf444611', crossorigin: 'anonymous', tagPriority: EARLY_PRELOAD_PRIORITY },
+        { rel: 'preload', as: 'font', type: 'font/woff2', href: '/assets/fonts/source-sans-3-400-brand.woff2?v=1675fc92', crossorigin: 'anonymous', tagPriority: EARLY_PRELOAD_PRIORITY }
       ]
     }
   },

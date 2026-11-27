@@ -426,6 +426,18 @@ body .is-hero-page .header-top,
 @property --tab-draw{syntax:'<number>';inherits:true;initial-value:1}
 @property --news-paper-progress {syntax:'<number>';inherits:true;initial-value:1}
 @property --home-footer-progress {syntax:'<number>';inherits:true;initial-value:0}
+/* 首頁簾幕、消息紙、頁尾量出來的長度（2026-11-27）：JS 直接寫在讀它的那個元素上，註冊成不繼承。
+   原本寫在簾幕根、消息根、.home-page 上（繼承型），掛載時每寫一次、下一個元件一量，就整個子樹同步重算樣式
+   （首頁手機 4× hydration 約 200ms）。讀者：--*-own 是 .belief-reveal-track／.day-reveal-track，--*-stick 是
+   .home-belief／.day-experience，--news-prior-stick 是 .news-transition-prior，--home-footer-screen 是 .home-footer。
+   syntax '*' 不設 initial-value：沒寫之前是 guaranteed-invalid，var() 照舊落到後備值（100svh、0px）。
+   不支援 @property 的 Safari 15 照舊繼承，寫在讀者上一樣算得出同一個值。 */
+@property --belief-own {syntax:'*';inherits:false}
+@property --belief-stick {syntax:'*';inherits:false}
+@property --day-own {syntax:'*';inherits:false}
+@property --day-stick {syntax:'*';inherits:false}
+@property --news-prior-stick {syntax:'*';inherits:false}
+@property --home-footer-screen {syntax:'*';inherits:false}
 /* 水彩滲接（2026-09-29 定案）：孩子的一天→五校的擦除邊是水彩濕邊往上滲（composables/useWatercolorSeep.ts）。
    三層遮罩聯集：上方實心 ＋ 兩張濕邊帶（第二張橫向漂移、上下錯位）。帶子以 max(100%,1400px) 置中，手機只取中段。 */
 @property --day-seep-y {syntax:'<length>';inherits:false;initial-value:0px}

@@ -46,6 +46,9 @@ print(f'campus-run: 採用 10-24 舊首屏手機檔 {run_target.stat().st_size:,
 day_graded = ROOT / 'design/day-film-mix-20261113'
 day_approved = {item['file']: item for item in json.loads((day_graded / 'manifest.json').read_text())['variants']}
 DAY_MASTERS = {'day-film.mp4': 'day-pick5-desktop.mp4', 'day-film-mobile.mp4': 'day-pick5-mobile.mp4'}
+DAY_AV1_CRF = {'day-desktop': 34, 'day-mobile': 38}
+# 母帶是 BT.709 原色／矩陣＋sRGB 轉換函數（design/day-film-color-20261025），AV1 照抄同一組標記。
+DAY_COLOR_TAGS = ['-colorspace', 'bt709', '-color_primaries', 'bt709', '-color_trc', 'iec61966-2-1', '-color_range', 'tv']
 # 以下 hero 轉檔參數只在母帶不是確認版時使用：2026-09-22 提高壓縮率（crf 33–34），
 # 手機約 0.57 MB、桌機約 1.18 MB。day 影片直接交付母帶（進入視窗才載入）。
 for name, source, width, crf in [
@@ -64,6 +67,22 @@ for name, source, width, crf in [
         shutil.copyfile(original, target)
         manifest[name] = f'/assets/optimized/{target.name}'
         print(f'{name}: 保留母檔 {target.stat().st_size:,} bytes', flush=True)
+        # 另壓一份 AV1 10-bit（2026-11-27，media-policy.ts 的 dayAv1／preferAv1）：調色中間檔在 output/（已 gitignore，不在 repo），
+        # 只能從這支確認版成片壓。CRF 對母帶量：桌機 34 約 56%、PSNR 44.9 dB／SSIM 0.987；手機 38 約 62%、43.9 dB／0.984
+        # （SVT-AV1 1.7 preset 6 試壓；成品用 preset 4）。檔名帶母帶與參數的雜湊，已存在就不重壓（SVT 版本不同，輸出位元組會不同）。
+        av1_key = f'{name}-av1'
+        crf = DAY_AV1_CRF[name]
+        av1_digest = sha256(original.read_bytes() + f'av1-svt-p4-crf{crf}-10bit-v1'.encode()).hexdigest()[:12]
+        av1_target = OUT / f'{av1_key}-{av1_digest}.mp4'
+        if not av1_target.exists():
+            # 先寫暫存檔再改名：中途中斷不會留下半支、下次又因為「已存在」被跳過。
+            partial = av1_target.with_name(f'{av1_target.stem}.part.mp4')
+            subprocess.run(['ffmpeg', '-hide_banner', '-loglevel', 'error', '-i', str(original), '-an',
+                            '-c:v', 'libsvtav1', '-preset', '4', '-crf', str(crf), '-pix_fmt', 'yuv420p10le',
+                            '-svtav1-params', 'lp=2', *DAY_COLOR_TAGS, '-movflags', '+faststart', '-y', str(partial)], check=True)
+            partial.replace(av1_target)
+        manifest[av1_key] = f'/assets/optimized/{av1_target.name}'
+        print(f'{av1_key}: {av1_target.stat().st_size:,} bytes（CRF {crf}）', flush=True)
         continue
     # 修復版已各自從 FFV1 中間檔壓縮完成，直接採用，避免再次轉碼損失細節。
     if name.startswith('hero-') and sha256(original.read_bytes()).hexdigest() == approved[MASTER]['sha256']:

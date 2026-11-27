@@ -1,3 +1,54 @@
+## 2026-11-27 前台效能與流暢穩定度（`claude/fervent-carson-e9masg`，未合併、未部署）
+
+使用者：「幫我看看怎麼加強網頁前台的效能還有流暢穩定度」，看完盤點後「全部都幫我做」。規則寫在 DESIGN.md 最上面一節；沒有 migration、沒有新環境變數，API 只多回一個欄位（`/admin/analytics/traffic` 的 `page_vitals`，回應型別本來就是 object，契約不變）。
+
+**盤點**（正式站 11-26，只讀：擋第三方與所有非 GET；手機 390×844 DPR3、1.6 Mbps／150 ms、CPU 4×，桌機 1440；另用同一份 production build＋fixture 交叉量）：
+
+- 穩定度沒有問題：CLS 各頁 0（`/visit/yihua` 手機場次載入時 0.015）；console 錯誤、失敗請求 0；五頁各 8 個捲動位置靜止時 rAF、計時器、樣式重算全是 0；站內換頁繞九頁六圈，DOM 節點與監聽數第二圈後持平；內頁觸控整頁拖到底沒有長任務。
+- 值得改的：首屏預載排在約 136 KB inline 樣式後面；`/visit` 沒有首屏照片預載（手機 LCP 2.9 s）；首頁 hydration 有 12 次整頁同步樣式重算（4× 約 200 ms）；特色教學轉場遮罩每一頁都畫（三張，4× 每張 60–100 ms）；環境頁第一次進站白等版面穩定；孩子的一天影片只有 H.264（桌機 7.0 MB、手機 4.1 MB，首頁最大的下載）；後台「網頁速度」不分頁。
+
+**改了什麼**
+
+1. **預載排在樣式前面**：字型與首屏照片的預載帶 `tagPriority`（新 `web/app/utils/head-priority.ts`，`nuxt.config.ts`、`heroPreloadLink()`）。
+2. **預約頁首屏照片預載**（新 `web/app/utils/visit-images.ts`，`pages/visit/[[key]].vue`、`VisitForm.vue`）：第一步手機預載第一張選校卡、桌機預載迎賓照（排除橫拿手機）；第二步桌機預載左欄照片。照片 attrs 與預載共用同一組 helper。
+3. **首頁 hydration**（`useCurtain.ts`、`useNewsTransition.ts`、`useHomeFooterFade.ts`、`studio.css` 六個 `@property`）：量出來的長度寫在讀它的元素上、註冊成不繼承；dataset 同值不寫。
+4. **特色教學遮罩看意圖才產生**（`plugins/curriculum-enter.client.ts`）：連到 `/curriculum` 的連結在視窗附近、或被指到／按下／聚焦才排閒置。
+5. **環境頁第一次進站不等版面**（`router.options.ts`）。
+6. **孩子的一天 AV1**（`scripts/optimize-site-videos.py`、`video-manifest.json`、`media-policy.ts` 的 `dayAv1`／`av1Verdict`、`DayExperience.vue`）：桌機 7,046,444 → 3,722,368 bytes（53%，CRF 34），手機 4,052,102 → 2,392,101 bytes（59%，CRF 38）；對母帶 PSNR 45.1／44.1 dB、SSIM 0.987／0.984。從交付的 H.264 成片壓（中間檔不在 repo）。選用條件同首屏，失敗換回 H.264。
+7. **後台「網頁速度」分頁看**（`traffic_service.py` 回 `page_vitals`；`admin/src/api/traffic.ts` 的 `pageVitalTable`、`SiteTrafficPanel.vue` 多一張「各頁」表、可切三個指標，CSV 一起匯出）。預約頁五校合併算。
+8. **預約頁讀場次時不再把表單往下推**（`visit-booking.css`，同日補）：骨架原本一律留 400px，手機一欄（月曆在上、場次在下）載入後是 497px＋上緣 12px，「寶貝資料」整塊被推下 109px（正式站 CLS 390 寬 0.015、430 寬 0.024）。改成照載入後的版面留：一欄 497px、360 以下 467px、場次區兩欄時 408px，上緣間距跟載入後同一條規則。本機這個分支的 build（內容與場次讀正式站公開 API，只讀）：`/visit/yihua` 九種視窗（320–1440、橫拿手機）CLS 全部 0（正式站 0–0.024），「寶貝資料」標題載入前後同一個位置；其他四校目前沒開線上場次，CLS 也是 0。月曆遇到四週或六週的月份仍會差一列（約 58px）。
+
+**效果**（本機同機 A/B，改前是 HEAD `b392877` 的 worktree build；手機 1.6 Mbps／150 ms／CPU 4×，HTTP/2，各 5 次中位數）
+
+| 頁面 | LCP 改前 → 改後 | FCP 改前 → 改後 |
+|---|---|---|
+| 首頁 | 1924 → 1772 ms | 1476 → 1596 ms |
+| /environment | 3124 → 2884 ms | 972 → 984 ms |
+| /visit | 2704 → 2480 ms | 728 → 736 ms |
+| /admission | 2036 → 1916 ms | 952 → 940 ms |
+| /curriculum | 2560 → 2528 ms | 880 → 924 ms |
+| /about | 3904 → 3852 ms | 924 → 988 ms |
+
+- FCP 晚的原因：照片提早開始下載，跟 HTML 後段（inline 樣式）分頻寬；本機的 HTTP/2 前端不做優先權排程，正式站 Railway edge 若照優先權送 HTML，差距會更小（沒驗到）。首頁 FCP 晚 120 ms 換 LCP 早 152 ms。
+- 首頁 hydration（手機 4×，略過開場布幕，各 6 次）：TBT 982 → 881 ms；強制同步樣式／版面（trace，sourcemap 對回原始碼）549 → 329 ms，`useCurtain` 104 → 18 ms、頁尾 54 → 0 ms。
+- 改前改後首頁 74 個捲動位置（桌機 36、手機 38）19 個元素的位置、尺寸與 12 個 computed style 逐項相同。
+- 手機 `/about` 載完閒置 6 秒不再產生遮罩（toBlob 0 次，改前 3 次），打開選單後產生三張、點特色教學照樣暈開；桌機照舊產生、照樣暈開。
+- 環境頁第一次進站 `scrollHeight` 讀取 0 次；帶 `#meals` 進站照舊跳到錨點。
+
+**驗證**（Node 22.23.5，雲端容器）
+
+| 指令／方式 | 結果 |
+|---|---|
+| `npm --prefix web run typecheck` | 通過 |
+| `npx vitest run`（web 全套） | 171 檔、2,603 項通過；新增 `preload-order-20261127`、`hydration-writes-20261127`、`day-film-av1-20261127`，改 `smoothness-20261105-curriculum`（多 8 項意圖測試）、`router-options`、`avif-picture`，以及三支讀 sizes 字串的舊測試改讀 `visit-images.ts` |
+| `npm --prefix admin run typecheck`、admin 全套 vitest | 通過；209 檔、3,909 項通過、1 項略過 |
+| 後端 `pytest tests/test_traffic.py tests/test_secfix_ops.py tests/test_media_slots.py`（本機 PostgreSQL 16、獨立測試庫） | 64 passed；新增 `test_admin_summary_page_vitals_split_by_page` |
+| `npm run contract:check` | 契約、狀態機、型別都一致 |
+| `npm run e2e:build` 後 `npx playwright test --trace off`（公開站四視口，真 API＋獨立測試庫） | 83 passed、13 skipped（只在某些視口跑的項目），0 failed |
+| production build（fixture）＋ Playwright 20 項瀏覽器檢查 | 全過：7 頁預載都在樣式前、預約頁三種情況預載＝`<img>` 實際選的檔且只下載一次、遮罩意圖、暈開、環境頁、孩子的一天 AV1／H.264 退回／手機照舊 H.264 |
+
+**沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
+
 ## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，分支 `feature/client-error-fb-iab-20261127`）
 
 系統狀態收到一筆官網首頁的 `Error: Error invoking postMessage: Java object is gone`（UA 是 Android 的 `FB_IAB/FB4A`，堆疊三格全是 `iabjs://`）。這是 FB 內建瀏覽器**自己注入的腳本**透過 Android WebView 的 Java 橋接（`@JavascriptInterface`）呼叫 App，使用者關掉內建瀏覽器或切到背景、原生物件已回收時就丟；官網沒有註冊任何橋接，不是我們的程式出錯，也沒有可以修的東西。

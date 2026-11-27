@@ -59,8 +59,32 @@ type DecodingInfoQuery = (config: {
 
 // 查不到（沒有 MediaCapabilities、拋錯或超過 400 ms）一律回 null，呼叫端就用 H.264。
 export async function heroAv1Verdict(query: DecodingInfoQuery | undefined, mobile: boolean): Promise<DecodingVerdict | null> {
+  return av1Verdict(query, { contentType: HERO_AV1_TYPE, width: 1080, height: 800, bitrate: mobile ? 1_500_000 : 3_000_000, framerate: 30 })
+}
+
+/**
+ * 孩子的一天另有一份 AV1 10-bit（2026-11-27，scripts/optimize-site-videos.py）：桌機 7.0 MB、手機 4.1 MB 的 H.264 是首頁最大的下載。
+ * 調色中間檔不在 repo（output/，已 gitignore），所以 AV1 是從交付的 H.264 母帶壓的；選用條件與首屏相同（preferAv1），
+ * 載入或解碼失敗退回 H.264。只有內建的兩支有 AV1，後台上傳的影片回 null。
+ * codecs 對應 SVT-AV1 自動選的等級：桌機 1440×810 是 level 4.0（08），手機 720×1280 是 3.1（05）。
+ */
+export const DAY_AV1 = {
+  'assets/day-film.mp4': { key: 'day-desktop-av1', video: { contentType: 'video/mp4; codecs="av01.0.08M.10"', width: 1440, height: 810, bitrate: 2_000_000, framerate: 30 } },
+  'assets/day-film-mobile.mp4': { key: 'day-mobile-av1', video: { contentType: 'video/mp4; codecs="av01.0.05M.10"', width: 720, height: 1280, bitrate: 1_000_000, framerate: 30 } }
+} as const
+
+export function dayAv1(source: string): { src: string; video: (typeof DAY_AV1)[keyof typeof DAY_AV1]['video'] } | null {
+  const entry = Object.hasOwn(DAY_AV1, source) ? DAY_AV1[source as keyof typeof DAY_AV1] : undefined
+  const src = entry ? (videos as Record<string, string | undefined>)[entry.key] : undefined
+  return entry && src ? { src, video: entry.video } : null
+}
+
+export async function av1Verdict(
+  query: DecodingInfoQuery | undefined,
+  video: { contentType: string; width: number; height: number; bitrate: number; framerate: number }
+): Promise<DecodingVerdict | null> {
   if (!query) return null
-  const config = { type: 'file' as const, video: { contentType: HERO_AV1_TYPE, width: 1080, height: 800, bitrate: mobile ? 1_500_000 : 3_000_000, framerate: 30 } }
+  const config = { type: 'file' as const, video: { ...video } }
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([

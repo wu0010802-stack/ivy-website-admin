@@ -1,3 +1,19 @@
+## 前台效能：預載排在樣式前、量出來的長度寫在讀者上、遮罩看意圖才產生（2026-11-27，`claude/fervent-carson-e9masg`）
+
+使用者要「加強前台的效能與流暢穩定度」，盤點後「全部都幫我做」。外觀不變（首頁 74 個捲動位置的幾何與 computed style 逐項相同）。數字與驗證見 README 同日段落。
+
+- **首屏一定用到的預載排在 inline 樣式前面**：字型與 LCP 照片的 `<link rel="preload">` 帶 `tagPriority: EARLY_PRELOAD_PRIORITY`（`web/app/utils/head-priority.ts`，值 40）。unhead 預設 preload 是 70、`<style>` 是 60，`inlineStyles` 開著時約 136 KB 樣式全排在預載前面，手機慢網路要多等 0.5–0.7 秒才開始抓首屏照片。新的首屏照片預載一律用 `heroPreloadLink()`（已帶）；其他 preload／modulepreload 不要給，搶的是同一段頻寬。
+- **每個內容頁的 LCP 照片都要有預載**。預約頁（`pages/visit/[[key]].vue`）原本沒有：第一步手機是第一張選校卡、桌機是迎賓照，第二步桌機是左欄照片。照片的 attrs 與預載共用 `utils/visit-images.ts`（改 sizes 改那裡，兩邊不一致會多下載一張）。預載的 `media` 要跟畫面上真的顯示的條件一致：迎賓照在橫拿手機換成 1×1 透明圖，所以預載排除「≤960 寬且 ≤500 高」。
+- **掛載時量出來寫回 CSS 的長度，寫在讀它的那個元素上**；讀者就是那個元素時，在 `studio.css` 註冊 `@property --x {syntax:'*';inherits:false}`（不設 initial-value：沒寫之前是 guaranteed-invalid，`var()` 照舊落到後備值；Safari 15 不認 @property，照舊繼承、值一樣）。原本 `--belief-own／--day-own`（track 讀）、`--*-stick`（panel 讀）、`--news-prior-stick`（五校讀）、`--home-footer-screen`（頁尾讀）寫在簾幕根、消息根、`.home-page` 上，hydration 時每個元件寫一次、下一個元件一量就是整個子樹的同步樣式重算。`--news-screen` 有兩個讀者（紙與紙裡的 `.home-news`），維持繼承、寫在紙上。`dataset` 的狀態同值不寫。`hydration-writes-20261127.spec.ts` 擋。
+  - 量過留著：hydration 後第一次讀版面（`readMotionViewport` 讀 `clientWidth`，hydration 本來就要算的那一次）；`--reveal-height`／`--motion-vh` 寫在 `.home-reveal`（18 個讀者散在各章，只寫一次）；開場布幕的 `showModal`。
+- **只有某個導覽才用得到的預先產生，看意圖才做**：特色教學的轉場遮罩（三張 1024²）原本每頁閒置時都畫，改成連到 `/curriculum` 的連結在視窗上下半個視窗內、或被指到／按下／聚焦時才排閒置（`plugins/curriculum-enter.client.ts` 的 `want()`）。桌機頁首選單一直看得到，行為照舊；手機選單收在面板裡，打開選單、捲到頁尾或內文連結附近才產生。人在特色教學頁不產生，站內換頁後重新找連結。
+- **結果已知不捲時，換頁捲動不要等版面**：環境頁第一次進站（沒有 hash、不是重新整理或整頁上一頁）直接回 `false`，原本先每幀讀 `scrollHeight` 最多 3 秒才回 `false`，正碰上建拱窗。
+- **孩子的一天另有 AV1**（`scripts/optimize-site-videos.py`、`utils/media-policy.ts` 的 `dayAv1`）：選用條件同首屏（`preferAv1`：桌機能順播就用，觸控裝置還要硬體解碼），失敗換回 H.264。調色中間檔不在 repo，所以是從交付的 H.264 成片壓的（多一代壓縮）：桌機 CRF 34、手機 CRF 38（同首屏手機 AV1）。**手機版畫質待業主確認**：2 倍放大看得出細髮與皮膚紋理略平，原尺寸不明顯；要調就改 `DAY_AV1_CRF` 重跑腳本（檔名帶參數雜湊，會產新檔、刪舊檔）。換孩子的一天母帶時腳本會一起重壓 AV1。
+- **後台「網頁速度」分頁看**：API 多回 `page_vitals`（頁×指標×裝置的 p75，預約頁五校合併），`SiteTrafficPanel` 在全站表下面多一張「各頁」，一次看一個指標，量測次數多的頁排前面；CSV 一起匯出。改了某一頁的首屏要看那一頁自己的數字，全站合計會被首頁蓋過。
+- **讀取中的骨架照載入後的版面留高度**（同日補，預約頁場次）：一欄與兩欄的高度不同就分開寫（用同一個容器查詢門檻），上緣間距跟載入後的區塊寫在同一條規則，免得改一邊忘了另一邊。`visit-slots-skeleton-20261127.spec.ts` 擋；日期格高度或場次欄間距改了要重量。正式站上注入樣式來驗不準：Nuxt hydration 後會拿掉 SSR 的 inline `<style>`，要用這個分支的 build 接正式站公開 API 量。
+- **量過、不做**：NuxtLink 站內預取延到首批資源收完（預取本來就排在首屏照片之後，LCP 沒有差別）；內頁捲動（觸控整頁拖到底沒有長任務）；靜止時背景工作（五頁 × 8 個位置都是 0）。
+- **沒驗到**：Railway edge 的 HTTP/2 優先權（雲端容器連正式站被代理降成 HTTP/1.1）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS 實機；Safari 15 走繼承的那條路。
+
 ## 後台：側欄搜尋找人、常用篩選、顯示欄位、指紋登入（2026-11-27，`feature/admin-saas-20261127`）
 
 使用者看過「後台還能做什麼」的清單後指定這三項（「幫我做這些」）。以下標「我定的」是施工時的判斷，使用者沒有逐項確認。
