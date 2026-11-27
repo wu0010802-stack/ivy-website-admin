@@ -37,3 +37,28 @@ export function caseStage(i: StageInput): CaseStage {
   }
   return i.canHandle ? 'closed' : 'readonly'
 }
+
+/** 案件（useVisitCase 的回傳值）目前的階段：頁首主動作（VisitPrimaryAction）與撥號鈕（VisitCaseHero）共用。 */
+export function caseStageOf(vc: {
+  detail: { status: string } | null | undefined
+  canHandle: boolean
+  visitStarted: boolean
+  familyPending: boolean
+  familyVisit: unknown
+  canReadAdmissions: boolean
+  canCreateAdmissions: boolean
+  admissionsAvailable: StageInput['admissionsAvailable']
+  lookupFailed: boolean
+}): CaseStage {
+  return caseStage({
+    status: vc.detail?.status ?? '',
+    canHandle: vc.canHandle,
+    visitStarted: vc.visitStarted,
+    familyPending: vc.familyPending,
+    isFamily: Boolean(vc.familyVisit),
+    canReadAdmissions: vc.canReadAdmissions,
+    canCreateAdmissions: vc.canCreateAdmissions,
+    admissionsAvailable: vc.admissionsAvailable,
+    lookupFailed: vc.lookupFailed,
+  })
+}

@@ -279,15 +279,29 @@ async def board(db: AsyncSession, campus_key: str, school_year: int, semester: i
         .order_by(RecruitmentVisit.visit_date.desc(), RecruitmentVisit.created_at.desc(), RecruitmentVisit.id.desc())
     )
     columns: dict[str, list[dict]] = {stage: [] for stage in STAGE_VALUES}
+    counts = {"visit": 0, "deposit": 0, "enrolled": 0}
     for visit in result:
         columns[derive_stage(visit)].append(_card(visit))
+        # 比率和招生統計同一套（2026-11-27 使用者裁定，取代規格 B20 的各欄目前張數相除）：
+        # 計數規則同 stats._metric_cases，母體同 stats._base_filters（同校、同入學學年學期）。
+        counts["visit"] += 1
+        counts["deposit"] += 1 if visit.has_deposit else 0
+        counts["enrolled"] += 1 if visit.enrolled else 0
     unscoped = await db.scalar(
         select(func.count())
         .select_from(RecruitmentVisit)
         .where(RecruitmentVisit.campus_key == campus_key, RecruitmentVisit.target_school_year.is_(None))
     )
+    # stats 匯入 intake、intake 匯入本模組，放在這裡匯入才不會循環。
+    from app.admissions.stats import pct
+
     return {
         "columns": columns,
+        "rates": {
+            **counts,
+            "visit_to_deposit_rate": pct(counts["deposit"], counts["visit"]),
+            "deposit_to_enrolled_rate": pct(counts["enrolled"], counts["deposit"]),
+        },
         "unscoped_count": int(unscoped or 0),
         "campus_key": campus_key,
         "school_year": school_year,

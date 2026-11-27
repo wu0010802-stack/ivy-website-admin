@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { injectVisitCase } from '../../composables/useVisitCase'
 import { useNarrowScreen } from '../../composables/useNarrowScreen'
-import { caseStage } from '../../composables/visitCaseStage'
+import { caseStageOf } from '../../composables/visitCaseStage'
 
 // 頁首的主動作（2026-10-06 方向 C）：依階段只給一顆實心主鈕；改場次、家長連結、取消在設定列。
 // plain：預覽面板裡（列表頁的實心主鈕是「補登案件」），所有按鈕改淺色。
@@ -13,20 +13,7 @@ const vc = injectVisitCase()
 const narrow = useNarrowScreen('(max-width: 900px)')
 const stacked = computed(() => props.plain || narrow.value)
 
-const stage = computed(() => {
-  const d = vc.detail
-  return caseStage({
-    status: d?.status ?? '',
-    canHandle: vc.canHandle,
-    visitStarted: vc.visitStarted,
-    familyPending: vc.familyPending,
-    isFamily: Boolean(vc.familyVisit),
-    canReadAdmissions: vc.canReadAdmissions,
-    canCreateAdmissions: vc.canCreateAdmissions,
-    admissionsAvailable: vc.admissionsAvailable,
-    lookupFailed: vc.lookupFailed,
-  })
-})
+const stage = computed(() => caseStageOf(vc))
 const solid = (primaryHere: boolean) => primaryHere && !props.plain
 const familyEditable = computed(() => vc.canCreateAdmissions && !vc.familyVisit?.anonymized_at)
 // 家庭版面但不能改招生資料（只有 admissions.read、或招生訪視已匿名化）時沒有任何按鈕也沒有提示：

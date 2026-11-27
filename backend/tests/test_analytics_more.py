@@ -212,6 +212,35 @@ async def test_not_found_caps_distinct_paths_and_purges_old_days(db_session):
     assert await db_session.scalar(select(func.count()).select_from(NotFoundDaily).where(NotFoundDaily.day == old)) == 0
 
 
+@pytest.mark.asyncio
+async def test_not_found_leaves_out_scanner_probes(admin_client, db_session):
+    """2026-11-27 後台 QA：掃描程式試探 /.env、/.git/config 這類設定檔網址，混在表裡讓園方以為出事、也把
+    該補轉址的舊網址擠下去。名單與總數不算它們，另外回傳次數與網址數，畫面一句話帶過。"""
+    today = today_local()
+    await crawler_service.record_not_found(db_session, [
+        ("/副本-2025冬令營", "none", 2),
+        ("/副本-2025冬令營", "crawler", 4),
+        ("/.env.production", "crawler", 1),
+        ("/.git/config", "crawler", 1),
+        ("/.aws/credentials", "crawler", 2),
+        ("/.well-known/security.txt", "crawler", 1),
+    ], today)
+    await db_session.commit()
+
+    body = (await admin_client.get(f"{BASE}/admin/analytics/not-found?days=7")).json()
+    assert [row["path"] for row in body["paths"]] == ["/副本-2025冬令營", "/.well-known/security.txt"]
+    assert body["paths_total"] == 2
+    assert {row["ref"]: row["hits"] for row in body["totals"]}["crawler"] == 5
+    assert (body["probe_hits"], body["probe_paths"]) == (4, 3)
+
+
+def test_probe_paths_are_dot_segments_except_well_known():
+    for path in ("/.env", "/.env.backup", "/.git/config", "/.aws/credentials", "/app/.env"):
+        assert crawler_service.is_probe_path(path), path
+    for path in ("/", "/副本-教學理念", "/.well-known/security.txt", "/copy-of-35", "/a.b"):
+        assert not crawler_service.is_probe_path(path), path
+
+
 def test_clean_path():
     assert crawler_service.clean_path("/Blank-1/?a=1#x") == "/blank-1"
     assert crawler_service.clean_path("/") == "/"
