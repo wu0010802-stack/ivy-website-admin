@@ -269,6 +269,9 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   failed_attempts: (v) => `密碼錯誤達 ${countOf(v)} 次`,
   line_unlinked: (v) => (v ? '解除 LINE 登入綁定' : null),
   google_unlinked: (v) => (v ? '解除 Google 登入綁定' : null),
+  // 指紋／臉部辨識登入（Passkey，2026-11-27）：清除登入方式時有沒有一併刪掉、登記或刪除的是哪一組。
+  passkeys_removed: (v) => (v ? '刪除登記的指紋／臉部辨識登入' : null),
+  passkey_name: (v) => (v ? `裝置：${String(v)}` : null),
   // 登入時勾了「記住這台裝置」（2026-11-19）；沒勾的登入不記這個鍵。
   remember: (v) => (v ? '記住這台裝置 30 天' : null),
   // 家長管理連結、改期

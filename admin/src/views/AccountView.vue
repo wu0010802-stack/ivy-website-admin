@@ -8,6 +8,7 @@ import ChangePasswordDialog from '../components/ChangePasswordDialog.vue'
 import DisplayNameField from '../components/DisplayNameField.vue'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage, apiFieldError, loginLimitedMessage } from '../api/errors'
+import PasskeyPanel from '../components/PasskeyPanel.vue'
 import { reauthRequiredMessage, startGoogleLink, startLineLink, type ReauthBody } from '../api/oauth'
 import { campusLabels, displayNameError, formatDate, formatDateTime, GRANT_LABELS, ROLE_DESCRIPTIONS, roleLabel, staffLabel } from '../api/labels'
 import type { AuthProviders, DisplayNameUpdateRequest, UserOut } from '../api/types'
@@ -41,6 +42,8 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const lineEnabled = ref(false)
+// 指紋／臉部辨識登入（Passkey）這個網址能不能用；已經登記過的人就算暫時不能用也看得到清單、可以刪。
+const passkeyEnabled = ref(false)
 const googleEnabled = ref(false)
 const providersLoaded = ref(false)
 const linking = ref(false)
@@ -215,6 +218,7 @@ onMounted(async () => {
   try {
     const providers = await api.get<AuthProviders>('/auth/providers')
     lineEnabled.value = providers.line === true
+    passkeyEnabled.value = providers.passkey === true
     googleEnabled.value = providers.google === true
   } catch {
     lineEnabled.value = false
@@ -432,6 +436,8 @@ async function unlink(body?: ReauthBody) {
           <p v-if="lineEnabled || auth.user.line_linked" class="field-help">後台只記錄 LINE 提供的帳號識別碼，不讀取暱稱、大頭貼或 Email。</p>
         </div>
       </section>
+
+      <PasskeyPanel v-if="providersLoaded && (passkeyEnabled || auth.user.passkey_count)" :enabled="passkeyEnabled" />
 
       <section v-if="showPush" class="panel" aria-labelledby="account-push-title" data-test="push-panel">
         <div class="panel__head account__line-head">

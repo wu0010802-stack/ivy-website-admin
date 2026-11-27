@@ -49,6 +49,32 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
+## 2026-11-27 後台三項：側欄搜尋找人、常用篩選＋顯示欄位、指紋／臉部辨識登入（`feature/admin-saas-20261127`，未 commit、未部署）
+
+使用者問「後台還有沒有新時代網頁 SaaS 可以做的功能」，看完清單後指定全域搜尋、儲存常用篩選＋自訂欄位、用指紋登入（「幫我做這些」）。規則與我施工時定的判斷在 DESIGN.md「後台：側欄搜尋找人、常用篩選、顯示欄位、指紋登入」。
+
+- **側欄搜尋順便找人**：原本的搜尋框（⌘K）打姓名（至少 2 個字）或電話（至少 4 碼），除了功能另外列出符合的參觀案件與招生紀錄各最多 5 筆，點了直接到那一筆（招生紀錄會開到那一校的訪視明細並展開）。搜尋字照舊走 `X-Ivy-Search` header、不進網址；沒有新的後端端點。
+- **常用篩選**（參觀案件、招生入學的訪視明細）：篩選列多一顆「常用篩選」，把目前的條件取名存起來、之後一鍵套回，最多 12 組。**存在這台裝置的瀏覽器、依帳號分開**，換裝置要重存；搜尋字與家長介紹人不存。手機只留星號圖示。
+- **顯示欄位**（訪視明細表格）：姓名與操作固定，其餘七欄可以勾掉，記在這台裝置。參觀案件列表不是表格，沒有做。
+- **指紋／臉部辨識登入（Passkey）**：「我的帳號」多一塊，登記這台手機或電腦（要重新驗證，同綁定 LINE）；登入頁多一顆「用指紋或臉部辨識登入」，不用打 Email，吃同一個「記住這台裝置 30 天」。一律要過生物辨識或裝置密碼，後台只存公鑰；停權、重設密碼、「解除綁定並登出」會一併刪掉。綁在後台網域上，不需要新的環境變數。
+- **範圍**：`backend/`（新 `app/auth/passkey.py`、`passkeys` 表與 `users.passkey_count`、migration `e2c5a8f1d937`、新相依套件 `webauthn`；`service.clear_external_logins` 改成 async 並多收 `db`）、`admin/`（新 `SavedViews.vue`、`PasskeyPanel.vue`、`usePeopleSearch`／`useSavedViews`／`useColumnPrefs`、`api/passkey.ts`；改側欄、參觀案件、訪視明細、登入頁、我的帳號）、`contracts/`（已重產）。`web/` 沒動。
+- **部署注意**：migration 只新增一張空表與一個有預設值的欄位，不需要先備份正式庫。api 映像要重建（多一個 Python 套件）。
+- **沒驗**：真的手機指紋／Face ID（本機用 Chrome 的虛擬驗證器）、iOS Safari、Windows Hello；正式網域 `admin.ivykidschool.com` 上的登記與登入；「使用小技巧」還沒補這三項的說明；stack e2e 與視覺基準沒跑。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_saas1127_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 後端全套 `pytest -q` | 6166 passed、1 skipped、**8 failed**（20 分鐘）：都是這次改動造成的預期變化（`/auth/providers` 多 `passkey`、稽核 metadata 多 `passkeys_removed`、稽核涵蓋守門測試沒列新端點）。改成「有刪到才記旗標」、更新兩條測試、補一條豁免後，重跑這 8 條所在的檔加 `test_passkey.py` 共 201 passed；**沒有再跑全套** |
+| 新測試 `test_passkey.py` | 10 passed（軟體模擬驗證器：登記→不打 Email 登入、要重新驗證、重送／錯網域／沒過生物辨識／重複登記都拒絕、刪除後不能登入、停權與清除登入方式會刪掉） |
+| migration `e2c5a8f1d937` 降版 → 升版、`alembic heads` | 正常；只有一個 head |
+| `npm run contract:check` | 契約、狀態機、型別都一致 |
+| `npm --prefix admin run typecheck`、`npm --prefix web run typecheck` | exit 0 |
+| admin 全套 `npx vitest run` | 220 檔、3984 passed、1 skipped、**3 failed**（機器負載 13～200 時逾時）；失敗的兩檔單獨重跑 75 passed。之後只再改了 `SavedViews.vue` 的手機樣式，重跑相關 7 檔 130 passed |
+| 新測試 `saasListTools.test.ts`、`passkey.test.ts` | 10＋9 passed |
+| `npm run test:website` | 171 檔、2591 passed |
+| 真 Chrome（Playwright＋CDP 虛擬驗證器，`output/playwright/admin-saas-20261127/*.cjs`） | 登記 → 登出 → 按指紋登入進得來；刪除可用；側欄搜「林小安」列出招生紀錄並開到那一筆；勾掉「來源」欄表頭少一欄；存「全部未排除」後一鍵套回、網址正確；390px 寬沒有橫向捲動，搜尋框 170px |
+
 ## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（PR #152，已部署 main `7eea0be8`，紀錄見 `deploy/README.md`）
 
 使用者問「卡片按鈕還有什麼功能可以做」，看完 12 項後挑 10、11、12（「都幫我做」）。建在 PR #148（週報、月報）之上，#148 併 main 後再併。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`。
@@ -99,7 +125,7 @@
 - **沒做／沒驗證**：使用者頁新加的勾選、最後登入欄與對照表只有 `permissionLabels.test.ts`（規則與後端對表）與上面的瀏覽器檢查，沒有另寫元件測試；`npm run test:website` 與 stack e2e 沒跑（沒動 `web/`；e2e 由 CI 跑）；真後端登入後的畫面與正式站沒看；使用小技巧（`tips.ts`）裡各條「適用角色」仍是寫死的角色清單，另一個 session 正在改那一頁，這次沒動；`docs/website-admin/acceptance.md` E02 的敘述沒更新。
 - **部署時注意**：沒有 migration、不改既有資料；上線後現有帳號的權限只有一處變窄（櫃台打不到操作紀錄 API），其餘不變。要讓某位園長看統計，需總管理者到使用者頁勾選。
 
-## 2026-11-27 後台 QA／TA 修正五項（`feature/admin-qa-fixes-20261127`，未提交、未部署）
+## 2026-11-27 後台 QA／TA 修正五項（PR #154，已部署 main `92bbca18`，紀錄見 `deploy/README.md`）
 
 同日先對正式站後台做只讀的 QA＋TA 測試（37 頁桌機＋390px，0 個 API 失敗、0 個主控台錯誤），使用者從清單挑這五項說「先幫我處理這些問題」。規則寫在 DESIGN.md 頂部「後台 QA／TA 修正五項」。
 

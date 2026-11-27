@@ -14,6 +14,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 後台 QA／TA 修正五項（PR #154，main `92bbca18`；已部署）
+
+同日對正式站後台做只讀的 QA＋TA 測試後，使用者挑五項：漏斗看板比率改成和招生統計同一套（使用者裁定）、側欄搜尋收園方說法、找不到的網址排除掃描程式、手機上還沒開始的案件撥號改整排主鈕、素材庫看不出內容的檔名改標題並可用「用在哪裡」搜尋。使用者說「幫我部署」。沒有 migration、不改既有資料，沒有事先備份。內容見根目錄 README 同日段落與 DESIGN.md「後台 QA／TA 修正五項」。
+
+上線後行為的差別：漏斗看板上方只剩「參觀→預繳率」「預繳→註冊率」，數字和招生統計一致（不再是各欄目前張數相除，和園務系統的看板不同）；「找不到的網址」不列 `/.env` 這類掃描路徑。API 只新增欄位（board 的 `rates`、not-found 的 `probe_hits`／`probe_paths`）與查詢參數（media 的 `q_used_in`）。
+
+線上核對（2026-11-27 約 13:40 台北）：
+
+- PR 組 run 45940897212、推送組重跑 45940875560 全綠；main run 45944145471 全綠（含 E2E 與 Deploy Railway production），排在 #152 的 run 之後部署。
+- `https://www.ivykidschool.com/release.json` 與 `https://admin.ivykidschool.com/release.json` 的 base_commit 都是 `92bbca18`。
+- 後台程式檔（公開 GET）：入口檔有「颱風」「停班停課」「手機通知」；`AdmissionsView` 有「參觀→預繳率」「預繳→註冊率」、沒有「算法不同」「退費率」；`AnalyticsView` 有掃描說明；`MediaLibraryView` 有新搜尋提示與 `q_used_in`；案件頁共用檔有「撥號給家長」按鈕字。
+- 使用者已登入的瀏覽器只讀 GET：not-found 28 天原本 16 個網址，現在列 12 個、`probe_hits` 4／`probe_paths` 4、名單裡沒有 `/.` 開頭的；board 回 `rates`（正式庫招生資料是空的，全為 0）；素材搜「校園探索」＋`q_used_in=campus_tour` 找到 4 張校園探索照片（unnamed 與臉書數字檔名）。
+- 沒驗：iPhone 實機、校區管理者帳號實際登入的畫面。
+
 ## 2026-11-27 LINE 群組：報表各校明細、查詢切換鈕、統計異常「知道了」（PR #152，main `7eea0be8`；已部署）
 
 使用者 11-27 挑了卡片按鈕第 10、11、12 項，做完後說「部署」。規格 `docs/specs/2026-11-27-line-card-buttons-design.md`，內容見根目錄 README 同日段落。migration `d8b3f1a6c240`（parent `c7a2d9e4b615`＝#148）只新增空表 `stats_health_mutes`，不改既有資料，沒有事先備份。#152 原本疊在 #148 上；#148 先由別的流程於 10:44 合併部署，之後等 #151 先併，再把 main 併進 #152 重跑 CI。push 那組 CI 被同一個並行群組取消、擋住合併，`gh run rerun 45940666789` 重跑全綠後才合併。
