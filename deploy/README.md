@@ -14,6 +14,18 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 後台「使用小技巧」補 11 條、修正過期說明、重拍截圖、分類列黏住（PR #149，main `5a6a44b4`；已部署）
+
+只改 admin 前端（`admin/src/views/TipsView.vue`、`admin/src/tips/tips.ts`、`pageSections.ts`、`admin/src/assets/tips/` 34 張截圖）與截圖腳本，沒有 migration，也沒改變數，不需要事前備份。使用者看過建議清單說「都幫我做」，做完後說「合併進 main」。合併前把 `main`（#147）合進分支，README 頂部衝突一次、兩段都保留，型別檢查與相關測試重跑通過。PR 那組 CI（Frontend 兩組、Backend 三組、E2E）全綠；同分支的推送組被 concurrency 取消、讓 PR 顯示 BLOCKED，`gh run rerun 45921021822` 綠了之後合併。合併後 run 45924552416 全綠，Deploy Railway production 成功（01:47–02:02 UTC）。
+
+線上核對（2026-11-27 10:03 台北，只用公開 GET）：
+
+- `/release.json` 的 `base_commit` 是 `5a6a44b4…`（上一版 `3c25ba79`，#147）。
+- `/api/website/v1/health` 回 200；`admin.ivykidschool.com/admin/login` 回 200。
+- 後台入口 `index-DnrTcVj8.js` 有新的頁首分類對照（`/audit`、`/system-status`、`/line-notifications` → `system`）；`TipsView-BRwSVqns.js` 裡有 `tips__bar`、`tips__pages`、「統計與系統」與新條目 `analytics-detail`、`area-map`、`site-switches`、`audit-more`。
+
+沒驗：登入後的實際畫面（沒有用正式站帳號），請使用者開 `/admin/tips` 看一次黏住的分類列、新的「統計與系統」與限高截圖；Safari／iOS 實機。
+
 ## 2026-11-27 全專案 bug 審查的 high／medium 修正（PR #147，main `3c25ba79`；已部署）
 
 修了 11-26 全專案 bug 審查的 high 1 條、medium 15 條，內容見 `README.md` 頂部同名段落。沒有 migration，也沒改變數或 API 契約，不需要事前備份。使用者說「幫我併入main」。
