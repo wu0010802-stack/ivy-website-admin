@@ -224,6 +224,7 @@ npm run test:e2e   # 公開站四視口 Playwright（先 npm run e2e:build；自
 
 - **做什麼**：家長在 Facebook／Instagram 的即時表單送出後，後端每分鐘拉進後台「參觀預約 → 廣告名單」，並推一則「有 N 筆新名單」到該校 LINE 群組（只有校名與筆數，不含家長個資）。櫃檯打電話確認後按「轉成參觀案件」，走原本的補登（要選場次）；規格 6.2 不得自動建案，名單本身不占名額。打不通、重複的按「略過」。
 - **啟用**（使用者在 Railway 設）：沿用 `WEBSITE_FACEBOOK_ACCESS_TOKEN`、`WEBSITE_FACEBOOK_PAGES`，另設 `WEBSITE_META_LEADS_ENABLED=true`。選填 `WEBSITE_META_LEADS_SYNC_SECONDS`（預設 60）、`WEBSITE_META_LEADS_RETENTION_DAYS`（預設 90）。token 要再有 `leads_retrieval`、`pages_manage_ads`；粉專若在「潛在顧客存取權管理員」限制了存取，要把產生 token 的人或系統使用者加進去。
+- **其他校要接（2026-11-26）**：五校粉專由不同 FB 帳號管理，各校放自己的 `WEBSITE_FACEBOOK_<校>_ACCESS_TOKEN`（沒放的沿用共用那把），並用 `WEBSITE_META_LEADS_PAGES` 列出要拉名單的校區（有設就以它為準，不影響粉專貼文同步用的 `WEBSITE_FACEBOOK_PAGES`）。步驟見 `deploy/README.md`「Meta 名單型廣告」。
 - **同步失敗**：頁面上顯示步驟與 Meta 錯誤代碼。「讀取即時表單」或「讀取名單」HTTP 403／code 200、code 10 多半是權杖少了上面兩個權限；code 190 是權杖過期。換好 token 後按「立即同步」。
 - **個資**：轉成案件時名單上的姓名、電話、作答立刻清掉（資料在案件裡，跟著案件的保存政策走）；沒轉的名單收到 90 天後自動刪除。
 - **回傳 Meta**：轉成的案件在「標記已到場」「已預繳」時，若設了 `WEBSITE_META_PIXEL_ID`、`WEBSITE_META_CAPI_TOKEN`，會以 CRM 名單事件格式送 Meta 名單編號（不送姓名電話），之後可在 Meta 事件管理工具設定「轉換名單最佳化」。

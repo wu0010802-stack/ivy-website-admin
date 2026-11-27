@@ -440,3 +440,45 @@ def test_meta_lead_id_selects_the_meta_platform():
     # enqueue 照 PLATFORM_KEYS 看 ad_click_ids 有哪個平台的識別碼就排哪個平台。
     ids = {"meta_lead_id": "9000000000000001"}
     assert [platform for platform, keys in PLATFORM_KEYS.items() if any(ids.get(key) for key in keys)] == ["meta"]
+
+
+# ── 每校自己的 token、只拉名單的粉專清單（2026-11-26，docs/specs/2026-11-26-line-group-reports-design.md §5） ──
+
+
+def test_per_campus_token_and_leads_only_pages(isolated_settings):
+    base = {**isolated_settings.model_dump(), "facebook_access_token": "shared", "facebook_pages": "yihua=12345"}
+    plain = Settings.model_validate(base)
+    assert plain.meta_leads_page_ids == {"yihua": "12345"}
+    assert plain.facebook_token_for("yihua") == plain.facebook_token_for("minghua") == plain.facebook_token_for(None) == "shared"
+
+    settings = Settings.model_validate({
+        **base, "meta_leads_enabled": True, "facebook_minghua_access_token": " minghua-token ",
+        "meta_leads_pages": "yihua=12345, minghua=67890",
+    })
+    assert settings.meta_leads_page_ids == {"yihua": "12345", "minghua": "67890"}
+    assert settings.facebook_page_ids == {"yihua": "12345"}  # 粉專貼文的清單不受影響
+    assert settings.facebook_token_for("minghua") == "minghua-token" and settings.facebook_token_for("yihua") == "shared"
+    assert "minghua-token" not in repr(settings)
+    with pytest.raises(ValidationError, match="WEBSITE_META_LEADS_PAGES"):
+        Settings.model_validate({**base, "meta_leads_pages": "minghua"})
+
+
+async def test_sync_uses_each_campus_token_and_the_leads_only_list(app):
+    seen: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        token = request.headers.get("authorization", "").removeprefix("Bearer ")
+        parts = request.url.path.strip("/").split("/")
+        if len(parts) == 2:
+            seen[parts[1]] = token
+            return httpx.Response(200, json={"access_token": f"page-{parts[1]}", "id": parts[1]})
+        assert token == f"page-{parts[1]}"
+        return httpx.Response(200, json={"data": []})
+
+    settings = _settings(
+        app.state.settings, facebook_pages=f"yihua={YIHUA_PAGE}",
+        meta_leads_pages=f"yihua={YIHUA_PAGE},minghua={MINGHUA_PAGE}", facebook_minghua_access_token="minghua-own",
+    )
+    results = await sync_leads(app.state.session_factory, settings, transport=httpx.MockTransport(handler))
+    assert [(r.campus_key, r.error) for r in results] == [("yihua", None), ("minghua", None)]
+    assert seen == {YIHUA_PAGE: SYSTEM_TOKEN, MINGHUA_PAGE: "minghua-own"}

@@ -97,6 +97,29 @@ describe('LINE 群組通知開關', () => {
     expect(put).toHaveBeenLastCalledWith('/admin/line/groups/C1', expect.objectContaining({ kinds: ALL_KINDS }))
   })
 
+  it('2026-11-26：總部群組多「每週一週報」「每月 1 日月報」，切換時其他種類照舊帶著', async () => {
+    const plain = await mountPage(settings([group()]))
+    expect(plain.find('[data-test="line-group-C1-weekly-report"]').exists()).toBe(false)
+    expect(plain.find('[data-test="line-group-C1-monthly-report"]').exists()).toBe(false)
+    plain.unmount()
+    wrappers.length = 0
+    const hq = group({ is_hq: true, kinds: [...ALL_KINDS, 'stats_health', 'weekly_report'] })
+    const wrapper = await mountPage(settings([hq]))
+    expect(wrapper.get('[data-test="line-group-C1-weekly-report"]').text()).toContain('每週一週報')
+    expect(wrapper.get('[data-test="line-group-C1-monthly-report"]').text()).toContain('每月 1 日月報')
+    const put = vi.spyOn(api, 'put').mockResolvedValue(settings([hq]) as never)
+    await wrapper.get('[data-test="line-group-C1-monthly-report"] .el-switch__input').trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/line/groups/C1', expect.objectContaining({
+      kinds: [...ALL_KINDS, 'stats_health', 'weekly_report', 'monthly_report'],
+    }))
+    await wrapper.get('[data-test="line-group-C1-weekly-report"] .el-switch__input').trigger('click')
+    await flushPromises()
+    expect(put).toHaveBeenLastCalledWith('/admin/line/groups/C1', expect.objectContaining({
+      kinds: [...ALL_KINDS, 'stats_health'],
+    }))
+  })
+
   it('unverified groups show no switches', async () => {
     const wrapper = await mountPage(settings([group({ verified_at: null })]))
     expect(wrapper.find('[data-test="line-group-settings-C1"]').exists()).toBe(false)

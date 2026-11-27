@@ -234,7 +234,10 @@ def _hbox(contents: list[dict]) -> dict:
     return {"type": "box", "layout": "horizontal", "spacing": "sm", "contents": contents}
 
 
-def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str) -> dict:
+CONTACT_ROW_LABEL = "昨天官網"
+
+
+def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str, contact: str | None = None) -> dict:
     """第一張總覽（標題、各校筆數），之後每筆一張（confirmed 才有已到場／未到場）。
     LINE carousel 上限 12 張：超過 11 筆時第 12 張寫「另有 N 筆」。altText 只放標題與筆數。"""
     if not rows:
@@ -244,7 +247,9 @@ def visit_list_message(title: str, rows: list[VisitRow], *, empty_text: str) -> 
         counts[row.campus_name] = counts.get(row.campus_name, 0) + 1
     summary = _bubble(
         GROUP_LIST_EYEBROW, title,
-        [_row("合計", f"{len(rows)} 筆")] + [_row(name, f"{n} 筆") for name, n in counts.items()],
+        [_row("合計", f"{len(rows)} 筆")] + [_row(name, f"{n} 筆") for name, n in counts.items()]
+        # 每日摘要才帶（2026-11-26）：昨天官網上按電話、LINE 鈕的次數。
+        + ([{"type": "separator", "margin": "md"}, _row(CONTACT_ROW_LABEL, contact)] if contact else []),
         [],
     )
     # 總覽 1 張＋最多 11 筆。超過 11 筆時，第 11 筆（第 12 張）不放按鈕、改附「另有 N 筆，請開後台」。
@@ -282,12 +287,12 @@ _MENU_ROWS = (
     ("今天名額", "休假日"),
     ("待辦", "指令"),
 )
-_MENU_HQ_ROW = ("本週統計", "額度")
+_MENU_HQ_ROWS = (("本週統計", "額度"), ("週報", "月報"))
 MENU_ALT = "參觀名單選單"
 
 
 def menu_commands(*, is_hq: bool = False) -> tuple[str, ...]:
-    rows = (*_MENU_ROWS, _MENU_HQ_ROW) if is_hq else _MENU_ROWS
+    rows = (*_MENU_ROWS, *_MENU_HQ_ROWS) if is_hq else _MENU_ROWS
     return tuple(text for row in rows for text in row)
 
 
@@ -297,7 +302,7 @@ def _message_button(text: str) -> dict:
 
 
 def menu_message(*, is_hq: bool = False) -> dict:
-    rows = (*_MENU_ROWS, _MENU_HQ_ROW) if is_hq else _MENU_ROWS
+    rows = (*_MENU_ROWS, *_MENU_HQ_ROWS) if is_hq else _MENU_ROWS
     buttons = [_hbox([_message_button(text) for text in row]) for row in rows]
     return flex_message(MENU_ALT, _bubble(SITE_LABEL, "要查什麼？", [_text("按一下就會查；也可以直接輸入指令。", size="sm", color=MUTED)], buttons))
 
@@ -309,9 +314,10 @@ def help_message(*, is_hq: bool = False) -> dict:
         "【要處理的】待標記（時間過了還沒標到場）、待追蹤（招生聯絡到期）、待辦（各校現在的數字）",
         "【名額】今天名額、明天名額、本週名額、下週名額、11/28 名額",
         "【休假】休假日（近 14 天的休假與停課）",
+        "【官網按鈕】今天聯絡（今天與昨天有多少人按了電話、LINE）",
     ]
     if is_hq:
-        lines.append("【總部專用】本週統計、上週統計、本月統計、上月統計、額度")
+        lines.append("【總部專用】本週統計、上週統計、本月統計、上月統計、週報、月報、額度")
     lines += [
         "指令前面可以加校名只看一校，例如「義華 今天參觀」。",
         "標記官方帳號（@）會跳出選單；輸入「指令」可以再看一次這份說明。",
@@ -467,3 +473,49 @@ def mention_all_message() -> dict:
         "text": "{everyone} 今天有臨時變動，請看上方卡片",
         "substitution": {"everyone": {"type": "mention", "mentionee": {"type": "all"}}},
     }
+
+
+# ---- 月報（2026-11-26，docs/specs/2026-11-26-line-group-reports-design.md §3）----
+
+REPORT_EYEBROW = "常春藤官網｜月報"
+_BAR_TRACK = "#E6ECE8"
+
+
+def _bar(cases: int, top: int) -> dict:
+    """一條橫條：長度＝這校預約數 ÷ 各校最大值。0 筆只留底色。"""
+    track: dict = {
+        "type": "box", "layout": "vertical", "height": "10px", "cornerRadius": "5px",
+        "backgroundColor": _BAR_TRACK, "flex": 5, "contents": [{"type": "filler"}],
+    }
+    if cases > 0 and top > 0:
+        track["contents"] = [{
+            "type": "box", "layout": "vertical", "height": "10px", "cornerRadius": "5px",
+            "backgroundColor": BRAND, "width": f"{max(4, round(cases * 100 / top))}%",
+            "contents": [{"type": "filler"}],
+        }]
+    return track
+
+
+def monthly_report_message(report) -> dict:
+    """report：line_group_reports.MonthlyReport。只有數字與校名；altText 只放月份與合計筆數。"""
+    title = f"{report.month} 月月報"
+    top = max((campus.cases for campus in report.campuses), default=0)
+    body: list[dict] = [
+        _row("預約", f"{report.cases} 筆{report.cases_delta}"),
+        _row("到場率", f"{report.attendance}（前一個月 {report.attendance_before}）"),
+        _row("預繳", f"{report.deposits} 筆{report.deposits_delta}"),
+        {"type": "separator", "margin": "md"},
+        _text("各校預約數", size="sm", color=MUTED, margin="md"),
+    ]
+    for campus in report.campuses:
+        body.append({
+            "type": "box", "layout": "horizontal", "spacing": "md", "alignItems": "center", "margin": "md",
+            "contents": [
+                _text(campus.name, size="sm", flex=2, wrap=False),
+                _bar(campus.cases, top),
+                _text(str(campus.cases), size="sm", flex=1, align="end", wrap=False),
+            ],
+        })
+        body.append(_text(f"到場率 {campus.attendance}｜預繳 {campus.deposits}", size="xs", color=MUTED))
+    body.append(_text("依預約送出日；到場率＝到場 ÷ 已標記。", size="xs", color=MUTED, margin="md"))
+    return flex_message(f"{title}：預約 {report.cases} 筆", _bubble(REPORT_EYEBROW, title, body, []))

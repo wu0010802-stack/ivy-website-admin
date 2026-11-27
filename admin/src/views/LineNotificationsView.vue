@@ -168,7 +168,16 @@ async function saveGroupSettings(group: LineGroupOut, patch: Partial<GroupSettin
 // 官網統計異常（2026-11-20，backend/app/operations/stats_health.py）：只有總部群組有這個開關，預設不開。
 // 不是案件通知，所以不放進 GROUP_KIND_OPTIONS；切其他開關時也要把它帶著，不然會被洗掉。
 const STATS_HEALTH_KIND = 'stats_health'
-const ALL_GROUP_KINDS = [...GROUP_KIND_OPTIONS.map(option => option.value), STATS_HEALTH_KIND]
+// 週報、月報（2026-11-26，backend/app/notifications/line_reports.py）：同樣只有總部群組有開關。
+const HQ_REPORT_KINDS = [
+  { value: 'weekly_report', label: '每週一週報', test: 'weekly-report' },
+  { value: 'monthly_report', label: '每月 1 日月報', test: 'monthly-report' },
+]
+const ALL_GROUP_KINDS = [
+  ...GROUP_KIND_OPTIONS.map(option => option.value),
+  STATS_HEALTH_KIND,
+  ...HQ_REPORT_KINDS.map(option => option.value),
+]
 
 function toggleKind(group: LineGroupOut, kind: string, on: boolean) {
   const kinds = ALL_GROUP_KINDS.filter(value => value === kind ? on : group.kinds.includes(value))
@@ -440,10 +449,22 @@ onMounted(() => load())
                   :data-test="`line-group-${group.target_id}-stats-health`"
                   @change="(value: unknown) => toggleKind(group, STATS_HEALTH_KIND, Boolean(value))"
                 />
+                <template v-if="group.is_hq">
+                  <el-switch
+                    v-for="option in HQ_REPORT_KINDS"
+                    :key="option.value"
+                    :model-value="group.kinds.includes(option.value)"
+                    :disabled="groupSaving[group.target_id]"
+                    :active-text="option.label"
+                    :aria-label="`${groupLabel(group)}：${option.label}`"
+                    :data-test="`line-group-${group.target_id}-${option.test}`"
+                    @change="(value: unknown) => toggleKind(group, option.value, Boolean(value))"
+                  />
+                </template>
               </div>
             </li>
           </ul>
-          <p class="field-help">總部群組會收到所有校區的通知；其他群組只收到各校自己選定的群組通知。總部群組另外可以開「官網統計異常」：官網的瀏覽、內容興趣、預約來源或 GA4 的數字突然不見時，每天早上 9 點後提醒一次。官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
+          <p class="field-help">總部群組會收到所有校區的通知；其他群組只收到各校自己選定的群組通知。總部群組另外可以開「官網統計異常」：官網的瀏覽、內容興趣、預約來源或 GA4 的數字突然不見時，每天早上 9 點後提醒一次。也可以開「每週一週報」（上週各校的預約、到場、預繳，和前一週比較）與「每月 1 日月報」（上個月各校的預約、到場率、預繳），都是早上 9 點後推一則；在群組輸入「週報」「月報」可以隨時再看。官方帳號被移出群組後，該群組不會再收到通知；要恢復請重新把它拉進群組。</p>
         </div>
       </section>
       <section class="panel">

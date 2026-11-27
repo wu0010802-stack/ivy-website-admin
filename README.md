@@ -48,6 +48,32 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
+## 2026-11-26 LINE 群組：週報、月報、電話／LINE 點擊小結、四校廣告名單的每校權杖（`feature/line-reports-20261126`，未 commit、未部署）
+
+使用者問「各校通知群組還可以做什麼」，看完 13 項後挑 7、8、12、13，並回覆「五校粉專不是同一個 FB 帳號在管」。規格 `docs/specs/2026-11-26-line-group-reports-design.md`。
+
+- **週報（總部群組）**：每週一 09:00–12:00 推一則文字。上週送出的預約（口徑同「上週統計」），預約與預繳後面寫與前一週的差（`預約 12（前一週 9，+3）`）；另加一段「上週實際來參觀的（依參觀日）」各校到場、未到場、到場率——依送出日算，上週才預約的多半還沒來。
+- **月報（總部群組）**：每月 1 日 09:00–12:00 推一張卡片。合計的預約、到場率、預繳與前一個月比較；每校一條橫條（長度＝預約數 ÷ 五校最大值）與到場率、預繳。橫條用 Flex 的 box 畫，不產圖檔。
+- 兩份都是新的通知種類（`weekly_report`、`monthly_report`），後台「LINE 通知」總部群組多兩個開關；**migration 會幫現有的總部群組直接打開**。同一期每個群組只推一次（新表 `line_report_runs`），推失敗下一輪再試、過 12:00 不補。指令「週報」「月報」（總部群組才回）隨時重看，不計則數。
+- **電話／LINE 點擊**：每日摘要第一張卡片多一列「昨天官網：按電話 3 次｜按 LINE 5 次」（校區群組只看自己的校，總部群組列各校與不分校區；沒有人按就不放）。摘要 08:00 推，所以是昨天的數字；當天沒有參觀的群組不會為了這個另推一則。指令「今天聯絡」（或 @ 官方帳號＋「聯絡」）回今天到目前與昨天的次數。事件同後台「電話與 LINE 的時段」。文字寫「按」不寫「來電」。
+- **四校廣告名單**：每校可以放自己粉專的 token（`WEBSITE_FACEBOOK_<校>_ACCESS_TOKEN`，沒放沿用共用的）；名單有自己的粉專清單 `WEBSITE_META_LEADS_PAGES`（沒設沿用 `WEBSITE_FACEBOOK_PAGES`），加校區拉名單時不會連帶同步那校的粉專貼文。沒設新變數時行為和現在完全一樣。Railway 要設的變數與步驟在 `deploy/README.md`「Meta 名單型廣告」，要本人做。
+- **範圍**：`backend/`（新 `notifications/line_reports.py`；`line_group_reports.py`、`line_flex.py`、`line_group_commands.py`、`line_digest.py`、`workers/maintenance.py`、`config.py`、`facebook/graph.py`、`meta_leads/`）、migration `c7a2d9e4b615`（只新增一張表、替總部群組的 kinds 加兩個值，不必先備份）、`admin/`（LINE 通知頁兩個開關與標籤）。API 契約不變，`web/` 沒動。
+- **沒驗**：月報卡片與摘要新的一列在手機 LINE 上的樣子、真群組收到的時間；四校 token 與真的名單；Meta App 開發模式能不能讀到一般家長送出的名單（義華也還沒被真名單驗過）。
+
+驗證（本機，Node 22.23.2、獨立測試庫 `ivy_website_linereports_test`）：
+
+| 指令／方式 | 結果 |
+|---|---|
+| 後端全套 `pytest -q` | 6085 passed、1 skipped、**4 failed**（18 分 39 秒）。4 條都在 `test_line_group_commands_more_20261125.py` 的待追蹤名單，原因是我把摘要卡片多一列的改動誤套到待追蹤卡片（`NameError: contact`）；改掉後沒有再跑全套 |
+| 修正後重跑 LINE 群組相關 7 個測試檔（含上面 4 條、新測試、每日摘要、名單） | 107 passed |
+| 新測試 | `test_line_group_reports_20261126.py` 10 條、`test_line_group_digest.py` 加 2 條、`test_meta_leads.py` 加 2 條、admin `lineGroupSettings.test.ts` 加 1 條 |
+| migration `c7a2d9e4b615` 升版 → 降版 → 升版（測試庫放一個總部群組、一個一般群組） | 總部群組多了兩個種類、一般群組不變；降版拿掉 |
+| `npm --prefix admin run typecheck` | exit 0 |
+| admin 全套 `npx vitest run --maxWorkers=2` | 209 檔、3897 passed、1 skipped |
+| `export_openapi.py --check`、`export_state_machines.py --check` | 契約與 API 一致、狀態機匯出檔一致（`check-contract-types.mjs` 沒跑，契約檔沒變） |
+
+沒跑：`web/` 的測試（沒動）、stack e2e、lint（這個環境沒裝 ruff）。
+
 ## 2026-11-27 後台「使用小技巧」補 11 條、修 10 條過期說明、截圖重拍、黏住的分類列（PR #149，已部署 main `5a6a44b4`，紀錄見 `deploy/README.md`）
 
 使用者看正式站 `/admin/tips` 後說「幫我看看可以怎麼優化」，看完建議清單回「都幫我做」。只改 `admin/` 與截圖腳本，沒有後端、契約、migration 變動。規則補在 DESIGN.md「後台：使用小技巧頁」。
