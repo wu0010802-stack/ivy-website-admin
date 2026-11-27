@@ -89,6 +89,13 @@ async def get_traffic_summary(db: AsyncSession, days: int, stats_start: date | N
         .where(WebVitalSample.day >= since)
         .group_by(WebVitalSample.metric, WebVitalSample.device)
     )).all()
+    # 各頁分開的 p75（2026-11-27）：改了某一頁的首屏（預載、圖片大小）要看得到那一頁自己的變化，
+    # 全站合計會被瀏覽多的首頁蓋過。預約頁五校合併算（各校樣本太少）。
+    page_vital_rows = (await db.execute(
+        select(WebVitalSample.page, WebVitalSample.metric, WebVitalSample.device, p75, func.count())
+        .where(WebVitalSample.day >= since)
+        .group_by(WebVitalSample.page, WebVitalSample.metric, WebVitalSample.device)
+    )).all()
 
     return {
         "days": days,
@@ -108,5 +115,13 @@ async def get_traffic_summary(db: AsyncSession, days: int, stats_start: date | N
                 for metric, device, value, count in vital_rows
             ),
             key=lambda item: (["LCP", "INP", "CLS"].index(item["metric"]), item["device"]),
+        ),
+        "page_vitals": sorted(
+            (
+                {"page": page, "metric": metric, "device": device, "p75": float(value), "samples": int(count),
+                 "rating": _rating(metric, float(value))}
+                for page, metric, device, value, count in page_vital_rows
+            ),
+            key=lambda item: (item["page"], ["LCP", "INP", "CLS"].index(item["metric"]), item["device"]),
         ),
     }

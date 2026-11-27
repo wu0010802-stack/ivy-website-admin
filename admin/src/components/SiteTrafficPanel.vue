@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { api } from '../api/client'
-import { MIN_VITAL_SAMPLES, RATING_LABELS, TRAFFIC_COVERAGE_EXPANDED_ON, formatVital, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
+import { MIN_VITAL_SAMPLES, RATING_LABELS, TRAFFIC_COVERAGE_EXPANDED_ON, VITAL_LABELS, formatVital, pageVitalTable, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import AnalyticsMeta from './analytics/AnalyticsMeta.vue'
@@ -62,6 +62,10 @@ const pages = computed(() => {
   return list.map((p) => ({ ...p, label: trafficPageLabel(p), ratio: p.views / max }))
 })
 const vitals = computed(() => vitalTable(summary.value?.vitals ?? []))
+// 各頁速度（2026-11-27）：改了某一頁的首屏要看那一頁自己的變化，全站合計會被首頁蓋過。一次看一個指標。
+const pageMetric = ref<TrafficVital['metric']>('LCP')
+const PAGE_METRICS = (['LCP', 'INP', 'CLS'] as const).map((metric) => ({ metric, name: VITAL_LABELS[metric].name }))
+const pageVitals = computed(() => pageVitalTable(summary.value?.page_vitals ?? [], pageMetric.value))
 const DEVICES = [{ key: 'mobile', label: '手機' }, { key: 'desktop', label: '電腦' }] as const
 const RATING_TAG = { good: 'success', needs_improvement: 'warning', poor: 'danger', too_few: 'info' } as const
 const ratingOf = (vital: TrafficVital) => vitalRating(vital)
@@ -81,10 +85,13 @@ function exportPages() {
   )
 }
 function exportVitals() {
+  // 全站三列在前；各頁（2026-11-27）三個指標都匯出，項目寫「頁名・指標」。
+  const perPage = PAGE_METRICS.flatMap(({ metric, name }) => pageVitalTable(summary.value?.page_vitals ?? [], metric)
+    .map((row) => [`${row.label}・${name}`, ...DEVICES.map((device) => vitalCell(metric, row[device.key]))]))
   saveAnalyticsCsv(
     analyticsCsvName('網頁速度', '官網全站', rangeText.value),
     ['項目', ...DEVICES.map((device) => device.label)],
-    vitals.value.map((row) => [row.name, ...DEVICES.map((device) => vitalCell(row.metric, row[device.key]))]),
+    [...vitals.value.map((row) => [row.name, ...DEVICES.map((device) => vitalCell(row.metric, row[device.key]))]), ...perPage],
   )
 }
 </script>
@@ -175,6 +182,33 @@ function exportVitals() {
             <AnalyticsExplainer>
               <p>每 4 位訪客中有 3 位的體驗不比這個數字差。量測不到 {{ MIN_VITAL_SAMPLES }} 次時資料太少，先不評等。</p>
             </AnalyticsExplainer>
+            <div v-if="summary?.page_vitals?.length" class="traffic__page-vitals" data-test="page-vitals">
+              <div class="traffic__page-vitals-head">
+                <h3 id="traffic-page-vitals-title">各頁</h3>
+                <el-radio-group v-model="pageMetric" size="small" aria-labelledby="traffic-page-vitals-title">
+                  <el-radio-button v-for="item in PAGE_METRICS" :key="item.metric" :value="item.metric">{{ item.name }}</el-radio-button>
+                </el-radio-group>
+              </div>
+              <p v-if="!pageVitals.length" class="hint">這段期間各頁都還沒有這一項的資料。</p>
+              <table v-else class="traffic__vitals">
+                <thead>
+                  <tr><th scope="col">頁面</th><th v-for="device in DEVICES" :key="device.key" scope="col">{{ device.label }}</th></tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in pageVitals" :key="row.page">
+                    <th scope="row"><span class="traffic__vital-name">{{ row.label }}</span></th>
+                    <td v-for="device in DEVICES" :key="device.key">
+                      <div v-if="row[device.key]" class="traffic__vital">
+                        <span class="num traffic__vital-value">{{ formatVital(pageMetric, row[device.key]!.p75) }}</span>
+                        <el-tag size="small" :type="RATING_TAG[ratingOf(row[device.key]!)]">{{ RATING_LABELS[ratingOf(row[device.key]!)] }}</el-tag>
+                        <span class="hint num">量測 {{ formatCount(row[device.key]!.samples) }} 次</span>
+                      </div>
+                      <span v-else class="hint">沒有資料</span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </template>
         </div>
       </section>
@@ -292,6 +326,27 @@ function exportVitals() {
 
 .traffic__vitals tbody th {
   font-weight: 400;
+}
+
+/* 各頁速度（2026-11-27）：接在全站表與說明下面，標題列放指標切換；窄螢幕切換鈕換到下一行。 */
+.traffic__page-vitals {
+  margin-top: 20px;
+}
+
+.traffic__page-vitals-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.traffic__page-vitals-head h3 {
+  margin: 0;
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--ink);
 }
 
 .traffic__vital-name {

@@ -462,10 +462,24 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     delete (document as { startViewTransition?: unknown }).startViewTransition
   })
 
-  /** 掛上 plugin：回傳閒置佇列、畫了幾張遮罩、beforeResolve 守衛，以及每張網址對應的 blob（buildId 預設 build-a） */
-  function mount(caches: unknown, { buildId }: { buildId?: string } = { buildId: 'build-a' }) {
+  /**
+   * 掛上 plugin：回傳閒置佇列、畫了幾張遮罩、beforeResolve 守衛，以及每張網址對應的 blob（buildId 預設 build-a）。
+   * 2026-11-27 起遮罩要等「有人可能去特色教學」才排閒置：intent 預設 true，掛上後在連到 /curriculum 的連結上送一次 pointerover。
+   */
+  function mount(caches: unknown, { buildId, intent = true }: { buildId?: string, intent?: boolean } = { buildId: 'build-a' }) {
     const idle: (() => void)[] = []
     vi.stubGlobal('requestIdleCallback', (fn: () => void) => idle.push(fn))
+    const observers: { callback: IntersectionObserverCallback, observed: Element[], disconnected: boolean }[] = []
+    vi.stubGlobal('IntersectionObserver', class {
+      record: { callback: IntersectionObserverCallback, observed: Element[], disconnected: boolean }
+      constructor(callback: IntersectionObserverCallback) { this.record = { callback, observed: [], disconnected: false }; observers.push(this.record) }
+      observe(el: Element) { this.record.observed.push(el) }
+      disconnect() { this.record.disconnected = true }
+    })
+    const link = document.createElement('a')
+    link.href = '/curriculum'
+    document.body.append(link)
+    removers.push(() => link.remove())
     vi.stubGlobal('caches', caches)
     vi.stubGlobal('useRouter', () => router)
     vi.stubGlobal('useRuntimeConfig', () => ({ app: buildId === undefined ? {} : { buildId } }))
@@ -487,13 +501,23 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
     const add = vi.spyOn(document, 'addEventListener')
     const addWindow = vi.spyOn(window, 'addEventListener')
     const hooks: Record<string, () => void> = {}
-    plugin({ hook: (name, fn) => { hooks[name] = fn } })
-    for (const [spy, target] of [[add, document], [addWindow, window]] as const) {
-      for (const [type, listener] of spy.mock.calls) removers.push(() => target.removeEventListener(type, listener as EventListener))
-    }
+    // 同一個 hook 可能掛好幾次（page:finish：收尾暈開、重新找連結），全部依序呼叫
+    plugin({ hook: (name, fn) => { const prev = hooks[name]; hooks[name] = prev ? () => { prev(); fn() } : fn } })
     hooks['app:mounted']!()
+    // app:mounted 也會掛監聽（2026-11-27 的 intent），掛完再記下要拆的
+    for (const [spy, target] of [[add, document], [addWindow, window]] as const) {
+      // capture 要一起帶，否則 capture 掛的監聽拿不掉（2026-11-27 起有 capture 的 intent 監聽）
+      for (const [type, listener, options] of spy.mock.calls) removers.push(() => target.removeEventListener(type, listener as EventListener, options as EventListenerOptions | boolean | undefined))
+    }
+    if (intent) link.dispatchEvent(new Event('pointerover', { bubbles: true }))
     const navigate = () => guards[0]!({ path: '/curriculum' }, { path: '/about', matched: [{}] })
-    return { idle, drawn: () => drawn, navigate, transitions, blobs }
+    /** 模擬連結進到視窗附近（IntersectionObserver 回報） */
+    const linkVisible = () => {
+      for (const record of observers.filter((r) => !r.disconnected)) {
+        record.callback(record.observed.map((target) => ({ target, isIntersecting: true }) as unknown as IntersectionObserverEntry), {} as IntersectionObserver)
+      }
+    }
+    return { idle, drawn: () => drawn, navigate, transitions, blobs, link, observers, linkVisible, router, hooks }
   }
   const tick = () => new Promise((resolve) => setTimeout(resolve, 0))
   const runIdle = (idle: (() => void)[]) => idle.splice(0).forEach((fn) => fn())
@@ -501,6 +525,66 @@ describe('轉場遮罩（F4a 網址到暈開那一步才寫、F4b 跨頁快取�
   async function settle(idle: (() => void)[]) {
     for (let i = 0; i < 10; i++) { await tick(); runIdle(idle); await tick() }
   }
+
+  // ---- 2026-11-27：有人可能去特色教學才產生 ----
+  it('沒有連到 /curriculum 的連結在附近、也沒人碰：不排閒置、不畫，換頁直接換（不暈開）', async () => {
+    const page = mount(undefined, { buildId: 'build-a', intent: false })
+    await settle(page.idle)
+    expect(page.drawn()).toBe(0)
+    expect(page.navigate()).toBeUndefined()
+    expect(page.observers.at(-1)!.observed).toContain(page.link) // 有在看這個連結
+  })
+
+  it('連結進到視窗附近（IntersectionObserver）：排閒置、照舊一次一張畫三張；之後不再看連結', async () => {
+    const page = mount(undefined, { buildId: 'build-a', intent: false })
+    page.linkVisible()
+    expect(page.observers.every((r) => r.disconnected)).toBe(true)
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+    page.navigate()
+    expect(page.transitions).toHaveLength(1)
+  })
+
+  it.each(['pointerover', 'pointerdown', 'touchstart', 'focusin'])('%s 碰到連到 /curriculum 的連結就產生；碰到其他連結不算', async (type) => {
+    const page = mount(undefined, { buildId: 'build-a', intent: false })
+    const other = document.createElement('a')
+    other.href = '/about'
+    document.body.append(other)
+    removers.push(() => other.remove())
+    other.dispatchEvent(new Event(type, { bubbles: true }))
+    await settle(page.idle)
+    expect(page.drawn()).toBe(0)
+    page.link.dispatchEvent(new Event(type, { bubbles: true }))
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+  })
+
+  it('寫壞的連結（new URL 會拋錯）被指到時不拋錯、不算意圖', async () => {
+    const page = mount(undefined, { buildId: 'build-a', intent: false })
+    const broken = document.createElement('a')
+    broken.setAttribute('href', 'http://[broken')
+    document.body.append(broken)
+    removers.push(() => broken.remove())
+    expect(() => broken.dispatchEvent(new Event('pointerover', { bubbles: true }))).not.toThrow()
+    await settle(page.idle)
+    expect(page.drawn()).toBe(0)
+  })
+
+  it('人已經在特色教學頁：連結看得到也不產生；站內換到別頁後重新找連結，看得到才產生', async () => {
+    const page = mount(undefined, { buildId: 'build-a', intent: false })
+    page.router.currentRoute.value.path = '/curriculum'
+    page.linkVisible()
+    page.link.dispatchEvent(new Event('pointerover', { bubbles: true }))
+    await settle(page.idle)
+    expect(page.drawn()).toBe(0)
+    page.router.currentRoute.value.path = '/about'
+    const before = page.observers.length
+    page.hooks['page:finish']!()
+    expect(page.observers.length).toBe(before + 1)
+    page.linkVisible()
+    await settle(page.idle)
+    expect(page.drawn()).toBe(3)
+  })
 
   it('F4a：遮罩做好時不寫 <html>（繼承屬性會整頁重算）；要暈開的那一步才和中心、大小一起寫，再加 class', async () => {
     const page = mount(undefined)

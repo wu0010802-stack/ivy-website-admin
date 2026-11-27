@@ -55,8 +55,10 @@ export function useNewsTransition(
       if (disposed) return
       viewport = readMotionViewport(root!)
       const previousHeight = previous!.offsetHeight
-      root!.style.setProperty('--news-screen', `${viewport.height}px`)
-      root!.style.setProperty('--news-prior-stick', `${Math.min(0, viewport.height - previousHeight)}px`)
+      // 寫在讀它的元素上（2026-11-27）：--news-screen 只有紙與紙裡的 .home-news 讀（繼承型，寫在紙上），
+      // --news-prior-stick 只有被蓋的五校讀（studio.css 註冊成不繼承）。寫在消息根時連五校整塊一起重算。
+      paper!.style.setProperty('--news-screen', `${viewport.height}px`)
+      previous!.style.setProperty('--news-prior-stick', `${Math.min(0, viewport.height - previousHeight)}px`)
       schedule()
     }
     function scheduleMeasure() {
@@ -66,7 +68,8 @@ export function useNewsTransition(
       if (readMotionViewport(root!) !== viewport) scheduleMeasure()
     }
     function configure() {
-      root!.dataset.newsMotion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
+      const motion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
+      if (root!.dataset.newsMotion !== motion) root!.dataset.newsMotion = motion
       root!.style.removeProperty('--news-paper-progress')
       lastProgress = -1
       measure()

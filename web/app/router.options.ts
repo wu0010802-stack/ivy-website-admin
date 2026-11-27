@@ -27,6 +27,9 @@ export default <RouterConfig>{
     // 環境頁在 onMounted 動態載入釘住敘事，版面高度就緒前還原會被截短。
     // Nuxt 的 auto restoration 不會由 Vue Router 存 scroll；環境頁在 beforeunload / pagehide 補記自己的 entry。
     const environment = to.path.replace(/\/$/, '') === '/environment'
+    // 第一次進環境頁、沒有 hash 也不是重新整理／整頁上一頁：結果一定是不捲（見下面的 return false），
+    // 不必先等版面穩定。等的那段每幀讀 scrollHeight，正碰上環境頁建拱窗，4 倍降速時是 50–140 ms 的強制重排（2026-11-27）。
+    if (environment && from === START_LOCATION && !savedPosition && !to.hash && !_isRestoredLoad()) return false
     if (environment && (from === START_LOCATION || savedPosition)) {
       let entry = window.history.state?.environmentScroll
       if (!entry && from === START_LOCATION && _isRestoredLoad()) {

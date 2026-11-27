@@ -127,6 +127,29 @@ async def test_admin_summary_p75_and_ratings(admin_client, minghua_client, publi
 
 
 @pytest.mark.asyncio
+async def test_admin_summary_page_vitals_split_by_page(admin_client, public_client):
+    """2026-11-27：各頁分開的 p75；預約頁五校合併算，全站合計照舊。"""
+    for value in (1000, 2000, 3000, 5000):
+        await public_client.post(URL, json=_vital("LCP", value, device="mobile"))
+    for value in (2000, 4000):
+        await public_client.post(URL, json=_vital("LCP", value, page="visit", campus="yihua", device="mobile"))
+    await public_client.post(URL, json=_vital("LCP", 6000, page="visit", campus="renwu", device="mobile"))
+    await public_client.post(URL, json=_vital("CLS", 0.02, page="about", device="desktop"))
+
+    body = (await admin_client.get("/api/website/v1/admin/analytics/traffic?days=7")).json()
+    rows = {(row["page"], row["metric"], row["device"]): row for row in body["page_vitals"]}
+    assert set(rows) == {("home", "LCP", "mobile"), ("visit", "LCP", "mobile"), ("about", "CLS", "desktop")}
+    assert (rows[("home", "LCP", "mobile")]["p75"], rows[("home", "LCP", "mobile")]["samples"]) == (3500.0, 4)
+    visit = rows[("visit", "LCP", "mobile")]
+    assert (visit["p75"], visit["samples"], visit["rating"]) == (5000.0, 3, "poor")
+    assert rows[("about", "CLS", "desktop")]["rating"] == "good"
+    assert [row["page"] for row in body["page_vitals"]] == ["about", "home", "visit"]
+    # 全站合計不受影響：手機 LCP 七筆一起算
+    lcp = next(v for v in body["vitals"] if v["metric"] == "LCP" and v["device"] == "mobile")
+    assert lcp["samples"] == 7
+
+
+@pytest.mark.asyncio
 async def test_stats_start_trims_views_and_vitals(app, admin_client, db_session):
     """2026-11-20：起算日（設定 analytics_stats_start）以前的瀏覽與速度樣本不列入，期間從起算日開始。"""
     today = today_local()
@@ -143,7 +166,7 @@ async def test_stats_start_trims_views_and_vitals(app, admin_client, db_session)
     summary = await traffic_service.get_traffic_summary(db_session, 28, stats_start=today - timedelta(days=2))
     assert summary["since"] == (today - timedelta(days=2)).isoformat()
     assert [row["views"] for row in summary["daily"]] == [3, 0, 4]
-    assert summary["total_views"] == 7 and summary["vitals"] == []
+    assert summary["total_views"] == 7 and summary["vitals"] == [] and summary["page_vitals"] == []
     # 起算日還沒到就不限；沒設照舊。
     assert (await traffic_service.get_traffic_summary(db_session, 28, stats_start=today + timedelta(days=1)))["total_views"] == 12
     assert (await traffic_service.get_traffic_summary(db_session, 28))["total_views"] == 12

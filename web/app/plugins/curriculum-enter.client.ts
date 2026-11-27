@@ -21,7 +21,7 @@ export default defineNuxtPlugin((nuxtApp) => {
   const root = document.documentElement
   const router = useRouter()
 
-  // 遮罩：app 掛上後在閒置時間產生三張，toBlob 非同步編碼；三張都好才算好，還沒好之前的導覽直接換頁。
+  // 遮罩：有人可能要去特色教學時（2026-11-27 起，見下方 want()）在閒置時間產生三張，toBlob 非同步編碼；三張都好才算好，還沒好之前的導覽直接換頁。
   // 一次閒置只畫一張、編好再排下一張：1024² 的 canvas 是同步畫的，三張擠在同一次閒置，4 倍降速時是一個 230–540ms 的長任務（分開後每張約 60–80ms，實測）。
   // 網址先留在這裡，要暈開的那一步（beforeResolve）才寫到 <html>（2026-11-05）：<html> 上的自訂屬性會繼承，一寫就整頁重算樣式
   // （/admission 載入時 826 個元素、4 倍降速 82ms，常剛好碰上開始捲動），而這三個變數只有暈開期間的 ::view-transition-new(root) 讀。
@@ -131,15 +131,57 @@ export default defineNuxtPlugin((nuxtApp) => {
   window.addEventListener('pageshow', () => {
     if (!leavingDocument) return
     leavingDocument = false
-    whenIdle(makeMasks, 1500)
+    if (wanted) whenIdle(makeMasks, 1500)
   })
+
+  // 有人可能要去特色教學才產生（2026-11-27）：原本每一頁都在閒置時畫三張 1024² 遮罩，手機 4 倍降速每張 60–100ms，
+  // 首次造訪的讀者不管進哪一頁、去不去特色教學都要付。改成「連到 /curriculum 的連結在視窗附近」或「指到、聚焦、碰到這種連結」
+  // 才排第一次閒置：桌機頁首選單一直看得到，照舊載完就產生；手機選單收在面板裡（display:none），要打開選單、
+  // 捲到頁尾或內文的連結附近才產生。快取照舊在掛上時就查（非同步、不佔主執行緒），命中時產生只是建 Blob 網址。
+  // 已經在特色教學頁不產生（從這裡出去的換頁不暈開）；站內換頁後重新找連結。
+  let wanted = false
+  let linkWatch: IntersectionObserver | undefined
+  const LINK_MARGIN = '50% 0px'
+  const curriculumLink = (target: EventTarget | null) => {
+    const anchor = (target as Element | null)?.closest?.<HTMLAnchorElement>('a[href]')
+    if (!anchor || typeof anchor.href !== 'string') return false
+    // 這裡每次指到、聚焦任何連結都會跑：後台內容裡寫壞的網址（new URL 會拋錯）不能變成一直回報的錯誤。
+    try {
+      const url = new URL(anchor.href, location.href)
+      return url.origin === location.origin && url.pathname === CURRICULUM_PATH
+    } catch {
+      return false
+    }
+  }
+  const want = () => {
+    if (wanted || router.currentRoute.value.path === CURRICULUM_PATH) return
+    wanted = true
+    stopWatchingLinks()
+    whenIdle(makeMasks, 1500)
+  }
+  const onIntent = (event: Event) => { if (curriculumLink(event.target)) want() }
+  const INTENT_EVENTS = ['pointerover', 'pointerdown', 'touchstart', 'focusin'] as const
+  function stopWatchingLinks() {
+    linkWatch?.disconnect()
+    linkWatch = undefined
+    for (const type of INTENT_EVENTS) document.removeEventListener(type, onIntent, true)
+  }
+  const watchLinks = () => {
+    if (wanted || skipMasks()) return
+    if (typeof IntersectionObserver === 'undefined') { want(); return }
+    linkWatch?.disconnect()
+    linkWatch = new IntersectionObserver((entries) => { if (entries.some((entry) => entry.isIntersecting)) want() }, { rootMargin: LINK_MARGIN })
+    for (const anchor of document.querySelectorAll<HTMLAnchorElement>('a[href]')) if (curriculumLink(anchor)) linkWatch.observe(anchor)
+  }
   nuxtApp.hook('app:mounted', () => {
     if (!skipMasks()) {
       looked = undefined
       lookup = lookupWithin(LOOKUP_TIMEOUT).then((result) => { looked = result }, () => { looked = {} })
+      for (const type of INTENT_EVENTS) document.addEventListener(type, onIntent, { capture: true, passive: true })
     }
-    whenIdle(makeMasks, 1500)
+    watchLinks()
   })
+  nuxtApp.hook('page:finish', () => { if (!wanted) watchLinks() })
 
   // 上一頁／下一頁不播：vue-router 的 popstate 處理是非同步的，這裡的旗標會在守衛執行前立起來
   let popstate = false

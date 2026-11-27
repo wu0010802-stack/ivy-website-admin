@@ -43,13 +43,16 @@ export function useHomeFooterFade(rootRef: Ref<HTMLElement | null>, footerRef: R
     function measure() {
       if (disposed) return
       viewport = readMotionViewport(viewportRoot)
-      root!.style.setProperty('--home-footer-screen', `${viewport.height}px`)
+      // 寫在頁尾上（2026-11-27，studio.css 註冊成不繼承）：只有 .home-footer 的 view-timeline-inset 讀。
+      // 寫在 .home-page 時整頁重算，緊接著共用捲動幀讀 scrollY 就是一次整頁同步樣式重算。
+      footer!.style.setProperty('--home-footer-screen', `${viewport.height}px`)
       schedule()
     }
     function configure() {
       cancelScrollFrame(task)
       progress = -1
-      root!.dataset.footerMotion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
+      const motion = reduced.matches || forced.matches ? 'off' : native ? 'native' : 'fallback'
+      if (root!.dataset.footerMotion !== motion) root!.dataset.footerMotion = motion
       target.style.removeProperty('--home-footer-progress')
       lastProgress = -1
       measure()

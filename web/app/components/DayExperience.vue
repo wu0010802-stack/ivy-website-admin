@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { pickImage } from '~/utils/media-image'
 import { noscriptImage } from '~/utils/noscript-image'
-import { backgroundVideoSrc, mayAutoplay, type ConnectionInfo } from '~/utils/media-policy'
+import { av1Verdict, backgroundVideoSrc, dayAv1, mayAutoplay, preferAv1, type ConnectionInfo } from '~/utils/media-policy'
 import { COMPACT_ENTRANCE_MEDIA } from '~/utils/entrance-timeline'
 import type { DayExperienceContent } from '~/types/site-content'
 import { useCurtain } from '~/composables/useCurtain'
@@ -51,6 +51,19 @@ let printsObserver: ResizeObserver | null = null
 let printOffsets: number[] = []
 let readingHeight = 1
 let hasScrolled = false
+let disposed = false
+// 內建影片的 AV1（2026-11-27，utils/media-policy.ts 的 dayAv1）：掛載時就問解碼能力（最多 400 ms，非同步），
+// 讀者捲到這一章、要給 src 時早就問完了。fallbackSrc 是這次給的 AV1 失敗時要換回的 H.264。
+let av1Choice: { source: string; src: string } | null = null
+let fallbackSrc = ''
+async function chooseAv1() {
+  const source = window.matchMedia('(max-width: 760px)').matches ? props.day.filmSrcMobile : props.day.filmSrc
+  const candidate = dayAv1(source)
+  if (!candidate) return
+  const capabilities = (navigator as Navigator & { mediaCapabilities?: MediaCapabilities }).mediaCapabilities
+  const verdict = await av1Verdict(capabilities?.decodingInfo.bind(capabilities), candidate.video)
+  if (!disposed && preferAv1(verdict, window.matchMedia('(pointer: coarse)').matches)) av1Choice = { source, src: candidate.src }
+}
 
 // 對齊 app.js 的 fadeBehindContent()＋markActive()：大標先留在畫面上，
 // 拍立得列表靠近時淡成底紋（最低留 .16），並標出讀者停在哪一段，讓那
@@ -133,7 +146,12 @@ function applyFilm() {
     // 橫拿手機拿桌機那支（見 backgroundVideoSrc）。
     const narrow = window.matchMedia('(max-width: 760px)').matches
     const compact = window.matchMedia(COMPACT_ENTRANCE_MEDIA).matches
-    video.src = backgroundVideoSrc(narrow ? props.day.filmSrcMobile : props.day.filmSrc, compact)
+    const source = narrow ? props.day.filmSrcMobile : props.day.filmSrc
+    const h264 = backgroundVideoSrc(source, compact)
+    // 掛載時已問過解碼能力（見 onMounted）；同一支來源、瀏覽器回報能順播才用 AV1。還沒問完就照舊用 H.264，不等。
+    const av1 = av1Choice?.source === source ? av1Choice.src : ''
+    fallbackSrc = av1 ? h264 : ''
+    video.src = av1 || h264
     filmPosition.value = (narrow ? props.day.filmPositionMobile : props.day.filmPosition) ?? null
   }
   if (!video.paused) { isPlaying.value = true; return }
@@ -157,6 +175,15 @@ function toggleFilm() {
 }
 
 function onVideoError() {
+  // AV1 載入或解碼失敗：換回 H.264 再試一次（同 HeroVideo）；已經是 H.264 就照舊收起影片、留封面。
+  const video = videoEl.value
+  if (video && fallbackSrc) {
+    video.src = fallbackSrc
+    fallbackSrc = ''
+    av1Choice = null
+    applyFilm()
+    return
+  }
   hasFailed.value = true
   showVideo.value = false
 }
@@ -176,6 +203,7 @@ onMounted(() => {
   const connection = (navigator as Navigator & { connection?: ConnectionInfo }).connection
   wantsPlayback = mayAutoplay(reduceQuery.matches, connection)
   showVideo.value = true
+  if (wantsPlayback) void chooseAv1()
 
   nextTick(() => {
     if (!sectionEl.value) return
@@ -204,6 +232,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  disposed = true
   window.removeEventListener('scroll', scheduleFade)
   window.removeEventListener('resize', measurePrints)
   printsObserver?.disconnect()

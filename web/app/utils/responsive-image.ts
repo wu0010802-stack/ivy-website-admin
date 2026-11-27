@@ -1,4 +1,5 @@
 import manifest from '../generated/image-manifest.json'
+import { EARLY_PRELOAD_PRIORITY } from './head-priority'
 
 /** manifest 的一個寬度候選；照片多一個同寬的 `avif`（scripts/optimize-site-images.py，比同寬 WebP 小一成以上才有）。 */
 interface ImageCandidate { src: string; width: number; avif?: string }
@@ -171,6 +172,7 @@ export function responsiveImage(name: string, sizes = '100vw'): ResponsiveImageA
  * 首屏照片的 `<link rel="preload" as="image">`（usePageSeo）。`<img sizes>` 與這裡的 imagesizes 用同一份。
  * 照片有 AVIF 時預載 AVIF 那組 srcset 並標 `type="image/avif"`：不支援 AVIF 的瀏覽器會略過這個預載、
  * 照舊由 `<img>` 載 WebP；支援的瀏覽器預載到的才會是 `<picture>` 實際選中的那一檔。
+ * 排在 inline 樣式前面（tagPriority，見 utils/head-priority.ts）。
  */
 export function heroPreloadLink(hero: { src: string; srcset?: string; sizes?: string; avifSrcset?: string }) {
   return {
@@ -180,6 +182,7 @@ export function heroPreloadLink(hero: { src: string; srcset?: string; sizes?: st
     imagesrcset: hero.avifSrcset ?? hero.srcset,
     imagesizes: hero.sizes,
     ...(hero.avifSrcset ? { type: 'image/avif' } : {}),
-    fetchpriority: 'high' as const
+    fetchpriority: 'high' as const,
+    tagPriority: EARLY_PRELOAD_PRIORITY
   }
 }

@@ -36,7 +36,11 @@ describe('第一步：手機色帶是桌機的縮小版（左邊兩行大標、�
     expect(mobile).toContain('.visit-welcome-photo {width:100%;aspect-ratio:3/2;max-height:190px;overflow:hidden;border-radius:14px}')
     expect(form).toContain('<source media="(max-width: 960px) and (max-height: 500px) and (orientation: landscape)" srcset="data:image/gif;base64,')
     expect(form).not.toContain('<source media="(max-width: 760px),')
-    expect(form).toContain("responsiveImage('about-curious', '(max-width: 760px) 50vw, (max-width: 960px) calc(100vw - 64px), min(52vw, 710px)')")
+    // 2026-11-27 起 sizes 在 utils/visit-images.ts（VisitForm 與頁面預載共用）
+    const images = read('../app/utils/visit-images.ts')
+    expect(images).toContain("VISIT_WELCOME_IMAGE = 'about-curious'")
+    expect(images).toContain("VISIT_WELCOME_SIZES = '(max-width: 760px) 50vw, (max-width: 960px) calc(100vw - 64px), min(52vw, 710px)'")
+    expect(form).toContain('= visitWelcomeImage()')
   })
   it('照片鏡頭往左拉：圖放大成框寬的 128%、靠左，右邊被框裁掉', () => {
     expect(mobile).toContain('.visit-welcome-photo img {width:128%;max-width:none;height:100%;aspect-ratio:auto;border-radius:0;object-position:left 28%}')

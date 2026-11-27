@@ -8,7 +8,7 @@
  * `root`/`track`/`panel` 對應 `<div class="xxx-reveal">` /
  * `<div class="xxx-reveal-track">` / 實際要被擦掉的區塊（例如
  * `.home-belief`），prefix 對應 CSS 自訂屬性名稱（例如 'belief' →
- * `--belief-own`/`--belief-stick`）。
+ * `--belief-own`（寫在 track）/`--belief-stick`（寫在 panel））。
  */
 import { readMotionViewport, type MotionViewport } from '../utils/motionViewport'
 import { cancelScrollFrame, requestScrollFrame, type ScrollFrameTask } from '../utils/scrollFrame'
@@ -80,9 +80,12 @@ export function useCurtain(
     screen = viewport.height
     // sticky 與裁切不影響 panel 自身高度，無須拆掉整道簾幕再量測。
     const own = panel.getBoundingClientRect().height
-    root.style.setProperty(`--${prefix}-own`, `${own}px`)
-    root.style.setProperty(`--${prefix}-stick`, `${Math.min(0, screen - own)}px`)
-    root.dataset.motion = reduceQuery?.matches ? 'still' : 'on'
+    // 寫在讀它的元素上（2026-11-27，studio.css 註冊成不繼承）：--own 只有 track 的 height 讀、--stick 只有 panel 的 top 讀。
+    // 寫在 root 時整道簾幕（含下面幾章）都要重算，接著下一行讀 track 就是一次整個子樹的同步樣式重算。
+    track.style.setProperty(`--${prefix}-own`, `${own}px`)
+    panel.style.setProperty(`--${prefix}-stick`, `${Math.min(0, screen - own)}px`)
+    const motion = reduceQuery?.matches ? 'still' : 'on'
+    if (root.dataset.motion !== motion) root.dataset.motion = motion
     const rect = track.getBoundingClientRect()
     start = rect.top + window.scrollY + own - screen
     distance = Math.max(1, rect.height - own)

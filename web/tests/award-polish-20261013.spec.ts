@@ -52,9 +52,10 @@ describe('常春藤環境頁首屏大標不擠出孤字', () => {
 
 describe('預約第一步選校卡照片 sizes 依直框裁切算', () => {
   it('桌機 620px、761–960 為 77vw（卡寬 × 2.56）', () => {
-    const form = read('app/components/VisitForm.vue')
-    expect(form).toContain("(max-width: 960px) 77vw, 620px')")
-    expect(form).not.toContain("(max-width: 960px) 30vw, 260px')")
+    // 2026-11-27 起 sizes 在 utils/visit-images.ts（VisitForm 與頁面預載共用）
+    const form = read('app/utils/visit-images.ts')
+    expect(form).toContain("(max-width: 960px) 77vw, 620px'")
+    expect(form).not.toContain("(max-width: 960px) 30vw, 260px'")
   })
 })
 

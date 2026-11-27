@@ -28,4 +28,12 @@ describe('換頁捲動（app/router.options.ts）', () => {
     expect(options).toContain("nuxtApp['~transitionPromise']")
     expect(options).toContain('to.meta.scrollToTop')
   })
+
+  it('第一次進環境頁（沒有 hash、不是還原）直接不捲，不等版面穩定（2026-11-27）', () => {
+    const options = read('../app/router.options.ts')
+    const early = "if (environment && from === START_LOCATION && !savedPosition && !to.hash && !_isRestoredLoad()) return false"
+    expect(options).toContain(early)
+    // 必須排在等版面的環境頁分支之前
+    expect(options.indexOf(early)).toBeLessThan(options.indexOf('await _waitForEnvironmentLayout('))
+  })
 })

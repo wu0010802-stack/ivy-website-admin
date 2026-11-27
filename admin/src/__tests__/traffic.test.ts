@@ -3,7 +3,7 @@ import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 import ElementPlus from 'element-plus'
 import SiteTrafficPanel from '../components/SiteTrafficPanel.vue'
 import { api } from '../api/client'
-import { MIN_VITAL_SAMPLES, formatVital, trafficPageLabel, vitalRating, vitalTable, type TrafficSummary, type TrafficVital } from '../api/traffic'
+import { MIN_VITAL_SAMPLES, formatVital, pageVitalLabel, pageVitalTable, trafficPageLabel, vitalRating, vitalTable, type TrafficPageVital, type TrafficSummary, type TrafficVital } from '../api/traffic'
 
 const wrappers: VueWrapper[] = []
 afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0; vi.restoreAllMocks() })
@@ -18,6 +18,12 @@ const traffic = (days = 28): TrafficSummary => ({
   pages: [{ page: 'home', campus_key: null, views: 80 }, { page: 'campus', campus_key: 'yihua', views: 40 }],
   devices: { mobile: 90, desktop: 30 },
   vitals: [vital('CLS', 'mobile', 0.02, 50), vital('LCP', 'mobile', 3200, 50, 'needs_improvement'), vital('LCP', 'desktop', 5100, 3, 'poor')],
+  page_vitals: [
+    { page: 'home', ...vital('LCP', 'mobile', 2100, 30) },
+    { page: 'visit', ...vital('LCP', 'mobile', 4300, 40, 'poor') },
+    { page: 'visit', ...vital('LCP', 'desktop', 1800, 5) },
+    { page: 'about', ...vital('CLS', 'mobile', 0.01, 25) },
+  ] as TrafficPageVital[],
 })
 
 describe('官網瀏覽與速度', () => {
@@ -49,6 +55,47 @@ describe('官網瀏覽與速度', () => {
     expect(rows[0]!.mobile?.p75).toBe(3200)
     expect(rows[0]!.desktop?.p75).toBe(5100)
     expect(rows[1]!.desktop).toBeNull()
+  })
+})
+
+describe('各頁速度（2026-11-27）', () => {
+  it('一次一個指標、一頁一列；量測次數多的排前面，預約頁寫五校合計', () => {
+    const rows = pageVitalTable(traffic().page_vitals!, 'LCP')
+    expect(rows.map(row => row.label)).toEqual(['預約參觀（五校合計）', '首頁'])
+    expect(rows[0]!.mobile?.p75).toBe(4300)
+    expect(rows[0]!.desktop?.p75).toBe(1800)
+    expect(rows[1]!.desktop).toBeNull()
+    expect(pageVitalTable(traffic().page_vitals!, 'CLS').map(row => row.page)).toEqual(['about'])
+    expect(pageVitalTable(traffic().page_vitals!, 'INP')).toEqual([])
+    expect(pageVitalLabel('environment')).toBe('常春藤環境')
+  })
+
+  it('面板：全站表下面多一張各頁表，切換指標換內容；沒有各頁資料（舊 API）就不顯示', async () => {
+    vi.spyOn(api, 'get').mockResolvedValue(traffic() as never)
+    const wrapper = mount(SiteTrafficPanel, { global: { plugins: [ElementPlus] } })
+    wrappers.push(wrapper)
+    await flushPromises()
+    const section = wrapper.find('[data-test="page-vitals"]')
+    expect(section.exists()).toBe(true)
+    expect(section.findAll('tbody th').map(th => th.text())).toEqual(['預約參觀（五校合計）', '首頁'])
+    expect(section.text()).toContain('4.3 秒')
+    for (const jargon of ['p75', 'LCP', 'INP', 'CLS']) expect(section.text()).not.toContain(jargon)
+    const buttons = section.findAll('.el-radio-button')
+    expect(buttons.map(b => b.text())).toEqual(['主畫面出現', '點擊反應', '版面跳動'])
+    await buttons[2]!.find('input').setValue(true)
+    await flushPromises()
+    expect(wrapper.find('[data-test="page-vitals"]').findAll('tbody th').map(th => th.text())).toEqual(['關於常春藤'])
+    await buttons[1]!.find('input').setValue(true)
+    await flushPromises()
+    expect(wrapper.find('[data-test="page-vitals"]').text()).toContain('各頁都還沒有這一項的資料')
+
+    const { page_vitals: _omit, ...old } = traffic()
+    vi.spyOn(api, 'get').mockResolvedValue(old as never)
+    const legacy = mount(SiteTrafficPanel, { global: { plugins: [ElementPlus] } })
+    wrappers.push(legacy)
+    await flushPromises()
+    expect(legacy.find('[data-test="page-vitals"]').exists()).toBe(false)
+    expect(legacy.find('.traffic__vitals').exists()).toBe(true)
   })
 })
 
