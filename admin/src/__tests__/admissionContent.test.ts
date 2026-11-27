@@ -9,7 +9,7 @@ describe('入學資訊（admission_content）', () => {
     const item = group.items.find(i => i.name === 'admission-content')!
     expect(group.section).toBe('官網內容')
     expect(item.path).toBe('/content/admission')
-    expect(item.roles).toEqual(['super_admin'])
+    expect(item.capability).toBe('content.shared')
     expect(CONTENT_KIND_LABELS.admission_content).toBe('入學資訊')
     expect(contentPublicPath('admission_content')).toBe('/admission')
   })

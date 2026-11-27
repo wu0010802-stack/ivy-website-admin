@@ -1,6 +1,6 @@
 """後台資料匯入 API（2026-10-21 規格 §5–§8；/api/website/v1/admin/admissions/imports/*）。
 
-和 routes.py 同一套規矩：先檢查權限（admissions.stats＝總管理者）、呼叫 service（只 flush）、寫稽核、commit。
+和 routes.py 同一套規矩：先檢查權限（admissions.imports＝總管理者）、呼叫 service（只 flush）、寫稽核、commit。
 稽核的 action、target_type 與 metadata 一律寫字面值（admin labelCoverage 測試會掃），metadata 只放數字、日期與版本。
 
 這個 router 的 422 不回傳輸入值：預設的驗證錯誤會帶 `input`，在這裡就是地址。"""
@@ -114,7 +114,7 @@ async def get_import_status(
     db: AsyncSession = Depends(get_db_session),
 ) -> ImportStatusOut:
     """該校目前匯入的在籍清冊與歷年註冊（清冊日期、人數、匯入時間），以及使用中的門牌資料月份。只讀，不寫稽核。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     return ImportStatusOut.model_validate(await imports.import_status(db, campus_key))
 
 
@@ -127,7 +127,7 @@ async def preview_enrolled_import(
 ) -> EnrolledPreviewOut:
     """在籍清冊預覽：瀏覽器送來（班別, 地址），伺服器比對後回命中報告與去識別的點位，原樣送回 apply 即可匯入。
     地址比對完就丟：不寫資料庫、不寫稽核、不進日誌與任何回應。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     try:
         outcome = await match_students(
             db,
@@ -167,7 +167,7 @@ async def apply_enrolled_import(
 ) -> EnrolledApplyOut:
     """確認匯入：本文就是預覽回來的去識別點位（沒有地址）。校區相符、有點比例達門檻、門牌版本沒換、學年對得上，
     才整校取代並寫稽核。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     if payload.campus_key != campus_key:
         raise _rejected("CAMPUS_MISMATCH", "資料的校區和選的校區不同，請重新預覽")
     placed_ratio = sum(1 for item in payload.students if item.lat is not None) / len(payload.students)
@@ -204,7 +204,7 @@ async def clear_enrolled_import(
     db: AsyncSession = Depends(get_db_session),
 ) -> EnrolledClearOut:
     """清除該校的在籍資料（清冊與所有點）；本來就沒有資料時不寫稽核，回 removed=false。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     await imports.lock_campus_import(db, "enrolled_roster", campus_key)
     removed = await clear_roster(db, campus_key)
     if removed:
@@ -229,7 +229,7 @@ async def preview_history_import(
 ) -> HistoryPreviewOut:
     """歷年註冊預覽：瀏覽器送來擷取後的格子表，伺服器用和 CLI 相同的規則解析，回數字摘要、和資料庫現有資料的差異，
     以及原樣送回 apply 即可匯入的 payload。不寫資料庫、不寫稽核；表看不懂的錯誤只回工作表名、欄位名與表頭文字。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     grids = [sheet.to_grid() for sheet in payload.sheets]
     try:
         parsed = parse_grids(grids)
@@ -266,7 +266,7 @@ async def apply_history_import(
     db: AsyncSession = Depends(get_db_session),
 ) -> HistoryApplyOut:
     """確認匯入：本文就是預覽回來的 payload。校區相符才整校取代（同校加 advisory lock）並寫稽核。"""
-    _require_campus(current_user, "admissions.stats", campus_key)
+    _require_campus(current_user, "admissions.imports", campus_key)
     if payload.campus_key != campus_key:
         raise _rejected("CAMPUS_MISMATCH", "資料的校區和選的校區不同，請重新預覽")
     await imports.lock_campus_import(db, "enrollment_history", campus_key)

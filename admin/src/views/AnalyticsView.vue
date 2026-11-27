@@ -71,10 +71,10 @@ watch(tab, (value) => {
 // 2026-11-12 起兩個外部數據各掛在一類底下：Chrome 真實使用者（CrUX）在「瀏覽與速度」、Google 搜尋（Search Console）
 // 在「怎麼來、怎麼逛」，切到那一類才向後端要（後端另有快取）。Google 搜尋跟著整頁的期間；CrUX 是 28 天滾動，
 // 不隨期間變，所以不會有「更新中」。
-// 這兩支外部數據的 API 要 admissions.stats（只有總管理者有，backend/app/insights/routes.py）；
+// 這幾支外部數據的 API 要 admissions.stats_site（全站數字，只有總管理者有，backend/app/insights/routes.py）；
 // 其他角色一律 403，面板會永遠停在「請重新載入」，所以沒有權限就不放（2026-11-12 QA M3）。
 const { can } = usePermissions()
-const showExternal = computed(() => can('admissions.stats'))
+const showExternal = computed(() => can('admissions.stats_site'))
 const updating = reactive({ traffic: false, interest: false, search: false })
 const statusText = computed(() => {
   const busy =
@@ -167,9 +167,9 @@ onBeforeUnmount(() => barObserver?.disconnect())
     <BookingAttributionPanel v-if="showExternal && tab === 'convert'" :campus-key="null" :range="bookingRange" :period-label="bookingPeriod" />
     <ContactHoursPanel v-show="tab === 'convert'" :days="days" :active="tab === 'convert'" />
     <SearchInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" @updating="updating.search = $event" />
-    <!-- Google 商家檔案（2026-11-25）：按月、背景每天同步，不隨期間；同樣要 admissions.stats，接在 Google 搜尋後面。 -->
+    <!-- Google 商家檔案（2026-11-25）：按月、背景每天同步，不隨期間；同樣要 admissions.stats_site，接在 Google 搜尋後面。 -->
     <BusinessProfilePanel v-if="showExternal" v-show="tab === 'journey'" :active="tab === 'journey'" />
-    <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats，掛在「怎麼來、怎麼逛」。 -->
+    <!-- LINE 好友與官網 LINE 按鈕（2026-11-16）：同樣要 admissions.stats_site，掛在「怎麼來、怎麼逛」。 -->
     <LineInsightsPanel v-if="showExternal" v-show="tab === 'journey'" :days="days" :active="tab === 'journey'" />
     <MonthlyPanel v-show="onMonthly" :active="onMonthly" />
   </div>

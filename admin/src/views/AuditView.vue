@@ -8,6 +8,7 @@ import { searchHeaders } from '../api/searchHeader'
 import type { AuditActorOut, AuditLogEntryOut } from '../api/types'
 import { taipeiToday } from '../admissions/academic'
 import { useCampusScope } from '../composables/useCampusScope'
+import { usePermissions } from '../composables/usePermissions'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import { notifyError, notifyWarning } from '../composables/notify'
 import { useDebouncedFn } from '../composables/useDebouncedFn'
@@ -26,7 +27,10 @@ type AuditEntry = AuditLogEntryOut
 // 回滿 100 筆就可能還有更早的，用最後一筆當游標再讀下一批。
 const AUDIT_LIMIT = 100
 
-const { isSuperAdmin, visibleCampusKeys, selected: campusFilter } = useCampusScope({ autoSelect: false })
+const { visibleCampusKeys, selected: campusFilter } = useCampusScope({ autoSelect: false })
+// 不指定校區的全站紀錄、IP 欄與 IP 搜尋：後端 audit.read_all。看權限，不看角色。
+const { can } = usePermissions()
+const isSuperAdmin = computed(() => can('audit.read_all'))
 const entries = ref<AuditEntry[]>([])
 const loading = ref(false)
 const error = ref<string | null>(null)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import HTTPException, status
 
-from app.auth.models import BOOKING_EXPORT, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
+from app.auth.models import ADMISSIONS_STATS, BOOKING_EXPORT, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
 
 
 class ScopeDenied(HTTPException):
@@ -76,16 +76,33 @@ _CAPABILITY_ROLES: dict[str, set[Role]] = {
     # 招生統計（2026-10-16 業主裁定）：原本招生入學的「統計分析」分頁抽成獨立頁，連同參觀預約
     # 統計（/admin/analytics/funnel 等四支，原 analytics.read）、區域分析、預約全程與未預繳名單，
     # 只給總管理者。分校管理者與接待仍用 admissions.read 看漏斗看板與訪視明細。
-    "admissions.stats": {Role.SUPER_ADMIN},
+    # 2026-11-27 業主裁定：也可以逐人授權給分校管理者（見 _GRANT_REQUIRED），只看自己負責的校區——
+    # 這一項底下的端點都帶校區範圍（指定校區，或只列負責的校區）。
+    ADMISSIONS_STATS: {Role.SUPER_ADMIN, *GRANTABLE_CAPABILITIES[ADMISSIONS_STATS]},
+    # 招生統計裡不分校區的全站數字：廣告花費與成效、廣告轉換回傳、Google 商家檔案、搜尋需求與搜尋成效、
+    # 網站速度（CrUX）、LINE 官方帳號成效。沒有校區可以限，所以不跟著 admissions.stats 授權出去。
+    "admissions.stats_site": {Role.SUPER_ADMIN},
+    # 匯入／清除在籍清冊與歷年註冊（整批寫入、含學生住址比對）：授權看統計的人不能改資料。
+    "admissions.imports": {Role.SUPER_ADMIN},
+    # 後台列出「官網內容」各頁與素材庫、發布紀錄。接待有 content.read（案件畫面要讀分校資料），
+    # 但不進內容頁，所以另開一項給側欄與路由守衛用；真正的讀寫檢查仍是 content.read／content.manage。
+    "content.browse": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.EDITOR, Role.READONLY},
+    # 看自己校區的操作紀錄（不指定校區的全站紀錄另用 audit.read_all）。原本借用 booking.read，
+    # 接待因此也打得到 API（後台沒有入口）；2026-11-27 改成明確的一項，只給總管理者與分校管理者。
+    "audit.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN},
     # 讀取＝規格寫的「有 booking.read 或 admissions.read 任一」。權限表沒有「任一
     # capability」的寫法，所以另開一項，讓後台只看一個鍵就知道要不要顯示片語；角色
     # 集合刻意等於兩項的聯集（test_contact_phrases.py 比對，兩項日後改了會失敗）。
     "contact_phrases.read": {Role.SUPER_ADMIN, Role.CAMPUS_ADMIN, Role.RECEPTION},
 }
 
+# 只出現在 effective_capabilities 裡、給後台判斷用的一項：可以直接發布共用內容
+# （can_publish_shared_content）。不能授予，也不進 _CAPABILITY_ROLES。
+SHARED_CONTENT_PUBLISH = "content.shared_publish"
+
 # 角色符合之外，還要總管理者逐人授予（User.capabilities）才算擁有；總管理
 # 者本身永遠擁有。content.shared 另由 can_edit_shared_content 判斷。
-_GRANT_REQUIRED = {BOOKING_EXPORT}
+_GRANT_REQUIRED = {BOOKING_EXPORT, ADMISSIONS_STATS}
 
 
 def roles_with(capability: str) -> set[Role]:
@@ -129,6 +146,8 @@ def effective_capabilities(user: User) -> list[str]:
     caps = {capability for capability in _CAPABILITY_ROLES if has_capability(user, capability)}
     if can_edit_shared_content(user):
         caps.add(SHARED_CONTENT)
+    if can_publish_shared_content(user):
+        caps.add(SHARED_CONTENT_PUBLISH)
     return sorted(caps)
 
 
@@ -167,3 +186,26 @@ def can_publish_shared_content(user: User) -> bool:
     if user.role == Role.SUPER_ADMIN:
         return True
     return has_grant(user, SHARED_CONTENT) and has_capability(user, "content.publish")
+
+
+def permission_table() -> list[dict]:
+    """整張權限表，給後台「各角色的權限」對照與使用者頁的預覽用（GET /admin/permission-table）。
+    每一項：哪些角色有；`grant` 不是 None 時，總管理者以外的角色還要被逐人授予那一項才算有。
+    後台只負責把 key 翻成人看得懂的話，不另抄一份規則。"""
+    rows = [
+        {"key": key, "roles": sorted(roles, key=list(Role).index), "grant": key if key in _GRANT_REQUIRED else None}
+        for key, roles in _CAPABILITY_ROLES.items()
+    ]
+    # 共用內容不在 _CAPABILITY_ROLES（另由 can_edit／can_publish_shared_content 判斷），照同一條規則補上。
+    shared_roles = {Role.SUPER_ADMIN, *GRANTABLE_CAPABILITIES[SHARED_CONTENT]}
+    rows.append(
+        {"key": SHARED_CONTENT, "roles": sorted(shared_roles & _CAPABILITY_ROLES["content.manage"], key=list(Role).index), "grant": SHARED_CONTENT}
+    )
+    rows.append(
+        {
+            "key": SHARED_CONTENT_PUBLISH,
+            "roles": sorted(shared_roles & _CAPABILITY_ROLES["content.publish"], key=list(Role).index),
+            "grant": SHARED_CONTENT,
+        }
+    )
+    return rows

@@ -57,8 +57,8 @@ function testButtons(wrapper: VueWrapper) {
 describe('LINE 通知設定頁', () => {
   it('只有總管理者看得到', () => {
     const item = navItem('line-notifications')!
-    expect(canSeeNavItem(item, { role: 'super_admin' })).toBe(true)
-    expect(canSeeNavItem(item, { role: 'campus_admin' })).toBe(false)
+    expect(canSeeNavItem(item, testUser('super_admin'))).toBe(true)
+    expect(canSeeNavItem(item, testUser('campus_admin'))).toBe(false)
   })
 
   it('顯示 webhook 網址、群組狀態，未命名的多人聊天室用 ID 末碼辨認', async () => {

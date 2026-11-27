@@ -6,7 +6,7 @@ import { createMemoryHistory, createRouter, matchedRouteKey } from 'vue-router'
 import ElementPlus from 'element-plus'
 import CampusTourView from '../views/CampusTourView.vue'
 import { ApiError, api, setUnauthorizedHandler } from '../api/client'
-import { landingPath, NAV_GROUPS, navItem } from '../router/nav'
+import { canSeeNavItem, landingPath, NAV_GROUPS, navItem } from '../router/nav'
 import { redirectToLoginOnUnauthorized } from '../router/unauthorized'
 import { useAuthStore } from '../stores/auth'
 import { testUser } from './fixtures'
@@ -41,23 +41,25 @@ describe('共用內容頁的角色限制', () => {
   ]
 
   it.each(SHARED)('%s 限定 super_admin', name => {
-    expect(navItem(name)?.roles).toEqual(['super_admin'])
+    expect(navItem(name)?.capability).toBe('content.shared')
   })
 
   it('分校自有內容不受限制，分校管理者仍要能編', () => {
     for (const name of ['campus-profile', 'campus-news']) {
       // 2026-09-24 起側欄依角色顯示：分校管理者與編輯一定要看得到分校內容，
       // 只處理案件的櫃台不需要。
-      expect(navItem(name)?.roles).toEqual(expect.arrayContaining(['super_admin', 'campus_admin', 'editor']))
-      expect(navItem(name)?.roles).not.toContain('reception')
+      const item = navItem(name)!
+      expect(item.capability).toBe('content.browse')
+      for (const role of ['super_admin', 'campus_admin', 'editor'] as const) expect(canSeeNavItem(item, testUser(role))).toBe(true)
+      expect(canSeeNavItem(item, testUser('reception'))).toBe(false)
     }
   })
 
   it('編輯與唯讀沒有營運總覽，登入後落在看得到的第一頁', () => {
-    expect(landingPath('super_admin')).toBe('/')
-    expect(landingPath('reception')).toBe('/')
-    expect(landingPath('editor')).toBe('/content/campus-profile')
-    expect(landingPath('readonly')).toBe('/content/campus-profile')
+    expect(landingPath(testUser('super_admin'))).toBe('/')
+    expect(landingPath(testUser('reception'))).toBe('/')
+    expect(landingPath(testUser('editor'))).toBe('/content/campus-profile')
+    expect(landingPath(testUser('readonly'))).toBe('/content/campus-profile')
   })
 
   it('每個標了 roles 的項目都真的存在於側欄結構裡', () => {

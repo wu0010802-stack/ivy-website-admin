@@ -45,16 +45,16 @@ describe('側欄與路由', () => {
     const visits = NAV_GROUPS.find((group) => group.key === 'visits')!.items.map((item) => item.name)
     expect(visits.indexOf('admissions-stats')).toBe(visits.indexOf('admissions') + 1)
     const item = navItem('admissions-stats')!
-    expect(item).toMatchObject({ path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', roles: ['super_admin'], feature: 'admissions' })
-    expect(canSeeNavItem(item, { role: 'super_admin' })).toBe(true)
-    for (const role of ['campus_admin', 'reception', 'editor', 'readonly']) expect(canSeeNavItem(item, { role })).toBe(false)
+    expect(item).toMatchObject({ path: '/admissions-stats', title: '招生統計', icon: 'DataAnalysis', capability: 'admissions.stats', feature: 'admissions' })
+    expect(canSeeNavItem(item, testUser('super_admin'))).toBe(true)
+    for (const role of ['campus_admin', 'reception', 'editor', 'readonly'] as const) expect(canSeeNavItem(item, testUser(role))).toBe(false)
     expect(canListNavItem(item, superAdmin(), { admissions: true })).toBe(true)
     expect(canListNavItem(item, superAdmin(), { admissions: false })).toBe(false)
     expect(canOpenPath('/admissions-stats?sub=area', campusAdmin())).toBe(false)
     expect(canOpenPath('/admissions-stats?sub=area', superAdmin())).toBe(true)
     const children = routes.find((route) => route.path === '/')!.children!
     expect(children.find((route) => route.name === 'admissions-stats')).toMatchObject({
-      path: 'admissions-stats', meta: { title: '招生統計', roles: ['super_admin'] },
+      path: 'admissions-stats', meta: { title: '招生統計', capability: 'admissions.stats' },
     })
   })
 

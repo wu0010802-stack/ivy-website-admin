@@ -56,7 +56,7 @@ describe('依 effective_capabilities 判斷權限', () => {
   it('櫃台的角色說明與新權限一致，新的稽核動作有中文', () => {
     expect(ROLE_DESCRIPTIONS.reception).toContain('聯絡紀錄')
     expect(ROLE_DESCRIPTIONS.reception).not.toContain('只能查看')
-    expect(ROLE_DESCRIPTIONS.campus_admin).toContain('匯出家長個資要另外授權')
+    expect(ROLE_DESCRIPTIONS.campus_admin).toContain('匯出家長個資、看招生統計要另外授權')
     for (const action of ['user.unlink_google', 'user.login_google', 'user.login_google_failed', 'user.set_capabilities']) {
       expect(AUDIT_ACTION_LABELS[action]).toBeTruthy()
     }

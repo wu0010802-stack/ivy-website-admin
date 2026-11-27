@@ -19,8 +19,16 @@ from app.auth.deps import (
     get_db_session,
 )
 from app.auth.models import Session as AuthSession
-from app.auth.models import BOOKING_EXPORT, CREATABLE_ROLES, GRANTABLE_CAPABILITIES, SHARED_CONTENT, Role, User
-from app.auth.permissions import effective_capabilities, require_scope
+from app.auth.models import (
+    ADMISSIONS_STATS,
+    BOOKING_EXPORT,
+    CREATABLE_ROLES,
+    GRANTABLE_CAPABILITIES,
+    SHARED_CONTENT,
+    Role,
+    User,
+)
+from app.auth.permissions import effective_capabilities, permission_table, require_scope
 from app.auth.oauth_common import private
 from app.auth.reauth import login_rate_limited, require_recent_auth
 from app.auth.schemas import (
@@ -30,6 +38,7 @@ from app.auth.schemas import (
     LoginRequest,
     LoginResponse,
     MeResponse,
+    PermissionRowOut,
     UserCreateRequest,
     UserOut,
     UserUpdateActiveRequest,
@@ -42,6 +51,7 @@ from app.auth.schemas import (
 from app.common import ratelimit
 from app.config import Settings
 from app.operations import audit_service
+from app.operations.models import AuditLogEntry
 
 router = APIRouter(prefix="/api/website/v1", tags=["auth"])
 
@@ -57,6 +67,7 @@ def _require_scope_for_role(role: Role, campus_keys: list[str]) -> None:
 _GRANT_ROLE_HINTS = {
     SHARED_CONTENT: "全站共用內容只能授予分校管理者與內容編輯",
     BOOKING_EXPORT: "個資匯出只能授予分校管理者與櫃台",
+    ADMISSIONS_STATS: "招生統計只能授予分校管理者",
 }
 
 
@@ -91,8 +102,9 @@ def _applicable_capabilities(role: Role, capabilities: list[str], *, role_change
     )
 
 
-def _user_out(user: User) -> UserOut:
+def _user_out(user: User, *, last_login_at: datetime | None = None) -> UserOut:
     return UserOut(
+        last_login_at=last_login_at,
         id=user.id,
         email=user.email,
         display_name=user.display_name,
@@ -274,7 +286,22 @@ async def list_users(
 ) -> list[UserOut]:
     require_scope(current_user, "users.manage")
     result = await db.execute(select(User).options(selectinload(User.campus_scopes)))
-    return [_user_out(u) for u in result.scalars()]
+    # 最後一次成功登入：操作紀錄不會刪（保存政策只清 IP 與裝置），直接從那裡算，不另存欄位。
+    # 使用者清單只有總管理者開、帳號數十個，一次分組查詢就夠。
+    logins = await db.execute(
+        select(AuditLogEntry.actor_user_id, func.max(AuditLogEntry.created_at))
+        .where(AuditLogEntry.action.in_(audit_service.SUCCESSFUL_LOGIN_ACTIONS))
+        .group_by(AuditLogEntry.actor_user_id)
+    )
+    last_login = {user_id: at for user_id, at in logins.all()}
+    return [_user_out(u, last_login_at=last_login.get(u.id)) for u in result.scalars()]
+
+
+@router.get("/admin/permission-table", response_model=list[PermissionRowOut])
+async def get_permission_table(current_user: User = Depends(get_current_user)) -> list[PermissionRowOut]:
+    """各角色有哪些權限、哪幾項要逐人授權。使用者頁的對照表與調整角色時的預覽用；只讀，不寫稽核。"""
+    require_scope(current_user, "users.manage")
+    return [PermissionRowOut(**row) for row in permission_table()]
 
 
 async def _require_recent_auth(

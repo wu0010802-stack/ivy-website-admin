@@ -177,10 +177,10 @@ describe('網址不存在時（shell-3）', () => {
     // 是連結不是按鈕：可以中鍵開新分頁，報讀器念「連結」。
     const home = wrapper.get('[data-test="not-found-home"]')
     expect(home.element.tagName).toBe('A')
-    expect(home.attributes('href')).toBe(landingPath('editor'))
+    expect(home.attributes('href')).toBe(landingPath(user('editor')))
     await home.trigger('click')
     await flushPromises()
-    expect(router.currentRoute.value.path).toBe(landingPath('editor'))
+    expect(router.currentRoute.value.path).toBe(landingPath(user('editor')))
   })
 })
 
@@ -190,7 +190,7 @@ describe('沒有權限的深連結（shell-4）', () => {
     const { router } = appRouter(user('editor'))
     vi.spyOn(api, 'get').mockResolvedValue({} as never)
     await router.push('/')
-    expect(router.currentRoute.value.path).toBe(landingPath('editor'))
+    expect(router.currentRoute.value.path).toBe(landingPath(user('editor')))
     expect(router.currentRoute.value.query.denied).toBeUndefined()
   })
 
@@ -199,7 +199,7 @@ describe('沒有權限的深連結（shell-4）', () => {
     const warning = vi.spyOn(ElMessage, 'warning')
     const { pinia, router } = appRouter(user('editor'))
     await router.push('/visit-requests/abc')
-    expect(router.currentRoute.value.path).toBe(landingPath('editor'))
+    expect(router.currentRoute.value.path).toBe(landingPath(user('editor')))
     expect(router.currentRoute.value.query.denied).toBe('visit-detail')
 
     const wrapper = mount(RouterView, { global: { plugins: [pinia, router, ElementPlus] } })
@@ -208,7 +208,7 @@ describe('沒有權限的深連結（shell-4）', () => {
     expect(warning).toHaveBeenCalledTimes(1)
     expect(warning.mock.calls[0]?.[0]).toMatchObject({ message: expect.stringContaining('「案件明細」的權限') })
     expect(router.currentRoute.value.query.denied).toBeUndefined()
-    expect(router.currentRoute.value.path).toBe(landingPath('editor'))
+    expect(router.currentRoute.value.path).toBe(landingPath(user('editor')))
   })
 
   it('校區管理者開 /users 也會說明', async () => {
@@ -490,7 +490,7 @@ describe('登入頁（shell-10／shell-11／jr-login-back）', () => {
 
     const plain = appRouter()
     await plain.router.push('/login')
-    expect(plain.router.currentRoute.value.path).toBe(landingPath('super_admin'))
+    expect(plain.router.currentRoute.value.path).toBe(landingPath(user('super_admin')))
   })
 
   it('session 已失效時照常顯示登入頁，不會因為 /auth/me 回 401 繞圈', async () => {
