@@ -311,28 +311,126 @@ async def _seats_reply(db: AsyncSession, campuses: list[str], names: dict[str, s
     return line_api.text_message(await reports.seats_text(db, campuses, names, start, end, title))
 
 
-async def _respond(request: Request, db: AsyncSession, target_id: str, served: list[str], command: Command) -> dict:
-    """served：這個群組能查的校區。總部專用的指令在其他群組一律回同一句，不透露任何數字。"""
+# ---- 查詢結果的切換鈕（2026-11-27，docs/specs/2026-11-27-line-card-buttons-design.md §3）----
+# LINE 快速回覆：按了以按的人的名義送出那句指令。同一類的其他期間＋相關的一兩個；每句都要 parse 得出來。
+
+_VISIT_SWITCHES = {
+    "today": ("明天參觀", "本週參觀", "待標記", "今天名額"),
+    "tomorrow": ("今天參觀", "本週參觀", "下週參觀", "明天名額"),
+    "week": ("今天參觀", "明天參觀", "下週參觀", "本週名額"),
+    "next_week": ("本週參觀", "下週名額"),
+}
+_SEAT_SWITCHES = {
+    "today": ("明天名額", "本週名額", "今天參觀"),
+    "tomorrow": ("今天名額", "本週名額", "明天參觀"),
+    "week": ("今天名額", "下週名額", "本週參觀"),
+    "next_week": ("本週名額", "下週參觀"),
+    "next7": ("本週名額", "下週名額", "休假日"),
+}
+_STATS_SWITCHES = {
+    "week": ("上週統計", "本月統計", "週報"),
+    "last_week": ("本週統計", "上月統計", "週報"),
+    "month": ("上月統計", "本週統計", "月報"),
+    "last_month": ("本月統計", "上週統計", "月報"),
+}
+_OTHER_SWITCHES = {
+    "awaiting": ("今天參觀", "待追蹤", "待辦"),
+    "follow_up": ("待標記", "待辦"),
+    "closures": ("本週名額", "待辦"),
+    "todo": ("待標記", "待追蹤", "今天參觀", "休假日"),
+    "contact": ("今天參觀", "待辦"),
+    "weekly_report": ("月報", "本週統計"),
+    "monthly_report": ("週報", "本月統計"),
+}
+_DAY_WORDS = {"visits": "參觀", "seats": "名額"}
+
+
+def _day_command(day: date, today: date, word: str) -> str:
+    if day == today:
+        return f"今天{word}"
+    if day == today + timedelta(days=1):
+        return f"明天{word}"
+    return f"{_md(day)} {word}"
+
+
+def _switch_texts(command: Command, today: date) -> tuple[str, ...]:
+    kind, arg = command.kind, command.arg
+    if isinstance(arg, date) and kind in _DAY_WORDS:
+        if arg < today:  # 過去的日子回的是「請到後台」，不給切換
+            return ()
+        word = _DAY_WORDS[kind]
+        other = _DAY_WORDS["seats" if kind == "visits" else "visits"]
+        before = arg - timedelta(days=1)
+        return (
+            *((_day_command(before, today, word),) if before >= today else ()),
+            _day_command(arg + timedelta(days=1), today, word),
+            _day_command(arg, today, other),
+        )
+    table = {"visits": _VISIT_SWITCHES, "seats": _SEAT_SWITCHES, "stats": _STATS_SWITCHES}.get(kind)
+    if table is not None:
+        return table.get(str(arg), ())
+    return _OTHER_SWITCHES.get(kind, ())
+
+
+def switches(command: Command, today: date, *, admissions_enabled: bool, campus_name: str | None = None) -> list[str]:
+    """這次查詢結果下面的切換鈕（指令字）。campus_name：指令前加的校名，能分校的指令照樣帶（週報、月報不帶）。
+    認不出來的與招生入學關閉時的待追蹤不放；半年後的「月/日」會被認成半年前的同一天（_day_of 取最近的那天），
+    認成過去的日期也不放。"""
+    prefix = line_flex.short_campus_name(campus_name) if campus_name else None
+    texts = []
+    for text in _switch_texts(command, today):
+        parsed = parse(text, False, False, None, today)
+        if (
+            parsed is None
+            or (parsed.kind == "follow_up" and not admissions_enabled)
+            or (isinstance(parsed.arg, date) and parsed.arg < today)
+        ):
+            continue
+        texts.append(f"{prefix} {text}" if prefix and parsed.kind in _CAMPUS_KINDS else text)
+    return texts
+
+
+async def _respond(
+    request: Request, db: AsyncSession, target_id: str, served: list[str], command: Command
+) -> list[dict]:
+    """served：這個群組能查的校區。總部專用的指令在其他群組一律回同一句，不透露任何數字。
+    查詢結果的最後一則掛切換鈕（快速回覆）；選單、說明、權限不足、額度不掛。"""
     settings = request.app.state.settings
     kind = command.kind
     if kind in ("menu", "help") or kind in HQ_ONLY_KINDS:
         is_hq = await is_hq_group(db, target_id)
         if kind == "menu":
-            return line_flex.menu_message(is_hq=is_hq)
+            return [line_flex.menu_message(is_hq=is_hq)]
         if kind == "help":
-            return line_flex.help_message(is_hq=is_hq)
+            return [line_flex.help_message(is_hq=is_hq)]
         if not is_hq:
-            return line_api.text_message(HQ_ONLY_TEXT)
+            return [line_api.text_message(HQ_ONLY_TEXT)]
     if kind == "quota":
-        return line_api.text_message(await reports.quota_text(settings, getattr(request.app.state, "line_transport", None)))
-    if kind in ("weekly_report", "monthly_report"):
-        return await line_reports.build(db, kind)
+        return [line_api.text_message(
+            await reports.quota_text(settings, getattr(request.app.state, "line_transport", None))
+        )]
     names = await reports.campus_names(db)
-    campuses = reports.ordered(served)
-    if command.campus is not None:
-        if command.campus not in served:
-            return line_api.text_message(NOT_SERVED_TEXT.format(name=names.get(command.campus, command.campus)))
-        campuses = [command.campus]
+    if kind in ("weekly_report", "monthly_report"):
+        messages = await line_reports.build(db, kind)
+    else:
+        campuses = reports.ordered(served)
+        if command.campus is not None:
+            if command.campus not in served:
+                return [line_api.text_message(NOT_SERVED_TEXT.format(name=names.get(command.campus, command.campus)))]
+            campuses = [command.campus]
+        messages = [await _result(request, db, target_id, campuses, names, command)]
+    texts = switches(
+        command, today_local(), admissions_enabled=settings.admissions_enabled,
+        campus_name=names.get(command.campus) if command.campus else None,
+    )
+    return [*messages[:-1], line_api.with_quick_reply(messages[-1], texts)]
+
+
+async def _result(
+    request: Request, db: AsyncSession, target_id: str, campuses: list[str], names: dict[str, str], command: Command
+) -> dict:
+    settings = request.app.state.settings
+    kind = command.kind
     if kind == "visits":
         return await _visit_reply(db, campuses, command.arg)
     if kind == "awaiting":
@@ -358,7 +456,7 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
     # line_routes 會 import 本模組，helper 在函式內才取，避免循環 import。
     from app.notifications.line_routes import _client, _event_text, _reply_token, _target
 
-    replies: list[tuple[str, dict]] = []
+    replies: list[tuple[str, list[dict]]] = []
     for event in events:
         kind = event.get("type")
         if kind not in ("message", "memberJoined", "join"):
@@ -375,7 +473,7 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
             continue
         if kind in ("memberJoined", "join"):
             if await _allowed(request, HELP_LIMIT, target_id):
-                replies.append((token, line_flex.help_message(is_hq=await is_hq_group(db, target_id))))
+                replies.append((token, [line_flex.help_message(is_hq=await is_hq_group(db, target_id))]))
             continue
         raw = _event_text(event)
         if raw is None:
@@ -393,9 +491,9 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
     if not replies:
         return
     async with _client(request) as client:
-        for token, message in replies:
+        for token, messages in replies:
             try:
-                await client.reply(token, [message])
+                await client.reply(token, messages)
             except (line_api.LinePushError, httpx.HTTPError) as exc:
                 logger.warning("LINE 群組回覆失敗：error=%s", exc)
 

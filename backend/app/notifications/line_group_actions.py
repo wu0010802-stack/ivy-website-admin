@@ -72,6 +72,11 @@ RF_SOURCE_ASK = "rfs"
 RF_SOURCE = "rfsc"
 RF_BUS = "rfb"
 RF_FOLLOW = "rff"
+# 2026-11-27（docs/specs/2026-11-27-line-card-buttons-design.md）：週報／月報的各校明細（唯讀，參數：w／m、校區、
+# 那一期第一天 YYYYMMDD）、統計異常的「知道了」（寫入，參數：檢查的那天 YYYYMMDD、問題代碼以逗號分隔）。
+# 兩者都只給總部群組，處理在 line_group_report_actions。
+REPORT_DETAIL = "rpt"
+STATS_MUTE = "shm"
 
 # 詢問動作 → 確認卡上「確認」的動作；每種動作的參數個數（不符就當作不是我們編的，不回應）。
 _OK_FOR = {ATTEND_ASK: ATTEND_OK, NOSHOW_ASK: NOSHOW_OK}
@@ -79,8 +84,10 @@ _CONFIRMS = (ATTEND_OK, NOSHOW_OK)
 _PART_COUNTS = {
     ATTEND_ASK: 1, NOSHOW_ASK: 1, ATTEND_OK: 2, NOSHOW_OK: 2, CANCEL: 0,
     RF_DEPOSIT: 1, RF_DEPOSIT_OK: 2, RF_NODEP_ASK: 1, RF_NODEP: 2, RF_SOURCE_ASK: 1, RF_SOURCE: 2, RF_BUS: 2,
-    RF_FOLLOW: 2,
+    RF_FOLLOW: 2, REPORT_DETAIL: 3, STATS_MUTE: 2,
 }
+# 唯讀的按鈕：同群組指令，沒貼過驗證碼的舊群組也能用。
+_READ_ONLY_ACTIONS = frozenset({REPORT_DETAIL})
 _RF_ACTIONS = (RF_DEPOSIT, RF_DEPOSIT_OK, RF_NODEP_ASK, RF_NODEP, RF_SOURCE_ASK, RF_SOURCE, RF_BUS, RF_FOLLOW)
 
 TOKEN_TTL_SECONDS = 300
@@ -512,6 +519,12 @@ async def _respond(
 ) -> dict | None:
     if action == CANCEL:
         return line_api.text_message(CANCEL_REPLY)
+    if action in (REPORT_DETAIL, STATS_MUTE):
+        from app.notifications import line_group_report_actions
+
+        if action == REPORT_DETAIL:
+            return await line_group_report_actions.report_detail(request, db, group_id, served, parts)
+        return await line_group_report_actions.stats_mute(request, db, group_id, parts, line_user_id=_line_user(event))
     if action in _RF_ACTIONS:
         return await _fill(request, db, event, group_id, served, action, parts)
     if action in _CONFIRMS:  # 先驗 token，過期或偽造的連案件都不查
@@ -527,8 +540,8 @@ async def _respond(
 
 
 async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None:
-    """main 帳號 webhook 的群組／多人聊天室 postback（已到場／未到場／取消、招生結果欄位）。每筆寫入各自一個
-    交易；回覆最後一起送。"""
+    """main 帳號 webhook 的群組／多人聊天室 postback（已到場／未到場／取消、招生結果欄位；2026-11-27 起另有
+    報表明細與統計異常「知道了」，處理在 line_group_report_actions）。每筆寫入各自一個交易；回覆最後一起送。"""
     # line_routes 會 import 本模組，helper 在函式內才取，避免循環 import。
     from app.notifications.line_routes import _client, _reply_token, _target
 
@@ -546,11 +559,11 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
         group_id = found[1]  # 稽核 metadata 的 group_id；多人聊天室時是 roomId
         if not await _allowed(request, group_id):
             continue
-        # 按鈕會寫入：只認貼過驗證碼的群組（設計 §5 第 4 點的前提）。
-        served = await campuses_served(db, group_id, require_verified=True)
+        action, parts = parsed
+        # 會寫入的按鈕只認貼過驗證碼的群組（設計 §5 第 4 點的前提）；唯讀的（報表明細）同指令，舊群組也行。
+        served = await campuses_served(db, group_id, require_verified=action not in _READ_ONLY_ACTIONS)
         if served is None:
             continue
-        action, parts = parsed
         message = await _respond(request, db, event, group_id, served, action, parts)
         if message is not None:
             replies.append((reply_token, message))
