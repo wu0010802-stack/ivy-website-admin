@@ -285,6 +285,11 @@ export interface ContentEditorState {
   history?: RevisionHistoryHandle
   /** 上次存檔被後端擋下的欄位（422）；ContentEditor 列成可以點的清單 */
   fieldErrors?: Ref<ContentFieldError[]>
+  /**
+   * 發布前的內容檢查（ContentItemOptions.publishBlocker）：沒過就講原因並回傳 true。
+   * ContentEditor 在開發布、核准確認框與排程對話框前先問，按下去才不會白填一次。
+   */
+  publishBlocked?: () => boolean
   /** 存檔或發布時發現別人先存了（版本衝突）：表單還在，儲存與發布先停用 */
   conflict?: Ref<boolean>
   /** 衝突時讀最新一版，列出對方改了哪些欄位（和自己開始編輯時的內容比）；讀不到回 null */
@@ -311,6 +316,11 @@ export interface ContentItemOptions<TPayload> {
    * 快照仍是空白表單，所以畫面是「有未儲存的修改」，按儲存才變成第一個版本。
    */
   seed?: () => TPayload
+  /**
+   * 發布前的內容檢查，同後端 registry 的 publish_blocker：回傳不能發布的原因（null＝可以），
+   * 可以順便把畫面切到要補的地方。發布、排程、送審、核准前檢查；存草稿不檢查（草稿可以先存一半）。
+   */
+  publishBlocker?: (payload: TPayload) => string | null
 }
 
 export function useContentItem<TPayload extends object>(
@@ -489,6 +499,15 @@ export function useContentItem<TPayload extends object>(
     return savedFirst ? `已存成草稿，但${action}失敗：${errorMessage(err, '請稍後再試')}` : errorMessage(err, `${action}失敗`)
   }
 
+  // 發布前的內容檢查（options.publishBlocker）沒過：講原因、什麼都不送出（連草稿也不先存），回傳 true。
+  // 預設檢查表單（儲存並發布、排程、送審都會先存表單）；直接發布、核准已存的那一版時檢查那一版。
+  // 後端 check_publishable 也會擋，這裡是讓人在按下確認之前就知道要補什麼。
+  function publishBlocked(payload: TPayload = form.value): boolean {
+    const reason = options.publishBlocker?.(payload) ?? null
+    if (reason) showError(reason)
+    return reason !== null
+  }
+
   async function save(options: SaveOptions = {}): Promise<boolean> {
     if (!item.value) return false
     const scope = scopeNow()
@@ -531,6 +550,7 @@ export function useContentItem<TPayload extends object>(
 
   async function publish(): Promise<boolean> {
     if (!item.value?.latest_revision) return false
+    if (publishBlocked(withDefaults(item.value.latest_revision.payload))) return false
     return publishRevision(item.value.latest_revision.id)
   }
 
@@ -571,6 +591,7 @@ export function useContentItem<TPayload extends object>(
 
   /** 先儲存目前修改再發布；表單沒改就直接發布最新草稿。只跳最後結果那一則 toast。 */
   async function saveAndPublish(): Promise<boolean> {
+    if (publishBlocked()) return false
     const savedFirst = isDirty.value
     if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
@@ -578,6 +599,8 @@ export function useContentItem<TPayload extends object>(
   }
 
   async function submitForReview(): Promise<boolean> {
+    // 送審的版本核准時一樣過不了發布前檢查，先講清楚，不讓核准的人才發現。
+    if (publishBlocked()) return false
     const savedFirst = isDirty.value
     if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
@@ -602,6 +625,7 @@ export function useContentItem<TPayload extends object>(
 
   async function review(decision: 'approve' | 'reject', note?: string): Promise<boolean> {
     if (!item.value?.latest_revision) return false
+    if (decision === 'approve' && publishBlocked(withDefaults(item.value.latest_revision.payload))) return false
     const scope = scopeNow()
     publishing.value = true
     try {
@@ -659,6 +683,7 @@ export function useContentItem<TPayload extends object>(
   }
 
   async function schedule(publishAt: string): Promise<boolean> {
+    if (publishBlocked()) return false
     const savedFirst = isDirty.value
     if (savedFirst && !(await save({ silent: true }))) return false
     if (!item.value?.latest_revision) return false
@@ -972,6 +997,7 @@ export function useContentItem<TPayload extends object>(
     acknowledgeSchedule,
     reset,
     fieldErrors,
+    publishBlocked: () => publishBlocked(),
     conflict,
     inspectConflict,
     reloadLatest,

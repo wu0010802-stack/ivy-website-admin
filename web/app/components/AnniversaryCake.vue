@@ -14,6 +14,8 @@ const allOut = ref(false)
 /** 開始吹了沒：點燃時支數往上加不算，有一支被吹熄才算；30 支重新點著就歸零 */
 const blowing = ref(false)
 const mic = ref<'off' | 'on' | 'denied' | 'unsupported'>('off')
+/** 正在等麥克風權限或開裝置（2026-11-26）：這段時間按鈕 disabled，連點不會再要一次 */
+const micBusy = ref(false)
 const holding = ref(false)
 const announce = ref('')
 const micReloaded = ref(false)
@@ -53,7 +55,7 @@ function micAllowedHere(): boolean {
   return landed === '/anniversary'
 }
 async function toggleMic() {
-  if (!ctl) return
+  if (!ctl || micBusy.value) return
   if (mic.value === 'on') { ctl.stopMic(); mic.value = 'off'; return }
   if (!micAllowedHere()) {
     try { sessionStorage.setItem(MIC_FLAG, '1') } catch { /* 無痕模式寫不進去也照樣重新載入 */ }
@@ -62,7 +64,8 @@ async function toggleMic() {
     return
   }
   micReloaded.value = false
-  mic.value = await ctl.startMic()
+  micBusy.value = true
+  try { mic.value = await ctl.startMic() } finally { micBusy.value = false }
 }
 function relightAll() {
   allOut.value = false
@@ -132,7 +135,7 @@ onBeforeUnmount(() => { clearTimeout(announceTimer); stopSong(); ctl?.destroy();
           >
             按住吹氣
           </button>
-          <button type="button" class="button outline" :aria-pressed="mic === 'on'" :disabled="!ready || allOut" @click="toggleMic">{{ micLabel }}</button>
+          <button type="button" class="button outline" :aria-pressed="mic === 'on'" :aria-busy="micBusy" :disabled="!ready || allOut || micBusy" @click="toggleMic">{{ micLabel }}</button>
           <AnniversarySoundToggle />
         </div>
         <p v-if="micNote" class="anni-cake-note">{{ micNote }}</p>

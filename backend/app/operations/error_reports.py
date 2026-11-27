@@ -19,6 +19,7 @@ import os
 import re
 import time
 import traceback
+from bisect import bisect_left
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Literal
@@ -68,18 +69,117 @@ _THROTTLE_MAX_TRACKED = 1000
 
 # 網址（含 // 開頭與 / 開頭的站內路徑）後面的 ?query 與 #hash 整段拿掉，但保留堆疊 frame 的
 # 「:行:列」。站內路徑要求前面不是字元、斜線或冒號，免得把 https://host/x 的第二段誤當路徑。
-_URL_QUERY = re.compile(
-    r"(?P<url>(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'\"<>()?#]+|(?<![\w/.:\-])/[^\s'\"<>()?#:]+)"
-    r"[?#][^\s'\"<>()]*?(?P<pos>(?::\d+){0,2})(?=[\s'\"<>)\]]|$)"
-)
+#
+# 規則等同這條正規式（2026-11-26 以前就是用它）：
+#   (?P<url>(?:[A-Za-z][A-Za-z0-9+.\-]*:)?//[^\s'"<>()?#]+|(?<![\w/.:\-])/[^\s'"<>()?#:]+)
+#   [?#][^\s'"<>()]*?(?P<pos>(?::\d+){0,2})(?=[\s'"<>)\]]|$)   → 換成 url + pos
+# 但它每個起點都先吃到結尾再回溯，一長串 '/' 或 '//a?…(' 就是 O(n²)；這支在 async 路由裡同步跑，
+# 公開端點一筆回報就能把 API 唯一的事件迴圈卡住零點幾秒到十幾秒。改成逐段往前掃一次：
+# 比對只會落在「不含空白、引號、<>、()」的同一個連續串裡，串裡以每個 ? 或 # 為界——它前面那段有完整網址
+# （// 後面至少一個字）或合格的站內路徑，就把 ? 起到收尾處拿掉、只留尾巴的「:行:列」。收尾處是下一個 ]，
+# 或串的結尾（串後面接的是 ( 就不算）。從哪個字開始比對都只影響「網址」那段，而那段原樣保留，所以
+# 只要知道「有沒有」，不必找出起點。backend/tests/test_bugfix_20261126_redactregex.py 拿舊正規式逐一比對。
+_URL_RUN = re.compile(r"[^\s'\"<>()]+")
+_PATH_PREFIX = re.compile(r"[\w/.:\-]")
+_FRAME_POSITION = re.compile(r"(?::\d+){0,2}\Z")
 # https://user:password@host：資料庫連線字串之類，帳密整段不留。
 _USERINFO = re.compile(r"(?<=//)[^\s/@]+@")
 _SQL_PARAMETERS = re.compile(r"\[parameters: [^\n]*\]")
-_EMAIL = re.compile(r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+")
+# Email 等同 [A-Za-z0-9._%+\-]+@[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+，理由同上（一長串英數字沒有 @ 也是
+# O(n²)）：先切出由這些字元與 @ 組成的連續串，串裡每個 @ 前面到上一次比對結束（或串頭）整段都是本地部分，
+# 後面接得上網域就整段換掉。
+_EMAIL_RUN = re.compile(r"[A-Za-z0-9._%+\-@]+")
+_EMAIL_DOMAIN = re.compile(r"[A-Za-z0-9\-]+(?:\.[A-Za-z0-9\-]+)+")
 _TW_ID = re.compile(r"(?<![A-Za-z0-9])[A-Za-z][12]\d{8}(?!\d)", re.ASCII)
 # 連續 7 位以上數字，中間容許單一的 - 或空白（電話 0912-345-678、+886 912 345 678）。
 _LONG_DIGITS = re.compile(r"[0-9](?:[ \-]?[0-9]){6,}")
 _TOKEN = re.compile(r"[A-Za-z0-9_\-]{20,}")
+
+
+def _has_url_before(run: str, start: int, mark: int) -> bool:
+    """run[start:mark]（下一個 ? 或 # 之前）裡能不能開始一段網址比對。"""
+    if mark - start < 2:
+        return False
+    # 完整網址：// 後面在 ? 之前至少還有一個字；前面有沒有 scheme 都一樣。
+    slashes = run.find("//", start, mark)
+    if slashes >= 0 and slashes + 2 < mark:
+        return True
+    # 站內路徑：/ 到 ? 之間不能有冒號，/ 前一個字不能是字元、斜線、點、冒號、減號（串頭前面一定是分隔字元）。
+    slash = run.find("/", max(start, run.rfind(":", start, mark) + 1), mark - 1)
+    while slash >= 0:
+        if slash == 0 or _PATH_PREFIX.match(run, slash - 1) is None:
+            return True
+        slash = run.find("/", slash + 1, mark - 1)
+    return False
+
+
+def _strip_run_queries(run: str, closed: bool) -> str:
+    """一個連續串裡的 query／hash。closed：串後面不是「(」，串尾可以收尾。
+    下一個 ?、#、] 的位置各自記著往前推，整串只掃一次。"""
+    pieces: list[str] = []
+    cursor = 0
+    question, hash_mark, bracket = run.find("?"), run.find("#"), run.find("]")
+    while True:
+        if 0 <= question < cursor:
+            question = run.find("?", cursor)
+        if 0 <= hash_mark < cursor:
+            hash_mark = run.find("#", cursor)
+        if question < 0 and hash_mark < 0:
+            break
+        mark = question if hash_mark < 0 or 0 <= question < hash_mark else hash_mark
+        if 0 <= bracket <= mark:
+            bracket = run.find("]", mark + 1)
+        end = bracket if bracket >= 0 else (len(run) if closed else -1)
+        if end < 0:  # 後面沒有能收尾的地方，之後的 ? 也一樣
+            break
+        if _has_url_before(run, cursor, mark):
+            position = _FRAME_POSITION.search(run, mark + 1, end)  # 一定比對得到（最少是空字串）
+            pieces.append(run[cursor:mark])
+            pieces.append(position.group() if position else "")
+            cursor = end
+        else:
+            pieces.append(run[cursor : mark + 1])
+            cursor = mark + 1
+    pieces.append(run[cursor:])
+    return "".join(pieces)
+
+
+def _strip_url_queries(text: str) -> str:
+    if "?" not in text and "#" not in text:
+        return text
+
+    def replace(match: re.Match[str]) -> str:
+        run = match.group()
+        if "?" not in run and "#" not in run:
+            return run
+        end = match.end()
+        return _strip_run_queries(run, end == len(text) or text[end] != "(")
+
+    return _URL_RUN.sub(replace, text)
+
+
+def _redact_run_emails(match: re.Match[str]) -> str:
+    run = match.group()
+    at = run.find("@")
+    if at < 0:
+        return run
+    pieces: list[str] = []
+    done = cursor = 0
+    while at >= 0:
+        domain = _EMAIL_DOMAIN.match(run, at + 1) if at > cursor else None
+        if domain is None:  # 本地部分是空的或網域不成立：這個 @ 之前都不會是 Email
+            cursor = at + 1
+        else:
+            pieces.append(run[done:cursor])
+            pieces.append("[email]")
+            done = cursor = domain.end()
+        at = run.find("@", cursor)
+    pieces.append(run[done:])
+    return "".join(pieces)
+
+
+def _redact_emails(text: str) -> str:
+    return _EMAIL_RUN.sub(_redact_run_emails, text) if "@" in text else text
 
 
 def _token_replacer(mode: str):
@@ -104,10 +204,10 @@ def redact_text(text: str, *, tokens: Literal["all", "digits", "off"] = "all") -
       這類 20 字以上的例外與函式名稱全是英文字母，全換掉就看不出是什麼錯；真正的 token（base64、
       十六進位、UUID、session id）幾乎一定含數字。
     - off：不套。Python 堆疊的 frame 與原始碼行是程式不是資料。"""
-    text = _URL_QUERY.sub(lambda m: m.group("url") + m.group("pos"), text)
+    text = _strip_url_queries(text)
     text = _USERINFO.sub("[credentials]@", text)
     text = _SQL_PARAMETERS.sub("[parameters: 已隱藏]", text)
-    text = _EMAIL.sub("[email]", text)
+    text = _redact_emails(text)
     text = _TW_ID.sub("[id]", text)
     # token 在長數字之前：UUID 與 20 位以上的長串整段換掉，不會被數字規則切成兩半。
     if tokens != "off":
@@ -166,19 +266,52 @@ def fingerprint(source: str, kind: str, message: str, location: str | None) -> s
 
 # 堆疊 frame 裡以 / 開頭的路徑＝同源（瀏覽器端送出前已把自己的 origin 拿掉，跨來源的腳本
 # 仍是完整網址，不會誤判成自己的檔案）。後面可能跟 ?v=…，一律略過。
-_JS_FRAME = re.compile(
-    r"(?<![\w/.:\-])(?P<file>/[^\s()'\"<>?#:]*)(?:[?#][^\s()'\"<>]*?)?:(?P<line>\d+):(?P<col>\d+)(?=[\s)\]]|$)"
-)
+#
+# 規則等同這條正規式的第一個比對（2026-11-26 以前就是用它）：
+#   (?<![\w/.:\-])(?P<file>/[^\s()'"<>?#:]*)(?:[?#][^\s()'"<>]*?)?:(?P<line>\d+):(?P<col>\d+)(?=[\s)\]]|$)
+# 它和網址 query 那條一樣是 O(n²)（'/a?' 重複幾千次，每個 / 都把 query 掃到串尾），而且吃的是還沒遮蔽的
+# 堆疊。改成先一次找出所有「:行:列」收尾，再由左往右看每個 /：檔名停在 ? 或 # 的，找同一串裡它後面的
+# 第一個收尾；停在冒號的，那個冒號本身要是收尾。失敗時跳過同樣會失敗的 /，整份堆疊只掃一次。
+_JS_FRAME_TAIL = re.compile(r":(?P<line>\d+):(?P<col>\d+)(?=[\s)\]]|$)")
+_JS_FILE_STOP = re.compile(r"[\s()'\"<>?#:]")
+_JS_RUN_STOP = re.compile(r"[\s()'\"<>]")
 
 
 def js_location(stack: str | None) -> str | None:
     """堆疊第一個同源 frame 的「檔名:行:列」（去掉 origin 與 query）。"""
     if not stack:
         return None
-    match = _JS_FRAME.search(stack)
-    if match is None:
+    tails = {match.start(): match for match in _JS_FRAME_TAIL.finditer(stack)}
+    if not tails:
         return None
-    return f"{match.group('file')}:{match.group('line')}:{match.group('col')}"[:LOCATION_LIMIT]
+    tail_starts = list(tails)  # finditer 由左往右，已排好
+    slash = stack.find("/")
+    while slash >= 0:
+        if slash > 0 and _PATH_PREFIX.match(stack, slash - 1) is not None:
+            slash = stack.find("/", slash + 1)
+            continue
+        stop = _JS_FILE_STOP.search(stack, slash + 1)
+        file_end = stop.start() if stop else len(stack)
+        mark = stack[file_end : file_end + 1]
+        tail = None
+        if mark == ":":
+            # 這個 / 到冒號之間的 / 檔名都停在同一個冒號：一起失敗，從冒號後面接著找。
+            tail = tails.get(file_end)
+            resume = file_end + 1
+        elif mark in ("?", "#"):
+            # query 不跨分隔字元；同一串裡後面的 / 能用的收尾只會更少，失敗就整串跳過。
+            run_stop = _JS_RUN_STOP.search(stack, file_end + 1)
+            run_end = run_stop.start() if run_stop else len(stack)
+            index = bisect_left(tail_starts, file_end + 1)
+            if index < len(tail_starts) and tail_starts[index] < run_end:
+                tail = tails[tail_starts[index]]
+            resume = run_end
+        else:
+            resume = file_end
+        if tail is not None:
+            return f"{stack[slash:file_end]}:{tail.group('line')}:{tail.group('col')}"[:LOCATION_LIMIT]
+        slash = stack.find("/", resume)
+    return None
 
 
 def python_location(exc: BaseException) -> str | None:
@@ -228,13 +361,18 @@ def client_entry(
     *, source: str, kind: str, message: str, stack: str | None, path: str, release: str | None, user_agent: str | None
 ) -> ErrorEntry:
     """瀏覽器回報的錯誤：長度截到欄位上限、再遮蔽一次。位置先從還沒遮蔽的堆疊取（檔名可能是
-    20 字以上的連續串，遮成 [token] 就失去分組的意義），取出後同樣去掉 query。"""
+    20 字以上的連續串，遮成 [token] 就失去分組的意義），取出後同樣去掉 query。
+
+    先截再遮（2026-11-26）：API 收的本文比欄位長得多（stack 收到 50000 字），遮蔽與找位置的耗時要跟著
+    欄位上限走，不能跟著本文走。遮蔽後可能變長（a@b.c → [email]），所以遮完再截一次。官網與後台送出前
+    都已截到不超過這些上限，會在這裡被截斷的只有不經前端、直接打 API 的請求。"""
+    stack = stack[:STACK_LIMIT] if stack else None
     return ErrorEntry(
         source=source,
-        kind=redact_text(kind, tokens="off")[:KIND_LIMIT] or "Error",
-        message=redact_text(message)[:MESSAGE_LIMIT],
+        kind=redact_text(kind[:KIND_LIMIT], tokens="off")[:KIND_LIMIT] or "Error",
+        message=redact_text(message[:MESSAGE_LIMIT])[:MESSAGE_LIMIT],
         location=js_location(stack),
-        path=redact_path(path)[:PATH_LIMIT] or "/",
+        path=redact_path(path[:PATH_LIMIT])[:PATH_LIMIT] or "/",
         release=release[:RELEASE_LIMIT] if release else None,
         stack=redact_text(stack)[:STACK_LIMIT] if stack else None,
         user_agent=user_agent[:USER_AGENT_LIMIT] if user_agent else None,

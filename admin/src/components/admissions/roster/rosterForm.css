@@ -102,3 +102,10 @@
   border-color: var(--danger-ink);
   color: var(--danger-ink);
 }
+
+/* 送出中：按鈕停用，等請求回來（2026-11-26，防連點重複建立）。 */
+.roster-form__primary:disabled,
+.roster-form__delete:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}

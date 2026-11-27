@@ -48,6 +48,50 @@
 
 **沒做／沒驗**：Railway edge 是否照 HTTP/2 優先權送（雲端容器連正式站被代理降成 HTTP/1.1，網路類數字只採本機 A/B）；bfcache（無頭 Chromium 停用，靜態檢查沒有 `unload`、`no-store`）；iOS／Safari 實機與 Safari 15 不支援 `@property` 的那條路；容器沒有 GPU，首頁捲動（WebGL 拍立得）的流暢度沒量；後台「各頁」表只有元件測試，沒在瀏覽器目視。**孩子的一天手機 AV1 的畫質要業主看過**（2 倍放大細髮與皮膚紋理略平，原尺寸不明顯）；量測腳本照慣例留在 session 暫存，沒有進版控。
 
+## 2026-11-27 後台「使用小技巧」補 11 條、修 10 條過期說明、截圖重拍、黏住的分類列（PR #149，已部署 main `5a6a44b4`，紀錄見 `deploy/README.md`）
+
+使用者看正式站 `/admin/tips` 後說「幫我看看可以怎麼優化」，看完建議清單回「都幫我做」。只改 `admin/` 與截圖腳本，沒有後端、契約、migration 變動。規則補在 DESIGN.md「後台：使用小技巧頁」。
+
+- **補沒寫到的頁面**：原本 34 條全在參觀案件、場次、招生入學、官網內容，正式站搜「廣告」「成效」「編班」都是 0 條。新增 11 條：廣告名單、編班表拖拉與復原、編班表選單與整欄貼上（含 9/15、3/15 結算日）、未預繳名單預設只列高潛力、區域分析地圖、Facebook 貼文轉完官網還看不到、網站開關發布後才生效、成效統計（算法、每日數字、匯出）、操作紀錄、LINE 群組驗證、系統狀態。新分類「統計與系統」；頁首從廣告名單、站內通知、成效統計、操作紀錄、系統狀態、LINE 通知點進來會先選對應分類。各校預約方式、個資設定、聯絡片語、總覽本週五校看過，不是藏起來的功能，沒寫。
+- **修正過期說明**（逐條對照原始碼）：側欄分組名（11-16 重分組後已沒有可收合的「官網內容」）、更多篩選的「預約來源」改叫「來源」、批次標記按鈕帶人數、「填招生資料」只在參觀案件列表有（總覽沒有）、畫面上沒有叫「場次」的卡、操作紀錄的匯出不是靠匯出授權、「進階設定」要先按「修改場次」、招生統計只有三張表有「查看明細」、內容編輯的按鈕依狀態是「送審／儲存並送審」、「改成自訂」只有家長影片是這顆按鈕（另兩處是總管理者專屬頁、手機活動影片是開關）。「我的帳號」補一句測試通知與移除舊裝置。
+- **截圖重拍**：32 張全部用目前的後台重拍（原本都是 11-10 拍的），側欄搜尋那張改打「名額」，跟步驟與說明文字一致；新增「網站開關」「操作紀錄」兩張，共 34 張約 1.0 MB。
+- **頁面**：分類與搜尋列在桌機黏在頁首下面，捲到下面換分類會回到清單開頭；拿掉「全部展開」；放在文字下面的截圖限高 440px（即時預覽 780 → 440、寬螢幕預覽 594 → 440），縮小後有「放大」；搜不到小技巧時列出名稱對得到、這個帳號進得去的後台頁面（搜「SMTP」→ 系統狀態）。
+- **驗證**（Node 22.23.2）：admin `vue-tsc -b --noEmit` 通過、`npm run e2e:build` 通過；`tips.test.ts` 31 項全過（新增黏住的列、搜不到列頁面、限高與放大、新頁面的分類對照）；admin vitest 全套 209 檔 3,909 項中 11 項 5 秒逾時（都在沒動的 `admissionsRecords`、`admissionsView`、`listUx`、`siteMetaSeo`），這 4 檔單獨重跑 149 項全過。`ADMIN_TIPS_SHOTS=1` 截圖腳本 32 項全過。e2e 環境實測（1440×900 總管理者、390×844 櫃台）：列黏在 64px、`--tips-bar-h` 115px、從 `#tip-system-status` 進來不被蓋住、即時預覽截圖 621×440 且「放大」在圖的右下角、390 寬不黏；axe 掃 `.tips` 0 項。
+- **沒驗證**：正式站與真後端沒看；iOS 實機沒試；stack 全套 e2e 沒跑（`a11y.spec.ts` 有 `/tips`）。新條目裡廣告名單、編班、未預繳、區域分析、Facebook 貼文、成效統計、LINE、系統狀態 8 條沒有截圖。
+
+## 2026-11-26 全專案 bug 審查與 high／medium 修正（`claude/fervent-brown-3zx1iq`，未合併、未部署）
+
+使用者要「全專案 bugs 審查」，看完報告後說「從 high 和 medium 開始修」。審查對 `main` `6c185aa`，範圍是 backend/app、backend/migrations、admin/src、web/app、web/server、deploy、scripts、tests/stack（根目錄凍結原型不在內）。切成 37 個審查單元，其中 6 個是跨模組視角：交易與並發、權限與校區範圍、時區、前後端契約、migration、部署與測試。每條候選至少經過一輪對抗式驗證；high、medium 再由第三位獨立驗證者用拋棄式 PostgreSQL 庫、暫存 vitest 或真 Chrome 實際重現。結果去重後 113 條（high 1、medium 15、low 97），另推翻 6 條。審查前既有的後端 pytest、web／admin vitest 與 typecheck、`contract:check` 全部通過，所以這些 bug 原本都沒有測試覆蓋。報告頁沒有進 repo。
+
+修了 high 與 15 條 medium，一條一個提交（編班的兩條合成一個，共 15 個）。每條都先寫一個在原程式上會失敗的測試，再修，最後由另一位審查者看過 diff、把修正撤回確認測試會紅，有問題當場改。新測試都在 `backend/tests/test_bugfix_20261126_*.py`、`admin/src/__tests__/*Bugfix.test.ts`、`web/tests/*-20261126.spec.ts`。
+
+- **（high）每月互動彙總被殘缺紀錄永久覆蓋**（`operations/monthly_service.py`）：判斷「這個月月初是否已被 90 天清除清掉」時看的是 engagement_visits 現存最早一天，而清除會把它往後推。當天清除比彙總先跑（部署重啟一次就會），已完整的月份就被只剩後半段的紀錄蓋掉，畫面仍顯示完整。以正式站起算日 11-13 推算，2027-02 起會開始發生。改看這個月本來的起算日。
+- **先補 Email 再改電話，誤送的修改連結不作廢**（`booking/workflow_service.py` `_phone_carried_link`）：今天資安修正的判斷在「改之前已有 Email」時直接略過，事後才補 Email 的預約之後再改電話，陌生人的連結、session 與綁上的 LINE 都留著。改成只看有沒有改電話、有沒有送過通知型訊息。
+- **變更信去重併進已部分送達的訊息**（`booking/outbox.py`）：Email 已送、LINE 等重試的變更信仍是 pending，之後的改期、重新產生連結、更正 Email 都被併進去，已送出的那個管道永遠收不到新內容，園方卻看到「已寄出」。現在只併還沒有任何管道送出的。
+- **非 UTF-8 的非 JSON 本文讓 422 變 500**（`main.py`）：匿名就能觸發錯誤群組與總管理者推播。422 處理器對 bytes 改用 replace 解碼。
+- **素材標籤收下孤立代理字元**（`media/schemas.py`、`media/routes.py`）：存進一筆就讓素材庫列表與所有選圖器永久 500。PATCH 改回 422；既存的壞標籤在列表的 jsonb 轉換與回應裡都略過，存檔即修回。
+- **缺額統計漏算下學年新生**（`admissions/roster/service.py`、`calc.py`）：入學 (Y+1,上) 的幼生只收「現在仍是預繳」的，之後退預繳或已入園的，回算到之前的日期也會消失。改成照規格 §6.3、§11 依日期回算。
+- **錯誤回報遮蔽的正規式是 O(n²)**（`operations/error_reports.py`、`web/shared/client-error.ts`、`admin/src/utils/errorReport.ts`）：公開端點送一筆長斜線串就讓唯一的 uvicorn 事件迴圈卡 0.5 秒以上（API 本文上限 50000 字時是 15 秒）。網址 query、Email、堆疊位置三條改成逐段掃描，結果與舊正規式窮舉及亂數比對約 386 萬筆完全一致；`client_entry` 先截再遮。
+- **Facebook 三支路由等 Meta 時握著 DB 連線**（`facebook/routes.py`）：照片代理、轉成消息、立即同步在下載前先 `db.close()` 還連線，Meta 慢時不再占滿主池讓公開預約 500。
+- **參觀案件動作寫到另一筆**（`admin/src/composables/useVisitCase.ts`）：按「家長到了／提早到了」後在招生查詢回來前換案件，會不跳確認框直接把動作 POST 到新的那筆；取消、未到場、改期在確認框開著時按上一頁也一樣。現在按下時記住案件與 generation，等待後換了就不送；等招生查詢也算處理中。
+- **校園探索可發布沒照片的場景**（`content/registry.py` 的 publish_blocker、`CampusTourView.vue`、`useContentItem.ts` 的 `publishBlocker`、`web/app/utils/content-overlay.ts`）：官網環境頁出現 `/assets/.webp` 破圖。發布、排程（建立與到期）、核准、還原並發布都擋下並指出是哪個場景；後台先標「缺照片」；官網 overlay 略過沒照片的場景。存草稿照常可以。
+- **「複製 Webhook 網址」複製到 `[object PointerEvent]`**（`LineNotificationsView.vue`）：第 1 步的按鈕沒帶參數，預設參數被點擊事件蓋掉。
+- **素材上傳中拖放的檔案被默默略過**（`mediaUpload.ts`、`MediaLibraryView.vue`）：佇列上傳中不收新檔，拖放時提示；還有檔案等待時不顯示成功、不關對話框。
+- **停用分校確認期間換校，停用到另一校**（`CampusStatusCard.vue`、`BookingSettingsView.vue`）：按下時鎖住校區，途中換校不送出；流程進行中鎖住校區選單。
+- **編班：補登預繳連點重複建立、三段目標連續編輯互相覆蓋**（`admin/src/components/admissions/roster/`）：對話框送出中停用並略過重複點擊；缺額表與班級目標輸入框記住打的字（`numberDrafts.ts`），重讀時不再整個重掛清空，只有被後端擋下才回到伺服器的值；三段目標送同一列當下的三個值，依區塊排隊並在排入時記下校別。
+- **30 週年吹蠟燭的麥克風一直開著**（`web/app/utils/anniversary/cake.ts`、`AnniversaryCake.vue`）：連點或權限框開著時離頁，串流永遠不關。10-14 盤點列為「已確認、未修」的那條，這次修掉。請求中共用同一個請求，晚到的串流立刻還回去，按鈕請求中停用。
+
+沒有 migration，API 契約不變。兩份規格順手補上新行為：`docs/specs/2026-09-30-parent-self-booking-design.md`（變更信去重）、`docs/specs/2026-11-25-line-notification-messages-research.md` 3.4（先補 Email 再改電話）。
+
+驗證（本機 PostgreSQL 16、Python 3.11、Node 22.23）：後端全套 6,100 項通過（審查前 6,046 項，新增 54 項）；web typecheck 通過、vitest 171 檔 2,591 項通過；admin typecheck 通過、vitest 213 檔 3,903 項通過、1 項略過；`npm run contract:check` 一致。**沒跑**：e2e（`tests/e2e`、`tests/stack`）；後台與官網的畫面改動（按鈕停用狀態、「缺照片」標籤、上傳區停用樣式）沒有在 dev server 用 Playwright 看過。
+
+97 條 low 還沒修。主要幾類：
+- 極端日期、NUL 字元、巢狀過深的 cookie、格式不合的 CSV 讓公開或後台端點回 500。
+- 三處可能死結，依取鎖順序推論，沒有實測：停課只推 LINE 對上改期、審核對上存草稿、招生預繳對上改家長資料。
+- 後台換校或換案件時舊回應覆蓋畫面。
+- 官網動畫與 WebGL 資源沒有釋放。
+- 部署與測試腳本：`scripts/build-anniversary-media.py` 先刪後驗；e2e 的 `start-api.sh` 沒有清掉 Resend 金鑰。
+
 ## 2026-11-26 後台「使用小技巧」搜尋、連結與截圖放大（`claude/magical-ritchie-nxsz8t`，未合併、未部署）
 
 使用者：「https://admin.ivykidschool.com/admin/tips 幫我優化這邊的功能」。版面照 11-20 的可展開清單不動，只修實際操作（vite dev＋假登入，總管理者與櫃台，1440／1280／820／390／360）遇到的問題。只改 `admin/`，沒有後端、契約、migration 變動，截圖沒有重拍。規則補在 DESIGN.md「後台：使用小技巧頁」。

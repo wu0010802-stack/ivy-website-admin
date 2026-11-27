@@ -117,7 +117,11 @@ def compute_gap(students: Iterable[Facts], *, school_year: int, as_of: date) -> 
             incomplete += 1
             continue
         in_year = True  # 這位算進學年內的在籍或預繳（s1／s2）
-        if state == "enrolled":
+        # 入學 (Y+1, 上) 的一定屬於下一學年（service 讓所屬學年跟著入學學年走），D 那天已在籍＝下學年
+        # 開學前就提早進了下學年的班：對學年 Y 仍是下學年 8 月入園的新生，跟預繳一樣走下面算第 8 列。
+        # 算成這一學年的在籍會被當舊生再升一次班；不算又會讓下學年預估少一人。
+        next_intake = (f.target_school_year, f.target_semester) == (school_year + 1, 1)
+        if state == "enrolled" and not next_intake:
             enrolled[f.grade] += 1
         else:
             if f.target_school_year is None or f.target_semester is None:

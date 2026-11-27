@@ -102,7 +102,7 @@
   - 寄件當下用 `current_manage_path` 重算連結（接上 origin）；已撤銷（取消後）就不放連結，改放重新預約網址 `{origin}/visit/{campus_key}`。
   - 沒有 Email、或 adapter 為 None（沒設 SMTP 也沒設 sink），標為 `skipped`，不重試。
   - 寄件當下案件已不是 `confirmed`（例如「預約成功」還在排隊就被取消）：`parent_visit_booked`／`parent_visit_changed` 標為 `skipped`，家長只會收到「已取消」。
-  - `parent_visit_changed` 不重複排：同案已有一封還沒被認領（`pending`）的變更信就不再新增，內容在寄件當下才依案件最新狀態組成，連續改好幾次只寄一封。已被認領（`leased`）的不算——worker 可能已組好內容，之後的變更要另外寄。
+  - `parent_visit_changed` 不重複排：同案已有一封還沒被認領（`pending`）的變更信就不再新增，內容在寄件當下才依案件最新狀態組成，連續改好幾次只寄一封。已被認領（`leased`）的不算——worker 可能已組好內容，之後的變更要另外寄。已有管道送出（`notification_deliveries` 或 `line_pnp_messages` 有紀錄）、其他管道失敗回到 `pending` 等重試的也不算（2026-11-26）——重試只補沒送成的管道，併進去的話已送出的那邊收不到這次變更。
   - 沿用 `EXTERNAL_DELIVERY_STALE_AFTER`（超過 24 小時的舊訊息不寄）與既有重試退避。
 - 信件內容（`notifications/parent_email.py`，純文字＋簡單 HTML 的 multipart；若 `SmtpEmailAdapter` 只支援純文字，就先寄純文字，HTML 列為後續）：
   - 主旨：`【常春藤{校名}】參觀預約成功：10/02（五）上午場 10:00`；變更寫「參觀預約已變更」；取消寫「參觀預約已取消」。

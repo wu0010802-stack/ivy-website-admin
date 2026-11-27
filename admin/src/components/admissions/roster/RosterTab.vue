@@ -30,8 +30,10 @@ const roster = ref<Roster | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const asOf = ref<string | null>(null)
-// 每次成功重讀加一：缺額統計表用它重掛，被後端擋下的輸入值不會留在輸入框裡看起來像存了。
-const loadCount = ref(0)
+// 動作被後端擋下時加一：缺額統計表與編班表的數字輸入框丟掉還沒存進去的字、回到伺服器的值，
+// 被擋下的值不會留在輸入框裡看起來像存了。重讀成功時不動它——以前每次重讀都整個重掛缺額統計表，
+// 連續填下一格時正在打的字會被清空、焦點也跑掉（2026-11-26）。
+const discardDrafts = ref(0)
 const requests = useRequestSequence()
 
 async function load(options: { keep?: boolean } = {}) {
@@ -44,7 +46,6 @@ async function load(options: { keep?: boolean } = {}) {
     const result = await getRoster(props.campusKey, props.schoolYear, asOf.value)
     if (!requests.isCurrent(request)) return
     roster.value = result
-    loadCount.value += 1
   } catch (err) {
     if (!requests.isCurrent(request)) return
     if (options.keep && roster.value) {
@@ -69,6 +70,7 @@ watch(() => [props.campusKey, props.schoolYear], () => {
 
 /** 動作失敗時的共同處理：別人先改過、對象剛被刪就重新載入，其他原樣顯示後端的說明。 */
 async function onActionError(err: unknown, fallback: string) {
+  discardDrafts.value += 1
   if (isVersionConflict(err) || (err as { status?: number } | null)?.status === 404) {
     notifyWarning('資料剛被其他人更新，已重新載入', { duration: 5000 })
   } else {
@@ -224,6 +226,19 @@ function moveToClass(student: RosterStudent, classId: string) {
 const view = ref<'roster' | 'deps'>('roster')
 const pendingCount = computed(() => (roster.value ? pendingStudents(roster.value).length : 0))
 
+// 對話框送出中（2026-11-26）：按鈕停用，重複點擊直接略過。補登預繳沒有冪等鍵、同名照建，
+// 請求還沒回來前再按一次就會整批建兩次；新增班級會建兩班，編輯資料、刪除班級第二次只會撞版本衝突。
+const dialogBusy = ref(false)
+async function whileBusy(action: () => Promise<void>) {
+  if (dialogBusy.value) return
+  dialogBusy.value = true
+  try {
+    await action()
+  } finally {
+    dialogBusy.value = false
+  }
+}
+
 const studentOpen = computed({
   get: () => editingStudent.value !== null,
   set: (open: boolean) => { if (!open) editingStudentId.value = null },
@@ -302,11 +317,17 @@ async function saveNextTarget(grade: string, value: number | null) {
   if (!data) return
   await runAction(() => saveNextYearTargets(props.campusKey, data.school_year, { [grade]: value }), '無法儲存下學年的目標人數。')
 }
-async function saveTier(block: 'current' | 'next', tiers: { base: number | null; boost: number | null; top: number | null }) {
+// 同一區塊的三段目標依序送出：後端整列取代，每次送的都是那一列當下的三個值，
+// 照順序寫入，最後送的才會是最後存下來的，不會因為請求先後顛倒把剛存的值蓋回去。
+// 校別在排進去時就記下：排隊等前一筆時若剛好換校，不能把這校的目標寫到別校。
+const tierQueue: Record<'current' | 'next', Promise<void>> = { current: Promise.resolve(), next: Promise.resolve() }
+function saveTier(block: 'current' | 'next', tiers: { base: number | null; boost: number | null; top: number | null }) {
   const data = roster.value
   if (!data) return
+  const campusKey = props.campusKey
   const body = block === 'current' ? { school_year: data.school_year, semester: 2 } : { school_year: data.school_year + 1, semester: 1 }
-  await runAction(() => saveTierTargets(props.campusKey, { ...body, ...tiers }), '無法儲存三段目標。')
+  tierQueue[block] = tierQueue[block].then(() => runAction(() => saveTierTargets(campusKey, { ...body, ...tiers }), '無法儲存三段目標。'))
+  return tierQueue[block]
 }
 async function saveSnapshot() {
   const data = roster.value
@@ -359,6 +380,7 @@ defineExpose({ reload: () => load({ keep: true }) })
         v-if="view === 'roster'"
         :roster="roster"
         :can-write="canWrite"
+        :discard="discardDrafts"
         @set-class-target="saveClassTarget"
         @add="addStudents"
         @move="move"
@@ -377,7 +399,7 @@ defineExpose({ reload: () => load({ keep: true }) })
     </section>
     <section v-if="roster" class="roster-tab__card roster-tab__stats">
       <div class="roster-tab__head"><h3>缺額統計</h3></div>
-      <GapTable :key="loadCount" :roster="roster" :can-write="canWrite" @change-as-of="changeAsOf" @save-next-target="saveNextTarget" @save-tier="saveTier" @snapshot="saveSnapshot" />
+      <GapTable :roster="roster" :can-write="canWrite" :discard="discardDrafts" @change-as-of="changeAsOf" @save-next-target="saveNextTarget" @save-tier="saveTier" @snapshot="saveSnapshot" />
       <SnapshotList :snapshots="roster.snapshots" />
     </section>
     <template v-if="roster">
@@ -396,16 +418,24 @@ defineExpose({ reload: () => load({ keep: true }) })
         @leave="leave(menuStudent)"
         @refund="refund(menuStudent)"
       />
-      <StudentDialog v-if="editingStudent" v-model="studentOpen" :student="editingStudent" :school-year="roster.school_year" @save="saveStudent" />
+      <StudentDialog
+        v-if="editingStudent"
+        v-model="studentOpen"
+        :student="editingStudent"
+        :school-year="roster.school_year"
+        :busy="dialogBusy"
+        @save="whileBusy(() => saveStudent($event))"
+      />
       <ClassDialog
         v-model="classOpen"
         :school-year="roster.school_year"
         :room="classRoom"
         :member-count="classRoom?.count ?? 0"
-        @save="saveClass"
-        @delete="removeClass"
+        :busy="dialogBusy"
+        @save="whileBusy(() => saveClass($event))"
+        @delete="whileBusy(removeClass)"
       />
-      <DepositDialog v-model="depositOpen" :school-year="roster.school_year" :today="roster.today" @save="saveDeposit" />
+      <DepositDialog v-model="depositOpen" :school-year="roster.school_year" :today="roster.today" :busy="dialogBusy" @save="whileBusy(() => saveDeposit($event))" />
     </template>
   </div>
 </template>
