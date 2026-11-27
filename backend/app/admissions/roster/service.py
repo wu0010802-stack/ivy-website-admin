@@ -733,11 +733,13 @@ async def _load_for_year(
 
 
 def _gap_for(students: list[RosterStudent], school_year: int, as_of: date) -> calc.Gap:
-    # 只算這一學年的幼生，加上入學 (Y+1, 上) 的預繳生；下一學年自己的在籍不能算進來（同一人不算兩次）。
+    # 只算這一學年的幼生，加上入學 (Y+1, 上) 的幼生；下一學年其餘的在籍是它自己的舊生，不能算進來（同一人不算兩次）。
+    # 入學 (Y+1, 上) 的不看現在的狀態，跟這一學年的人一樣交給 calc 依 D 回算（規格 §6.3、§11）：
+    # 之後才退預繳或標已入園的，在那之前仍是預繳；只收現在還是預繳的，回算到那之前也會從下學年預估消失。
     counted = (
         s for s in students
         if s.school_year == school_year
-        or (s.status == "pending" and (s.target_school_year, s.target_semester) == (school_year + 1, 1))
+        or (s.target_school_year, s.target_semester) == (school_year + 1, 1)
     )
     return calc.compute_gap((facts_of(s, None) for s in counted), school_year=school_year, as_of=as_of)
 

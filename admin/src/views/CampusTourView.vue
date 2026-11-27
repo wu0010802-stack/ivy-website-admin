@@ -40,10 +40,23 @@ function newScene(): TourScenePayload {
 }
 
 const campus = ref('')
-const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus)
+const editor = useContentItem<CampusTourPayload>('campus_tour', { scenes: [newScene()] }, campus, {
+  publishBlocker: missingPhotoBlocker,
+})
 
 const sceneIndex = ref(0)
 const imageBroken = ref(false)
+
+// 沒選照片的場景，官網環境頁會變成破圖（空的 image 被接成 /assets/.webp）：發布、排程、送審、
+// 核准前擋下，講出是哪幾個場景、切到第一個。存草稿照常可以（新場景先取名再選照片）；後端
+// registry 的 publish_blocker 是同一條規則。
+function missingPhotoBlocker(payload: CampusTourPayload): string | null {
+  const missing = payload.scenes.flatMap((scene, i) => (scene.image.trim() ? [] : [i]))
+  if (!missing.length) return null
+  if (missing[0]! < scenes.value.length) selectScene(missing[0]!)
+  const names = missing.map((i) => `「${payload.scenes[i]!.name.trim() || `場景 ${i + 1}`}」`).join('、')
+  return `${names}還沒選照片，官網環境頁會出現破圖，請先選好照片`
+}
 
 // 2026-10-05 起五校的校園探索由總部帳號直接控制（後端 registry 的 hq_managed）：
 // 這一頁只有總管理者與有「全站共用內容」授權的人進得來，五校都能切換。
@@ -139,7 +152,8 @@ function onPickMedia(asset: MediaAssetOut) {
             <img v-else-if="scene.image" :src="thumbs.src(scene.image)" alt="" loading="lazy" @error="thumbs.onError(scene.image)" />
             <span v-else class="tour__scene-empty" aria-hidden="true" />
             <span class="tour__scene-name">{{ scene.name || `場景 ${i + 1}` }}</span>
-            <span v-if="scene.image && thumbs.isBroken(scene.image)" class="tour__scene-missing">照片讀不到</span>
+            <span v-if="!scene.image" class="tour__scene-missing">缺照片</span>
+            <span v-else-if="thumbs.isBroken(scene.image)" class="tour__scene-missing">照片讀不到</span>
           </button>
         </div>
         <button
@@ -186,12 +200,13 @@ function onPickMedia(asset: MediaAssetOut) {
                   <el-input v-model="currentScene.name" placeholder="例如：戶外遊戲場" />
                 </div>
               </el-form-item>
-              <el-form-item label="照片">
+              <el-form-item label="照片" required>
                 <MediaRefField
                   v-model="currentScene.image"
                   :campus-key="mediaCampusKey"
                   :thumb="false"
                   :clearable="false"
+                  required
                   :disabled="editor.readOnly.value"
                   @picked="onPickMedia"
                 >

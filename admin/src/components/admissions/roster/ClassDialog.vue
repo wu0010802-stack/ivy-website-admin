@@ -4,8 +4,8 @@ import type { ClassCreate, ClassUpdate, RosterClass } from '../../../api/roster'
 import { GRADE_ORDER } from '../../../admissions/roster'
 
 // 新增班級與修改班級（2026-11-15，規格 §8.1）。修改時年級不能改，只送有改的欄位；
-// 班上沒有幼生才顯示「刪除班級」（確認框與 API 由 RosterTab 處理）。
-const props = defineProps<{ modelValue: boolean; schoolYear: number; room: RosterClass | null; memberCount: number }>()
+// 班上沒有幼生才顯示「刪除班級」（確認框與 API 由 RosterTab 處理）。busy：送出中，送出與刪除停用，連點不會建兩班。
+const props = defineProps<{ modelValue: boolean; schoolYear: number; room: RosterClass | null; memberCount: number; busy?: boolean }>()
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   save: [body: ClassCreate | Omit<ClassUpdate, 'expected_version'>]
@@ -97,9 +97,9 @@ function submit() {
       <p v-if="error" class="roster-form__error" role="alert">{{ error }}</p>
     </div>
     <template #footer>
-      <button v-if="editing && memberCount === 0" type="button" class="roster-form__delete" @click="emit('delete')">刪除班級</button>
+      <button v-if="editing && memberCount === 0" type="button" class="roster-form__delete" :disabled="busy" @click="emit('delete')">刪除班級</button>
       <button type="button" class="roster-form__cancel" @click="emit('update:modelValue', false)">取消</button>
-      <button type="button" class="roster-form__primary" @click="submit">{{ editing ? '儲存' : '新增班級' }}</button>
+      <button type="button" class="roster-form__primary" :disabled="busy" :aria-busy="busy" @click="submit">{{ editing ? '儲存' : '新增班級' }}</button>
     </template>
   </el-dialog>
 </template>

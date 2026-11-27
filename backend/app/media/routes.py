@@ -45,6 +45,7 @@ from app.media.schemas import (
     MediaUploadLimitsOut,
     MediaUsagesOut,
     MediaUsedInOut,
+    has_lone_surrogates,
 )
 from app.media.storage import MediaFileMissing, MediaStorage
 from app.media.validation import MediaValidationError
@@ -267,7 +268,9 @@ def _out(
         source_attribution=asset.source_attribution,
         caption=asset.caption,
         license_note=asset.license_note,
-        tags=list(asset.tags or []),
+        # schema 擋孤立代理字元之前存進去的標籤編不成 UTF-8，整個回應（詳情、列表那一頁）
+        # 會序列化失敗；畫面上先拿掉，使用者存檔時送回去的清單就不含它，順便修好資料。
+        tags=[tag for tag in asset.tags or [] if not has_lone_surrogates(tag)],
         crop_focus_x=asset.crop_focus_x,
         crop_focus_y=asset.crop_focus_y,
         processing_error=asset.processing_error,
@@ -376,6 +379,20 @@ MEDIA_PAGE_SIZE_MAX = 200
 # 校區篩選的特殊值：只列跨校共用素材（campus_key 為 NULL）。
 SHARED_CAMPUS_FILTER = "__shared"
 
+# tags 欄的 JSON 文字（json.dumps 預設的 ASCII 跳脫）裡的代理字元跳脫。先把跳脫的反斜線
+# （\\）換成一個普通字元，剩下的反斜線一定是某個跳脫的開頭，"\\ud83d" 這種字面文字就不會被
+# 誤認；換成字元而不是刪掉，"\ud83d\\\ude00"（兩個孤立代理中間夾一個反斜線）才不會被接成
+# 一對。再拿掉成對的代理（emoji），還剩代理字元跳脫的就是孤立的。
+_JSON_ESCAPED_BACKSLASH = r"\\\\"
+_JSON_SURROGATE_PAIR = r"\\u[dD][89abAB][0-9a-fA-F]{2}\\u[dD][c-fC-F][0-9a-fA-F]{2}"
+_JSON_SURROGATE = r"\\u[dD][89a-fA-F][0-9a-fA-F]{2}"
+
+
+def _has_lone_surrogate_escape(json_text):
+    without_backslashes = func.regexp_replace(json_text, _JSON_ESCAPED_BACKSLASH, "_", "g")
+    without_pairs = func.regexp_replace(without_backslashes, _JSON_SURROGATE_PAIR, "", "g")
+    return without_pairs.regexp_match(_JSON_SURROGATE)
+
 
 def _tags_jsonb():
     """tags 欄轉成 jsonb 陣列，給標籤篩選、關鍵字比對標籤與標籤統計用。
@@ -387,10 +404,13 @@ def _tags_jsonb():
     當成空陣列，一筆這樣的資料不會讓整個列表變成 500。"""
     empty = cast(literal("[]"), JSONB)
     tags = cast(MediaAsset.tags, JSONB)
+    tags_text = cast(MediaAsset.tags, Text)
     return case(
         # 含 \\u0000 的值轉 jsonb 會被 PostgreSQL 拒收（整個列表 500）；schema 已經不收，
         # 這裡是替更早存進去的資料把關：那一筆當成沒有標籤，其餘照常列出。
-        (cast(MediaAsset.tags, Text).contains("\\u0000", autoescape=True), empty),
+        (tags_text.contains("\\u0000", autoescape=True), empty),
+        # 孤立的代理字元（"\\ud83d"）同理：jsonb 要求代理字元成對（2026-11-26）。
+        (_has_lone_surrogate_escape(tags_text), empty),
         (func.jsonb_typeof(tags) == "array", tags),
         else_=empty,
     )
