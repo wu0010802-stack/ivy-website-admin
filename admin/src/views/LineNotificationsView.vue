@@ -197,8 +197,12 @@ async function sendTest(campusKey: string, campusName: string) {
   }
 }
 
-async function copyWebhook(url = data.value?.webhook_url) {
-  if (!url) return
+// 網址一律由呼叫端明確傳入、不用預設參數：模板寫成 @click="copyWebhook" 時，ElButton 會把點擊事件當
+// 第一個參數傳進來，預設值不會套用，剪貼簿就收到「[object PointerEvent]」卻照樣顯示已複製（2026-11-26）。
+// <el-*> 在型別上未宣告（vite.config.ts 的 dts: false），vue-tsc 不檢查它的事件處理函式，參數型別擋不住
+// 這種寫法，所以執行時再確認拿到的是字串：不是就不複製，也不跳成功訊息。
+async function copyWebhook(url: string | null | undefined) {
+  if (typeof url !== 'string' || !url) return
   try {
     await navigator.clipboard.writeText(url)
     ElMessage.success('已複製 Webhook 網址')
@@ -310,7 +314,7 @@ onMounted(() => load())
               在 LINE Developers 的 Messaging API 設定貼上 Webhook 網址，並開啟「Use webhook」：
               <span v-if="data.webhook_url" class="webhook">
                 <code>{{ data.webhook_url }}</code>
-                <el-button @click="copyWebhook">複製</el-button>
+                <el-button @click="copyWebhook(data.webhook_url)">複製</el-button>
               </span>
               <template v-else>
                 <span class="field-help">（網址還無法產生，請技術人員檢查部署設定）</span>

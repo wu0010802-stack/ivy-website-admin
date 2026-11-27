@@ -3,7 +3,7 @@
 // 分校網址顯示找不到頁面，首頁五校區塊、選單與頁尾都不再列出這一校，家長也
 // 不能再送出預約（後端 content/service.py 排除停用校區的內容）。歷史案件、
 // 素材與紀錄都保留，進行中的案件不會被取消。
-import { nextTick, ref, watch } from 'vue'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { notifyError, notifyWarning } from '../composables/notify'
@@ -27,7 +27,9 @@ interface CampusStatus {
 const props = defineProps<{ campusKey: string; focusOnLoad?: boolean }>()
 // 讀到的啟用狀態（讀不到是 null）：預約方式頁依此決定卡片放頁首還是頁尾。
 // changed：使用者剛停用或重新啟用成功。
-const emit = defineEmits<{ (e: 'status', active: boolean | null): void; (e: 'changed'): void }>()
+// busy：停用／重新啟用從按下到送出完成（含讀件數與確認框）都算進行中，預約方式頁
+// 依此鎖住校區選單，流程中途不換校。
+const emit = defineEmits<{ (e: 'status', active: boolean | null): void; (e: 'changed'): void; (e: 'busy', busy: boolean): void }>()
 const router = useRouter()
 const campus = ref<CampusStatus | null>(null)
 const loading = ref(false)
@@ -82,19 +84,43 @@ function deactivateImpactLine(impact: BookingImpactOut | null | undefined): stri
   return `進行中的案件 ${impact.open_requests} 件${parts.length ? `（${parts.join('、')}）` : ''}。停用後官網不會通知這些家長，要另外逐一聯絡。`
 }
 
-async function deactivate() {
-  const name = `${campusLabel(props.campusKey)}校`
+// 停用／重新啟用的校區在按下當下鎖住：確認框問的、件數讀的、送出的都是同一校。
+// 流程中途頁面換了校（同一張卡只換 campus-key），之後一律以鎖住的 key 為準。
+let inFlow = false
+function setInFlow(value: boolean) {
+  if (inFlow === value) return
+  inFlow = value
+  emit('busy', value)
+}
+// 停用或重新啟用成功後，預約方式頁會把卡片換到頁首或頁尾（這張卸載）；卸載後的
+// emit 送不到頁面，先在卸載前解除鎖定，校區選單才不會一直鎖著。
+onBeforeUnmount(() => setInFlow(false))
+
+async function run(task: (key: string) => Promise<void>) {
+  if (inFlow) return
+  setInFlow(true)
+  try {
+    await task(props.campusKey)
+  } finally {
+    setInFlow(false)
+  }
+}
+
+async function deactivate(key: string) {
+  const name = `${campusLabel(key)}校`
   let reason = ''
   // 件數按下當下才讀，不沿用頁面上可能已過期的資料。
   busy.value = true
   let impact: BookingImpactOut | null = null
   try {
-    impact = asReadiness(await api.get(`/admin/booking-config/${props.campusKey}/readiness`))?.impact ?? null
+    impact = asReadiness(await api.get(`/admin/booking-config/${key}/readiness`))?.impact ?? null
   } catch {
     impact = null
   } finally {
     busy.value = false
   }
+  // 讀件數途中換了校：件數與校名都是原本那一校的，不再跳確認框。
+  if (key !== props.campusKey) return
   try {
     const result = await ElMessageBox.prompt(
       `停用後${name}會從官網下架：分校網址會顯示找不到頁面，首頁五校區塊、選單與頁尾都不再列出，家長也不能再預約。已收到的案件不會被取消，會列入參觀案件的「待人工處理」。${deactivateImpactLine(impact)}重新啟用後恢復顯示。`,
@@ -105,20 +131,33 @@ async function deactivate() {
   } catch {
     return
   }
-  await update(false, reason.trim() || null)
+  // 確認框開著時換了校（例如按上一頁）：使用者確認的是原本那一校，不能改送到現在這一校。
+  if (key !== props.campusKey) {
+    notifyWarning(`已換到${campusLabel(props.campusKey)}校，${name}沒有停用。`)
+    return
+  }
+  await update(key, false, reason.trim() || null)
 }
 
-async function update(active: boolean, reason: string | null) {
+function reactivate(key: string) {
+  return update(key, true, null)
+}
+
+async function update(key: string, active: boolean, reason: string | null) {
   busy.value = true
-  const name = `${campusLabel(props.campusKey)}校`
+  const name = `${campusLabel(key)}校`
   try {
-    const result = await api.patch<CampusStatus>(`/admin/campuses/${props.campusKey}/status`, { active, reason })
-    campus.value = result
+    const result = await api.patch<CampusStatus>(`/admin/campuses/${key}/status`, { active, reason })
+    // 送出途中換了校：結果屬於原本那一校，只留提示；不寫進現在這張卡，也不回報給
+    // 頁面（頁面會依此把卡片換到頁首或頁尾）。
+    const current = key === props.campusKey
+    if (current) campus.value = result
     if (!active && (result.open_requests ?? 0) > 0) {
       notifyWarning(`已停用，${name}已從官網下架。還有 ${result.open_requests} 件進行中的案件，已列入「待人工處理」，請逐一聯絡。`)
     } else {
       ElMessage.success(active ? `已重新啟用，官網恢復顯示${name}，並依原本的預約方式開放` : `已停用，${name}已從官網下架`)
     }
+    if (!current) return
     emit('changed')
     emit('status', typeof result.active === 'boolean' ? result.active : active)
   } catch (err) {
@@ -147,8 +186,8 @@ async function update(active: boolean, reason: string | null) {
       </div>
       <div ref="actions" class="campus-status__actions">
         <el-button v-if="!campus.active" text @click="router.push(attentionListPath(campus.key))">看待人工處理的案件</el-button>
-        <el-button v-if="campus.active" :loading="busy" type="danger" plain class="campus-status__primary" @click="deactivate">停用分校</el-button>
-        <el-button v-else :loading="busy" type="primary" class="campus-status__primary" @click="update(true, null)">重新啟用</el-button>
+        <el-button v-if="campus.active" :loading="busy" type="danger" plain class="campus-status__primary" @click="run(deactivate)">停用分校</el-button>
+        <el-button v-else :loading="busy" type="primary" class="campus-status__primary" @click="run(reactivate)">重新啟用</el-button>
       </div>
     </div>
   </div>

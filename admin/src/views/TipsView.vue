@@ -7,7 +7,7 @@ import { roleLabel } from '../api/labels'
 import PageHeader from '../components/PageHeader.vue'
 import TipText from '../components/TipText.vue'
 import { notifyWarning } from '../composables/notify'
-import { canEditSharedContent, canOpenPath, normalizeSearch } from '../router/nav'
+import { canEditSharedContent, canListNavItem, canOpenPath, NAV_GROUPS, navItemMatchScore, normalizeSearch, SEARCH_ONLY_GROUPS } from '../router/nav'
 import { useAuthStore } from '../stores/auth'
 import manifest from '../assets/tips/manifest.json'
 import {
@@ -34,6 +34,10 @@ import {
 // 2026-11-26：搜尋多收同義詞（tips.ts 的 keywords）、標出符合的字、選了分類時說其他分類還有幾條；
 // 展開的那一條寫進網址（#tip-<id>），按「前往」再回上一頁還在同一條，另外可以複製連結給同事；
 // 截圖被縮小時可以點開看原本的大小。
+//
+// 2026-11-27：分類與搜尋列黏在頁首下面（桌機），捲到下面也換得了分類；拿掉「全部展開」
+// （一按就把三十幾張截圖全部攤開，又回到 16,000px 的長頁）；放在文字下面的截圖限高，
+// 太高的縮小後給「放大」；搜不到小技巧時，列出名稱或關鍵字對得到的後台頁面（同側欄搜尋）。
 
 const route = useRoute()
 const router = useRouter()
@@ -47,6 +51,10 @@ const SIDE_MAX_WIDTH = 560
 // 截圖顯示不到原本的七成五才給「放大」：手機上寬截圖只剩三成、字看不清楚；
 // 筆電縮到八成還讀得了，不必多一顆按鈕。
 const ZOOM_BELOW = 0.75
+// 放在文字下面的截圖最多這麼高（CSS 像素）：寬螢幕預覽、即時預覽那幾張原本 600～780px，
+// 展開一條就超過筆電一個畫面，下一條被推到畫面外。照比例縮小，不裁切；縮太多時有「放大」。
+// 放在文字右邊的窄截圖不限：旁邊就是步驟，高一點不會把下一條推走。
+const SHOT_MAX_HEIGHT = 440
 
 interface Shot { src: string; width: number; height: number; alt: string }
 
@@ -133,6 +141,22 @@ const shownTips = computed(() =>
 const sectionTitle = computed(() => TIP_SECTIONS.find(section => section.key === sectionParam.value)?.title ?? '')
 const elsewhere = computed(() => (terms.value.length ? listedTips.value.length - shownTips.value.length : 0))
 
+// 搜不到小技巧時，多半是在找某一頁（搜「廣告」「成效」）：列出側欄搜尋會給的那幾頁，直接點過去。
+// 比對規則同側欄（nav.ts 的 navItemMatchScore，整串搜尋字），只列這個帳號進得去、功能有開的；這一頁自己不列。
+const PAGE_HIT_LIMIT = 5
+const pageHits = computed(() => {
+  const q = normalizeSearch(query.value)
+  if (!q) return []
+  return [...NAV_GROUPS, ...SEARCH_ONLY_GROUPS]
+    .flatMap(group => group.items)
+    .filter(item => item.path !== '/tips' && canListNavItem(item, auth.user, auth.features))
+    .map(item => ({ item, score: navItemMatchScore(item, q) }))
+    .filter(hit => hit.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, PAGE_HIT_LIMIT)
+    .map(hit => hit.item)
+})
+
 // 搜尋結果的數量給報讀器念（畫面上看得到清單變短，報讀器聽不到）。
 const resultNote = computed(() => {
   if (!terms.value.length) return ''
@@ -147,7 +171,6 @@ function setOpen(id: string, open: boolean) {
   else next.delete(id)
   openIds.value = next
 }
-const allOpen = computed(() => shownTips.value.length > 0 && shownTips.value.every(tip => openIds.value.has(tip.id)))
 
 // 展開的那一條寫進網址（#tip-<id>，replace 不多一筆上一頁）：按「前往」去試、再按上一頁，
 // 回來還是展開在同一條；網址貼給同事，對方打開也是這一條。收起它或換分類就拿掉。
@@ -162,17 +185,6 @@ function toggle(tip: Tip) {
   setOpen(tip.id, open)
   if (open) writeHash(hashOf(tip.id))
   else if (route.hash === hashOf(tip.id)) writeHash('')
-}
-
-function toggleAll() {
-  const open = !allOpen.value
-  const next = new Set(openIds.value)
-  for (const tip of shownTips.value) {
-    if (open) next.add(tip.id)
-    else next.delete(tip.id)
-  }
-  openIds.value = next
-  if (!open && route.hash.startsWith('#tip-')) writeHash('')
 }
 
 // 「前往」只給進得去的人：看不到那一頁的帳號點了會被導回起始頁，看起來像壞掉。
@@ -194,21 +206,44 @@ async function copyLink(tip: Tip) {
 
 // 從 #tip-<id> 連進來（同事貼的連結、按上一頁回來）時展開那一條、捲過去。
 // 自己點開時寫進網址的不用再捲：那一條已經是展開的。
+// 展開中（拿掉條件、捲過去）的時候，下面「換分類時回到清單開頭」不要搶著捲。
+let revealing = 0
 async function revealHash(hash: string, entering = false) {
   const id = hash.slice(1)
   if (!id.startsWith('tip-')) return
   const tip = enabledTips.value.find(item => item.id === id.slice(4))
   if (!tip || (!entering && openIds.value.has(tip.id))) return
-  // 連結指的那一條被分類或「只列我能用的」濾掉時，先拿掉條件：連結就是要看這一條。
-  if (!shownTips.value.includes(tip)) {
-    query.value = ''
-    await router.replace({ query: { ...route.query, section: undefined, mine: undefined }, hash }).catch(() => {})
+  revealing += 1
+  try {
+    // 連結指的那一條被分類或「只列我能用的」濾掉時，先拿掉條件：連結就是要看這一條。
+    if (!shownTips.value.includes(tip)) {
+      query.value = ''
+      await router.replace({ query: { ...route.query, section: undefined, mine: undefined }, hash }).catch(() => {})
+    }
+    setOpen(tip.id, true)
+    await nextTick()
+    document.getElementById(id)?.scrollIntoView({ block: 'start' })
+  } finally {
+    revealing -= 1
   }
-  setOpen(tip.id, true)
-  await nextTick()
-  document.getElementById(id)?.scrollIntoView({ block: 'start' })
 }
 watch(() => route.hash, hash => { void revealHash(hash) })
+
+// ── 黏住的分類與搜尋列 ──
+// 桌機黏在頁首下面（900px 以下不黏，見 CSS）。黏住時的高度寫進 --tips-bar-h，
+// 展開的那一條捲過去時才不會被它蓋住（.tip 的 scroll-margin-top）。
+const bar = ref<HTMLElement | null>(null)
+const listStart = ref<HTMLElement | null>(null)
+const barHeight = ref(0)
+
+// 捲到下面換分類、搜尋或勾「只列我能用的」時，清單變短，畫面會停在莫名其妙的地方：
+// 清單開頭已經捲到列的後面時，捲回來讓第一條接在列下面。還在頁面上方時不動。
+watch([sectionParam, onlyMine, terms], () => {
+  const el = listStart.value
+  if (revealing || !barHeight.value || !el || !bar.value) return
+  const gap = el.getBoundingClientRect().top - bar.value.getBoundingClientRect().bottom
+  if (gap < 0) window.scrollBy({ top: gap })
+}, { flush: 'post' })
 
 // ── 截圖放大 ──
 // 展開內容能用的寬度（頁面寬度扣掉左右留白），用來判斷截圖有沒有被縮小；側欄收合、轉橫都會變。
@@ -225,11 +260,20 @@ function measure() {
   // 2＝面板左右的邊框
   bodyWidth.value = el.clientWidth - px('--tip-pad-x') - px('--tip-indent') - 2
   sideLayout.value = window.innerWidth >= 1100
+  barHeight.value = bar.value && getComputedStyle(bar.value).position === 'sticky' ? bar.value.offsetHeight : 0
 }
 
-function isShrunk(shot: Shot): boolean {
-  if (sideLayout.value && shot.width <= SIDE_MAX_WIDTH) return false
-  return bodyWidth.value < shot.width * ZOOM_BELOW
+// 放在文字下面、又比 SHOT_MAX_HEIGHT 高的截圖，照比例縮到的寬度；其他回 null（照原本的寬度，放不下再縮）。
+// 寫在外框的 max-width 上：img 與放大鈕都是 max-width: 100%，跟著外框縮，「放大」的標籤才會貼著圖的右下角。
+function cappedWidth(shot: Shot, side: boolean): number | null {
+  if (side || shot.height <= SHOT_MAX_HEIGHT) return null
+  return Math.round((shot.width * SHOT_MAX_HEIGHT) / shot.height)
+}
+
+function isShrunk(shot: Shot, side: boolean): boolean {
+  if (sideLayout.value && side) return false
+  const shown = Math.min(bodyWidth.value, cappedWidth(shot, side) ?? shot.width)
+  return shown < shot.width * ZOOM_BELOW
 }
 
 // 42＝對話框左右內距與外框。放不下整張時（手機）只看得到左上角，要說可以拖。
@@ -249,6 +293,8 @@ onMounted(() => {
   if (root.value && typeof ResizeObserver !== 'undefined') {
     observer = new ResizeObserver(measure)
     observer.observe(root.value)
+    // 列本身變高（分類按鈕折成兩行）時頁面寬度不一定變，另外看它。
+    if (bar.value) observer.observe(bar.value)
   }
   void revealHash(route.hash, true)
 })
@@ -264,6 +310,8 @@ const sections = computed(() =>
         const steps = visibleSteps(tip)
         const shot = shotOf(tip)
         const open = openIds.value.has(tip.id)
+        const side = Boolean(shot && shot.width <= SIDE_MAX_WIDTH)
+        const capped = shot ? cappedWidth(shot, side) : null
         return {
           tip,
           steps,
@@ -271,8 +319,9 @@ const sections = computed(() =>
           open,
           who: whoCanUse(tip),
           link: linkOf(tip),
-          side: Boolean(shot && shot.width <= SIDE_MAX_WIDTH),
-          zoomable: Boolean(shot && isShrunk(shot)),
+          side,
+          shotStyle: capped ? { maxWidth: `${capped}px` } : undefined,
+          zoomable: Boolean(shot && isShrunk(shot, side)),
           // 搜尋字只在步驟裡時，收起的列下面多列出那一句，看得出為什麼找到這一條。
           snippet: open ? null : matchSnippet(tip.title, steps, terms.value, IS_APPLE),
         }
@@ -283,35 +332,36 @@ const sections = computed(() =>
 </script>
 
 <template>
-  <div ref="root" class="page tips">
+  <div ref="root" class="page tips" :style="{ '--tips-bar-h': `${barHeight}px` }">
     <PageHeader lead="後台有些功能要按特定的鍵、收在選單裡，或只在某些情況才出現。這裡一次列出來，每一條都寫了哪些角色能用。" />
 
-    <div class="status-tabs tips__tabs" role="group" aria-label="小技巧分類">
-      <button
-        v-for="tab in tabs"
-        :key="tab.key"
-        type="button"
-        class="status-tab"
-        :class="{ 'is-active': sectionParam === tab.key }"
-        :aria-pressed="sectionParam === tab.key"
-        @click="setQuery({ section: tab.key })"
-      >{{ tab.title }}<span class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 條</span></span></button>
-    </div>
+    <div ref="bar" class="tips__bar">
+      <div class="status-tabs tips__tabs" role="group" aria-label="小技巧分類">
+        <button
+          v-for="tab in tabs"
+          :key="tab.key"
+          type="button"
+          class="status-tab"
+          :class="{ 'is-active': sectionParam === tab.key }"
+          :aria-pressed="sectionParam === tab.key"
+          @click="setQuery({ section: tab.key })"
+        >{{ tab.title }}<span class="status-tab__count num">{{ tab.count }}<span class="visually-hidden"> 條</span></span></button>
+      </div>
 
-    <div class="toolbar tips__toolbar">
-      <el-input
-        v-model="query"
-        class="tips__search"
-        placeholder="搜尋，例如：匯出、密碼、照片"
-        aria-label="搜尋小技巧"
-        clearable
-        :prefix-icon="Search"
-      />
-      <el-checkbox :model-value="onlyMine" @update:model-value="setQuery({ mine: Boolean($event) })">只列我能用的</el-checkbox>
-      <span class="toolbar__spacer" />
-      <el-button v-if="shownTips.length" class="tips__expand-all" @click="toggleAll">{{ allOpen ? '全部收起' : '全部展開' }}</el-button>
+      <div class="toolbar tips__toolbar">
+        <el-input
+          v-model="query"
+          class="tips__search"
+          placeholder="搜尋，例如：匯出、密碼、照片"
+          aria-label="搜尋小技巧"
+          clearable
+          :prefix-icon="Search"
+        />
+        <el-checkbox :model-value="onlyMine" @update:model-value="setQuery({ mine: Boolean($event) })">只列我能用的</el-checkbox>
+      </div>
     </div>
     <p class="visually-hidden" aria-live="polite">{{ resultNote }}</p>
+    <div ref="listStart" aria-hidden="true" />
 
     <div v-if="!sections.length" class="empty-note">
       <template v-if="elsewhere">
@@ -321,6 +371,14 @@ const sections = computed(() =>
         沒有符合「{{ query.trim() }}」的小技巧。<el-button link type="primary" @click="query = ''">清除搜尋</el-button>
       </template>
       <template v-else>這個分類沒有你能用的小技巧。</template>
+      <nav v-if="!elsewhere && pageHits.length" class="tips__pages" aria-label="名稱對得到的後台頁面">
+        <p class="tips__pages-lead">要找的是這{{ pageHits.length > 1 ? '幾' : '一' }}頁嗎？</p>
+        <ul class="tips__pages-list" role="list">
+          <li v-for="item in pageHits" :key="item.path">
+            <router-link :to="item.path" class="tips__page-link">{{ item.title }}</router-link>
+          </li>
+        </ul>
+      </nav>
     </div>
 
     <section
@@ -380,7 +438,7 @@ const sections = computed(() =>
                   </button>
                 </p>
               </div>
-              <figure v-if="row.shot" class="tip__shot">
+              <figure v-if="row.shot" class="tip__shot" :style="row.shotStyle">
                 <button v-if="row.zoomable" type="button" class="tip__zoom" @click="zoom(row.tip, row.shot)">
                   <img
                     :src="row.shot.src"
@@ -437,12 +495,69 @@ const sections = computed(() =>
   --tip-who-w: 18em;
 }
 
+/* 分類＋搜尋整塊黏在頁首下面：34 條展開幾條就超過 2,500px，捲到下面也要換得了分類、改得了搜尋字。
+   底色與裁切同成效統計的條件列（box-shadow 往兩側鋪滿、clip-path 裁成一條，不用負邊距、不蓋側欄）。 */
+.tips__bar {
+  position: sticky;
+  top: var(--top-h);
+  z-index: 5;
+  margin-bottom: 20px;
+  padding-block: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-2);
+  box-shadow: 0 0 0 100vmax var(--surface-2);
+  clip-path: inset(0 -100vmax 0 -28px);
+}
+
 .tips__tabs {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .tips__toolbar {
-  margin-bottom: 20px;
+  margin-bottom: 0;
+}
+
+/* 900px 以下不黏：分類折成兩三列加搜尋框，約 150px，會吃掉手機四分之一的畫面。 */
+@media (max-width: 900px) {
+  .tips__bar {
+    position: static;
+    padding-block: 0;
+    border-bottom: 0;
+    box-shadow: none;
+    clip-path: none;
+  }
+}
+
+/* 搜不到小技巧時列出的後台頁面：一排連結，置中接在說明下面。 */
+.tips__pages {
+  margin-top: 12px;
+}
+
+.tips__pages-lead {
+  margin: 0 0 6px;
+  color: var(--ink-2);
+}
+
+.tips__pages-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tips__page-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 32px;
+  font-weight: 600;
+}
+
+.tips__page-link::after {
+  content: ' →' / '';
+  white-space: pre;
 }
 
 .tips__search {
@@ -479,8 +594,9 @@ const sections = computed(() =>
   list-style: none;
 }
 
+/* 捲到某一條時停在黏住的分類列下面（--tips-bar-h：JS 量的，不黏時是 0）。 */
 .tip {
-  scroll-margin-top: calc(var(--top-h) + 16px);
+  scroll-margin-top: calc(var(--top-h) + var(--tips-bar-h, 0px) + 16px);
 }
 
 .tip + .tip {
@@ -748,7 +864,8 @@ ol.tip__steps li + li {
   }
 
   .tip__link,
-  .tip__copy {
+  .tip__copy,
+  .tips__page-link {
     min-height: 44px;
   }
 

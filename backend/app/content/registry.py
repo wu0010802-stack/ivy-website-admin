@@ -330,6 +330,24 @@ def _campus_profile_publish_blocker(payload: dict) -> str | None:
     return None
 
 
+def _campus_tour_publish_blocker(payload: dict) -> str | None:
+    """場景沒選照片（後台「新增場景」帶的是空字串）時不能發布：官網環境頁會把空的
+    image 接成 `/assets/.webp`，正式站破圖。同五校介紹，存草稿照常放行（先取名再選照片），
+    只擋發布；排程到期、核准、還原並發布也走同一個檢查（publish_jobs.check_publishable）。"""
+    scenes = payload.get("scenes")
+    if not isinstance(scenes, list):
+        return None
+    missing = []
+    for index, scene in enumerate(scenes, start=1):
+        if not isinstance(scene, dict) or str(scene.get("image") or "").strip():
+            continue
+        name = str(scene.get("name") or "").strip()
+        missing.append(f"第 {index} 個場景「{name}」" if name else f"第 {index} 個場景")
+    if missing:
+        return f"{'、'.join(missing)}還沒選照片，官網環境頁會出現破圖，請選好照片再發布"
+    return None
+
+
 @dataclass(frozen=True)
 class ContentKindConfig:
     payload_model: type[BaseModel]
@@ -433,6 +451,7 @@ CONTENT_KIND_REGISTRY: dict[str, ContentKindConfig] = {
         shared_only=False,
         hq_managed=True,
         extract_media_refs=_extract_campus_tour_media_refs,
+        publish_blocker=_campus_tour_publish_blocker,
     ),
 }
 

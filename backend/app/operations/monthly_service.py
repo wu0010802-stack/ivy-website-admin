@@ -62,8 +62,11 @@ def months_to_rollup(today: date, stats_start: date | None, earliest: date | Non
     while month <= last:
         start = max(month, first)
         end = min(next_month(month) - timedelta(days=1), last)
-        # 這個月的第一天已經被清掉（或快被清掉）就不重算，保留它完整時的數字。
-        if start >= kept_from and start <= end:
+        # 這個月的第一天已經被清掉就不重算，保留它完整時的數字。「第一天」要看這個月本來從哪天起算
+        # （月初或起算日），不能看 earliest：當天的清除先跑過（部署重啟、午夜訪客回報比定期工作早到），
+        # earliest 就被推到清除界線，月初已被清的月份會看起來整月都在，被只剩後半段的紀錄蓋掉。
+        floor = max(month, stats_start) if stats_start else month
+        if floor >= kept_from and start <= end:
             result.append((month, start, end))
         month = next_month(month)
     return result

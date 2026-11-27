@@ -30,20 +30,91 @@ export const MAX_REPORTS_PER_PAGE = 5
 
 // ----------------------------------------------------------------------------- 遮蔽（不用 lookbehind：舊版 Safari 會整份 script 載入失敗）
 
-const ABSOLUTE_URL_QUERY = /((?:[A-Za-z][A-Za-z0-9+.-]*:)?\/\/[^\s'"<>()?#]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
-const RELATIVE_URL_QUERY = /(^|[^\w/.:-])(\/[^\s'"<>()?#:]+)[?#][^\s'"<>()]*?((?::\d+){0,2})(?=[\s'"<>)\]]|$)/g
+// 網址 query／hash 與 Email 不用一條大正規式（2026-11-26）：舊寫法每個起點都先吃到結尾再回溯，一長串 / 或英數字
+// 就是 O(n²)。改成逐段往前掃一次，結果和舊正規式相同；作法與理由的說明在 web/shared/client-error.ts，兩份要一起改。
+const URL_RUN = /[^\s'"<>()]+/g
+const PATH_PREFIX = /[\w/.:-]/
+const FRAME_POSITION = /(?::\d+){0,2}$/
 const USERINFO = /(\/\/)[^\s/@]+@/g
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g
+const EMAIL_RUN = /[A-Za-z0-9._%+@-]+/g
+const EMAIL_DOMAIN = /[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/y
 const TW_ID = /(^|[^A-Za-z0-9])[A-Za-z][12]\d{8}(?!\d)/g
 const LONG_DIGITS = /[0-9](?:[ -]?[0-9]){6,}/g
 const TOKEN = /[A-Za-z0-9_-]{20,}/g
 
+type UrlBefore = (run: string, start: number, mark: number) => boolean
+
+/** 完整網址：// 後面在 ? 之前至少還有一個字；前面有沒有 scheme 都一樣。 */
+const hasAbsoluteUrl: UrlBefore = (run, start, mark) => {
+  const slashes = run.slice(start, mark).indexOf('//')
+  return slashes >= 0 && start + slashes + 2 < mark
+}
+
+/** 站內路徑：/ 到 ? 之間不能有冒號，/ 前一個字不能是字元、斜線、點、冒號、減號（串頭前面一定是分隔字元）。 */
+const hasRelativeUrl: UrlBefore = (run, start, mark) => {
+  const segment = run.slice(start, mark)
+  for (let slash = segment.indexOf('/', segment.lastIndexOf(':') + 1); slash >= 0 && slash < segment.length - 1; slash = segment.indexOf('/', slash + 1)) {
+    if (start + slash === 0 || !PATH_PREFIX.test(run[start + slash - 1]!)) return true
+  }
+  return false
+}
+
+/** 一個連續串裡的 query／hash；closed：串後面不是「(」。下一個 ?、#、] 的位置各自記著往前推，整串只掃一次。 */
+function stripRunQueries(run: string, closed: boolean, hasUrl: UrlBefore): string {
+  let result = ''
+  let cursor = 0
+  let question = run.indexOf('?')
+  let hash = run.indexOf('#')
+  let bracket = run.indexOf(']')
+  for (;;) {
+    if (question >= 0 && question < cursor) question = run.indexOf('?', cursor)
+    if (hash >= 0 && hash < cursor) hash = run.indexOf('#', cursor)
+    if (question < 0 && hash < 0) break
+    const mark = hash < 0 || (question >= 0 && question < hash) ? question : hash
+    if (bracket >= 0 && bracket <= mark) bracket = run.indexOf(']', mark + 1)
+    const end = bracket >= 0 ? bracket : closed ? run.length : -1
+    if (end < 0) break // 後面沒有能收尾的地方，之後的 ? 也一樣
+    if (hasUrl(run, cursor, mark)) {
+      result += run.slice(cursor, mark) + FRAME_POSITION.exec(run.slice(mark + 1, end))![0]
+      cursor = end
+    } else {
+      result += run.slice(cursor, mark + 1)
+      cursor = mark + 1
+    }
+  }
+  return result + run.slice(cursor)
+}
+
+function stripUrlQueries(text: string, hasUrl: UrlBefore): string {
+  if (!text.includes('?') && !text.includes('#')) return text
+  return text.replace(URL_RUN, (run: string, offset: number) =>
+    run.includes('?') || run.includes('#') ? stripRunQueries(run, text[offset + run.length] !== '(', hasUrl) : run)
+}
+
+function redactRunEmails(run: string): string {
+  let at = run.indexOf('@')
+  if (at < 0) return run
+  let result = ''
+  let done = 0
+  let cursor = 0
+  while (at >= 0) {
+    EMAIL_DOMAIN.lastIndex = at + 1
+    const domain = at > cursor ? EMAIL_DOMAIN.exec(run) : null
+    if (domain) {
+      result += run.slice(done, cursor) + '[email]'
+      done = cursor = EMAIL_DOMAIN.lastIndex
+    } else {
+      cursor = at + 1 // 本地部分是空的或網域不成立：這個 @ 之前都不會是 Email
+    }
+    at = run.indexOf('@', cursor)
+  }
+  return result + run.slice(done)
+}
+
 export function redactText(text: string, options: { tokens?: boolean } = {}): string {
-  let result = text
-    .replace(ABSOLUTE_URL_QUERY, (_match, url: string, pos: string) => url + pos)
-    .replace(RELATIVE_URL_QUERY, (_match, before: string, url: string, pos: string) => before + url + pos)
+  let result = stripUrlQueries(stripUrlQueries(text, hasAbsoluteUrl), hasRelativeUrl)
     .replace(USERINFO, '$1[credentials]@')
-    .replace(EMAIL, '[email]')
+    .replace(EMAIL_RUN, redactRunEmails)
     .replace(TW_ID, (_match, before: string) => `${before}[id]`)
   if (options.tokens !== false) result = result.replace(TOKEN, (value) => (/[A-Za-z0-9]/.test(value) ? '[token]' : value))
   return result.replace(LONG_DIGITS, '[n]')
