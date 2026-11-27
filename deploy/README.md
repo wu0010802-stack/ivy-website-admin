@@ -14,6 +14,19 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-27 後台側欄搜尋找人、常用篩選與顯示欄位、指紋／臉部辨識登入（PR #156，main `15b14380`；已部署）
+
+使用者看過「後台還能做什麼」的清單後指定這三項，做完後說「直接上線」。內容見根目錄 README 同日段落與 DESIGN.md「後台：側欄搜尋找人、常用篩選、顯示欄位、指紋登入」。migration `e2c5a8f1d937`（parent `d8b3f1a6c240`）只新增空表 `passkeys` 與有預設值的欄位 `users.passkey_count`，不改既有資料，沒有事先備份。api 映像多一個 Python 套件 `webauthn`；不需要設任何變數（Passkey 的網域取自 `WEBSITE_ADMIN_ORIGIN`）。
+
+上線後行為的差別：登入頁多一顆「用指紋或臉部辨識登入」（沒人登記前按了只會說請改用密碼）；「我的帳號」多「指紋／臉部辨識登入」一塊；側欄搜尋打姓名或電話會列出參觀案件與招生紀錄；參觀案件與訪視明細多「常用篩選」、訪視明細多「顯示欄位」（都只存在瀏覽器）。`/auth/providers` 多 `passkey`、`UserOut` 多 `passkey_count`；停權、重設密碼、「解除綁定並登出」的稽核在有刪到 Passkey 時多 `passkeys_removed`。
+
+線上核對（2026-11-27 約 15:25 台北，只用公開請求）：
+
+- PR 組 run 45952087125 全綠；推送組 45952079753 被取消、重跑後全綠才能合併。main run 45955800678 全綠（含 E2E 與 Deploy Railway production，15:13 部署完）。
+- `https://admin.ivykidschool.com/api/website/v1/auth/providers` 回 `{"google":true,"line":true,"passkey":true}`。
+- `POST …/auth/passkeys/login/options`（帶後台的 Origin）回 200，`rpId` 是 `admin.ivykidschool.com`、`userVerification` 是 `required`——新表與新套件都在（這支不寫資料，只發一次性的挑戰值）。
+- 沒驗：真機的指紋／Face ID（iPhone Safari、Android、Windows Hello）、登入後的畫面（我的帳號登記、側欄找人、常用篩選、顯示欄位）；待使用者照 README 的步驟實機驗收。
+
 ## 2026-11-27 後台 QA／TA 修正五項（PR #154，main `92bbca18`；已部署）
 
 同日對正式站後台做只讀的 QA＋TA 測試後，使用者挑五項：漏斗看板比率改成和招生統計同一套（使用者裁定）、側欄搜尋收園方說法、找不到的網址排除掃描程式、手機上還沒開始的案件撥號改整排主鈕、素材庫看不出內容的檔名改標題並可用「用在哪裡」搜尋。使用者說「幫我部署」。沒有 migration、不改既有資料，沒有事先備份。內容見根目錄 README 同日段落與 DESIGN.md「後台 QA／TA 修正五項」。
