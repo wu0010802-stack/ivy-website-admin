@@ -3,6 +3,8 @@
 // （cookie 被擋時至少同一分頁不重播）。inline script 要寫，所以不能 httpOnly。
 // 這是功能偏好、不是追蹤，不看 DNT／GPC。純函式與 inline script 片段都放這裡，
 // entrance-policy.ts（首頁布幕）、inline-scripts.ts（/anniversary 開場）與 AnniversaryIntro.vue 共用。
+// 註：claude/determined-brown-8ob4jc 把 /anniversary 的 30 秒開場換成按了才播的紀念影片後，ANNI_INTRO_SEEN_COOKIE 沒有地方讀寫了
+// （閘門與 AnniversaryIntro.vue 都已拿掉）；常數先留著，等「舊開場要不要留」定了再決定刪或接回去。
 
 export const ENTRANCE_SEEN_COOKIE = 'ivy_seen_entrance'
 export const ANNI_INTRO_SEEN_COOKIE = 'ivy_seen_anni_intro'

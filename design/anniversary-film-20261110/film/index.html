@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<title>常春藤 30 週年紀念影片</title>
+<style>
+/* 品牌色取自 web/app/assets/css/tokens.css（影片離線算圖讀不到站上的 CSS 變數，這裡照抄近似值） */
+:root {
+  --green: #244933; --deep: #152F23; --leaf: #386A4B; --gold: #EFBC4B; --yellow: #F8CF68;
+  --paper: #FDFCF6; --cream: #F5F2E5; --mint: #CEDCD0; --text: #25342C; --muted: #505F55; --line: #CAD4CA;
+  --ink: 17 42 33; --on-dark: 255 255 255;
+}
+@font-face { font-family: 'LINE Seed TW'; font-weight: 100; src: url(/output/anniversary-film/fonts/LINESeedTW_OTF_Th.woff2) format('woff2'); }
+@font-face { font-family: 'LINE Seed TW'; font-weight: 400; src: url(/output/anniversary-film/fonts/LINESeedTW_OTF_Rg.woff2) format('woff2'); }
+@font-face { font-family: 'LINE Seed TW'; font-weight: 700; src: url(/output/anniversary-film/fonts/LINESeedTW_OTF_Bd.woff2) format('woff2'); }
+@font-face { font-family: 'LINE Seed TW'; font-weight: 800; src: url(/output/anniversary-film/fonts/LINESeedTW_OTF_Eb.woff2) format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-weight: 400; src: url(/output/anniversary-film/fonts/source-sans-3-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-weight: 600; src: url(/output/anniversary-film/fonts/source-sans-3-latin-600-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Source Sans 3'; font-weight: 700; src: url(/output/anniversary-film/fonts/source-sans-3-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Ivy Brand TC'; font-weight: 600; src: url(/output/anniversary-film/fonts/noto-sans-tc-600-brand.woff2) format('woff2'); }
+@font-face { font-family: 'Ivy Brand EN'; font-weight: 400; src: url(/output/anniversary-film/fonts/source-sans-3-400-brand.woff2) format('woff2'); }
+html, body { margin: 0; padding: 0; background: #000; }
+#stage { position: relative; width: 1920px; height: 1080px; overflow: hidden; background: #FBF9F1;
+  font-family: 'LINE Seed TW', sans-serif; color: var(--text); font-kerning: normal; text-rendering: geometricPrecision; }
+#stage * { box-sizing: border-box; }
+.layer { position: absolute; inset: 0; }
+.abs { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.ch { display: inline-block; white-space: pre; will-change: transform, opacity, filter; }
+.kline { display: block; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script src="map-data.js"></script>
+<script src="sky.js"></script>
+<script src="film.js"></script>
+</body>
+</html>

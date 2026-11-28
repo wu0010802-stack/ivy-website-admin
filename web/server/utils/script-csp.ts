@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { entranceBootstrap } from '../../app/utils/entrance-policy'
-import { ANNI_INTRO_GATE_SCRIPT, MOTION_LAYOUT_SCRIPT } from '../../app/utils/inline-scripts'
+import { MOTION_LAYOUT_SCRIPT } from '../../app/utils/inline-scripts'
 
 // 公開頁 CSP 的 script-src（2026-11-04 資安強化，關閉延後已久的 shared-origin-no-script-csp）。
 //
@@ -29,7 +29,7 @@ export function scriptHashSource(body: string): string {
 }
 
 /** 用戶端換頁可能由 head 管理器插入的 inline script（本文與元件共用同一個常數）。 */
-export const CLIENT_INLINE_SCRIPTS: readonly string[] = [MOTION_LAYOUT_SCRIPT, entranceBootstrap, ANNI_INTRO_GATE_SCRIPT]
+export const CLIENT_INLINE_SCRIPTS: readonly string[] = [MOTION_LAYOUT_SCRIPT, entranceBootstrap]
 
 // app/utils/turnstile.ts 的 TURNSTILE_SCRIPT_SRC 所在的 origin（那支檔案有 DOM 型別，server 不引用；
 // 兩邊一致由 tests/script-csp.spec.ts 檢查）。

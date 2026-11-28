@@ -1,12 +1,6 @@
 // 由 scripts/build-anniversary-media.py 產生，不要手改。
-// 影片與素材場來自《手牽手，走到 30》展示作（output/ivy-30th-20261003）。
+// 時間軸的素材場來自《手牽手，走到 30》展示作（output/ivy-30th-20261003）。首屏的紀念影片在 film-media.ts。
 export const ANNI_MEDIA = {
-  "filmDesktop": "/assets/anniversary/film-desktop-113dda5470.mp4",
-  "filmMobile": "/assets/anniversary/film-mobile-5c8c51d5ac.mp4",
-  "posterDesktop": "/assets/anniversary/poster-desktop-477f865dab.webp",
-  "posterMobile": "/assets/anniversary/poster-mobile-d82019f9de.webp",
-  "firstDesktop": "/assets/anniversary/first-desktop-338838525b.webp",
-  "firstMobile": "/assets/anniversary/first-mobile-31988f575f.webp",
   "fields": {
     "yihua": "/assets/anniversary/fields-yihua-ef20f5e878.webp",
     "minghua": "/assets/anniversary/fields-minghua-a3581dce1a.webp",
