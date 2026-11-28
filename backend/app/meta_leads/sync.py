@@ -24,6 +24,7 @@ from app.facebook import graph
 from app.meta_leads.models import MetaLead, MetaLeadSync
 from app.meta_leads.service import contact_fields
 from app.notifications.line import LineMessagingClient, LinePushError
+from app.notifications.line_flex import meta_leads_card
 from app.notifications.line_group_settings import targets_for
 
 logger = logging.getLogger("app.meta_leads.sync")
@@ -170,12 +171,11 @@ async def sync_leads(
     return results
 
 
-def notification_text(campus_name: str, count: int, admin_origin: str | None, campus_key: str) -> str:
-    """推到群組的文字：只有校名與筆數，不放家長姓名與電話（群組成員不一定都該看到個資）。"""
-    text = f"【{campus_name}】有 {count} 筆新的 Meta 廣告名單，請到後台「廣告名單」聯絡家長。"
-    if admin_origin:
-        text += f"\n{admin_origin.rstrip('/')}/admin/meta-leads?campus={campus_key}&openExternalBrowser=1"
-    return text
+def notification_message(campus_name: str, count: int, admin_origin: str | None, campus_key: str) -> dict:
+    """推到群組的卡片（2026-11-28 起，原本是純文字＋網址）：只有校名與筆數，不放家長姓名與電話
+    （群組成員不一定都該看到個資）；按鈕開後台「廣告名單」。版型在 line_flex.meta_leads_card。"""
+    url = f"{admin_origin.rstrip('/')}/admin/meta-leads?campus={campus_key}&openExternalBrowser=1" if admin_origin else None
+    return meta_leads_card(campus_name, count, url)
 
 
 async def notify_new_leads(
@@ -204,13 +204,15 @@ async def notify_new_leads(
     for campus_key, lead_ids in pending.items():
         targets = await targets_for(db, campus_key)
         campus = await db.get(Campus, campus_key)
-        text = notification_text(campus.name if campus else campus_key, len(lead_ids), settings.admin_origin, campus_key)
+        message = notification_message(
+            campus.name if campus else campus_key, len(lead_ids), settings.admin_origin, campus_key
+        )
         batch = ",".join(sorted(str(lead_id) for lead_id in lead_ids))
         delivered = True
         for target in targets:
             key = uuid.uuid5(uuid.NAMESPACE_URL, f"meta-leads:{target.target_id}:{batch}")
             try:
-                await line_client.push_text(target.target_id, text, key=key)  # type: ignore[union-attr]
+                await line_client.push(target.target_id, [message], key=key)  # type: ignore[union-attr]
             except (LinePushError, httpx.HTTPError):
                 logger.warning("Meta 名單 LINE 通知失敗，下一輪再試：%s", campus_key, exc_info=True)
                 delivered = False

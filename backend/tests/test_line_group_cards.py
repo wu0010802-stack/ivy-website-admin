@@ -125,3 +125,39 @@ def test_encode_decode_roundtrip_and_rejects_garbage():
     with pytest.raises(ValueError):
         encode("att", "x" * 300)
     assert line_group_actions.ATTEND_ASK == "att" and line_group_actions.RF_BUS == "rfb"
+
+
+# ---- Meta 廣告名單卡片（2026-11-28）：和官網參觀通知分開的版型 ----
+
+
+def _meta_card(url: str | None = "https://admin.example.com/admin/meta-leads?campus=yihua&openExternalBrowser=1") -> dict:
+    return line_flex.meta_leads_card("義華校", 2, url)
+
+
+def test_meta_leads_card_has_a_filled_header_unlike_site_cards():
+    bubble = _meta_card()["contents"]
+    fill = bubble["styles"]["header"]["backgroundColor"]
+    assert fill == line_flex.META_BLUE
+    # 官網卡片是白底、標題換色；Meta 卡片整條標題列鋪色、字是白的，顏色也不和任何一種官網卡片相同。
+    assert "styles" not in _card("visit_request_created")["contents"]
+    assert fill not in {color for pair in line_flex.KIND_STYLE.values() for color in pair} | {line_flex.BRAND}
+    eyebrow, title = bubble["header"]["contents"]
+    assert (eyebrow["text"], title["text"]) == ("Meta 廣告", "新的廣告名單")
+    assert eyebrow["color"] == title["color"] == "#FFFFFF"
+    assert 1.05 / (_luminance(fill) + 0.05) >= 4.5
+
+
+def test_meta_leads_card_button_opens_the_inbox_and_alt_text_has_no_link():
+    message = _meta_card()
+    assert message["type"] == "flex"
+    assert message["altText"] == "[Meta 廣告] 義華校有 2 筆新名單"
+    rows = [[cell["text"] for cell in row["contents"]] for row in message["contents"]["body"]["contents"][:2]]
+    assert rows == [["校區", "義華校"], ["新名單", "2 筆"]]
+    (button,) = message["contents"]["footer"]["contents"]
+    assert button["style"] == "primary" and button["color"] == line_flex.META_BLUE
+    assert button["action"] == {
+        "type": "uri", "label": "開啟廣告名單",
+        "uri": "https://admin.example.com/admin/meta-leads?campus=yihua&openExternalBrowser=1",
+    }
+    # 沒設後台網址：沒有按鈕，卡片照送。
+    assert "footer" not in _meta_card(None)["contents"]
