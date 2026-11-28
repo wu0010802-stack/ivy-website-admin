@@ -1,5 +1,6 @@
 import { MOTION_LAYOUT_SCRIPT } from './app/utils/inline-scripts'
 import { normalizeSiteOrigin } from './app/utils/seo'
+import { liffOnlyManifestKeys } from './shared/line-liff'
 import fontManifest from './app/generated/font-manifest.json'
 
 // https://nuxt.com/docs/api/configuration/nuxt-config
@@ -69,6 +70,8 @@ export default defineNuxtConfig({
         // 就漏掉了，首頁以外每頁又 prefetch 了 three（2026-10-21 正式站掃描發現），兩個來源都要排除。
         if (/(?:^|\/)(?:node_modules\/three\/|utils\/three-lite\.ts)/.test(entry.src ?? key)) entry.prefetch = false
       }
+      // 2026-11-28 LIFF SDK：只有 LINE App 內的瀏覽器才 import（app/utils/line-liff.ts），其他訪客在預約頁不預先下載。
+      for (const key of liffOnlyManifestKeys(manifest)) manifest[key]!.prefetch = false
     }
   },
 
@@ -170,7 +173,11 @@ export default defineNuxtConfig({
       // ChatGPT 廣告的 OpenAI 評估像素（2026-11-15）：NUXT_PUBLIC_OPENAI_PIXEL_ID，規則同上（預設空白＝關）。
       openaiPixelId: '',
       // LINE Tag（2026-11-16）：NUXT_PUBLIC_LINE_TAG_ID（UUID），規則同上（預設空白＝關）。
-      lineTagId: ''
+      lineTagId: '',
+      // 在 LINE 裡預約、預約當下綁 LINE（2026-11-28，app/utils/line-liff.ts、CSP 見 shared/line-liff.ts）：
+      // NUXT_PUBLIC_LINE_LIFF_ID（數字-英數，例如 1234567890-AbcdEfgh），規則同 gaMeasurementId：預設空白＝關、不讀 process.env。
+      // 格式不符視同未設定。API 端要同時設 WEBSITE_LINE_LIFF_ID 才生效。
+      lineLiffId: ''
     }
   }
 

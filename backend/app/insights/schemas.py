@@ -149,6 +149,30 @@ class LineInsightsOut(BaseModel):
     campuses: list[LineCampusClicksOut]
 
 
+class LineDemographicItemOut(BaseModel):
+    # LINE 給的代碼：male／female／unknown、from20to24、台北市…；前端對照成中文。
+    key: str
+    percentage: float
+
+
+class LineDemographicAccountOut(BaseModel):
+    key: str
+    display_name: str | None = None
+    # False＝好友不到 20 位，LINE 不給輪廓。
+    available: bool = False
+    # 查 LINE 失敗：HTTP 狀態碼（連不上為 0）。
+    error_status: int | None = None
+    genders: list[LineDemographicItemOut] = []
+    ages: list[LineDemographicItemOut] = []
+    areas: list[LineDemographicItemOut] = []
+    subscription_periods: list[LineDemographicItemOut] = []
+
+
+class LineDemographicsOut(BaseModel):
+    configured: bool
+    accounts: list[LineDemographicAccountOut]
+
+
 # ---- Google 商家檔案（2026-11-25，docs/specs/2026-11-25-business-profile-keyword-planner-design.md §4.4）----
 
 

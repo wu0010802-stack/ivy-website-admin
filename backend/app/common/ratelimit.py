@@ -260,6 +260,30 @@ class RateLimiter:
             logger.warning("限流連線池已滿，一次性標記當作已存在：bucket=%s", marker.bucket)
             return False
 
+    async def set_marker(self, marker: Limit, key: str) -> None:
+        """無條件把標記的到期時間設成現在＋marker.window_seconds（沒有就新增、已有就重新計時）。
+
+        跟 consume_marker 相反：標記還在時會延長。限流池在時限內拿不到連線時只記 warning、當作沒事
+        （事後記帳，不能讓已做完的請求變 500）。"""
+        now = self._now()
+        table = RateLimitCounter.__table__
+        insert = pg_insert(table).values(
+            bucket=marker.bucket,
+            key_hash=self._key_hash(marker, key),
+            window_start=0,
+            hits=1,
+            expires_at=now + timedelta(seconds=marker.window_seconds),
+        )
+        stmt = insert.on_conflict_do_update(
+            index_elements=[table.c.bucket, table.c.key_hash, table.c.window_start],
+            set_={"hits": 1, "expires_at": insert.excluded.expires_at},
+        )
+        try:
+            async with self._engine.begin() as conn:
+                await conn.execute(stmt)
+        except PoolTimeout:
+            logger.warning("限流連線池已滿，這次沒有設到標記：bucket=%s", marker.bucket)
+
     async def marker_active(self, marker: Limit, key: str) -> bool:
         """標記是否還沒到期。
 

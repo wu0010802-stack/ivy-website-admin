@@ -20,7 +20,7 @@ from app.common.timezones import today_local
 from app.insights.crux import CruxHistory
 from app.insights.http import GoogleApiError
 from app.insights import line_insights
-from app.insights.schemas import CruxOut, LineInsightsOut, SearchInsightsOut
+from app.insights.schemas import CruxOut, LineDemographicsOut, LineInsightsOut, SearchInsightsOut
 from app.insights.search_console import SearchConsole
 
 logger = logging.getLogger("app.insights")
@@ -129,3 +129,18 @@ async def get_line_insights(
     return LineInsightsOut(
         configured=bool(settings.line_accounts), start=first, end=last, accounts=accounts, campuses=campuses
     )
+
+
+@router.get("/admin/line-insights/demographics", response_model=LineDemographicsOut)
+async def get_line_demographics(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session),
+) -> LineDemographicsOut:
+    """各官方帳號好友的性別、年齡、地區、加好友多久（2026-11-28）。LINE 的估計值，約晚 3 天，好友不到 20 位時沒有資料。"""
+    require_scope(current_user, "admissions.stats_site")
+    settings = request.app.state.settings
+    # 向 LINE 要資料前先結束讀取交易。
+    await db.rollback()
+    accounts = await line_insights.demographic_rows(settings, getattr(request.app.state, "line_transport", None))
+    return LineDemographicsOut(configured=bool(settings.line_accounts), accounts=accounts)

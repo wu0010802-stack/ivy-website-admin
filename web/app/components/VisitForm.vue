@@ -16,6 +16,7 @@ import { SLOTS_AVAILABLE } from '#shared/engagement'
 import { BOOKED_ACTION, FORM_ACTIONS, trackEngagementAction } from '~/utils/engagement'
 import { newIdempotencyKey, restoredIdempotencyKey } from '~/utils/idempotency-key'
 import { formPrivacyEntry } from '~/utils/privacy-policy'
+import { getLiffIdToken, liffAlignedPath, loadLiff, type LineNotifyInit } from '~/utils/line-liff'
 import { loadTurnstile, serverMessage, type TurnstileApi } from '~/utils/turnstile'
 
 // 預約頁首圖已經自己包了 <picture>（橫拿手機換成 1×1 透明圖），所以不用 <ResponsivePicture>：
@@ -134,6 +135,28 @@ function resetTurnstile() {
   turnstileToken.value = ''
   if (turnstileApi && turnstileWidgetId) turnstileApi.reset(turnstileWidgetId)
 }
+
+// 在 LINE 裡預約（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §7.2）：掛載時在背景啟動 LIFF，不阻塞畫面。
+// 沒設 LIFF ID 或不是 LINE App 內的瀏覽器就什麼都不做（不載 SDK）。liff.init() 的 Promise 完成前不能改網址：
+// 這個元件唯一會改網址的是家長按「更換校區」（changeCampus），那裡會先等 liffReady；完成後網址和路由不同
+// （LIFF 第二次轉址沒有整頁重新載入）就用 replace 對齊，並去掉 liff.* 查詢參數。
+const liffUsable = ref(false)
+let liffReady: Promise<boolean> | null = null
+const LIFF_WAIT_MS = 3000
+async function startLiff() {
+  liffReady = loadLiff(useRuntimeConfig().public.lineLiffId, navigator.userAgent)
+  liffUsable.value = await liffReady
+  if (!liffUsable.value) return
+  const target = liffAlignedPath(window.location, router.currentRoute.value)
+  if (target) await navigateTo(target, { replace: true })
+}
+// 送單前最多等 3 秒讓 LIFF 初始化完成；逾時就不帶 token（預約照常成立，只是不綁 LINE）。
+async function liffTokenForSubmit(): Promise<string | null> {
+  if (!liffReady) return null
+  const ok = await Promise.race([liffReady, new Promise<boolean>(resolve => setTimeout(resolve, LIFF_WAIT_MS, false))])
+  return ok ? getLiffIdToken() : null
+}
+onMounted(() => { void startLiff() })
 
 onMounted(() => { turnstileActive = true; void mountTurnstile() })
 onBeforeUnmount(() => { turnstileActive = false; removeTurnstile() })
@@ -282,6 +305,8 @@ const linkCopyFailed = ref(false)
 const manageUrl = computed(() => managePath.value && import.meta.client ? new URL(managePath.value, window.location.origin).href : '')
 // 用 LINE 接收通知（2026-11-16）：按下去時用修改連結裡的 token 換家長 session。
 const manageToken = computed(() => managePath.value ? new URLSearchParams(managePath.value.split('#')[1] ?? '').get('token') : null)
+// 預約當下用 LIFF 綁了 LINE（2026-11-28）：回應的 line_notify；有它時待確認的預約也顯示「已用 LINE 接收通知」。
+const lineNotifyResult = ref<LineNotifyInit | null>(null)
 const resultKind = computed(() => visitResultKind(resultStatus.value))
 const resultCopy = computed(() => visitResultCopy(resultKind.value, {
   emailEnabled: Boolean(bookingConfig.value?.parent_email_enabled),
@@ -381,7 +406,7 @@ const bookingSummary = computed(() => selectedSlot.value
 // 線上 parent_email_enabled 為 false 時不會寄信：欄位說明不能承諾確認信。Email 選填（2026-11-13），兩句都以「有填的話」開頭。
 // 這校開了 LINE 通知型訊息（2026-11-25）：沒填 Email 的家長會用手機號碼在 LINE 收到通知，送出前就要講。
 // 不保證一定收到（家長的 LINE 要綁這支號碼、沒拒收），所以寫「綁定這支號碼的 LINE」。
-const emailHint = computed(() => {
+const emailPnpHint = computed(() => {
   const base = bookingConfig.value?.parent_email_enabled
     ? '有填的話，確認信與修改連結會寄到這裡。'
     : '有填的話，園所可以用 Email 聯絡你；修改連結會顯示在預約完成頁。'
@@ -389,6 +414,8 @@ const emailHint = computed(() => {
     ? `${base}沒填的話，預約確認、提醒與修改連結會用 LINE 通知型訊息傳到綁定這支手機號碼的 LINE。`
     : base
 })
+// 在 LINE 裡預約（2026-11-28）：這校開了 LIFF 而且 LIFF 可用，預約當下就綁 LINE，多一句說明。
+const emailHint = computed(() => bookingConfig.value?.line_liff_enabled && liffUsable.value ? `${emailPnpHint.value}預約通知也會傳到您的 LINE。` : emailPnpHint.value)
 // 這位家長會不會收到確認信：有開寄信、而且他有填 Email（選填）。沒填的人不能叫他去信裡找連結。
 const mailedToParent = computed(() => Boolean(bookingConfig.value?.parent_email_enabled && form.email))
 
@@ -415,6 +442,8 @@ async function retryBookingConfig() {
 
 async function changeCampus() {
   if (submitting.value) return
+  // liff.init() 完成前不能改網址（官方規則）。
+  if (liffReady) await liffReady
   await router.push('/visit')
 }
 
@@ -434,6 +463,7 @@ function resetResult() {
   resultStatus.value = null
   receiptId.value = ''
   managePath.value = null
+  lineNotifyResult.value = null
   submittedSlot.value = null
   linkCopied.value = false
   linkCopyFailed.value = false
@@ -558,7 +588,9 @@ async function onSubmit() {
   // 伺服器 422 指出欄位時，等送出中的 fieldset 解除 disabled 再把焦點交給第一個出錯的欄位（比照上面的前端驗證）。
   let focusInvalidField = false
   try {
-    const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null }>('/api/website/v1/public/visit-requests', {
+    // 送單當下才取 LIFF 的 ID token；只跟著這次送單送到自己的 API，不存、不進統計。
+    const lineIdToken = await liffTokenForSubmit()
+    const created = await $fetch<{ receipt_id: string; status: string; manage_path: string | null; line_notify?: LineNotifyInit | null }>('/api/website/v1/public/visit-requests', {
       method: 'POST',
       headers: { 'Idempotency-Key': idempotencyKey.value },
       body: {
@@ -573,6 +605,7 @@ async function onSubmit() {
         referral_sources: form.referralSources,
         ...(form.expectedStart ? { expected_start: form.expectedStart } : {}),
         slot_id: selectedSlotId.value,
+        ...(lineIdToken ? { line_id_token: lineIdToken } : {}),
         turnstile_token: turnstileSiteKey.value ? turnstileToken.value : undefined
       }
     })
@@ -582,6 +615,7 @@ async function onSubmit() {
     resultStatus.value = created?.status ?? null
     receiptId.value = created?.receipt_id || idempotencyKey.value
     managePath.value = created?.manage_path ?? null
+    lineNotifyResult.value = created?.line_notify?.linked ? created.line_notify : null
     // 預約成立時後端發了「這台裝置記住預約」的 cookie（VisitRememberedNotice）：這次造訪再回到選校步驟就查得到。
     if (created?.status === 'confirmed' && created?.manage_path) rememberedHint.value = true
     linkCopied.value = false
@@ -841,7 +875,7 @@ async function onSubmit() {
               v-if="resultKind === 'booked' && submittedSlot && selectedCampus"
               :campus="selectedCampus" :slot="submittedSlot" :uid="`visit-${receiptId}@ivy-website`"
             />
-            <VisitLineNotify v-if="resultKind === 'booked' && manageToken && bookingConfig?.line_notify_enabled" :token="manageToken" :visit-id="receiptId" />
+            <VisitLineNotify v-if="manageToken && (lineNotifyResult || (resultKind === 'booked' && bookingConfig?.line_notify_enabled))" :token="manageToken" :visit-id="receiptId" :initial="lineNotifyResult" />
             <div v-if="resultKind === 'booked' && managePath" class="visit-result-next">
               <h3>之後要改時間或取消</h3>
               <p>用這個連結就能改場次、修改資料或取消預約，請收藏起來，不要轉給其他人。</p>

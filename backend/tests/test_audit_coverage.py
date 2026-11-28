@@ -50,6 +50,10 @@ _EXEMPT = {
     ("POST", "/api/website/v1/admin/push/subscriptions/remove"): "個人裝置的通知訂閱",
     ("DELETE", "/api/website/v1/admin/push/subscriptions/{subscription_id}"): "個人裝置的通知訂閱",
     ("POST", "/api/website/v1/admin/push/test"): "只送一則測試通知給自己的裝置（有限流），不改任何資料",
+    # 2026-11-28：檢查 LINE webhook 連線。
+    ("POST", "/api/website/v1/admin/line/accounts/{account_key}/webhook-check"): (
+        "只向 LINE 查 webhook 設定、請它對那個網址送一個空的測試事件（有限流），不改任何設定與資料"
+    ),
     ("POST", "/api/website/v1/auth/password-reset/verify"): (
         "只確認重設連結還能不能用，不改任何資料；送出新密碼（complete）才寫稽核"
     ),

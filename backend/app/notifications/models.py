@@ -301,6 +301,37 @@ class LineParentLink(Base):
     unfollowed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class LineRichMenu(Base):
+    """程式替某個官方帳號建的圖文選單（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §4）。沒有列＝不使用。
+
+    mode：all＝所有好友看「一般」版（設成 API 預設選單，會蓋掉 LINE Official Account Manager 設的那個）、已預約的家長
+    看「已預約」版；booked＝只替已預約的家長換上「已預約」版，其他好友照舊。
+    spec_hash：建立當下選單內容（連結、電話、圖）的雜湊；和現在算出來的不同＝內容有更新、要重新套用。"""
+
+    __tablename__ = "line_rich_menus"
+
+    account_key: Mapped[str] = mapped_column(String(20), primary_key=True)
+    mode: Mapped[str] = mapped_column(String(10), nullable=False)
+    default_menu_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    booked_menu_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    spec_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL", name="fk_line_rich_menus_created_by"), nullable=True
+    )
+
+
+class LineRichMenuUser(Base):
+    """我們替誰換上了「已預約」版圖文選單。LINE 沒有「列出某個選單綁了誰」的 API，自己記下來，
+    參觀結束、取消或解除綁定後才知道要替誰換回去（notifications/line_rich_menus.reconcile）。"""
+
+    __tablename__ = "line_rich_menu_users"
+
+    account_key: Mapped[str] = mapped_column(String(20), primary_key=True)
+    line_user_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    linked_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class LineParentLinkCode(Base):
     """家長頁產生、要傳給官方帳號的一次性綁定代碼（LN-XXXXXXXX）。只存 HMAC 雜湊；
     30 分鐘過期、用過一次就作廢。account_key 是產生當下這校用的帳號，從別的帳號傳來不算。"""

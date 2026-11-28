@@ -252,6 +252,8 @@ class PublicBookingConfigOut(BaseModel):
     line_notify_enabled: bool = False
     # 這校開了 LINE 通知型訊息（2026-11-25）：沒留 Email 的家長會用手機號碼在 LINE 收到通知，官網在手機欄位下說明。
     line_pnp_enabled: bool = False
+    # 部署有設 LIFF、這校又有開家長 LINE 通知（2026-11-28）：在 LINE App 裡預約會直接綁定 LINE 通知。
+    line_liff_enabled: bool = False
     # 2026-10-02 起官網預約不用勾選同意，不再回同意文字與版本。
     # 預約文案發布中的隱私／個資使用說明；沒有正式說明時為 None，官網不顯示入口。
     privacy_notice: PrivacyNoticeOut | None = None
@@ -354,6 +356,9 @@ class VisitRequestCreate(_VisitRequestFields):
     # Cloudflare Turnstile 的一次性 token（公開預約設定有 turnstile_site_key
     # 時必帶）。不是家長填的內容，不算進 payload hash。
     turnstile_token: str | None = Field(default=None, max_length=2048)
+    # LIFF（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §7）：家長在 LINE App 裡開預約頁時帶來的 ID token。
+    # 驗得過、這校又有開家長 LINE 通知，預約當下就綁到這個 LINE；驗不過只是不綁。不是家長填的內容，不算進 payload hash。
+    line_id_token: str | None = Field(default=None, max_length=4096)
 
     @field_validator("email", mode="before")
     @classmethod
@@ -434,12 +439,24 @@ class CalendarSlotOut(BaseModel):
     visits: list[CalendarVisitOut]
 
 
+class VisitLineNotifyOut(BaseModel):
+    """這筆預約已經綁了 LINE 通知（2026-11-28：在 LINE App 裡預約時送單當下就綁）。"""
+
+    linked: bool = True
+    # 這個 LINE 是不是官方帳號的好友：不是好友 LINE 送不到通知，結果頁要提醒加好友。查不到為 None。
+    friend: bool | None = None
+    account_name: str | None = None
+    add_friend_url: str | None = None
+
+
 class VisitRequestOut(BaseModel):
     receipt_id: uuid.UUID
     status: str
     created_at: datetime
     # 家長的修改連結（站內路徑，含 #token=）。已取消／已結案或連結已撤銷時為 None。
     manage_path: str | None = None
+    # 有綁 LINE 通知才有（見 VisitLineNotifyOut）；結果頁據此直接顯示「已用 LINE 接收通知」。
+    line_notify: VisitLineNotifyOut | None = None
 
 
 class VisitSlotOut(BaseModel):

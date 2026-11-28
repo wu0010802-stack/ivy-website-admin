@@ -14,6 +14,8 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from typing import Literal
+
 import httpx
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Query, Request, Response, status
@@ -40,6 +42,7 @@ from app.config import LINE_MAIN_ACCOUNT, LINE_ONE_TO_ONE_ACCOUNT_KEYS, LINE_SHA
 from app.notifications import line as line_api
 from app.notifications import (
     line_accounts, line_flex, line_group_actions, line_group_commands, line_parent, line_parent_actions, line_pnp,
+    line_rich_menus,
 )
 from app.notifications.line_group_settings import GROUP_KINDS, STAFF_KINDS
 from app.notifications.parent_email import visit_when
@@ -67,6 +70,9 @@ VERIFICATION_CODE_LIMIT = ratelimit.Limit("line_verification_code", window_secon
 _SEEN_EVENTS = {"join", "message", "memberJoined", "memberLeft", "follow", "postback"}
 # 家長一對一：同一個 LINE 一分鐘內最多處理 10 則代碼或「我的預約」（亂猜代碼、洗回覆都擋得住）。
 PARENT_MESSAGE_LIMIT = ratelimit.Limit("line_parent_message", window_seconds=60, max_per_window=10)
+# 一對一收到程式不處理的訊息（問問題、貼圖、圖片…）就記一筆 7 天的標記：LINE 的已讀是「這則之前全部已讀」，
+# 有標記時不替代碼與「我的預約」標已讀，免得把園方還沒看的問題一起標掉（2026-11-28 §3）。鍵是帳號與 userId，限流表只存雜湊。
+UNHANDLED_MESSAGE_MARKER = ratelimit.Limit("line_unhandled_message", window_seconds=7 * 86400, max_per_window=1)
 CODE_INVALID_REPLY = "這組代碼已失效或已經用過了。請回到預約頁，再按一次「用 LINE 接收通知」取得新的代碼。"
 NOT_FRIEND_REPLY = "提醒您：請把我們加入好友，才收得到之後的通知。"
 NO_VISITS_REPLY = (
@@ -320,6 +326,51 @@ async def _handle_group_events(request: Request, db: AsyncSession, events: list[
         await db.commit()
 
 
+def _mark_as_read_token(event: dict) -> str | None:
+    message = event.get("message")
+    token = message.get("markAsReadToken") if isinstance(message, dict) else None
+    return token if isinstance(token, str) and 1 <= len(token) <= 500 else None
+
+
+def _is_bot_only_text(text: str | None) -> bool:
+    """整則訊息只有程式會處理的內容（代碼本身、預填的那句話、我的預約）：回覆後可以標已讀。
+    代碼夾在其他文字裡的不算——照樣處理代碼，但那則可能還要園方回。"""
+    return text is not None and (line_parent.is_plain_code_message(text) or line_parent.is_my_visits_request(text))
+
+
+# 等待動畫只是點綴：LINE 慢的時候最多等這麼久，不拖住後面的處理與回覆。
+LOADING_TIMEOUT_SECONDS = 3.0
+
+
+async def _start_loading(request: Request, account: LineAccountCredentials, user_id: str) -> None:
+    """一對一聊天室顯示等待動畫（5 秒）。失敗只記 log（不帶 userId）。"""
+    try:
+        async with line_api.LineMessagingClient(
+            account.access_token,
+            transport=getattr(request.app.state, "line_transport", None),
+            timeout=LOADING_TIMEOUT_SECONDS,
+        ) as client:
+            await client.start_loading(user_id, 5)
+    except (line_api.LineApiError, httpx.HTTPError) as exc:
+        logger.warning("LINE 等待動畫失敗：account=%s error=%s", account.key, exc)
+
+
+async def _read_token_if_allowed(
+    request: Request, account: LineAccountCredentials, event: dict, user_id: str, *, manual: bool
+) -> str | None:
+    """這則訊息回覆後可以標已讀的 token：帳號是手動已讀、事件有 token、這個人近 7 天沒有程式沒處理的訊息。
+    查不到標記（限流池忙）當作有標記。"""
+    token = _mark_as_read_token(event)
+    if not manual or token is None:
+        return None
+    try:
+        if await ratelimit.limiter(request).marker_active(UNHANDLED_MESSAGE_MARKER, f"{account.key}:{user_id}"):
+            return None
+    except ratelimit.RateLimiterUnavailable:
+        return None
+    return token
+
+
 async def _handle_user_events(
     request: Request, db: AsyncSession, account: LineAccountCredentials, events: list[dict]
 ) -> None:
@@ -329,6 +380,16 @@ async def _handle_user_events(
     now = datetime.now(timezone.utc)
     replies: list[tuple[str, str, list[dict]]] = []  # (reply token, userId, messages)
     bound: list[tuple[str, str]] = []  # (reply token, userId)：綁定成功、回覆前要查是不是好友
+    read_marks: dict[str, str] = {}  # reply token → markAsReadToken：回覆送出後標已讀
+    # 這個帳號是不是「手動已讀」（開著聊天室）：有會標已讀的候選訊息才查（bot_info 快取一小時），查之前先結束交易。
+    manual_read = False
+    if any(
+        _user(e) is not None and e.get("type") == "message" and _mark_as_read_token(e) and _is_bot_only_text(_event_text(e))
+        for e in events
+    ):
+        await db.commit()
+        info = await line_parent.bot_info(account, getattr(request.app.state, "line_transport", None))
+        manual_read = info is not None and info.mark_as_read_mode == "manual"
     for event in events:
         user_id = _user(event)
         if user_id is None:
@@ -348,12 +409,15 @@ async def _handle_user_events(
                 continue
             # 先 commit 前面事件的寫入（加好友狀態、綁定）：按鈕各自鎖列、各自 commit 或 rollback。
             await db.commit()
+            await _start_loading(request, account, user_id)
             message = await line_parent_actions.respond(request, db, account, user_id, *parsed, now)
             if message is not None:
                 replies.append((token, user_id, [message]))
             continue
         text = _event_text(event)
         if text is None:
+            if kind == "message":  # 貼圖、圖片…：程式不處理，園方要自己看
+                await ratelimit.limiter(request).set_marker(UNHANDLED_MESSAGE_MARKER, f"{account.key}:{user_id}")
             continue
         looked_like_code = bool(line_api.parent_code_candidates(text))
         if looked_like_code or line_parent.is_my_visits_request(text):
@@ -361,11 +425,21 @@ async def _handle_user_events(
                 await ratelimit.limiter(request).check(PARENT_MESSAGE_LIMIT, f"{account.key}:{user_id}")
             except ratelimit.RateLimited:
                 continue
+            await db.commit()
+            await _start_loading(request, account, user_id)
+            if not _is_bot_only_text(text):
+                # 代碼夾在其他文字裡：代碼照樣處理，但這則可能還要園方回——記標記，下面就不會標已讀。
+                await ratelimit.limiter(request).set_marker(UNHANDLED_MESSAGE_MARKER, f"{account.key}:{user_id}")
+        else:
+            await ratelimit.limiter(request).set_marker(UNHANDLED_MESSAGE_MARKER, f"{account.key}:{user_id}")
+            continue
         if looked_like_code:
             _, visit_request = await line_parent.consume_code(db, settings, account.key, text, user_id, now)
             if visit_request is None:
                 if token:
                     replies.append((token, user_id, [line_api.text_message(CODE_INVALID_REPLY)]))
+                    if read := await _read_token_if_allowed(request, account, event, user_id, manual=manual_read):
+                        read_marks[token] = read
                 continue
             await audit_service.log_action(
                 db,
@@ -379,9 +453,13 @@ async def _handle_user_events(
             if token:
                 replies.append((token, user_id, [line_api.text_message(await _linked_text(db, visit_request))]))
                 bound.append((token, user_id))
+                if read := await _read_token_if_allowed(request, account, event, user_id, manual=manual_read):
+                    read_marks[token] = read
             continue
-        if line_parent.is_my_visits_request(text) and token:
+        if token:
             replies.append((token, user_id, await _my_visits_messages(request, db, account.key, user_id, now)))
+            if read := await _read_token_if_allowed(request, account, event, user_id, manual=manual_read):
+                read_marks[token] = read
     await db.commit()
     if not replies:
         return
@@ -394,6 +472,12 @@ async def _handle_user_events(
                 await client.reply(token, messages)
             except (line_api.LinePushError, httpx.HTTPError) as exc:
                 logger.warning("LINE 回覆失敗：account=%s error=%s", account.key, exc)
+                continue
+            if token in read_marks:
+                try:
+                    await client.mark_as_read(read_marks[token])
+                except (line_api.LineApiError, httpx.HTTPError) as exc:
+                    logger.warning("LINE 標已讀失敗：account=%s error=%s", account.key, exc)
 
 
 async def _linked_text(db: AsyncSession, visit_request: VisitRequest) -> str:
@@ -478,6 +562,16 @@ class LineQuotaOut(BaseModel):
     warning: bool
 
 
+class LineRichMenuOut(BaseModel):
+    """程式建的圖文選單（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §4）。"""
+
+    # all＝所有好友看一般版、已預約的家長看已預約版；booked＝只替已預約的家長換上已預約版。
+    mode: Literal["all", "booked"]
+    created_at: datetime
+    # 校區電話、地址或預約連結變了，選單內容和建立時不同：要重新套用。
+    outdated: bool
+
+
 class LineAccountOut(BaseModel):
     """一個設好的官方帳號（2026-11-16）。key：main＝園方群組推播帳號，hq＝總部／品牌帳號（2026-11-25），
     其餘是校區鍵（該校自己的帳號）。"""
@@ -491,6 +585,8 @@ class LineAccountOut(BaseModel):
     quota_error_status: int | None = None
     # LINE 已開通通知型訊息（列在 WEBSITE_LINE_PNP_ACCOUNTS，2026-11-25）。
     pnp_available: bool = False
+    # 程式替這個帳號建的圖文選單（2026-11-28）；None＝不使用。
+    rich_menu: LineRichMenuOut | None = None
 
 
 class LineParentCampusOut(BaseModel):
@@ -555,6 +651,7 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     parent_mapping = {key: row.account_key for key, row in parent_rows.items()}
     configured = settings.line_accounts
     linked = await _linked_upcoming_counts(db)
+    rich_menus = await line_rich_menus.states(db, settings)
     # 查 LINE 之前先結束這次的讀取交易，不握著連線等外部 API。
     await db.commit()
     statuses = await line_accounts.all_statuses(settings, getattr(request.app.state, "line_transport", None))
@@ -566,7 +663,7 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
             LineCampusTargetOut(campus_key=c.key, campus_name=c.name, target_id=mapping.get(c.key))
             for c in campuses
         ],
-        accounts=[_account_out(status_, settings) for status_ in statuses],
+        accounts=[_account_out(status_, settings, rich_menus.get(status_.key)) for status_ in statuses],
         parent_campuses=[
             LineParentCampusOut(
                 campus_key=c.key,
@@ -585,7 +682,9 @@ async def _settings_out(request: Request, db: AsyncSession) -> LineSettingsOut:
     )
 
 
-def _account_out(account: line_accounts.AccountStatus, settings) -> LineAccountOut:
+def _account_out(
+    account: line_accounts.AccountStatus, settings, rich_menu: line_rich_menus.State | None = None
+) -> LineAccountOut:
     quota = None
     if account.quota_used is not None:
         quota = LineQuotaOut(limit=account.quota_limit, used=account.quota_used, warning=account.quota_warning)
@@ -597,6 +696,11 @@ def _account_out(account: line_accounts.AccountStatus, settings) -> LineAccountO
         quota=quota,
         quota_error_status=(account.quota_error_status or 0) if account.quota_error else None,
         pnp_available=account.key in settings.line_pnp_account_keys,
+        rich_menu=(
+            LineRichMenuOut(mode=rich_menu.mode, created_at=rich_menu.created_at, outdated=rich_menu.outdated)
+            if rich_menu is not None
+            else None
+        ),
     )
 
 
@@ -930,6 +1034,9 @@ class ParentLineNotifyOut(BaseModel):
     account_name: str | None = None
     basic_id: str | None = None
     add_friend_url: str | None = None
+    # 已綁時：這個 LINE 是不是官方帳號的好友（不是好友 LINE 送不到；查不到為 None）。2026-11-28：在 LINE 裡預約
+    # 會直接綁定，家長不一定加了這校的官方帳號。
+    friend: bool | None = None
 
 
 class ParentLineCodeOut(BaseModel):
@@ -975,19 +1082,38 @@ async def get_parent_line_notify(
     response.headers["Cache-Control"] = "private, no-store"
     visit_request = await _require_parent_session(db, session_token)
     _require_same_visit_request(visit_request, visit_request_id)
-    current = await line_parent.parent_account_key(db, request.app.state.settings, visit_request.campus_key)
+    settings = request.app.state.settings
+    transport = getattr(request.app.state, "line_transport", None)
+    current = await line_parent.parent_account_key(db, settings, visit_request.campus_key)
     # 只認綁在這校目前帳號上的（後台換帳號後的舊綁定推不到，不能顯示「已開啟」）。
-    linked = current is not None and await line_parent.active_link(db, visit_request.id, current) is not None
+    link = await line_parent.active_link(db, visit_request.id, current) if current is not None else None
+    linked = link is not None
+    linked_user = link.line_user_id if link is not None else None
     await db.commit()
     key, info = await _notify_state(request, db, visit_request)
     if key is None or info is None:
-        return ParentLineNotifyOut(available=False, linked=linked)
+        if not linked or current is None:
+            return ParentLineNotifyOut(available=False, linked=linked)
+        # 已綁但這筆預約現在不能再開新的綁定（例如在 LINE 裡預約、還在等園方確認）：照樣回帳號與好友狀態。
+        await db.commit()
+        account = settings.line_accounts[current]
+        info = await line_parent.bot_info(account, transport)
+        return ParentLineNotifyOut(
+            available=False,
+            linked=True,
+            account_name=info.display_name if info else None,
+            basic_id=info.basic_id if info else None,
+            add_friend_url=line_parent.add_friend_url(info.basic_id) if info and info.basic_id else None,
+            friend=await line_parent.friend_status(account, linked_user, transport),
+        )
+    await db.commit()
     return ParentLineNotifyOut(
         available=True,
         linked=linked,
         account_name=info.display_name,
         basic_id=info.basic_id,
         add_friend_url=line_parent.add_friend_url(info.basic_id),
+        friend=await line_parent.friend_status(settings.line_accounts[key], linked_user, transport) if linked else None,
     )
 
 

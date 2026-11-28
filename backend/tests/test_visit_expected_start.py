@@ -152,7 +152,9 @@ async def test_a_case_stored_before_this_release_is_still_recognised_on_retry(ad
     first = await public_client.post(VISIT_SUBMIT_PATH, json=body, headers=headers)
     assert first.status_code == 201, first.text
     legacy = VisitRequestCreate.model_validate({**body, "email": "parent@example.com"}).model_dump(
-        mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token", "expected_start"}
+        mode="json",
+        # 舊版送單的內容：沒有 expected_start，也沒有 2026-11-28 才有的 line_id_token（那個欄位本來就不算進雜湊）。
+        exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token", "expected_start", "line_id_token"},
     )
     for field in ("child_name", "child_birthdate", "referral_sources", "party_size"):
         legacy.pop(field)

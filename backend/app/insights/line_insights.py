@@ -29,6 +29,10 @@ logger = logging.getLogger("app.insights")
 
 _FOLLOWERS_CACHE: TtlCache[line_api.Followers] = TtlCache(ttl_seconds=6 * 3600)
 EARLIEST = date(2016, 11, 1)
+# 好友輪廓：LINE 本來就晚約 3 天才更新，每個帳號 12 小時查一次；每小時限 60 次。失敗不快取。
+_DEMOGRAPHIC_CACHE: TtlCache[dict] = TtlCache(ttl_seconds=12 * 3600)
+# LINE 同時給舊的 from50（50 歲以上合計）與細分的 from50to54…from70。
+_FINE_AGES_FROM_50 = frozenset({"from50to54", "from55to59", "from60to64", "from65to69", "from70"})
 
 
 async def followers(account: LineAccountCredentials, day: date, transport=None) -> line_api.Followers:
@@ -46,6 +50,61 @@ async def followers(account: LineAccountCredentials, day: date, transport=None) 
 def clear_cache() -> None:
     """測試用。"""
     _FOLLOWERS_CACHE._entries.clear()
+
+
+async def demographic(account: LineAccountCredentials, transport=None) -> dict:
+    async def fetch() -> dict:
+        async with line_api.LineMessagingClient(account.access_token, transport=transport) as client:
+            return await client.demographic()
+
+    return (await _DEMOGRAPHIC_CACHE.get((account.key, hash(account.access_token)), fetch)).value
+
+
+def clear_demographic_cache() -> None:
+    """測試用。"""
+    _DEMOGRAPHIC_CACHE._entries.clear()
+
+
+def _items(raw, name: str) -> list[dict]:
+    """LINE 的 [{<name>: 代碼, percentage: 數字}] 轉成 [{key, percentage}]；百分比 0 或不是數字的不回。"""
+    items = []
+    for entry in raw if isinstance(raw, list) else []:
+        if not isinstance(entry, dict):
+            continue
+        key, percentage = entry.get(name), entry.get("percentage")
+        if isinstance(key, str) and isinstance(percentage, (int, float)) and not isinstance(percentage, bool) and percentage > 0:
+            items.append({"key": key[:40], "percentage": float(percentage)})
+    return items
+
+
+def demographic_row(data: dict) -> dict:
+    """LINE 回應轉成回給前端的一個帳號（不含 key 與名稱）。好友不到 20 位時 available 是 False。"""
+    if data.get("available") is not True:
+        return {"available": False}
+    ages = _items(data.get("ages"), "age")
+    if any(item["key"] in _FINE_AGES_FROM_50 for item in ages):
+        ages = [item for item in ages if item["key"] != "from50"]
+    return {
+        "available": True,
+        "genders": _items(data.get("genders"), "gender"),
+        "ages": ages,
+        "areas": sorted(_items(data.get("areas"), "area"), key=lambda item: -item["percentage"]),
+        "subscription_periods": _items(data.get("subscriptionPeriods"), "subscriptionPeriod"),
+    }
+
+
+async def demographic_rows(settings: Settings, transport=None) -> list[dict]:
+    rows = []
+    for account in settings.line_accounts.values():
+        info = await line_parent.bot_info(account, transport)
+        row: dict = {"key": account.key, "display_name": info.display_name if info else None}
+        try:
+            row.update(demographic_row(await demographic(account, transport)))
+        except line_api.LineApiError as exc:
+            logger.warning("LINE 好友輪廓查詢失敗：account=%s error=%s", account.key, exc)
+            row["error_status"] = exc.status_code or 0
+        rows.append(row)
+    return rows
 
 
 def follower_days(start: date, end: date, today: date) -> tuple[date, date]:

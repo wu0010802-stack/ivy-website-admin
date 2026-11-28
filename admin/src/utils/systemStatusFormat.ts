@@ -59,6 +59,7 @@ export const STEP_LABELS: Record<string, string> = {
   // 成效統計補強（2026-11-20）。
   stats_health: '官網統計異常提醒（總部 LINE 群組）',
   line_reports: '週報與月報（總部 LINE 群組）',
+  line_rich_menus: '圖文選單換上與換回（已預約的家長）',
   monthly_rollup: '成效統計每月彙總',
   purge_media: '清除待刪素材',
   audit_client_info: '清除操作紀錄的舊 IP 與裝置',

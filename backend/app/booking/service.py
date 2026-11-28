@@ -319,6 +319,7 @@ async def submit_visit_request(
     phone_limit: tuple[int, timedelta] | None = None,
     access_secret: str,
     tracking: dict | None = None,
+    line_link: tuple[str, str] | None = None,
 ) -> tuple[VisitRequest, bool]:
     """tracking：網站來源六欄與 ad_click_ids（app/booking/attribution.py，2026-11-16）。只寫進新建的案件，
     不進 payload 雜湊——同一張表單重送時 cookie 可能已經變了，不能因此變成「同 key 不同內容」。
@@ -455,6 +456,22 @@ async def submit_visit_request(
         after={"status": status, "slot": history.slot_brief(slot)},
     )
     await access_service.create_access_token(db, visit_request.id, secret=access_secret, slot=slot)
+    if line_link is not None:
+        # 在 LINE App 裡預約（LIFF，2026-11-28）：送單當下就把這筆預約綁到家長的 LINE。要在排家長通知之前寫，
+        # 沒留 Email 的家長才排得進去（enqueue_parent_email 看有沒有綁）。
+        from app.notifications.models import LineParentLink
+
+        account_key, line_user_id = line_link
+        db.add(
+            LineParentLink(
+                id=uuid.uuid4(),
+                visit_request_id=visit_request.id,
+                account_key=account_key,
+                line_user_id=line_user_id,
+                created_at=now_utc(),
+            )
+        )
+        await db.flush()
     await enqueue_parent_email(db, visit_request, PARENT_VISIT_BOOKED, by_parent=True)
     # 送出即預約成立，園方只發一則「新的參觀預約」。不再另排 visit_request_confirmed：
     # 那是舊的自動確認模式留下的，會讓 LINE 群組、站內通知、Email 每筆都收兩則

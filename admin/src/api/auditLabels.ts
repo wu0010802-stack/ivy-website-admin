@@ -244,6 +244,12 @@ function lineRecruitmentValue(field: string, value: unknown): string {
   return String(value)
 }
 
+// 圖文選單的模式（line.rich_menu.update 的 before／after，2026-11-28）：all／booked；null＝不使用。
+const LINE_RICH_MENU_MODE_LABELS: Record<string, string> = {
+  all: '所有好友',
+  booked: '只給已預約的家長',
+}
+
 const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
   // 帳號
   role: (v) => `角色：${auditValueLabel('role', v)}`,
@@ -413,6 +419,10 @@ const AUDIT_METADATA_FORMATTERS: Record<string, AuditFormatter> = {
     ? `${LINE_RECRUITMENT_FIELD_LABELS[String(v)] ?? String(v)}：${lineRecruitmentValue(String(v), m.value)}`
     : `欄位：${String(v)}`),
   value: (v, action) => (action === 'line.group.recruitment_field' ? null : `值：${String(v)}`),
+  // 按 LINE 群組卡片按鈕的人（2026-11-28）：群組裡的 LINE 顯示名稱，園方同事看得到。
+  line_display_name: (v) => (v ? `按的人：${String(v)}` : null),
+  // 預約當下就綁 LINE（line.parent.link，2026-11-28）：從 LINE 裡開預約頁綁的。
+  via: (v) => (v === 'liff' ? '在 LINE 裡預約時綁定' : null),
   // 舊的全站設定
   noindex: (v) => `搜尋引擎收錄：${v ? '不允許' : '允許'}`,
   // 個資清理
@@ -522,6 +532,10 @@ function scalarChangeLine(action: string, before: unknown, after: unknown): stri
     const word = (value: unknown) => (value ? '啟用' : '停用')
     return `${action.startsWith('campus.') ? '分校' : '狀態'}：${word(before)} → ${word(after)}`
   }
+  if (action === 'line.rich_menu.update') {
+    const mode = (value: unknown) => value ? (LINE_RICH_MENU_MODE_LABELS[String(value)] ?? String(value)) : '不使用'
+    return `圖文選單：${mode(before)} → ${mode(after)}`
+  }
   if (action.startsWith('line.')) {
     if (!after) return 'LINE 通知群組：不再推播'
     return before ? 'LINE 通知群組：換成另一個群組' : 'LINE 通知群組：已設定'
@@ -624,6 +638,7 @@ const AUDIT_SEARCH_TABLES: readonly Record<string, string>[] = [
   // LINE 群組：通知種類設定、在群組填的招生結果欄位與來源分類（2026-11-17）。
   LINE_GROUP_KIND_LABELS,
   LINE_RECRUITMENT_FIELD_LABELS,
+  LINE_RICH_MENU_MODE_LABELS,
   SOURCE_CATEGORY_AUDIT_LABELS,
   // 統計異常「知道了」的問題代碼（2026-11-27）。
   STATS_HEALTH_ISSUE_LABELS,

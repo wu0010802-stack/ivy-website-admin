@@ -250,6 +250,8 @@ async def test_parent_links_line_by_sending_the_code(app, fake_line, admin_clien
     assert state == {
         "available": True, "linked": False, "account_name": "常春藤義華", "basic_id": "@ivy-yihua",
         "add_friend_url": "https://line.me/R/ti/p/%40ivy-yihua",
+        # 2026-11-28：已綁時才查是不是好友；還沒綁是 None。
+        "friend": None,
     }
     issued = await public_client.post(f"{API}/public/visit-manage/line-notify/code")
     assert issued.status_code == 201, issued.text

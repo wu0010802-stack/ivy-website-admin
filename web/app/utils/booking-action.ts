@@ -19,6 +19,8 @@ export interface BookingConfig {
   line_notify_enabled?: boolean
   /** 這校開了 LINE 通知型訊息（2026-11-25）：沒留 Email 的家長會用手機號碼在 LINE 收到通知，Email 欄位說明要講 */
   line_pnp_enabled?: boolean
+  /** API 有設 LIFF 而且這校有開家長 LINE 通知（2026-11-28）：在 LINE 裡預約時，Email 欄說明多一句 LINE 通知 */
+  line_liff_enabled?: boolean
 }
 
 export type BookingActionKind = 'choose_campus' | 'form' | 'line' | 'phone' | 'external' | 'paused' | 'unavailable'

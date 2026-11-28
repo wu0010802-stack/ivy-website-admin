@@ -1,3 +1,45 @@
+## 2026-11-28 再接六個 LINE API：檢查連線、已讀與等待動畫、圖文選單、群組成員、好友輪廓、在 LINE 裡預約就綁定（`feature/line-apis-20261128`，未 commit、未部署）
+
+使用者問「LINE 有什麼 API 可以接上」，看完 10 項盤點後挑了 1、2、3、4、5、9（「先做這個」）。規格與我施工時定的判斷在 `docs/specs/2026-11-28-line-apis-design.md`；變數與上線步驟在 `deploy/README.md` 同日段落。
+
+- **檢查連線**（後台「LINE 通知 → 官方帳號與本月額度」）：每個帳號一顆，向 LINE 查後台填的 webhook 網址對不對、「使用 Webhook」有沒有開，再請 LINE 實際打一次。四校帳號之後要設 webhook，設錯當場看得出來。
+- **等待動畫＋已讀**（家長一對一）：綁定代碼、「我的預約」、卡片按鈕處理前先顯示等待動畫；代碼與「我的預約」回覆後標成已讀，園方的聊天收件匣不會堆這些未讀。LINE 的已讀是「這則之前全部已讀」，所以家長近 7 天傳過任何要人回的訊息（問問題、貼圖、圖片，或代碼夾在一句問題裡）就不標，免得把園方還沒看的問題一起標掉。
+- **圖文選單**：程式替每個官方帳號建兩版（一般／已預約），後台每個帳號選「不使用／只給已預約的家長／所有好友」。已預約的家長自動換成「我的預約」版，參觀結束、取消或解除綁定後換回。校區帳號是「預約參觀｜園所位置｜撥打電話」，總部與推播帳號是「預約參觀｜校園環境｜官方網站」。可以看近 28 天每一格被點幾次。**選「所有好友」會蓋掉在 LINE Official Account Manager 設的選單**。底圖四張由 `scripts/build-line-rich-menu-images.py` 產生（官網的 LINE Seed TW 子集、Phosphor 圖示、官網色）。
+- **群組成員**：後台每個通知群組一顆「看成員」，列出人數與成員的 LINE 名稱（即時查、不存資料庫）；群組按鈕的操作紀錄多記「按的人」。
+- **好友輪廓**（成效統計的 LINE 區塊）：各官方帳號好友的性別、年齡層、地區、加好友多久。LINE 的估計值，好友滿 20 位才有。
+- **在 LINE 裡預約就綁定**（LIFF，預設關）：家長在 LINE App 裡開預約頁送出時，預約當下就綁到他的 LINE，不用再傳代碼；結果頁直接顯示「已用 LINE 接收通知」，沒加該校官方帳號好友時提醒加入。要在 LINE Developers 建 LIFF app 並設兩個變數才開；驗不過、逾時都只是不綁，預約照常成立。
+- **順手補的防線**：LINE 把家長帶進預約頁的那一刻，網址的 hash 帶著 LINE 的 access token。Meta Pixel 會自己讀完整網址，所以第三方統計外掛改成「網址乾淨了才啟動」（平常的網址行為不變）。GA、LINE Tag、OpenAI 像素本來就只送清洗過的網址。
+
+我定的、使用者沒逐項確認的：
+
+- 選單中間那格寫「園所位置」不寫「導航到園所」：「航」不在官網的 LINE Seed TW 子集裡，補不了字。
+- 已讀的 7 天保護期，以及「代碼夾在問題裡不標已讀」。
+- 操作紀錄裡「按的人」是園方員工的 LINE 顯示名稱，看得到那筆紀錄的人都看得到（群組代號與 userId 照舊只給有通知管理權限的人）。
+- 圖文選單的圖是內建的，後台不能上傳自己的圖；要改先改腳本重產。
+- LIFF 驗證走 LINE 的 verify 端點（不自己驗簽章）。SDK 用 npm 打包（`@line/liff` 2.32.0）的**可拆裝版**（核心＋三個模組）：完整版在初始化時會從 LINE 的 CDN 再載一支橋接腳本，公開頁的 CSP 會擋、初始化就失敗（正式建置實測抓到的）；核心版不載外站腳本、不含 LINE 的使用量統計。CSP 只多放行 `connect-src https://api.line.me`，`script-src` 不動。SDK 只在 LINE App 內的瀏覽器載入，其他訪客連預先下載都沒有。
+- 沒加好友時第一則「預約成功」LINE 送不到，不補送（有留 Email 的照樣收信）。
+
+驗證（本機，Node 22.23.2；LINE 全部用假伺服器，沒有連真的 LINE）：
+
+| 指令 | 結果 |
+|---|---|
+| 後端 `uv run --frozen pytest -q`（全套，獨立測試庫） | 6250 passed、3 failed、1 skipped（12 分 45 秒）。失敗的 3 個是要跟著新欄位更新的守門測試（稽核涵蓋的例外清單、兩個自己重算 payload hash 的測試要排除 `line_id_token`）；改完後這 3 檔＋4 個 LINE 相關檔重跑 206 passed。之後沒有再改後端程式，全套沒有重跑第二次 |
+| 後端新測試 `tests/test_line_tools_20261128.py`、`tests/test_line_rich_menu_liff_20261128.py` | 44＋31 個，含在上面 |
+| `npm run contract:check` | 狀態機匯出檔一致、契約型別與 openapi.json 一致 |
+| `python3 -m unittest discover -s deploy/tests` | 48 OK |
+| `npm --prefix admin run typecheck` | exit 0 |
+| `npm --prefix admin run test:unit` | 222 檔：4033 passed、3 個逾時、1 skipped。逾時的是 `admissionsRecords`、`admissionsView`（沒動到的檔；當時機器負載平均 140，系統程序在跑），`--testTimeout=120000` 單獨重跑 2 檔 75 passed。全套沒有在低負載下重跑 |
+| `npm --prefix web run typecheck` | exit 0（只有既有的 `MediaImage` 重複匯入 WARN） |
+| `npm run test:website` | 172 檔、2635 passed |
+| 後台畫面（vite dev＋假 API，Playwright 真 Chrome，1440×900 與 390×844） | 「官方帳號與本月額度」的檢查連線結果、圖文選單三選一／重新套用／點擊統計，「看成員」對話框，成效統計的好友輪廓：版面正常、沒有水平溢出。主控台的兩個錯誤來自別的面板吃到假 API 的空物件，不是新元件 |
+| 官網正式建置＋真 CSP（`nuxt build`，假 LIFF ID，對外請求全在瀏覽器端攔下） | 一般瀏覽器開 `/visit/yihua` 不請求 SDK 區塊；LINE 的 User-Agent 才載、沒有 CSP 違規、頁面沒有錯誤、表單照常。完整版 SDK 的橋接腳本被 CSP 擋就是這一步抓到的 |
+| `python3 scripts/build-line-rich-menu-images.py` | 四張 2500×843 PNG，61–68 KB |
+| `python3 deploy/npm_audit_gate.py --project web`（新增 `@line/liff`，連帶 79 個套件） | 通過 |
+
+沒跑：`tests/stack`、`tests/e2e`（要起整套服務；沒設 LIFF ID 時 CSP 字串不變，單元測試鎖住）；官網結果頁的「已用 LINE 接收通知／還沒加入好友」只有元件測試，沒有開瀏覽器走完預約流程看。
+
+沒驗證（要真的 LINE 帳號，規格附錄 B）：LIFF 在 LINE App 裡的兩次轉址與取 token、CSP 只放 `api.line.me` 夠不夠、LIFF 與五校官方帳號同一個 provider 的假設、圖文選單在手機上的樣子與統計、已讀在開著聊天的帳號上的效果、成員名單在推播帳號能不能用（要認證帳號）、群組按鈕事件有沒有帶 userId。登入後的後台畫面沒有開瀏覽器看。隱私權政策要在開 LIFF 前補一段（規格附錄 A）。
+
 ## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，已部署 main `69b81e2d`，紀錄見 `deploy/README.md`）
 
 系統狀態收到一筆官網首頁的 `Error: Error invoking postMessage: Java object is gone`（UA 是 Android 的 `FB_IAB/FB4A`，堆疊三格全是 `iabjs://`）。這是 FB 內建瀏覽器**自己注入的腳本**透過 Android WebView 的 Java 橋接（`@JavascriptInterface`）呼叫 App，使用者關掉內建瀏覽器或切到背景、原生物件已回收時就丟；官網沒有註冊任何橋接，不是我們的程式出錯，也沒有可以修的東西。
