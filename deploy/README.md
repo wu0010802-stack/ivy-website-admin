@@ -14,9 +14,21 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
-## 2026-11-28 再接六個 LINE API（`feature/line-apis-20261128`；**未 commit、未合併、未部署**）
+## 2026-11-28 再接六個 LINE API（PR #158，main `7fce6ccf`；已部署）
 
 規格 `docs/specs/2026-11-28-line-apis-design.md`（附錄 B 列了要真的 LINE 帳號才能驗的事）。內容見根目錄 README 同日段落。
+
+使用者 11-28 看完回報後說「部署」。[PR #158](https://github.com/wu0010802-stack/ivy-website-admin/pull/158) 以 merge commit 合併為 `7fce6ccf`（台北 11-29 00:45）；[main CI/CD 46166865314](https://github.com/wu0010802-stack/ivy-website-admin/actions/runs/46166865314) 全部成功（web、admin、後端三組、E2E、Deploy）。沒有事先備份（migration 只新增兩張空表）。沒有改任何 Railway 變數，LIFF 仍是關的。
+
+- **合併前**：等 CI 時 main 先後進了 #157（群組手打 @名稱、Meta 名單卡片）與它的部署紀錄，README／deploy/README 衝突兩次，各併一次 main（第一次重跑受影響的後端測試 247 passed 與 `contract:check`；第二次只差對方的兩個文件檔，沒有重跑本機測試），每次都等 push 與 pull_request 兩組 CI 全綠——push 那組被並行規則取消要 `gh run rerun` 才算數。
+- **正式站唯讀檢查**（只發 GET、不登入、不送表單）：
+  - `https://www.ivykidschool.com/release.json` 的 base_commit 是 `7fce6ccfa2562580b4ed71996218454fb65f3a54`、snapshot `13ddd307cabb…`；`/api/website/v1/health`、首頁、`/visit/yihua`、`https://admin.ivykidschool.com/admin/login` 都回 200。
+  - 五校 `/public/booking-config/<校>` 都有新欄位 `line_liff_enabled`，值全為 `false`（`line_notify_enabled`、`line_pnp_enabled` 也仍是 `false`）。
+  - 後台網域上三支新的查詢路由（好友輪廓、圖文選單統計、群組成員）未登入回 401（www 網域照舊回 404，後台 API 只在後台網域）。
+  - `/visit/yihua` 的 CSP `connect-src` 沒有 `api.line.me`（沒設 LIFF ID，字串和部署前相同）。
+  - 後台已上線的檔案裡找得到新畫面的字：`LineNotificationsView`「檢查連線」「位成員（不含官方帳號）」、`lineTools`「只給已預約的家長」、`AnalyticsView`「好友輪廓」、`SystemStatusView`「圖文選單換上與換回」。
+- **沒驗證**：登入後的實際畫面與按鈕（要本人帳號）；migration 有沒有建出兩張表只由「API 啟動時自動升級、health 正常」推定，沒有查正式庫；家長一對一的等待動畫與已讀、群組按鈕記名都要真的 LINE 訊息才看得到；其餘見規格附錄 B。
+- **待使用者**：圖文選單要不要開、開在哪些帳號（底圖在 `backend/app/notifications/richmenu/`）；LIFF 照下面的步驟建 app、設變數、先補隱私權政策。
 
 - **migration `a4d7e1c9b352`**（接在 `e2c5a8f1d937` 之後）：只新增兩張空表 `line_rich_menus`、`line_rich_menu_users`，不改既有資料，**不必先備份**。可逆（downgrade 刪兩張表）。
 - **部署後直接生效**（不用設定）：

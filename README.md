@@ -1,4 +1,4 @@
-## 2026-11-28 再接六個 LINE API：檢查連線、已讀與等待動畫、圖文選單、群組成員、好友輪廓、在 LINE 裡預約就綁定（`feature/line-apis-20261128`，未 commit、未部署）
+## 2026-11-28 再接六個 LINE API：檢查連線、已讀與等待動畫、圖文選單、群組成員、好友輪廓、在 LINE 裡預約就綁定（PR #158，已部署 main `7fce6ccf`，紀錄見 `deploy/README.md`）
 
 使用者問「LINE 有什麼 API 可以接上」，看完 10 項盤點後挑了 1、2、3、4、5、9（「先做這個」）。規格與我施工時定的判斷在 `docs/specs/2026-11-28-line-apis-design.md`；變數與上線步驟在 `deploy/README.md` 同日段落。
 
