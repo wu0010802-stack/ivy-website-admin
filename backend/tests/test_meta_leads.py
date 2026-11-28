@@ -298,10 +298,13 @@ async def test_notify_pushes_one_message_per_campus_without_personal_data(app, m
         assert await notify_new_leads(db_session, settings, line_client=line) == 1
         assert await notify_new_leads(db_session, settings, line_client=line) == 0
     assert len(fake.pushes) == 1
-    text = fake.pushes[0]["messages"][0]["text"]
     assert fake.pushes[0]["to"] == GROUP
-    assert "2 筆新的 Meta 廣告名單" in text
-    assert "https://admin.example.com/admin/meta-leads?campus=yihua" in text
+    # 2026-11-28 起是卡片（Flex）：按鈕開後台「廣告名單」，只有校名與筆數。
+    (message,) = fake.pushes[0]["messages"]
+    assert message["type"] == "flex" and message["altText"] == "[Meta 廣告] 義華校有 2 筆新名單"
+    (button,) = message["contents"]["footer"]["contents"]
+    assert button["action"]["uri"] == "https://admin.example.com/admin/meta-leads?campus=yihua&openExternalBrowser=1"
+    text = json.dumps(message, ensure_ascii=False)
     assert "王小明" not in text and "0912345678" not in text
     assert all(lead.notified_at is not None for lead in await _leads(db_session))
 
