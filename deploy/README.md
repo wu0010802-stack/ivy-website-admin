@@ -50,6 +50,20 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 6. 回退：拿掉兩個變數重新部署即可；已經綁的照舊收通知。
 7. 手機上要看的：兩次轉址後有沒有停在該校的預約頁、Safari 遠端偵錯的主控台有沒有 CSP 違規（目前只放行 `connect-src https://api.line.me`，是讀 SDK 原始碼推定的，沒有真的在 LINE 裡跑過）。有違規就把被擋的網域告訴我。
 
+## 2026-11-28 LINE 群組：手打「@官方帳號名稱」叫得出選單、Meta 廣告名單通知改成卡片（PR #157，main `d55935a5`；已部署）
+
+使用者在電腦版 LINE 的總部群組手打「@常春藤官網通知」沒有回應（正式站 11-28 09:18:44 台北收到 webhook、回 200、沒有回覆也沒有錯誤），並要求把 Meta 廣告名單通知做成卡片、樣式和官網通知區隔。做完後使用者說「幫我部署」。只改後端 LINE 群組指令的解析與 Meta 名單通知的版型，沒有 migration、API 契約不變、不需要設任何變數，沒有事先備份。內容見根目錄 README 同日段落。
+
+上線後行為的差別：群組裡手打的「@」後面是官方帳號在 LINE 上的名稱時，等同真的標記（只有名稱 → 選單；名稱後面接「今天」這類短字也會查）；別人的名字照舊不回。新的 Meta 廣告名單通知從純文字＋網址變成卡片：整條 Meta 藍標題列、白字，內容是校區與筆數，一顆「開啟廣告名單」；部署前已經通知過的名單不會重送。
+
+線上核對（2026-11-29 約 00:10 台北，只用公開請求與唯讀日誌）：
+
+- PR 組 run 46160693932 全綠（合併時 main 沒有前進，狀態 CLEAN）；main run 46162145571 全綠（含 E2E 與 Deploy Railway production）。
+- `https://www.ivykidschool.com/release.json` 與 `https://admin.ivykidschool.com/release.json` 的 base_commit 都是 `d55935a5`。
+- `https://admin.ivykidschool.com/api/website/v1/health` 回 200；api 日誌 00:01:25 `Application startup complete`，之後沒有和 LINE、Meta 名單有關的錯誤。
+- 啟動後 `app.admissions.geo.sync` 有兩筆 `ConnectTimeout`（門牌資料、幼兒園評鑑的外部來源連不上），和這次改動無關，下一輪同步會再試。
+- 沒驗：電腦版群組手打名稱的實測（待使用者在群組試）、Meta 卡片在 LINE 上的樣子（要等下一筆名單進來）。若手打名稱仍沒回應，再查事件是不是帶了 mention 資料但沒有 `isSelf`（這個情況沒做）。
+
 ## 2026-11-27 錯誤回報不收 FB 內建瀏覽器的 Java 橋接錯誤（PR #155，main `69b81e2d`；已部署）
 
 系統狀態收到官網首頁一筆 `Error invoking postMessage: Java object is gone`（Android `FB_IAB/FB4A`，堆疊全是 `iabjs://`），判定是 FB 內建瀏覽器注入腳本的錯誤、不是官網程式。使用者說「直接幫我部署」。只改前端錯誤回報的忽略規則（官網與後台各一份），沒有 migration、API 契約不變，沒有事先備份。內容見根目錄 README 同日段落。
