@@ -58,7 +58,13 @@ async def report_detail(
 
 
 async def stats_mute(
-    request: Request, db: AsyncSession, group_id: str, parts: list[str], *, line_user_id: str | None
+    request: Request,
+    db: AsyncSession,
+    group_id: str,
+    parts: list[str],
+    *,
+    line_user_id: str | None,
+    display_name: str | None = None,
 ) -> dict | None:
     """parts：檢查的那天 YYYYMMDD、問題代碼（逗號分隔）。只有總部群組能按；卡片太舊不寫入。"""
     day = _day(parts[0])
@@ -83,6 +89,7 @@ async def stats_mute(
             "muted_until": until.isoformat(),
             "group_id": group_id,
             **({"line_user_id": line_user_id} if line_user_id else {}),
+            **({"line_display_name": display_name} if display_name else {}),
         },
     )
     await db.commit()

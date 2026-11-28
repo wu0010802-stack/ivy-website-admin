@@ -75,6 +75,8 @@ class CycleResult:
     stats_alerts_sent: int = 0
     # 總部 LINE 群組的週報／月報推了幾則（2026-11-26）。
     reports_sent: int = 0
+    # 圖文選單（2026-11-28）：這一輪替幾個人換上／換回「已預約」版。
+    rich_menus_synced: int = 0
     rate_limit_rows_purged: int = 0
     ad_conversions_sent: int = 0
     ad_conversions_failed: int = 0
@@ -105,6 +107,7 @@ class CycleResult:
                 self.months_rolled_up,
                 self.stats_alerts_sent,
                 self.reports_sent,
+                self.rich_menus_synced,
                 self.rate_limit_rows_purged,
                 self.media_purged,
                 self.audit_client_info_cleared,
@@ -284,6 +287,18 @@ async def _run_steps(
             result.failed_steps.append("line_reports")
         finally:
             await digest_line.aclose()
+
+    # LINE 圖文選單（2026-11-28，app/notifications/line_rich_menus.py）：誰該看「已預約」版，和 LINE 那邊對齊。
+    # 沒有任何帳號開圖文選單時只做一次查詢。
+    if settings.line_accounts:
+        try:
+            from app.notifications import line_rich_menus
+
+            async with session_factory() as db, LineClients(settings, transport=line_transport) as menu_clients:
+                result.rich_menus_synced = await line_rich_menus.reconcile(db, menu_clients)
+        except Exception:  # noqa: BLE001
+            logger.exception("定期工作：LINE 圖文選單對齊失敗")
+            result.failed_steps.append("line_rich_menus")
 
     # 成效統計的每月彙總（2026-11-20，app/operations/monthly_service.py）：每天重算一次還能完整重算的月份。
     try:

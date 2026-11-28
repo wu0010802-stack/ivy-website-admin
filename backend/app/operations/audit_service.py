@@ -134,7 +134,7 @@ LINE_GROUP_ACTIONS = (
 )
 LINE_GROUP_PRIVATE_KEYS = frozenset({"group_id", "line_user_id"})
 # 上面那幾種紀錄 metadata 其餘的鍵（line_group_actions、line_group_report_actions 只寫這些）；新增鍵要一起加，否則分校帳號搜不到。
-LINE_GROUP_SEARCH_KEYS = ("from_status", "to_status", "field", "value", "issues", "muted_until")
+LINE_GROUP_SEARCH_KEYS = ("from_status", "to_status", "field", "value", "issues", "muted_until", "line_display_name")
 
 
 def visible_metadata(action: str, metadata: dict | None, *, show_line_ids: bool) -> dict:

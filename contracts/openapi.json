@@ -15941,6 +15941,16 @@
             ],
             "title": "Quota Error Status"
           },
+          "rich_menu": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineRichMenuOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "webhook_url": {
             "anyOf": [
               {
@@ -16046,6 +16056,117 @@
           "target_id"
         ],
         "title": "LineCampusTargetUpdate",
+        "type": "object"
+      },
+      "LineDemographicAccountOut": {
+        "properties": {
+          "ages": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineDemographicItemOut"
+            },
+            "title": "Ages",
+            "type": "array"
+          },
+          "areas": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineDemographicItemOut"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "available": {
+            "default": false,
+            "title": "Available",
+            "type": "boolean"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "genders": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineDemographicItemOut"
+            },
+            "title": "Genders",
+            "type": "array"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "subscription_periods": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineDemographicItemOut"
+            },
+            "title": "Subscription Periods",
+            "type": "array"
+          }
+        },
+        "required": [
+          "key"
+        ],
+        "title": "LineDemographicAccountOut",
+        "type": "object"
+      },
+      "LineDemographicItemOut": {
+        "properties": {
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "percentage": {
+            "title": "Percentage",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "percentage"
+        ],
+        "title": "LineDemographicItemOut",
+        "type": "object"
+      },
+      "LineDemographicsOut": {
+        "properties": {
+          "accounts": {
+            "items": {
+              "$ref": "#/components/schemas/LineDemographicAccountOut"
+            },
+            "title": "Accounts",
+            "type": "array"
+          },
+          "configured": {
+            "title": "Configured",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "configured",
+          "accounts"
+        ],
+        "title": "LineDemographicsOut",
         "type": "object"
       },
       "LineFollowerAccountOut": {
@@ -16173,6 +16294,62 @@
           "to_date"
         ],
         "title": "LineFollowerAccountOut",
+        "type": "object"
+      },
+      "LineGroupMembersOut": {
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "names": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Names"
+          },
+          "names_unavailable": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unverified",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Names Unavailable"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "count",
+          "names",
+          "names_unavailable",
+          "truncated"
+        ],
+        "title": "LineGroupMembersOut",
         "type": "object"
       },
       "LineGroupOut": {
@@ -16451,6 +16628,173 @@
         "title": "LineQuotaOut",
         "type": "object"
       },
+      "LineRichMenuAreaOut": {
+        "properties": {
+          "clicks": {
+            "title": "Clicks",
+            "type": "integer"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "users": {
+            "title": "Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "label",
+          "clicks",
+          "users"
+        ],
+        "title": "LineRichMenuAreaOut",
+        "type": "object"
+      },
+      "LineRichMenuInsightOut": {
+        "properties": {
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "from_date": {
+            "format": "date",
+            "title": "From Date",
+            "type": "string"
+          },
+          "menus": {
+            "items": {
+              "$ref": "#/components/schemas/LineRichMenuKindOut"
+            },
+            "title": "Menus",
+            "type": "array"
+          },
+          "to_date": {
+            "format": "date",
+            "title": "To Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "from_date",
+          "to_date",
+          "menus"
+        ],
+        "title": "LineRichMenuInsightOut",
+        "type": "object"
+      },
+      "LineRichMenuKindOut": {
+        "properties": {
+          "areas": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/LineRichMenuAreaOut"
+            },
+            "title": "Areas",
+            "type": "array"
+          },
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "impression_users": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impression Users"
+          },
+          "impressions": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impressions"
+          },
+          "kind": {
+            "enum": [
+              "default",
+              "booked"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "available"
+        ],
+        "title": "LineRichMenuKindOut",
+        "type": "object"
+      },
+      "LineRichMenuOut": {
+        "description": "程式建的圖文選單（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §4）。",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "all",
+              "booked"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "outdated": {
+            "title": "Outdated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mode",
+          "created_at",
+          "outdated"
+        ],
+        "title": "LineRichMenuOut",
+        "type": "object"
+      },
+      "LineRichMenuUpdate": {
+        "properties": {
+          "mode": {
+            "anyOf": [
+              {
+                "enum": [
+                  "all",
+                  "booked"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "LineRichMenuUpdate",
+        "type": "object"
+      },
       "LineSettingsOut": {
         "properties": {
           "accounts": {
@@ -16525,6 +16869,115 @@
           "expires_at"
         ],
         "title": "LineVerificationCodeOut",
+        "type": "object"
+      },
+      "LineWebhookCheckOut": {
+        "properties": {
+          "account_key": {
+            "title": "Account Key",
+            "type": "string"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          },
+          "endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endpoint"
+          },
+          "error_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Status"
+          },
+          "expected_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Url"
+          },
+          "matches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Matches"
+          },
+          "test": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LineWebhookTestOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "account_key",
+          "expected_url"
+        ],
+        "title": "LineWebhookCheckOut",
+        "type": "object"
+      },
+      "LineWebhookTestOut": {
+        "properties": {
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          },
+          "success": {
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "success",
+          "status_code",
+          "reason"
+        ],
+        "title": "LineWebhookTestOut",
         "type": "object"
       },
       "LoginRequest": {
@@ -19107,6 +19560,17 @@
             ],
             "title": "Basic Id"
           },
+          "friend": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Friend"
+          },
           "linked": {
             "title": "Linked",
             "type": "boolean"
@@ -20570,6 +21034,11 @@
               }
             ],
             "title": "External Url"
+          },
+          "line_liff_enabled": {
+            "default": false,
+            "title": "Line Liff Enabled",
+            "type": "boolean"
           },
           "line_notify_enabled": {
             "default": false,
@@ -26730,6 +27199,51 @@
         "title": "VisitHistoryOut",
         "type": "object"
       },
+      "VisitLineNotifyOut": {
+        "description": "這筆預約已經綁了 LINE 通知（2026-11-28：在 LINE App 裡預約時送單當下就綁）。",
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "add_friend_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Add Friend Url"
+          },
+          "friend": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Friend"
+          },
+          "linked": {
+            "default": true,
+            "title": "Linked",
+            "type": "boolean"
+          }
+        },
+        "title": "VisitLineNotifyOut",
+        "type": "object"
+      },
       "VisitRequestCancelRequest": {
         "properties": {
           "reason": {
@@ -26843,6 +27357,18 @@
               }
             ],
             "title": "Expected Start"
+          },
+          "line_id_token": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Id Token"
           },
           "parent_name": {
             "maxLength": 64,
@@ -28137,6 +28663,16 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "line_notify": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VisitLineNotifyOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "manage_path": {
             "anyOf": [
@@ -39797,6 +40333,319 @@
         ]
       }
     },
+    "/api/website/v1/admin/line-insights/demographics": {
+      "get": {
+        "description": "各官方帳號好友的性別、年齡、地區、加好友多久（2026-11-28）。LINE 的估計值，約晚 3 天，好友不到 20 位時沒有資料。",
+        "operationId": "get_line_demographics_api_website_v1_admin_line_insights_demographics_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineDemographicsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Demographics",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/accounts/{account_key}/rich-menu": {
+      "put": {
+        "description": "替這個官方帳號建立、重建或停用程式管理的圖文選單。重送同一個模式＝照現在的內容重建（校區改了電話或地址之後用）。",
+        "operationId": "update_line_rich_menu_api_website_v1_admin_line_accounts__account_key__rich_menu_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LineRichMenuUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineSettingsOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Line Rich Menu",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/accounts/{account_key}/rich-menu/insight": {
+      "get": {
+        "description": "各版選單近 N 天顯示幾次、每一格被點幾次（LINE 的統計，隔天才有；點的人不到 20 位時沒有數字）。",
+        "operationId": "get_line_rich_menu_insight_api_website_v1_admin_line_accounts__account_key__rich_menu_insight_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 28,
+              "maximum": 90,
+              "minimum": 7,
+              "title": "Days",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineRichMenuInsightOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Rich Menu Insight",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/accounts/{account_key}/webhook-check": {
+      "post": {
+        "description": "先查 LINE 後台填的 webhook，查到才請 LINE 對那個網址送一個空事件。不改任何設定、不寫稽核。",
+        "operationId": "check_line_webhook_api_website_v1_admin_line_accounts__account_key__webhook_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "account_key",
+            "required": true,
+            "schema": {
+              "title": "Account Key",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineWebhookCheckOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Line Webhook",
+        "tags": [
+          "line"
+        ]
+      }
+    },
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
       "put": {
         "operationId": "update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put",
@@ -40029,6 +40878,81 @@
           }
         },
         "summary": "Update Line Group Settings",
+        "tags": [
+          "line"
+        ]
+      }
+    },
+    "/api/website/v1/admin/line/groups/{target_id}/members": {
+      "get": {
+        "description": "群組（或多人聊天室）裡有誰：人數與顯示名稱。即時向 LINE 查（main 帳號），每個群組快取 10 分鐘，\n不存資料庫、不回 userId。名單只有認證／進階帳號查得到，其他帳號只回人數。",
+        "operationId": "get_line_group_members_api_website_v1_admin_line_groups__target_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "target_id",
+            "required": true,
+            "schema": {
+              "title": "Target Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "x-csrf-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "ivy_admin_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Ivy Admin Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LineGroupMembersOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Line Group Members",
         "tags": [
           "line"
         ]

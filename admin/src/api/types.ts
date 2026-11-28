@@ -748,3 +748,17 @@ export type GbpKeyword = components['schemas']['GbpKeywordOut']
 export type SearchDemand = components['schemas']['SearchDemandOut']
 export type SearchKeyword = components['schemas']['SearchKeywordOut']
 export type SearchVolumeCell = components['schemas']['SearchVolumeCellOut']
+
+// ---- 再接六個 LINE API（2026-11-28，docs/specs/2026-11-28-line-apis-design.md）----
+export type LineRichMenuState = components['schemas']['LineRichMenuOut']
+export type LineRichMenuMode = LineRichMenuState['mode']
+/** LineAccountOut 契約已含 rich_menu（null＝不使用）；元件沿用這個名字。 */
+export type LineAccountWithMenu = LineAccountOut
+export type LineWebhookCheckOut = components['schemas']['LineWebhookCheckOut']
+export type LineRichMenuInsightArea = components['schemas']['LineRichMenuAreaOut']
+export type LineRichMenuInsightMenu = components['schemas']['LineRichMenuKindOut']
+export type LineRichMenuInsightOut = components['schemas']['LineRichMenuInsightOut']
+export type LineGroupMembersOut = components['schemas']['LineGroupMembersOut']
+export type LineDemographicEntry = components['schemas']['LineDemographicItemOut']
+export type LineDemographicsAccountOut = components['schemas']['LineDemographicAccountOut']
+export type LineDemographicsOut = components['schemas']['LineDemographicsOut']

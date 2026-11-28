@@ -666,7 +666,9 @@ async def test_public_idempotency_key_cannot_use_reserved_prefix(admin_client, p
 # ------------------------------------------------------------ payload hash
 def _body(payload: dict) -> dict:
     return VisitRequestCreate.model_validate(payload).model_dump(
-        mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
+        mode="json",
+        # 和路由算 payload hash 時排除的欄位一致（line_id_token：2026-11-28，在 LINE 裡預約帶的 ID token，不是表單內容）。
+        exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token", "line_id_token"},
     )
 
 

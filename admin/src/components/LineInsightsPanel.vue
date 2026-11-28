@@ -2,11 +2,12 @@
 import { computed, ref, watch } from 'vue'
 import { api, ApiError } from '../api/client'
 import { searchPeriod } from '../api/googleInsights'
-import type { LineFollowerAccountOut, LineInsightsOut } from '../api/types'
+import type { LineDemographicsAccountOut, LineFollowerAccountOut, LineInsightsOut } from '../api/types'
 import { useRequestSequence } from '../composables/useRequestSequence'
 import AnalyticsExplainer from './analytics/AnalyticsExplainer.vue'
 import { DEFAULT_ANALYTICS_DAYS, type AnalyticsDays } from './analytics/filters'
 import { formatCount } from './analytics/format'
+import LineDemographics from './LineDemographics.vue'
 
 // LINE（2026-11-16）：各官方帳號這段期間多了多少好友，對照官網 LINE 按鈕的點擊數與綁定 LINE 通知的預約數。
 // 好友數來自 LINE（隔天才算好），點擊與綁定是官網自己的資料。期間跟著成效統計頁首；只有切到這一類才讀。
@@ -58,10 +59,11 @@ function day(value: string): string {
   return value.slice(5).replace('-', '/')
 }
 
-function accountTitle(account: LineFollowerAccountOut): string {
+function accountTitle(account: LineFollowerAccountOut | LineDemographicsAccountOut): string {
   const role = account.key === 'main' ? '園方群組推播帳號' : account.key === 'hq' ? '總部官方帳號' : `${campusNames.value[account.key] ?? account.key}官方帳號`
   const name = account.display_name ?? role
-  return account.basic_id ? `${name}（${account.basic_id}）` : name
+  const basicId = 'basic_id' in account ? account.basic_id : null
+  return basicId ? `${name}（${basicId}）` : name
 }
 
 function signed(value: number | null | undefined): string {
@@ -145,6 +147,9 @@ function signed(value: number | null | undefined): string {
           </table>
         </div>
         </div>
+
+        <!-- 好友輪廓（2026-11-28）：自己載入、自己處理失敗，不影響上面兩張表。 -->
+        <LineDemographics :active="props.active" :account-title="accountTitle" />
 
         <AnalyticsExplainer>
           <p>「新增好友」是這段期間開始前一天到結束日（今天的數字 LINE 隔天才算好）之間，加好友的次數；同一人封鎖後再加回來會算兩次，封鎖不會讓它變少。封鎖的人數另外看「封鎖增減」。</p>

@@ -171,6 +171,8 @@ async def get_public_booking_config(
         "parent_email_enabled": settings.real_email_enabled,
         "line_notify_enabled": await line_parent.parent_account_key(db, settings, campus_key) is not None,
         "line_pnp_enabled": await line_pnp.campus_account(db, settings, campus_key) is not None,
+        "line_liff_enabled": bool(settings.line_liff_id)
+        and await line_parent.parent_account_key(db, settings, campus_key) is not None,
     })
     if settings.turnstile_enabled:
         out = out.model_copy(update={"turnstile_site_key": settings.turnstile_site_key})

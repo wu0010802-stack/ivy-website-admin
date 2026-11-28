@@ -30,7 +30,7 @@ from app.booking.models import VisitRequest, VisitRequestStatus
 from app.config import LineAccountCredentials, Settings
 from app.insights.cache import TtlCache
 from app.notifications import line as line_api
-from app.notifications.models import LineParentCampusAccount, LineParentLink, LineParentLinkCode
+from app.notifications.models import LineParentCampusAccount, LineParentLink, LineParentLinkCode, LineRichMenuUser
 
 logger = logging.getLogger("app.line")
 
@@ -101,6 +101,16 @@ async def bot_info(account: LineAccountCredentials, transport=None) -> line_api.
         return None
     _BOT_INFO_FAILED.pop(key, None)
     return info
+
+
+async def friend_status(account: LineAccountCredentials, user_id: str | None, transport=None) -> bool | None:
+    """這個人現在是不是這個官方帳號的好友（True／False；查不到 None）。頁面同步查，用較短的逾時。"""
+    if not user_id:
+        return None
+    async with line_api.LineMessagingClient(
+        account.access_token, transport=transport, timeout=QUERY_TIMEOUT_SECONDS
+    ) as client:
+        return await client.is_friend(user_id)
 
 
 def clear_bot_info_cache() -> None:
@@ -257,6 +267,14 @@ async def set_follow_state(db: AsyncSession, account_key: str, user_id: str, *, 
         .where(LineParentLink.account_key == account_key, LineParentLink.line_user_id == user_id)
         .values(unfollowed_at=None if following else now)
     )
+    if following:
+        # 圖文選單（2026-11-28）：不是好友時替他換上「已預約」版其實沒換成；加了好友就忘掉那筆紀錄，
+        # 下一輪對齊（line_rich_menus.reconcile）再換一次。
+        await db.execute(
+            delete(LineRichMenuUser).where(
+                LineRichMenuUser.account_key == account_key, LineRichMenuUser.line_user_id == user_id
+            )
+        )
 
 
 async def unlink(db: AsyncSession, visit_request_id: uuid.UUID) -> bool:
@@ -292,6 +310,17 @@ async def linked_upcoming_visits(
         visit for visit in rows if visit.slot is not None and slot_start_utc(visit.slot.slot_date, visit.slot.end_time) > now
     ]
     return sorted(upcoming, key=lambda visit: (visit.slot.slot_date, visit.slot.start_time))
+
+
+def is_plain_code_message(text: str) -> bool:
+    """整則訊息只有綁定代碼，或就是預填的那句話＋代碼：沒有其他要人回的內容（2026-11-28 已讀判斷用）。
+    代碼夾在別的文字裡（「LN-… 沒辦法用，怎麼辦？」）不算。"""
+    candidates = line_api.parent_code_candidates(text)
+    if len(candidates) != 1:
+        return False
+    cleaned = "".join(text.split()).upper()
+    code = candidates[0]
+    return cleaned in (code, "".join(PREFILL_TEXT.format(code=code).split()).upper())
 
 
 def is_my_visits_request(text: str) -> bool:

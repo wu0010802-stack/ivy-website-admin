@@ -51,7 +51,9 @@ from app.content.release_routes import router as content_release_router
 from app.content.routes import router as content_router
 from app.media.routes import public_router as media_public_router
 from app.media.routes import router as media_router
+from app.notifications.line_rich_menu_routes import router as line_rich_menu_router
 from app.notifications.line_routes import router as line_router
+from app.notifications.line_tools_routes import router as line_tools_router
 from app.notifications.push_routes import router as push_router
 from app.notifications.routes import router as notifications_router
 from app.operations.analytics_more_routes import router as analytics_more_router
@@ -329,6 +331,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(booking_access_router)
     app.include_router(notifications_router)
     app.include_router(line_router)
+    app.include_router(line_rich_menu_router)
+    app.include_router(line_tools_router)
     app.include_router(push_router)
     app.include_router(operations_router)
     app.include_router(analytics_more_router)

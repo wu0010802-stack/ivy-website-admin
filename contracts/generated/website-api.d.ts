@@ -2057,6 +2057,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/website/v1/admin/line-insights/demographics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Line Demographics
+         * @description 各官方帳號好友的性別、年齡、地區、加好友多久（2026-11-28）。LINE 的估計值，約晚 3 天，好友不到 20 位時沒有資料。
+         */
+        get: operations["get_line_demographics_api_website_v1_admin_line_insights_demographics_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/accounts/{account_key}/rich-menu": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update Line Rich Menu
+         * @description 替這個官方帳號建立、重建或停用程式管理的圖文選單。重送同一個模式＝照現在的內容重建（校區改了電話或地址之後用）。
+         */
+        put: operations["update_line_rich_menu_api_website_v1_admin_line_accounts__account_key__rich_menu_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/accounts/{account_key}/rich-menu/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Line Rich Menu Insight
+         * @description 各版選單近 N 天顯示幾次、每一格被點幾次（LINE 的統計，隔天才有；點的人不到 20 位時沒有數字）。
+         */
+        get: operations["get_line_rich_menu_insight_api_website_v1_admin_line_accounts__account_key__rich_menu_insight_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/accounts/{account_key}/webhook-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Line Webhook
+         * @description 先查 LINE 後台填的 webhook，查到才請 LINE 對那個網址送一個空事件。不改任何設定、不寫稽核。
+         */
+        post: operations["check_line_webhook_api_website_v1_admin_line_accounts__account_key__webhook_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/website/v1/admin/line/campus-targets/{campus_key}": {
         parameters: {
             query?: never;
@@ -2107,6 +2187,27 @@ export interface paths {
          * @description 每個群組的通知種類、每日摘要、當天異動 @所有人，以及是否為總部群組（收全部校區）。
          */
         put: operations["update_line_group_settings_api_website_v1_admin_line_groups__target_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/website/v1/admin/line/groups/{target_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Line Group Members
+         * @description 群組（或多人聊天室）裡有誰：人數與顯示名稱。即時向 LINE 查（main 帳號），每個群組快取 10 分鐘，
+         *     不存資料庫、不回 userId。名單只有認證／進階帳號查得到，其他帳號只回人數。
+         */
+        get: operations["get_line_group_members_api_website_v1_admin_line_groups__target_id__members_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -9753,6 +9854,7 @@ export interface components {
             quota: components["schemas"]["LineQuotaOut"] | null;
             /** Quota Error Status */
             quota_error_status?: number | null;
+            rich_menu?: components["schemas"]["LineRichMenuOut"] | null;
             /** Webhook Url */
             webhook_url: string | null;
         };
@@ -9780,6 +9882,54 @@ export interface components {
         LineCampusTargetUpdate: {
             /** Target Id */
             target_id: string | null;
+        };
+        /** LineDemographicAccountOut */
+        LineDemographicAccountOut: {
+            /**
+             * Ages
+             * @default []
+             */
+            ages: components["schemas"]["LineDemographicItemOut"][];
+            /**
+             * Areas
+             * @default []
+             */
+            areas: components["schemas"]["LineDemographicItemOut"][];
+            /**
+             * Available
+             * @default false
+             */
+            available: boolean;
+            /** Display Name */
+            display_name?: string | null;
+            /** Error Status */
+            error_status?: number | null;
+            /**
+             * Genders
+             * @default []
+             */
+            genders: components["schemas"]["LineDemographicItemOut"][];
+            /** Key */
+            key: string;
+            /**
+             * Subscription Periods
+             * @default []
+             */
+            subscription_periods: components["schemas"]["LineDemographicItemOut"][];
+        };
+        /** LineDemographicItemOut */
+        LineDemographicItemOut: {
+            /** Key */
+            key: string;
+            /** Percentage */
+            percentage: number;
+        };
+        /** LineDemographicsOut */
+        LineDemographicsOut: {
+            /** Accounts */
+            accounts: components["schemas"]["LineDemographicAccountOut"][];
+            /** Configured */
+            configured: boolean;
         };
         /**
          * LineFollowerAccountOut
@@ -9816,6 +9966,17 @@ export interface components {
              * Format: date
              */
             to_date: string;
+        };
+        /** LineGroupMembersOut */
+        LineGroupMembersOut: {
+            /** Count */
+            count: number | null;
+            /** Names */
+            names: string[] | null;
+            /** Names Unavailable */
+            names_unavailable: ("unverified" | "error") | null;
+            /** Truncated */
+            truncated: boolean;
         };
         /** LineGroupOut */
         LineGroupOut: {
@@ -9935,6 +10096,74 @@ export interface components {
             /** Warning */
             warning: boolean;
         };
+        /** LineRichMenuAreaOut */
+        LineRichMenuAreaOut: {
+            /** Clicks */
+            clicks: number;
+            /** Label */
+            label: string;
+            /** Users */
+            users: number;
+        };
+        /** LineRichMenuInsightOut */
+        LineRichMenuInsightOut: {
+            /** Error Status */
+            error_status?: number | null;
+            /**
+             * From Date
+             * Format: date
+             */
+            from_date: string;
+            /** Menus */
+            menus: components["schemas"]["LineRichMenuKindOut"][];
+            /**
+             * To Date
+             * Format: date
+             */
+            to_date: string;
+        };
+        /** LineRichMenuKindOut */
+        LineRichMenuKindOut: {
+            /**
+             * Areas
+             * @default []
+             */
+            areas: components["schemas"]["LineRichMenuAreaOut"][];
+            /** Available */
+            available: boolean;
+            /** Impression Users */
+            impression_users?: number | null;
+            /** Impressions */
+            impressions?: number | null;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "default" | "booked";
+        };
+        /**
+         * LineRichMenuOut
+         * @description 程式建的圖文選單（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §4）。
+         */
+        LineRichMenuOut: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "all" | "booked";
+            /** Outdated */
+            outdated: boolean;
+        };
+        /** LineRichMenuUpdate */
+        LineRichMenuUpdate: {
+            /** Mode */
+            mode: ("all" | "booked") | null;
+        };
         /** LineSettingsOut */
         LineSettingsOut: {
             /**
@@ -9965,6 +10194,31 @@ export interface components {
              * Format: date-time
              */
             expires_at: string;
+        };
+        /** LineWebhookCheckOut */
+        LineWebhookCheckOut: {
+            /** Account Key */
+            account_key: string;
+            /** Active */
+            active?: boolean | null;
+            /** Endpoint */
+            endpoint?: string | null;
+            /** Error Status */
+            error_status?: number | null;
+            /** Expected Url */
+            expected_url: string | null;
+            /** Matches */
+            matches?: boolean | null;
+            test?: components["schemas"]["LineWebhookTestOut"] | null;
+        };
+        /** LineWebhookTestOut */
+        LineWebhookTestOut: {
+            /** Reason */
+            reason: string;
+            /** Status Code */
+            status_code: number | null;
+            /** Success */
+            success: boolean;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -10858,6 +11112,8 @@ export interface components {
             available: boolean;
             /** Basic Id */
             basic_id?: string | null;
+            /** Friend */
+            friend?: boolean | null;
             /** Linked */
             linked: boolean;
         };
@@ -11373,6 +11629,11 @@ export interface components {
             campus_key: string;
             /** External Url */
             external_url: string | null;
+            /**
+             * Line Liff Enabled
+             * @default false
+             */
+            line_liff_enabled: boolean;
             /**
              * Line Notify Enabled
              * @default false
@@ -13270,6 +13531,23 @@ export interface components {
             /** Source */
             source: string | null;
         };
+        /**
+         * VisitLineNotifyOut
+         * @description 這筆預約已經綁了 LINE 通知（2026-11-28：在 LINE App 裡預約時送單當下就綁）。
+         */
+        VisitLineNotifyOut: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Add Friend Url */
+            add_friend_url?: string | null;
+            /** Friend */
+            friend?: boolean | null;
+            /**
+             * Linked
+             * @default true
+             */
+            linked: boolean;
+        };
         /** VisitRequestCancelRequest */
         VisitRequestCancelRequest: {
             /** Reason */
@@ -13298,6 +13576,8 @@ export interface components {
             email?: string | null;
             /** Expected Start */
             expected_start?: string | null;
+            /** Line Id Token */
+            line_id_token?: string | null;
             /** Parent Name */
             parent_name: string;
             /** Party Size */
@@ -13611,6 +13891,7 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            line_notify?: components["schemas"]["VisitLineNotifyOut"] | null;
             /** Manage Path */
             manage_path?: string | null;
             /**
@@ -18193,6 +18474,150 @@ export interface operations {
             };
         };
     };
+    get_line_demographics_api_website_v1_admin_line_insights_demographics_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path?: never;
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineDemographicsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_line_rich_menu_api_website_v1_admin_line_accounts__account_key__rich_menu_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                account_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LineRichMenuUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_line_rich_menu_insight_api_website_v1_admin_line_accounts__account_key__rich_menu_insight_get: {
+        parameters: {
+            query?: {
+                days?: number;
+            };
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                account_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineRichMenuInsightOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    check_line_webhook_api_website_v1_admin_line_accounts__account_key__webhook_check_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                account_key: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineWebhookCheckOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     update_line_campus_target_api_website_v1_admin_line_campus_targets__campus_key__put: {
         parameters: {
             query?: never;
@@ -18291,6 +18716,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LineSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_line_group_members_api_website_v1_admin_line_groups__target_id__members_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-csrf-token"?: string | null;
+            };
+            path: {
+                target_id: string;
+            };
+            cookie?: {
+                ivy_admin_session?: string | null;
+            };
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LineGroupMembersOut"];
                 };
             };
             /** @description Validation Error */

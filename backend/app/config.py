@@ -34,6 +34,8 @@ LINE_CAMPUS_ACCOUNT_KEYS = ("yihua", "minghua", "chongde", "international", "ren
 # 有自己 webhook 網址（/line/webhook/<鍵>）、只處理一對一事件的帳號。
 LINE_ONE_TO_ONE_ACCOUNT_KEYS = (LINE_HQ_ACCOUNT, *LINE_CAMPUS_ACCOUNT_KEYS)
 LINE_ACCOUNT_KEYS = (LINE_MAIN_ACCOUNT, *LINE_ONE_TO_ONE_ACCOUNT_KEYS)
+# LIFF ID：channel ID（數字）-英數（2026-11-28）。
+LINE_LIFF_ID_RE = re.compile(r"[0-9]{6,20}-[A-Za-z0-9]{4,32}")
 
 
 @dataclass(frozen=True, repr=False)
@@ -266,6 +268,12 @@ class Settings(BaseSettings):
     line_tag_id: str | None = None
     line_capi_token: str | None = Field(default=None, repr=False)
     line_capi_test: bool = False
+    # LIFF（2026-11-28，docs/specs/2026-11-28-line-apis-design.md §7）：家長在 LINE App 裡開預約頁時，預約當下就把這筆
+    # 預約綁到他的 LINE。LIFF ID 形如 1234567890-AbcdEfgh（LINE Developers 的 LIFF app 或 LINE MINI App），和官網的
+    # NUXT_PUBLIC_LINE_LIFF_ID 同一個值。驗 ID token 用的 channel ID 預設取 LIFF ID「-」前面那段，不同時才另外設。
+    # LIFF 所屬的 channel 要和各校官方帳號在同一個 provider（userId 依 provider 發）。
+    line_liff_id: str | None = None
+    line_liff_channel_id: str | None = None
     # 園務系統定期拉官網招生資料用的唯讀同步端點（2026-11-20，docs/specs/2026-11-20-ivy-management-sync-api.md）：
     # JSON 物件「校區代號 → 金鑰的 SHA-256 十六進位字串（64 個 hex）」，例 {"yihua":"<64 hex>"}。env 只放雜湊、
     # 不放金鑰明文；沒設或空物件＝功能關閉（路由不掛，404）。啟動時驗證並正規化成小寫 hex；任何錯誤訊息都不帶內容。
@@ -434,6 +442,7 @@ class Settings(BaseSettings):
         "google_sc_service_account_json", "google_sc_property", "crux_api_key", "ga4_property_id",
         "ga4_measurement_id", "ga4_api_secret", "meta_pixel_id", "meta_capi_token",
         "openai_pixel_id", "openai_capi_key", "line_tag_id", "line_capi_token",
+        "line_liff_id", "line_liff_channel_id",
         "google_api_client_id", "google_api_client_secret", "gbp_refresh_token", "gbp_locations",
         "google_ads_developer_token", "google_ads_refresh_token", "google_ads_customer_id", "google_ads_login_customer_id",
     )
@@ -633,6 +642,18 @@ class Settings(BaseSettings):
             if secret and token:
                 accounts[key] = LineAccountCredentials(key, secret, token)
         return accounts
+
+    @property
+    def line_liff_client_id(self) -> str | None:
+        """驗 LIFF ID token 用的 channel ID；沒設 LIFF 回 None。"""
+        if not self.line_liff_id:
+            return None
+        return self.line_liff_channel_id or self.line_liff_id.split("-", 1)[0]
+
+    @property
+    def line_liff_url(self) -> str | None:
+        """在 LINE 裡開 LIFF app 的網址（後面可以接路徑）；沒設 LIFF 回 None。"""
+        return f"https://liff.line.me/{self.line_liff_id}" if self.line_liff_id else None
 
     @property
     def line_pnp_account_keys(self) -> frozenset[str]:
@@ -906,6 +927,11 @@ class Settings(BaseSettings):
                 raise ValueError(f"WEBSITE_LINE_PNP_ACCOUNTS 有不認得的帳號鍵：{key}（可用：{', '.join(LINE_ACCOUNT_KEYS)}）")
             if key not in configured:
                 raise ValueError(f"WEBSITE_LINE_PNP_ACCOUNTS 列了 {key}，但這個帳號的 Channel secret 與 access token 還沒設定")
+        # LIFF：格式打錯不默默當沒開（官網前端的同名變數用同一條規則）。
+        if self.line_liff_id and not LINE_LIFF_ID_RE.fullmatch(self.line_liff_id):
+            raise ValueError("WEBSITE_LINE_LIFF_ID 格式不符：應該像 1234567890-AbcdEfgh")
+        if self.line_liff_channel_id and (not self.line_liff_id or not self.line_liff_channel_id.isdigit()):
+            raise ValueError("WEBSITE_LINE_LIFF_CHANNEL_ID 要是純數字，而且要搭配 WEBSITE_LINE_LIFF_ID")
         if bool(self.vapid_public_key) != bool(self.vapid_private_key):
             raise ValueError("手機推播必須同時設定 WEBSITE_VAPID_PUBLIC_KEY 與 WEBSITE_VAPID_PRIVATE_KEY")
         # 回傳廣告平台（2026-11-16）：ID 與金鑰成對；ID 格式和官網前端的同名變數一樣嚴格，打錯不會默默送到別的帳戶。

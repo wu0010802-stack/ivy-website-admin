@@ -24,6 +24,12 @@ import logging
 import httpx
 
 LINE_API_BASE = "https://api.line.me"
+# 上傳圖文選單圖片（與下載訊息內容）走另一個網域。
+LINE_DATA_API_BASE = "https://api-data.line.me"
+
+
+# 網址裡帶 LINE userId 的端點：查好友狀態、個人圖文選單、群組成員名稱（2026-11-28 加後兩種）。
+_USER_ID_URL_RE = re.compile(r"/v2/bot/(?:profile/|user/U|(?:group|room)/[^/]+/member/)")
 
 
 class _HideUserIdUrls(logging.Filter):
@@ -32,7 +38,7 @@ class _HideUserIdUrls(logging.Filter):
 
     def filter(self, record: logging.LogRecord) -> bool:
         args = record.args if isinstance(record.args, tuple) else ()
-        return not any("/v2/bot/profile/" in str(arg) for arg in args)
+        return not any(_USER_ID_URL_RE.search(str(arg)) for arg in args)
 
 
 _httpx_logger = logging.getLogger("httpx")
@@ -174,6 +180,27 @@ class Quota:
 class BotInfo:
     basic_id: str | None
     display_name: str | None
+    # LINE 後台「回應設定」：chat＝開著聊天、bot＝沒開。mark_as_read_mode：auto＝LINE 自動已讀、manual＝要自己標
+    # （開著聊天時是 manual，2026-11-28 docs/specs/2026-11-28-line-apis-design.md §3）。
+    chat_mode: str | None = None
+    mark_as_read_mode: str | None = None
+
+
+@dataclass(frozen=True)
+class WebhookEndpoint:
+    """LINE 後台填的 webhook。endpoint 為 None＝還沒填（LINE 回 404）。"""
+
+    endpoint: str | None
+    active: bool | None
+
+
+@dataclass(frozen=True)
+class WebhookTest:
+    """LINE 對 webhook 網址送一個空事件的結果。reason：OK／COULD_NOT_CONNECT／REQUEST_TIMEOUT／ERROR_STATUS_CODE／UNCLASSIFIED。"""
+
+    success: bool
+    status_code: int | None
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -293,6 +320,150 @@ class LineMessagingClient:
             raise LineApiError(response.status_code)
         return data
 
+    async def _send(self, method: str, url: str, *, ok: tuple[int, ...] = (200,), **kwargs) -> httpx.Response:
+        """查詢與設定類 API 共用：連不上、狀態碼不在 ok 裡都丟 LineApiError（只帶狀態碼）。"""
+        try:
+            response = await self._http.request(method, url, **kwargs)
+        except httpx.HTTPError as exc:
+            raise LineApiError(None) from exc
+        if response.status_code not in ok:
+            raise LineApiError(response.status_code)
+        return response
+
+    @staticmethod
+    def _json(response: httpx.Response) -> dict:
+        try:
+            data = response.json()
+        except ValueError:
+            return {}
+        return data if isinstance(data, dict) else {}
+
+    # --- webhook 設定（2026-11-28 §2）---
+
+    async def webhook_endpoint(self) -> WebhookEndpoint:
+        response = await self._send("GET", "/v2/bot/channel/webhook/endpoint", ok=(200, 404))
+        if response.status_code == 404:
+            return WebhookEndpoint(endpoint=None, active=None)
+        data = self._json(response)
+        endpoint = data.get("endpoint")
+        active = data.get("active")
+        return WebhookEndpoint(
+            endpoint=endpoint[:500] if isinstance(endpoint, str) and endpoint else None,
+            active=active if isinstance(active, bool) else None,
+        )
+
+    async def test_webhook(self) -> WebhookTest:
+        """請 LINE 對後台填的 webhook 網址送一個空事件（每小時限 60 次）。"""
+        data = self._json(await self._send("POST", "/v2/bot/channel/webhook/test", json={}))
+        status_code = data.get("statusCode")
+        reason = data.get("reason")
+        return WebhookTest(
+            success=data.get("success") is True,
+            status_code=status_code if isinstance(status_code, int) and status_code > 0 else None,
+            reason=reason[:40] if isinstance(reason, str) and reason else "UNCLASSIFIED",
+        )
+
+    # --- 一對一聊天室：已讀與等待動畫（§3）---
+
+    async def mark_as_read(self, token: str) -> None:
+        """把這則訊息之前的訊息全部標成已讀。帳號沒開聊天時 LINE 本來就自動已讀。"""
+        await self._send("POST", "/v2/bot/chat/markAsRead", json={"markAsReadToken": token})
+
+    async def start_loading(self, user_id: str, seconds: int = 5) -> None:
+        """在一對一聊天室顯示等待動畫（5–60 秒、5 的倍數）；官方帳號的下一則訊息一到就消失。"""
+        await self._send(
+            "POST", "/v2/bot/chat/loading/start", ok=(200, 202), json={"chatId": user_id, "loadingSeconds": seconds}
+        )
+
+    # --- 圖文選單（§4）---
+
+    async def create_rich_menu(self, menu: dict) -> str:
+        data = self._json(await self._send("POST", "/v2/bot/richmenu", json=menu))
+        menu_id = data.get("richMenuId")
+        if not isinstance(menu_id, str) or not menu_id:
+            raise LineApiError(200)
+        return menu_id
+
+    async def upload_rich_menu_image(self, menu_id: str, image: bytes, content_type: str = "image/png") -> None:
+        """圖片走 api-data.line.me；一個選單只能傳一次，之後不能換。"""
+        await self._send(
+            "POST",
+            f"{LINE_DATA_API_BASE}/v2/bot/richmenu/{menu_id}/content",
+            content=image,
+            headers={"Content-Type": content_type},
+        )
+
+    async def delete_rich_menu(self, menu_id: str) -> None:
+        await self._send("DELETE", f"/v2/bot/richmenu/{menu_id}", ok=(200, 404))
+
+    async def set_default_rich_menu(self, menu_id: str) -> None:
+        """設成所有好友的預設選單：會蓋掉 LINE Official Account Manager 設的那個。"""
+        await self._send("POST", f"/v2/bot/user/all/richmenu/{menu_id}")
+
+    async def clear_default_rich_menu(self) -> None:
+        await self._send("DELETE", "/v2/bot/user/all/richmenu", ok=(200, 404))
+
+    async def link_rich_menu(self, user_id: str, menu_id: str) -> None:
+        """替這個人換上個人選單。對方不是好友時 LINE 也回 200，只是沒綁上。"""
+        await self._send("POST", f"/v2/bot/user/{user_id}/richmenu/{menu_id}")
+
+    async def unlink_rich_menu(self, user_id: str) -> None:
+        await self._send("DELETE", f"/v2/bot/user/{user_id}/richmenu", ok=(200, 404))
+
+    async def rich_menu_summary(self, menu_id: str, start: date, end: date) -> dict | None:
+        """這段期間（UTC+9）選單的顯示與點擊次數。剛建好還沒統計回 None；點的人不到 20 位時 LINE 只回 richMenuId。"""
+        response = await self._send(
+            "GET",
+            f"/v2/bot/insight/richmenu/{menu_id}/summary",
+            ok=(200, 404),
+            params={"from": start.strftime("%Y%m%d"), "to": end.strftime("%Y%m%d")},
+        )
+        return None if response.status_code == 404 else self._json(response)
+
+    # --- 群組成員（§5）。source_type：group 或 room（多人聊天室）---
+
+    async def member_count(self, target_id: str, source_type: str = "group") -> int:
+        data = self._json(await self._send("GET", f"/v2/bot/{source_type}/{target_id}/members/count"))
+        count = data.get("count")
+        if not isinstance(count, int):
+            raise LineApiError(200)
+        return count
+
+    async def member_ids(self, target_id: str, source_type: str = "group", *, limit: int = 200) -> tuple[list[str], bool]:
+        """(成員 userId, 是否超過 limit 被截斷)。只有認證／進階帳號能用，其他帳號 LINE 回 403（LineApiError(403)）。"""
+        ids: list[str] = []
+        start: str | None = None
+        while True:
+            data = self._json(
+                await self._send(
+                    "GET", f"/v2/bot/{source_type}/{target_id}/members/ids", params={"start": start} if start else None
+                )
+            )
+            page = data.get("memberIds")
+            if isinstance(page, list):
+                ids.extend(item for item in page if isinstance(item, str) and USER_ID_RE.match(item))
+            following = data.get("next")
+            start = following if isinstance(following, str) and following else None
+            if len(ids) > limit:
+                return ids[:limit], True
+            if start is None:
+                return ids, False
+
+    async def member_name(self, target_id: str, user_id: str, source_type: str = "group") -> str | None:
+        """這個人在群組裡的顯示名稱；不在群組裡（404）或查不到回 None。"""
+        try:
+            response = await self._send("GET", f"/v2/bot/{source_type}/{target_id}/member/{user_id}", ok=(200, 404))
+        except LineApiError:
+            return None
+        name = self._json(response).get("displayName") if response.status_code == 200 else None
+        return name[:100] if isinstance(name, str) and name else None
+
+    # --- 好友輪廓（§6）---
+
+    async def demographic(self) -> dict:
+        """好友的性別、年齡、地區等分布（估計值，約晚 3 天）。好友不到 20 位時 available 是 False。"""
+        return await self._get_json("/v2/bot/insight/demographic")
+
     async def quota(self) -> Quota:
         """這個月的額度（含官方帳號後台群發用掉的）。兩支 API 都要成功才回。"""
         target = await self._get_json("/v2/bot/message/quota")
@@ -306,9 +477,13 @@ class LineMessagingClient:
         data = await self._get_json("/v2/bot/info")
         basic_id = data.get("basicId")
         name = data.get("displayName")
+        chat_mode = data.get("chatMode")
+        read_mode = data.get("markAsReadMode")
         return BotInfo(
             basic_id=basic_id if isinstance(basic_id, str) and basic_id else None,
             display_name=name[:100] if isinstance(name, str) and name else None,
+            chat_mode=chat_mode if chat_mode in ("chat", "bot") else None,
+            mark_as_read_mode=read_mode if read_mode in ("auto", "manual") else None,
         )
 
     async def followers(self, day: date) -> Followers:

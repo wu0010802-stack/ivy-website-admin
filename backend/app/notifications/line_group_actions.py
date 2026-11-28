@@ -50,6 +50,7 @@ from app.booking.history import Actor
 from app.booking.models import VisitRequest, VisitRequestStatus
 from app.common import ratelimit
 from app.common.timezones import OPERATING_TZ, today_local
+from app.insights.cache import TtlCache
 from app.notifications import line as line_api
 from app.notifications.line_group_settings import campuses_served
 from app.operations import audit_service
@@ -89,6 +90,12 @@ _PART_COUNTS = {
 # 唯讀的按鈕：同群組指令，沒貼過驗證碼的舊群組也能用。
 _READ_ONLY_ACTIONS = frozenset({REPORT_DETAIL})
 _RF_ACTIONS = (RF_DEPOSIT, RF_DEPOSIT_OK, RF_NODEP_ASK, RF_NODEP, RF_SOURCE_ASK, RF_SOURCE, RF_BUS, RF_FOLLOW)
+
+# 按按鈕的人在群組裡的顯示名稱（2026-11-28 §5.2）：每個（群組, 人）快取一小時，逾時 3 秒；查不到不快取、不記。
+_NAME_CACHE: TtlCache[str] = TtlCache(ttl_seconds=3600, max_entries=1024)
+NAME_TIMEOUT_SECONDS = 3.0
+# 會寫入（也就是會寫稽核）的動作；只回確認卡、選擇卡的詢問動作不查名稱。
+_WRITING_ACTIONS = frozenset({ATTEND_OK, NOSHOW_OK, RF_DEPOSIT_OK, RF_NODEP, RF_SOURCE, RF_BUS, RF_FOLLOW, STATS_MUTE})
 
 TOKEN_TTL_SECONDS = 300
 _TOKEN_SIG_LENGTH = 16
@@ -207,6 +214,39 @@ def _line_user(event: dict) -> str | None:
     return user_id if isinstance(user_id, str) and line_api.USER_ID_RE.match(user_id) else None
 
 
+def clear_name_cache() -> None:
+    """測試用。"""
+    _NAME_CACHE._entries.clear()
+
+
+async def _display_name(request: Request, source_type: str, group_id: str, user_id: str | None) -> str | None:
+    """這個人在群組裡的顯示名稱；沒帶 userId、查不到（不在群組、LINE 失敗、逾時）都回 None。
+    要在鎖任何列之前呼叫：外部 API 不能握著列鎖等。"""
+    if user_id is None:
+        return None
+    settings = request.app.state.settings
+    token = settings.line_messaging_access_token
+    if not token:
+        return None
+
+    async def fetch() -> str:
+        async with line_api.LineMessagingClient(
+            token, transport=getattr(request.app.state, "line_transport", None), timeout=NAME_TIMEOUT_SECONDS
+        ) as client:
+            name = await client.member_name(group_id, user_id, source_type)
+        if name is None:
+            raise LookupError  # TtlCache 不存例外：查不到下次再問
+        return name
+
+    try:
+        return (await _NAME_CACHE.get((group_id, user_id), fetch)).value
+    except LookupError:
+        return None
+    except (line_api.LineApiError, httpx.HTTPError) as exc:
+        logger.warning("LINE 群組成員名稱查詢失敗：error=%s", exc)
+        return None
+
+
 async def _allowed(request: Request, target_id: str) -> bool:
     try:
         await ratelimit.limiter(request).check(ACTION_LIMIT, target_id)
@@ -264,7 +304,14 @@ def _ask(request: Request, visit_request: VisitRequest, served: list[str], actio
 
 
 async def _confirm(
-    request: Request, db: AsyncSession, event: dict, group_id: str, served: list[str], action: str, visit_request: VisitRequest
+    request: Request,
+    db: AsyncSession,
+    event: dict,
+    group_id: str,
+    served: list[str],
+    action: str,
+    visit_request: VisitRequest,
+    display_name: str | None = None,
 ) -> dict:
     from app.notifications import line_flex
     from app.notifications.service import admin_visit_url
@@ -312,6 +359,7 @@ async def _confirm(
             "from_status": VisitRequestStatus.CONFIRMED.value,
             "to_status": visit_request.status,
             **({"line_user_id": line_user_id} if line_user_id else {}),
+            **({"line_display_name": display_name} if display_name else {}),
         },
     )
     recruitment_visit_id = None
@@ -432,7 +480,14 @@ async def _deposit_confirm(request: Request, db: AsyncSession, visit: Recruitmen
 
 
 async def _fill(
-    request: Request, db: AsyncSession, event: dict, group_id: str, served: list[str], action: str, parts: list[str]
+    request: Request,
+    db: AsyncSession,
+    event: dict,
+    group_id: str,
+    served: list[str],
+    action: str,
+    parts: list[str],
+    display_name: str | None = None,
 ) -> dict | None:
     """結果欄位按鈕。招生訪視 id 不是 UUID → 不是我們編的，不回應。
     已預繳的確認（rfdok）先驗 token，過期或偽造的連訪視都不查。"""
@@ -504,6 +559,7 @@ async def _fill(
                     "value": step.code,
                     "group_id": group_id,
                     **({"line_user_id": line_user_id} if line_user_id else {}),
+                    **({"line_display_name": display_name} if display_name else {}),
                 },
             )
             await db.commit()
@@ -515,7 +571,14 @@ async def _fill(
 
 
 async def _respond(
-    request: Request, db: AsyncSession, event: dict, group_id: str, served: list[str], action: str, parts: list[str]
+    request: Request,
+    db: AsyncSession,
+    event: dict,
+    group_id: str,
+    served: list[str],
+    action: str,
+    parts: list[str],
+    display_name: str | None = None,
 ) -> dict | None:
     if action == CANCEL:
         return line_api.text_message(CANCEL_REPLY)
@@ -524,9 +587,11 @@ async def _respond(
 
         if action == REPORT_DETAIL:
             return await line_group_report_actions.report_detail(request, db, group_id, served, parts)
-        return await line_group_report_actions.stats_mute(request, db, group_id, parts, line_user_id=_line_user(event))
+        return await line_group_report_actions.stats_mute(
+            request, db, group_id, parts, line_user_id=_line_user(event), display_name=display_name
+        )
     if action in _RF_ACTIONS:
-        return await _fill(request, db, event, group_id, served, action, parts)
+        return await _fill(request, db, event, group_id, served, action, parts, display_name)
     if action in _CONFIRMS:  # 先驗 token，過期或偽造的連案件都不查
         secret = request.app.state.settings.session_secret
         if not check_token(secret, action, parts[0], parts[1], now=datetime.now(timezone.utc)):
@@ -535,7 +600,7 @@ async def _respond(
     if visit_request is None:
         return line_api.text_message(GONE_REPLY)
     if action in _CONFIRMS:
-        return await _confirm(request, db, event, group_id, served, action, visit_request)
+        return await _confirm(request, db, event, group_id, served, action, visit_request, display_name)
     return _ask(request, visit_request, served, action)
 
 
@@ -564,7 +629,11 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
         served = await campuses_served(db, group_id, require_verified=action not in _READ_ONLY_ACTIONS)
         if served is None:
             continue
-        message = await _respond(request, db, event, group_id, served, action, parts)
+        # 按的人的名字在鎖任何列之前查好（一個事件查一次），帶進稽核。
+        display_name = (
+            await _display_name(request, found[0], group_id, _line_user(event)) if action in _WRITING_ACTIONS else None
+        )
+        message = await _respond(request, db, event, group_id, served, action, parts, display_name)
         if message is not None:
             replies.append((reply_token, message))
     if not replies:

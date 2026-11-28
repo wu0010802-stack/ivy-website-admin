@@ -5,8 +5,11 @@ import { notifyError, notifyWarning } from '../composables/notify'
 import { api, ApiError } from '../api/client'
 import { apiErrorMessage } from '../api/errors'
 import { formatDateTime } from '../api/labels'
-import type { LineAccountOut, LineGroupOut, LineSettingsOut, LineVerificationCodeOut } from '../api/types'
+import type { LineAccountOut, LineAccountWithMenu, LineGroupOut, LineSettingsOut, LineVerificationCodeOut } from '../api/types'
 import PageHeader from '../components/PageHeader.vue'
+import LineGroupMembersDialog from '../components/LineGroupMembersDialog.vue'
+import LineRichMenuControl from '../components/LineRichMenuControl.vue'
+import LineWebhookCheck from '../components/LineWebhookCheck.vue'
 
 type LineTarget = LineSettingsOut['targets'][number]
 type ParentCampus = NonNullable<LineSettingsOut['parent_campuses']>[number]
@@ -284,6 +287,20 @@ function togglePnp(row: ParentCampus, on: boolean) {
   return saveParent(row, row.account_key ?? null, on, on ? `${row.campus_name}已開啟 LINE 通知型訊息` : `${row.campus_name}已關閉 LINE 通知型訊息`)
 }
 
+// --- 圖文選單、檢查連線、群組成員（2026-11-28）------------------------------------------------
+// 圖文選單改完回的是整份設定，直接取代頁面資料（和群組開關一樣）。
+function replaceSettings(next: LineSettingsOut) {
+  data.value = next
+}
+
+const membersGroup = ref<LineGroupOut | null>(null)
+const membersOpen = ref(false)
+
+function showMembers(group: LineGroupOut) {
+  membersGroup.value = group
+  membersOpen.value = true
+}
+
 onMounted(() => load())
 </script>
 
@@ -361,6 +378,8 @@ onMounted(() => load())
                 <code>{{ account.webhook_url }}</code>
                 <el-button size="small" @click="copyWebhook(account.webhook_url)">複製</el-button>
               </span>
+              <LineWebhookCheck :account-key="account.key" :account-name="accountName(account)" />
+              <LineRichMenuControl :account="account as LineAccountWithMenu" :account-name="accountName(account)" @updated="replaceSettings" />
             </li>
           </ul>
           <p class="field-help">則數依 LINE 官方帳號後台的方案計算（輕用量每月 200 則）。回覆家長的訊息（例如「我的預約」）不算則數。</p>
@@ -404,6 +423,7 @@ onMounted(() => load())
                   <el-tag v-else type="warning" effect="plain">未驗證</el-tag>
                 </span>
                 <span v-if="group.left_at" class="group-list__meta">{{ formatDateTime(group.left_at) }}</span>
+                <el-button v-else size="small" :aria-label="`看${groupLabel(group)}的成員`" :data-test="`line-group-members-${group.target_id}`" @click="showMembers(group)">看成員</el-button>
               </div>
               <div v-if="group.verified_at && !group.left_at" class="group-switches" :data-test="`line-group-settings-${group.target_id}`">
                 <el-switch
@@ -564,6 +584,7 @@ onMounted(() => load())
         </div>
       </section>
 
+      <LineGroupMembersDialog v-model="membersOpen" :target-id="membersGroup?.target_id ?? null" :group-name="membersGroup ? groupLabel(membersGroup) : ''" />
     </template>
   </div>
 </template>

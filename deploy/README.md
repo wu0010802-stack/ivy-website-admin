@@ -14,6 +14,42 @@ Google OAuth 的 API 變數、公開 callback、管理員資格及 migration 順
 - 後台：<https://www.ivykidschool.com/admin/>
 - Railway 網址：<https://web-production-04caa.up.railway.app/>（部署 smoke 與過渡期使用，robots 全擋；轉址與收尾見 `docs/website-admin/migration-checklist.md`「切換後待辦」）
 
+## 2026-11-28 再接六個 LINE API（`feature/line-apis-20261128`；**未 commit、未合併、未部署**）
+
+規格 `docs/specs/2026-11-28-line-apis-design.md`（附錄 B 列了要真的 LINE 帳號才能驗的事）。內容見根目錄 README 同日段落。
+
+- **migration `a4d7e1c9b352`**（接在 `e2c5a8f1d937` 之後）：只新增兩張空表 `line_rich_menus`、`line_rich_menu_users`，不改既有資料，**不必先備份**。可逆（downgrade 刪兩張表）。
+- **部署後直接生效**（不用設定）：
+  - 家長一對一：程式會回覆的三種訊息（綁定代碼、我的預約、卡片按鈕）先顯示等待動畫；代碼與我的預約處理完標成已讀（只在帳號開著聊天、而且這位家長近 7 天沒有傳過要人回的訊息時）。
+  - 群組按鈕（已到場、未到場、招生欄位、統計異常「知道了」）的操作紀錄多記按的人的 LINE 顯示名稱。
+  - 後台「LINE 通知」多「檢查連線」「看成員」；成效統計的 LINE 區塊多「好友輪廓」。這三個都是按了才向 LINE 查。
+  - 定期工作多一步 `line_rich_menus`（沒有帳號開圖文選單時只做一次查詢）。
+- **要在後台打開**：圖文選單（「LINE 通知 → 官方帳號與本月額度」每個帳號各自選）。
+- **要設變數**：在 LINE 裡預約就綁定（LIFF）。
+
+| 服務 | 變數 | 用途 |
+|---|---|---|
+| api | `WEBSITE_LINE_LIFF_ID` | LIFF ID（形如 `1234567890-AbcdEfgh`）。格式不符拒絕啟動 |
+| api | `WEBSITE_LINE_LIFF_CHANNEL_ID`（可省略） | 驗 ID token 用的 channel ID；預設取 LIFF ID「-」前面那段，不同時才設 |
+| web | `NUXT_PUBLIC_LINE_LIFF_ID` | 同一個 LIFF ID。兩邊都設才生效；**兩個服務的變數一次設好再部署**（11-13 改變數造成停機的教訓） |
+
+**圖文選單（使用者）**
+1. 後台「LINE 通知」該帳號選「只給已預約的家長」或「所有好友」。**「所有好友」會蓋掉在 LINE Official Account Manager 設的圖文選單**（LINE 的規則：API 設的預設選單優先）；想保留原本的選單就選「只給已預約的家長」。
+2. 校區帳號的三格是「預約參觀／我的預約｜園所位置｜撥打電話」，電話與地址取自已發布的「五校介紹」；缺電話或地址的校區、以及 main／hq 帳號是「預約參觀／我的預約｜校園環境｜官方網站」。
+3. 校區改了電話、地址，或 LIFF 開關變了，後台會顯示「選單內容有更新」，按「重新套用」重建。
+4. 已預約的家長最慢一輪定期工作後換成「已預約」版；參觀結束、取消、解除綁定後下一輪換回。
+5. 底圖是 repo 內建的四張（`backend/app/notifications/richmenu/`，`python3 scripts/build-line-rich-menu-images.py` 產生）；要改字或版面先改腳本、重產，再到後台重新套用。
+
+**LIFF（使用者；要本人登入 LINE Developers）**
+1. 先補隱私權政策（規格附錄 A 一段）並發布。
+2. LINE Developers：在**和各校官方帳號同一個 provider** 底下建 LIFF app（LINE 建議新的建成 LINE MINI App；用現有的 LINE Login channel 加 LIFF app 也可以，但那個 channel 的名稱會出現在家長看到的同意畫面）。Endpoint URL `https://www.ivykidschool.com/visit`、Size `Full`、Scope 只勾 `openid`。
+   - provider 不同的話，拿到的 LINE userId 和官方帳號那邊對不上，綁了也推不到（結果頁會一直顯示「還沒加入好友」）。
+3. Railway：api 設 `WEBSITE_LINE_LIFF_ID`、web 設 `NUXT_PUBLIC_LINE_LIFF_ID`（同一個值），一起部署。
+4. 該校要先開「家長 LINE 通知」（沒開的校區在 LINE 裡預約不會綁）。
+5. 用手機 LINE 開 `https://liff.line.me/<LIFF ID>/yihua`（或圖文選單的「預約參觀」——設好 LIFF 後到後台按「重新套用」，那一格才會換成 LIFF 網址）預約一筆：結果頁應直接顯示「已用 LINE 接收通知」，LINE 收到預約成功卡片。沒加該校官方帳號好友時結果頁會提醒加入。
+6. 回退：拿掉兩個變數重新部署即可；已經綁的照舊收通知。
+7. 手機上要看的：兩次轉址後有沒有停在該校的預約頁、Safari 遠端偵錯的主控台有沒有 CSP 違規（目前只放行 `connect-src https://api.line.me`，是讀 SDK 原始碼推定的，沒有真的在 LINE 裡跑過）。有違規就把被擋的網域告訴我。
+
 ## 2026-11-28 LINE 群組：手打「@官方帳號名稱」叫得出選單、Meta 廣告名單通知改成卡片（PR #157，main `d55935a5`；已部署）
 
 使用者在電腦版 LINE 的總部群組手打「@常春藤官網通知」沒有回應（正式站 11-28 09:18:44 台北收到 webhook、回 200、沒有回覆也沒有錯誤），並要求把 Meta 廣告名單通知做成卡片、樣式和官網通知區隔。做完後使用者說「幫我部署」。只改後端 LINE 群組指令的解析與 Meta 名單通知的版型，沒有 migration、API 契約不變、不需要設任何變數，沒有事先備份。內容見根目錄 README 同日段落。

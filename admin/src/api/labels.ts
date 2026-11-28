@@ -466,6 +466,8 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'line.group.stats_health_mute': '統計異常先不提醒（LINE 群組）',
   'line.parent_account.update': '更新家長 LINE 通知帳號',
   'line.parent.link': '家長開啟 LINE 通知',
+  // 2026-11-28：後台改官方帳號的圖文選單（docs/specs/2026-11-28-line-apis-design.md §4.4）。
+  'line.rich_menu.update': '更新 LINE 圖文選單',
   'line.parent.unlink': '家長關閉 LINE 通知',
   // 2026-11-25：家長在 LINE「我的預約」確定取消（docs/specs/2026-11-25-line-more-features-design.md §8）。
   'line.parent.cancel': '家長在 LINE 取消預約',
@@ -781,6 +783,8 @@ export const AUDIT_TARGET_LABELS: Record<string, string> = {
   error_group: '錯誤回報',
   // 2026-11-27：統計異常「知道了」（line.group.stats_health_mute）。
   stats_health: '官網統計異常提醒',
+  // 2026-11-28：圖文選單（line.rich_menu.update）對的是官方帳號。
+  line_account: 'LINE 官方帳號',
 }
 
 // 招生漏斗階段（後端 app/admissions/constants.py STAGE_LABELS，園務原文）。

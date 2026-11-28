@@ -26,9 +26,10 @@ from app.booking import (
 )
 from app.booking.exceptions import slot_unavailable
 from app.common import ratelimit
-from app.operations import retention_service
+from app.notifications import line_liff, line_parent
+from app.operations import audit_service, retention_service
 from app.booking.models import VisitRequestStatus
-from app.booking.schemas import VisitRequestCreate, VisitRequestOut
+from app.booking.schemas import VisitLineNotifyOut, VisitRequestCreate, VisitRequestOut
 from app.campuses.models import Campus
 from app.booking import admin_visit_routes, config_routes, slot_routes
 from app.booking.route_common import _rate_limited
@@ -142,6 +143,30 @@ async def _receipt(
     )
 
 
+async def _fill_line_notify(request: Request, db: AsyncSession, out: VisitRequestOut, campus_key: str) -> VisitRequestOut:
+    """這筆預約有綁 LINE 通知（在 LINE App 裡預約時送單當下綁的，2026-11-28）就補上 line_notify：
+    帳號名稱、加好友網址、是不是好友。只認綁在這校目前家長通知帳號上的（同家長頁）。
+    呼叫前案件已 commit；這裡讀完就結束交易再查 LINE。查 LINE 失敗只是少了帳號名稱或好友狀態。"""
+    settings = request.app.state.settings
+    link = await line_parent.active_link(db, out.receipt_id)
+    if link is None:
+        return out
+    account_key, user_id = link.account_key, link.line_user_id
+    current = await line_parent.parent_account_key(db, settings, campus_key)
+    await db.rollback()
+    if current != account_key:
+        return out
+    account = settings.line_accounts[account_key]
+    transport = getattr(request.app.state, "line_transport", None)
+    info = await line_parent.bot_info(account, transport)
+    out.line_notify = VisitLineNotifyOut(
+        friend=await line_parent.friend_status(account, user_id, transport),
+        account_name=info.display_name if info else None,
+        add_friend_url=line_parent.add_friend_url(info.basic_id) if info and info.basic_id else None,
+    )
+    return out
+
+
 def _tracking(request: Request) -> dict | None:
     """網站來源與點擊識別碼（2026-11-16 規格 §1、§2）：訪客開了 DNT／GPC 就不讀。"""
     if attribution.privacy_opt_out(request.headers):
@@ -206,7 +231,8 @@ async def create_visit_request(
     settings = request.app.state.settings
     hash_key = service.payload_hash_key(settings.session_secret)
     body = payload.model_dump(
-        mode="json", exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token"}
+        mode="json",
+        exclude={"campus_key", "config_version", "consent_revision_id", "turnstile_token", "line_id_token"},
     )
 
     async def _late_replay() -> VisitRequestOut | None:
@@ -227,6 +253,7 @@ async def create_visit_request(
         await db.rollback()
         if out is not None:
             response.status_code = status.HTTP_200_OK
+            await _fill_line_notify(request, db, out, payload.campus_key)
         return out
 
     try:
@@ -235,9 +262,10 @@ async def create_visit_request(
         )
         if replay is not None:
             response.status_code = status.HTTP_200_OK
-            return await _receipt(
+            out = await _receipt(
                 db, request, response, receipt_id=replay.id, receipt_status=replay.status, created_at=replay.created_at
             )
+            return await _fill_line_notify(request, db, out, payload.campus_key)
         holds_slot = await service.precheck_submission(
             db,
             campus_key=payload.campus_key,
@@ -268,6 +296,12 @@ async def create_visit_request(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail={"code": "BOT_CHECK_FAILED", "message": "請完成機器人驗證後再送出"},
         ) from exc
+
+    # LIFF（2026-11-28）：家長在 LINE App 裡開預約頁時帶來的 ID token。和 Turnstile 一樣在不握資料庫連線的這一段
+    # 向外驗證；驗不過、逾時、沒設 LIFF 都是 None——只是不綁 LINE，預約照常。
+    line_user_id = await line_liff.verify_id_token(
+        settings, payload.line_id_token, transport=getattr(request.app.state, "line_transport", None)
+    )
 
     # 手機桶只對「真的新建了一筆」計數：這裡只看不記（早一點擋掉明顯超量的），
     # commit 之後才記。不能在這裡就原子地扣：同一個 Idempotency-Key 的併發重送
@@ -322,6 +356,13 @@ async def create_visit_request(
             exc, "BOOKING_LIMIT", "這個校區目前線上預約人數較多，請稍後再試，或直接來電洽詢園所"
         ) from exc
 
+    # 這校有開家長 LINE 通知才綁（帳號＝這校目前的家長通知帳號）。這個讀取和下面的建立在同一個交易裡。
+    line_link = None
+    if line_user_id is not None:
+        line_account = await line_parent.parent_account_key(db, settings, payload.campus_key)
+        if line_account is not None:
+            line_link = (line_account, line_user_id)
+
     # 從這裡到 commit 都握著校區設定列鎖：不得再呼叫限流器。
     try:
         visit_request, is_new = await service.submit_visit_request(
@@ -336,10 +377,21 @@ async def create_visit_request(
             ),
             access_secret=settings.session_secret,
             tracking=_tracking(request),
+            line_link=line_link,
         )
     except _SUBMIT_ERRORS as exc:
         await db.rollback()
         raise _submit_error(exc) from exc
+    if is_new and line_link is not None:
+        await audit_service.log_action(
+            db,
+            actor_user_id=None,
+            action="line.parent.link",
+            target_type="visit_request",
+            target_id=str(visit_request.id),
+            campus_key=payload.campus_key,
+            metadata={"account_key": line_link[0], "via": "liff"},
+        )
     # commit 會讓 ORM 物件過期，先取出回應要的欄位；連結由 id 與密鑰重算，
     # 新建與重播回的是同一條。
     receipt_id = visit_request.id
@@ -355,9 +407,10 @@ async def create_visit_request(
             logger.warning("公開送單的手機限流計數寫入失敗", exc_info=True)
     response.status_code = status.HTTP_201_CREATED if is_new else status.HTTP_200_OK
     # 新建時只有剛發的這一條；併發重播落到這裡時也一樣只回原始那條。
-    return await _receipt(
+    out = await _receipt(
         db, request, response, receipt_id=receipt_id, receipt_status=receipt_status, created_at=created_at
     )
+    return await _fill_line_notify(request, db, out, payload.campus_key)
 
 
 router.include_router(slot_routes.router)

@@ -1,4 +1,5 @@
 import { analyticsIdsFromConfig } from '../../shared/third-party-analytics'
+import { liffIdFromConfig } from '../../shared/line-liff'
 import { inlineScriptHashes } from '../utils/script-csp'
 import { ADMIN_CSP, publicCsp, securityHeadersFor } from '../utils/security-headers'
 
@@ -8,7 +9,7 @@ import { ADMIN_CSP, publicCsp, securityHeadersFor } from '../utils/security-head
 export default defineNitroPlugin((nitroApp) => {
   nitroApp.hooks.hook('request', (event) => {
     const config = useRuntimeConfig(event)
-    const headers = securityHeadersFor(event.path, config.websiteEnv, { scriptPolicy: !import.meta.dev, analytics: analyticsIdsFromConfig(config) })
+    const headers = securityHeadersFor(event.path, config.websiteEnv, { scriptPolicy: !import.meta.dev, analytics: analyticsIdsFromConfig(config), liff: Boolean(liffIdFromConfig(config)) })
     for (const [name, value] of Object.entries(headers)) setResponseHeader(event, name, value)
   })
 
@@ -29,7 +30,8 @@ export default defineNitroPlugin((nitroApp) => {
     if (import.meta.dev) return
     if (getResponseHeader(event, 'content-security-policy') === ADMIN_CSP) return
     const markup = [...html.head, ...html.bodyAppend].join('')
-    setResponseHeader(event, 'Content-Security-Policy', publicCsp(inlineScriptHashes(markup), analyticsIdsFromConfig(useRuntimeConfig(event))))
+    const config = useRuntimeConfig(event)
+    setResponseHeader(event, 'Content-Security-Policy', publicCsp(inlineScriptHashes(markup), analyticsIdsFromConfig(config), { liff: Boolean(liffIdFromConfig(config)) }))
   })
 
   // 不透露框架（Nuxt 的 renderer 固定送 x-powered-by: Nuxt）。renderer 先把它寫進回應，
