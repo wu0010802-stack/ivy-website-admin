@@ -39,6 +39,28 @@
 沒跑：`tests/stack`、`tests/e2e`（要起整套服務；沒設 LIFF ID 時 CSP 字串不變，單元測試鎖住）；官網結果頁的「已用 LINE 接收通知／還沒加入好友」只有元件測試，沒有開瀏覽器走完預約流程看。
 
 沒驗證（要真的 LINE 帳號，規格附錄 B）：LIFF 在 LINE App 裡的兩次轉址與取 token、CSP 只放 `api.line.me` 夠不夠、LIFF 與五校官方帳號同一個 provider 的假設、圖文選單在手機上的樣子與統計、已讀在開著聊天的帳號上的效果、成員名單在推播帳號能不能用（要認證帳號）、群組按鈕事件有沒有帶 userId。登入後的後台畫面沒有開瀏覽器看。隱私權政策要在開 LIFF 前補一段（規格附錄 A）。
+## 2026-11-28 LINE 群組：手打「@官方帳號名稱」叫得出選單、Meta 廣告名單通知改成卡片（未部署）
+
+**一、手打「@常春藤官網通知」沒有回應。** 使用者在電腦版 LINE 的總部群組打「@常春藤官網通知」（沒有從名單選），正式站 09:18:44 收到 webhook、回 200、沒有任何回覆失敗的紀錄——訊息被當成閒聊略過。原因：手打的 @ 不帶 mention 資料，`line_group_commands._addressed` 剝掉「@」後剩下「常春藤官網通知」，既不是空字串（→ 選單）也不是指令；原本只認「@」單獨一個字與「@名稱 完整指令」。
+
+- **修正**（`backend/app/notifications/line_group_commands.py`）：手打 @ 而且沒對到指令時，拿官方帳號在 LINE 上的名稱（`line_parent.bot_info`，快取一小時）比對開頭；相符（後面是結尾或空白）就把名稱拿掉、當成真的標記。只有名稱 → 選單；「@常春藤官網通知 今天」這種短字也認。
+- **不變**：別人的名字（「@小明」「@小明 今天」）、名稱只對到一半（「@常春藤官網通知書」）、名稱查不到（LINE 連不上）都照舊不回；一般閒聊與原本就認得的指令不會多查一次帳號名稱（測試有數次數）。
+- 圖文選單（rich menu）只會出現在一對一聊天，群組與多人聊天室不顯示，這是 LINE 的限制；群組裡的替代品就是這張 @ 選單。
+
+**二、Meta 廣告名單通知改成卡片。** 原本是純文字＋網址（LINE 自動展開成連結預覽）。現在是 Flex 卡片：標題列整條鋪 Meta 的品牌藍 `#0866FF`、白字（「Meta 廣告／新的廣告名單」），內容是校區與筆數，一顆同色的「開啟廣告名單」按鈕（開後台該校的廣告名單）。
+
+- **和官網通知的區隔**：官網參觀通知是白底、標題依種類換色（綠／藍／橙／紅）；Meta 卡片是鋪色標題列，眉標也從「常春藤官網」換成「Meta 廣告」。顏色不和任何一種官網卡片相同，白字對比 4.8（測試會算）。
+- **個資規則不變**：卡片與 altText 只有校名與筆數，不放家長姓名與電話。沒設 `admin_origin` 時沒有按鈕、卡片照送。重試鍵（`X-Line-Retry-Key`）的算法不變。
+- 版型在 `line_flex.meta_leads_card`（`_bubble` 多一個 `header_fill`）；`meta_leads/sync.py` 的 `notification_text` 改成 `notification_message`、用 `push` 送。API 契約、資料表都沒動。
+
+驗證（本機，獨立測試庫 `ivy_website_typedname1128_test`）：
+
+| 指令 | 結果 |
+|---|---|
+| 新測試先紅後綠：`tests/test_line_typed_own_name_20261128.py`、`tests/test_line_group_cards.py`、`tests/test_meta_leads.py` | 改實作前 3＋3 failed；改後全過 |
+| `uv run --frozen pytest -q tests/test_line_*.py tests/test_meta_leads.py` | 358 passed |
+
+未驗證：真機上卡片的樣子（要等下一筆 Meta 名單進來，或在群組實際收到）；電腦版手打名稱要部署後在群組實測。
 
 ## 2026-11-27 錯誤回報不再收 FB 內建瀏覽器的「Java object is gone」（PR #155，已部署 main `69b81e2d`，紀錄見 `deploy/README.md`）
 

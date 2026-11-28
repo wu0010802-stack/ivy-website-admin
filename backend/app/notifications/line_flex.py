@@ -22,6 +22,8 @@ from app.notifications.parent_email import ParentNotice
 
 BRAND = "#244933"
 MUTED = "#505F55"
+# 鋪色標題列上的字（_bubble 的 header_fill）。
+ON_FILL = "#FFFFFF"
 # 園方群組卡片依種類換色：kind -> (標題字色, 按鈕色)。LINE 不吃 CSS 變數，這裡直接寫 hex；
 # 標題字色對白底對比皆 >= 4.5（tests/test_line_group_cards.py 會算）。未知種類回退 BRAND。
 KIND_STYLE: dict[str, tuple[str, str]] = {
@@ -80,17 +82,27 @@ def _usable_uri(uri: str | None) -> str | None:
     return uri if uri.startswith(("https://", "tel:")) else None
 
 
-def _bubble(eyebrow: str, title: str, body: list[dict], buttons: list[dict], *, title_color: str = BRAND) -> dict:
+def _bubble(
+    eyebrow: str, title: str, body: list[dict], buttons: list[dict], *, title_color: str = BRAND,
+    header_fill: str | None = None,
+) -> dict:
+    """header_fill：整條標題列鋪這個底色、字改白（Meta 廣告名單用，和白底的官網卡片分開）。"""
+    eyebrow_color, title_color = (ON_FILL, ON_FILL) if header_fill else (MUTED, title_color)
     bubble: dict = {
         "type": "bubble",
         "header": {
             "type": "box",
             "layout": "vertical",
             "spacing": "xs",
-            "contents": [_text(eyebrow, size="xs", color=MUTED), _text(title, size="lg", weight="bold", color=title_color)],
+            "contents": [
+                _text(eyebrow, size="xs", color=eyebrow_color),
+                _text(title, size="lg", weight="bold", color=title_color),
+            ],
         },
         "body": {"type": "box", "layout": "vertical", "spacing": "sm", "contents": body},
     }
+    if header_fill:
+        bubble["styles"] = {"header": {"backgroundColor": header_fill}}
     if buttons:
         bubble["footer"] = {"type": "box", "layout": "vertical", "spacing": "sm", "contents": buttons}
     return bubble
@@ -131,6 +143,29 @@ def staff_card(
         buttons.append(_postback_button("已到場", encode(ATTEND_ASK, receipt_id), color=button_color))
         buttons.append(_postback_button("未到場", encode(NOSHOW_ASK, receipt_id), color=button_color))
     return flex_message(alt, _bubble(SITE_LABEL, label, rows, buttons, title_color=title_color))
+
+
+# ---- Meta 廣告名單（2026-11-28）----
+# 和官網參觀通知分開的版型：官網卡片是白底、標題換色；這張整條標題列鋪 Meta 的品牌藍、字是白的
+# （白字對比 4.8，tests/test_line_group_cards.py 會算）。
+META_BLUE = "#0866FF"
+META_LABEL = "Meta 廣告"
+META_LEADS_TITLE = "新的廣告名單"
+META_LEADS_BUTTON = "開啟廣告名單"
+
+
+def meta_leads_card(campus_name: str, count: int, url: str | None) -> dict:
+    """新的 Meta 廣告名單（app/meta_leads/sync.py 每校一則）。只有校名與筆數，不放家長姓名與電話
+    （群組成員不一定都該看到個資）。沒有後台連結（沒設 admin_origin）時不放按鈕。"""
+    body = [
+        _row("校區", campus_name),
+        _row("新名單", f"{count} 筆"),
+        _text("請到後台「廣告名單」聯絡家長。", size="sm", color=MUTED, margin="md"),
+    ]
+    link = _usable_uri(url)
+    buttons = [_button(META_LEADS_BUTTON, link, color=META_BLUE)] if link else []
+    alt = f"[{META_LABEL}] {campus_name}有 {count} 筆新名單"
+    return flex_message(alt, _bubble(META_LABEL, META_LEADS_TITLE, body, buttons, header_fill=META_BLUE))
 
 
 ATTENDANCE_BUTTON = "會準時到"

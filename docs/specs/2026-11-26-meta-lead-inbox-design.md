@@ -49,7 +49,7 @@ token 需要的權限：原本的 `pages_show_list`、`pages_read_engagement`，
 ## 5. 流程
 
 1. 拉取（`app/meta_leads/sync.py`，獨立迴圈 `app/workers/meta_leads_loop.py`，比照 `FacebookSyncLoop`；過期刪除在 `app/workers/maintenance.py`）：每校換 Page token → 讀粉專的即時表單清單 → 每張表單讀 `cursor_at` 之後的名單（分頁跟到底，單校單輪上限 500 筆）→ 一校一個短交易 upsert（同 `lead_id` 不覆蓋狀態與已清掉的個資）。網路請求都在交易外。
-2. 通知：寫完後挑這校 `notified_at IS NULL` 的名單，推一則「新的 Meta 廣告名單 N 筆」到該校 LINE 群組，成功才寫 `notified_at`（失敗下一輪再試；第一次啟用時只通知 24 小時內收到的，舊的直接標已通知）。
+2. 通知：寫完後挑這校 `notified_at IS NULL` 的名單，推一則「新的廣告名單」卡片到該校 LINE 群組（2026-11-28 起是 Flex 卡片：整條 Meta 藍標題列、白字，和白底的官網參觀通知分開；內容只有校區與筆數，一顆「開啟廣告名單」按鈕；原本是純文字＋網址），成功才寫 `notified_at`（失敗下一輪再試；第一次啟用時只通知 24 小時內收到的，舊的直接標已通知）。
 3. 轉案件（`POST /admin/visit-requests` 多帶 `meta_lead_id`）：鎖名單列、核對同校與狀態（`new` 或 `dismissed`），建案時帶網站來源欄位；建好（不是重播）就把名單標 `converted`、記 `visit_request_id`，並清掉名單上的姓名、電話、作答。
 4. 略過／放回：只在 `new`、`dismissed` 之間切換。
 5. 回傳：`PLATFORM_KEYS["meta"]` 加 `meta_lead_id`。送 Meta 時案件有 `meta_lead_id` 就送 CRM 名單格式：`action_source=system_generated`、`user_data.lead_id`、`custom_data.event_source=crm`、`lead_event_source=ivy-website`。

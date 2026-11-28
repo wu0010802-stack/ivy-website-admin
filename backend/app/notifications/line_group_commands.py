@@ -22,8 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.common import ratelimit
 from app.common.timezones import today_local
+from app.config import LINE_MAIN_ACCOUNT
 from app.notifications import line as line_api
-from app.notifications import line_digest, line_flex, line_reports
+from app.notifications import line_digest, line_flex, line_parent, line_reports
 from app.notifications import line_group_reports as reports
 from app.notifications.line_group_settings import campuses_served, is_hq_group
 
@@ -192,6 +193,17 @@ def _addressed(event: dict, text: str) -> tuple[str, bool, bool]:
     if typed:
         text = text[1:].strip()
     return text, mentioned or typed, typed
+
+
+def _without_typed_name(text: str, own_name: str | None) -> str:
+    """手打「@官方帳號名稱」（電腦版沒從名單選，訊息不帶 mention 資料）：把開頭那段名稱拿掉，回傳剩下的字。
+    text 是 _addressed 剝掉「@」之後的字（已 NFKC）；own_name 是官方帳號在 LINE 上的名稱，查不到是 None。
+    名稱後面要是結尾或空白才算（「@常春藤官網通知書」不算）；不是自己的名稱就原樣回傳。"""
+    own = unicodedata.normalize("NFKC", own_name).strip() if own_name else ""
+    if not own or not text.startswith(own):
+        return text
+    rest = text[len(own):]
+    return rest.strip() if not rest or rest[0].isspace() else text
 
 
 def _match(text: str, addressed: bool, today: date) -> Command | None:
@@ -480,6 +492,12 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
             continue
         text, addressed, typed = _addressed(event, raw)
         command = parse(text, addressed, typed, None)
+        if command is None and typed and text:
+            # 手打「@官方帳號名稱」（2026-11-28）：名稱拿掉，之後等同真的標記（只有名稱 → 選單，短字也認）。
+            rest = _without_typed_name(text, await _own_name(request))
+            if rest != text:
+                text, typed = rest, False
+                command = parse(text, addressed, typed, None)
         if command is None and text and (addressed or any(word in text for word in _CAMPUS_HINTS)):
             # 沒對上但看起來像指令：查校名再試一次「校名＋指令」。一般閒聊不查。
             command = parse(text, addressed, typed, await reports.campus_names(db))
@@ -496,6 +514,15 @@ async def handle(request: Request, db: AsyncSession, events: list[dict]) -> None
                 await client.reply(token, messages)
             except (line_api.LinePushError, httpx.HTTPError) as exc:
                 logger.warning("LINE 群組回覆失敗：error=%s", exc)
+
+
+async def _own_name(request: Request) -> str | None:
+    """群組用的官方帳號（main）在 LINE 上的名稱；沒設定或查不到回 None。line_parent.bot_info 快取一小時。"""
+    account = request.app.state.settings.line_accounts.get(LINE_MAIN_ACCOUNT)
+    if account is None:
+        return None
+    info = await line_parent.bot_info(account, getattr(request.app.state, "line_transport", None))
+    return info.display_name if info is not None else None
 
 
 async def _allowed(request: Request, limit: ratelimit.Limit, target_id: str) -> bool:
